@@ -5,6 +5,7 @@ from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
 from electroncash.network import Network
 from electroncash.wallet import dust_threshold
+from electroncash.simple_config import get_config
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
@@ -242,26 +243,33 @@ def generate_random_sk():
 class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     scales = (
-        1000000000, # 10.0    BCH ➡
-        100000000,  #  1.0    BCH ➡
-        10000000,   #  0.1    BCH ➝
-        1000000,    #  0.01   BCH ➟
-        100000,     #  0.001  BCH ⇢
-        10000,      #  0.0001 BCH →
+        100000000000, # 1000.0  BCH ➡
+        10000000000,  # 100.0   BCH ➡
+        1000000000,   # 10.0    BCH ➡
+        100000000,    #  1.0    BCH ➡
+        10000000,     #  0.1    BCH ➝
+        1000000,      #  0.01   BCH ➟
+        100000,       #  0.001  BCH ⇢
+        10000,        #  0.0001 BCH →
     )
 
     # The below defaults control coin selection and which pools (scales) we use
     PROTOCOL_VERSION = 200  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270. Version=200 is for new dynamic amounts. In the future this may be a dynamic quantity but for now it's always this value.
     FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
-    SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡')  # if you add a scale above, add an arrow here, in reverse order from above
+    SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡','➡','➡')  # if you add a scale above, add an arrow here, in reverse order from above
     SCALE_ARROW_UNKNOWN = '⇒'  # What the app uses when a scale it sees isn't on the list.
     assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
     SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
     SCALE_0 = SORTED_SCALES[0]
     SCALE_N = SORTED_SCALES[-1]
-    UPPER_BOUND = SCALE_N*5             # 50 BCH hard limit to max shuffle coin
-    LOWER_BOUND = SCALE_0 + FEE         # 0.0001 BCH + FEE minimum coin
+
+    DEFAULT_UPPER_BOUND = 5000000000    # (default) 50 BCH limit to max shuffle coin
+    DEFAULT_LOWER_BOUND = SCALE_0 + FEE # (default) 0.0001 BCH + FEE minimum coin. Note config can never make minimum go below this.
+
+    # The below two get overwritten on the class level from ConfKeys.Global.MIN_COIN_VALUE and MAX_COIN_VALUE in class c'tor
+    UPPER_BOUND = DEFAULT_UPPER_BOUND   # minimum: cls.hard_lower_bound()
+    LOWER_BOUND = DEFAULT_LOWER_BOUND   # maximum: cls.hard_upper_bound()
 
     # Some class-level vars that influence fine details of thread operation
     # -- Don't change these unless you know what you are doing!
@@ -284,6 +292,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         assert self.type == Messages.DEFAULT, "BackgroundShufflingThread currently only supports DEFAULT shuffles"
         cls = type(self)
         cls.latest_shuffle_settings = cls.ShuffleSettings(self.type, Messages.TYPE_NAME_DICT[self.type], self.version, 0, 0, self.FEE)
+        # set UPPER_BOUND and LOWER_BOUND from config keys here. Note all instances will see these changes immediately.
+        cls.update_lower_and_upper_bound_from_config()
         self.period = period
         self.logger = logger
         self.wallet = wallet
@@ -331,6 +341,48 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         extra = getattr(self.window, 'send_tab_shuffle_extra', None)
         if extra:
             extra.needRefreshSignal.emit()
+
+    @classmethod
+    def set_lower_and_upper_bound(cls, lower, upper):
+        ''' Sets the class level LOWER_BOUND and UPPER_BOUND, and also saves
+        it in the config.  Note that all instances across all wallets will see
+        this new setting the next time they start a ProtocolThread '''
+        lower = max(int(lower), cls.hard_lower_bound())
+        upper = min(int(upper), cls.hard_upper_bound())
+        assert upper > lower, "Coin upper bound must be strictly larger than the lower bound!"
+        get_config().set_key(ConfKeys.Global.MIN_COIN_VALUE, lower)
+        get_config().set_key(ConfKeys.Global.MAX_COIN_VALUE, upper, save=True)
+        cls.LOWER_BOUND, cls.UPPER_BOUND = lower, upper
+        return lower, upper # return back what we actually put in the config, since this value is sanitized to fall within range.
+
+    @classmethod
+    def update_lower_and_upper_bound_from_config(cls):
+        ''' Returns a lower,upper tuple that comes form the config. Also
+        updates cls.LOWER_BOUND and cls.UPPER_BOUND as a side-effect. '''
+        lower, upper = cls.LOWER_BOUND, cls.UPPER_BOUND
+        v = get_config().get(ConfKeys.Global.MIN_COIN_VALUE, cls.DEFAULT_LOWER_BOUND)
+        try: lower = max(int(v), cls.hard_lower_bound())
+        except (ValueError, TypeError): pass
+        v = get_config().get(ConfKeys.Global.MAX_COIN_VALUE, cls.DEFAULT_UPPER_BOUND)
+        try: upper = min(int(v), cls.hard_upper_bound())
+        except (ValueError, TypeError): pass
+        if upper > lower:
+            cls.LOWER_BOUND, cls.UPPER_BOUND = lower, upper
+        return cls.LOWER_BOUND, cls.UPPER_BOUND
+
+    @classmethod
+    def reset_lower_and_upper_bound_to_defaults(cls):
+        for k in (ConfKeys.Global.MIN_COIN_VALUE, ConfKeys.Global.MAX_COIN_VALUE):
+            get_config().set_key(k, None, save=True) # clears key from config
+        return cls.update_lower_and_upper_bound_from_config()
+
+    @classmethod
+    def hard_lower_bound(cls):
+        return cls.SCALE_0 + cls.FEE
+
+    @classmethod
+    def hard_upper_bound(cls):
+        return cls.SCALE_N*10 + cls.FEE
 
     def run(self):
         try:
@@ -584,7 +636,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
                                 if self.wallet.is_coin_shuffled(coin) is False]
             upper_amount = min(scale*10 + self.FEE, self.UPPER_BOUND)
-            lower_amount = scale + self.FEE
+            lower_amount = max(scale + self.FEE, self.LOWER_BOUND)
             _get_name = CoinUtils.get_name
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
                                          # exclude coins out of range and 'done' coins still in history

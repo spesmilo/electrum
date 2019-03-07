@@ -38,11 +38,12 @@ from electroncash.network import Network
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
-from electroncash.simple_config import SimpleConfig
+from electroncash.simple_config import SimpleConfig, get_config
 from electroncash.wallet import Abstract_Wallet
-from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
+from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited, ColorScheme
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
+from electroncash_gui.qt.amountedit import BTCAmountEdit
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 from electroncash_plugins.shuffle.conf_keys import ConfKeys  # config keys per wallet and global
@@ -655,7 +656,7 @@ class Plugin(BasePlugin):
         else:
             self._window_remove_from_disabled(window)
         return True
-    
+
     def _window_add_to_disabled(self, window):
         if window not in self.disabled_windows:
             self._window_set_disabled_extra(window)
@@ -846,7 +847,7 @@ class Plugin(BasePlugin):
         ns = copy.deepcopy(network_settings)
         print_error("Saving network settings: {}".format(ns))
         config.set_key(ConfKeys.Global.SERVER, ns)
-        
+
     @staticmethod
     def get_network_settings(config):
         return copy.deepcopy(config.get(ConfKeys.Global.SERVER, None))
@@ -1349,6 +1350,11 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.statusLabel.setAlignment(Qt.AlignAbsolute|Qt.AlignTop)
         vbox2.addWidget(self.statusLabel)
 
+        # add the "Coin selection settings..." link
+        self.coinSelectionSettingsLabel = QLabel("<a href='dummy'>{}</a>".format(_("Coin selection settings...")))
+        self.coinSelectionSettingsLabel.linkActivated.connect(self.onCoinSelectionSettingsClick)
+        vbox.addWidget(self.coinSelectionSettingsLabel)
+
         self.vbox = vbox
 
         if not isinstance(self, SettingsTab):
@@ -1373,6 +1379,11 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
     def kill(self):
         self.stopNetworkChecker()
 
+    def onCoinSelectionSettingsClick(self, ignored):
+        win = CoinSelectionSettingsWindow(self)
+        win.exec_()
+        win.deleteLater()
+
     def _vpGotStatus(self, sdict):
         self._vpLastStatus = sdict.copy()
         if sdict.get('status') in (_("Ok"), _("Banned")):
@@ -1387,10 +1398,13 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         if self.networkChecker: return
 
         def onStatusChanged(d):
+            red, blue, green = "red", "blue", "green"
+            try: red, blue, green = ColorScheme.RED._get_color(0), ColorScheme.BLUE._get_color(0), ColorScheme.GREEN._get_color(0)
+            except AttributeError: pass
             #self.print_error("status changed", d)
             if not d: # Empty dict means we are connecting
                 self.serverOk = None
-                self.statusLabel.setText("<font color=\"blue\"><i>" + _("Checking server...") + "</i></font>")
+                self.statusLabel.setText("<font color=\"{}\"><i>{}</i></font>".format(blue, _("Checking server...")))
                 return
             if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
                 reason = d['failed']
@@ -1402,7 +1416,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
                     reason = _("Failed to verify SSL certificate")
                 else:
                     reason = _("Connection failure")
-                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"red\">{}</font>".format(reason))
+                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"{}\">{}</font>".format(red, reason))
                 self.serverOk = False
                 return
 
@@ -1417,7 +1431,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
                 <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
                 '''
                 .format(_('Server'), _elide(d['host'], maxlen=40, startlen=12),
-                        _('Status'), "green" if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
+                        _('Status'), green if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
                         _('Pool size'), d['poolSize'],
                         _('Connections'),
                         d['connections'],
@@ -1848,3 +1862,98 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             self.networkChecker = None
             self.print_error("Stopped network checker.")
 # /PoolsWindow
+
+class CoinSelectionSettingsWindow(WindowModalDialog, PrintError):
+    ''' Despite its name this window is app modal '''
+    def __init__(self, parent, title=None):
+        super().__init__(parent, title or _("CashShuffle - Coin Selection Settings"))
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setParent(None)
+        vbox = QVBoxLayout(self)
+        lbl = QLabel(_("Specify minimum and maximum coin amounts to select for shuffling:"))
+        lbl.setWordWrap(True)
+        vbox.addWidget(lbl)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(HelpLabel(_("Minimum coin:"),
+                                 _("Coins (UTXOs) below this amount will not be selected for shuffling.")))
+        self.minEdit = BTCAmountEdit(decimal_point=self._decimal_point,
+                                     parent=self)
+        hbox.addWidget(self.minEdit)
+        vbox.addLayout(hbox)
+        hbox = QHBoxLayout()
+        hbox.addWidget(HelpLabel(_("Maximum coin:"),
+                                 _("Coins (UTXOs) up to this amount will be selected for shuffling.")))
+        self.maxEdit = BTCAmountEdit(decimal_point=self._decimal_point,
+                                     parent=self)
+        hbox.addWidget(self.maxEdit)
+        vbox.addLayout(hbox)
+
+        self.maxEdit.textEdited.connect(self.clearErr)
+        self.minEdit.textEdited.connect(self.clearErr)
+
+        vbox.addStretch()
+        self.errLabel = QLabel("")
+        self.errLabel.setAlignment(Qt.AlignCenter)
+        vbox.addWidget(self.errLabel)
+
+        vbox.addStretch()
+        vbox.addLayout(Buttons(CancelButton(self),
+                               EnterButton(_("Defaults"), self.default),
+                               EnterButton(_("Apply"), self.apply),
+                               ))
+        self.resize(320,200)
+        self.fromConfig()
+        # DEBUG Qt destruction
+        dname = self.diagnostic_name()
+        self.destroyed.connect(lambda x=None: print_error("[{}] destroyed.".format(dname)))
+
+    def _decimal_point(self): return get_config().get('decimal_point', 8)
+
+    def _fmt_amt(self, amt): return format_satoshis_plain(amt, self._decimal_point())
+
+    def apply(self):
+        lower, upper = self.minEdit.get_amount(), self.maxEdit.get_amount()
+        if not lower or not upper or upper <= lower:
+            self.setErr(_("Invalid amount"))
+            return
+        hard_upper = BackgroundShufflingThread.hard_upper_bound()
+        if upper > hard_upper:
+            self.setErr(_("Upper limit is {}").format(self._fmt_amt(hard_upper)))
+            return
+        hard_lower = BackgroundShufflingThread.hard_lower_bound()
+        if lower < hard_lower:
+            self.setErr(_("Lower limit is {}").format(self._fmt_amt(hard_lower)))
+            return
+        actual_lower, actual_upper = BackgroundShufflingThread.set_lower_and_upper_bound(lower, upper)
+        pre = ''
+        if actual_lower != lower or actual_upper != upper:
+            pre = _("Actual amounts applied: {} and {}.\n\n").format(self._fmt_amt(actual_lower),
+                                                                    self._fmt_amt(actual_upper))
+
+        self.show_message(pre+_("Changes will take effect when the next shuffle round starts (usually within in a few minutes)."))
+        self.accept()
+
+    def fromConfig(self):
+        lower, upper = BackgroundShufflingThread.update_lower_and_upper_bound_from_config()
+        self.minEdit.setAmount(lower)
+        self.maxEdit.setAmount(upper)
+        self.clearErr()
+
+    def default(self):
+        lower, upper = BackgroundShufflingThread.DEFAULT_LOWER_BOUND, BackgroundShufflingThread.DEFAULT_UPPER_BOUND
+        self.minEdit.setAmount(lower)
+        self.maxEdit.setAmount(upper)
+        self.clearErr()
+
+    def setErr(self, txt='', noerr=False):
+        txt = txt or ""
+        if noerr:
+            try: color = ColorScheme.DEFAULT._get_color(0)
+            except AttributeError: color = "#666666"
+        else:
+            try: color = ColorScheme.RED._get_color(0)
+            except AttributeError: color = "red"
+        self.errLabel.setText('<font color="{}">{}</font>'.format(color, txt))
+
+    def clearErr(self): self.setErr('', noerr=True)
