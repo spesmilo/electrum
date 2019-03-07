@@ -109,12 +109,11 @@ class MockLNWorker:
     def on_channels_updated(self):
         pass
 
-    def save_invoice(*args):
+    def save_invoice(*args, is_paid=False):
         pass
 
     get_invoice = LNWorker.get_invoice
     get_preimage = LNWorker.get_preimage
-    get_preimage_and_timestamp = LNWorker.get_preimage_and_timestamp
     _create_route_from_invoice = LNWorker._create_route_from_invoice
     _check_invoice = staticmethod(LNWorker._check_invoice)
     _pay_to_route = LNWorker._pay_to_route
@@ -216,8 +215,8 @@ class TestPeer(SequentialTestCase):
                           ('d', 'coffee')
                          ])
         pay_req = lnencode(addr, w2.node_keypair.privkey)
-        w2.preimages[bh2u(RHASH)] = (bh2u(payment_preimage), 0)
-        w2.invoices[bh2u(RHASH)] = (pay_req, True)
+        w2.preimages[bh2u(RHASH)] = bh2u(payment_preimage)
+        w2.invoices[bh2u(RHASH)] = (pay_req, True, False)
         return pay_req
 
     @staticmethod

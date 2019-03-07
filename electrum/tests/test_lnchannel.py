@@ -201,6 +201,7 @@ class TestChannel(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  one_bitcoin_in_msat,
             'cltv_expiry' :  5,
+            'timestamp'   :  0,
         }
 
         # First Alice adds the outgoing HTLC to her local channel's state
@@ -604,6 +605,7 @@ class TestAvailableToSpend(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  int(4.1 * one_bitcoin_in_msat),
             'cltv_expiry' :  5,
+            'timestamp'   :  0,
         }
 
         alice_idx = alice_channel.add_htlc(htlc_dict).htlc_id
@@ -622,6 +624,7 @@ class TestAvailableToSpend(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  one_bitcoin_in_msat,
             'cltv_expiry' :  5,
+            'timestamp'   :  0,
         }
         with self.assertRaises(lnutil.PaymentFailure):
             alice_channel.add_htlc(htlc_dict)
@@ -669,6 +672,7 @@ class TestChanReserve(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  int(.5 * one_bitcoin_in_msat),
             'cltv_expiry' :  5,
+            'timestamp'   :  0,
         }
         self.alice_channel.add_htlc(htlc_dict)
         self.bob_channel.receive_htlc(htlc_dict)
@@ -729,6 +733,7 @@ class TestChanReserve(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  int(2 * one_bitcoin_in_msat),
             'cltv_expiry' :  5,
+            'timestamp'   :  0,
         }
         alice_idx = self.alice_channel.add_htlc(htlc_dict).htlc_id
         bob_idx = self.bob_channel.receive_htlc(htlc_dict).htlc_id
@@ -773,6 +778,7 @@ class TestDust(unittest.TestCase):
             'payment_hash' : paymentHash,
             'amount_msat' :  1000 * htlcAmt,
             'cltv_expiry' :  5, # also in create_test_channels
+            'timestamp'   :  0,
         }
 
         old_values = [x.value for x in bob_channel.current_commitment(LOCAL).outputs() ]
