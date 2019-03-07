@@ -435,6 +435,7 @@ class Plugin(BasePlugin):
         self.initted = True
         self._hide_history_txs = bool(gui.config.get(ConfKeys.Global.HIDE_TXS_FROM_HISTORY, False))
         self.print_error("Initialized (had {} extant windows).".format(ct))
+        self._hide_history_txs_check()
 
     @hook
     def on_network_dialog(self, nd):
@@ -613,6 +614,15 @@ class Plugin(BasePlugin):
         Plugin.instance = None
         self.print_error("Plugin closed")
         assert len(self.windows) == 0 and len(self.disabled_windows) == 0, (self.windows, self.disabled_windows)
+        self._hide_history_txs_check()
+
+    def _hide_history_txs_check(self):
+        # Handle possibility that now that plugin is closed or opened, shuffle tx's are hidden or not hidden. hide/unhide them
+        if self._hide_history_txs and Plugin.gui:
+            def refresh_history_lists(gui):
+                for w in gui.windows:
+                    w.history_list.update()
+            QTimer.singleShot(250, lambda: refresh_history_lists(Plugin.gui))
 
     @hook
     def on_close_window(self, window):
