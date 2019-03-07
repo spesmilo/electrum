@@ -557,16 +557,16 @@ class Peer(PrintError):
                                       next_remote_revocation_number=0
                                       )
         # compare remote ctns
-        remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
-        if remote_ctn != chan.config[REMOTE].ctn + 1:
+        their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
+        their_next_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        if their_next_local_ctn != chan.config[REMOTE].ctn + 1:
             self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, remote_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
             try_to_get_remote_to_force_close_with_their_latest()
             return
         # compare local ctns
-        local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
-        if local_ctn != chan.config[LOCAL].ctn:
-            if remote_ctn == chan.config[LOCAL].ctn + 1:
+        if chan.config[LOCAL].ctn != their_next_remote_ctn:
+            if chan.config[LOCAL].ctn == their_next_remote_ctn + 1:
                 # A node:
                 #    if next_remote_revocation_number is equal to the
                 #    commitment number of the last revoke_and_ack
@@ -574,11 +574,16 @@ class Peer(PrintError):
                 #    hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
                 chan.config[LOCAL]=chan.config[LOCAL]._replace(
-                    ctn=remote_ctn,
+                    ctn=their_next_remote_ctn,
                 )
-                self.send_revoke_and_ack(chan)
+                last_secret, this_point, next_point, _ = chan.points()
+                self.send_message(
+                    "revoke_and_ack",
+                    channel_id=chan.channel_id,
+                    per_commitment_secret=last_secret,
+                    next_per_commitment_point=next_point)
             else:
-                self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
+                self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, their_next_remote_ctn))
                 # TODO iff their ctn is lower than ours, we should force close instead
                 try_to_get_remote_to_force_close_with_their_latest()
                 return
@@ -593,7 +598,7 @@ class Peer(PrintError):
                 # FIXME ...what now?
                 try_to_get_remote_to_force_close_with_their_latest()
                 return
-        if remote_ctn == chan.config[LOCAL].ctn+1 == 1 and chan.short_channel_id:
+        if their_next_local_ctn == chan.config[LOCAL].ctn+1 == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
