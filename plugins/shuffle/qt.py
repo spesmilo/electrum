@@ -60,7 +60,7 @@ def network_callback(window, event, *args):
         if len(args) == 2 and hasattr(window, 'wallet') and args[1] is window.wallet and args[0]:
             window._shuffle_sigs.tx.emit(window, args[0])
 
-def my_custom_item_setup(utxo_list, utxo, name, item):
+def my_custom_item_setup(utxo_list, item, utxo, name):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
         return
 
@@ -109,12 +109,14 @@ def _make_label(window, tot, shufamt, chg, fee, scale):
     # satoshis -> display format
     tot, shufamt, chg = window.format_amount(tot), window.format_amount(shufamt), window.format_amount(chg) if chg else ''
     chgtxt = " + {} ".format(chg) if chg else " "
-    return ( _("Shuffle") + (" {} {} {} {}{}(-{} sats {})"
-                             .format(tot, window.base_unit(),
-                                     BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale, '⇒'),
-                                     shufamt, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee")
-                                     )
-                             )
+    # Note it's important that the "Shuffle" prefix not be translated because we use it elsewhere
+    # in the filter shuffle history callback... and it's also a "proper name" :)
+    return ( "Shuffle" + (" {} {} {} {}{}(-{} sats {})"
+                          .format(tot, window.base_unit(),
+                                  BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale, BackgroundShufflingThread.SCALE_ARROW_UNKNOWN),
+                                  shufamt, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee")
+                                 )
+                         )
            )
 
 def update_coin_status(window, coin_name, msg):
@@ -412,6 +414,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.windows = []
         self.disabled_windows = [] # this is to manage the "cashshuffle disabled" xtra gui element in the send tab
+        self._hide_history_txs = False
         self.initted = False
 
     @hook
@@ -430,6 +433,7 @@ class Plugin(BasePlugin):
             ct += 1
         self.on_network_dialog(Plugin.network_dialog) # If we have a network dialgog, add self to network dialog
         self.initted = True
+        self._hide_history_txs = bool(gui.config.get(ConfKeys.Global.HIDE_TXS_FROM_HISTORY, False))
         self.print_error("Initialized (had {} extant windows).".format(ct))
 
     @hook
@@ -556,9 +560,45 @@ class Plugin(BasePlugin):
         return True
 
     @hook
-    def utxo_list_item_setup(self, utxo_list, x, name, item):
-        return my_custom_item_setup(utxo_list, x, name, item)
+    def utxo_list_item_setup(self, utxo_list, item, x, name):
+        return my_custom_item_setup(utxo_list, item, x, name)  # always returns None so all items will be visible
 
+    @hook
+    def history_list_item_setup(self, history_list, item, h_item, columns):
+        if self._hide_history_txs:
+            label = columns[3]
+            return bool(label.startswith("Shuffle ")  # this string is not translated for performance reasons. _make_label also does not translate this string.
+                        and ( any( x for x in BackgroundShufflingThread.SCALE_ARROWS
+                                   if x in label )
+                              or BackgroundShufflingThread.SCALE_ARROW_UNKNOWN in label
+                            )
+                        )
+        return False
+
+    @hook
+    def history_list_context_menu_setup(self, history_list, menu, item, tx_hash):
+        # NB: We unconditionally create this menu if the plugin is loaded because
+        # it's possible for any wallet, even a watching-only wallet to have
+        # shuffle tx's with the correct labels (if the user uses labelsync or
+        # has imported labels).
+        menu.addSeparator()
+        def action_callback():
+            self._hide_history_txs = not self._hide_history_txs
+            Plugin.gui.config.set_key(ConfKeys.Global.HIDE_TXS_FROM_HISTORY, self._hide_history_txs, save=True)
+            action.setChecked(self._hide_history_txs)
+            history_list.update() # unconditionally update this history list as it may be embedded in the address_detail window and not a global history list..
+            for w in Plugin.gui.windows:
+                # Need to update all the other open windows.
+                # Note: We still miss any other open windows' address-detail
+                #       history lists with this.. but that's ok as most of the
+                #       time it won't be noticed by people and actually
+                #       finding all those windows would just make this code
+                #       less maintainable.
+                if history_list is not w.history_list:  # check if not already updated above
+                    w.history_list.update()
+        action = menu.addAction(_("Hide shuffle transactions"), action_callback)
+        action.setCheckable(True)
+        action.setChecked(self._hide_history_txs)
 
     def on_close(self):
         self.del_network_dialog_tab()

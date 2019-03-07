@@ -255,6 +255,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
     SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡')  # if you add a scale above, add an arrow here, in reverse order from above
+    SCALE_ARROW_UNKNOWN = '⇒'  # What the app uses when a scale it sees isn't on the list.
     assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
     SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
     SCALE_0 = SORTED_SCALES[0]

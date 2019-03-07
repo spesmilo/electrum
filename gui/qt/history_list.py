@@ -29,6 +29,7 @@ from .util import *
 import electroncash.web as web
 from electroncash.i18n import _
 from electroncash.util import timestamp_to_datetime, profiler, Weak
+from electroncash.plugins import run_hook
 
 
 TX_ICONS = [
@@ -137,9 +138,14 @@ class HistoryList(MyTreeWidget):
                 item.setForeground(3, self.withdrawalBrush)
                 item.setForeground(4, self.withdrawalBrush)
             item.setData(0, Qt.UserRole, tx_hash)
-            self.insertTopLevelItem(0, item, tx_hash)
-            if current_tx == tx_hash:
-                self.setCurrentItem(item)
+            should_be_hidden = run_hook("history_list_item_setup", self, item, h_item, entry)
+            if not should_be_hidden:
+                # NB: calling setHidden after the item is added is very slow in Qt!
+                # And calling setHidden BEFORE the item is added has no effect.
+                # So, because of the above: if it should be hidden we just don't add it.
+                self.insertTopLevelItem(0, item, tx_hash)
+                if current_tx == tx_hash:
+                    self.setCurrentItem(item)
 
     def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
@@ -211,4 +217,7 @@ class HistoryList(MyTreeWidget):
             menu.addAction(self.invoiceIcon, _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
+
+        run_hook("history_list_context_menu_setup", self, menu, item, tx_hash)  # Plugins can modify menu
+
         menu.exec_(self.viewport().mapToGlobal(position))
