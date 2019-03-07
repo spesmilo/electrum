@@ -666,7 +666,7 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
-class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id'])):
+class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id', 'timestamp'])):
     # note: typing.NamedTuple cannot be used because we are overriding __new__
 
     __slots__ = ()

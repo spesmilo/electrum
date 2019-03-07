@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QHeaderView, QMenu
 
 from electrum.i18n import _
 from electrum.util import format_time, pr_tooltips, PR_UNPAID
-from electrum.lnutil import lndecode
+from electrum.lnutil import lndecode, RECEIVED
 from electrum.bitcoin import COIN
 from electrum import constants
 
@@ -92,8 +92,8 @@ class InvoiceList(MyTreeView):
             self.model().insertRow(idx, items)
 
         lnworker = self.parent.wallet.lnworker
-        for key, (invoice, is_received) in lnworker.invoices.items():
-            if is_received:
+        for key, (invoice, direction, is_paid) in lnworker.invoices.items():
+            if direction == RECEIVED:
                 continue
             status = lnworker.get_invoice_status(key)
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)

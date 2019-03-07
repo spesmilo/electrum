@@ -94,7 +94,7 @@ class RequestList(MyTreeView):
                 return
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            req, is_received = self.wallet.lnworker.invoices.get(key) or (None, None)
+            req, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None)
             if req is None:
                 self.update()
                 return
@@ -136,8 +136,8 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
-        for key, (invoice, is_received) in lnworker.invoices.items():
-            if not is_received:
+        for key, (invoice, direction, is_paid) in lnworker.invoices.items():
+            if direction == SENT:
                 continue
             status = lnworker.get_invoice_status(key)
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)

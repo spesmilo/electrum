@@ -71,8 +71,8 @@ class LNWorker(PrintError):
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
         self.storage = wallet.storage
-        self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, is_received)
-        self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> (preimage, timestamp)
+        self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
+        self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.ln_keystore = self._read_ln_keystore()
@@ -133,13 +133,11 @@ class LNWorker(PrintError):
         timestamp = int(time.time())
         self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
 
-    def get_invoice_status(self, payment_hash):
-        if payment_hash not in self.preimages:
+    def get_invoice_status(self, key):
+        if key not in self.invoices:
             return PR_UNKNOWN
-        preimage, timestamp = self.preimages.get(payment_hash)
-        if timestamp is None:
-            return PR_UNPAID
-        return PR_PAID
+        invoice, direction, is_paid = self.invoices[key]
+        return PR_PAID if is_paid else PR_UNPAID
 
     def get_payments(self):
         # return one item per payment_hash
@@ -159,14 +157,15 @@ class LNWorker(PrintError):
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat= int(_direction) * htlc.amount_msat
                 label = ''
+                timestamp = htlc.timestamp
             else:
                 # assume forwarding
                 direction = 'forwarding'
                 amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction, status in plist])
                 status = ''
                 label = _('Forwarding')
+                timestamp = min([htlc.timestamp for chan_id, htlc, _direction, status in plist])
 
-            timestamp = self.preimages[payment_hash][1] if payment_hash in self.preimages else None
             item = {
                 'type': 'payment',
                 'label': label,
@@ -490,7 +489,7 @@ class LNWorker(PrintError):
         if not chan:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[route[0].node_id]
-        self.save_invoice(addr.paymenthash, pay_req, SENT)
+        self.save_invoice(addr.paymenthash, pay_req, SENT, is_paid=False)
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
 
@@ -574,40 +573,42 @@ class LNWorker(PrintError):
                                         ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
                                        + routing_hints),
                            self.node_keypair.privkey)
-        self.save_invoice(payment_hash, invoice, RECEIVED)
-        self.save_preimage(payment_hash, payment_preimage, timestamp=None)
+        self.save_invoice(payment_hash, invoice, RECEIVED, is_paid=False)
+        self.save_preimage(payment_hash, payment_preimage)
         return invoice
 
-    def save_preimage(self, payment_hash: bytes, preimage: bytes, *, timestamp: Optional[int]):
+    def save_preimage(self, payment_hash: bytes, preimage: bytes):
         assert sha256(preimage) == payment_hash
-        if timestamp is not None:
-            timestamp = int(timestamp)
         key = bh2u(payment_hash)
-        self.preimages[key] = bh2u(preimage), timestamp
+        self.preimages[key] = bh2u(preimage)
         self.storage.put('lightning_preimages', self.preimages)
         self.storage.write()
 
-    def get_preimage_and_timestamp(self, payment_hash: bytes) -> Tuple[bytes, int]:
+    def get_preimage(self, payment_hash: bytes) -> bytes:
         try:
-            preimage_hex, timestamp = self.preimages[bh2u(payment_hash)]
-            preimage = bfh(preimage_hex)
+            preimage = bfh(self.preimages[bh2u(payment_hash)])
             assert sha256(preimage) == payment_hash
-            return preimage, timestamp
+            return preimage
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
 
-    def get_preimage(self, payment_hash: bytes) -> bytes:
-        return self.get_preimage_and_timestamp(payment_hash)[0]
-
-    def save_invoice(self, payment_hash:bytes, invoice, direction):
+    def save_invoice(self, payment_hash:bytes, invoice, direction, *, is_paid=False):
         key = bh2u(payment_hash)
-        self.invoices[key] = invoice, direction==RECEIVED
+        self.invoices[key] = invoice, direction, is_paid
         self.storage.put('lightning_invoices', self.invoices)
         self.storage.write()
 
+    def set_paid(self, payment_hash):
+        key = bh2u(payment_hash)
+        if key not in self.invoices:
+            # if we are forwarding
+            return
+        invoice, direction, _ = self.invoices[key]
+        self.save_invoice(payment_hash, invoice, direction, is_paid=True)
+
     def get_invoice(self, payment_hash: bytes) -> LnAddr:
         try:
-            invoice, is_received = self.invoices[bh2u(payment_hash)]
+            invoice, direction, is_paid = self.invoices[bh2u(payment_hash)]
             return lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e

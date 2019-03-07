@@ -864,7 +864,7 @@ class Peer(PrintError):
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
         # create htlc
-        htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv)
+        htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         remote_ctn = chan.get_current_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
@@ -943,7 +943,7 @@ class Peer(PrintError):
         if cltv_expiry >= 500_000_000:
             pass  # TODO fail the channel
         # add htlc
-        htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc, payment_hash=payment_hash, cltv_expiry=cltv_expiry)
+        htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc, payment_hash=payment_hash, cltv_expiry=cltv_expiry, timestamp=int(time.time()))
         htlc = chan.receive_htlc(htlc)
         local_ctn = chan.get_current_ctn(LOCAL)
         remote_ctn = chan.get_current_ctn(REMOTE)
@@ -980,7 +980,7 @@ class Peer(PrintError):
         self.print_error('forwarding htlc to', next_chan.node_id)
         next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
-        next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry)
+        next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
         next_remote_ctn = next_chan.get_current_ctn(REMOTE)
         next_peer.send_message(
