@@ -172,7 +172,6 @@ class HistoryList(MyTreeWidget):
         return bool(item)  # indicate to client code whether an actual update occurred
 
     def create_menu(self, position):
-        self.selectedIndexes()
         item = self.currentItem()
         if not item:
             return
