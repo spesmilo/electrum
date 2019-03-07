@@ -406,10 +406,7 @@ class Channel(PrintError):
     def revoke_current_commitment(self):
         self.print_error("revoke_current_commitment")
 
-        last_secret, this_point, next_point, _ = self.points()
-
         new_feerate = self.constraints.feerate
-
         if self.pending_fee is not None:
             if not self.constraints.is_initiator and self.pending_fee[FUNDEE_SIGNED]:
                 new_feerate = self.pending_fee.rate
@@ -443,19 +440,15 @@ class Channel(PrintError):
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
 
+        last_secret, last_point = self.local_points(offset=-1)
+        next_secret, next_point = self.local_points(offset=1)
         return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
 
-    def points(self):
-        last_small_num = self.config[LOCAL].ctn
-        this_small_num = last_small_num + 1
-        next_small_num = last_small_num + 2
-        last_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - last_small_num)
-        this_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - this_small_num)
-        this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
-        next_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
-        next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
-        last_point = secret_to_pubkey(int.from_bytes(last_secret, 'big'))
-        return last_secret, this_point, next_point, last_point
+    def local_points(self, *, offset=0):
+        ctn = self.config[LOCAL].ctn + offset
+        secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
+        return secret, point
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
@@ -584,14 +577,14 @@ class Channel(PrintError):
 
     def pending_commitment(self, subject):
         assert type(subject) is HTLCOwner
-        this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.points()[1]
+        this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.local_points(offset=1)[1]
         ctn = self.config[subject].ctn + 1
         feerate = self.pending_feerate(subject)
         return self.make_commitment(subject, this_point, ctn, feerate, True)
 
     def current_commitment(self, subject):
         assert type(subject) is HTLCOwner
-        this_point = self.config[REMOTE].current_per_commitment_point if subject == REMOTE else self.points()[3]
+        this_point = self.config[REMOTE].current_per_commitment_point if subject == REMOTE else self.local_points(offset=0)[1]
         ctn = self.config[subject].ctn
         feerate = self.constraints.feerate
         return self.make_commitment(subject, this_point, ctn, feerate, False)

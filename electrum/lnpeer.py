@@ -573,10 +573,8 @@ class Peer(PrintError):
                 #    the receiving node sent, AND the receiving node
                 #    hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
-                chan.config[LOCAL]=chan.config[LOCAL]._replace(
-                    ctn=their_next_remote_ctn,
-                )
-                last_secret, this_point, next_point, _ = chan.points()
+                last_secret, last_point = chan.local_points(offset=-1)
+                next_secret, next_point = chan.local_points(offset=1)
                 self.send_message(
                     "revoke_and_ack",
                     channel_id=chan.channel_id,
