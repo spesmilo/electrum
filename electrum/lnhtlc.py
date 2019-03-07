@@ -43,7 +43,6 @@ class HTLCManager:
 
     def recv_htlc(self, htlc):
         htlc_id = htlc.htlc_id
-        self.log[REMOTE]['htlc_id'] = htlc_id
         self.log[REMOTE]['adds'][htlc_id] = htlc
         l = self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.log[LOCAL]['ctn']+1, REMOTE: None}
         self.expect_sig[RECEIVED] = True
