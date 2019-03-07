@@ -797,11 +797,8 @@ class LNWorker(PrintError):
             if not chan.should_try_to_reestablish_peer():
                 continue
             peer = self.peers.get(chan.node_id, None)
-            if peer is None:
-                await reestablish_peer_for_given_channel()
-            else:
-                coro = peer.reestablish_channel(chan)
-                asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+            coro = peer.reestablish_channel(chan) if peer else reestablish_peer_for_given_channel()
+            await self.network.main_taskgroup.spawn(coro)
 
     def current_feerate_per_kw(self):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
