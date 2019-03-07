@@ -405,7 +405,7 @@ class Peer(PrintError):
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
         await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 1)
-        chan.open_with_first_pcp(self, remote_per_commitment_point, remote_sig)
+        chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_remote_commitment()
         chan.set_local_commitment(chan.current_commitment(LOCAL))
         return chan
@@ -488,7 +488,7 @@ class Peer(PrintError):
             channel_id=channel_id,
             signature=sig_64,
         )
-        chan.open_with_first_pcp(self, payload['first_per_commitment_point'], remote_sig)
+        chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.save_channel(chan)
         self.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self.lnworker.on_channels_updated()
