@@ -198,6 +198,12 @@ class Channel(PrintError):
         if self.sweep_address is not None:
             self.remote_sweeptxs = create_sweeptxs_for_their_latest_ctx(self, self.remote_commitment, self.sweep_address)
 
+    def open_with_first_pcp(self, remote_pcp, remote_sig):
+        self.remote_commitment_to_be_revoked = self.pending_commitment(REMOTE)
+        self.config[REMOTE] = self.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_pcp, next_per_commitment_point=None)
+        self.config[LOCAL] = self.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
+        self.set_state('OPENING')
+
     def set_state(self, state: str):
         if self._state == 'FORCE_CLOSING':
             assert state == 'FORCE_CLOSING', 'new state was not FORCE_CLOSING: ' + state

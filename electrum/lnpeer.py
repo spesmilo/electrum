@@ -405,10 +405,7 @@ class Peer(PrintError):
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
         await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 1)
-        chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_per_commitment_point, next_per_commitment_point=None)
-        chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig, got_sig_for_next=False)
-        chan.set_state('OPENING')
+        chan.open_with_first_pcp(self, remote_per_commitment_point, remote_sig)
         chan.set_remote_commitment()
         chan.set_local_commitment(chan.current_commitment(LOCAL))
         return chan
@@ -472,7 +469,6 @@ class Peer(PrintError):
                     next_htlc_id = 0,
                     reserve_sat = remote_reserve_sat,
                     htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
-
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
                     revocation_store=their_revocation_store,
@@ -492,10 +488,7 @@ class Peer(PrintError):
             channel_id=channel_id,
             signature=sig_64,
         )
-        chan.set_state('OPENING')
-        chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=payload['first_per_commitment_point'], next_per_commitment_point=None)
-        chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
+        chan.open_with_first_pcp(self, payload['first_per_commitment_point'], remote_sig)
         self.lnworker.save_channel(chan)
         self.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self.lnworker.on_channels_updated()
