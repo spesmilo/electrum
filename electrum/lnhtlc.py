@@ -3,19 +3,19 @@ from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Dir
 from .util import bh2u
 
 class HTLCManager:
-    def __init__(self, log=None):
+    def __init__(self, local_ctn=0, remote_ctn=0, log=None):
+        self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
         self.expect_sig = {SENT: False, RECEIVED: False}
         if log is None:
-            initial = {'ctn': 0, 'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}}
+            initial = {'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}}
             log = {LOCAL: deepcopy(initial), REMOTE: deepcopy(initial)}
         else:
             assert type(log) is dict
             log = {HTLCOwner(int(x)): y for x, y in deepcopy(log).items()}
-            # log[sub]['ctn'] is the ctn for the oldest unrevoked ctx of sub
+            # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
             for sub in (LOCAL, REMOTE):
                 log[sub]['adds'] = {int(x): UpdateAddHtlc(*y) for x, y in log[sub]['adds'].items()}
                 coerceHtlcOwner2IntMap = lambda x: {HTLCOwner(int(y)): z for y, z in x.items()}
-
                 # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 log[sub]['locked_in'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['locked_in'].items()}
                 log[sub]['settles'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['settles'].items()}
@@ -37,47 +37,47 @@ class HTLCManager:
         adds = self.log[LOCAL]['adds']
         assert type(adds) is not str
         adds[htlc_id] = htlc
-        self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.log[REMOTE]['ctn']+1}
+        self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.ctn[REMOTE]+1}
         self.expect_sig[SENT] = True
         return htlc
 
     def recv_htlc(self, htlc):
         htlc_id = htlc.htlc_id
         self.log[REMOTE]['adds'][htlc_id] = htlc
-        l = self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.log[LOCAL]['ctn']+1, REMOTE: None}
+        l = self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.ctn[LOCAL]+1, REMOTE: None}
         self.expect_sig[RECEIVED] = True
 
     def send_ctx(self):
-        next_ctn = self.log[REMOTE]['ctn'] + 1
+        next_ctn = self.ctn[REMOTE] + 1
         for locked_in in self.log[REMOTE]['locked_in'].values():
             if locked_in[REMOTE] is None:
                 locked_in[REMOTE] = next_ctn
         self.expect_sig[SENT] = False
 
     def recv_ctx(self):
-        next_ctn = self.log[LOCAL]['ctn'] + 1
+        next_ctn = self.ctn[LOCAL] + 1
         for locked_in in self.log[LOCAL]['locked_in'].values():
             if locked_in[LOCAL] is None:
                 locked_in[LOCAL] = next_ctn
         self.expect_sig[RECEIVED] = False
 
     def send_rev(self):
-        self.log[LOCAL]['ctn'] += 1
+        self.ctn[LOCAL] += 1
         for htlc_id, ctns in self.log[LOCAL]['settles'].items():
             if ctns[REMOTE] is None:
-                ctns[REMOTE] = self.log[REMOTE]['ctn'] + 1
+                ctns[REMOTE] = self.ctn[REMOTE] + 1
 
     def recv_rev(self):
-        self.log[REMOTE]['ctn'] += 1
+        self.ctn[REMOTE] += 1
         did_set_htlc_height = False
         for htlc_id, ctns in self.log[LOCAL]['locked_in'].items():
             if ctns[LOCAL] is None:
                 did_set_htlc_height = True
-                assert ctns[REMOTE] == self.log[REMOTE]['ctn']
-                ctns[LOCAL] = self.log[LOCAL]['ctn'] + 1
+                assert ctns[REMOTE] == self.ctn[REMOTE]
+                ctns[LOCAL] = self.ctn[LOCAL] + 1
         for htlc_id, ctns in self.log[REMOTE]['settles'].items():
             if ctns[LOCAL] is None:
-                ctns[LOCAL] = self.log[LOCAL]['ctn'] + 1
+                ctns[LOCAL] = self.ctn[LOCAL] + 1
         return did_set_htlc_height
 
     def htlcs_by_direction(self, subject, direction, ctn=None):
@@ -87,7 +87,7 @@ class HTLCManager:
         assert type(subject) is HTLCOwner
         assert type(direction) is Direction
         if ctn is None:
-            ctn = self.log[subject]['ctn']
+            ctn = self.ctn[subject]
         l = []
         if direction == SENT and subject == LOCAL:
             party = LOCAL
@@ -113,7 +113,7 @@ class HTLCManager:
     def htlcs(self, subject, ctn=None):
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.log[subject]['ctn']
+            ctn = self.ctn[subject]
         l = []
         l += [(SENT, x) for x in self.htlcs_by_direction(subject, SENT, ctn)]
         l += [(RECEIVED, x) for x in self.htlcs_by_direction(subject, RECEIVED, ctn)]
@@ -121,24 +121,24 @@ class HTLCManager:
 
     def current_htlcs(self, subject):
         assert type(subject) is HTLCOwner
-        ctn = self.log[subject]['ctn']
+        ctn = self.ctn[subject]
         return self.htlcs(subject, ctn)
 
     def pending_htlcs(self, subject):
         assert type(subject) is HTLCOwner
-        ctn = self.log[subject]['ctn'] + 1
+        ctn = self.ctn[subject] + 1
         return self.htlcs(subject, ctn)
 
     def send_settle(self, htlc_id):
-        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.log[REMOTE]['ctn'] + 1}
+        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn[REMOTE] + 1}
 
     def recv_settle(self, htlc_id):
-        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.log[LOCAL]['ctn'] + 1, REMOTE: None}
+        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.ctn[LOCAL] + 1, REMOTE: None}
 
     def settled_htlcs_by(self, subject, ctn=None):
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.log[subject]['ctn']
+            ctn = self.ctn[subject]
         d = []
         for htlc_id, ctns in self.log[subject]['settles'].items():
             if ctns[subject] <= ctn:
@@ -148,7 +148,7 @@ class HTLCManager:
     def settled_htlcs(self, subject, ctn=None):
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.log[subject]['ctn']
+            ctn = self.ctn[subject]
         sent = [(SENT, x) for x in self.settled_htlcs_by(subject, ctn)]
         other = subject.inverted()
         received = [(RECEIVED, x) for x in self.settled_htlcs_by(other, ctn)]
@@ -165,7 +165,7 @@ class HTLCManager:
                 if ctns[LOCAL] == ctn]
 
     def send_fail(self, htlc_id):
-        self.log[REMOTE]['fails'][htlc_id] = self.log[REMOTE]['ctn'] + 1
+        self.log[REMOTE]['fails'][htlc_id] = self.ctn[REMOTE] + 1
 
     def recv_fail(self, htlc_id):
-        self.log[LOCAL]['fails'][htlc_id] = self.log[LOCAL]['ctn'] + 1
+        self.log[LOCAL]['fails'][htlc_id] = self.ctn[LOCAL] + 1

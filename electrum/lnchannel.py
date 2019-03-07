@@ -151,7 +151,8 @@ class Channel(PrintError):
         self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
         self.remote_commitment_to_be_revoked.deserialize(True)
 
-        self.hm = HTLCManager(state.get('log'))
+        log = state.get('log')
+        self.hm = HTLCManager(self.config[LOCAL].ctn if log else 0, self.config[REMOTE].ctn if log else 0, log)
 
         self.name = name
 
@@ -535,7 +536,7 @@ class Channel(PrintError):
         pending outgoing HTLCs, is used in the UI.
         """
         assert type(subject) is HTLCOwner
-        ctn = self.hm.log[subject]['ctn'] + 1
+        ctn = self.hm.ctn[subject] + 1
         return self.balance(subject, ctn)\
                 - htlcsum(self.hm.htlcs_by_direction(subject, SENT, ctn))
 
