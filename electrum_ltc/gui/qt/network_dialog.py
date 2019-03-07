@@ -47,7 +47,7 @@ class NetworkDialog(QDialog):
     def __init__(self, network, config, network_updated_signal_obj):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
-        self.setMinimumSize(500, 20)
+        self.setMinimumSize(500, 300)
         self.nlayout = NetworkChoiceLayout(network, config)
         self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
