@@ -92,15 +92,11 @@ class UTXOList(MyTreeWidget):
                 utxo_item.setForeground(0, self.cyanBlue)
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
             utxo_item.setData(0, Qt.UserRole+1, "{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else "")))
-            should_be_hidden = run_hook("utxo_list_item_setup", self, utxo_item, x, name)
-            if not should_be_hidden:
-                # NB: calling setHidden after the item is added is very slow in Qt!
-                # And calling setHidden BEFORE the item is added has no effect.
-                # So, because of the above: if it should be hidden we just don't add it.
-                self.addChild(utxo_item)
-                if name in prev_selection:
-                    # NB: This needs to be here after the item is added to the widget. See #979.
-                    utxo_item.setSelected(True) # restore previous selection
+            run_hook("utxo_list_item_setup", self, utxo_item, x, name)
+            self.addChild(utxo_item)
+            if name in prev_selection:
+                # NB: This needs to be here after the item is added to the widget. See #979.
+                utxo_item.setSelected(True) # restore previous selection
 
     def get_selected(self):
         return { x.data(0, Qt.UserRole) : x.data(0, Qt.UserRole+1) # dict of "name" -> frozen flags string (eg: "ac")

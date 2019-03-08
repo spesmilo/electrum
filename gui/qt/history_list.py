@@ -112,6 +112,12 @@ class HistoryList(MyTreeWidget):
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             label = self.wallet.get_label(tx_hash)
+            should_skip = run_hook("history_list_filter", self, h_item, label)
+            if should_skip:
+                # For implementation of fast plugin filters (such as CashShuffle
+                # shuffle tx filtering), we short-circuit return. This is
+                # faster than using the MyTreeWidget filter definted in .util
+                continue
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self._get_icon_for_status(status)
@@ -138,14 +144,9 @@ class HistoryList(MyTreeWidget):
                 item.setForeground(3, self.withdrawalBrush)
                 item.setForeground(4, self.withdrawalBrush)
             item.setData(0, Qt.UserRole, tx_hash)
-            should_be_hidden = run_hook("history_list_item_setup", self, item, h_item, entry)
-            if not should_be_hidden:
-                # NB: calling setHidden after the item is added is very slow in Qt!
-                # And calling setHidden BEFORE the item is added has no effect.
-                # So, because of the above: if it should be hidden we just don't add it.
-                self.insertTopLevelItem(0, item, tx_hash)
-                if current_tx == tx_hash:
-                    self.setCurrentItem(item)
+            self.insertTopLevelItem(0, item, tx_hash)
+            if current_tx == tx_hash:
+                self.setCurrentItem(item)
 
     def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):

@@ -563,19 +563,18 @@ class Plugin(BasePlugin):
 
     @hook
     def utxo_list_item_setup(self, utxo_list, item, x, name):
-        return my_custom_item_setup(utxo_list, item, x, name)  # always returns None so all items will be visible
+        my_custom_item_setup(utxo_list, item, x, name)
 
     @hook
-    def history_list_item_setup(self, history_list, item, h_item, columns):
+    def history_list_filter(self, history_list, h_item, label):
         if self._hide_history_txs:
-            label = columns[3]
             return bool(label.startswith("Shuffle ")  # this string is not translated for performance reasons. _make_label also does not translate this string.
                         and ( any( x for x in BackgroundShufflingThread.SCALE_ARROWS
                                    if x in label )
                               or BackgroundShufflingThread.SCALE_ARROW_UNKNOWN in label
                             )
                         )
-        return False
+        return None
 
     @hook
     def history_list_context_menu_setup(self, history_list, menu, item, tx_hash):
