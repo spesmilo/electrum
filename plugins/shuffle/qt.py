@@ -1924,13 +1924,18 @@ class CoinSelectionSettingsWindow(WindowModalDialog, PrintError):
         if lower < hard_lower:
             self.setErr(_("Lower limit is {}").format(self._fmt_amt(hard_lower)))
             return
-        actual_lower, actual_upper = BackgroundShufflingThread.set_lower_and_upper_bound(lower, upper)
-        pre = ''
-        if actual_lower != lower or actual_upper != upper:
-            pre = _("Actual amounts applied: {} and {}.\n\n").format(self._fmt_amt(actual_lower),
-                                                                    self._fmt_amt(actual_upper))
+        if (lower, upper) != tuple(BackgroundShufflingThread.update_lower_and_upper_bound_from_config()):
+            pre = ''
+            if (lower, upper) == self._get_defaults():
+                BackgroundShufflingThread.reset_lower_and_upper_bound_to_defaults()
+                pre = _("Default values restored.\n\n")
+            else:
+                actual_lower, actual_upper = BackgroundShufflingThread.set_lower_and_upper_bound(lower, upper)
+                if (lower, upper) != (actual_lower, actual_upper):
+                    pre = _("Actual amounts applied: {} and {}.\n\n").format(self._fmt_amt(actual_lower),
+                                                                            self._fmt_amt(actual_upper))
 
-        self.show_message(pre+_("Changes will take effect when the next shuffle round starts (usually within in a few minutes)."))
+            self.show_message(pre+_("Changes will take effect when the next shuffle round starts (usually within in a few minutes)."))
         self.accept()
 
     def fromConfig(self):
@@ -1939,8 +1944,10 @@ class CoinSelectionSettingsWindow(WindowModalDialog, PrintError):
         self.maxEdit.setAmount(upper)
         self.clearErr()
 
+    def _get_defaults(self): return BackgroundShufflingThread.DEFAULT_LOWER_BOUND, BackgroundShufflingThread.DEFAULT_UPPER_BOUND
+
     def default(self):
-        lower, upper = BackgroundShufflingThread.DEFAULT_LOWER_BOUND, BackgroundShufflingThread.DEFAULT_UPPER_BOUND
+        lower, upper = self._get_defaults()
         self.minEdit.setAmount(lower)
         self.maxEdit.setAmount(upper)
         self.clearErr()
@@ -1956,3 +1963,4 @@ class CoinSelectionSettingsWindow(WindowModalDialog, PrintError):
         self.errLabel.setText('<font color="{}">{}</font>'.format(color, txt))
 
     def clearErr(self): self.setErr('', noerr=True)
+# /CoinSelectionSettingsWindow

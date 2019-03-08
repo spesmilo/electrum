@@ -627,30 +627,21 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 signal_stop_thread(thr, message)
 
     # NB: all locks must be held when this is called
-    def _make_protocol_thread(self, scale, coins):
-        def get_coin_for_shuffling(scale, coins):
-            if not getattr(self.wallet, "is_coin_shuffled", None):
-                raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
-            unshuffled_coins = [coin for coin in coins
-                                # Note: the 'is False' is intentional -- we are interested in coins that we know for SURE are not shuffled.
-                                # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
-                                if self.wallet.is_coin_shuffled(coin) is False]
-            upper_amount = min(scale*10 + self.FEE, self.UPPER_BOUND)
-            lower_amount = max(scale + self.FEE, self.LOWER_BOUND)
-            _get_name = CoinUtils.get_name
-            unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
+    def _make_protocol_thread(self, scale, coins, scale_lower_bound, scale_upper_bound):
+        def get_coin_for_shuffling(scale, coins, scale_lower_bound, scale_upper_bound):
+            upper_bound = min(scale_upper_bound, self.UPPER_BOUND)
+            lower_bound = max(scale_lower_bound, self.LOWER_BOUND)
+            unshuffled_coins_on_scale = [coin for coin in coins
                                          # exclude coins out of range and 'done' coins still in history
                                          # also exclude coinbase coins (see issue #64)
-                                         if (coin['value'] < upper_amount
-                                             and coin['value'] >= lower_amount
-                                             and _get_name(coin) not in self.done_utxos
-                                             and not coin['coinbase']) ]
+                                         if (coin['value'] < upper_bound
+                                             and coin['value'] >= lower_bound) ]
             unshuffled_coins_on_scale.sort(key=lambda x: (x['value'], -x['height']))  # sort by value, preferring older coins on tied value
             if unshuffled_coins_on_scale:
                 return unshuffled_coins_on_scale[-1]  # take the largest,oldest on the scale
             return None
         # /
-        coin = get_coin_for_shuffling(scale, coins)
+        coin = get_coin_for_shuffling(scale, coins, scale_lower_bound, scale_upper_bound)
         if not coin:
             return
         try:
@@ -744,6 +735,27 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def is_offline_mode(self):
         return bool(not self.wallet or not self.wallet.network)
 
+    def _get_eligible_unshuffled_coins(self):
+        if not getattr(self.wallet, "is_coin_shuffled", None):
+            raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
+        _get_name = CoinUtils.get_name
+        return [c for c in self.wallet.get_utxos(exclude_frozen=True,
+                                                 confirmed_only=True,
+                                                 mature=True)
+                # pre-filter out coins we know won't apply to any scale.
+                if (
+                    # Note: the 'is False' is intentional -- we are interested
+                    # in coins that we know for SURE are not shuffled.
+                    # is_coin_shuffled() also returns None in cases where the tx
+                    # isn't in the history yet (a rare occurrence)
+                    self.wallet.is_coin_shuffled(c) is False
+                    and c['value'] >= self.LOWER_BOUND  # inside config'd range
+                    and c['value'] < self.UPPER_BOUND   # inside config'd range
+                    and _get_name(c) not in self.done_utxos  # coin was not just shuffled
+                    and not c['coinbase']  # coin is not coinbase coin
+                    )
+                ]
+
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return
         need_refresh = False
@@ -754,14 +766,21 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     coins = None
                     for scale, thr in self.threads.items():
                         if not thr:
+                            scale_lower_bound = scale + self.FEE
+                            scale_upper_bound = scale*10 + self.FEE  # FIXME -- assumption here is scales are 10x apart. This will break if we ever change scale granularity.
+                            if self.LOWER_BOUND >= scale_upper_bound or self.UPPER_BOUND < scale_lower_bound:
+                                # our current conf. settings don't permit this scale.
+                                # short-circuit abort the creation of this scale's
+                                # thread and continue
+                                continue
                             if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
                                 # lazy-init of coins here only if there is actual work to do.
-                                coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                                coins = self._get_eligible_unshuffled_coins()
                             if not coins: break # coins mutates as we iterate so check that we still have candidate coins
-                            did_start = self._make_protocol_thread(scale, coins)
+                            did_start = self._make_protocol_thread(scale, coins, scale_lower_bound, scale_upper_bound)
                             need_refresh = need_refresh or did_start # once need_refresh is set to True, it remains True
                 except RuntimeWarning as e:
-                    self.print_error("check_for_threads error: {}".format(str(e)))
+                    self.print_error("check_for_coins error: {}".format(str(e)))
         if need_refresh:
             # Ok, at least one thread started, so reserved funds for threads have changed. indicate this in GUI
             self.tell_gui_to_refresh()
