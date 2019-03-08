@@ -481,8 +481,11 @@ def hook(func):
     return func
 
 def run_hook(name, *args):
+    f_list = hooks.get(name)
+    if not f_list:
+        # short-circuit return: most of the time this code path is taken
+        return
     results = []
-    f_list = hooks.get(name, [])
     for p, f in f_list:
         if p.is_enabled():
             try:
