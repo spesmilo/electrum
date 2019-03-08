@@ -869,7 +869,7 @@ class Abstract_Wallet(PrintError):
         return h2
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
-        from .util import format_time, format_satoshis, timestamp_to_datetime
+        from .util import timestamp_to_datetime
         h = self.get_history(domain)
         out = []
         for tx_hash, height, conf, timestamp, value, balance in h:
