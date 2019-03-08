@@ -40,7 +40,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 
 from .i18n import _
-from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis
+from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time
 
 from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
@@ -930,7 +930,6 @@ class Abstract_Wallet(PrintError):
         return ''
 
     def get_tx_status(self, tx_hash, height, conf, timestamp):
-        from .util import format_time
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:

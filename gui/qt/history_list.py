@@ -110,12 +110,12 @@ class HistoryList(MyTreeWidget):
         if fx: fx.history_used_spot = False
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
+            label = self.wallet.get_label(tx_hash)
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self._get_icon_for_status(status)
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
-            label = self.wallet.get_label(tx_hash)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             if fx and fx.show_history():
                 date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
