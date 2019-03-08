@@ -165,6 +165,11 @@ def deserialize_proxy(s):
         n += 1
     if len(args) > n:
         proxy["password"] = args[n]
+    try:
+        # Fix for #1182 -- bad proxy can end up in config file
+        int(proxy['port'])
+    except (ValueError, TypeError):
+        return None
     return proxy
 
 
