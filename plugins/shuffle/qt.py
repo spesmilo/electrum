@@ -1396,7 +1396,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.stopNetworkChecker()
 
     def onCoinSelectionSettingsClick(self, ignored):
-        win = CoinSelectionSettingsWindow(self)
+        win = CoinSelectionSettingsWindow()
         win.exec_()
         win.deleteLater()
 
@@ -1879,12 +1879,26 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             self.print_error("Stopped network checker.")
 # /PoolsWindow
 
-class CoinSelectionSettingsWindow(WindowModalDialog, PrintError):
-    ''' Despite its name this window is app modal '''
-    def __init__(self, parent, title=None):
-        super().__init__(parent, title or _("CashShuffle - Coin Selection Settings"))
-        self.setWindowModality(Qt.ApplicationModal)
+class AppModalDialog(WindowModalDialog):
+    ''' Convenience class -- like the WindowModalDialog but is app-modal.
+    Has all the MessageBoxMixin convenience methods.  Is always top-level and
+    parentless.'''
+    def __init__(self, title=None, windowFlags=None):
+        dummy_parent = QWidget()  # this is here because WindowModalDialog forces a parent with an assert.
+        super().__init__(parent=dummy_parent, title=title)
         self.setParent(None)
+        self.setWindowModality(Qt.ApplicationModal)
+        del dummy_parent
+        if windowFlags is not None:
+            self.setWindowFlags(windowFlags)
+# /AppModalDialog
+
+class CoinSelectionSettingsWindow(AppModalDialog, PrintError):
+    ''' The pop-up window to manage minimum/maximum coin amount settings.
+    Accessible from a link in the "CashShuffle Settings.." window or Network
+    Dialog tab. '''
+    def __init__(self, title=None):
+        super().__init__(title=title or _("CashShuffle - Coin Selection Settings"))
         vbox = QVBoxLayout(self)
         lbl = QLabel(_("Specify minimum and maximum coin amounts to select for shuffling:"))
         lbl.setWordWrap(True)
