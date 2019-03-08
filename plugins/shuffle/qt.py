@@ -702,7 +702,8 @@ class Plugin(BasePlugin):
         totShuf, nShuf = shuf
         window.send_tab_shuffle_extra.refresh(shuf, unshuf, uprog)
         if nShuf:
-            return _('Shuffled: {} {} in {} Coins').format(window.format_amount(totShuf).strip(), window.base_unit(), nShuf)
+            return (_('Shuffled: {} {} in {} Coin'),
+                    _('Shuffled: {} {} in {} Coins'))[0 if nShuf == 1 else 1].format(window.format_amount(totShuf).strip(), window.base_unit(), nShuf)
         return None
 
     @hook
