@@ -1149,6 +1149,8 @@ class SendTabExtra(QFrame, PrintError):
         super().showEvent(e)
         self.refresh()
 
+    _templates = tuple()
+
     @rate_limited(0.250)
     def refresh(self, shuf=None, unshuf=None, inprog=None):
         if not hasattr(self.window.wallet, '_shuffle_patched_'):
@@ -1157,17 +1159,31 @@ class SendTabExtra(QFrame, PrintError):
         if shuf is None or unshuf is None or inprog is None:
             shuf, unshuf, inprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
         amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
-        bt = ( "<b>{}</b> {}", ("<b>{}</b> %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # bold text template
-        nt = ( "{} {}", ("{} %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # normal text template
+        if not __class__._templates:  # lazy init
+            __class__._templates = (
+                # bold [0]
+                ( # [0] is singular [1] is plural
+                    ( "<b>{}</b> {}", ("<b>{}</b> %s <small>(%s)</small>"%(_("Coin"),_("UTXO"))) ),
+                    ( "<b>{}</b> {}", ("<b>{}</b> %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) )
+                ),
+                # normal [1]
+                ( #[0] singular, [1] plural
+                    ( "{} {}", ("{} %s <small>(%s)</small>"%(_("Coin"),_("UTXO"))) ), # normal singular
+                    ( "{} {}", ("{} %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # normal text plural template
+                )
+            )
+        bt = self._templates[0] # bold text templates (sub-list [0]==singular [1]==plural)
+        nt = self._templates[1] # normal text templates (sub-list [0]==singular [1]==plural)
         mode = self.spendingMode()
-        tshuf = bt if mode == self.SpendingModeShuffled else nt # select a template based on mode
-        tunshuf = bt if mode == self.SpendingModeUnshuffled else nt # select a template based on mode
+        tshuf = (bt if mode == self.SpendingModeShuffled else nt)[0 if n == 1 else 1] # select a template based on mode & plurality
+        tunshuf = (bt if mode == self.SpendingModeUnshuffled else nt)[0 if nUnshuf == 1 else 1] # select a template based on mode
         self.amountLabel.setText(tshuf[0].format(self.window.format_amount(amount).strip(), self.window.base_unit()))
         self.numCoinsLabel.setText(tshuf[1].format(n))
         self.amountLabelUnshuf.setText(tunshuf[0].format(self.window.format_amount(amountUnshuf).strip(), self.window.base_unit()))
         self.numCoinsLabelUnshuf.setText(tunshuf[1].format(nUnshuf))
-        self.amountLabelBusy.setText(nt[0].format(self.window.format_amount(amountInProg).strip(), self.window.base_unit()))
-        self.numCoinsLabelBusy.setText(nt[1].format(nInProg))
+        tbusy = nt[0 if nInProg == 1 else 1]
+        self.amountLabelBusy.setText(tbusy[0].format(self.window.format_amount(amountInProg).strip(), self.window.base_unit()))
+        self.numCoinsLabelBusy.setText(tbusy[1].format(nInProg))
 
         f = self.spendShuffled.font()
         f.setBold(bool(mode == self.SpendingModeShuffled))
