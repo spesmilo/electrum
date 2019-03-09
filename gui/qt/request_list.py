@@ -45,6 +45,7 @@ class RequestList(MyTreeWidget):
         self.setSortingEnabled(True)
         self.setColumnWidth(0, 180)
         self.hideColumn(1)
+        self.wallet = parent.wallet
 
     def item_changed(self, item):
         if item is None:
@@ -66,7 +67,7 @@ class RequestList(MyTreeWidget):
 
     def chkVisible(self):
         # hide receive tab if no receive requests available
-        b = hasattr(self, 'wallet') and len(self.wallet.receive_requests) > 0 and self.parent.isVisible()
+        b = len(self.wallet.receive_requests) > 0 and self.parent.isVisible()
         self.setVisible(b)
         self.parent.receive_requests_label.setVisible(b)
         if not b:
@@ -74,7 +75,6 @@ class RequestList(MyTreeWidget):
             self.parent.expires_combo.show()
 
     def on_update(self):
-        self.wallet = self.parent.wallet
         self.chkVisible()
 
         # update the receive address if necessary
