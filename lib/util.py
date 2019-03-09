@@ -731,14 +731,14 @@ class Weak:
         assert not isinstance(obj, type), "finaliztion_print_error can only be used on instance objects!"
         if msg is None:
             msg = "[{}] finalized".format(obj.__class__.__qualname__)
-        wrs = __class__._weak_refs_for_print_error
         def finalizer(x):
+            wrs = __class__._weak_refs_for_print_error
             msgs = wrs.get(x, [])
             for m in msgs:
                 print_error(m)
             wrs.pop(x, None)
         wr = Weak.ref(obj, finalizer)
-        wrs[wr].append(msg)
+        __class__._weak_refs_for_print_error[wr].append(msg)
 
 
     class MethodProxy(weakref.WeakMethod):
