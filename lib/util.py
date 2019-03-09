@@ -77,7 +77,7 @@ class MyEncoder(json.JSONEncoder):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
-class PrintError(object):
+class PrintError:
     '''A handy base class'''
     def diagnostic_name(self):
         return self.__class__.__name__
@@ -192,7 +192,7 @@ def set_verbosity(b, *, timestamps=True):
 # Method decorator.  To be used for calculations that will always
 # deliver the same result.  The method cannot take any arguments
 # and should be accessed as an attribute.
-class cachedproperty(object):
+class cachedproperty:
 
     def __init__(self, f):
         self.f = f
@@ -730,7 +730,11 @@ class Weak:
         finalized (Python GC'd). This is useful for debugging memory leaks. '''
         assert not isinstance(obj, type), "finaliztion_print_error can only be used on instance objects!"
         if msg is None:
-            msg = "[{}] finalized".format(obj.__class__.__qualname__)
+            if isinstance(obj, PrintError):
+                name = obj.diagnostic_name()
+            else:
+                name = obj.__class__.__qualname__
+            msg = "[{}] finalized".format(name)
         def finalizer(x):
             wrs = Weak._weak_refs_for_print_error
             msgs = wrs.get(x, [])
