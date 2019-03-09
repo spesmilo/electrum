@@ -725,6 +725,7 @@ class Weak:
     finalize = weakref.finalize # alias
 
     _weak_refs_for_print_error = defaultdict(list)
+    @staticmethod
     def finalization_print_error(obj, msg=None):
         ''' Supply a message to be printed via print_error when obj is
         finalized (Python GC'd). This is useful for debugging memory leaks. '''
