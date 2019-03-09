@@ -48,6 +48,7 @@ class Synchronizer(ThreadJob):
         self.bad_testnet_wallet = False
         self.wallet = wallet
         self.network = network
+        self.cleaned_up = False
         self.new_addresses = set()
         # Entries are (tx_hash, tx_height) tuples
         self.requested_tx = {}
@@ -72,7 +73,11 @@ class Synchronizer(ThreadJob):
                 and not self.requested_hashes)
 
     def release(self):
+        self.cleaned_up = True
         self.network.unsubscribe(self.on_address_status)
+        self.network.cancel_requests(self.on_address_status)
+        self.network.cancel_requests(self.on_address_history)
+        self.network.cancel_requests(self.tx_response)
 
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
@@ -95,6 +100,9 @@ class Synchronizer(ThreadJob):
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def on_address_status(self, response):
+        if self.cleaned_up:
+            self.release()  # defensive programming: make doubly sure we aren't registered to receive any callbacks from netwok class.
+            return
         params, result, error = self.parse_response(response)
         if error:
             return
@@ -112,6 +120,8 @@ class Synchronizer(ThreadJob):
         self.requested_hashes.discard(scripthash)  # Notifications won't be in
 
     def on_address_history(self, response):
+        if self.cleaned_up:
+            return
         params, result, error = self.parse_response(response)
         if error:
             return
@@ -144,6 +154,8 @@ class Synchronizer(ThreadJob):
             self.request_missing_txs(hist)
 
     def tx_response(self, response):
+        if self.cleaned_up:
+            return
         params, result, error = self.parse_response(response)
         tx_hash = params[0] or ''
         # unconditionally pop. so we don't end up in a "not up to date" state

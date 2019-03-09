@@ -40,7 +40,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 
 from .i18n import _
-from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time
+from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, Weak
 
 from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
@@ -221,6 +221,9 @@ class Abstract_Wallet(PrintError):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
+        # Print debug message on finalization
+        Weak.finalization_print_error(self, "[{}/{}] finalized".format(__class__.__name__, self.diagnostic_name()))
+
     @classmethod
     def to_Address_dict(cls, d):
         '''Convert a dict of strings to a dict of Adddress objects.'''
@@ -285,7 +288,7 @@ class Abstract_Wallet(PrintError):
             self.storage.put('verified_tx3', self.verified_tx)
             if write:
                 self.storage.write()
-                
+
     def clear_history(self):
         with self.transaction_lock:
             self.txi = {}
@@ -826,7 +829,7 @@ class Abstract_Wallet(PrintError):
 
         # Store fees
         self.tx_fees.update(tx_fees)
-        
+
         if self.network:
             self.network.trigger_callback('on_history', self)
 
@@ -1133,6 +1136,7 @@ class Abstract_Wallet(PrintError):
         if self.network:
             self.network.remove_jobs([self.synchronizer, self.verifier])
             self.synchronizer.release()
+            self.verifier.release()
             self.synchronizer = None
             self.verifier = None
             # Now no references to the syncronizer or verifier
@@ -1642,7 +1646,7 @@ class ImportedWalletBase(Simple_Wallet):
                 # FIXME: what about pruned_txo?
 
             self.storage.put('verified_tx3', self.verified_tx)
-            
+
         self.save_transactions()
 
         self.set_label(address.to_storage_string(), None)
