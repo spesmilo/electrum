@@ -78,7 +78,6 @@ class ElectrumGui(QObject, PrintError):
         self.daemon = daemon
         self.plugins = plugins
         self.windows = []
-        self.weak_windows = []
         self.app = QApplication(sys.argv)
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
@@ -92,7 +91,7 @@ class ElectrumGui(QObject, PrintError):
         self.update_checker.got_new_version.connect(lambda x: self.show_update_checker(parent=None, skip_check=True))
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
-        self.tray = QSystemTrayIcon(self.tray_icon(), None)
+        self.tray = QSystemTrayIcon(self.tray_icon(), self)
         self.tray.setToolTip('Electron Cash')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
@@ -144,13 +143,21 @@ class ElectrumGui(QObject, PrintError):
         return False
 
     def build_tray_menu(self):
-        # Avoid immediate GC of old menu when window closed via its action
-        if self.tray.contextMenu() is None:
-            m = QMenu()
-            self.tray.setContextMenu(m)
-        else:
-            m = self.tray.contextMenu()
-            m.clear()
+        ''' Rebuild the tray menu by tearing it down and building it new again '''
+        m_old = self.tray.contextMenu()
+        if m_old is not None:
+            # Tray does NOT take ownership of menu, so we are tasked with
+            # deleting the old one. Note that we must delete the old one rather
+            # than just clearing it because otherwise the old sub-menus stick
+            # around in Qt. You can try calling qApp.topLevelWidgets() to
+            # convince yourself of this.  Doing it this way actually cleans-up
+            # the menus and they do not leak.
+            m_old.clear()
+            m_old.deleteLater()  # C++ object and its children will be deleted later when we return to the event loop
+        m = QMenu()
+        m.setObjectName("SysTray.QMenu")
+        self.tray.setContextMenu(m)
+        destroyed_print_error(m)
         for window in self.windows:
             submenu = m.addMenu(window.wallet.basename())
             submenu.addAction(_("Show/Hide"), window.show_or_hide)
@@ -206,11 +213,7 @@ class ElectrumGui(QObject, PrintError):
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
-        dname = w.diagnostic_name()
-        def onFinalized(wr,dname=dname):
-            print_error("[{}] finalized".format(dname))
-            self.weak_windows.remove(wr)
-        self.weak_windows.append(Weak.ref(w,onFinalized))
+        Weak.finalization_print_error(w, "[{}] finalized".format(w.diagnostic_name()))
         self.build_tray_menu()
         run_hook('on_new_window', w)
         return w
@@ -283,6 +286,8 @@ class ElectrumGui(QObject, PrintError):
             # things like a transaction dialog or the network dialog were still
             # up.
             __class__._quit_after_last_window()  # checks if qApp.quitOnLastWindowClosed() is True, and if so, calls qApp.quit()
+
+        window.deleteLater()
 
     def gc_schedule(self):
         ''' Schedule garbage collection to happen in the near future.

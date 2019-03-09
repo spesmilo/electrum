@@ -286,8 +286,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.top_level_window_recurse(override)
 
     def diagnostic_name(self):
-        return "%s/%s" % (PrintError.diagnostic_name(self),
-                          self.wallet.basename() if self.wallet else "None")
+        return "%s%s" % (PrintError.diagnostic_name(self),
+                         ("/"+self.wallet.basename()) if getattr(self, 'wallet', None) else "")
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
@@ -380,7 +380,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.request_list.update()
         self.tabs.show()
         self.init_geometry()
-        if self.config.get('hide_gui') and self.gui_object.tray.isVisible():
+        if self.config.get('hide_gui') and self.tray.isVisible():
             self.hide()
         else:
             self.show()
@@ -534,6 +534,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def init_menubar(self):
         menubar = QMenuBar()
+        menubar.setObjectName(self.diagnostic_name() + ".QMenuBar")
+        destroyed_print_error(menubar)
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
@@ -2312,12 +2314,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_path = self.wallet.storage.path
         basename = os.path.basename(wallet_path)
         r = self.gui_object.daemon.delete_wallet(wallet_path)  # implicitly also calls stop_wallet
-        self.close()
         self.update_recently_visited(wallet_path) # this ensures it's deleted from the menu
         if r:
             self.show_error(_("Wallet removed: {}").format(basename))
         else:
             self.show_error(_("Wallet file not found: {}").format(basename))
+        self.close()
 
     @protected
     def show_seed_dialog(self, password):
@@ -3527,12 +3529,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except TypeError: pass # defensive programming: this can happen if we got an exception before the timer action was connected
 
         self.gui_object.close_window(self) # implicitly runs the hook: on_close_window
+        # Now, actually STOP the wallet's synchronizer and verifiers and remove
+        # it from the daemon. Note that its addresses will still stay
+        # 'subscribed' to the ElectrumX server until we connect to a new server,
+        # (due to ElectrumX protocol limitations).. but this is harmless.
+        self.gui_object.daemon.stop_wallet(self.wallet.storage.path)
 
         # At this point all plugins should have removed any references to this window.
         # Now, just to be paranoid, do some active destruction of signal/slot connections as well as
         # Removing child widgets forcefully to speed up Python's own GC of this window.
         self.clean_up_connections()
         self.clean_up_children()
+
+        # And finally, print when we are destroyed by C++ for debug purposes
+        # We must call this here as above calls disconnected all signals
+        # involving this widget.
+        destroyed_print_error(self)
 
 
     def internal_plugins_dialog(self):

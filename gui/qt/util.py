@@ -935,6 +935,30 @@ def rate_limited(rate, *, classlevel=False, ts_after=False):
         return wrapper
     return wrapper0
 
+def destroyed_print_error(qobject, msg=None):
+    ''' Supply a message to be printed via print_error when obj is
+    destroyed (Qt C++ deleted). This is useful for debugging memory leaks. '''
+    assert isinstance(qobject, QObject), "destroyed_print_error can only be used on QObject instances!"
+    if msg is None:
+        # Generate a useful message if none is supplied.
+        name = qobject.objectName() or ""
+        if not name:
+            if isinstance(qobject, QAction) and qobject.text():
+                name = "Action: " + qobject.text()
+            elif isinstance(qobject, QMenu) and qobject.title():
+                name = "QMenu: " + qobject.title()
+            elif isinstance(qobject, PrintError):
+                name = qobject.diagnostic_name()
+            else:
+                try:
+                    name = (qobject.parent().objectName() or qobject.parent().__class__.__qualname__) + "."
+                except:
+                    pass  # some of the code in this project overrites .parent or it may not have a parent
+                name += qobject.__class__.__qualname__
+        msg = "[{}] destroyed".format(name)
+    def printer(x=None): print_error(msg)
+    qobject.destroyed.connect(printer)
+
 
 if __name__ == "__main__":
     app = QApplication([])
