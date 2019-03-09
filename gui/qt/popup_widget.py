@@ -302,7 +302,7 @@ class PopupLabel(PopupWidget):
 
 ### Helpers for EC integration
 from .util import destroyed_print_error
-from electroncash.util import Weak
+from electroncash.util import finalization_print_error
 
 _extant_popups = dict()
 def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None):
@@ -332,7 +332,7 @@ def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupW
             #print("----> Not found!!")
     popup.destroyed.connect(onDestroyed)
     destroyed_print_error(popup, "[PopupLabel/{}] destroyed".format(name))
-    Weak.finalization_print_error(popup, "[PopupLabel/{}] finalized".format(name))
+    finalization_print_error(popup, "[PopupLabel/{}] finalized".format(name))
     _extant_popups[name] = popup
     if onClick:
         popup.onClick.connect(onClick, Qt.QueuedConnection)
