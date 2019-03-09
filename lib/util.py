@@ -732,13 +732,13 @@ class Weak:
         if msg is None:
             msg = "[{}] finalized".format(obj.__class__.__qualname__)
         def finalizer(x):
-            wrs = __class__._weak_refs_for_print_error
+            wrs = Weak._weak_refs_for_print_error
             msgs = wrs.get(x, [])
             for m in msgs:
                 print_error(m)
             wrs.pop(x, None)
         wr = Weak.ref(obj, finalizer)
-        __class__._weak_refs_for_print_error[wr].append(msg)
+        Weak._weak_refs_for_print_error[wr].append(msg)
 
 
     class MethodProxy(weakref.WeakMethod):

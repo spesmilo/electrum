@@ -948,8 +948,11 @@ def destroyed_print_error(qobject, msg=None):
             elif isinstance(qobject, QMenu) and qobject.title():
                 name = "QMenu: " + qobject.title()
             elif isinstance(qobject, PrintError):
-                name = qobject.diagnostic_name()
-            else:
+                try:
+                    name = qobject.diagnostic_name()
+                except:
+                    pass # object may be in an inconsistent state and diagnostic_name failed.
+            if not name:
                 try:
                     name = (qobject.parent().objectName() or qobject.parent().__class__.__qualname__) + "."
                 except:
