@@ -1744,7 +1744,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         # etc...
         self.resize(400,300)
         #DEBUG
-        destroyed_print_error(self, "[{}] destroyed".format(self.diagnostic_name()))
+        destroyed_print_error(self)
     def diagnostic_name(self):
         return "{}/{}".format(super().diagnostic_name(), self.objectName())
     def closeEvent(self, e):
