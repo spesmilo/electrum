@@ -37,8 +37,8 @@ from PyQt5.QtCore import *
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-from electroncash.util import (UserCancelled, Weak, PrintError, print_error,
-                               standardize_path)
+from electroncash.util import (UserCancelled, PrintError, print_error,
+                               standardize_path, finalization_print_error)
 
 from .installwizard import InstallWizard, GoBack
 
@@ -211,7 +211,7 @@ class ElectrumGui(QObject, PrintError):
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
-        Weak.finalization_print_error(w, "[{}] finalized".format(w.diagnostic_name()))
+        finalization_print_error(w, "[{}] finalized".format(w.diagnostic_name()))
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)

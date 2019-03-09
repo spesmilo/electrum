@@ -40,7 +40,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 
 from .i18n import _
-from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, Weak
+from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, finalization_print_error
 
 from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
@@ -223,7 +223,7 @@ class Abstract_Wallet(PrintError):
         self.contacts = Contacts(self.storage)
 
         # Print debug message on finalization
-        Weak.finalization_print_error(self, "[{}/{}] finalized".format(__class__.__name__, self.diagnostic_name()))
+        finalization_print_error(self, "[{}/{}] finalized".format(__class__.__name__, self.diagnostic_name()))
 
     @classmethod
     def to_Address_dict(cls, d):

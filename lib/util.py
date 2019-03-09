@@ -766,3 +766,8 @@ class Weak:
             elif callable(self.print_func):
                 self.print_func(self, "MethodProxy for '{}' called on a dead reference. Referent was: {})".format(self.qname,
                                                                                                                   self.sname))
+
+# Export this method to the top level for convenience. People reading code
+# may wonder 'Why Weak.finaliztion_print_error'?. The fact that this relies on
+# weak refs is an implementation detail, really.
+finalization_print_error = Weak.finalization_print_error
