@@ -11,9 +11,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import sys
 
-from .util import destroyed_print_error
-from electroncash.util import Weak
-
 class PopupWidget(QWidget):
 
     #   enum PointerPosition
@@ -36,7 +33,7 @@ class PopupWidget(QWidget):
         self.layout = QGridLayout(self)
         if sys.platform != 'darwin':
             self.layout.setContentsMargins(20,20,20,20)
-        self.animation = QPropertyAnimation()
+        self.animation = QPropertyAnimation(self)
         self.final_opacity = 1.0
         self.popup_opacity = 1.0
         self.pointerPos = self.LeftSide
@@ -157,7 +154,7 @@ class PopupWidget(QWidget):
     def showRelativeTo(self, w):
         s = self.size()
         self.moveRelativeTo(w)
-        super().hide()
+        self.hide()
         self.show()
         if self.pointerPos == self.NoPointer:
             self.raise_()
@@ -209,47 +206,56 @@ class PopupWidget(QWidget):
         self._timer.timeout.connect(timeout)
         self._timer.start(int(self.timeout))
 
-    def show(self):
+    def showEvent(self, e):
+        super().showEvent(e)
+        if not e.isAccepted():
+            return
+        if self.animation.state() == QAbstractAnimation.Running:
+            return
         self.setWindowOpacity(0.0)
 
         self.animation.setStartValue(0.0)
         self.animation.setEndValue(self.final_opacity)
 
-        super().show()
         self.didShow.emit()
+        self._cleanUp()
         self.animation.setDirection(QAbstractAnimation.Forward)
         self.animation.start()
-        self._killTimer()
 
         if isinstance(self.timeout, (float, int)) and self.timeout > 0:
             def autoHide():
-                try:
-                    self.animation.finished.disconnect()
-                except:
-                    pass
-                self._startTimer(self.hide)
+                self._cleanUp()
+                self._startTimer(self.hideAnimated)
             self.animation.finished.connect(autoHide)
 
-    def hide(self):
-        self.animation.setDirection(QAbstractAnimation.Backward)
-        self.animation.start()
-        self._killTimer()
-        def doHide():
-            try:
-                self.animation.finished.disconnect()
-            except:
-                pass
-            QWidget.hide(self)
-            self.didHide.emit()
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        if e.isAccepted():
+            self._cleanUp()
             if self.delete_on_hide:
                 self.setParent(None)
                 self.deleteLater()
+
+    def _disconnectFinished(self):
+            try: self.animation.finished.disconnect()
+            except: pass
+
+    def hideAnimated(self):
+        if self.animation.state() == QAbstractAnimation.Running:
+            return
+        self._cleanUp()
+        self.animation.setDirection(QAbstractAnimation.Backward)
+        self.animation.start()
+        def doHide():
+            self._cleanUp()
+            self.hide()
+            self.didHide.emit()
         self.animation.finished.connect(doHide)
 
     def eventFilter(self, obj, e):
         if e.type() in (QEvent.Move, QEvent.Resize, QEvent.Close, QEvent.WindowStateChange, QEvent.Hide, QEvent.Show, QEvent.WindowDeactivate):
             # if the parent window is moved or otherwise touched, make this popup go away
-            self.hide()
+            self.hideAnimated()
         return False
 
     def mousePressEvent(self, e):
@@ -259,6 +265,15 @@ class PopupWidget(QWidget):
         elif e.button() == Qt.RightButton:
             self.onRightClick.emit()
             e.accept()
+
+    def _cleanUp(self):
+        ''' Forces animation and timer to stop. This is essential to force
+        the object into a known consistent state ready for deletion, restart
+        of animations, etc. '''
+        self._disconnectFinished()
+        self._killTimer()
+        self.animation.stop()
+
 
 class PopupLabel(PopupWidget):
 
@@ -285,6 +300,9 @@ class PopupLabel(PopupWidget):
     def setPopupText(self, text):
         self.label.setText(text)
 
+### Helpers for EC integration
+from .util import destroyed_print_error
+from electroncash.util import Weak
 
 _extant_popups = dict()
 def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None):
@@ -323,15 +341,13 @@ def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupW
     popup.showRelativeTo(target)
     return True
 
-def KillPopupLabel(name):
+def KillPopupLabel(name="Global"):
     extant = _extant_popups.pop(name, None)
     if extant:
         try: extant.destroyed.disconnect()
         except: pass
         destroyed_print_error(extant, "[PopupLabel/{}] destroyed".format(name))
+        extant._cleanUp()
         extant.setParent(None)
-        try:  extant.animation.finished.disconnect()
-        except: pass
-        extant.animation.stop()
         extant.deleteLater()
         #print("----> Found and killed extant label")
