@@ -135,27 +135,64 @@ class DaemonThread(threading.Thread, PrintError):
         self.running = False
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
-        self.jobs = []
+        self.jobs = []  # could use a set here but order is important, so we enforce uniqueness in this list in the add/remove methods
+        self._jobs2add = list()  # adding jobs needs to preserve order, so we use a list.
+        self._jobs2rm = set()  # removing jobs does not need to preserve orer so we can benefit from the uniqueness property of using a set.
 
     def add_jobs(self, jobs):
-        with self.job_lock:
-            self.jobs.extend(jobs)
+        if threading.currentThread() is not self:
+            with self.job_lock:
+                for job in jobs:
+                    if job not in self.jobs: # ensure unique
+                        self.jobs.append(job)
+                        self.print_error("Job added", job)
+                    else:
+                        self.print_error("add_jobs: FIXME job already added", job)
+        else:
+            # support for adding/removing jobs from within the ThreadJob's .run
+            self._jobs2rm.difference_update(jobs)
+            self._jobs2add.extend(jobs)
+
+    def remove_jobs(self, jobs):
+        if threading.currentThread() is not self:
+            with self.job_lock:
+                for job in jobs:
+                    ct = 0
+                    while job in self.jobs:  # enfore unique jobs
+                        self.jobs.remove(job)
+                        ct += 1
+                        self.print_error("Job removed", job)
+                    if not ct:
+                        self.print_error("remove_jobs: FIXME job not found", job)
+        else:
+            # support for adding/removing jobs from within the ThreadJob's .run
+            for job in jobs:
+                while job in self._jobs2add: # enforce uniqueness of jobs
+                    self._jobs2add.remove(job)
+            self._jobs2rm.update(jobs)
 
     def run_jobs(self):
-        # Don't let a throwing job disrupt the thread, future runs of
-        # itself, or other jobs.  This is useful protection against
-        # malformed or malicious server responses
         with self.job_lock:
             for job in self.jobs:
                 try:
                     job.run()
                 except Exception as e:
+                    # Don't let a throwing job disrupt the thread, future runs of
+                    # itself, or other jobs.  This is useful protection against
+                    # malformed or malicious server responses
                     traceback.print_exc(file=sys.stderr)
-
-    def remove_jobs(self, jobs):
-        with self.job_lock:
-            for job in jobs:
-                self.jobs.remove(job)
+            # below is support for jobs adding/removing themselves
+            # during their run implementation.
+            for addjob in self._jobs2add:
+                if addjob not in self.jobs:
+                    self.jobs.append(addjob)
+                    self.print_error("Job added", addjob)
+            self._jobs2add.clear()
+            for rmjob in self._jobs2rm:
+                while rmjob in self.jobs:
+                    self.jobs.remove(rmjob)
+                    self.print_error("Job removed", rmjob)
+            self._jobs2rm.clear()
 
     def start(self):
         with self.running_lock:
@@ -184,10 +221,13 @@ class DaemonThread(threading.Thread, PrintError):
 # TODO: disable
 is_verbose = True
 verbose_timestamps = True
-def set_verbosity(b, *, timestamps=True):
-    global is_verbose, verbose_timestamps
+verbose_thread_id = True
+def set_verbosity(b, *, timestamps=True, thread_id=True):
+    global is_verbose, verbose_timestamps, verbose_thread_id
     is_verbose = b
     verbose_timestamps = timestamps
+    verbose_thread_id = thread_id
+
 
 # Method decorator.  To be used for calculations that will always
 # deliver the same result.  The method cannot take any arguments
@@ -203,9 +243,21 @@ class cachedproperty:
         setattr(obj, self.f.__name__, value)
         return value
 
+class Monotonic(int):
+    ''' Returns a monotonically increasing int each time its default c'tor
+    is called. Thread-safe.'''
+    _i = 0
+    _lock = threading.Lock()
+    def __new__(cls):
+        with cls._lock:
+            try: return cls._i
+            finally: cls._i += 1
+_human_readable_thread_ids = defaultdict(Monotonic)
 _t0 = time.time()
 def print_error(*args):
     if not is_verbose: return
+    if verbose_thread_id:
+        args = ("|%02d|"%_human_readable_thread_ids[threading.get_ident()], *args)
     if verbose_timestamps:
         args = ("|%7.3f|"%(time.time() - _t0), *args)
     print_stderr(*args)
@@ -757,7 +809,7 @@ class Weak:
             super().__init__(meth, *args, **kwargs)
             # teehee.. save some information about what to call this thing for debug print purposes
             self.qname, self.sname = meth.__qualname__, str(meth.__self__)
-    
+
         def __call__(self, *args, **kwargs):
             ''' Either directly calls the method for you or prints debug info
                 if the target object died '''

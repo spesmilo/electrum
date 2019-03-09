@@ -45,10 +45,10 @@ class Synchronizer(ThreadJob):
     '''
 
     def __init__(self, wallet, network):
-        self.bad_testnet_wallet = False
         self.wallet = wallet
         self.network = network
         self.cleaned_up = False
+        self._need_release = False
         self.new_addresses = set()
         # Entries are (tx_hash, tx_height) tuples
         self.requested_tx = {}
@@ -72,12 +72,22 @@ class Synchronizer(ThreadJob):
         return (not self.requested_tx and not self.requested_histories
                 and not self.requested_hashes)
 
-    def release(self):
+    def _release(self):
+        ''' Called from the Network (DaemonThread) -- to prevent race conditions
+        with network, we remove data structures related to the network and
+        unregister ourselves as a job from within the Network thread itself. '''
+        self._need_release = False
         self.cleaned_up = True
         self.network.unsubscribe(self.on_address_status)
         self.network.cancel_requests(self.on_address_status)
         self.network.cancel_requests(self.on_address_history)
         self.network.cancel_requests(self.tx_response)
+        self.network.remove_jobs([self])
+
+    def release(self):
+        ''' Called from main thread, enqueues a 'release' to happen in the
+        Network thread. '''
+        self._need_release = True
 
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
@@ -101,7 +111,8 @@ class Synchronizer(ThreadJob):
 
     def on_address_status(self, response):
         if self.cleaned_up:
-            self.release()  # defensive programming: make doubly sure we aren't registered to receive any callbacks from netwok class.
+            self.print_error("Already cleaned-up, ignoring stale reponse:", response)
+            self._release()  # defensive programming: make doubly sure we aren't registered to receive any callbacks from netwok class and cancel subscriptions again.
             return
         params, result, error = self.parse_response(response)
         if error:
@@ -217,7 +228,9 @@ class Synchronizer(ThreadJob):
 
     def run(self):
         '''Called from the network proxy thread main loop.'''
-        if self.bad_testnet_wallet:
+        if self._need_release:
+            self._release()
+        if self.cleaned_up:
             return
         try:
             # 1. Create new addresses
@@ -242,7 +255,7 @@ class Synchronizer(ThreadJob):
             # encountering such wallets.
             # See #1164
             if networks.net.TESTNET:
-                self.print_error("*** ERROR *** Bad format testnet xkey detected. Synchronizer will no longer proceed to synchronize. Please regenerate this testnet wallet from seed to fix this error.")
-                self.bad_testnet_wallet = True
+                self.print_stderr("*** ERROR *** Bad format testnet xkey detected. Synchronizer will no longer proceed to synchronize. Please regenerate this testnet wallet from seed to fix this error.")
+                self._release()
             else:
                 raise
