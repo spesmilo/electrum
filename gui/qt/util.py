@@ -941,18 +941,16 @@ def destroyed_print_error(qobject, msg=None):
     assert isinstance(qobject, QObject), "destroyed_print_error can only be used on QObject instances!"
     if msg is None:
         # Generate a useful message if none is supplied.
-        name = qobject.objectName() or ""
+        if isinstance(qobject, PrintError):
+            name = qobject.diagnostic_name()
+        else:
+            name = qobject.objectName() or ""
         if not name:
             if isinstance(qobject, QAction) and qobject.text():
                 name = "Action: " + qobject.text()
             elif isinstance(qobject, QMenu) and qobject.title():
                 name = "QMenu: " + qobject.title()
-            elif isinstance(qobject, PrintError):
-                try:
-                    name = qobject.diagnostic_name()
-                except:
-                    pass # object may be in an inconsistent state and diagnostic_name failed.
-            if not name:
+            else:
                 try:
                     name = (qobject.parent().objectName() or qobject.parent().__class__.__qualname__) + "."
                 except:
