@@ -46,7 +46,7 @@ class AddressList(MyTreeWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         # force attributes to always be defined, even if None, at construction.
-        self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
+        self.wallet = self.parent.wallet
 
     def refresh_headers(self):
         headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]

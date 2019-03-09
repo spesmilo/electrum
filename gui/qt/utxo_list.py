@@ -34,7 +34,7 @@ class UTXOList(MyTreeWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         # force attributes to always be defined, even if None, at construction.
-        self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
+        self.wallet = self.parent.wallet
         self.utxos = list()
         # cache some values to avoid constructing Qt objects for every pass through self.on_update (this is important for large wallets)
         self.monospaceFont = QFont(MONOSPACE_FONT)

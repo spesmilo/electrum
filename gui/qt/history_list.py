@@ -56,7 +56,7 @@ class HistoryList(MyTreeWidget):
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.AscendingOrder)
         # force attributes to always be defined, even if None, at construction.
-        self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
+        self.wallet = self.parent.wallet
 
         self.monospaceFont = QFont(MONOSPACE_FONT)
         self.withdrawalBrush = QBrush(QColor("#BC1E1E"))
