@@ -62,7 +62,7 @@ class BadServerPacketError(Exception):
     pass
 
 class Comm(PrintErrorThread):
-    
+
     MAX_MSG_LENGTH = 64*1024 # 64kb message length limit on server-side. If we get anything longer it's a malicious server
 
 
@@ -211,4 +211,3 @@ def verify_ssl_socket(host, port, timeout = 5.0):
     if socket: socket.close()
     del (q,c,socket,server)
     return ret
-

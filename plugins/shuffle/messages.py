@@ -44,7 +44,7 @@ class Messages:
         # These should match the strings returned by the stats port.
         DEFAULT : "DEFAULT", DUST : "DUST"
     }
-    
+
     def make_greeting(self, verification_key, amount, typ, version):
         """
         This method makes a greeting message for entering the pool with verification_key
@@ -333,4 +333,3 @@ class Messages:
     def get_strs(self):
         "gets strs values from the packets"
         return [packet.packet.message.str for packet in self.packets.packet]
-

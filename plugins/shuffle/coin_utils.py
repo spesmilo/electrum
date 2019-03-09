@@ -65,8 +65,8 @@ class CoinUtils(PrintErrorThread):
                     total += val
             answer = total >= amount
             if answer:
-                return True, total  
-            return False, None  
+                return True, total
+            return False, None
 
         except BaseException as e:
             #import traceback

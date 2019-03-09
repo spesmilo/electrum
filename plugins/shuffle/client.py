@@ -388,7 +388,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         try:
             self.print_error("Started")
             self.logger.send("started", "MAINLOG")
-            
+
             if self.is_offline_mode():  # aka: '--offline' cmdline arg
                 # OFFLINE mode: We don't do much. We just process the shared
                 # chan for stop events.  We could have suppressed the creation
@@ -543,7 +543,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         if ct:
             self.print_error("Stopped {} extant threads".format(ct))
         return ct
-    
+
     def _unreserve_addresses(self):
         ''' Normally called from our thread context but may be called from other threads after joining this thread '''
         with self.wallet.lock, self.wallet.transaction_lock:
