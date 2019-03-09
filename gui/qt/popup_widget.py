@@ -11,6 +11,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import sys
 
+from .util import destroyed_print_error
+from electroncash.util import Weak
+
 class PopupWidget(QWidget):
 
     #   enum PointerPosition
@@ -248,7 +251,7 @@ class PopupWidget(QWidget):
             # if the parent window is moved or otherwise touched, make this popup go away
             self.hide()
         return False
-    
+
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             self.onClick.emit()
@@ -310,23 +313,25 @@ def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupW
             pass
             #print("----> Not found!!")
     popup.destroyed.connect(onDestroyed)
+    destroyed_print_error(popup, "[PopupLabel/{}] destroyed".format(name))
+    Weak.finalization_print_error(popup, "[PopupLabel/{}] finalized".format(name))
     _extant_popups[name] = popup
     if onClick:
-        popup.onClick.connect(onClick)
+        popup.onClick.connect(onClick, Qt.QueuedConnection)
     if onRightClick:
-        popup.onRightClick.connect(onRightClick)
+        popup.onRightClick.connect(onRightClick, Qt.QueuedConnection)
     popup.showRelativeTo(target)
     return True
 
 def KillPopupLabel(name):
     extant = _extant_popups.pop(name, None)
     if extant:
-        QWidget.hide(extant)
+        try: extant.destroyed.disconnect()
+        except: pass
+        destroyed_print_error(extant, "[PopupLabel/{}] destroyed".format(name))
         extant.setParent(None)
-        try:
-            extant.destroyed.disconnect()
-        except:
-            pass
+        try:  extant.animation.finished.disconnect()
+        except: pass
+        extant.animation.stop()
         extant.deleteLater()
-        del extant
         #print("----> Found and killed extant label")
