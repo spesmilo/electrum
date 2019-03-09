@@ -38,12 +38,27 @@ class SPV(ThreadJob):
         self.requested_merkle = set()  # txid set of pending requests
         self.qbusy = False
         self.cleaned_up = False
+        self._need_release = False
 
-    def release(self):
+    def _release(self):
+        ''' Called from the Network (DaemonThread) -- to prevent race conditions
+        with network, we remove data structures related to the network and
+        unregister ourselves as a job from within the Network thread itself. '''
+        self._need_release = False
         self.cleaned_up = True
         self.network.cancel_requests(self.verify_merkle)
+        self.network.remove_jobs([self])
+
+    def release(self):
+        ''' Called from main thread, enqueues a 'release' to happen in the
+        Network thread. '''
+        self._need_release = True
 
     def run(self):
+        if self._need_release:
+            self._release()
+        if self.cleaned_up:
+            return
         interface = self.network.interface
         if not interface:
             self.print_error("v.no interface")

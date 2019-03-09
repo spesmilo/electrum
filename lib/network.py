@@ -813,19 +813,21 @@ class Network(util.DaemonThread):
         return ct
 
     def unsubscribe(self, callback):
-        '''Unsubscribe a callback to free object references to enable GC.'''
+        '''Unsubscribe a callback to free object references to enable GC.
+        It is advised that this function only be called from the network thread
+        to avoid race conditions.'''
         # Note: we can't unsubscribe from the server, so if we receive
         # subsequent notifications, they will be safely ignored as
         # no callbacks will exist to process them. For subscriptions we will
         # however cache the 'result' hash and feed it back in case a wallet that
         # was closed gets reopened (self.sub_cache).
         ct = 0
-        with self.lock:  # FIXME: still have possible race conditions here with network thread
+        with self.lock:
             for k,v in self.subscriptions.copy().items():
                 if callback in v:
                     v.remove(callback)
                     if not v:
-                        # remove empty lis
+                        # remove empty list
                         self.subscriptions.pop(k, None)
                     ct += 1
         ct2 = self._cancel_pending_sends(callback)
@@ -834,16 +836,16 @@ class Network(util.DaemonThread):
             self.print_error("Removed {} subscription callbacks and {} pending sends for callback: {}".format(ct, ct2, qname))
 
     def cancel_requests(self, callback):
-        '''Remove a callback to free object references to enable GC.'''
+        '''Remove a callback to free object references to enable GC.
+        It is advised that this function only be called from the network thread
+        to avoid race conditions.'''
         # If the interface ends up answering these requests, they will just
         # be safely ignored. This is better than the alternative which is to
         # keep references to an object that declared itself defunct.
         ct = 0
-        # FIXME: race conditions here with network thread since this is usually
-        # called from the main thread.
         for message_id, client_req in self.unanswered_requests.copy().items():
             if callback == client_req[2]:
-                self.unanswered_requests.pop(message_id, None) # may be missing here due to race conditions.
+                self.unanswered_requests.pop(message_id, None) # guard against race conditions here. Note: this usually is called from the network thread but who knows what future programmers may do. :)
                 ct += 1
         ct2 = self._cancel_pending_sends(callback)
         if ct or ct2:

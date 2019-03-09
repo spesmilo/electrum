@@ -1128,6 +1128,8 @@ class Abstract_Wallet(PrintError):
             self.prepare_for_verifier()
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)
+            finalization_print_error(self.verifier, "[{}.{}] finalized".format(self.diagnostic_name(), self.verifier.diagnostic_name()))
+            finalization_print_error(self.synchronizer, "[{}.{}] finalized".format(self.diagnostic_name(), self.synchronizer.diagnostic_name()))
             network.add_jobs([self.verifier, self.synchronizer])
         else:
             self.verifier = None
@@ -1135,7 +1137,13 @@ class Abstract_Wallet(PrintError):
 
     def stop_threads(self):
         if self.network:
-            self.network.remove_jobs([self.synchronizer, self.verifier])
+            # Note: syncrhonizer and verifier will remove themselves from the
+            # network thread the next time they run, as a result of the below
+            # release() calls.
+            # It is done this way (as opposed to an immediate clean-up here)
+            # because these objects need to do thier clean-up actions in a
+            # thread-safe fashion from within the thread where they normally
+            # operate on their data structures.
             self.synchronizer.release()
             self.verifier.release()
             self.synchronizer = None
