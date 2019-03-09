@@ -40,7 +40,7 @@ from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash.simple_config import SimpleConfig, get_config
 from electroncash.wallet import Abstract_Wallet
-from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited, ColorScheme
+from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited, ColorScheme, destroyed_print_error
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.amountedit import BTCAmountEdit
@@ -1243,8 +1243,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.setup(message)
 
         #DEBUG
-        dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
+        destroyed_print_error(self)
 
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
@@ -1493,9 +1492,8 @@ class NetworkChecker(QThread, PrintErrorThread):
         self.parent = parent
         self.timer = None # delay checking server in case user is typing in a new one in the custom box
         self.timerCon = None
-        dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
-        print_error("[{}] created".format(dname))
+        destroyed_print_error(self)
+        self.print_error("created")
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
     def run(self): # overrides QThread
@@ -1623,8 +1621,7 @@ class PoolsWinMgr(QObject, PrintError):
         self.poolWindows = {}
         self.print_error("created")
         #DEBUG
-        dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
+        destroyed_print_error(self)
     def __del__(self):
         stale = True
         if PoolsWinMgr._instance is self:
@@ -1747,8 +1744,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         # etc...
         self.resize(400,300)
         #DEBUG
-        dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
+        destroyed_print_error(self, "[{}] destroyed".format(self.diagnostic_name()))
     def diagnostic_name(self):
         return "{}/{}".format(super().diagnostic_name(), self.objectName())
     def closeEvent(self, e):
@@ -1935,8 +1931,7 @@ class CoinSelectionSettingsWindow(AppModalDialog, PrintError):
         self.resize(320,200)
         self.fromConfig()
         # DEBUG Qt destruction
-        dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x=None: print_error("[{}] destroyed.".format(dname)))
+        destroyed_print_error(self)
 
     def _decimal_point(self): return get_config().get('decimal_point', 8)
 
