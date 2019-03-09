@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import *
 from electroncash.i18n import _
 import sys
 from electroncash import PACKAGE_VERSION
-from electroncash.util import Weak, print_error
+from electroncash.util import print_error, finalization_print_error
 from .main_window import ElectrumWindow
 from .util import destroyed_print_error
 
@@ -204,7 +204,7 @@ class Exception_Hook(QObject):
         sys.excepthook = self.handler # yet another strong reference. We really won't die unless uninstall() is called
         self._report_exception.connect(_show_window)
         print_error("[{}] Installed.".format(__class__.__qualname__))
-        Weak.finalization_print_error(self, "[{}] Finalized.".format(__class__.__qualname__))
+        finalization_print_error(self, "[{}] Finalized.".format(__class__.__qualname__))
         destroyed_print_error(self)
 
     @staticmethod
