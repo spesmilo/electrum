@@ -91,6 +91,12 @@ class HistoryList(MyTreeWidget):
         if tx_hash:
             self._item_cache[tx_hash] = item
 
+    def addTopLevelItem(self, item, tx_hash=None):
+        super().addTopLevelItem(item)
+        tx_hash = tx_hash or item.data(0, Qt.UserRole)
+        if tx_hash:
+            self._item_cache[tx_hash] = item
+
     @classmethod
     def _get_icon_for_status(cls, status):
         ret = cls.statusIcons.get(status)
@@ -101,10 +107,10 @@ class HistoryList(MyTreeWidget):
     @profiler
     def on_update(self):
         self.wallet = self.parent.wallet
-        h = self.wallet.get_history(self.get_domain())
-        item = self.currentItem()
-        current_tx = item.data(0, Qt.UserRole) if item else None
-        del item  #  make sure not to hold stale ref to C++ item which will be deleted in clear() call below
+        h = self.wallet.get_history(self.get_domain(), reverse=True)
+        sels = self.selectedItems()
+        current_tx = sels[0].data(0, Qt.UserRole) if sels else None
+        del sels #  make sure not to hold stale ref to C++ list of items which will be deleted in clear() call below
         self.clear()
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
@@ -137,9 +143,13 @@ class HistoryList(MyTreeWidget):
                 item.setForeground(3, self.withdrawalBrush)
                 item.setForeground(4, self.withdrawalBrush)
             item.setData(0, Qt.UserRole, tx_hash)
-            self.insertTopLevelItem(0, item, tx_hash)
+            self.addTopLevelItem(item, tx_hash)
             if current_tx == tx_hash:
-                self.setCurrentItem(item)
+                # Note that it's faster to setSelected once the item is in
+                # the tree. Also note that doing setSelected() on the item
+                # itself is much faster than doing setCurrentItem()
+                # which must do a linear search in the tree (wastefully)
+                item.setSelected(True)
 
     def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
