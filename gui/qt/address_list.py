@@ -90,9 +90,10 @@ class AddressList(MyTreeWidget):
                         it.setExpanded(new)
         self.wallet = self.parent.wallet
         had_item_count = self.topLevelItemCount()
-        item = self.currentItem()
-        current_address = item.data(0, Qt.UserRole) if item else None
+        sels = self.selectedItems()
+        addresses_to_re_select = {item.data(0, Qt.UserRole) for item in sels}
         expanded_item_names = remember_expanded_items(self.invisibleRootItem())
+        del sels  # avoid keeping reference to about-to-be delete C++ objects
         self.clear()
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
@@ -150,14 +151,14 @@ class AddressList(MyTreeWidget):
                     used_item.addChild(address_item)
                 else:
                     seq_item.addChild(address_item)
-                if address == current_address:
+                if address in addresses_to_re_select:
                     items_to_re_select.append(address_item)
 
-        if items_to_re_select:
+        for item in items_to_re_select:
             # NB: Need to select the item at the end becasue internally Qt does some index magic
             # to pick out the selected item and the above code mutates the TreeList, invalidating indices
             # and other craziness, which might produce UI glitches. See #1042
-            self.setCurrentItem(items_to_re_select[-1])
+            item.setSelected(True)
 
         # Now, at the very end, enforce previous UI state with respect to what was expanded or not. See #1042
         restore_expanded_items(self.invisibleRootItem(), expanded_item_names)
