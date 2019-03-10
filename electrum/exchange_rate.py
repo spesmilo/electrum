@@ -9,7 +9,7 @@ import csv
 import decimal
 from decimal import Decimal
 import traceback
-from typing import Sequence
+from typing import Sequence, Optional
 
 from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
 
@@ -45,6 +45,7 @@ class ExchangeBase(PrintError):
         proxy = network.proxy if network else None
         async with make_aiohttp_session(proxy) as session:
             async with session.get(url) as response:
+                response.raise_for_status()
                 return await response.text()
 
     async def get_json(self, site, get_string):
@@ -54,6 +55,7 @@ class ExchangeBase(PrintError):
         proxy = network.proxy if network else None
         async with make_aiohttp_session(proxy) as session:
             async with session.get(url) as response:
+                response.raise_for_status()
                 # set content_type to None to disable checking MIME type
                 return await response.json(content_type=None)
 
@@ -76,31 +78,31 @@ class ExchangeBase(PrintError):
             self.quotes = {}
         self.on_quotes()
 
-    def read_historical_rates(self, ccy, cache_dir):
+    def read_historical_rates(self, ccy, cache_dir) -> Optional[dict]:
         filename = os.path.join(cache_dir, self.name() + '_'+ ccy)
-        if os.path.exists(filename):
-            timestamp = os.stat(filename).st_mtime
-            try:
-                with open(filename, 'r', encoding='utf-8') as f:
-                    h = json.loads(f.read())
-                h['timestamp'] = timestamp
-            except:
-                h = None
-        else:
-            h = None
-        if h:
-            self.history[ccy] = h
-            self.on_history()
+        if not os.path.exists(filename):
+            return None
+        timestamp = os.stat(filename).st_mtime
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                h = json.loads(f.read())
+        except:
+            return None
+        if not h:  # e.g. empty dict
+            return None
+        h['timestamp'] = timestamp
+        self.history[ccy] = h
+        self.on_history()
         return h
 
     @log_exceptions
     async def get_historical_rates_safe(self, ccy, cache_dir):
         try:
-            self.print_error("requesting fx history for", ccy)
+            self.print_error(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
-            self.print_error("received fx history for", ccy)
+            self.print_error(f"received fx history for {ccy}")
         except BaseException as e:
-            self.print_error("failed fx history:", repr(e))
+            self.print_error(f"failed fx history: {repr(e)}")
             #traceback.print_exc()
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
