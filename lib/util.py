@@ -31,6 +31,7 @@ import threading
 import hmac
 import stat
 import inspect, weakref
+from locale import localeconv
 
 from .i18n import _
 
@@ -466,9 +467,9 @@ def format_satoshis_plain(x, decimal_point = 8):
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(PyDecimal(x) / scale_factor).rstrip('0').rstrip('.')
 
-
+_cached_dp = None
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
-    from locale import localeconv
+    global _cached_dp
     if x is None:
         return 'unknown'
     if precision is None:
@@ -481,7 +482,9 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     except ArithmeticError:
         return 'unknown' # Normally doesn't happen but if x is a huge int, we may get OverflowError or other ArithmeticError subclass exception. See #1024
     integer_part, fract_part = result.split(".")
-    dp = localeconv()['decimal_point']
+    if _cached_dp is None:
+        _cached_dp = localeconv().get('decimal_point') or '.'
+    dp = _cached_dp
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + dp + fract_part
