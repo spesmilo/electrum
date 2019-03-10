@@ -478,11 +478,16 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     if is_diff:
         decimal_format = '+' + decimal_format
     try:
-        result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+        result = ("{:" + decimal_format + "f}").format(x / pow(10, decimal_point)).rstrip('0')
     except ArithmeticError:
-        return 'unknown' # Normally doesn't happen but if x is a huge int, we may get OverflowError or other ArithmeticError subclass exception. See #1024
+        # Normally doesn't happen but if x is a huge int, we may get
+        # OverflowError or other ArithmeticError subclass exception. See #1024.
+        return 'unknown'
     integer_part, fract_part = result.split(".")
-    if _cached_dp is None:
+    if not _cached_dp:
+        # We lazy init this here rather than at module level because iOS sets
+        # locale at startup -- so we should initialize this variable on
+        # first run through this function rather than at module load time.
         _cached_dp = localeconv().get('decimal_point') or '.'
     dp = _cached_dp
     if len(fract_part) < num_zeros:
