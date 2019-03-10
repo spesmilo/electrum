@@ -430,6 +430,8 @@ class Network(util.DaemonThread):
             value = self.get_interfaces()
         elif key == 'proxy':
             value = (self.proxy and self.proxy.copy()) or None
+        else:
+            raise RuntimeError('unexpected trigger key {}'.format(key))
         return value
 
     def notify(self, key):
