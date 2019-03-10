@@ -835,7 +835,7 @@ class Abstract_Wallet(PrintError):
         if self.network:
             self.network.trigger_callback('on_history', self)
 
-    def get_history(self, domain=None):
+    def get_history(self, domain=None, *, reverse=False):
         # get domain
         if domain is None:
             domain = self.get_addresses()
@@ -869,7 +869,8 @@ class Abstract_Wallet(PrintError):
                 balance = None
             else:
                 balance -= delta
-        h2.reverse()
+        if not reverse:
+            h2.reverse()
 
         return h2
 

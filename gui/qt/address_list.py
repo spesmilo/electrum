@@ -35,6 +35,7 @@ from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.plugins import run_hook
 import electroncash.web as web
+from electroncash.util import profiler
 
 
 class AddressList(MyTreeWidget):
@@ -62,6 +63,7 @@ class AddressList(MyTreeWidget):
             return
         super().update()
 
+    @profiler
     def on_update(self):
         def item_path(item): # Recursively builds the path for an item eg 'parent_name/item_name'
             return item.text(0) if not item.parent() else item_path(item.parent()) + "/" + item.text(0)
@@ -156,7 +158,7 @@ class AddressList(MyTreeWidget):
             # to pick out the selected item and the above code mutates the TreeList, invalidating indices
             # and other craziness, which might produce UI glitches. See #1042
             self.setCurrentItem(items_to_re_select[-1])
-        
+
         # Now, at the very end, enforce previous UI state with respect to what was expanded or not. See #1042
         restore_expanded_items(self.invisibleRootItem(), expanded_item_names)
 
