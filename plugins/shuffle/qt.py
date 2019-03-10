@@ -1398,6 +1398,9 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         win = CoinSelectionSettingsWindow()
         win.exec_()
         win.deleteLater()
+        if self.window().isVisible():
+            self.window().raise_()
+            self.activateWindow()
 
     def _vpGotStatus(self, sdict):
         self._vpLastStatus = sdict.copy()
