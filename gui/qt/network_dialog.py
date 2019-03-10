@@ -46,7 +46,7 @@ class NetworkDialog(QDialog, MessageBoxMixin):
     def __init__(self, network, config):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
-        self.setMinimumSize(500, 20)
+        self.setMinimumSize(500, 350)
         self.nlayout = NetworkChoiceLayout(self, network, config)
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
