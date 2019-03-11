@@ -72,6 +72,9 @@ class UTXOList(MyTreeWidget):
             amount = self.parent.format_amount(x['value'], is_diff=False, whitespaces=True)
             utxo_item = SortableTreeWidgetItem([address_text, label, amount,
                                                 str(height), name_short])
+            if label:
+                utxo_item.setToolTip(1, label)  # just in case it doesn't fit horizontally, we also provide it as a tool tip where hopefully it won't be elided
+            utxo_item.setToolTip(4, name)  # just in case they like to see lots of hex digits :)
             utxo_item.DataRole = Qt.UserRole+100 # set this here to avoid sorting based on Qt.UserRole+1
             utxo_item.setFont(0, self.monospaceFont)
             utxo_item.setFont(2, self.monospaceFont)
@@ -79,19 +82,25 @@ class UTXOList(MyTreeWidget):
             utxo_item.setData(0, Qt.UserRole, name)
             a_frozen = self.wallet.is_frozen(address)
             c_frozen = x['is_frozen_coin']
+            toolTipFrozen = ''
             if a_frozen and not c_frozen:
                 # address is frozen, coin is not frozen
                 # emulate the "Look" off the address_list .py's frozen entry
                 utxo_item.setBackground(0, self.lightBlue)
+                toolTipFrozen = _("Address is frozen")
             elif c_frozen and not a_frozen:
                 # coin is frozen, address is not frozen
                 utxo_item.setBackground(0, self.blue)
+                toolTipFrozen = _("Coin is frozen")
             elif c_frozen and a_frozen:
                 # both coin and address are frozen so color-code it to indicate that.
                 utxo_item.setBackground(0, self.lightBlue)
                 utxo_item.setForeground(0, self.cyanBlue)
+                toolTipFrozen = _("Coin & Address are frozen")
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
             utxo_item.setData(0, Qt.UserRole+1, "{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else "")))
+            if toolTipFrozen:
+                utxo_item.setToolTip(0, toolTipFrozen)
             self.addChild(utxo_item)
             if name in prev_selection:
                 # NB: This needs to be here after the item is added to the widget. See #979.
