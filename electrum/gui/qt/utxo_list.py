@@ -37,11 +37,11 @@ from .util import MyTreeView, ColorScheme, MONOSPACE_FONT
 class UTXOList(MyTreeView):
 
     class Columns(IntEnum):
-        ADDRESS = 0
-        LABEL = 1
-        AMOUNT = 2
-        HEIGHT = 3
-        OUTPOINT = 4
+        OUTPOINT = 0
+        ADDRESS = 1
+        LABEL = 2
+        AMOUNT = 3
+        HEIGHT = 4
 
     headers = {
         Columns.ADDRESS: _('Address'),
@@ -74,11 +74,11 @@ class UTXOList(MyTreeView):
         address = x['address']
         height = x.get('height')
         name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
-        name_short = x.get('prevout_hash')[:10] + '...' + ":%d"%x.get('prevout_n')
+        name_short = x.get('prevout_hash')[:16] + '...' + ":%d"%x.get('prevout_n')
         self.utxo_dict[name] = x
         label = self.wallet.get_label(x.get('prevout_hash'))
         amount = self.parent.format_amount(x['value'], whitespaces=True)
-        labels = [address, label, amount, '%d'%height, name_short]
+        labels = [name_short, address, label, amount, '%d'%height]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
         utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
