@@ -198,7 +198,8 @@ class Abstract_Wallet(PrintError):
                                  for req in requests.values()}
 
         # Transactions pending verification.  A map from tx hash to transaction
-        # height.  Access is not contended so no lock is needed.
+        # height.  Access is contended so a lock is needed. Client code should
+        # use get_unverified_tx to get a thread-safe copy of this dict.
         self.unverified_tx = defaultdict(int)
 
         # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
@@ -299,16 +300,14 @@ class Abstract_Wallet(PrintError):
         self.save_transactions()
         with self.lock:
             self._history = {}
-            self.tx_addr_hist = {}
+            self.tx_addr_hist = defaultdict(set)
 
     @profiler
     def build_reverse_history(self):
-        self.tx_addr_hist = {}
+        self.tx_addr_hist = defaultdict(set)
         for addr, hist in self._history.items():
             for tx_hash, h in hist:
-                s = self.tx_addr_hist.get(tx_hash, set())
-                s.add(addr)
-                self.tx_addr_hist[tx_hash] = s
+                self.tx_addr_hist[tx_hash].add(addr)
 
     @profiler
     def check_history(self):
@@ -425,27 +424,35 @@ class Abstract_Wallet(PrintError):
         return self.get_pubkeys(*sequence)
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if tx_height == 0 and tx_hash in self.verified_tx:
-            self.verified_tx.pop(tx_hash)
-            if self.verifier:
-                self.verifier.merkle_roots.pop(tx_hash, None)
+        with self.lock:
+            if tx_height == 0 and tx_hash in self.verified_tx:
+                self.verified_tx.pop(tx_hash)
+                if self.verifier:
+                    self.verifier.merkle_roots.pop(tx_hash, None)
 
-        # tx will be verified only if height > 0
-        if tx_hash not in self.verified_tx:
-            self.unverified_tx[tx_hash] = tx_height
+            # tx will be verified only if height > 0
+            if tx_hash not in self.verified_tx:
+                self.unverified_tx[tx_hash] = tx_height
 
     def add_verified_tx(self, tx_hash, info):
         # Remove from the unverified map and add to the verified map and
-        self.unverified_tx.pop(tx_hash, None)
         with self.lock:
+            self.unverified_tx.pop(tx_hash, None)
             self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
-        height, conf, timestamp = self.get_tx_height(tx_hash)
+            height, conf, timestamp = self.get_tx_height(tx_hash)
         self.network.trigger_callback('verified', tx_hash, height, conf, timestamp)
         self.network.trigger_callback('verified2', self, tx_hash, height, conf, timestamp)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
-        return self.unverified_tx
+        with self.lock:
+            return self.unverified_tx.copy()
+
+    def get_unverified_tx_pending_count(self):
+        ''' Returns the number of unverified tx's that are confirmed and are
+        still in process and should be verified soon.'''
+        with self.lock:
+            return len([1 for height in self.unverified_tx.values() if height > 0])
 
     def undo_verifications(self, blockchain, height):
         '''Used by the verifier when a reorg has happened'''
@@ -472,9 +479,11 @@ class Abstract_Wallet(PrintError):
                 height, timestamp, pos = self.verified_tx[tx_hash]
                 conf = max(self.get_local_height() - height + 1, 0)
                 return height, conf, timestamp
-            else:
+            elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
                 return height, 0, 0
+            else:
+                return 0, 0, 0
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
@@ -777,7 +786,7 @@ class Abstract_Wallet(PrintError):
     def remove_transaction(self, tx_hash):
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
-            #tx = self.transactions.pop(tx_hash)
+            tx = self.transactions.pop(tx_hash, None)
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
                     self.pruned_txo.pop(ser)
@@ -795,41 +804,47 @@ class Abstract_Wallet(PrintError):
                         dd.pop(addr)
                     else:
                         dd[addr] = l
-            try:
-                self.txi.pop(tx_hash)
-                self.txo.pop(tx_hash)
-            except KeyError:
-                self.print_error("tx was not in history", tx_hash)
+            try: self.txi.pop(tx_hash)
+            except KeyError: self.print_error("tx was not in input history", tx_hash)
+            try: self.txo.pop(tx_hash)
+            except KeyError: self.print_error("tx was not in output history", tx_hash)
+
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
         self.add_unverified_tx(tx_hash, tx_height)
 
     def receive_history_callback(self, addr, hist, tx_fees):
-        with self.lock:
+        with self.lock, self.transaction_lock:
             old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
-                    # remove tx if it's not referenced in histories
-                    self.tx_addr_hist[tx_hash].remove(addr)
-                    if not self.tx_addr_hist[tx_hash]:
-                        self.remove_transaction(tx_hash)
+                    # Unconditionally remove tx since histories don't match
+                    # Corner case: the tx may be relevant for some other address
+                    # in this wallet? Unlikely, but if so, it will get picked up
+                    # again as an unverified tx and reverified if its history
+                    # comes in to this function in the future for some other
+                    # address.
+                    self.tx_addr_hist.pop(tx_hash, None)
+                    self.remove_transaction(tx_hash)
+                    self.unverified_tx.pop(tx_hash, None)
+                    self.verified_tx.pop(tx_hash, None)
+                    if self.verifier:
+                        self.verifier.remove_spv_proof_for_tx(tx_hash)
             self._history[addr] = hist
 
-        for tx_hash, tx_height in hist:
-            # add it in case it was previously unconfirmed
-            self.add_unverified_tx(tx_hash, tx_height)
-            # add reference in tx_addr_hist
-            s = self.tx_addr_hist.get(tx_hash, set())
-            s.add(addr)
-            self.tx_addr_hist[tx_hash] = s
-            # if addr is new, we have to recompute txi and txo
-            tx = self.transactions.get(tx_hash)
-            if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
-                self.add_transaction(tx_hash, tx)
+            for tx_hash, tx_height in hist:
+                # add it in case it was previously unconfirmed
+                self.add_unverified_tx(tx_hash, tx_height)
+                # add reference in tx_addr_hist
+                self.tx_addr_hist[tx_hash].add(addr)
+                # if addr is new, we have to recompute txi and txo
+                tx = self.transactions.get(tx_hash)
+                if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
+                    self.add_transaction(tx_hash, tx)
 
-        # Store fees
-        self.tx_fees.update(tx_fees)
+            # Store fees
+            self.tx_fees.update(tx_fees)
 
         if self.network:
             self.network.trigger_callback('on_history', self)
@@ -1653,6 +1668,7 @@ class ImportedWalletBase(Simple_Wallet):
                 self.verified_tx.pop(tx_hash, None)
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
+                self.tx_addr_hist.get(tx_hash, set()).discard(address)
                 # FIXME: what about pruned_txo?
 
             self.storage.put('verified_tx3', self.verified_tx)
