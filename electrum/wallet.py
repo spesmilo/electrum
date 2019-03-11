@@ -38,7 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -204,7 +204,8 @@ class Abstract_Wallet(AddressSynchronizer):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
-        self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
+        self.frozen_addresses      = set(storage.get('frozen_addresses', []))
+        self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
 
@@ -395,17 +396,24 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_spendable_coins(self, domain, config, *, nonlocal_only=False):
         confirmed_only = config.get('confirmed_only', False)
-        return self.get_utxos(domain,
-                              excluded=self.frozen_addresses,
-                              mature=True,
-                              confirmed_only=confirmed_only,
-                              nonlocal_only=nonlocal_only)
+        utxos = self.get_utxos(domain,
+                               excluded_addresses=self.frozen_addresses,
+                               mature_only=True,
+                               confirmed_only=confirmed_only,
+                               nonlocal_only=nonlocal_only)
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+        return utxos
 
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
 
     def get_frozen_balance(self):
-        return self.get_balance(self.frozen_addresses)
+        if not self.frozen_coins:  # shortcut
+            return self.get_balance(self.frozen_addresses)
+        c1, u1, x1 = self.get_balance()
+        c2, u2, x2 = self.get_balance(excluded_addresses=self.frozen_addresses,
+                                      excluded_coins=self.frozen_coins)
+        return c1-c2, u1-u2, x1-x2
 
     def balance_at_timestamp(self, domain, target_timestamp):
         h = self.get_history(domain)
@@ -737,12 +745,18 @@ class Abstract_Wallet(AddressSynchronizer):
         self.sign_transaction(tx, password)
         return tx
 
-    def is_frozen(self, addr):
+    def is_frozen_address(self, addr: str) -> bool:
         return addr in self.frozen_addresses
 
-    def set_frozen_state(self, addrs, freeze):
-        '''Set frozen state of the addresses to FREEZE, True or False'''
+    def is_frozen_coin(self, utxo) -> bool:
+        # utxo is either a txid:vout str, or a dict
+        utxo = self._utxo_str_from_utxo(utxo)
+        return utxo in self.frozen_coins
+
+    def set_frozen_state_of_addresses(self, addrs, freeze: bool):
+        """Set frozen state of the addresses to FREEZE, True or False"""
         if all(self.is_mine(addr) for addr in addrs):
+            # FIXME take lock?
             if freeze:
                 self.frozen_addresses |= set(addrs)
             else:
@@ -750,6 +764,25 @@ class Abstract_Wallet(AddressSynchronizer):
             self.storage.put('frozen_addresses', list(self.frozen_addresses))
             return True
         return False
+
+    def set_frozen_state_of_coins(self, utxos, freeze: bool):
+        """Set frozen state of the utxos to FREEZE, True or False"""
+        utxos = {self._utxo_str_from_utxo(utxo) for utxo in utxos}
+        # FIXME take lock?
+        if freeze:
+            self.frozen_coins |= set(utxos)
+        else:
+            self.frozen_coins -= set(utxos)
+        self.storage.put('frozen_coins', list(self.frozen_coins))
+
+    @staticmethod
+    def _utxo_str_from_utxo(utxo: Union[dict, str]) -> str:
+        """Return a txid:vout str"""
+        if isinstance(utxo, dict):
+            return "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
+        assert isinstance(utxo, str), f"utxo should be a str, not {type(utxo)}"
+        # just assume it is already of the correct format
+        return utxo
 
     def wait_until_synchronized(self, callback=None):
         def wait_for_wallet():
@@ -1401,7 +1434,7 @@ class Imported_Wallet(Simple_Wallet):
                 self.db.remove_transaction(tx_hash)
         self.set_label(address, None)
         self.remove_payment_request(address, {})
-        self.set_frozen_state([address], False)
+        self.set_frozen_state_of_addresses([address], False)
         pubkey = self.get_public_key(address)
         self.db.remove_imported_address(address)
         if pubkey:
