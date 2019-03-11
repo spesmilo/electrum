@@ -218,16 +218,9 @@ class Synchronizer(ThreadJob):
         addresses, and request any transactions in its address history
         we don't have.
         '''
-        # FIXME: encapsulation and also:
-        # Is the below even necessary? Subscribing to scripthashes should reveal
-        # tx's we have or don't have. And wallet.receive_history_callback
-        # will remove any invalid or reorg'd tx's, and add any missing ones.
-        # The only thing this possibly does is cause the server to return
-        # an error and/or disconnect us in the case of a reorg or chain switch
-        # across forks.  So I commented this out March 11, 2019, and
-        # everything works as intended anyway. -Calin
-        #for history in self.wallet._history.values():
-        #    self.request_missing_txs(history)
+        # FIXME: encapsulation
+        for history in self.wallet._history.values():
+            self.request_missing_txs(history)
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
