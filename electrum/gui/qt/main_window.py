@@ -965,10 +965,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(self.expires_label, 2, 1)
 
         self.create_invoice_button = QPushButton(_('On-chain'))
-        self.create_invoice_button.setIcon(QIcon(":icons/bitcoin.png"))
+        self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.create_lightning_invoice_button = QPushButton(_('Lightning'))
-        self.create_lightning_invoice_button.setIcon(QIcon(":icons/lightning.png"))
+        self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
         self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
