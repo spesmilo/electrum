@@ -820,7 +820,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
                         self.base_unit(), self.get_decimal_point()) or ''
-                n_unverif = len(self.wallet.get_unverified_txs())
+                n_unverif = self.wallet.get_unverified_tx_pending_count()
                 if n_unverif >= 10:
                     # if there are lots left to verify, display this informative text
                     text += " " + ( _("[%d unverified TXs]") % n_unverif )
@@ -3912,4 +3912,3 @@ class TxUpdateMgr(QObject, PrintError):
                                       .format(n_ok, parent.format_amount_and_units(total_amount)))
                     else:
                         parent.notify(_("New transaction received: {}").format(parent.format_amount_and_units(total_amount)))
-
