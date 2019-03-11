@@ -85,11 +85,14 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
-        utxo_item[self.Columns.OUTPOINT].setToolTip(name)
         if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
+            utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
         if self.wallet.is_frozen_coin(x):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
+            utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is frozen')}")
+        else:
+            utxo_item[self.Columns.OUTPOINT].setToolTip(name)
         self.model().insertRow(idx, utxo_item)
 
     def get_selected_outpoints(self) -> Optional[List[str]]:
