@@ -1667,6 +1667,9 @@ class ImportedWalletBase(Simple_Wallet):
                 if addr == address:
                     for tx_hash, height in details:
                         transactions_to_remove.add(tx_hash)
+                        self.tx_addr_hist[tx_hash].discard(address)
+                        if not self.tx_addr_hist.get(tx_hash):
+                            self.tx_addr_hist.pop(tx_hash, None)
                 else:
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
@@ -1679,7 +1682,12 @@ class ImportedWalletBase(Simple_Wallet):
                 self.verified_tx.pop(tx_hash, None)
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
-                self.tx_addr_hist.get(tx_hash, set()).discard(address)
+                if self.verifier:
+                    # TX is now gone. Toss its SPV proof in case we have it
+                    # in memory. This allows user to re-add PK again and it
+                    # will avoid the situation where the UI says "not verified"
+                    # erroneously!
+                    self.verifier.remove_spv_proof_for_tx(tx_hash)
                 # FIXME: what about pruned_txo?
 
             self.storage.put('verified_tx3', self.verified_tx)
