@@ -92,7 +92,7 @@ class UTXOList(MyTreeView):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
         self.model().insertRow(idx, utxo_item)
 
-    def selected_column_0_user_roles(self) -> Optional[List[str]]:
+    def get_selected_outpoints(self) -> Optional[List[str]]:
         if not self.model():
             return None
         items = self.selected_in_column(self.Columns.ADDRESS)
@@ -101,7 +101,7 @@ class UTXOList(MyTreeView):
         return [x.data(Qt.UserRole) for x in items]
 
     def create_menu(self, position):
-        selected = self.selected_column_0_user_roles()
+        selected = self.get_selected_outpoints()
         if not selected:
             return
         menu = QMenu()
@@ -118,6 +118,12 @@ class UTXOList(MyTreeView):
             if tx:
                 label = self.wallet.get_label(txid) or None # Prefer None if empty (None hides the Description: field in the window)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
+            # "Copy ..."
+            idx = self.indexAt(position)
+            col = idx.column()
+            column_title = self.model().horizontalHeaderItem(col).text()
+            copy_text = self.model().itemFromIndex(idx).text() if col != self.Columns.OUTPOINT else selected[0]
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
             # "Freeze coin"
             if not self.wallet.is_frozen_coin(utxo_dict):
                 menu.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo_dict], True))
