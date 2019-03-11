@@ -28,6 +28,7 @@ from electroncash.i18n import _
 
 class UTXOList(MyTreeWidget):
     filter_columns = [0, 2]  # Address, Label
+    col_output_point = 4  # <-- index of the 'Output point' column. make sure to update this if you modify the header below...
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1)
@@ -106,10 +107,19 @@ class UTXOList(MyTreeWidget):
             return
         menu = QMenu()
         coins = filter(lambda x: self.get_name(x) in selected, self.utxos)
+        if not coins:
+            return
         spendable_coins = list(filter(lambda x: not selected.get(self.get_name(x), ''), coins))
         # Unconditionally add the "Spend" option but leave it disabled if there are no spendable_coins
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(spendable_coins)).setEnabled(bool(spendable_coins))
         if len(selected) == 1:
+            # "Copy ..."
+            idx = self.indexAt(position)
+            col = idx.column()
+            column_title = self.headerItem().text(col)
+            copy_text = (self.model().data(idx) if col != self.col_output_point else tuple(selected.keys())[0]).strip()
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
+
             # single selection, offer them the "Details" option and also coin/address "freeze" status, if any
             txid = list(selected.keys())[0].split(':')[0]
             frozen_flags = list(selected.values())[0]
