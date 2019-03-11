@@ -787,7 +787,7 @@ class Abstract_Wallet(PrintError):
     def remove_transaction(self, tx_hash):
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
-            tx = self.transactions.pop(tx_hash, None)
+            #tx = self.transactions.pop(tx_hash, None)
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
                     self.pruned_txo.pop(ser)
@@ -820,18 +820,19 @@ class Abstract_Wallet(PrintError):
             old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
-                    # Unconditionally remove tx since histories don't match
-                    # Corner case: the tx may be relevant for some other address
-                    # in this wallet? Unlikely, but if so, it will get picked up
-                    # again as an unverified tx and reverified if its history
-                    # comes in to this function in the future for some other
-                    # address.
-                    self.tx_addr_hist.pop(tx_hash, None)
-                    self.remove_transaction(tx_hash)
-                    self.unverified_tx.pop(tx_hash, None)
-                    self.verified_tx.pop(tx_hash, None)
-                    if self.verifier:
-                        self.verifier.remove_spv_proof_for_tx(tx_hash)
+                    s = self.tx_addr_hist.get(tx_hash)
+                    if s:
+                        s.discard(addr)
+                    if not s:
+                        # if no address references this tx anymore, kill it
+                        # from txi/txo dicts.
+                        if s is not None:
+                            # We won't keep empty sets around.
+                            self.tx_addr_hist.pop(tx_hash)
+                        # note this call doesn't actually remove the tx from
+                        # storage, it merely removes it from the self.txi
+                        # and self.txo dicts
+                        self.remove_transaction(tx_hash)
             self._history[addr] = hist
 
             for tx_hash, tx_height in hist:
