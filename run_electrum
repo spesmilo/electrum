@@ -363,6 +363,16 @@ if __name__ == '__main__':
                     if pid:
                         print_stderr("starting daemon (PID %d)" % pid)
                         sys.exit(0)
+                    # redirect standard file descriptors
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                    si = open(os.devnull, 'r')
+                    so = open(os.devnull, 'w')
+                    se = open(os.devnull, 'w')
+                    os.dup2(si.fileno(), sys.stdin.fileno())
+                    os.dup2(so.fileno(), sys.stdout.fileno())
+                    os.dup2(se.fileno(), sys.stderr.fileno())
+                # run daemon
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd)
                 if config.get('websocket_server'):

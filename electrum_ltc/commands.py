@@ -309,12 +309,12 @@ class Commands:
     @command('w')
     def freeze(self, address):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
-        return self.wallet.set_frozen_state([address], True)
+        return self.wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
     def unfreeze(self, address):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
-        return self.wallet.set_frozen_state([address], False)
+        return self.wallet.set_frozen_state_of_addresses([address], False)
 
     @command('wp')
     def getprivatekeys(self, address, password=None):
@@ -547,7 +547,7 @@ class Commands:
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in self.wallet.get_addresses():
-            if frozen and not self.wallet.is_frozen(addr):
+            if frozen and not self.wallet.is_frozen_address(addr):
                 continue
             if receiving and self.wallet.is_change(addr):
                 continue
