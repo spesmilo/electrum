@@ -553,7 +553,7 @@ class Peer(PrintError):
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_next_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if their_next_local_ctn != chan.config[REMOTE].ctn + 1:
-            self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, remote_ctn))
+            self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, their_next_local_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
             try_to_get_remote_to_force_close_with_their_latest()
             return
