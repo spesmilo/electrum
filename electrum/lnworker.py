@@ -92,7 +92,7 @@ class LNWorker(PrintError):
         self.config = network.config
         self.channel_db = self.network.channel_db
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
+            self.network.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
             chan.lnwatcher = network.lnwatcher
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
@@ -425,7 +425,7 @@ class LNWorker(PrintError):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.save_channel(chan)
-        self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
+        self.network.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.on_channels_updated()
         return chan
 

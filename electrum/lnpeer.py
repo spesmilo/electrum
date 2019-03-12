@@ -490,7 +490,7 @@ class Peer(PrintError):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.save_channel(chan)
-        self.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
+        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
         while True:
             try:

@@ -135,7 +135,8 @@ class WatchTower(DaemonThread):
         port = self.config.get('watchtower_port', 12345)
         server = SimpleJSONRPCServer((host, port), logRequests=True)
         server.register_function(self.lnwatcher.add_sweep_tx, 'add_sweep_tx')
-        server.register_function(self.lnwatcher.watch_channel, 'watch_channel')
+        server.register_function(self.lnwatcher.add_channel, 'add_channel')
+        server.register_function(self.lnwatcher.get_num_tx, 'get_num_tx')
         server.timeout = 0.1
         while self.is_running():
             server.handle_request()
