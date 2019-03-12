@@ -168,6 +168,18 @@ class Abstract_Wallet(PrintError):
         self.synchronizer = None
         self.verifier = None
 
+        # Cache of Address -> (c,u,x) balance. This cache is used by
+        # get_addr_balance to significantly speed it up (it is called a lot).
+        # Cache entries are invalidated when tx's are seen involving this
+        # address (address history chages). Entries to this cache are added
+        # only inside get_addr_balance.
+        # Note that this data structure is touched by the network and GUI
+        # thread concurrently without the use of locks, because Python GIL
+        # allows us to get away with such things. As such do not iterate over
+        # this dict, but simply add/remove items to/from it in 1-liners (which
+        # Python's GIL makes thread-safe implicitly).
+        self._addr_bal_cache = {}
+
         self.gap_limit_for_change = 6 # constant
         # saved fields
         self.use_change            = storage.get('use_change', True)
@@ -299,6 +311,7 @@ class Abstract_Wallet(PrintError):
             self.pruned_txo = {}
         self.save_transactions()
         with self.lock:
+            self._addr_bal_cache = {}
             self._history = {}
             self.tx_addr_hist = defaultdict(set)
 
@@ -466,6 +479,8 @@ class Abstract_Wallet(PrintError):
                     if not header or header.get('timestamp') != timestamp:
                         self.verified_tx.pop(tx_hash, None)
                         txs.add(tx_hash)
+        if txs:
+            self._addr_bal_cache = {}  # this is probably not necessary -- as the receive_history_callback will invalidate bad cache items -- but just to be paranoid we clear the whole balance cache on reorg anyway as a safety measure
         return txs
 
     def get_local_height(self):
@@ -662,13 +677,19 @@ class Abstract_Wallet(PrintError):
 
     # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
     # Note that 'exclude_frozen_coins = True' only checks for coin-level freezing, not address-level.
-    def get_addr_balance(self, address, exclude_frozen_coins = False):
+    def get_addr_balance(self, address, exclude_frozen_coins=False):
         assert isinstance(address, Address)
+        if not exclude_frozen_coins:  # we do not use the cache when excluding frozen coins as frozen status is a dynamic quantity that can change at any time in the UI
+            cached = self._addr_bal_cache.get(address)
+            if cached is not None:
+                return cached
         received, sent = self.get_addr_io(address)
         c = u = x = 0
+        had_cb = False
         for txo, (tx_height, v, is_cb) in received.items():
             if exclude_frozen_coins and txo in self.frozen_coins:
                 continue
+            had_cb = had_cb or is_cb  # remember if this address has ever seen a coinbase txo
             if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
                 x += v
             elif tx_height > 0:
@@ -680,7 +701,42 @@ class Abstract_Wallet(PrintError):
                     c -= v
                 else:
                     u -= v
-        return c, u, x
+        result = c, u, x
+        if not exclude_frozen_coins and not had_cb:
+            # Cache the results.
+            # Cache needs to be invalidated if a transaction is added to/
+            # removed from addr history.  (See self._addr_bal_cache calls
+            # related to this littered throughout this file).
+            #
+            # Note that as a performance tweak we don't ever cache balances for
+            # addresses involving coinbase coins. The rationale being as
+            # follows: Caching of balances of the coinbase addresses involves
+            # a dynamic quantity: maturity of the coin (which considers the
+            # ever-changing block height).
+            #
+            # There wasn't a good place in this codebase to signal the maturity
+            # happening (and thus invalidate the cache entry for the exact
+            # address that holds the coinbase coin in question when a new
+            # block is found that matures a coinbase coin).
+            #
+            # In light of that fact, a possible approach would be to invalidate
+            # this entire cache when a new block arrives (this is what Electrum
+            # does). However, for Electron Cash with its focus on many addresses
+            # for future privacy features such as integrated CashShuffle --
+            # being notified in the wallet and invalidating the *entire* cache
+            # whenever a new block arrives (which is the exact time you do
+            # the most GUI refreshing and calling of this function) seems a bit
+            # heavy-handed, just for sake of the (relatively rare, for the
+            # average user) coinbase-carrying addresses.
+            #
+            # It's not a huge performance hit for the coinbase addresses to
+            # simply not cache their results, and have this function recompute
+            # their balance on each call, when you consider that as a
+            # consequence of this policy, all the other addresses that are
+            # non-coinbase can benefit from a cache that stays valid for longer
+            # than 1 block (so long as their balances haven't changed).
+            self._addr_bal_cache[address] = result
+        return result
 
     def get_spendable_coins(self, domain, config, isInvoice = False):
         confirmed_only = config.get('confirmed_only', False)
@@ -762,6 +818,7 @@ class Abstract_Wallet(PrintError):
                             break
                     else:
                         self.pruned_txo[ser] = tx_hash
+                    self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
 
             # add outputs
             self.txo[tx_hash] = d = {}
@@ -772,6 +829,7 @@ class Abstract_Wallet(PrintError):
                     if not addr in d:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
+                    self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
                 # give v to txi that spends me
                 next_tx = self.pruned_txo.get(ser)
                 if next_tx is not None:
@@ -798,12 +856,19 @@ class Abstract_Wallet(PrintError):
                         ser, v = item
                         prev_hash, prev_n = ser.split(':')
                         if prev_hash == tx_hash:
+                            self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
                             l.remove(item)
                             self.pruned_txo[ser] = next_tx
                     if l == []:
                         dd.pop(addr)
                     else:
                         dd[addr] = l
+
+            # invalidate addr_bal_cache for outputs involving this tx
+            d = self.txo.get(tx_hash, {})
+            for addr in d:
+                self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
+
             try: self.txi.pop(tx_hash)
             except KeyError: self.print_error("tx was not in input history", tx_hash)
             try: self.txo.pop(tx_hash)
@@ -832,6 +897,7 @@ class Abstract_Wallet(PrintError):
                         # storage, it merely removes it from the self.txi
                         # and self.txo dicts
                         self.remove_transaction(tx_hash)
+            self._addr_bal_cache.pop(addr, None)  # unconditionally invalidate cache entry
             self._history[addr] = hist
 
             for tx_hash, tx_height in hist:
@@ -1535,6 +1601,7 @@ class Abstract_Wallet(PrintError):
 
     def add_address(self, address):
         assert isinstance(address, Address)
+        self._addr_bal_cache.pop(address, None)  # paranoia, not really necessary -- just want to maintain the invariant that when we modify address history below we invalidate cache.
         if address not in self._history:
             self._history[address] = []
         if self.synchronizer:
@@ -1672,6 +1739,7 @@ class ImportedWalletBase(Simple_Wallet):
                 self.verified_tx.pop(tx_hash, None)
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
+                self._addr_bal_cache.pop(address, None)  # not strictly necessary, above calls also have this side-effect. but here to be safe. :)
                 if self.verifier:
                     # TX is now gone. Toss its SPV proof in case we have it
                     # in memory. This allows user to re-add PK again and it
