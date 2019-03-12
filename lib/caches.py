@@ -160,7 +160,7 @@ class _ExpiringCacheMgr(PrintError):
         bins = defaultdict(list)
         for k,v in d.items():
             tick = v[0]
-            bins[tick].append((k,v))
+            bins[tick].append(k)
         del d
 
         # now, expire the old items starting with the oldest until we
@@ -174,8 +174,8 @@ class _ExpiringCacheMgr(PrintError):
         sorted_bin_keys = sorted(bins.keys())
         while ct < num and bins:
             tick = sorted_bin_keys[0]
-            for tup in bins[tick]:
-                del d_orig[tup[0]]  # KeyError here should never happen. if it does we want the exception because it means a bug in this code
+            for key in bins[tick]:
+                del d_orig[key]  # KeyError here should never happen. if it does we want the exception because it means a bug in this code
                 ct += 1
                 if ct >= num:
                     break
