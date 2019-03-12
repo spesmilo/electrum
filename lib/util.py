@@ -468,12 +468,20 @@ def format_satoshis_plain(x, decimal_point = 8):
     return "{:.8f}".format(PyDecimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 _cached_dp = None
+from .caches import ExpiringCache
+# This cache will eat about ~6MB of memory per 20,000 items, but it does make
+# format_satoshis() run over 3x faster.
+_fmt_sats_cache = ExpiringCache(maxlen=20000, name='format_satoshis cache')
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
     global _cached_dp
     if x is None:
         return 'unknown'
     if precision is None:
         precision = decimal_point
+    cache_key = (x,num_zeros,decimal_point,precision,is_diff,whitespaces)
+    result = _fmt_sats_cache.get(cache_key)
+    if result is not None:
+        return result
     decimal_format = ".0" + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
@@ -496,6 +504,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
+    _fmt_sats_cache.put(cache_key, result)
     return result
 
 def format_fee_satoshis(fee, num_zeros=0):
