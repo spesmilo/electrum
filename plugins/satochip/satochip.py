@@ -441,21 +441,8 @@ class SatochipPlugin(HW_PluginBase):
                 raise RuntimeError('Unknown get-status() error code:'+hex(sw1)+' '+hex(sw2))
             
         # verify pin:
-        msg = _("Enter the PIN for your Satochip:")
-        while (True):
-            (is_PIN, pin_0, pin_0)= client.PIN_dialog(msg)
-            pin_0= list(pin_0)
-            print_error("[satochip] SatochipPlugin: setup_device(): verify PIN...") #debugSatochip
-            (response, sw1, sw2)=client.cc.card_verify_PIN(0, pin_0)
-            if sw1==0x90 and sw2==0x00: 
-                client.cc.set_pin(0, pin_0) #cache PIN value in client
-                break
-            elif sw1==0x9c and sw2==0x02:
-                msg = _("Wrong PIN! Enter the PIN for your Satochip:")
-            elif sw1==0x9c and sw2==0x0c:
-                msg = _("Too many failed attempts! Your Satochip has been blocked! You need your PUK code to unblock it.")
-                raise RuntimeError('Device blocked with error code:'+hex(sw1)+' '+hex(sw2))
-        
+        client.cc.card_verify_PIN()
+                
         # get authentikey
         while(True):
             try:

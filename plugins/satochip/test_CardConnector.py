@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 
 # required hack since electrum imports do not correspond to electrum folder structure 
 import imp
@@ -16,7 +17,7 @@ from .CardConnector import UninitializedSeedError
 from .CardDataParser import CardDataParser
 #from JCconstants import JCconstants
 #from TxParser import TxParser
-from .satochip import bip32path2bytes
+from .satochip import bip32path2bytes, SatochipClient
 
 def get_xpub(cc, parser, bip32_path):
     # bip32_path is of the form 44'/0'/1'
@@ -40,8 +41,10 @@ def get_xpub(cc, parser, bip32_path):
 class TestCardConnectorMethods(unittest.TestCase):
 
     def setUp(self):
+        client= MagicMock() #SatochipClient
         self.parser= CardDataParser()
-        self.cc= CardConnector(self.parser)
+        client.parser= self.parser
+        self.cc= CardConnector(client)
         print_error("[SetUp] SatochipClient: __init__(): cc.card_get_ATR()")#debugSatochip
         print_error(self.cc.card_get_ATR())
         print_error("[SetUp] SatochipClient: __init__(): cc.card_select()")#debugSatochip
@@ -90,7 +93,7 @@ class TestCardConnectorMethods(unittest.TestCase):
         # verify pin:
         while (True):
             pin_0= [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
-            (response, sw1, sw2)=self.cc.card_verify_PIN(0, pin_0)
+            (response, sw1, sw2)=self.cc.card_verify_PIN_deprecated(0, pin_0)
             if sw1==0x90 and sw2==0x00: 
                 self.cc.set_pin(0, pin_0) #cache PIN value in client
                 break

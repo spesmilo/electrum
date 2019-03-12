@@ -43,22 +43,11 @@ class CardConnector:
         except Exception as exc:
             print_error("Error during connection:", exc)
     
-    def set_pin(self, pin_nbr, pin):
-        self.pin_nbr=pin_nbr
-        self.pin=pin
-        return
-    
     def card_transmit(self, apdu):
         try:
             (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
             if (sw1==0x9C) and (sw2==0x06):
-                if self.pin is None:
-                    print_error("[CardConnector] card_transmit(): prompt for pin..")
-                    msg = _("Enter the PIN for your Satochip:")
-                    is_pin, pin, pin2 = self.client.PIN_dialog(msg)
-                    self.pin_nbr=0
-                    self.pin= list(pin)
-                (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) 
+                (response, sw1, sw2)= self.card_verify_PIN() 
                 (response, sw1, sw2)= self.cardservice.connection.transmit(apdu)
             return (response, sw1, sw2)
         except CardConnectionException: 
@@ -105,6 +94,11 @@ class CardConnector:
             d["protocol_minor_version"]= response[1]
             d["applet_major_version"]= response[2]
             d["applet_minor_version"]= response[3]
+            if len(response) >=8:
+                d["PIN0_remaining_tries"]= response[4]
+                d["PUK0_remaining_tries"]= response[5]
+                d["PIN1_remaining_tries"]= response[6]
+                d["PUK1_remaining_tries"]= response[7]
         return (response, sw1, sw2, d)
     
     def card_setup(self, 
@@ -393,7 +387,8 @@ class CardConnector:
         response, sw1, sw2 = self.card_transmit(apdu)
         return (response, sw1, sw2)      
     
-    def card_verify_PIN(self, pin_nbr, pin):
+    #deprecated but used for testcase
+    def card_verify_PIN_deprecated(self, pin_nbr, pin):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_VERIFY_PIN
         p1= pin_nbr
@@ -404,6 +399,41 @@ class CardConnector:
         response, sw1, sw2 = self.card_transmit(apdu)
         return (response, sw1, sw2)      
     
+    def card_verify_PIN(self):
+        while (True):
+            (response, sw1, sw2, d)=self.card_get_status() # get number of pin tries remaining
+            if self.pin is None:
+                if d.get("PIN0_remaining_tries",-1)==1:
+                    msg = _("Enter the PIN for your Satochip: \n WARNING: ONLY ONE ATTEMPT REMAINING!")
+                else:
+                    msg = _("Enter the PIN for your Satochip:")
+                (is_PIN, pin_0, pin_0)= self.client.PIN_dialog(msg)
+                pin_0= list(pin_0)
+                print_error("[CardConnector] CardConnector: card_verify_PIN(): verify PIN...") #debugSatochip
+            else: 
+                pin_0= self.pin                
+            cla= JCconstants.CardEdge_CLA
+            ins= JCconstants.INS_VERIFY_PIN
+            apdu=[cla, ins, 0x00, 0x00, len(pin_0)] + pin_0
+            response, sw1, sw2 = self.cardservice.connection.transmit(apdu)
+            if sw1==0x90 and sw2==0x00: 
+                self.set_pin(0, pin_0) #cache PIN value
+                return (response, sw1, sw2)     
+            elif sw1==0x9c and sw2==0x02:
+                self.set_pin(0, None) #reset cached PIN value
+                pin_left= d.get("PIN0_remaining_tries",-1)-1
+                msg = _("Wrong PIN! {} tries remaining!").format(pin_left)
+                self.client.handler.show_error(msg)
+            elif sw1==0x9c and sw2==0x0c:
+                msg = _("Too many failed attempts! Your Satochip has been blocked! You need your PUK code to unblock it.")
+                self.client.handler.show_error(msg)
+                raise RuntimeError('Device blocked with error code:'+hex(sw1)+' '+hex(sw2))
+
+    def set_pin(self, pin_nbr, pin):
+        self.pin_nbr=pin_nbr
+        self.pin=pin
+        return
+        
     def card_change_PIN(self, pin_nbr, old_pin, new_pin):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_CHANGE_PIN
