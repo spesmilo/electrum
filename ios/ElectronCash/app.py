@@ -21,7 +21,7 @@ def main():
             'cwd': os.getcwd(),
     }
 
-    set_verbosity(config_options.get('verbose'), timestamps=False)
+    set_verbosity(config_options.get('verbose'), timestamps=False, thread_id=False)
     NSLogSuppress(not config_options.get('verbose'))
 
     MonkeyPatches.patch()

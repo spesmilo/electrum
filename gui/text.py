@@ -59,7 +59,7 @@ class ElectrumGui:
         self.history = None
 
         if self.network:
-            self.network.register_callback(self.update, ['updated'])
+            self.network.register_callback(self.update, ['wallet_updated', 'blockchain_updated'])
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
@@ -86,7 +86,7 @@ class ElectrumGui:
         self.set_cursor(0)
         return s
 
-    def update(self, event):
+    def update(self, event, *args):
         self.update_history()
         if self.tab == 0:
             self.print_history()

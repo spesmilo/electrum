@@ -150,11 +150,11 @@ class ElectrumWindow(App):
         if self.history_screen:
             self.history_screen.update()
 
-    def on_quotes(self, d):
+    def on_quotes(self, *d):
         Logger.info("on_quotes")
         self._trigger_update_history()
 
-    def on_history(self, d):
+    def on_history(self, *d):
         Logger.info("on_history")
         self._trigger_update_history()
 
@@ -469,7 +469,7 @@ class ElectrumWindow(App):
             activity.bind(on_new_intent=self.on_new_intent)
         # connect callbacks
         if self.network:
-            interests = ['updated', 'status', 'new_transaction', 'verified', 'interfaces']
+            interests = ['blockchain_updated', 'wallet_updated', 'status', 'new_transaction', 'verified2', 'interfaces']
             self.network.register_callback(self.on_network_event, interests)
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
@@ -611,7 +611,7 @@ class ElectrumWindow(App):
         Logger.info('network event: '+ event)
         if event == 'interfaces':
             self._trigger_update_interfaces()
-        elif event == 'updated':
+        elif event.endswith('updated'):  # blockchain_updated & wallet_updated
             self._trigger_update_wallet()
             self._trigger_update_status()
         elif event == 'status':
@@ -620,7 +620,7 @@ class ElectrumWindow(App):
             tx, wallet = args
             if wallet == self.wallet:
                 self._trigger_update_wallet()
-        elif event == 'verified':
+        elif event == 'verified2':
             self._trigger_update_wallet()
 
     @profiler
