@@ -52,10 +52,11 @@ class NetworkDialog(QDialog, MessageBoxMixin):
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
         self.network_updated_signal.connect(self.on_update)
-        network.register_callback(self.on_network, ['updated', 'interfaces'])
+        network.register_callback(self.on_network, ['blockchain_updated', 'interfaces', 'status'])
 
     def on_network(self, event, *args):
         ''' This may run in network thread '''
+        #print_error("[NetworkDialog] on_network:",event,*args)
         self.network_updated_signal.emit() # this enqueues call to on_update in GUI thread
 
     @rate_limited(0.333) # limit network window updates to max 3 per second. More frequent isn't that useful anyway -- and on large wallets/big synchs the network spams us with events which we would rather collapse into 1

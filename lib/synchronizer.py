@@ -196,8 +196,7 @@ class Synchronizer(ThreadJob):
         # callbacks
         self.network.trigger_callback('new_transaction', tx, self.wallet)
         if not self.requested_tx:
-            # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
-            self.network.trigger_callback('updated', self.wallet)
+            self.network.trigger_callback('wallet_updated', self.wallet)
 
 
     def request_missing_txs(self, hist):
@@ -247,8 +246,7 @@ class Synchronizer(ThreadJob):
             up_to_date = self.is_up_to_date()
             if up_to_date != self.wallet.is_up_to_date():
                 self.wallet.set_up_to_date(up_to_date)
-                # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
-                self.network.trigger_callback('updated', self.wallet)
+                self.network.trigger_callback('wallet_updated', self.wallet)
         except InvalidXKeyFormat:
             # Workaround to buggy testnet wallets that had the wrong xpub..
             # This is here so that the network thread doesn't get blown up when

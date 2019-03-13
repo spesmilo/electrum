@@ -359,8 +359,9 @@ class ElectrumGui(PrintError):
         if self.daemon.network:
             self.daemon.network.register_callback(self.on_history, ['on_history'])
             self.daemon.network.register_callback(self.on_quotes, ['on_quotes'])
-            interests = ['updated', 'new_transaction', 'status',
-                         'banner', 'verified', 'fee', 'interfaces']
+            interests = ['wallet_updated', 'blockchain_updated',
+                         'new_transaction', 'status', 'banner', 'verified2',
+                         'fee', 'interfaces']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -509,27 +510,27 @@ class ElectrumGui(PrintError):
         #    self.show_downloading_notif()
         pass
 
-    def on_history(self, b):
-        utils.NSLog("ON HISTORY (IsMainThread: %s)",str(NSThread.currentThread.isMainThread))
+    def on_history(self, event, *args):
+        utils.NSLog("ON HISTORY '%s' (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
         assert self.walletsVC is not None
         self.refresh_components('history', 'helper')
 
     def on_quotes(self, event, *args):
-        utils.NSLog("ON QUOTES (IsMainThread: %s)",str(NSThread.currentThread.isMainThread))
+        utils.NSLog("ON QUOTES '%s' (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
         #if self.daemon.fx.history_used_spot: #TODO: this is from qt gui.. figure out what this means.. does it help rate-limit?
         self.refresh_components('history', 'addresses', 'helper', 'requests')
 
     def on_network(self, event, *args):
-        utils.NSLog("ON NETWORK: %s (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
+        utils.NSLog("ON NETWORK: '%s' (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
         if not self.daemon:
             utils.NSLog("(Returning early.. daemon stopped)")
             return
         assert self.walletsVC is not None
-        if event == 'updated':
+        if event == 'blockchain_updated':
             self.refresh_components('helper', 'network')
         elif event == 'new_transaction':
             tx, wallet = args
-            if wallet == self.wallet:
+            if wallet is self.wallet:
                 self.tx_notifications.append(tx)
                 self.refresh_components('history', 'addresses', 'helper')
         elif event == 'banner':
@@ -538,12 +539,14 @@ class ElectrumGui(PrintError):
         elif event == 'status':
             #todo: handle status update here
             self.refresh_components('helper')
-        elif event in ['verified']:
-            self.refresh_components('history', 'addresses', 'helper')
+        elif event in ('verified2', 'wallet_updated'):
+            wallet = args[0]
+            if wallet is self.wallet:  # this should always be the case. But we check anyway in case in the future we support multiple wallets open at once.
+                self.refresh_components('history', 'addresses', 'helper')
         elif event == 'fee':
             # todo: handle fee stuff here
             pass
-        elif event in ['interfaces']:
+        elif event in ('interfaces',):
             self.refresh_components('network')
         else:
             self.print_error("unexpected network message:", event, args)
@@ -620,7 +623,7 @@ class ElectrumGui(PrintError):
             #icon = "status_disconnected.png"
 
         elif self.daemon.network.is_connected():
-            lh, sh = self.daemon.network.get_status_value('updated')
+            lh, sh = self.daemon.network.get_status_value('blockchain_updated')
             # lh = local_height, sh = server_height
             if self.lastHeightSeen != lh:
                 self.lastHeightSeen = lh
@@ -687,7 +690,7 @@ class ElectrumGui(PrintError):
                 ShowSplitNotify()
                 self.lastSplitNotify = time.time()
 
- 
+
             '''utils.NSLog("lh=%d sh=%d is_up_to_date=%d Wallet Network is_up_to_date=%d is_connecting=%d is_connected=%d",
                         int(lh), int(sh),
                         int(self.wallet.up_to_date),
@@ -2351,4 +2354,3 @@ class ElectrumGui(PrintError):
         self.createAndShowUI()
 
         self.setup_key_enclave(lambda: self.start_daemon())
-

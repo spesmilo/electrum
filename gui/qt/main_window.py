@@ -202,8 +202,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if self.network:
             self.network_signal.connect(self.on_network_qt)
-            interests = ['updated', 'new_transaction', 'status',
-                         'banner', 'verified2', 'fee']
+            interests = ['blockchain_updated', 'wallet_updated',
+                         'new_transaction', 'status', 'banner', 'verified2',
+                         'fee']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -222,7 +223,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         QTimer.singleShot(300, self.do_cash_shuffle_reminder)
 
     def on_history(self, event, *args):
-        # NB: event should always be 'history'
+        # NB: event should always be 'on_history'
         if not args or args[0] is self.wallet:
             self.new_fx_history_signal.emit()
 
@@ -312,14 +313,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(exc_info[1]))
 
     def on_network(self, event, *args):
-        if event == 'updated':
-            if not args or args[0] is self.wallet:
-                # NB there are two types 'updated' callbacks as of version 3.3.6
-                # 1. wallet-specific (from synchronizer) : args = (wallet,)
-                # 2. global (from network) : args = ()
-                # For (1) above we filter out events not for our wallet
-                # For (2) above we always accept.
+        #self.print_error("on_network:", event, *args)
+        if event == 'wallet_updated':
+            if args[0] is self.wallet:
                 self.need_update.set()
+        elif event == 'blockchain_updated':
+            self.need_update.set()
         elif event == 'new_transaction':
             self.tx_update_mgr.notif_add(args)  # added only if this wallet's tx
         elif event == 'verified2':
