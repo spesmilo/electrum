@@ -1155,11 +1155,10 @@ class Peer(PrintError):
             # TODO: negociate better
             our_fee = their_fee
         # index of our_sig
-        i = bool(chan.get_local_index())
-        if not is_local: i = not i
+        i = chan.get_local_index()
         # add signatures
-        closing_tx.add_signature_to_txin(0, int(i), bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
-        closing_tx.add_signature_to_txin(0, int(not i), bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(0, i, bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(0, 1-i, bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
         await self.network.broadcast_transaction(closing_tx)
         return closing_tx.txid()

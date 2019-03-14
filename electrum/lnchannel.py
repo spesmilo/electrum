@@ -756,7 +756,7 @@ class Channel(PrintError):
             htlcs=htlcs)
 
     def get_local_index(self):
-        return int(self.config[LOCAL].multisig_key.pubkey < self.config[REMOTE].multisig_key.pubkey)
+        return int(self.config[LOCAL].multisig_key.pubkey > self.config[REMOTE].multisig_key.pubkey)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
                         fee_sat: int) -> Tuple[bytes, int, str]:
