@@ -2175,11 +2175,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.cashshuffle_settings_action.triggered.connect(self.show_cashshuffle_settings)
         self.cashshuffle_viewpools_action = QAction(_("View pools..."), self.cashshuffle_status_button)
         self.cashshuffle_viewpools_action.triggered.connect(self.show_cashshuffle_pools)
-        self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
-        sep = QAction(self.cashshuffle_status_button); sep.setSeparator(True)
-        self.cashshuffle_status_button.addAction(sep)
         self.cashshuffle_status_button.addAction(self.cashshuffle_viewpools_action)
         self.cashshuffle_status_button.addAction(self.cashshuffle_settings_action)
+        self.cashshuffle_separator_action = sep = QAction(self.cashshuffle_status_button); sep.setSeparator(True)
+        self.cashshuffle_status_button.addAction(sep)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
         self.cashshuffle_status_button.setContextMenuPolicy(Qt.ActionsContextMenu)
 
         sb.addPermanentWidget(self.cashshuffle_status_button)
@@ -2981,6 +2981,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.cashshuffle_viewpools_action.setEnabled(False)
         self.cashshuffle_settings_action.setVisible(en or loaded)
         self.cashshuffle_viewpools_action.setVisible(en)
+        if en:
+            # ensure 'Disable CashShuffle' appears at the end of the context menu
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_toggle_action)
+            self.cashshuffle_status_button.addAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
+        else:
+            # ensure 'Enable CashShuffle' appears at the beginning of the context menu
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_toggle_action)
+            actions = self.cashshuffle_status_button.actions()
+            self.cashshuffle_status_button.insertAction(actions[0] if actions else None, self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.insertAction(self.cashshuffle_separator_action, self.cashshuffle_toggle_action)
+
 
     def show_cashshuffle_settings(self):
         p = self.cashshuffle_plugin_if_loaded()

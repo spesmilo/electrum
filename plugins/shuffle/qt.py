@@ -528,6 +528,7 @@ class Plugin(BasePlugin):
         if not window.is_wallet_cashshuffle_compatible():
             # wallet is watching-only, multisig, or hardware so.. mark it permanently for no cashshuffle
             self.window_set_cashshuffle(window, False)
+            window.update_status()  # this has the side-effect of refreshing the cash shuffle status bar button's context menu (which has actions even for disabled/incompatible windows)
             return
         if window.wallet and not self.window_has_cashshuffle(window):
             if self.window_wants_cashshuffle(window):
@@ -617,13 +618,19 @@ class Plugin(BasePlugin):
         action.setChecked(self._hide_history_txs)
 
     def on_close(self):
+        ''' This is called on plugin unload/disable '''
         self.del_network_dialog_tab()
         PoolsWinMgr.killInstance()
         for window in self.windows.copy():
             self.on_close_window(window)
-            window.update_status()
         for window in self.disabled_windows.copy():
             self.on_close_window(window)
+        for window in self.gui.windows:
+            # lastly, we do this for ALL the extant wallet windows because all
+            # of their CashShuffle context menus attached to the cashshuffle
+            # status button need updating when the plugin is exited. Note
+            # that there may be windows in this set (incompatible windows)
+            # that aren't in either of the above 2 sets of windows.
             window.update_status()
         self.initted = False
         Plugin.instance = None
