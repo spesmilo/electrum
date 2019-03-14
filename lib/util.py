@@ -726,6 +726,8 @@ def setup_thread_excepthook():
 
 
 def versiontuple(v):
+    ''' Please do not use this function as it breaks with EC version styles
+    of things like '3.3.4CS'. Instead, use lib/version.parse_package_version'''
     return tuple(map(int, (v.split("."))))
 
 

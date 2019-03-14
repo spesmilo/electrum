@@ -55,27 +55,32 @@ INSTALL_ERROR_MESSAGES = {
 class ExternalPluginsPreviewDialog(WindowModalDialog):
     def __init__(self, plugin_dialog, main_window, title, plugin_path=None, plugin_metadata=None):
         WindowModalDialog.__init__(self, main_window.top_level_window(), title)
-        
+
         self.is_preview = plugin_metadata is None
 
         self.main_window = main_window
         self.plugin_dialog = plugin_dialog
 
         self.setMinimumWidth(600)
-        self.setMaximumWidth(600)
+        #self.setMaximumWidth(600)
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        self.metadataFormLayout = QFormLayout()
+        groupBox = QGroupBox(_("Plugin Metadata"))
+        self.metadataFormLayout = QFormLayout(groupBox)
+        self.metadataFormLayout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.pluginNameLabel = QLabel()
         self.metadataFormLayout.addRow(_("Name"), self.pluginNameLabel)
         self.versionLabel = QLabel()
         self.metadataFormLayout.addRow(_("Version"), self.versionLabel)
         self.projectUrlLabel = QLabel()
+        self.projectUrlLabel.setToolTip(_("Click to open in web browser"))
         self.metadataFormLayout.addRow(_("Project URL"), self.projectUrlLabel)
         self.descriptionLabel = QLabel()
         self.descriptionLabel.setWordWrap(True)
+        # Long description labels that wrap should push the form layout's row to grow
+        p = self.descriptionLabel.sizePolicy(); p.setVerticalPolicy(QSizePolicy.MinimumExpanding); self.descriptionLabel.setSizePolicy(p)
         self.metadataFormLayout.addRow(_("Description"), self.descriptionLabel)
         self.supportedInterfacesLayout = QVBoxLayout()
         self.supportedInterfacesLabel = QLabel(_("Integration"))
@@ -102,9 +107,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.checksumLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.metadataFormLayout.addRow(_("SHA256 Checksum"), self.checksumLabel)
 
-        groupBox = QGroupBox(_("Plugin Metadata"))
-        groupBox.setLayout(self.metadataFormLayout)
-        vbox.addWidget(groupBox)
+        vbox.addWidget(groupBox,3)
 
         if self.is_preview:
             confirmLayout = QVBoxLayout()
@@ -164,15 +167,15 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         elif plugin_metadata is not None:
             self.refresh_plugin_from_metadata(plugin_metadata)
         self.refresh_ui()
-        
+
     def refresh_plugin_from_metadata(self, metadata):
         self.plugin_path = metadata["__file__"]
-        self.plugin_metadata = metadata        
+        self.plugin_metadata = metadata
         self.refresh_plugin()
 
     def refresh_plugin_from_path(self, plugin_path):
         plugin_manager = self.main_window.gui_object.plugins
- 
+
         self.plugin_path = plugin_path
         self.plugin_metadata, result_code = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
         self.refresh_plugin()
@@ -180,7 +183,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
     def refresh_plugin(self):
         plugin_path = self.plugin_path
         metadata = self.plugin_metadata
-    
+
         hasher = hashlib.sha256()
         with open(plugin_path, "rb") as f:
             hasher.update(f.read())
@@ -335,7 +338,7 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
             d.exec_()
         else:
             self.show_error(INSTALL_ERROR_MESSAGES.get(result_code, _("Unexpected error %d") % result_code))
-            
+
     def install_plugin_confirmed(self, plugin_archive_path):
         plugin_manager = self.main_window.gui_object.plugins
         result_code = plugin_manager.install_external_plugin(plugin_archive_path)
@@ -411,7 +414,7 @@ class ExternalPluginTable(QTableWidget):
         self.itemSelectionChanged.connect(self.on_item_selection_changed)
 
         self.row_keys = []
-        
+
     def create_menu(self, position):
         selected_id = self.get_selected_key()
         if selected_id is None:
@@ -494,5 +497,3 @@ class ExternalPluginTable(QTableWidget):
             enabledLabel = QLabel("Yes" if plugin is not None and plugin.is_enabled() else "No")
             enabledLabel.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
             self.setCellWidget(row_index, 3, enabledLabel)
-
-

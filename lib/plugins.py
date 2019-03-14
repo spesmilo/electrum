@@ -36,7 +36,7 @@ import threading
 import zipimport
 
 from .i18n import _
-from .util import print_error, user_dir, make_dir, versiontuple
+from .util import print_error, user_dir, make_dir
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
 from . import version
@@ -345,11 +345,14 @@ class Plugins(DaemonThread):
             self.print_error("invalid json in 'manifest.json' (zip plugin %s)" % file_name)
             return None, ExternalPluginCodes.INVALID_MANIFEST_JSON
 
+        class Version:
+            pass
+
         expected_keys = {
             'display_name': (str, ExternalPluginCodes.INVALID_MAMIFEST_DISPLAY_NAME),
             'description': (str, ExternalPluginCodes.INVALID_MAMIFEST_DESCRIPTION),
-            'version': (versiontuple, ExternalPluginCodes.INVALID_MAMIFEST_VERSION),
-            'minimum_ec_version': (versiontuple, ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION),
+            'version': (Version, ExternalPluginCodes.INVALID_MAMIFEST_VERSION),
+            'minimum_ec_version': (Version, ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION),
             'package_name': (str, ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME),
         }
         for k, (expected_type, error_code) in expected_keys.items():
@@ -357,9 +360,9 @@ class Plugins(DaemonThread):
             if v is None:
                 self.print_error("missing metadata key %s (zip plugin %s)" % (k, file_name))
                 return None, error_code
-            if expected_type is versiontuple:
+            if expected_type is Version:
                 try:
-                    v = versiontuple(v)
+                    v = version.parse_package_version(v)
                 except ValueError:
                     self.print_error("metadata %s = %s, expected a.b.c version string (zip plugin %s)" % (k, v, file_name))
                     return None, error_code
@@ -383,7 +386,7 @@ class Plugins(DaemonThread):
         if package_name in self.external_plugins or package_name in self.external_plugin_metadata:
             return ExternalPluginCodes.NAME_ALREADY_IN_USE
 
-        if versiontuple(metadata['minimum_ec_version']) > versiontuple(version.PACKAGE_VERSION):
+        if version.parse_package_version(metadata['minimum_ec_version'])[:-1] > version.parse_package_version(version.PACKAGE_VERSION)[:-1]:
             return ExternalPluginCodes.INCOMPATIBLE_VERSION
 
         # Copy the original file to the external plugin hosting dir.
