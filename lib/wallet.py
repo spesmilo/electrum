@@ -770,6 +770,10 @@ class Abstract_Wallet(PrintError):
     def get_addresses(self):
         return self.get_receiving_addresses() + self.get_change_addresses()
 
+    def get_change_addresses(self):
+        ''' Reimplemented in subclasses for wallets that have a change address set/derivation path. '''
+        return []
+
     def get_frozen_balance(self):
         if not self.frozen_coins:
             # performance short-cut -- get the balance of the frozen address set only IFF we don't have any frozen coins
@@ -1401,16 +1405,18 @@ class Abstract_Wallet(PrintError):
             except UserCancelled:
                 continue
 
-    def get_unused_addresses(self):
+    def get_unused_addresses(self, *, for_change=False):
+        assert type(for_change) is bool
         # fixme: use slots from expired requests
         with self.lock, self.transaction_lock:
-            domain = self.get_receiving_addresses()
+            domain = self.get_receiving_addresses() if not for_change else (self.get_change_addresses() or self.get_receiving_addresses())
             return [addr for addr in domain
                     if not self.get_address_history(addr)
                     and addr not in self.receive_requests]
 
-    def get_unused_address(self):
-        addrs = self.get_unused_addresses()
+    def get_unused_address(self, *, for_change=False):
+        assert type(for_change) is bool
+        addrs = self.get_unused_addresses(for_change=for_change)
         if addrs:
             return addrs[0]
 
@@ -1718,9 +1724,6 @@ class ImportedWalletBase(Simple_Wallet):
 
     def get_receiving_addresses(self):
         return self.get_addresses()
-
-    def get_change_addresses(self):
-        return []
 
     def delete_address(self, address):
         assert isinstance(address, Address)

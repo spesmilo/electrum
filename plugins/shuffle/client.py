@@ -664,37 +664,29 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         id_sk = generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
 
-        output = None
-        for address in self.wallet.get_unused_addresses():
-            if address not in self.wallet._addresses_cashshuffle_reserved:
-                output = address
-                break
-        while not output:
-            address = self.wallet.create_new_address(for_change = False)
-            if address not in self.wallet._addresses_cashshuffle_reserved:
-                output = address
-        # Reserve the output address so other threads don't use it
-        self.wallet._addresses_cashshuffle_reserved.add(output)   # NB: only modify this when holding wallet locks
+        output = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
         # Check if we will really use the change address. We definitely won't
         # be receving to it if the change is below dust threshold (see #67).
         # Furthermore, we may not receive change even if this check predicts we
         # will due to #68.
         may_receive_change = coin['value'] - scale - self.FEE >= dust_threshold(Network.get_instance())
         if may_receive_change:
-            change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
             # We anticipate (maybe) using the change address in the shuffle tx,
             # so reserve this address. Note that due to "smallest player raises
             # shuffle amount" rules in version=200+ (#68) we WON'T necessarily
             # USE this change address. (In that case it will be freed up later
             # after shuffling anyway so no address leaking occurs).
             # We just reserve it if we think we MAY need it.
-            self.wallet._addresses_cashshuffle_reserved.add(change)
+            change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
         else:
+            # We *definitely* won't receive any change no matter who
+            # participates because we are very close to scale.
             # (The leftover dust amount will go to fee.)
             # We still have to specify a change address to the protocol even if
             # it definitely won't be used. :/
-            # We'll just take 'whatever' address.
-            change = self.wallet.get_change_addresses()[0]
+            # We'll just take the wallet API's 'dummy' address (receiving[0]) --
+            # Don't worry: It's 100% guaranteed we won't be using this address.
+            change = self.wallet.dummy_address()
         self.print_error("Scale {} Coin {} OutAddr {} {} {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), "Change" if may_receive_change else "FakeChange", change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)
         ctimeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0 # allow for 12.5 second connection timeouts if using a proxy server

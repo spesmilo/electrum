@@ -317,25 +317,24 @@ class CoinUtils(PrintErrorThread):
     # The wallet code calls this when spending either shuffled-only or unshuffled-only coins in a tx.
     @staticmethod
     def get_new_change_address_safe(wallet, for_shufflethread=False):
-        with wallet.lock:
-            with wallet.transaction_lock:
-                if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
-                    # if they keep hitting preview on the same tx, give them the same change each time
-                    return wallet._last_change
-                change = None
-                for address in wallet.get_change_addresses():
-                    if address not in wallet._addresses_cashshuffle_reserved and not wallet.get_address_history(address):
-                        change = address
-                        break
-                while not change:
-                    address = wallet.create_new_address(for_change = True)
-                    if address not in wallet._addresses_cashshuffle_reserved:
-                        change = address
-                wallet._addresses_cashshuffle_reserved.add(change)
-                if not for_shufflethread:
-                    # new change address generated for code outside the shuffle threads. cache and return it next time.
-                    wallet._last_change = change
-                return change
+        with wallet.lock, wallet.transaction_lock:
+            if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
+                # if they keep hitting preview on the same tx, give them the same change each time
+                return wallet._last_change
+            change = None
+            for address in wallet.get_unused_addresses(for_change=True):
+                if address not in wallet._addresses_cashshuffle_reserved:
+                    change = address
+                    break
+            while not change:
+                address = wallet.create_new_address(for_change=True)
+                if address not in wallet._addresses_cashshuffle_reserved:
+                    change = address
+            wallet._addresses_cashshuffle_reserved.add(change)
+            if not for_shufflethread:
+                # new change address generated for code outside the shuffle threads. cache and return it next time.
+                wallet._last_change = change
+            return change
 
     @staticmethod
     @profiler

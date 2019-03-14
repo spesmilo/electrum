@@ -335,6 +335,20 @@ def monkey_patches_apply(window):
         wallet._is_shuffled_cache = dict()
         wallet._addresses_cashshuffle_reserved = set()
         wallet._last_change = None
+        # Paranoia -- force wallet into this single change address mode in case
+        # other code (plugins, etc) generate tx's. We don't want tx generation
+        # code to clobber our shuffle tx output addresses.
+        change_addr_policy_1 = (bool(wallet.storage.get('use_change')), bool(wallet.storage.get('multiple_change')))
+        change_addr_policy_2 = (bool(wallet.use_change), bool(wallet.multiple_change))
+        desired_policy = (True, False)
+        if any(policy != desired_policy for policy in (change_addr_policy_1, change_addr_policy_2)):
+            wallet.use_change, wallet.multiple_change = desired_policy
+            wallet.storage.put('use_change', desired_policy[0])
+            wallet.storage.put('multiple_change', desired_policy[1])
+            wallet.print_error("CashShuffle forced change address policy to: use_change={}, multiple_change={}"
+                               .format(desired_policy[0], desired_policy[1]))
+        # More paranoia -- in case app crashed, unfreeze coins frozen by last
+        # app run.
         CoinUtils.unfreeze_frozen_by_shuffling(wallet)
         wallet._shuffle_patched_ = True
         print_error("[shuffle] Patched wallet")
