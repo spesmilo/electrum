@@ -4,6 +4,7 @@ from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, ge
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
 from electroncash.network import Network
+from electroncash import networks
 from electroncash.wallet import dust_threshold
 from electroncash.simple_config import get_config
 
@@ -253,9 +254,21 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         10000,        #  0.0001 BCH →
     )
 
+    # Protocol version. Must be an int. Clients on different versions
+    # never get assigned to the same pools and are completely segregated.
+    # Version=0  : Very old clients used this version (pre release beta)
+    # Version=100: Was for the new fee-270 (fee was 300 before this version).
+    # Version=200: Is for the new "shuffle amount gets raised to match lowest
+    #              UTXO in shuffle" rules.
+    # Note that testnet instances should specify PROTOCOL_VERSION + 1 to keep
+    # keep themselves separated from mainnet shufflers.
+    # (In the future this version specifier may be a more dynamic quantity but
+    #  for now it's always this value, or this value + 1 for testnet).
+    PROTOCOL_VERSION = 200
+    # Fee formula should be roughly 270 for first input + 200 for each additional
+    # input. Right now we support only 1 input per shuffler, so it's a static 270.
+    FEE = 270
     # The below defaults control coin selection and which pools (scales) we use
-    PROTOCOL_VERSION = 200  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270. Version=200 is for new dynamic amounts. In the future this may be a dynamic quantity but for now it's always this value.
-    FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
     SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡','➡','➡')  # if you add a scale above, add an arrow here, in reverse order from above
     SCALE_ARROW_UNKNOWN = '⇒'  # What the app uses when a scale it sees isn't on the list.
@@ -280,17 +293,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     latest_shuffle_settings = ShuffleSettings(Messages.DEFAULT, Messages.TYPE_NAME_DICT[Messages.DEFAULT], PROTOCOL_VERSION, 0, 0, FEE)
 
     def __init__(self, window, wallet, network_settings,
-                 version=PROTOCOL_VERSION,
                  period = 10.0, logger = None, password=None, timeout=60.0,
                  typ=Messages.DEFAULT  # NB: Only DEFAULT is currently supported
                  ):
         super().__init__()
+        cls = type(self)
         self.daemon = True
         self.timeout = timeout
-        self.version = version
+        self.version = cls.PROTOCOL_VERSION + (1 if networks.net.TESTNET else 0)
         self.type = typ
         assert self.type == Messages.DEFAULT, "BackgroundShufflingThread currently only supports DEFAULT shuffles"
-        cls = type(self)
         cls.latest_shuffle_settings = cls.ShuffleSettings(self.type, Messages.TYPE_NAME_DICT[self.type], self.version, 0, 0, self.FEE)
         # set UPPER_BOUND and LOWER_BOUND from config keys here. Note all instances will see these changes immediately.
         cls.update_lower_and_upper_bound_from_config()

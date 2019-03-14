@@ -290,7 +290,6 @@ def start_background_shuffling(window, network_settings, period = 10.0, password
     window.background_process = BackgroundShufflingThread(window,
                                                           window.wallet,
                                                           network_settings,
-                                                          # version = whatever,
                                                           logger = logger,
                                                           period = period,
                                                           password = password,
