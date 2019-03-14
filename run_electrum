@@ -86,6 +86,9 @@ from electrum.util import set_verbosity, InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
+import electrum.logging
+from electrum.logging import electrum_logger
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -336,6 +339,8 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
+    electrum.logging.configure_logging(config)
+
     cmdname = config.get('cmd')
 
     if config.get('testnet'):
