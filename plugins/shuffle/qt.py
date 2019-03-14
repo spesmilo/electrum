@@ -312,6 +312,7 @@ def monkey_patches_apply(window):
         if window.network:
             window.network.register_callback(window._shuffle_network_callback, ['new_transaction'])
         window._shuffle_patched_ = True
+        window.force_use_single_change_addr = _("CashShuffle is enabled: change address logic will be handled by CashShuffle (to preserve privacy).")
         print_error("[shuffle] Patched window")
 
     def patch_utxo_list(utxo_list):
@@ -358,6 +359,7 @@ def monkey_patches_remove(window):
         delattr(window, 'send_tab_shuffle_extra')
         delattr(window, 'background_process')
         delattr(window, '_shuffle_patched_')
+        window.force_use_single_change_addr = None
         print_error("[shuffle] Unpatched window")
         # Note that at this point an additional monkey patch: 'window.__disabled_sendtab_extra__' may stick around until the plugin is unloaded altogether
 
