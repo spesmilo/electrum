@@ -1718,7 +1718,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.vbox.setStretchFactor(self.poolsGB, 2)
         vbox2 = QVBoxLayout(self.poolsGB)
         # ban label
-        self.banLabel = HelpLabel('', _("Bans usually occur when other shufflers detected invalid inputs coming from your client. Ban are temporary and usually last up to 30 minutes.\n\nThey may happen occasionally in rare circumstances. However, if this keeps happening please contact the developers and file a bug report."))
+        self.banLabel = HelpLabel('', _("Bans usually occur when other shufflers detected invalid inputs coming from your client. Bans are temporary and usually last up to 30 minutes.\n\nThey may happen occasionally in rare circumstances. However, if this keeps happening please contact the developers and file a bug report."))
         self.banLabel.setHidden(True)
         vbox2.addWidget(self.banLabel)
         self.tree = QTreeWidget()
