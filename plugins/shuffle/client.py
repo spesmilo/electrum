@@ -566,6 +566,13 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 # up in the wallet before considerng it again for shuffling
                 self.done_utxos[sender] = time.time()
                 retVal = True # indicate to interesteed callers that we had a completion. Our thread loop uses this retval to decide to scan for UTXOs to shuffle immediately.
+                if thr.protocol and not thr.protocol.did_use_change:
+                    # The change address was not used.
+                    # Immediately unreserve this change_addr (may be dummy_address,
+                    # which is a harmless noop) so that it doesn't 'leak'
+                    # (create gaps) and so that other threads may reserve it
+                    # for shuffles immediately.
+                    self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
             with self.wallet.lock, self.wallet.transaction_lock:
                 self.wallet.set_frozen_coin_state([sender], False)
                 self._coins_busy_shuffling.discard(sender)
@@ -573,8 +580,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
                     self.wallet._addresses_cashshuffle_reserved.discard(thr.addr_new_addr)
-                    if thr.reserved_change:
-                        self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
+                    self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)  # NB: may be a dummy address in which case this is a harmless noop
                     #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
             self.tell_gui_to_refresh()
             self.logger.send(message, sender)
