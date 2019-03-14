@@ -1,4 +1,4 @@
-PACKAGE_VERSION  = '3.9.9ShufBeta'  # version of the client package
+PACKAGE_VERSION  = '3.9.10ShufBeta'  # version of the client package
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
 # The hash of the mnemonic seed must begin with this
@@ -67,4 +67,3 @@ def parse_package_version(pvstr):
     # .. and.. finally: Normalize it! (lopping off zeros at the end)
     toks[:-1] = normalize_version('.'.join(str(t) for t in toks[:-1]))
     return tuple(toks)
-
