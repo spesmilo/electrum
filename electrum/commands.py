@@ -841,6 +841,15 @@ class Commands:
         coro = self.lnworker.force_close_channel(chan_id) if force else self.lnworker.close_channel(chan_id)
         return self.network.run_from_another_thread(coro)
 
+    @command('wn')
+    def get_channel_ctx(self, channel_point):
+        """ return the current commitment transaction of a channel """
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        chan = self.lnworker.channels[chan_id]
+        tx = chan.force_close_tx()
+        return tx.as_dict()
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True

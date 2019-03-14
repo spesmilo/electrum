@@ -71,13 +71,14 @@ fi
 
 if [[ $1 == "breach" ]]; then
     bob_node=$($bob nodeid)
-    $alice open_channel $bob_node 0.15
+    channel=$($alice open_channel $bob_node 0.15)
     sleep 3
+    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     bitcoin-cli generate 6 > /dev/null
     sleep 10
     request=$($bob addinvoice 0.01 "blah")
     $alice lnpay $request
-    bitcoin-cli sendrawtransaction $(cat /tmp/alice/regtest/initial_commitment_tx)
+    bitcoin-cli sendrawtransaction $ctx
     sleep 12
     bitcoin-cli generate 2 > /dev/null
     sleep 12
