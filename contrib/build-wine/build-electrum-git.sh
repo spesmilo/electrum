@@ -1,7 +1,8 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
-PYTHON_VERSION=3.5.4
+#PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.8
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -10,7 +11,6 @@ export PYTHONHASHSEED=22
 
 PYHOME=c:/python$PYTHON_VERSION
 PYTHON="wine $PYHOME/python.exe -OO -B"
-
 
 # Let's begin!
 cd `dirname $0`
@@ -23,7 +23,8 @@ if [ -d ./electrum ]; then
   rm ./electrum -rf
 fi
 
-git clone https://github.com/spesmilo/electrum -b master
+#git clone https://github.com/spesmilo/electrum -b master
+git clone https://github.com/Toporin/electrum-satochip -b satochip electrum #DebugSatochip
 
 pushd electrum
 if [ ! -z "$1" ]; then
@@ -63,7 +64,8 @@ rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum $WINEPREFIX/drive_c/electrum
 cp electrum/LICENCE .
 cp -r ./electrum/contrib/deterministic-build/electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
-cp ./electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
+#cp ./electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
+cp ./electrum/gui/qt/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/ #DebugSatochip
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

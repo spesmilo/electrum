@@ -13,7 +13,17 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.5.4
+#DebugSatochip pyscard
+#PYSCARD_FILENAME=pyscard-1.9.7-cp36-cp36m-win_amd64.whl #python64-bits
+#PYSCARD_URL=https://sourceforge.net/projects/pyscard/files/pyscard/pyscard%201.9.7/pyscard-1.9.7-cp36-cp36m-win_amd64.whl/download
+#PYSCARD_SHA256=c63a87e4e7c87ce4c1299a1d8e0cae4e43f27451ca210f2c54f2dcd7467565c5
+PYSCARD_FILENAME=pyscard-1.9.7-cp36-cp36m-win32.whl #python32-bits
+PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/crqjsc62pdgjn9ao/artifacts/dist%2Fpyscard-1.9.7-cp36-cp36m-win32.whl
+PYSCARD_SHA256=dd4942c1c7e1ef92c61fe95bbc3567e57201fe62e328b6f5649d0aa64515da66
+
+#DebugSatochip
+#PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.8
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -105,7 +115,10 @@ for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
     wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
     wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
-    verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
+	#DebugSatochip 64-bit
+	#wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/amd64/${msifile}.msi" 
+    #wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/amd64/${msifile}.msi.asc"
+	verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION
 done
 
@@ -122,6 +135,12 @@ $PYTHON -m pip install -r $here/../deterministic-build/requirements-binaries.txt
 
 # Install PyInstaller
 $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
+
+#DebugSatochip install pyscard
+echo "Installing pyscard..."
+download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
+verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
+$PYTHON -m pip install "$PWD/$PYSCARD_FILENAME"
 
 # Install ZBar
 download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"

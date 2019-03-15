@@ -10,7 +10,9 @@ for i, x in enumerate(sys.argv):
 else:
     raise Exception('no name')
 
-PYTHON_VERSION = '3.5.4'
+#DebugSatochip
+#PYTHON_VERSION = '3.5.4'
+PYTHON_VERSION = '3.6.8'
 PYHOME = 'c:/python' + PYTHON_VERSION
 
 home = 'C:\\electrum\\'
@@ -21,6 +23,8 @@ hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
+hiddenimports += collect_submodules('satochip') #DebugSatochip
+hiddenimports += collect_submodules('smartcard') #DebugSatochip
 
 # Add libusb binary
 binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
@@ -35,7 +39,9 @@ datas = [
     (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
     (home+'lib/locale', 'electrum/locale'),
     (home+'plugins', 'electrum_plugins'),
-    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
+    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
+	#(PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win_amd64.pyd', '.\\smartcard\\scard\\') #debugSatochip	
+	(PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win32.pyd', '.\\smartcard\\scard\\') #debugSatochip	
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
@@ -57,7 +63,8 @@ a = Analysis([home+'electrum',
               home+'plugins/trezor/qt.py',
               home+'plugins/keepkey/qt.py',
               home+'plugins/ledger/qt.py',
-              #home+'packages/requests/utils.py'
+			  home+'plugins/satochip/qt.py', #DebugSatochip
+			  #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
              datas=datas,
@@ -91,7 +98,7 @@ exe_standalone = EXE(
     strip=None,
     upx=False,
     icon=home+'icons/electrum.ico',
-    console=False)
+    console=True) #DebugSatochip True
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 exe_portable = EXE(
@@ -104,7 +111,7 @@ exe_portable = EXE(
     strip=None,
     upx=False,
     icon=home+'icons/electrum.ico',
-    console=False)
+    console=True) #DebugSatochip True
 
 #####
 # exe and separate files that NSIS uses to build installer "setup" exe
