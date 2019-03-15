@@ -1187,16 +1187,16 @@ class Abstract_Wallet(PrintError):
             for utxo in utxos:
                 if isinstance(utxo, str):
                     if freeze:
-                        self.frozen_coins |= { utxo }
+                        self.frozen_coins.add( utxo )
                     else:
-                        self.frozen_coins -= { utxo }
+                        self.frozen_coins.discard( utxo )
                     ok += 1
                 elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
                     txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
                     if freeze:
-                        self.frozen_coins |= { txo }
+                        self.frozen_coins.add( txo )
                     else:
-                        self.frozen_coins -= { txo }
+                        self.frozen_coins.discard( txo )
                     utxo['is_frozen_coin'] = bool(freeze)
                     ok += 1
             if ok:

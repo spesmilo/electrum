@@ -55,6 +55,7 @@ class Round(PrintErrorThread):
         self.transaction = None
         self.tx = None
         self.did_use_change = True  # This will get recomputed later as the shuffle proceeds based on actual amounts in shuffle (#68)
+        self.did_reach_tentative_stage = False
         self.done = None
         if self.number_of_players == len(set(players.values())):
             if self.vk in players.values():
@@ -320,8 +321,9 @@ class Round(PrintErrorThread):
             self.messages.add_signatures(signatures)
             self.send_message()
             self.log_message("send transction signatures")
-            # workaround for issue #70
-            self.logchan.send("add_tentative_shuffle: {}".format(self._get_tentative_shuffle_string()))
+            # workaround for issue #70, #97
+            self.did_reach_tentative_stage = True  # Flag that tells BackgroungShuffleThread not to unreserve our output address (for a time) if things go bad and we fail, since after this point the tx may end up broadcast by a lagged client (see #70)
+            self.logchan.send("add_tentative_shuffle: {}".format(self._get_tentative_shuffle_string()))  # workaround for #70
 
 
     def process_verification_and_submission(self):
