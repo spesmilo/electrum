@@ -221,7 +221,7 @@ def update_coin_status(window, coin_name, msg):
             window.utxo_list.in_progress[coin_name] = new_in_progress
         window.utxo_list.update()
 
-def _got_tx(window, tx):
+def _got_tx_check_tentative_shuffles(window, tx):
     ''' GUI thread: Got a new transaction for a window, so see if we should
     apply the shuffle_tentative label to it. The below mechanism is a
     workaround for bug #70. '''
@@ -259,6 +259,50 @@ def _got_tx(window, tx):
                     window.print_error("CashShuffle: removing spent coin {} from tentative shuffle cache, label not applied".format(utxo))
                 t.pop(utxo)  # unconditionally remove this tentative coin from the dict since either way it's spent
                 return
+
+def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address(window, tx):
+    ''' Freeze address after spending from a shuffled coin address for privacy. Issue #100 '''
+    inputs = tx.inputs()
+    addrs_to_freeze = set()
+    wallet = window.wallet
+    all_addresses = None
+    def is_mine(a):
+        ''' This is faster than calling wallet.is_mine on *each* input
+        as that involves a lot of rebuilding of the addresses list for each call.
+        Also we use a set here which is faster than O(n) list lookup.
+        This matters on huge tx's with many inputs as a speedup.'''
+        nonlocal all_addresses
+        if all_addresses is None:
+            all_addresses = set(wallet.get_addresses())
+        return a in all_addresses
+
+    for inp in inputs:
+        addr = inp['address']
+        if (isinstance(addr, Address)
+                and addr not in addrs_to_freeze
+                and is_mine(addr)
+                and wallet.is_coin_shuffled(inp)
+            ):
+            # we spent a shuffled coin belonging to us. freeze that address to protect privacy
+            addrs_to_freeze.add(addr)
+    if addrs_to_freeze:
+        wallet.set_frozen_state(addrs_to_freeze, True)
+        for addr in addrs_to_freeze:
+            name = addr.to_storage_string()
+            if not wallet.labels.get(name):
+                wallet.set_label(name, _("Shuffled coin spent (frozen for privacy)"))
+
+
+def _got_tx(window, tx):
+    ''' Generic callback to monitor tx's received for a wallet. Note that
+        if this is called the tx definitely is for this window/wallet. '''
+    if not hasattr(window, '_shuffle_patched_'):
+        # defensie programming in case this signal arrives late
+        # just as the user was disabling cash shuffle
+        # (signal arrives via QueuedConnection which is why this check is necessary)
+        return
+    _got_tx_check_tentative_shuffles(window, tx)  # check for workaround to bug#70
+    _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address(window, tx) # Feature #100
 
 
 class MsgForwarder(QObject):
