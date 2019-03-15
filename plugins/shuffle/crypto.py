@@ -1,7 +1,7 @@
-import hashlib
 import ecdsa
 from ecdsa.util import number_to_string, string_to_number
-from electroncash.bitcoin import (generator_secp256k1, point_to_ser, EC_KEY)
+from electroncash.bitcoin import (generator_secp256k1, point_to_ser, EC_KEY,
+                                  Hash)
 
 class Crypto:
     """ Functions related to cryptography """
@@ -42,8 +42,6 @@ class Crypto:
         """ decrypt message """
         return self.eck.decrypt_message(message)
 
-    def hash(self, text, algorithm='sha224'):
-        """ method for hashing the text """
-        h = hashlib.new(algorithm)
-        h.update(text.encode('utf-8'))
-        return h.digest()
+    def hash(self, text):
+        ''' Returns sha256(sha256(text)) as bytes. text may be bytes or str. '''
+        return Hash(text)  # bitcoin.Hash is sha256(sha256(x))

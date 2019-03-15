@@ -259,11 +259,12 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     # Version=100: Was for the new fee-270 (fee was 300 before this version).
     # Version=200: Is for the new "shuffle amount gets raised to match lowest
     #              UTXO in shuffle" rules.
+    # Version-300: Replaced sha-224 hashing with sha256d (double) hashing
     # Note that testnet instances should specify PROTOCOL_VERSION + 1 to keep
     # keep themselves separated from mainnet shufflers.
     # (In the future this version specifier may be a more dynamic quantity but
     #  for now it's always this value, or this value + 1 for testnet).
-    PROTOCOL_VERSION = 200
+    PROTOCOL_VERSION = 300
     # Fee formula should be roughly 270 for first input + 200 for each additional
     # input. Right now we support only 1 input per shuffler, so it's a static 270.
     FEE = 270
