@@ -145,7 +145,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.players[player_number] = player_key
             self.all_inputs[player_key] = {}
             for pk, inp in packet.packet.message.inputs.items():
-                self.all_inputs[player_key][pk] = inp.coins[:]
+                self.all_inputs[player_key][pk] = list(set(inp.coins)) # ensure unique set of inputs
         if self.players:
             self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
         if self.number_of_players < 3:
