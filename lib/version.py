@@ -1,4 +1,4 @@
-PACKAGE_VERSION  = '3.9.10ShufBeta'  # version of the client package
+PACKAGE_VERSION  = '3.9.11ShufBeta'  # version of the client package
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
 # The hash of the mnemonic seed must begin with this
