@@ -145,7 +145,14 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.players[player_number] = player_key
             self.all_inputs[player_key] = {}
             for pk, inp in packet.packet.message.inputs.items():
-                self.all_inputs[player_key][pk] = list(set(inp.coins)) # ensure unique set of inputs
+                coins = list(set(inp.coins)) # ensure unique set of inputs
+                if len(coins) != 1:
+                    # enforce 1 input per player, to do more breaks fee model.
+                    # we need a dynamic fee model: see issue tracker #74
+                    self.logger.send('Error: Extra or missing input for player {}; each player must have exactly 1 input!'.format(player_number))
+                    self.done.set()
+                    return
+                self.all_inputs[player_key][pk] = coins
         if self.players:
             self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
         if self.number_of_players < 3:
@@ -158,7 +165,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         elif sum(len(v) for k,v in self.all_inputs.items()) != self.number_of_players:
             # Note: for now we only support 1 input per player. To lift this restriction we would need
             # to implement the proposed dynamic fee scheme. See github issue tracker #74
-            self.logger.send('Error: Extra or missing innputs; each player must have exactly 1 input!')
+            self.logger.send('Error: Extra or missing inputs; each player must have exactly 1 input!')
             self.done.set()
 
     @not_time_to_die
@@ -202,7 +209,8 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
                 self.print_error("Exception in 'run': {}".format(str(e)))
                 self.logger.send(err)
                 return
-            self.start_protocol()
+            if not self.done.is_set():
+                self.start_protocol()
         finally:
             self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.scale, self.coin))
             self.comm.close()  # simply force socket close if exiting thread for any reason
