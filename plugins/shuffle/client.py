@@ -148,12 +148,17 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
                 self.all_inputs[player_key][pk] = inp.coins[:]
         if self.players:
             self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
-        #check if all keys are different
-        if len(self.all_inputs) != self.number_of_players:
-            self.logger.send('Error: Duplicate or extra keys in player list!')
-            self.done.set()
         if self.number_of_players < 3:
             self.logger.send('{} Refusing to play with {} players. Minimum 3 required.'.format(ERR_BAD_SERVER_PREFIX,self.number_of_players))
+            self.done.set()
+        #check if all keys are different
+        elif len(self.all_inputs) != self.number_of_players:
+            self.logger.send('Error: Duplicate or extra keys in player list!')
+            self.done.set()
+        elif sum(len(v) for k,v in self.all_inputs.items()) != self.number_of_players:
+            # Note: for now we only support 1 input per player. To lift this restriction we would need
+            # to implement the proposed dynamic fee scheme. See github issue tracker #74
+            self.logger.send('Error: Extra or missing innputs; each player must have exactly 1 input!')
             self.done.set()
 
     @not_time_to_die
