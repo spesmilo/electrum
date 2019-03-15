@@ -687,17 +687,20 @@ class Round(PrintErrorThread):
         Checks for all players to have a sufficient funds to do the shuffling
         Enter the Blame phase if someone have no funds for shuffling
         """
-        offenders = list()
+        offenders = set()
         totals = set()
         self.shuffle_amount = self.scale
-        for player, inp in self.inputs.items():
+        #vk2player = { vk : player for player, vk in self.players.items() }  # DEBUG
+        for vk, inp in self.inputs.items():
             is_funds_sufficient, tot = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, self.scale + self.fee)
+            #if vk2player[vk] == len(self.players): # DEBUG, blame last player
+            #    is_funds_sufficient, tot = False, None # DEBUG
             if is_funds_sufficient is None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True
                 return None
             elif not is_funds_sufficient:
-                offenders.append(player)
+                offenders.add(vk)
             else:
                 assert tot is not None
                 totals.add(tot)
@@ -715,21 +718,11 @@ class Round(PrintErrorThread):
             compute_shuffle_amount()
             return True
         else:
-            self.phase = "Blame"
-            old_players = self.players.copy()
+            self.do_send_blame_insufficient_funds(offenders) # NB: phase will now be "Blame" which then goes to process_blame...
+            # update the player map to include the subset not in the offender set
             self.players = { player : vk
                              for player, vk in self.players.items()
                              if vk not in offenders}
-            # invert the player -> vk map
-            offender_names = { v: k for k,v in old_players.items() }
-            for offender in offenders:
-                if self.vk == offender:
-                    # don't blame self.
-                    continue
-                self.messages.blame_insufficient_funds(offender)
-                self.send_message()
-                self.logchan.send('Blame: insufficient funds of player ' +
-                                  str(offender_names.get(offender)))
             if len(self.players) >= 3:
                 self.number_of_players = len(self.players)
                 compute_shuffle_amount()
@@ -742,6 +735,20 @@ class Round(PrintErrorThread):
                 self.done = True
                 return False
             return False
+
+    def do_send_blame_insufficient_funds(self, offenders):
+        ''' Sets phase to "Blame". Pass in all offender vk's as preferably a set. '''
+        self.phase = "Blame"
+        for player, vk in self.players.items():
+            if vk not in offenders:
+                continue
+            offender, offender_name = vk, player
+            if self.vk == offender:
+                # don't blame self.
+                continue
+            self.messages.blame_insufficient_funds(offender)
+            self.send_message()
+            self.logchan.send('Blame: insufficient funds of player {}'.format(offender_name))
 
     @profiler
     def broadcast_new_key(self):
