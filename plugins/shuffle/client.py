@@ -234,20 +234,6 @@ class ProtocolThread(threading.Thread, PrintError):
         return "{} <Scale: {}> ".format(n, self.scale)
 
 
-def keys_from_priv(priv_key):
-    address, secret, compressed = deserialize_privkey(priv_key)
-    sk = regenerate_key(secret)
-    pubk = sk.get_public_key(compressed)
-    return sk, pubk
-
-
-def generate_random_sk():
-        G = generator_secp256k1
-        _r  = G.order()
-        pvk = ecdsa.util.randrange( _r )
-        eck = EC_KEY(number_to_string(pvk, _r))
-        return eck
-
 class BackgroundShufflingThread(threading.Thread, PrintError):
 
     scales = (
@@ -714,6 +700,14 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         #    else:
         #        signal_stop_thread(thr, message)
 
+    @staticmethod
+    def generate_random_sk():
+        G = generator_secp256k1
+        _r  = G.order()
+        pvk = ecdsa.util.randrange( _r )
+        eck = EC_KEY(number_to_string(pvk, _r))
+        return eck
+
     # NB: all locks must be held when this is called
     def _make_protocol_thread(self, scale, coins, scale_lower_bound, scale_upper_bound):
         def get_coin_for_shuffling(scale, coins, scale_lower_bound, scale_upper_bound):
@@ -749,7 +743,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         sk = regenerate_key(deserialize_privkey(private_key)[1])
         inputs[public_key] = [utxo_name]
         sks[public_key] = sk
-        id_sk = generate_random_sk()
+        id_sk = self.generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
 
         output = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
