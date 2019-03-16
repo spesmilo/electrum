@@ -393,10 +393,10 @@ class Round(PrintError):
             if not res:
                 if not self.done: # don't do the phase5 check if master thread requested emergency thread stop. (rare, but can happen on app quit)
                     self.logchan.send("Info: Initiating Phase-5-Doubles-Spend-Blame-Detection™")
-                    res = self.check_and_blame_insufficient_funds_phase_5(self.transaction)
-                    if res == -1:
+                    ret = self.check_and_blame_insufficient_funds_phase_5(self.transaction)
+                    if ret == -1:
                         self.logchan.send("Info: broadcast failure but another player did appear to succeed to broadcast!")
-                    elif res:
+                    elif ret:
                         self.logchan.send("Error: broadcast failure due to possible double-spend!")
                     else:
                         self.logchan.send("Error: broadcast failure!")
