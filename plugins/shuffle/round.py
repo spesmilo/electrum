@@ -392,7 +392,7 @@ class Round(PrintError):
                 self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
                 if not self.done: # don't do the phase5 check if master thread requested emergency thread stop. (rare, but can happen on app quit)
-                    self.logchan.send("Info: Initiating Phase-5-Doubles-Spend-Blame-Detection™")
+                    self.logchan.send("Info: Initiating Phase-5-Double-Spend-Blame-Detection™")
                     ret = self.check_and_blame_insufficient_funds_phase_5(self.transaction)
                     if ret == -1:
                         self.logchan.send("Info: broadcast failure but another player did appear to succeed to broadcast!")
@@ -798,12 +798,13 @@ class Round(PrintError):
         seen_pubkeys = set()
         amount = self.shuffle_amount + self.fee
         def get_vk(pubkey):
-            #todo figure out if this is correct? -Calin
+            # note that in the current implementation the pubkey IS the vk,
+            # so this lookup is rather superfluous -- but in the future it may
+            # not be, so this code is for future-proofing
             for vk, inp in self.inputs.items():
                 if pubkey in inp:
                     return vk
         def get_change(pubkey):
-            # also this? -Calin
             vk = get_vk(pubkey)
             if vk:
                 return self.change_addresses.get(vk)
@@ -832,7 +833,15 @@ class Round(PrintError):
                     # change addresses, and if it's THIS tx, we know the broadcast actually succeeded and nobody
                     # should be to blame.
                     self.print_error("Checking change...", change)
-                    unspent_list = self.coin_utils.getaddressunspent(change)
+                    try:
+                        unspent_list = self.coin_utils.getaddressunspent(change)
+                    except BaseException as e:
+                        # If we get here, error communicating with server or
+                        # some other low-level error. Give up trying to redeem
+                        # him. We already have our suspicions if we are here.
+                        # Count this guy as blamed.
+                        self.print_error("Server error checking change", change, "unspent list (will proceed to blame):", repr(e))
+                        unspent_list = None
                     if unspent_list:
                         if tx.txid() in { utxo.get('tx_hash') for utxo in unspent_list }:
                             # hmm. ok, this means we got here but the tx was broadcast successfully by another player
