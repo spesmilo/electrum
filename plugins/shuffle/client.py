@@ -711,13 +711,13 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             fwd_message(thr, message)  # sends to Qt signal, which will run in main thread
         elif "begins CoinShuffle protocol" in message:
             fwd_message(thr, message)  # sends to Qt signal, which will run in main thread
-        elif message.startswith("Blame"):
-            if "insufficient" in message:
-                pass
-            elif "wrong hash" in message:
-                pass
-            else:
-                signal_stop_thread(thr, message)
+        #elif message.startswith("Blame"):
+        #    if "insufficient" in message:
+        #        pass
+        #    elif "wrong hash" in message:
+        #        pass
+        #    else:
+        #        signal_stop_thread(thr, message)
 
     # NB: all locks must be held when this is called
     def _make_protocol_thread(self, scale, coins, scale_lower_bound, scale_upper_bound):

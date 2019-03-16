@@ -52,7 +52,7 @@ class testNetwork(object):
         return True, "done"
 
     def is_connected(self):
-        return self.should_be_connected    
+        return self.should_be_connected
 
 class testThread(ProtocolThread):
     def __init__(self, host, port, network, coin_name ,amount, fee, sk, sks, inputs, pubk, addr_new, change, logger = None, ssl = False):
@@ -249,7 +249,7 @@ class Round_wrong_ciphertexts(Round):
                 for packet in self.messages.packets.packet:
                     packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
                 # add encrypted new addres of players
-                if self.different_ciphertexts():
+                if not self.different_ciphertexts():
                     encrypted_address = self.encrypt_new_address()
                     packet_index = random.randint(0, len(self.messages.get_new_addresses())-1)
                     self.logchan.send("CHEATER IS " + str(self.me))
@@ -293,7 +293,7 @@ class Round_wrong_outputs(Round):
                 for packet in self.messages.packets.packet:
                     packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
                 # add encrypted new addres of players
-                if self.different_ciphertexts():
+                if not self.different_ciphertexts():
                     encrypted_address = self.encrypt_new_address()
                     original_address = self.addr_new
                     self.addr_new = '1574vWgV4DAhRBhzx7q2k1p1SeA2wCpiPF'

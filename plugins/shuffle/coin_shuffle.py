@@ -1,6 +1,7 @@
 from .client import PrintErrorThread, ERR_BAD_SERVER_PREFIX
 from .comms import BadServerPacketError
 from electroncash.util import profiler
+from .crypto import CryptoError
 
 class ImplementationMissing(RuntimeError):
     pass
@@ -96,6 +97,10 @@ class Round(PrintErrorThread):
         except BadServerPacketError as e:
             self.print_error(repr(e))
             self.logchan.send("{} {}".format(ERR_BAD_SERVER_PREFIX, str(e)))
+        except CryptoError as e:
+            self.done = True
+            self.logchan.send("Error: {}: \"{}\" [{}] ; message=\"{}\" private_key=\"{}\""
+                              .format(type(e).__name__, e.args[0], repr(e.args[1]), e.args[3], e.args[2]))
         except ImplementationMissing as e:
             self.print_error(repr(e))
             self.logchan.send("Error: ImplementationMissing -- original programmer's implentation is incomplete. FIXME!")
@@ -231,7 +236,7 @@ class Round(PrintErrorThread):
                 self.messages.packets.ParseFromString(self.inbox[phase][sender])
                 for packet in self.messages.packets.packet:
                     packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
-                if self.different_ciphertexts():
+                if not self.different_ciphertexts():
                     self.messages.add_str(self.encrypt_new_address())
                     self.messages.shuffle_packets()
                     self.send_message(destination=self.players[self.next_player()])
@@ -320,7 +325,7 @@ class Round(PrintErrorThread):
             self.messages.clear_packets()
             self.messages.add_signatures(signatures)
             self.send_message()
-            self.log_message("send transction signatures")
+            self.log_message("send transaction signatures")
             # workaround for issue #70, #97
             self.did_reach_tentative_stage = True  # Flag that tells BackgroungShuffleThread not to unreserve our output address (for a time) if things go bad and we fail, since after this point the tx may end up broadcast by a lagged client (see #70)
             self.logchan.send("add_tentative_shuffle: {}".format(self._get_tentative_shuffle_string()))  # workaround for #70
@@ -342,7 +347,7 @@ class Round(PrintErrorThread):
 
         if self.is_inbox_complete(phase):
             self.signatures = {}
-            self.log_message("got transction signatures")
+            self.log_message("got transaction signatures")
             pubkeys = {}
             for vk, vk_pubkeys in self.inputs.items():
                 for pubkey, utxos in vk_pubkeys.items():
@@ -408,7 +413,7 @@ class Round(PrintErrorThread):
             br('Equivocation failure') : self.process_blame_equivocation_failure,
             br('Shuffle Failure') : self.process_blame_shuffle_failure,
             br('Shuffle and Equivocation Failure') : self.process_blame_shuffle_and_equivocation_failure,
-            br('Liar') : lambda p, r: self.print_error("Ignoring Liar message phase:", p, "reason:", r)
+            br('Liar') : lambda p, r: self.logchan.send("Ignoring Liar message phase: {} reason: {}".format(p, r))
         }.get(reason)
         if handler:
             handler(phase, reason)
@@ -435,7 +440,7 @@ class Round(PrintErrorThread):
                 self.check_reasons_and_accused(reason)
             accused = self.messages.get_accused_key()
             self.inputs.pop(accused, None)
-            self.ban_the_liar(self.messages.get_accused_key())
+            self.ban_the_liar(accused)
             self.inbox[self.messages.phases["Blame"]] = {}
             self.broadcast_new_key()
 
@@ -691,7 +696,7 @@ class Round(PrintErrorThread):
         offenders = set()
         totals = set()
         self.shuffle_amount = self.scale
-        #vk2player = { vk : player for player, vk in self.players.items() }  # DEBUG
+        #vk2player = { vk : player for player, vk in self.players.items() }  # DEBUG inverted map
         for vk, inp in self.inputs.items():
             is_funds_sufficient, tot = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, self.scale + self.fee)
             #if vk2player[vk] == len(self.players): # DEBUG, blame last player
@@ -772,7 +777,7 @@ class Round(PrintErrorThread):
     def different_ciphertexts(self):
         """Checks for the same ciphertexts on phase2(Shufflings)"""
         ciphertexts = self.messages.get_new_addresses()
-        return len(ciphertexts) == len(set(ciphertexts))
+        return len(ciphertexts) != len(set(ciphertexts))
 
     def is_inbox_complete(self, phase):
         """Checks if inbox for the selected phase is complete"""

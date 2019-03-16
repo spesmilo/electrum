@@ -122,7 +122,7 @@ class TestProtocolOnFault(TestProtocolCase):
                     print(message)
                     if message.startswith("Error"):
                         error_raised = True
-                    if pThread.network != None and "got transction signatures" in message:
+                    if pThread.network != None and "got transaction signatures" in message:
                         pThread.protocol.coin.network = None
                 except:
                     pass
