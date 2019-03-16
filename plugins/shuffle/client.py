@@ -20,7 +20,7 @@ class PrintErrorThread(PrintError):
 from .coin_utils import CoinUtils
 from .crypto import Crypto
 from .messages import Messages
-from .coin_shuffle import Round
+from .round import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
 from .conf_keys import ConfKeys  # config keys per wallet and global
 
@@ -30,7 +30,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     from 0 up to len(BackgroundShufflingThread.scales) of these active at any
     time per wallet. BackgroundShufflingThread creates/kills these in
     _make_protocol_thread. (The actual shuffle logic and rules are implemented
-    in class 'Round' in coin_shuffle.py which this class wraps and calls into).
+    in class 'Round' in round.py which this class wraps and calls into).
     """
     def __init__(self, *, host, port, coin,
                  scale, fee, sk, sks, inputs, pubk,

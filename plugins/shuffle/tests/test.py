@@ -22,7 +22,7 @@ from electroncash_plugins.shuffle.comms import (ChannelWithPrint, Channel)
 from electroncash_plugins.shuffle.coin import Coin
 from electroncash_plugins.shuffle.crypto import Crypto
 # from electroncash_plugins.shuffle.phase import Phase
-from electroncash_plugins.shuffle.coin_shuffle import Round
+from electroncash_plugins.shuffle.round import Round
 from electroncash.bitcoin import (regenerate_key, deserialize_privkey, EC_KEY, generator_secp256k1,
                                   number_to_string ,public_key_to_p2pkh, point_to_ser, Hash)
 
