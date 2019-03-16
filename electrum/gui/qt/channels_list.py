@@ -105,7 +105,7 @@ class ChannelsList(MyTreeView):
 
     def update_status(self):
         channel_db = self.parent.network.channel_db
-        num_peers = len(self.parent.wallet.lnworker.peers)
+        num_peers = sum([p.initialized.is_set() for p in self.parent.wallet.lnworker.peers.values()])
         msg = _('{} peers, {} nodes, {} channels.').format(num_peers, channel_db.num_nodes, channel_db.num_channels)
         self.status.setText(msg)
 
