@@ -407,14 +407,15 @@ class Round(PrintErrorThread):
             br('Insufficient Funds') : self.process_blame_insufficient_funds,
             br('Equivocation failure') : self.process_blame_equivocation_failure,
             br('Shuffle Failure') : self.process_blame_shuffle_failure,
-            br('Shuffle and Equivocation Failure') : self.process_blame_shuffle_and_equivocation_failure
+            br('Shuffle and Equivocation Failure') : self.process_blame_shuffle_and_equivocation_failure,
+            br('Liar') : lambda p, r: self.print_error("Ignoring Liar message phase:", p, "reason:", r)
         }.get(reason)
         if handler:
             handler(phase, reason)
         else:
             # Grrr. For some reason Yura didn't implement all the possible blame handlers in messages_pb2.py. This codepath is
             # reached on verify signature failure -- but the blame appears to happen elsewhere anyway.
-            # TODO: FIXME
+            # TODO: FIXME or perhaps blame misbehaving client sending us a garbage message.
             raise ImplementationMissing("Could not find a handler for blame reason: {} in phase: {} -- FIXME!".format(reason, phase))
 
     def process_blame_insufficient_funds(self, phase, reason):
@@ -433,7 +434,7 @@ class Round(PrintErrorThread):
                 self.messages.packets.ParseFromString(msg)
                 self.check_reasons_and_accused(reason)
             accused = self.messages.get_accused_key()
-            del self.inputs[accused]
+            self.inputs.pop(accused, None)
             self.ban_the_liar(self.messages.get_accused_key())
             self.inbox[self.messages.phases["Blame"]] = {}
             self.broadcast_new_key()
