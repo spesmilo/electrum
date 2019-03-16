@@ -12,11 +12,6 @@ ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
 MSG_SERVER_OK = "Ok: Server is ok"
 
-class PrintErrorThread(PrintError):
-    def diagnostic_name(self):
-        n = super().diagnostic_name()
-        return "{} ({})".format(n, int(threading.get_ident())&0xfffff)
-
 from .coin_utils import CoinUtils
 from .crypto import Crypto
 from .messages import Messages
@@ -24,7 +19,7 @@ from .round import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
 from .conf_keys import ConfKeys  # config keys per wallet and global
 
-class ProtocolThread(threading.Thread, PrintErrorThread):
+class ProtocolThread(threading.Thread, PrintError):
     """
     Thread encapsulating a particular shuffle of a particular coin. There are
     from 0 up to len(BackgroundShufflingThread.scales) of these active at any
@@ -253,7 +248,7 @@ def generate_random_sk():
         eck = EC_KEY(number_to_string(pvk, _r))
         return eck
 
-class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
+class BackgroundShufflingThread(threading.Thread, PrintError):
 
     scales = (
         100000000000, # 1000.0  BCH ➡

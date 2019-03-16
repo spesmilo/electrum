@@ -1,8 +1,7 @@
 import socket, ssl, threading, queue, time, requests, select, errno
-from .client import PrintErrorThread
 from electroncash.network import Network
 from electroncash.interface import Connection
-from electroncash.util import print_error
+from electroncash.util import print_error, PrintError
 
 # urllib3 may be missing from requests namespace in older requests versions. safe to ignore. See Electron-Cash#1172
 if hasattr(requests, 'urllib3'):
@@ -36,7 +35,7 @@ class Channel(queue.Queue):
         return self.get_nowait()
 
 
-class ChannelWithPrint(Channel, PrintErrorThread):
+class ChannelWithPrint(Channel, PrintError):
     """ Simple channel for logging """
     def __init__(self, switch_timeout = None):
         super().__init__(switch_timeout)
@@ -61,7 +60,7 @@ class ChannelSendLambda:
 class BadServerPacketError(Exception):
     pass
 
-class Comm(PrintErrorThread):
+class Comm(PrintError):
 
     MAX_MSG_LENGTH = 64*1024 # 64kb message length limit on server-side. If we get anything longer it's a malicious server
 

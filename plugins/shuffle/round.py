@@ -1,12 +1,17 @@
-from .client import PrintErrorThread, ERR_BAD_SERVER_PREFIX
+from .client import ERR_BAD_SERVER_PREFIX
 from .comms import BadServerPacketError
-from electroncash.util import profiler
+from electroncash.util import profiler, PrintError
 from .crypto import CryptoError
 
 class ImplementationMissing(RuntimeError):
     pass
 
-class Round(PrintErrorThread):
+class N_Minus_1ShuffleDisabled(RuntimeError):
+    ''' Raised to indicate we entered blame phase and we don't support
+    continuing with N-1 shufflers.  Used to abort the round from anywhere '''
+    pass
+
+class Round(PrintError):
     """
     A single round of the protocol. It is possible that the players may go through
     several failed rounds until they have eliminated malicious players.
@@ -104,6 +109,9 @@ class Round(PrintErrorThread):
         except ImplementationMissing as e:
             self.print_error(repr(e))
             self.logchan.send("Error: ImplementationMissing -- original programmer's implentation is incomplete. FIXME!")
+        except N_Minus_1ShuffleDisabled as e:
+            self.print_error(repr(e))
+            self.logchan.send("Error: N-Minus-1 Shuffle situation encountered, aborting protocol early.")
         finally:
             self.done = True
 
@@ -383,7 +391,15 @@ class Round(PrintErrorThread):
                 self.logchan.send("del_tentative_shuffle: {}".format(self.utxo))
                 self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
-                self.logchan.send("Error: blockchain network fault!")
+                if not self.done: # don't do the phase5 check if master thread requested emergency thread stop. (rare, but can happen on app quit)
+                    self.logchan.send("Info: Initiating Phase-5-Doubles-Spend-Blame-Detection™")
+                    res = self.check_and_blame_insufficient_funds_phase_5(self.transaction)
+                    if res == -1:
+                        self.logchan.send("Info: broadcast failure but another player did appear to succeed to broadcast!")
+                    elif res:
+                        self.logchan.send("Error: broadcast failure due to possible double-spend!")
+                    else:
+                        self.logchan.send("Error: broadcast failure!")
                 self.print_error("Error broadcasting tx: res='{}' status='{}'".format(res, status))
             else:
                 self.tx = self.transaction
@@ -416,6 +432,10 @@ class Round(PrintErrorThread):
         """
         phase = self.messages.phases[self.phase]
         reason = self.messages.get_blame_reason()
+        raise N_Minus_1ShuffleDisabled("N-Minus-1 shuffling is currently disabled", phase, reason)
+
+        # the below is not reached....
+
         br = self.messages.blame_reason
         handler = {
             br('Insufficient Funds') : self.process_blame_insufficient_funds,
@@ -510,7 +530,7 @@ class Round(PrintErrorThread):
                     if ec in encryption_keys:
                         del self.inbox[phase_1][message]
                 for player in all_cheaters:
-                    del self.inputs[player]
+                    self.inputs.pop(player, None)
                     self.ban_the_liar(player)
                 if self.vk not in all_cheaters:
                     self.inbox[self.messages.phases["Blame"]] = {}
@@ -565,7 +585,7 @@ class Round(PrintErrorThread):
             cheater = self.check_for_shuffling()
             if cheater:
                 if cheater != self.vk:
-                    del self.inputs[cheater]
+                    self.inputs.pop(cheater, None)
                     self.ban_the_liar(cheater)
                     self.players = {player:vk
                                     for player, vk in self.players.items()
@@ -673,11 +693,13 @@ class Round(PrintErrorThread):
                 self.messages.blame_invalid_signature(player)
                 self.send_message()
                 self.logchan.send('Blame: player ' + player + ' message with wrong signature!')
+                raise N_Minus_1ShuffleDisabled("Signature failed:", sig, msg, player)
 
     def ban_the_liar(self, accused):
         """Send message to server for banning the player which verification key is accused"""
         self.messages.blame_the_liar(accused)
         self.send_message(destination=self.vk)
+        raise N_Minus_1ShuffleDisabled("Ban the liar", accused)
 
 
     def send_message(self, destination=None):
@@ -708,7 +730,7 @@ class Round(PrintErrorThread):
         #vk2player = { vk : player for player, vk in self.players.items() }  # DEBUG inverted map
         for vk, inp in self.inputs.items():
             is_funds_sufficient, tot = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, self.scale + self.fee)
-            #if vk2player[vk] == len(self.players): # DEBUG, blame last player
+            #if vk2player[vk] == len(self.players): # DEBUG, blame last player always to test
             #    is_funds_sufficient, tot = False, None # DEBUG
             if is_funds_sufficient is None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
@@ -751,7 +773,80 @@ class Round(PrintErrorThread):
                 return False
             return False
 
-    def do_send_blame_insufficient_funds(self, offenders):
+    def check_and_blame_insufficient_funds_phase_5(self, tx):
+        """
+        Final phase 5 check -- if tx broadcast failed, figure out if it's
+        due to a player or players not having sufficient funds and blame
+        them accordingly. After this point the protocol ends but we can
+        still assign blame to get peers that are double-spending to not get
+        assigned to us in the future by the server.
+
+        This function also checks if for some reason the tx did actually
+        succeed to broadcast, in which case nobody is to blame (can happen
+        in rare cases if this particular client has a bad/unreliable connection
+        to the ElectrumX server).  This is done by examining the change outputs
+        and seeing if this tx's hash appears as an unconfirmed tx there.
+
+        Returns: Number of players that were offenders if any players or 0
+        if nobody could be found to be at fault.
+
+        -1 is a special return value that indicates that another player
+        ended up broadcasting this tx and it was accepted. In which case
+        nobody is to blame and the shuffle completed successfully.
+        """
+        offenders = set()
+        seen_pubkeys = set()
+        amount = self.shuffle_amount + self.fee
+        def get_vk(pubkey):
+            #todo figure out if this is correct? -Calin
+            for vk, inp in self.inputs.items():
+                if pubkey in inp:
+                    return vk
+        def get_change(pubkey):
+            # also this? -Calin
+            vk = get_vk(pubkey)
+            if vk:
+                return self.change_addresses.get(vk)
+        for txin in tx.inputs():
+            # For now this loop assumes 1 input per player. If we allow multiple
+            # players in the protocol this loop will fail with raised RuntimeError
+            pubkey = txin['pubkeys'][0]
+            vk = get_vk(pubkey)
+            assert vk
+            if pubkey in seen_pubkeys:
+                # Defensive programming
+                raise RuntimeError('check_and_blame_insufficient_funds_phase_5: only 1 input per player is allowed!')
+            seen_pubkeys.add(pubkey)
+            inp = { pubkey : [self.coin_utils.get_name(txin)] }
+            is_ok, total = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, amount)
+            if is_ok is False: # None indicates blockchain server fault, False indicates actual negative reply
+                if total is None:
+                    # player supplied bad public key. this execution path should never be reached but we add this check for safety.
+                    offenders.add(vk)
+                    continue
+                change = get_change(pubkey)
+                if change:
+                    # ok, make sure that we didn't get here but the tx ended up being broadcast anyway, in which case nobody is to blame
+                    # since we don't know which output addr is which player, but we do know who owns what change,
+                    # we'll try and find a tx on the blockchain or in the mempool that matches one of the players'
+                    # change addresses, and if it's THIS tx, we know the broadcast actually succeeded and nobody
+                    # should be to blame.
+                    self.print_error("Checking change...", change)
+                    unspent_list = self.coin_utils.getaddressunspent(change)
+                    if unspent_list:
+                        if tx.txid() in { utxo.get('tx_hash') for utxo in unspent_list }:
+                            # hmm. ok, this means we got here but the tx was broadcast successfully by another player
+                            return -1 # -1 retval means "successfully was broadcast by another player"
+                    offenders.add(vk)
+            elif is_ok is None:
+                self.logchan.send("Warning: could not retrieve unspent list for pubkey {} from the ElectrumX server".format(pubkey))
+            else:
+                self.logchan.send("Info: Pubkey {} had sufficient funds".format(pubkey))
+        if offenders:
+            self.do_send_blame_insufficient_funds(offenders, extra_txt=' (Phase 5 Blame)')
+        return len(offenders)
+
+    def do_send_blame_insufficient_funds(self, offenders, extra_txt=''):
         ''' Sets phase to "Blame". Pass in all offender vk's as preferably a set. '''
         self.phase = "Blame"
         for player, vk in self.players.items():
@@ -763,7 +858,7 @@ class Round(PrintErrorThread):
                 continue
             self.messages.blame_insufficient_funds(offender)
             self.send_message()
-            self.logchan.send('Blame: insufficient funds of player {}'.format(offender_name))
+            self.logchan.send('Blame: insufficient funds of player {}{}'.format(offender_name, extra_txt))
 
     @profiler
     def broadcast_new_key(self):

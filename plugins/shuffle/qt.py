@@ -44,7 +44,7 @@ from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseBu
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.amountedit import BTCAmountEdit
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 from electroncash_plugins.shuffle.conf_keys import ConfKeys  # config keys per wallet and global
 from electroncash_plugins.shuffle.coin_utils import CoinUtils
@@ -1290,7 +1290,7 @@ class NetworkCheckerDelegateMixin:
     settingsChanged = pyqtSignal(dict)
     statusChanged = pyqtSignal(dict)
 
-class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegateMixin):
+class SettingsDialog(WindowModalDialog, PrintError, NetworkCheckerDelegateMixin):
     # from base: settingsChanged = pyqtSignal(dict)
     # from base: statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
@@ -1548,7 +1548,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
             self.print_error("Stopped network checker.")
     # /
 # /SettingsDialog
-class NetworkChecker(QThread, PrintErrorThread):
+class NetworkChecker(QThread, PrintError):
     ''' Runs in a separate thread, checks the server automatically when the settings form changes
         and publishes results to GUI thread. '''
     pollTimeSecs = 15.0
@@ -1639,7 +1639,7 @@ class NetworkChecker(QThread, PrintErrorThread):
                 #self.print_error("startTimer",self.pollTimeSecs,d) # XXX
                 d = d.copy()
                 killTimer()
-                class MyTimer(QTimer, PrintErrorThread):
+                class MyTimer(QTimer, PrintError):
                     def __init__(self, parent=None):
                         QTimer.__init__(self, parent)
                         #self.destroyed.connect(lambda x: self.print_error("destroyed"))

@@ -7,12 +7,11 @@ from electroncash.bitcoin import (
 from electroncash.transaction import Transaction, int_to_hex
 from electroncash.address import Address, AddressError
 from electroncash.wallet import dust_threshold
-from electroncash.util import profiler
+from electroncash.util import profiler, PrintError
 import ecdsa
-from .client import PrintErrorThread
 from .conf_keys import ConfKeys
 
-class CoinUtils(PrintErrorThread):
+class CoinUtils(PrintError):
     """ Utility functions for transactions, blockchain, & electrumx servers. """
 
     def __init__(self, network):
@@ -24,6 +23,11 @@ class CoinUtils(PrintErrorThread):
         """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
+        if not isinstance(address, Address):
+            try:
+                address = Address.from_string(address)
+            except AddressError:
+                return None
         sh = address.to_scripthash_hex()
         return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
 
@@ -41,7 +45,8 @@ class CoinUtils(PrintErrorThread):
         2. check if utxo from inputs are in the utxo list on blockchain for these pubkeys
             2.a return None if there is a utxo from list not in utxo set from blockchain
             2.b return None if utxo in list is not confirmed
-        3. return True, total_amt if summary values of utxos are greater then amount and False,None otherwise
+        3. return True, total_amt if summary values of utxos are greater then amount and False, None otherwise
+           returns None,None on blockchain communication error
         """
         assert amount > 0, "Amount must be > 0!"
         def _utxo_name(x): return x['tx_hash'] + ":" + str(x['tx_pos'])
@@ -61,12 +66,12 @@ class CoinUtils(PrintErrorThread):
                 for utxo in pk_inputs:
                     val = utxos.get(utxo)
                     if val is None:
-                        return False, None  # utxo does not exist or was spent
+                        return False, None # utxo does not exist or was spent
                     total += val
             answer = total >= amount
             if answer:
                 return True, total
-            return False, None
+            return False, total
 
         except BaseException as e:
             #import traceback
