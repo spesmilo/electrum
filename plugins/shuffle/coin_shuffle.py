@@ -219,32 +219,41 @@ class Round(PrintErrorThread):
         4. If player is last player he goes to the next phase ("Broadcasts Output") and broadcast the outputs.
         """
         phase = self.messages.phases[self.phase]
+        accused = None
         if self.me == self.last_player():
             sender = self.players[self.previous_player(player=self.last_player())]
             if self.inbox[phase].get(sender):
                 self.messages.packets.ParseFromString(self.inbox[phase][sender])
-                for packet in self.messages.packets.packet:
-                    packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
-                self.messages.add_str(self.addr_new)
-                self.messages.shuffle_packets()
-                self.phase = 'BroadcastOutput'
-                self.send_message()
-                self.log_message("encrypt new address")
+                try:
+                    for packet in self.messages.packets.packet:
+                        packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
+                    self.messages.add_str(self.addr_new)
+                    self.messages.shuffle_packets()
+                    self.phase = 'BroadcastOutput'
+                    self.send_message()
+                    self.log_message("encrypt new address")
+                except CryptoError:
+                    accused = sender
         else:
             sender = self.players[self.previous_player()]
             if self.inbox[phase].get(sender):
                 self.messages.packets.ParseFromString(self.inbox[phase][sender])
-                for packet in self.messages.packets.packet:
-                    packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
-                if not self.different_ciphertexts():
-                    self.messages.add_str(self.encrypt_new_address())
-                    self.messages.shuffle_packets()
-                    self.send_message(destination=self.players[self.next_player()])
-                    self.log_message("encrypt new address")
-                    self.phase = 'BroadcastOutput'
-                else:
-                    self.skipped_equivocation_check(sender)
-                    self.log_message("wrong from " + str(sender))
+                try:
+                    for packet in self.messages.packets.packet:
+                        packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
+                    if not self.different_ciphertexts():
+                        self.messages.add_str(self.encrypt_new_address())
+                        self.messages.shuffle_packets()
+                        self.send_message(destination=self.players[self.next_player()])
+                        self.log_message("encrypt new address")
+                        self.phase = 'BroadcastOutput'
+                    else:
+                        accused = sender
+                except CryptoError:
+                    accused = sender
+        if accused is not None:
+            self.skipped_equivocation_check(accused)
+            self.log_message("wrong from " + str(accused))
 
     def process_broadcast_output(self):
         """
