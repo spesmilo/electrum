@@ -205,13 +205,14 @@ class Peer(PrintError):
         return wrapper_func
 
     @ignore_exceptions  # do not kill main_taskgroup
-    @log_exceptions
     @handle_disconnect
     async def main_loop(self):
         async with aiorpcx.TaskGroup() as group:
             await group.spawn(self._gossip_loop())
             await group.spawn(self._message_loop())
+            await group.spawn(asyncio.wait_for(self.initialized.wait(), 10))
 
+    @log_exceptions
     async def _gossip_loop(self):
         await self.initialized.wait()
         while True:
@@ -229,7 +230,11 @@ class Peer(PrintError):
             if need_to_get and not self.receiving_channels:
                 self.print_error('QUERYING SHORT CHANNEL IDS; missing', len(need_to_get), 'channels')
                 zlibencoded = zlib.compress(bfh(''.join(need_to_get)))
-                self.send_message('query_short_channel_ids', chain_hash=bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS)), len=1+len(zlibencoded), encoded_short_ids=b'\x01' + zlibencoded)
+                self.send_message(
+                    'query_short_channel_ids',
+                    chain_hash=bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS)),
+                    len=1+len(zlibencoded),
+                    encoded_short_ids=b'\x01' + zlibencoded)
                 self.receiving_channels = True
 
     async def _message_loop(self):
@@ -238,7 +243,6 @@ class Peer(PrintError):
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             self.print_error('initialize failed, disconnecting: {}'.format(repr(e)))
             return
-        # loop
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
