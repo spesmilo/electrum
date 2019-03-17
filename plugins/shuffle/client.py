@@ -321,7 +321,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         self._paused = False
         self._coins_busy_shuffling = set()  # 'prevout_hash:n' (name) set of all coins that are currently being shuffled by a ProtocolThread. Both wallet locks should be held to read/write this.
         self._last_server_check = 0.0  # timestamp in seconds unix time
-        self._dummy_address = Address.from_pubkey(EC_KEY(number_to_string(1337, 4096)).get_public_key())  # dummy address
+        self._dummy_address = Address.from_pubkey(EC_KEY(number_to_string(1337, generator_secp256k1.order())).get_public_key())  # dummy address
         # below 4 vars are related to the "delayed unreserve address" mechanism as part of the bug #70 & #97 workaround and the complexity created by it..
         self._delayed_unreserve_addresses = dict()  # dict of Address -> time.time() timestamp when its shuffle ended
         self._last_delayed_unreserve_check = 0.0  # timestamp in seconds unix time
