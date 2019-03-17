@@ -165,7 +165,7 @@ class ElectrumGui(QObject, PrintError):
         self._expire_cached_password(wallet)
         if password is None:
             return
-        timer = QTimer()
+        timer = QTimer()  # NB a top-level parentless QObject will get delete by Python when its Python refct goes to 0, which is what we want here. Future programmers: Do not give this timer a parent!
         self._wallet_password_cache[wallet] = (password, timer)
         weakWallet = Weak.ref(wallet)
         weakSelf = Weak.ref(self)
