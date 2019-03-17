@@ -583,11 +583,16 @@ class Plugin(BasePlugin):
     def _enable_for_window(self, window):
         name = window.wallet.basename()
         self.print_error("Window '{}' registered, performing window-specific startup code".format(name))
+        cached_password = window.gui_object.get_cached_password(window.wallet)
         password = None
         while window.wallet.has_password():
             msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
-            pwdlg = PasswordDialog(parent=window.top_level_window(), msg=msg)
-            password = pwdlg.run()
+            if cached_password:
+                password = cached_password
+                cached_password = None
+            else:
+                pwdlg = PasswordDialog(parent=window.top_level_window(), msg=msg)
+                password = pwdlg.run()
             if password is None:
                 # User cancelled password input
                 if not self.warn_if_shuffle_disable_not_ok(window, msg=_('CashShuffle will now be <i>disabled</i> for a wallet which has previously had it <b>enabled</b>. Are you sure?')):
