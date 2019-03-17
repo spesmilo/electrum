@@ -3678,7 +3678,7 @@ class TxUpdateMgr(QObject, PrintError):
                 if n_ok:
                     self.print_error("Notifying GUI %d tx"%(n_ok))
                     if n_ok > 1:
-                        parent.notify(_("{} new transactions: Total amount in the new transactions {}")
+                        parent.notify(_("{} new transactions: {}")
                                       .format(n_ok, parent.format_amount_and_units(total_amount, is_diff=True)))
                     else:
                         parent.notify(_("New transaction: {}").format(parent.format_amount_and_units(total_amount, is_diff=True)))
