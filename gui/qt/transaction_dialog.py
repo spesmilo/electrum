@@ -182,6 +182,11 @@ class TxDialog(QDialog, MessageBoxMixin):
                     self.main_window.pop_top_level_window(self)
                 except ValueError:
                     break
+            # The below is used to clean up any modal dialogs this txdialog may have up
+            tlw = self.top_level_window()
+            while tlw is not self:
+                tlw.reject()
+                tlw = self.top_level_window()
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)
