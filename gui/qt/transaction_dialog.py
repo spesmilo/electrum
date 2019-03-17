@@ -46,6 +46,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     d = TxDialog(tx, parent, desc, prompt_if_unsaved)
     dialogs.append(d)
     d.show()
+    return d
 
 class TxDialog(QDialog, MessageBoxMixin):
 
@@ -76,7 +77,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
         weakSelfRef = Weak.ref(self)
-        qr_show = lambda: weakSelfRef() and parent.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
+        qr_show = lambda: weakSelfRef() and weakSelfRef().main_window.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -112,7 +113,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
 
-        self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx), parent.app)
+        self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx),
+                                      callback=lambda: weakSelfRef() and weakSelfRef().show_message(_("Transaction raw hex copied to clipboard.")))
 
         # Action buttons
         self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]

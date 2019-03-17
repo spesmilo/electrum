@@ -330,8 +330,11 @@ class FxThread(ThreadJob):
         d = get_exchanges_by_ccy(h)
         return d.get(ccy, [])
 
-    def ccy_amount_str(self, amount, commas,default_prec = 2):
+    def ccy_amount_str(self, amount, commas, default_prec=2, is_diff=False):
         prec = CCY_PRECISIONS.get(self.ccy, default_prec)
+        diff_str = ''
+        if is_diff:
+            diff_str = '+' if amount >= 0 else '-'
         fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
         try:
             rounded_amount = round(amount, prec)
@@ -408,13 +411,13 @@ class FxThread(ThreadJob):
         if rate:
             return PyDecimal(rate)
 
-    def format_amount_and_units(self, btc_balance):
-        amount_str = self.format_amount(btc_balance)
+    def format_amount_and_units(self, btc_balance, is_diff=False):
+        amount_str = self.format_amount(btc_balance, is_diff=is_diff)
         return '' if not amount_str else "%s %s" % (amount_str, self.ccy)
 
-    def format_amount(self, btc_balance):
+    def format_amount(self, btc_balance, is_diff=False):
         rate = self.exchange_rate()
-        return '' if rate is None else self.value_str(btc_balance, rate)
+        return '' if rate is None else self.value_str(btc_balance, rate, is_diff=is_diff)
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
@@ -424,12 +427,12 @@ class FxThread(ThreadJob):
         return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate, default_prec ), self.ccy )
 
-    def value_str(self, satoshis, rate, default_prec = 2 ):
+    def value_str(self, satoshis, rate, default_prec=2, is_diff=False):
         if satoshis is None:  # Can happen with incomplete history
             return _("Unknown")
         if rate:
             value = PyDecimal(satoshis) / COIN * PyDecimal(rate)
-            return "%s" % (self.ccy_amount_str(value, True, default_prec))
+            return "%s" % (self.ccy_amount_str(value, True, default_prec, is_diff=is_diff))
         return _("No data")
 
     def history_rate(self, d_t):

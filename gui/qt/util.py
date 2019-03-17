@@ -133,9 +133,13 @@ class CloseButton(QPushButton):
         self.setDefault(True)
 
 class CopyButton(QPushButton):
-    def __init__(self, text_getter, app):
+    def __init__(self, text_getter, app=None, callback=None):
         QPushButton.__init__(self, _("Copy"))
+        if not app:
+            app = QApplication.instance()
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
+        if callback:
+            self.clicked.connect(callback)
 
 class CopyCloseButton(QPushButton):
     def __init__(self, text_getter, app, dialog):
