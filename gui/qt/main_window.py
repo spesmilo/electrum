@@ -133,6 +133,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.force_use_single_change_addr = None  # this is set by the CashShuffle plugin to a single string that will go into the tool-tip explaining why this preference option is disabled (see self.settings_dialog)
         self.tl_windows = []
         self.tx_external_keypairs = {}
+        self._tx_dialogs = Weak.Set()
         self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
 
         Address.show_cashaddr(config.get('show_cashaddr', True))
@@ -709,9 +710,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, amount):
-        text = self.format_amount(amount) + ' '+ self.base_unit()
-        x = self.fx.format_amount_and_units(amount)
+    def format_amount_and_units(self, amount, is_diff=False):
+        text = self.format_amount(amount, is_diff=is_diff) + ' '+ self.base_unit()
+        x = self.fx.format_amount_and_units(amount, is_diff=is_diff)
         if text and x:
             text += ' (%s)'%x
         return text
@@ -892,7 +893,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_transaction(self, tx, tx_desc = None):
         '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, self, tx_desc)
+        d = show_transaction(tx, self, tx_desc)
+        self._tx_dialogs.add(d)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -3546,6 +3548,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.qr_window:
             self.qr_window.close()
             self.qr_window = None # force GC sooner rather than later.
+        for d in list(self._tx_dialogs):
+            # clean up all extant tx dialogs we opened as they hold references
+            # to us that will be invalidated
+            d.close()
         self._close_wallet()
 
 
@@ -3916,7 +3922,7 @@ class TxUpdateMgr(QObject, PrintError):
             parent.history_list.setUpdatesEnabled(True)
             parent.update_status()
 
-    @rate_limited(15.0)
+    @rate_limited(5.0, classlevel=True)
     def process_notifs(self):
         parent = self.parent()
         if parent and parent.network and not parent.cleaned_up:
@@ -3928,13 +3934,14 @@ class TxUpdateMgr(QObject, PrintError):
                 for tx in txns:
                     if tx:
                         is_relevant, is_mine, v, fee = parent.wallet.get_wallet_delta(tx)
-                        if v > 0 and is_relevant:
-                            total_amount += v
-                            n_ok += 1
+                        if not is_relevant:
+                            continue
+                        total_amount += v
+                        n_ok += 1
                 if n_ok:
                     self.print_error("Notifying GUI %d tx"%(n_ok))
                     if n_ok > 1:
-                        parent.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                                      .format(n_ok, parent.format_amount_and_units(total_amount)))
+                        parent.notify(_("{} new transactions: Total amount in the new transactions {}")
+                                      .format(n_ok, parent.format_amount_and_units(total_amount, is_diff=True)))
                     else:
-                        parent.notify(_("New transaction received: {}").format(parent.format_amount_and_units(total_amount)))
+                        parent.notify(_("New transaction: {}").format(parent.format_amount_and_units(total_amount, is_diff=True)))
