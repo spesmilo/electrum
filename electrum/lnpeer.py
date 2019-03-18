@@ -218,12 +218,11 @@ class Peer(PrintError):
             self.print_error('requesting whole channel graph')
         else:
             self.print_error('requesting channel graph since', datetime.fromtimestamp(timestamp).ctime())
-        timestamp_range = int(time.time()) - timestamp
         self.send_message(
             'gossip_timestamp_filter',
             chain_hash=constants.net.rev_genesis_bytes(),
             first_timestamp=timestamp,
-            timestamp_range=timestamp_range)
+            timestamp_range=b'\xff'*4)
         while True:
             await asyncio.sleep(5)
             if self.node_anns:
