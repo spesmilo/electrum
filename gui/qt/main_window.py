@@ -1102,10 +1102,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     _('If you want to create new addresses, use a deterministic wallet instead.')
                    ]
                 self.show_message(' '.join(msg))
-                return
-            if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
-                return
-            addr = self.wallet.create_new_address(False)
+                # New! Since the button is called 'Clear' now, we let them proceed with a re-used address
+                addr = self.wallet.get_receiving_address()
+            else:
+                # Warn if past gap limit.
+                if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
+                    return
+                addr = self.wallet.create_new_address(False)
         self.set_receive_address(addr)
         self.expires_label.hide()
         self.expires_combo.show()
@@ -1138,7 +1141,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if (not self.receive_address  # this should always be defined but check anyway
             or (self.wallet.get_address_history(self.receive_address)   # make a new address if it has a history
                 and not self.wallet.get_payment_request(self.receive_address, self.config))):  # and if they aren't actively editing one in the request_list widget
-            self.receive_address = self.wallet.get_receiving_address()
+            addr = self.wallet.get_unused_address()  # try unused
+            if addr is None:
+                if self.wallet.is_deterministic():
+                    # creae a new one if deterministic
+                    addr = self.wallet.create_new_address(False)
+                else:
+                    # otherwise give up and just re-use one.
+                    addr = self.wallet.get_receiving_address()
+            self.receive_address = addr
             self.update_receive_address_widget()
 
     def clear_receive_tab(self):
