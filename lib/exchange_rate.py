@@ -41,11 +41,15 @@ class ExchangeBase(PrintError):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
         response = requests.request('GET', url, headers={'User-Agent' : 'Electron Cash'}, timeout=10)
+        if response.status_code != 200:
+            raise RuntimeWarning("Response status: " + str(response.status_code))
         return response.json()
 
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
         response = requests.request('GET', url, headers={'User-Agent' : 'Electron-Cash'})
+        if response.status_code != 200:
+            raise RuntimeWarning("Response status: " + str(response.status_code))
         reader = csv.DictReader(response.content.decode().split('\n'))
         return list(reader)
 
@@ -81,6 +85,8 @@ class ExchangeBase(PrintError):
         if h:
             self.history[ccy] = h
             self.on_history()
+        else:
+            h = None
         return h, timestamp
 
     def get_historical_rates_safe(self, ccy, cache_dir):
@@ -344,7 +350,7 @@ class FxThread(ThreadJob):
     def run(self):
         # This runs from the plugins thread which catches exceptions
         if self.is_enabled():
-            if self.timeout ==0 and self.show_history():
+            if self.timeout == 0 and self.show_history():
                 self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             if self.timeout <= time.time():
                 self.timeout = time.time() + 150
