@@ -85,10 +85,12 @@ class KeepKeyPlugin(HW_PluginBase):
             import keepkeylib
             import keepkeylib.ckd_public
             import keepkeylib.transport_hid
+            import keepkeylib.transport_webusb
             self.client_class = client.KeepKeyClient
             self.ckd_public = keepkeylib.ckd_public
             self.types = keepkeylib.client.types
-            self.DEVICE_IDS = keepkeylib.transport_hid.DEVICE_IDS
+            self.DEVICE_IDS = (keepkeylib.transport_hid.DEVICE_IDS +
+                               keepkeylib.transport_webusb.DEVICE_IDS)
             self.device_manager().register_devices(self.DEVICE_IDS)
             self.libraries_available = True
         except ImportError:
@@ -97,6 +99,13 @@ class KeepKeyPlugin(HW_PluginBase):
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport
         return HidTransport(pair)
+
+    def webusb_transport(self, device):
+        from keepkeylib.transport_webusb import WebUsbTransport
+        for d in WebUsbTransport.enumerate():
+            if device.id_.startswith(d.getSerialNumber()):
+                return WebUsbTransport(d)
+        return WebUsbTransport(device)
 
     def _try_hid(self, device):
         self.print_error("Trying to connect over USB...")
@@ -113,8 +122,20 @@ class KeepKeyPlugin(HW_PluginBase):
             self.print_error("cannot connect at", device.path, str(e))
             return None
 
+    def _try_webusb(self, device):
+        self.print_error("Trying to connect over WebUSB...")
+        try:
+            return self.webusb_transport(device)
+        except BaseException as e:
+            self.print_error("cannot connect at", device.path, str(e))
+            return None
+
     def create_client(self, device, handler):
-        transport = self._try_hid(device)
+        if device.product_key[1] == 2:
+            transport = self._try_webusb(device)
+        else:
+            transport = self._try_hid(device)
+
         if not transport:
             self.print_error("cannot connect to device")
             return
