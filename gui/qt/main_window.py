@@ -3675,7 +3675,7 @@ class TxUpdateMgr(QObject, PrintError):
                             continue
                         total_amount += v
                         n_ok += 1
-                if n_ok:
+                if total_amount > 0:
                     self.print_error("Notifying GUI %d tx"%(n_ok))
                     if n_ok > 1:
                         parent.notify(_("{} new transactions: {}")
