@@ -57,7 +57,7 @@ class LabelsPlugin(BasePlugin):
             bundle = {"walletId": wallet_id,
                       "walletNonce": nonce,
                       "externalId": self.encode(wallet, item),
-                      "encryptedLabel": self.encode(wallet, label)}
+                      "encryptedLabel": self.encode(wallet, label if label else '')}
             t = threading.Thread(target=self.do_request,
                                  args=["POST", "/label", False, bundle, True])
             t.setDaemon(True)
