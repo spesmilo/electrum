@@ -3,6 +3,34 @@ from . import message_pb2 as message_factory
 from random import shuffle
 
 class Messages:
+    # packet phases
+    ANNOUNCEMENT                = message_factory.ANNOUNCEMENT
+    SHUFFLE                     = message_factory.SHUFFLE
+    BROADCAST                   = message_factory.BROADCAST
+    EQUIVOCATION_CHECK          = message_factory.EQUIVOCATION_CHECK
+    VERIFICATION_AND_SUBMISSION = message_factory.VERIFICATION_AND_SUBMISSION
+    SIGNING                     = message_factory.SIGNING
+    BLAME                       = message_factory.BLAME
+
+    # types
+    DEFAULT = message_factory.DEFAULT
+    DUST    = message_factory.DUST
+
+    TYPE_NAME_DICT = {
+        # These should match the strings returned by the stats port.
+        DEFAULT : "DEFAULT", DUST : "DUST"
+    }
+
+    # strings -> phase number
+    phases = {
+        'Announcement'              : ANNOUNCEMENT,
+        'Shuffling'                 : SHUFFLE,
+        'BroadcastOutput'           : BROADCAST,
+        'EquivocationCheck'         : EQUIVOCATION_CHECK,
+        'VerificationAndSubmission' : VERIFICATION_AND_SUBMISSION,
+        'Signing'                   : SIGNING,
+        'Blame'                     : BLAME,
+    }
 
     def check_for_length(f):
         "Wrapper for number of packets in message"
@@ -19,15 +47,6 @@ class Messages:
     def clear_packets(self):
         "clear the packets"
         self.packets = message_factory.Packets()
-        self.phases = {
-            'Announcement':message_factory.ANNOUNCEMENT,
-            'Shuffling':message_factory.SHUFFLE,
-            'BroadcastOutput':message_factory.BROADCAST,
-            'EquivocationCheck':message_factory.EQUIVOCATION_CHECK,
-            'VerificationAndSubmission':message_factory.VERIFICATION_AND_SUBMISSION,
-            'Signing':message_factory.SIGNING,
-            'Blame':message_factory.BLAME,
-            }
 
     def blame_reason(self, name):
         """
@@ -35,15 +54,6 @@ class Messages:
         It is needed for using with protobuf Blame reasons enumerator
         """
         return getattr(message_factory, name.replace(' ', '').upper(), None)
-
-    # types
-    DEFAULT = message_factory.DEFAULT
-    DUST = message_factory.DUST
-
-    TYPE_NAME_DICT = {
-        # These should match the strings returned by the stats port.
-        DEFAULT : "DEFAULT", DUST : "DUST"
-    }
 
     def make_greeting(self, verification_key, amount, typ, version):
         """

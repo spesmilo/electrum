@@ -99,13 +99,12 @@ class ProtocolThread(threading.Thread, PrintError):
             req = self.comm.recv()
             if self.done.is_set():
                 break
-            if req is None:
-                continue
             try:
                 self.messages.packets.ParseFromString(req)
-            except:
-                continue
-            if self.messages.get_phase() == 1:
+            except BaseException as e:
+                self.print_error("Error parsing packet:", repr(e))
+                continue  # shouldn't we bail here? this is not a normal condition is it? -Calin
+            if self.messages.get_phase() == self.messages.ANNOUNCEMENT:
                 self.number_of_players = self.messages.get_number()
                 break
             else:
