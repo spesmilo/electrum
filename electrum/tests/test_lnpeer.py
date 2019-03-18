@@ -178,7 +178,7 @@ class TestPeer(SequentialTestCase):
     def test_require_data_loss_protect(self):
         mock_lnworker = MockLNWorker(keypair(), keypair(), self.alice_channel, tx_queue=None)
         mock_transport = NoFeaturesTransport('')
-        p1 = Peer(mock_lnworker, b"\x00" * 33, mock_transport, request_initial_sync=False)
+        p1 = Peer(mock_lnworker, b"\x00" * 33, mock_transport)
         mock_lnworker.peer = p1
         with self.assertRaises(LightningPeerConnectionClosed):
             run(asyncio.wait_for(p1._message_loop(), 1))
@@ -189,8 +189,8 @@ class TestPeer(SequentialTestCase):
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWorker(k1, k2, self.alice_channel, tx_queue=q1)
         w2 = MockLNWorker(k2, k1, self.bob_channel, tx_queue=q2)
-        p1 = Peer(w1, k1.pubkey, t1, request_initial_sync=False)
-        p2 = Peer(w2, k2.pubkey, t2, request_initial_sync=False)
+        p1 = Peer(w1, k1.pubkey, t1)
+        p2 = Peer(w2, k2.pubkey, t2)
         w1.peer = p1
         w2.peer = p2
         # mark_open won't work if state is already OPEN.

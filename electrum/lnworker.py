@@ -59,10 +59,16 @@ FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr('148.251.87.112', 9735, bfh('021a8bd8d8f1f2e208992a2eb755cdc74d44e66b6a0c924d3a3cce949123b9ce40')), # janus test server
     LNPeerAddr('122.199.61.90', 9735, bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')), # popular node https://1ml.com/testnet/node/038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9
 )
-FALLBACK_NODE_LIST_MAINNET = (
-    LNPeerAddr('104.198.32.198', 9735, bfh('02f6725f9c1c40333b67faea92fd211c183050f28df32cac3f9d69685fe9665432')), # Blockstream
-    LNPeerAddr('13.80.67.162', 9735, bfh('02c0ac82c33971de096d87ce5ed9b022c2de678f08002dc37fdb1b6886d12234b5')),   # Stampery
-)
+
+FALLBACK_NODE_LIST_MAINNET = [
+    LNPeerAddr(host='52.168.166.221', port=9735, pubkey=b'\x02\x148+\xdc\xe7u\r\xfc\xb8\x12m\xf8\xe2\xb1-\xe3\x856\x90-\xc3j\xbc\xeb\xda\xee\xfd\xec\xa1\xdf\x82\x84'),
+    LNPeerAddr(host='35.230.100.60', port=9735, pubkey=b'\x02?^5\x82qk\xed\x96\xf6\xf2l\xfc\xd8\x03~\x07GM{GC\xaf\xdc\x8b\x07\xe6\x92\xdfcFM~'),
+    LNPeerAddr(host='40.69.71.114', port=9735, pubkey=b'\x02\x83\x03\x18,\x98\x85\xda\x93\xb3\xb2\\\x96!\xd2,\xf3Du\xe6<\x129B\xe4\x02\xabS\x0c\x05V\xe6u'),
+    LNPeerAddr(host='62.210.110.5', port=9735, pubkey=b'\x02v\xe0\x9a&u\x92\xe7E\x1a\x93\x9c\x93,\xf6\x85\xf0uM\xe3\x82\xa3\xca\x85\xd2\xfb:\x86ML6Z\xd5'),
+    LNPeerAddr(host='34.236.113.58', port=9735, pubkey=b'\x02\xfaP\xc7.\xe1\xe2\xeb_\x1bm\x9c02\x08\x0cL\x86Cs\xc4 \x1d\xfa)f\xaa4\xee\xe1\x05\x1f\x97'),
+    LNPeerAddr(host='52.168.166.221', port=9735, pubkey=b'\x02\x148+\xdc\xe7u\r\xfc\xb8\x12m\xf8\xe2\xb1-\xe3\x856\x90-\xc3j\xbc\xeb\xda\xee\xfd\xec\xa1\xdf\x82\x84'),
+    LNPeerAddr(host='34.236.113.58', port=9735, pubkey=b'\x02\xfaP\xc7.\xe1\xe2\xeb_\x1bm\x9c02\x08\x0cL\x86Cs\xc4 \x1d\xfa)f\xaa4\xee\xe1\x05\x1f\x97'),
+]
 
 encoder = ChannelJsonEncoder()
 
@@ -102,29 +108,6 @@ class LNWorker(PrintError):
         self.network.register_callback(self.on_channel_closed, ['channel_closed'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
         self.first_timestamp_requested = None
-
-    def get_first_timestamp(self):
-        first_request = False
-        if self.first_timestamp_requested is None:
-            self.first_timestamp_requested = time.time()
-            first_request = True
-        first_timestamp = self.storage.get('lightning_gossip_until', 0)
-        if first_timestamp == 0:
-            self.print_error('requesting whole channel graph')
-        else:
-            self.print_error('requesting channel graph since', datetime.fromtimestamp(first_timestamp).ctime())
-        if first_request:
-            asyncio.run_coroutine_threadsafe(self.save_gossip_timestamp(), self.network.asyncio_loop)
-        return first_timestamp
-
-    @log_exceptions
-    async def save_gossip_timestamp(self):
-        while True:
-            await asyncio.sleep(GRAPH_DOWNLOAD_SECONDS)
-            yesterday = int(time.time()) - 24*60*60 # now minus a day
-            self.storage.put('lightning_gossip_until', yesterday)
-            self.storage.write()
-            self.print_error('saved lightning gossip timestamp')
 
     def payment_completed(self, chan: Channel, direction: Direction,
                           htlc: UpdateAddHtlc):
@@ -258,7 +241,7 @@ class LNWorker(PrintError):
         transport = LNTransport(self.node_keypair.privkey, peer_addr)
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
-        peer = Peer(self, node_id, transport, request_initial_sync=self.config.get("request_initial_sync", True))
+        peer = Peer(self, node_id, transport)
         await self.network.main_taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
@@ -839,7 +822,7 @@ class LNWorker(PrintError):
                 except:
                     self.print_error('handshake failure from incoming connection')
                     return
-                peer = Peer(self, node_id, transport, request_initial_sync=self.config.get("request_initial_sync", True))
+                peer = Peer(self, node_id, transport)
                 self.peers[node_id] = peer
                 await self.network.main_taskgroup.spawn(peer.main_loop())
                 self.network.trigger_callback('ln_status')

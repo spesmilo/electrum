@@ -14,6 +14,7 @@ from functools import partial
 from typing import List, Tuple, Dict, TYPE_CHECKING, Optional, Callable
 import traceback
 import sys
+from datetime import datetime
 
 import aiorpcx
 
@@ -53,8 +54,7 @@ def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[b
 
 class Peer(PrintError):
 
-    def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase,
-                 request_initial_sync=False):
+    def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase):
         self.initialized = asyncio.Event()
         self.node_anns = []
         self.chan_anns = []
@@ -77,8 +77,7 @@ class Peer(PrintError):
         self.closing_signed = defaultdict(asyncio.Queue)
         self.payment_preimages = defaultdict(asyncio.Queue)
         self.localfeatures = LnLocalFeatures(0)
-        if request_initial_sync:
-            self.localfeatures |= LnLocalFeatures.INITIAL_ROUTING_SYNC
+        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
@@ -96,7 +95,6 @@ class Peer(PrintError):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-            self.channel_db.add_recent_peer(self.transport.peer_addr)
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
 
     @property
@@ -172,8 +170,8 @@ class Peer(PrintError):
                     raise LightningPeerConnectionClosed("remote does not have even flag {}"
                                                         .format(str(LnLocalFeatures(1 << flag))))
                 self.localfeatures ^= 1 << flag  # disable flag
-        first_timestamp = self.lnworker.get_first_timestamp()
-        self.send_message('gossip_timestamp_filter', chain_hash=constants.net.rev_genesis_bytes(), first_timestamp=first_timestamp, timestamp_range=b"\xff"*4)
+        if isinstance(self.transport, LNTransport):
+            self.channel_db.add_recent_peer(self.transport.peer_addr)
         self.initialized.set()
 
     def on_node_announcement(self, payload):
@@ -215,6 +213,17 @@ class Peer(PrintError):
     @log_exceptions
     async def _gossip_loop(self):
         await self.initialized.wait()
+        timestamp = self.channel_db.get_last_timestamp()
+        if timestamp == 0:
+            self.print_error('requesting whole channel graph')
+        else:
+            self.print_error('requesting channel graph since', datetime.fromtimestamp(timestamp).ctime())
+        timestamp_range = int(time.time()) - timestamp
+        self.send_message(
+            'gossip_timestamp_filter',
+            chain_hash=constants.net.rev_genesis_bytes(),
+            first_timestamp=timestamp,
+            timestamp_range=timestamp_range)
         while True:
             await asyncio.sleep(5)
             if self.node_anns:
@@ -226,13 +235,13 @@ class Peer(PrintError):
             if self.chan_upds:
                 self.channel_db.on_channel_update(self.chan_upds)
                 self.chan_upds = []
-            need_to_get = self.channel_db.missing_short_chan_ids() #type: Set[int]
+            need_to_get = sorted(self.channel_db.missing_short_chan_ids())
             if need_to_get and not self.receiving_channels:
-                self.print_error('QUERYING SHORT CHANNEL IDS; missing', len(need_to_get), 'channels')
-                zlibencoded = zlib.compress(bfh(''.join(need_to_get)))
+                self.print_error('missing', len(need_to_get), 'channels')
+                zlibencoded = zlib.compress(bfh(''.join(need_to_get[0:100])))
                 self.send_message(
                     'query_short_channel_ids',
-                    chain_hash=bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS)),
+                    chain_hash=constants.net.rev_genesis_bytes(),
                     len=1+len(zlibencoded),
                     encoded_short_ids=b'\x01' + zlibencoded)
                 self.receiving_channels = True
@@ -705,20 +714,33 @@ class Peer(PrintError):
         #   that the remote sends, even if the channel was not announced
         #   (from BOLT-07: "MAY create a channel_update to communicate the channel
         #    parameters to the final node, even though the channel has not yet been announced")
-        self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": node_ids[0], "node_id_2": node_ids[1],
-                                                 'chain_hash': constants.net.rev_genesis_bytes(), 'len': b'\x00\x00', 'features': b'',
-                                                 'bitcoin_key_1': bitcoin_keys[0], 'bitcoin_key_2': bitcoin_keys[1]},
-                                                trusted=True)
+        self.channel_db.on_channel_announcement(
+            {
+                "short_channel_id": chan.short_channel_id,
+                "node_id_1": node_ids[0],
+                "node_id_2": node_ids[1],
+                'chain_hash': constants.net.rev_genesis_bytes(),
+                'len': b'\x00\x00',
+                'features': b'',
+                'bitcoin_key_1': bitcoin_keys[0],
+                'bitcoin_key_2': bitcoin_keys[1]
+            },
+            trusted=True)
         # only inject outgoing direction:
-        if node_ids[0] == privkey_to_pubkey(self.privkey):
-            channel_flags = b'\x00'
-        else:
-            channel_flags = b'\x01'
-        now = int(time.time()).to_bytes(4, byteorder="big")
-        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'channel_flags': channel_flags, 'cltv_expiry_delta': b'\x90',
-                                           'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01',
-                                           'chain_hash': constants.net.rev_genesis_bytes(), 'timestamp': now},
-                                          trusted=True)
+        channel_flags = b'\x00' if node_ids[0] == privkey_to_pubkey(self.privkey) else b'\x01'
+        now = int(time.time())
+        self.channel_db.on_channel_update(
+            {
+                "short_channel_id": chan.short_channel_id,
+                'channel_flags': channel_flags,
+                'cltv_expiry_delta': b'\x90',
+                'htlc_minimum_msat': b'\x03\xe8',
+                'fee_base_msat': b'\x03\xe8',
+                'fee_proportional_millionths': b'\x01',
+                'chain_hash': constants.net.rev_genesis_bytes(),
+                'timestamp': now.to_bytes(4, byteorder="big")
+            },
+            trusted=True)
         # peer may have sent us a channel update for the incoming direction previously
         # note: if we were offline when the 3rd conf happened, lnd will never send us this channel_update
         # see https://github.com/lightningnetwork/lnd/issues/1347
