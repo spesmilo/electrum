@@ -53,17 +53,38 @@ class RequestList(MyTreeWidget):
         if not item.isSelected():
             return
         addr = item.data(0, Qt.UserRole)
-        req = self.wallet.receive_requests[addr]
+        req = self.wallet.receive_requests.get(addr)
+        if not req:
+            return
         expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']
         message = self.wallet.labels.get(addr.to_storage_string(), '')
-        self.parent.receive_address_e.setText(addr.to_ui_string())
+        self.parent.receive_address = addr
+        self.parent.receive_address_e.setText(addr.to_full_ui_string())
         self.parent.receive_message_e.setText(message)
         self.parent.receive_amount_e.setAmount(amount)
         self.parent.expires_combo.hide()
         self.parent.expires_label.show()
         self.parent.expires_label.setText(expires)
-        self.parent.new_request_button.setEnabled(True)
+        self.parent.save_request_button.setEnabled(False)
+
+    def select_item_by_address(self, address):
+        self.setCurrentItem(None)
+        for i in range(self.topLevelItemCount()):
+            item = self.topLevelItem(i)
+            if item and item.data(0, Qt.UserRole) == address:
+                self.setCurrentItem(item)
+                return
+
+    def on_edited(self, item, column, prior):
+        '''Called only when the text in the memo field actually changes.
+        Updates the UI and re-saves the request. '''
+        super().on_edited(item, column, prior)
+        self.setCurrentItem(item)
+        addr = item.data(0, Qt.UserRole)
+        req = self.wallet.receive_requests.get(addr)
+        if req:
+            self.parent.save_payment_request()
 
     def chkVisible(self):
         # hide receive tab if no receive requests available
@@ -82,11 +103,12 @@ class RequestList(MyTreeWidget):
         current_address = Address.from_string(current_address_string) if len(current_address_string) else None
         domain = self.wallet.get_receiving_addresses()
         addr = self.wallet.get_unused_address()
-        if not current_address in domain and addr:
+        if current_address not in domain and addr:
             self.parent.set_receive_address(addr)
-        self.parent.new_request_button.setEnabled(addr != current_address)
 
         # clear the list and fill it again
+        item = self.currentItem()
+        prev_sel = item.data(0, Qt.UserRole) if item else None
         self.clear()
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
@@ -110,12 +132,14 @@ class RequestList(MyTreeWidget):
             if status is not PR_UNKNOWN:
                 item.setIcon(6, QIcon(pr_icons.get(status)))
             self.addTopLevelItem(item)
-
+            if prev_sel == address:
+                self.setCurrentItem(item)
 
     def create_menu(self, position):
         item = self.itemAt(position)
         if not item:
             return
+        self.setCurrentItem(item)  # sometimes it's not the current item.
         addr = item.data(0, Qt.UserRole)
         req = self.wallet.receive_requests[addr]
         column = self.currentColumn()

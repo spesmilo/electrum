@@ -319,6 +319,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.set()
         elif event == 'new_transaction':
             self.tx_update_mgr.notif_add(args)  # added only if this wallet's tx
+            if args[1] is self.wallet:
+                self.network_signal.emit(event, args)
         elif event == 'verified2':
             self.tx_update_mgr.verif_add(args)  # added only if this wallet's tx
         elif event in ['status', 'banner', 'fee']:
@@ -336,6 +338,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.console.showMessage(args[0])
         elif event == 'fee':
             pass
+        elif event == 'new_transaction':
+            self.check_and_reset_receive_address_if_needed()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -941,10 +945,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
 
-        self.new_request_button = QPushButton(_('New'))
+        self.new_request_button = QPushButton(_('Clear'))
         self.new_request_button.clicked.connect(self.new_payment_request)
 
         weakSelf = Weak.ref(self)
+
         class MyQRCodeWidget(QRCodeWidget):
             def mouseReleaseEvent(self, e):
                 ''' to make the QRWidget clickable '''
@@ -974,7 +979,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addLayout(vbox_g)
         hbox.addWidget(self.receive_qr)
 
-        w = QWidget()
+        class ReceiveTab(QWidget):
+            def showEvent(self, e):
+                super().showEvent(e)
+                if e.isAccepted():
+                    slf = weakSelf()
+                    if slf:
+                        slf.check_and_reset_receive_address_if_needed()
+
+        w = ReceiveTab()
         w.searchable_list = self.request_list
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
@@ -1043,6 +1056,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.add_payment_request(req, self.config)
         self.sign_payment_request(self.receive_address)
         self.request_list.update()
+        self.request_list.select_item_by_address(req.get('address'))  # when adding items to the view the current selection may not reflect what's in the UI. Make sure it's selected.
         self.address_list.update()
         self.save_request_button.setEnabled(False)
 
@@ -1086,7 +1100,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.set_receive_address(addr)
         self.expires_label.hide()
         self.expires_combo.show()
-        self.new_request_button.setEnabled(False)
+        self.request_list.setCurrentItem(None)  # We want the current item to always reflect what's in the UI. So if new, clear selection.
         self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
@@ -1101,9 +1115,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text = self.receive_address.to_full_ui_string()
         self.receive_address_e.setText(text)
 
+    @rate_limited(0.250, ts_after=True)  # this function potentially re-computes the QR widget, so it's rate limited to once every 250ms
+    def check_and_reset_receive_address_if_needed(self):
+        ''' Check to make sure the receive tab is kosher and doesn't contain
+        an already-used address. This should be called from the showEvent
+        for the tab. '''
+        if not self.wallet.use_change or self.cleaned_up:
+            # if they don't care about change addresses, they are ok
+            # with re-using addresses, so skip this check.
+            return
+        # ok, they care about anonymity, so make sure the receive address
+        # is always an unused address.
+        if (not self.receive_address  # this should always be defined but check anyway
+            or (self.wallet.get_address_history(self.receive_address)   # make a new address if it has a history
+                and not self.wallet.get_payment_request(self.receive_address, self.config))):  # and if they aren't actively editing one in the request_list widget
+            self.receive_address = self.wallet.get_receiving_address()
+            self.update_receive_address_widget()
+
     def clear_receive_tab(self):
         self.expires_label.hide()
         self.expires_combo.show()
+        self.request_list.setCurrentItem(None)
         self.set_receive_address(self.wallet.get_receiving_address())
 
     def show_qr_window(self):
@@ -1134,7 +1166,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def receive_at(self, addr):
         self.receive_address = addr
         self.show_receive_tab()
-        self.new_request_button.setEnabled(True)
         self.update_receive_address_widget()
 
     def update_receive_qr(self):
