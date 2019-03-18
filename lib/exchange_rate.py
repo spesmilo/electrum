@@ -170,14 +170,13 @@ class BitStamp(ExchangeBase):
             'EUR': PyDecimal(json_eur['last']),
             'BTC': PyDecimal(json_btc['last'])}
 
-
 class Coinbase(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('coinbase.com',
-                             '/api/v1/currencies/exchange_rates')
-        return dict([(r[7:].upper(), PyDecimal(json[r]))
-                     for r in json if r.startswith('bch_to_')])
+        json = self.get_json('api.coinbase.com',
+                             '/v2/exchange-rates?currency=BCH')
+        return {ccy: PyDecimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
+
 
 class Kraken(ExchangeBase):
 
