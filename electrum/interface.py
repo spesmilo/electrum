@@ -299,6 +299,8 @@ class Interface(PrintError):
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
+                # if was not 'ready' yet, schedule waiting coroutines:
+                self.ready.cancel()
         return wrapper_func
 
     @ignore_exceptions  # do not kill main_taskgroup
