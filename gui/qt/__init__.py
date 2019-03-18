@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import signal, sys, traceback, gc
+import signal, sys, traceback, gc, os
 
 try:
     import PyQt5
@@ -79,6 +79,7 @@ class ElectrumGui(QObject, PrintError):
         self.plugins = plugins
         self.windows = []
         self.app = QApplication(sys.argv)
+        self._set_icon()
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
@@ -173,6 +174,28 @@ class ElectrumGui(QObject, PrintError):
             slf = weakSelf()
             slf and slf._expire_cached_password(weakWallet)
         timer.setSingleShot(True); timer.timeout.connect(timeout); timer.start(10000)  # 10 sec
+
+    def _set_icon(self):
+        # if running from source, give the app an icon
+        set_icon = None
+        icns_file = 'electron.icns'
+        ico_file = 'icons' + os.sep + 'electron.ico'
+        if sys.platform == 'darwin' and os.path.exists(icns_file):
+            set_icon = icns_file
+        elif (sys.platform in ('linux', 'win32', 'win64', 'windows')
+                and os.path.exists(ico_file) ):
+            set_icon = ico_file
+        if set_icon:
+            icon = QIcon(set_icon)
+            sizes = icon.availableSizes()
+            if sizes:
+                self.print_error(("Running from source, set app icon to: "
+                                  + "{} (available sizes: {})")
+                                 .format(set_icon,
+                                         ', '.join(["{}x{}".format(s.width(),
+                                                                   s.height())
+                                                    for s in sizes])))
+                self.app.setWindowIcon(icon)
 
     def eventFilter(self, obj, event):
         ''' This event filter allows us to open bitcoincash: URIs on macOS '''
