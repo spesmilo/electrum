@@ -1561,12 +1561,18 @@ class Abstract_Wallet(PrintError):
             with open(os.path.join(path, key + '.json'), 'w', encoding='utf-8') as f:
                 f.write(json.dumps(req))
 
-    def remove_payment_request(self, addr, config):
+    def remove_payment_request(self, addr, config, clear_address_label_if_no_tx=True):
         if isinstance(addr, str):
             addr = Address.from_string(addr)
         if addr not in self.receive_requests:
             return False
         r = self.receive_requests.pop(addr)
+        if clear_address_label_if_no_tx and not self.get_address_history(addr):
+            memo = r.get('memo')
+            # clear it only if the user didn't overwrite it with something else
+            if memo and memo == self.labels.get(addr.to_storage_string()):
+                self.set_label(addr, None)
+
         rdir = config.get('requests_dir')
         if rdir:
             key = r.get('id', addr.to_storage_string())
@@ -1751,7 +1757,7 @@ class ImportedWalletBase(Simple_Wallet):
 
         self.save_transactions()
 
-        self.set_label(address.to_storage_string(), None)
+        self.set_label(address, None)
         self.remove_payment_request(address, {})
         self.set_frozen_state([address], False)
 

@@ -989,6 +989,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def delete_payment_request(self, addr):
         self.wallet.remove_payment_request(addr, self.config)
         self.request_list.update()
+        self.address_list.update()
         self.clear_receive_tab()
 
     def get_request_URI(self, addr):
