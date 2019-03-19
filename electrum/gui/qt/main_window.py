@@ -2334,6 +2334,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout = QGridLayout(d)
 
         message_e = QTextEdit()
+        message_e.setAcceptRichText(False)
         layout.addWidget(QLabel(_('Message')), 1, 0)
         layout.addWidget(message_e, 1, 1)
         layout.setRowStretch(2,3)
