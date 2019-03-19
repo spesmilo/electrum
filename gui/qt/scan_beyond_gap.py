@@ -28,7 +28,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 from .util import *
-from electroncash.util import PrintError
+from electroncash.util import PrintError, ServerError
 from electroncash.i18n import _
 
 class ScanBeyondGap(WindowModalDialog, PrintError):
@@ -222,5 +222,9 @@ class ScanBeyondGap(WindowModalDialog, PrintError):
             if found:
                 added = self._add_addresses(found)
             self.done_sig.emit((found, added), None)
+        except ServerError as e:
+            # Suppress untrusted server string from appearing in the UI
+            self.print_error("Server error:", repr(e))
+            self.done_sig.emit(None, ServerError("The server replied with an error."))
         except BaseException as e:
             self.done_sig.emit(None, e)
