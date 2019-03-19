@@ -429,7 +429,7 @@ class LNWorker(PrintError):
         choice = random.choice(addr_list)
         return choice.host, choice.port
 
-    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=5):
+    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=20):
         node_id, rest = extract_nodeid(connect_contents)
         peer = self.peers.get(node_id)
         if not peer:
@@ -787,6 +787,8 @@ class LNWorker(PrintError):
             channels = list(self.channels.values())
         now = time.time()
         for chan in channels:
+            if chan.is_closed():
+                continue
             if constants.net is not constants.BitcoinRegtest:
                 ratio = chan.constraints.feerate / self.current_feerate_per_kw()
                 if ratio < 0.5:

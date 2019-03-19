@@ -337,7 +337,7 @@ class Peer(PrintError):
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=1,
         )
-        payload = await asyncio.wait_for(self.channel_accepted[temp_channel_id].get(), 1)
+        payload = await asyncio.wait_for(self.channel_accepted[temp_channel_id].get(), 20)
         if payload.get('error'):
             raise Exception('Remote Lightning peer reported error: ' + repr(payload.get('error')))
         remote_per_commitment_point = payload['first_per_commitment_point']
