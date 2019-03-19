@@ -310,6 +310,19 @@ class CoinUtils(PrintError):
         return answer
 
     @staticmethod
+    def remove_from_shufflecache(wallet, utxo_names):
+        ''' Purges utxo_names (pass any iterator) from the _is_shuffled_cache.
+        Caller need not hold any locks (they will be acquired)'''
+        if not utxo_names:
+            return
+        cache = getattr(wallet, '_is_shuffled_cache', dict())
+        if not cache:
+            return
+        with wallet.lock, wallet.transaction_lock:
+            for name in utxo_names:
+                cache.pop(name, None)
+
+    @staticmethod
     def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
         ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
         shuf, unshuf, uprog = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
@@ -347,22 +360,21 @@ class CoinUtils(PrintError):
         ''' Returns a 3-tupe of mutually exclusive lists: shuffled_utxos, unshuffled_utxos, and unshuffled_but_in_progress '''
         shuf, unshuf, uprog = [], [], []
         if hasattr(wallet, 'is_coin_shuffled'):
-            with wallet.lock:
-                with wallet.transaction_lock:
-                    coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list()))
-                    utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
-                    txs = wallet.transactions
-                    for utxo in utxos:
-                        state = wallet.is_coin_shuffled(utxo, txs)
-                        if state:
-                            shuf.append(utxo)
-                        else:
-                            name = __class__.get_name(utxo)
-                            if state is not None:
-                                if name not in coins_frozen_by_shuffling:
-                                    unshuf.append(utxo)
-                                else:
-                                    uprog.append(utxo)
+            with wallet.lock, wallet.transaction_lock:
+                coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list()))
+                utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
+                txs = wallet.transactions
+                for utxo in utxos:
+                    state = wallet.is_coin_shuffled(utxo, txs)
+                    if state:
+                        shuf.append(utxo)
+                    else:
+                        name = __class__.get_name(utxo)
+                        if state is not None:
+                            if name not in coins_frozen_by_shuffling:
+                                unshuf.append(utxo)
                             else:
-                                wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}", name)
+                                uprog.append(utxo)
+                        else:
+                            wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}", name)
         return shuf, unshuf, uprog

@@ -260,10 +260,12 @@ def _got_tx_check_tentative_shuffles(window, tx):
                 t.pop(utxo)  # unconditionally remove this tentative coin from the dict since either way it's spent
                 return
 
-def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address(window, tx):
-    ''' Freeze address after spending from a shuffled coin address for privacy. Issue #100 '''
+def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx):
+    ''' Freeze address after spending from a shuffled coin address for privacy (issue #100).
+        Also remove any shuffled coin spends from the _is_shuffled_cache. '''
     inputs = tx.inputs()
     addrs_to_freeze = set()
+    coins_to_purge_from_shuffle_cache = list()
     wallet = window.wallet
     all_addresses = None
     def is_mine(a):
@@ -278,19 +280,25 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address(window, tx):
 
     for inp in inputs:
         addr = inp['address']
-        if (isinstance(addr, Address)
-                and addr not in addrs_to_freeze
-                and is_mine(addr)
-                and wallet.is_coin_shuffled(inp)
-            ):
-            # we spent a shuffled coin belonging to us. freeze that address to protect privacy
-            addrs_to_freeze.add(addr)
+        if isinstance(addr, Address) and is_mine(addr):
+            # This coin was ours, purge True/False results from the
+            # _is_shuffled_cache for this coin.
+            coins_to_purge_from_shuffle_cache.append(CoinUtils.get_name(inp))
+            if addr not in addrs_to_freeze and wallet.is_coin_shuffled(inp):
+                # We spent a shuffled coin belonging to us.
+                # Freeze that address to protect privacy.
+                addrs_to_freeze.add(addr)
     if addrs_to_freeze:
         wallet.set_frozen_state(addrs_to_freeze, True)
         for addr in addrs_to_freeze:
             name = addr.to_storage_string()
             if not wallet.labels.get(name):
                 wallet.set_label(name, _("Shuffled coin spent (frozen for privacy)"))
+    # the below is to prevent the "is_shuffled_cache" from growing forever which
+    # impacts performance and wastes memory.  Since we were checking a seen TX
+    # anyway, might as well expire coins from the cache that were spent.
+    # remove_from_shufflecache acquires locks as it operates on the cache.
+    CoinUtils.remove_from_shufflecache(wallet, coins_to_purge_from_shuffle_cache)  # fast return no-op if set is empty
 
 
 def _got_tx(window, tx):
@@ -302,7 +310,7 @@ def _got_tx(window, tx):
         # (signal arrives via QueuedConnection which is why this check is necessary)
         return
     _got_tx_check_tentative_shuffles(window, tx)  # check for workaround to bug#70
-    _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address(window, tx) # Feature #100
+    _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx) # Feature #100
 
 
 class MsgForwarder(QObject):
