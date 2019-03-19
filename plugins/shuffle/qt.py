@@ -298,7 +298,7 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
     # impacts performance and wastes memory.  Since we were checking a seen TX
     # anyway, might as well expire coins from the cache that were spent.
     # remove_from_shufflecache acquires locks as it operates on the cache.
-    CoinUtils.remove_from_shufflecache(wallet, coins_to_purge_from_shuffle_cache)  # fast return no-op if set is empty
+    CoinUtils.remove_from_shufflecache(wallet, coins_to_purge_from_shuffle_cache)
 
 
 def _got_tx(window, tx):
@@ -311,6 +311,10 @@ def _got_tx(window, tx):
         return
     _got_tx_check_tentative_shuffles(window, tx)  # check for workaround to bug#70
     _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx) # Feature #100
+    # Note at this point the is_shuffled cache has had entries for inputs in
+    # the tx above removed. If you want to add checks to this function that
+    # involve the _is_shuffled_cache, do it above before the
+    # '_got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc' call.
 
 
 class MsgForwarder(QObject):
