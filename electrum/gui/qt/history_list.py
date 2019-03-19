@@ -292,7 +292,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             ln_value = tx_item['amount_msat']/1000.
             if txid and txid in transactions:
                 item = transactions[txid]
-                item['label'] = tx_item['label'] + ' (%s)'%self.parent.format_amount_and_units(tx_item['amount_msat']/1000)
+                item['label'] = tx_item['label']
                 item['ln_value'] = Satoshis(ln_value)
                 item['balance_msat'] = tx_item['balance_msat']
             else:
