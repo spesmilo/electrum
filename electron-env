@@ -9,15 +9,19 @@
 # python-qt and its dependencies will still need to be installed with
 # your package manager.
 
+# System dependencies
+# sudo apt-get install python3-virtualenv python3-pip virtualenv git libsecp256k1-0
+
 if [ -e ./env/bin/activate ]; then
     source ./env/bin/activate
 else
     virtualenv env -p `which python3`
     source ./env/bin/activate
     python3 setup.py install
+    pip3 install -I pyqt5
 fi
 
-export PYTHONPATH="/usr/local/lib/python3.5/site-packages:$PYTHONPATH"
+#export PYTHONPATH="/usr/local/lib/python3.5/site-packages:$PYTHONPATH"
 
 ./electron-cash "$@"
 
