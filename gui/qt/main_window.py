@@ -557,6 +557,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
         wallet_menu.addSeparator()
         self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history"), self.rebuild_history)
+        self._scan_beyond_gap_action = wallet_menu.addAction(_("&Scan beyond gap..."), self.scan_beyond_gap)
+        self._scan_beyond_gap_action.setEnabled(bool(self.wallet.is_deterministic() and self.network))
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -3619,6 +3621,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.wallet.rebuild_history()
             except RuntimeError as e:
                 self.show_error(str(e))
+
+    def scan_beyond_gap(self):
+        if self.gui_object.warn_if_no_network(self):
+            return
+        from .scan_beyond_gap import ScanBeyondGap
+        d = ScanBeyondGap(self)
+        d.exec_()
+        d.setParent(None)  # help along Python by dropping refct to 0
+
 
 class TxUpdateMgr(QObject, PrintError):
     ''' Manages new transaction notifications and transaction verified

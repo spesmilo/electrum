@@ -1604,6 +1604,10 @@ class Abstract_Wallet(PrintError):
     def can_delete_address(self):
         return False
 
+    def is_multisig(self):
+        # Subclass Multisig_Wallet overrides this
+        return False
+
     def add_address(self, address):
         assert isinstance(address, Address)
         self._addr_bal_cache.pop(address, None)  # paranoia, not really necessary -- just want to maintain the invariant that when we modify address history below we invalidate cache.
@@ -2167,6 +2171,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
+
+    def is_multisig(self):
+        return True
 
 
 wallet_types = ['standard', 'multisig', 'imported']
