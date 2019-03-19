@@ -1610,7 +1610,7 @@ class Network(util.DaemonThread):
         except queue.Empty:
             raise BaseException('Server did not answer')
         if r.get('error'):
-            raise BaseException(r.get('error'))
+            raise util.ServerError(r.get('error'))
         return r.get('result')
 
     def get_raw_tx_for_txid(self, txid, timeout=30):
