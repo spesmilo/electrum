@@ -142,7 +142,8 @@ class Peer(PrintError):
 
     def on_accept_channel(self, payload):
         temp_chan_id = payload["temporary_channel_id"]
-        if temp_chan_id not in self.channel_accepted: raise Exception("Got unknown accept_channel")
+        if temp_chan_id not in self.channel_accepted:
+            raise Exception("Got unknown accept_channel")
         self.channel_accepted[temp_chan_id].put_nowait(payload)
 
     def on_funding_signed(self, payload):
@@ -195,8 +196,8 @@ class Peer(PrintError):
         async def wrapper_func(self, *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
-            except LightningPeerConnectionClosed as e:
-                self.print_error("disconnecting gracefully. {}".format(e))
+            except Exception as e:
+                self.print_error("Disconnecting: {}".format(e))
             finally:
                 self.close_and_cleanup()
                 self.lnworker.peers.pop(self.pubkey)
@@ -529,12 +530,20 @@ class Peer(PrintError):
 
     def on_channel_reestablish(self, payload):
         chan_id = payload["channel_id"]
-        self.print_error("Received channel_reestablish", bh2u(chan_id))
+        self.print_error("Received channel_reestablish", bh2u(chan_id), payload)
         chan = self.channels.get(chan_id)
         if not chan:
-            self.print_error("Warning: received unknown channel_reestablish", bh2u(chan_id))
-            return
+            raise Exception('Unknown channel_reestablish ' + bh2u(chan_id))
         self.channel_reestablished[chan_id].set_result(payload)
+
+    def try_to_get_remote_to_force_close_with_their_latest(chan_id):
+        self.print_error("trying to get remote to force close", bh2u(chan_id))
+        self.send_message(
+            "channel_reestablish",
+            channel_id=chan_id,
+            next_local_commitment_number=0,
+            next_remote_revocation_number=0
+        )
 
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
@@ -546,28 +555,33 @@ class Peer(PrintError):
             return
         chan.set_state('REESTABLISHING')
         self.network.trigger_callback('channel', chan)
-        self.send_message("channel_reestablish",
+        # compute data_loss_protect fields
+        current_remote_ctn = chan.config[REMOTE].ctn
+        if current_remote_ctn == 0:
+            last_rev_secret = 0
+        else:
+            revocation_store = chan.config[REMOTE].revocation_store
+            last_rev_index = current_remote_ctn - 1
+            last_rev_secret = revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
+        last_secret, last_point = chan.local_points(offset=-1)
+        # send message
+        self.send_message(
+            "channel_reestablish",
             channel_id=chan_id,
             next_local_commitment_number=chan.config[LOCAL].ctn+1,
-            next_remote_revocation_number=chan.config[REMOTE].ctn
+            next_remote_revocation_number=current_remote_ctn,
+            your_last_per_commitment_secret=last_rev_secret,
+            my_current_per_commitment_point=last_point
         )
         channel_reestablish_msg = await self.channel_reestablished[chan_id]
         chan.set_state('OPENING')
-
-        def try_to_get_remote_to_force_close_with_their_latest():
-            self.print_error("trying to get remote to force close", bh2u(chan_id))
-            self.send_message("channel_reestablish",
-                                      channel_id=chan_id,
-                                      next_local_commitment_number=0,
-                                      next_remote_revocation_number=0
-                                      )
         # compare remote ctns
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_next_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if their_next_local_ctn != chan.config[REMOTE].ctn + 1:
             self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, their_next_local_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
-            try_to_get_remote_to_force_close_with_their_latest()
+            self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
             return
         # compare local ctns
         if chan.config[LOCAL].ctn != their_next_remote_ctn:
@@ -588,7 +602,7 @@ class Peer(PrintError):
             else:
                 self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, their_next_remote_ctn))
                 # TODO iff their ctn is lower than ours, we should force close instead
-                try_to_get_remote_to_force_close_with_their_latest()
+                self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
                 return
         # compare per commitment points (needs data_protect option)
         their_pcp = channel_reestablish_msg.get("my_current_per_commitment_point", None)
@@ -599,7 +613,7 @@ class Peer(PrintError):
             if our_pcp != their_pcp:
                 self.print_error("Remote PCP mismatch: {} {}".format(bh2u(our_pcp), bh2u(their_pcp)))
                 # FIXME ...what now?
-                try_to_get_remote_to_force_close_with_their_latest()
+                self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
                 return
         if their_next_local_ctn == chan.config[LOCAL].ctn+1 == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
