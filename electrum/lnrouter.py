@@ -261,14 +261,11 @@ class ChannelDB(SqlDB):
 
     @sql
     def get_last_good_address(self, node_id) -> Optional[LNPeerAddr]:
-        adr_db = self.DBSession \
-            .query(Address) \
-            .filter_by(node_id = node_id.hex()) \
-            .order_by(Address.last_connected_date.desc()) \
-            .one_or_none()
-        if not adr_db:
+        r = self.DBSession.query(Address).filter_by(node_id=node_id.hex()).order_by(Address.last_connected_date.desc()).all()
+        if not r:
             return None
-        return LNPeerAddr(adr_db.host, adr_db.port, bytes.fromhex(adr_db.node_id))
+        addr = r[0]
+        return LNPeerAddr(addr.host, addr.port, bytes.fromhex(addr.node_id))
 
     @sql
     def get_recent_peers(self):
