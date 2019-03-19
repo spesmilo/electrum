@@ -2334,6 +2334,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout = QGridLayout(d)
 
         message_e = QTextEdit()
+        message_e.setAcceptRichText(False)
         layout.addWidget(QLabel(_('Message')), 1, 0)
         layout.addWidget(message_e, 1, 1)
         layout.setRowStretch(2,3)
@@ -2344,6 +2345,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addWidget(address_e, 2, 1)
 
         signature_e = QTextEdit()
+        signature_e.setAcceptRichText(False)
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
@@ -2400,6 +2402,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout = QGridLayout(d)
 
         message_e = QTextEdit()
+        message_e.setAcceptRichText(False)
         layout.addWidget(QLabel(_('Message')), 1, 0)
         layout.addWidget(message_e, 1, 1)
         layout.setRowStretch(2,3)
@@ -2412,6 +2415,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addWidget(pubkey_e, 2, 1)
 
         encrypted_e = QTextEdit()
+        encrypted_e.setAcceptRichText(False)
         layout.addWidget(QLabel(_('Encrypted')), 3, 0)
         layout.addWidget(encrypted_e, 3, 1)
         layout.setRowStretch(3,1)
