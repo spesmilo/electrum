@@ -2,7 +2,8 @@ import hashlib
 from collections import defaultdict
 from electroncash.bitcoin import (
     bfh, bh2u, MySigningKey, MyVerifyingKey, SECP256k1,
-    generator_secp256k1, point_to_ser, public_key_to_p2pkh, Hash,
+    generator_secp256k1, point_to_ser, ser_to_point,
+    public_key_to_p2pkh, Hash,
     pubkey_from_signature, msg_magic, TYPE_ADDRESS)
 from electroncash.transaction import Transaction, int_to_hex
 from electroncash.address import Address, AddressError
@@ -171,11 +172,11 @@ class CoinUtils(PrintError):
 
     @staticmethod
     def IsValidDERSignatureEncoding_With_Extract(sig):
-        ''' sig should be a hex encoded string or bytes object of the raw sig
-        data bytes including sighash ALL|FORKID byte (0x41) at the end.
-        Returns False on bad signature (not conforming to STRICTENC) or r,s
-        as a tuple otherwise.
-        Taken from BitcoinABC source code:
+        ''' sig should be a bytes object of the raw sig data bytes excluding
+        sighash byte.
+        Returns r,s tuple if it follows STRICTENC, or else raises AssertionError.
+
+        Based on BitcoinABC source code:
         https://github.com/Bitcoin-ABC/bitcoin-abc/blob/master/src/script/sigencoding.cpp#L27
         /**
          * A canonical signature exists of: <30> <total len> <02> <len R> <R> <02> <len
@@ -189,12 +190,6 @@ class CoinUtils(PrintError):
          * This function is consensus-critical since BIP66.
          */
         '''
-        if isinstance(sig, str):
-            try:
-                sig = bytes.fromhex(sig)
-            except ValueError:
-                return False
-        assert isinstance(sig, (bytes, bytearray))
         # // Format: 0x30 [total-length] 0x02 [R-length] [R] 0x02 [S-length] [S]
         # // * total-length: 1-byte length descriptor of everything that follows,
         # // excluding the sighash byte.
@@ -209,26 +204,18 @@ class CoinUtils(PrintError):
         # Some sample inputs to test this function:
         #r=(81592364208652584016851361869694565004145639608376408039883438744265234600879,
         #s=33308936342624208176251215154315566707800991341260116503885941528977175948962,
-        #sig_plus_0x41='3045022100b463a43fb7f7bb5f68f2cfb4c86bdfdc14cac6eaf13c49b623ca06f04cd853af022049a4309b8c96bace3c536867c0cfc4fa5cbff94cf484385f1e1e623db3632ea241'
+        #sig='3045022100b463a43fb7f7bb5f68f2cfb4c86bdfdc14cac6eaf13c49b623ca06f04cd853af022049a4309b8c96bace3c536867c0cfc4fa5cbff94cf484385f1e1e623db3632ea2'
         #// Minimum and maximum size constraints.
-        if len(sig)-1 < 8 or len(sig)-1 > 72:  # takes into account 0x41 at the end...
-            return False
-        if sig[0] != 0x30:
-            return False
-        if sig[-1] != 0x41:  # SIGHASH byte
-            return False
-        if sig[1] != len(sig)-3: # Check length
-            return False
-        if sig[2] != 0x02:
-            return False
+        assert len(sig) >= 8 and len(sig) <= 72
+        assert sig[0] == 0x30
+        assert sig[1] == len(sig)-2 # Check length
+        assert sig[2] == 0x02
         r_length = sig[3]
-        if r_length == 0:
-            # zero length integers are not allowed for R
-            return False
+        # zero length integers are not allowed
+        assert r_length > 0
         r_pos = 4
         # Negative numbers are not allowed for R.
-        if sig[r_pos] & 0x80:
-            return False
+        assert not (sig[r_pos] & 0x80)
         # // Make sure the length of the R element is consistent with the signature
         # // size.
         # // Remove:
@@ -237,51 +224,47 @@ class CoinUtils(PrintError):
         # // * 2 bytes for the integer type of R and S.
         # // * 2 bytes for the size of R and S.
         # // * 1 byte for S itself.
-        # 1 byte for 0x41 at the end
-        if r_length > len(sig) - 8:
-            return False
+        assert r_length <= len(sig) - 7
         # // Null bytes at the start of R are not allowed, unless R would otherwise be
         # // interpreted as a negative number.
         # //
         # // /!\ This check can only be performed after we checked that lenR is
         # //     consistent with the size of the signature or we risk to access out of
         # //     bound elements.
-        if r_length > 1 and sig[4] == 0x00 and not (sig[5] & 0x80):
-            return False
-        #
+        if r_length > 1 and sig[4] == 0x00:
+            assert sig[5] & 0x80
         r = int.from_bytes(sig[r_pos : r_pos + r_length], byteorder='big')
-        if sig[r_pos + r_length] != 0x02:
-            return False
-        s_length_pos = r_pos + r_length + 1
-        s_length = sig[s_length_pos]
-        if s_length == 0:
-            # zero length integers are not allowed
-            return False
-        s_pos = s_length_pos+1
-        if sig[s_pos] & 0x80:
-            # Negative numbers not allowed
-            return False
+
+        s_start = r_pos + r_length
+        assert sig[s_start] == 0x02
+        s_length = sig[s_start+1]
+        # zero length integers are not allowed
+        assert s_length > 0
+        s_pos = s_start+2
+        # Negative numbers not allowed
+        assert not (sig[s_pos] & 0x80)
         #// Verify that the length of S is consistent with the size of the signature
         #// including metadatas:
         #// * 1 byte for the integer type of S.
         #// * 1 byte for the size of S.
-        if s_pos + s_length + 1 != len(sig):
-            return False
-        s = int.from_bytes(sig[s_pos : s_pos + s_length], byteorder='big')
+        assert s_pos + s_length == len(sig)
         #// Null bytes at the start of S are not allowed, unless S would otherwise be
         #// interpreted as a negative number.
         #//
         #// /!\ This check can only be performed after we checked that lenR and lenS
         #//     are consistent with the size of the signature or we risk to access
         #//     out of bound elements.
-        if s_length > 1 and sig[s_pos] == 0x00 and not (sig[s_pos + 1] & 0x80):
-            return False
+        if s_length > 1 and sig[s_pos] == 0x00:
+            assert sig[s_pos + 1] & 0x80
+        s = int.from_bytes(sig[s_pos : s_pos + s_length], byteorder='big')
         return r, s
 
     @staticmethod
     def verify_tx_signature(signature, transaction, verification_key, utxo):
         '''Verify the signature for a specific utxo ("prevout_hash:n") given a
-        transaction and verification key.'''
+        transaction and verification key. Ensures that the signature is valid
+        AND canonically encoded, so it will be accepted by network.
+        '''
         txin = list(filter(lambda x: (verification_key in x['pubkeys']
                                       and utxo == "{}:{}".format( x['tx_hash'],
                                                                   x['tx_pos'] )
@@ -289,24 +272,32 @@ class CoinUtils(PrintError):
                            transaction.inputs() ))
         if txin:
             tx_num = transaction.inputs().index(txin[0])
+            # calculate sighash digest (implicitly this is for sighash 0x41)
             pre_hash = Hash(bfh(transaction.serialize_preimage(tx_num)))
             order = generator_secp256k1.order()
             sigbytes = bfh(signature.decode())
-            r_s = CoinUtils.IsValidDERSignatureEncoding_With_Extract(sigbytes)
-            if not r_s:
+            if len(sigbytes) < 1 or sigbytes[-1] != 0x41:
                 return False
-            r, s = r_s
-            sig_string = ecdsa.util.sigencode_string(r, s, order)
-            compressed = len(verification_key) <= 66
-            for recid in range(0, 4):
-                try:
-                    pubk = MyVerifyingKey.from_signature(sig_string, recid,
-                                                         pre_hash, curve=SECP256k1)
-                    pubkey = bh2u(point_to_ser(pubk.pubkey.point, compressed))
-                    if verification_key == pubkey:
-                        return True
-                except:
-                    continue
+            DERsig = sigbytes[:-1]
+            # ensure DER encoding is canonical and sighash byte is 0x41 and extract r,s if OK
+            try:
+                r,s = CoinUtils.IsValidDERSignatureEncoding_With_Extract(DERsig)
+            except AssertionError:
+                return False
+            if (s << 1) > order:
+                # high S values are rejected by BCH network
+                return False
+            try:
+                pubkey_point = ser_to_point(bfh(verification_key))
+            except:
+                # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
+                return False
+            vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
+            try:
+                return vk.verify_digest(DERsig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+            except:
+                # verify_digest returns True on success, otherwise throws
+                return False
         # else ...
         return False
 
