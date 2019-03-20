@@ -2,7 +2,7 @@ import threading
 
 from binascii import hexlify, unhexlify
 
-from electroncash.util import bfh, bh2u
+from electroncash.util import bfh, bh2u, UserCancelled
 from electroncash.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
                               TYPE_ADDRESS, TYPE_SCRIPT)
 from electroncash.i18n import _
@@ -157,11 +157,23 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
         def f(method):
             import threading
             settings = self.request_trezor_init_settings(wizard, method, self.device)
-            t = threading.Thread(target = self._initialize_device, args=(settings, method, device_id, wizard, handler))
+            t = threading.Thread(target = self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()
             wizard.loop.exec_()
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
+
+    def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
+        exit_code = 0
+        try:
+            self._initialize_device(settings, method, device_id, wizard, handler)
+        except UserCancelled:
+            exit_code = 1
+        except Exception as e:
+            handler.show_error(str(e))
+            exit_code = 1
+        finally:
+            wizard.loop.exit(exit_code)
 
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
@@ -188,7 +200,6 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
-        wizard.loop.exit(0)
 
     def setup_device(self, device_info, wizard):
         '''Called when creating a new wallet.  Select the device to use.  If
