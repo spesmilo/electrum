@@ -199,8 +199,10 @@ class Round(PrintError):
             messages = self.inbox[phase]
             self.encryption_keys = dict()
             self.change_addresses = {}
-            for message in messages:
-                self.messages.packets.ParseFromString(messages[message])
+            for message, msg in messages.items():
+                bad = self._parse_from_string_safe(msg, 'bad')
+                if bad:
+                    continue
                 from_key = self.messages.get_from_key()
                 self.encryption_keys[from_key] = self.messages.get_encryption_key()
                 self.change_addresses[from_key] = self.messages.get_address()
@@ -215,6 +217,16 @@ class Round(PrintError):
                     self.log_message("encrypt new address")
                     self.phase = 'BroadcastOutput'
 
+    def _parse_from_string_safe(self, msg, sender):
+        ''' Parses messages from 'string' msg (really bytes).
+        Returns sender if there is a decode error, otherwise returns None '''
+        try:
+            self.messages.packets.ParseFromString(msg)
+        except Exception as error:
+            self.print_error("Decoding error: {} from sender {}".format(str(error), sender))
+            self.logchan.send('Error: Decoding error: {} from sender {}'.format(str(error), sender))
+            return sender
+
     def process_shuffling(self):
         """
         This function implements processing of messages on shuffling phase (phase #2)
@@ -227,41 +239,45 @@ class Round(PrintError):
         4. If player is last player he goes to the next phase ("Broadcasts Output") and broadcast the outputs.
         """
         phase = self.messages.phases[self.phase]
-        accused = None
+        accused, sender = None, None
         if self.me == self.last_player():
             sender = self.players[self.previous_player(player=self.last_player())]
-            if self.inbox[phase].get(sender):
-                self.messages.packets.ParseFromString(self.inbox[phase][sender])
-                try:
-                    for packet in self.messages.packets.packet:
-                        packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
-                    self.messages.add_str(self.addr_new)
-                    self.messages.shuffle_packets()
-                    self.phase = 'BroadcastOutput'
-                    self.send_message()
-                    self.log_message("encrypt new address")
-                except CryptoError:
-                    accused = sender
+            msg = self.inbox[phase].get(sender)
+            if msg:
+                accused = self._parse_from_string_safe(msg, sender)
+                if not accused:
+                    try:
+                        for packet in self.messages.packets.packet:
+                            packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
+                        self.messages.add_str(self.addr_new)
+                        self.messages.shuffle_packets()
+                        self.phase = 'BroadcastOutput'
+                        self.send_message()
+                        self.log_message("encrypt new address")
+                    except CryptoError:
+                        accused = sender
         else:
             sender = self.players[self.previous_player()]
-            if self.inbox[phase].get(sender):
-                self.messages.packets.ParseFromString(self.inbox[phase][sender])
-                try:
-                    for packet in self.messages.packets.packet:
-                        packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
-                    if not self.different_ciphertexts():
-                        self.messages.add_str(self.encrypt_new_address())
-                        self.messages.shuffle_packets()
-                        self.send_message(destination=self.players[self.next_player()])
-                        self.log_message("encrypt new address")
-                        self.phase = 'BroadcastOutput'
-                    else:
+            msg = self.inbox[phase].get(sender)
+            if msg:
+                accused = self._parse_from_string_safe(msg, sender)
+                if not accused:
+                    try:
+                        for packet in self.messages.packets.packet:
+                            packet.packet.message.str = self.crypto.decrypt(packet.packet.message.str)
+                        if not self.different_ciphertexts():
+                            self.messages.add_str(self.encrypt_new_address())
+                            self.messages.shuffle_packets()
+                            self.send_message(destination=self.players[self.next_player()])
+                            self.log_message("encrypt new address")
+                            self.phase = 'BroadcastOutput'
+                        else:
+                            accused = sender
+                    except CryptoError:
                         accused = sender
-                except CryptoError:
-                    accused = sender
         if accused is not None:
             self.skipped_equivocation_check(accused)
-            self.log_message("wrong from " + str(accused))
+            self.log_message("bad shuffle message from " + str(accused))
 
     def process_broadcast_output(self):
         """
@@ -276,10 +292,12 @@ class Round(PrintError):
         """
         phase = self.messages.phases[self.phase]
         sender = self.players[self.last_player()]
-        if self.inbox[phase].get(sender):
-            self.messages.packets.ParseFromString(self.inbox[phase][sender])
-            self.new_addresses = self.messages.get_new_addresses()
-            if self.addr_new in self.new_addresses:
+        msg = self.inbox[phase].get(sender)
+        if msg:
+            accused = self._parse_from_string_safe(msg, sender)
+            if not accused:
+                self.new_addresses = self.messages.get_new_addresses()
+            if not accused and self.addr_new in self.new_addresses:
                 self.log_message("received addresses and found self")
             else:
                 self.logchan.send("Blame: Player " + str(self.me) +
@@ -312,9 +330,8 @@ class Round(PrintError):
                                                   for i in sorted(self.players)]))
             messages = self.inbox[phase]
             for player, player_msg in messages.items():
-                self.messages.packets.ParseFromString(player_msg)
-                hash_value = self.messages.get_hash()
-                if hash_value != computed_hash:
+                accused = self._parse_from_string_safe(player_msg, player)
+                if accused or computed_hash != self.messages.get_hash():
                     phase1 = self.messages.phases["Announcement"]
                     phase3 = self.messages.phases["BroadcastOutput"]
                     phase1_packets = b"".join(list(self.inbox[phase1].values()))
@@ -370,15 +387,21 @@ class Round(PrintError):
                 for pubkey, utxos in vk_pubkeys.items():
                     for utxo in utxos:
                         pubkeys[utxo] = pubkey
+            def do_blame(accused, player):
+                self.messages.blame_wrong_transaction_signature(accused)
+                self.send_message()
+                self.logchan.send('Blame: wrong transaction signature from player {}'.format(player))
+                self.done = True
             for player, vk in self.players.items():
-                self.messages.packets.ParseFromString(self.inbox[phase][vk])
+                accused = self._parse_from_string_safe(self.inbox[phase][vk], vk)
+                if accused:
+                    do_blame(accused, player)
+                    return
                 player_signatures = self.messages.get_signatures()
                 for utxo, sig in player_signatures.items():
-                    if not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkeys[utxo], utxo):
-                        self.messages.blame_wrong_transaction_signature(vk)
-                        self.send_message()
-                        self.logchan.send('Blame: wrong transaction signature from player {}'.format(player))
-                        self.done = True
+                    pubkey = pubkeys.get(utxo)
+                    if not pubkey or not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkey, utxo):
+                        do_blame(vk, player)
                         return
                     self.signatures.update(player_signatures)
             self.coin_utils.add_transaction_signatures(self.transaction, self.signatures)
@@ -465,7 +488,9 @@ class Round(PrintError):
         messages = self.inbox[phase]
         if self.is_inbox_complete(phase):
             for sender, msg in messages.items():
-                self.messages.packets.ParseFromString(msg)
+                bad = self._parse_from_string_safe(msg, sender)
+                if bad:
+                    raise N_Minus_1ShuffleDisabled("Bad message", bad)
                 self.check_reasons_and_accused(reason)
             accused = self.messages.get_accused_key()
             self.inputs.pop(accused, None)
@@ -490,10 +515,14 @@ class Round(PrintError):
         new_addresses_matrix = {key:set() for key in self.players.values()}
         if self.is_inbox_complete(phase):
             for sender, msg in messages.items():
-                self.messages.packets.ParseFromString(msg)
+                if self._parse_from_string_safe(msg, sender):
+                    self.done = True
+                    return
                 self.check_reasons_and_accused(reason)
                 invalid_packets = self.messages.get_invalid_packets()
-                self.messages.packets.ParseFromString(invalid_packets)
+                if self._parse_from_string_safe(invalid_packets, sender):
+                    self.done = True
+                    return
                 self.check_for_signatures()
                 for packet in self.messages.packets.packet:
                     if packet.packet.phase == 1:
@@ -525,7 +554,9 @@ class Round(PrintError):
                 phase1_packets = self.inbox[phase_1].copy()
                 encryption_keys = list(self.encryption_keys.values())
                 for message, pkt_msg in phase1_packets.items():
-                    self.messages.packets.ParseFromString(pkt_msg)
+                    if self._parse_from_string_safe(pkt_msg, 'bad'):
+                        self.done = True
+                        return
                     ec = self.messages.get_encryption_key()
                     if ec in encryption_keys:
                         del self.inbox[phase_1][message]
@@ -553,8 +584,9 @@ class Round(PrintError):
         elif self.is_inbox_complete(phase_blame):
             hashes = set()
             for player, msg in self.inbox[phase_blame].items():
-                self.messages.packets.ParseFromString(msg)
-                hashes.add(self.messages.get_hash())
+                accused = self._parse_from_string_safe(msg, player)
+                if not accused:
+                    hashes.add(self.messages.get_hash())
             if len(hashes) == 1:
                 accused = self.messages.get_accused_key()
                 ec = self.crypto.export_public_key()
@@ -568,7 +600,7 @@ class Round(PrintError):
                 self.send_message()
                 self.inbox[phase_blame] = {}
             else:
-                self.logchan.send("Erorr: different hashes appears")
+                self.logchan.send("Erorr: different hashes")
                 self.done = True
                 return
 
@@ -608,13 +640,17 @@ class Round(PrintError):
         shufflings = {}
         cheater = None
         phase_blame = self.messages.phases["Blame"]
-        for player,msg in self.inbox[phase_blame].items():
-            self.messages.packets.ParseFromString(msg)
+        for player, msg in self.inbox[phase_blame].items():
+            bad = self._parse_from_string_safe(msg, player)
+            if bad:
+                return bad
             shufflings[player] = {}
             shufflings[player]['encryption_key'] = self.messages.get_public_key()
             shufflings[player]['decryption_key'] = self.messages.get_decryption_key()
             invalid_packets = self.messages.get_invalid_packets()
-            self.messages.packets.ParseFromString(invalid_packets)
+            bad = self._parse_from_string_safe(invalid_packets, player)
+            if bad:
+                return bad
             shufflings[player]['strs'] = self.messages.get_strs()
         for player in sorted(self.players)[1:]:
             for i in sorted(self.players):
@@ -906,7 +942,7 @@ class Round(PrintError):
 
     def check_for_blame(self):
         """Check for messages in blame phase inbox"""
-        return True if self.inbox[7] else False
+        return True if self.inbox.get(self.messages.BLAME) else False
 
     def check_reasons_and_accused(self, reason):
         """
@@ -916,7 +952,6 @@ class Round(PrintError):
         if self.messages.get_blame_reason() != reason:
             self.logchan.send("Blame: different blame reasons from players")
             self.done = True
-            return
         elif self.messages.get_accused_key in self.players.values():
             self.logchan.send("Blame: different blame players from players")
             self.done = True
