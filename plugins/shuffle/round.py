@@ -366,7 +366,10 @@ class Round(PrintError):
                 self.logchan.send("Error: Could not make unsigned transaction")
                 self.done = True
                 return
-            signatures = self.coin_utils.get_transaction_signature(self.transaction, self.inputs[self.vk], self.sks)
+            try:
+                signatures = self.coin_utils.get_transaction_signature(self.transaction, self.inputs[self.vk], self.sks)
+            except BaseException as e:
+                raise AbortProtocol("Could not get transaction signatures: " + repr(e)) from e
             self.messages.clear_packets()
             self.messages.add_signatures(signatures)
             self.send_message()

@@ -265,41 +265,41 @@ class CoinUtils(PrintError):
         transaction and verification key. Ensures that the signature is valid
         AND canonically encoded, so it will be accepted by network.
         '''
-        txin = list(filter(lambda x: (verification_key in x['pubkeys']
-                                      and utxo == "{}:{}".format( x['tx_hash'],
-                                                                  x['tx_pos'] )
-                                      ),
-                           transaction.inputs() ))
-        if txin:
-            tx_num = transaction.inputs().index(txin[0])
-            # calculate sighash digest (implicitly this is for sighash 0x41)
-            pre_hash = Hash(bfh(transaction.serialize_preimage(tx_num)))
-            order = generator_secp256k1.order()
-            sigbytes = bfh(signature.decode())
-            if len(sigbytes) < 1 or sigbytes[-1] != 0x41:
-                return False
-            DERsig = sigbytes[:-1]
-            # ensure DER encoding is canonical and sighash byte is 0x41 and extract r,s if OK
-            try:
-                r,s = CoinUtils.IsValidDERSignatureEncoding_With_Extract(DERsig)
-            except AssertionError:
-                return False
-            if (s << 1) > order:
-                # high S values are rejected by BCH network
-                return False
-            try:
-                pubkey_point = ser_to_point(bfh(verification_key))
-            except:
-                # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
-                return False
-            vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
-            try:
-                return vk.verify_digest(DERsig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
-            except:
-                # verify_digest returns True on success, otherwise throws
-                return False
-        # else ...
-        return False
+        tx_num = None
+        for n, x in enumerate(transaction.inputs()):
+            if (verification_key in x['pubkeys']
+                    and utxo == "{}:{}".format( x['tx_hash'], x['tx_pos'] ) ):
+                tx_num = n
+                break
+        else:
+            # verification_key / utxo combo not found in tx inputs, bail
+            return False
+        # calculate sighash digest (implicitly this is for sighash 0x41)
+        pre_hash = Hash(bfh(transaction.serialize_preimage(tx_num)))
+        order = generator_secp256k1.order()
+        sigbytes = bfh(signature.decode())
+        if not sigbytes or sigbytes[-1] != 0x41:
+            return False
+        DERsig = sigbytes[:-1]
+        # ensure DER encoding is canonical and sighash byte is 0x41 and extract r,s if OK
+        try:
+            r, s = CoinUtils.IsValidDERSignatureEncoding_With_Extract(DERsig)
+        except AssertionError:
+            return False
+        if (s << 1) > order:
+            # high S values are rejected by BCH network
+            return False
+        try:
+            pubkey_point = ser_to_point(bfh(verification_key))
+        except:
+            # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
+            return False
+        vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
+        try:
+            return vk.verify_digest(DERsig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+        except:
+            # verify_digest returns True on success, otherwise raises
+            return False
 
     def broadcast_transaction(self, transaction):
         err = "Not connected."
