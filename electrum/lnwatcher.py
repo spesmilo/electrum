@@ -88,8 +88,9 @@ class SweepStore(SqlDB):
 
     @sql
     def remove_sweep_tx(self, funding_outpoint):
-        v = self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint).all()
-        self.DBSession.delete(v)
+        r = self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint).all()
+        for x in r:
+            self.DBSession.delete(x)
         self.DBSession.commit()
 
     @sql
@@ -184,7 +185,7 @@ class LNWatcher(AddressSynchronizer):
     def unwatch_channel(self, address, funding_outpoint):
         self.print_error('unwatching', funding_outpoint)
         self.sweepstore.remove_sweep_tx(funding_outpoint)
-        self.sweepstore.remove_channel_info(funding_outpoint)
+        self.sweepstore.remove_channel(funding_outpoint)
         if funding_outpoint in self.tx_progress:
             self.tx_progress[funding_outpoint].all_done.set()
 
@@ -215,7 +216,8 @@ class LNWatcher(AddressSynchronizer):
         if not keep_watching:
             self.unwatch_channel(address, funding_outpoint)
         else:
-            self.print_error('we will keep_watching', funding_outpoint)
+            #self.print_error('we will keep_watching', funding_outpoint)
+            pass
 
     def inspect_tx_candidate(self, outpoint, n):
         # FIXME: instead of stopping recursion at n == 2,
@@ -225,12 +227,12 @@ class LNWatcher(AddressSynchronizer):
         result = {outpoint:txid}
         if txid is None:
             self.channel_status[outpoint] = 'open'
-            self.print_error('keep watching because outpoint is unspent')
+            #self.print_error('keep watching because outpoint is unspent')
             return True, result
         keep_watching = (self.get_tx_mined_depth(txid) != TxMinedDepth.DEEP)
         if keep_watching:
             self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
-            self.print_error('keep watching because spending tx is not deep')
+            #self.print_error('keep watching because spending tx is not deep')
         else:
             self.channel_status[outpoint] = 'closed (deep)'
 
