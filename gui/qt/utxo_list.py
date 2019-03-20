@@ -125,11 +125,19 @@ class UTXOList(MyTreeWidget):
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(spendable_coins)).setEnabled(bool(spendable_coins))
         if len(selected) == 1:
             # "Copy ..."
-            idx = self.indexAt(position)
-            col = idx.column()
+            item = self.itemAt(position)
+            if not item:
+                return
+
+            col = self.currentColumn()
             column_title = self.headerItem().text(col)
-            copy_text = (self.model().data(idx) if col != self.col_output_point else tuple(selected.keys())[0]).strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
+            if col == self.col_output_point:
+                copy_text = item.data(0, Qt.UserRole)
+            else:
+                copy_text = item.text(col)
+            if copy_text:
+                copy_text = copy_text.strip()  # make sure formatted amount is not whitespaced
+            menu.addAction(_("Copy {}").format(column_title), lambda: QApplication.instance().clipboard().setText(copy_text))
 
             # single selection, offer them the "Details" option and also coin/address "freeze" status, if any
             txid = list(selected.keys())[0].split(':')[0]
