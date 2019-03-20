@@ -12,6 +12,10 @@ class Messages:
     SIGNING                     = message_factory.SIGNING
     BLAME                       = message_factory.BLAME
 
+    @classmethod
+    def is_valid_phase(cls, phase):
+        return phase is not None and phase >= message_factory.NONE and phase <= message_factory.BLAME
+
     # types
     DEFAULT = message_factory.DEFAULT
     DUST    = message_factory.DUST

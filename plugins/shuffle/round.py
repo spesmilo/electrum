@@ -3,10 +3,16 @@ from .comms import BadServerPacketError
 from electroncash.util import profiler, PrintError
 from .crypto import CryptoError
 
-class ImplementationMissing(RuntimeError):
+
+class AbortProtocol(RuntimeError):
+    ''' If this or a subclass is raised, protocol ends. Pass a message to print
+    to debug console. '''
     pass
 
-class N_Minus_1ShuffleDisabled(RuntimeError):
+class ImplementationMissing(AbortProtocol):
+    pass
+
+class N_Minus_1ShuffleDisabled(AbortProtocol):
     ''' Raised to indicate we entered blame phase and we don't support
     continuing with N-1 shufflers.  Used to abort the round from anywhere '''
     pass
@@ -112,6 +118,9 @@ class Round(PrintError):
         except N_Minus_1ShuffleDisabled as e:
             self.print_error(repr(e))
             self.logchan.send("Error: N-Minus-1 Shuffle situation encountered, aborting protocol early.")
+        except AbortProtocol as e:
+            self.print_error(repr(e))
+            self.logchan.send("Error: Protocol aborted.")
         finally:
             self.done = True
 
@@ -146,6 +155,8 @@ class Round(PrintError):
             self.logchan.send('Error: Decoding error: {}'.format(str(error)))
             return None
         phase = self.messages.get_phase()
+        if not self.messages.is_valid_phase(phase):
+            raise AbortProtocol("Invalid phase {}".format(phase))
         from_key = self.messages.get_from_key()
         self.check_for_signatures()
         if from_key in self.players.values():
@@ -223,7 +234,7 @@ class Round(PrintError):
         try:
             self.messages.packets.ParseFromString(msg)
         except Exception as error:
-            self.print_error("Decoding error: {} from sender {}".format(str(error), sender))
+            self.print_error("Decoding error: {} from sender {}".format(repr(error), sender))
             self.logchan.send('Error: Decoding error: {} from sender {}'.format(str(error), sender))
             return sender
 
@@ -490,7 +501,7 @@ class Round(PrintError):
             for sender, msg in messages.items():
                 bad = self._parse_from_string_safe(msg, sender)
                 if bad:
-                    raise N_Minus_1ShuffleDisabled("Bad message", bad)
+                    raise AbortProtocol("Bad message", bad)
                 self.check_reasons_and_accused(reason)
             accused = self.messages.get_accused_key()
             self.inputs.pop(accused, None)
