@@ -133,7 +133,9 @@ class UTXOList(MyTreeWidget):
                 copy_text = item.data(0, Qt.UserRole)
             else:
                 copy_text = item.text(col)
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
+            if copy_text:
+                copy_text = copy_text.strip()  # make sure formatted amount is not whitespaced
+            menu.addAction(_("Copy {}").format(column_title), lambda: QApplication.instance().clipboard().setText(copy_text))
 
             # single selection, offer them the "Details" option and also coin/address "freeze" status, if any
             txid = list(selected.keys())[0].split(':')[0]
