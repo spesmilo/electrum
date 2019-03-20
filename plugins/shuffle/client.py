@@ -827,7 +827,8 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                     and c['value'] >= self.LOWER_BOUND  # inside config'd range
                     and c['value'] < self.UPPER_BOUND   # inside config'd range
                     and _get_name(c) not in self.done_utxos  # coin was not just shuffled
-                    and not c['coinbase']  # coin is not coinbase coin
+                    and not c['coinbase']  # coin is not coinbase coin -- we never shuffle coinbase coins
+                    and not CoinUtils.is_shuffled_address(self.wallet, c['address']) # coin is not sitting on a shuffled address
                     )
                 ]
 

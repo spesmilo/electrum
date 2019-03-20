@@ -72,6 +72,8 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
 
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, _("Shuffled"))
+    elif utxo['address'] in utxo_list.wallet._shuffled_address_cache:  # we hit the cache directly as a performance hack. we don't really need a super-accurate reply as this is for UI and the cache will eventually be accurate
+        item.setText(5, _("Shuffled Addr"))
     elif not prog and ("a" in frozenstring or "c" in frozenstring):
         item.setText(5, _("Frozen"))
     elif u_value >= BackgroundShufflingThread.UPPER_BOUND: # too big
@@ -299,6 +301,8 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
     # anyway, might as well expire coins from the cache that were spent.
     # remove_from_shufflecache acquires locks as it operates on the cache.
     CoinUtils.remove_from_shufflecache(wallet, coins_to_purge_from_shuffle_cache)
+    # "forget" that these addresses were designated as shuffled addresses.
+    CoinUtils.remove_from_shuffled_address_cache(wallet, addrs_to_freeze)
 
 
 def _got_tx(window, tx):
@@ -388,6 +392,7 @@ def monkey_patches_apply(window):
         wallet.get_shuffled_and_unshuffled_coins = lambda *args, **kwargs: CoinUtils.get_shuffled_and_unshuffled_coins(wallet, *args, **kwargs)
         wallet.cashshuffle_get_new_change_address = lambda for_shufflethread=False: CoinUtils.get_new_change_address_safe(wallet, for_shufflethread=for_shufflethread)
         wallet._is_shuffled_cache = dict()
+        wallet._shuffled_address_cache = set()
         wallet._addresses_cashshuffle_reserved = set()
         wallet._last_change = None
         # Paranoia -- force wallet into this single change address mode in case
@@ -452,6 +457,7 @@ def monkey_patches_remove(window):
         delattr(wallet, "is_coin_shuffled")
         delattr(wallet, "get_shuffled_and_unshuffled_coins")
         delattr(wallet, "_is_shuffled_cache")
+        delattr(wallet, "_shuffled_address_cache")
         delattr(wallet, '_shuffle_patched_')
         delattr(wallet, "_last_change")
         CoinUtils.unfreeze_frozen_by_shuffling(wallet)
@@ -766,24 +772,44 @@ class Plugin(BasePlugin):
         spend_mode = extra.spendingMode()
 
         if spend_mode == extra.SpendingModeShuffled:
-            # in Cash-Shuffle mode + shuffled spending we can ONLY spend shuffled coins!
+            # in Cash-Shuffle mode + shuffled spending we can ONLY spend shuffled coins + unshuffled living on a shuffled coin address
+            shuf_adrs_seen = set()
+            shuf_coins_seen = set()
             for coin in coins.copy():
-                if not CoinUtils.is_coin_shuffled(window.wallet, coin):
+                is_shuf_adr = CoinUtils.is_shuffled_address(window.wallet, coin['address'])
+                if is_shuf_adr:
+                    shuf_adrs_seen.add(coin['address'])
+                if (not CoinUtils.is_coin_shuffled(window.wallet, coin)
+                        and not is_shuf_adr):  # we allow coins sitting on a shuffled address to be "spent as shuffled"
                     coins.remove(coin)
-        elif spend_mode == extra.SpendingModeUnshuffled:
-            # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins!
-            for coin in coins.copy():
-                if CoinUtils.is_coin_shuffled(window.wallet, coin) or is_coin_busy_shuffling(window, coin):
-                    coins.remove(coin)
+                else:
+                    shuf_coins_seen.add(CoinUtils.get_name(coin))
+            # NEW! Force co-spending of other coins sitting on a shuffled address (Fix #3)
+            for adr in shuf_adrs_seen:
+                adr_coins = window.wallet.get_addr_utxo(adr)
+                for name, adr_coin in adr_coins.items():
+                    if name not in shuf_coins_seen and not adr_coin['is_frozen_coin']:
+                        coins.append(adr_coin)
+                        shuf_coins_seen.add(name)
 
+        elif spend_mode == extra.SpendingModeUnshuffled:
+            # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins (not sitting on a shuffled address)
+            for coin in coins.copy():
+                if (CoinUtils.is_coin_shuffled(window.wallet, coin)
+                        or is_coin_busy_shuffling(window, coin)
+                        or CoinUtils.is_shuffled_address(window.wallet, coin['address'])):
+                    coins.remove(coin)
 
     @hook
     def balance_label_extra(self, window):
         if window not in self.windows:
             return
-        shuf, unshuf, uprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        shuf, unshuf, uprog, usas = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
         totShuf, nShuf = shuf
-        window.send_tab_shuffle_extra.refresh(shuf, unshuf, uprog)
+        # TODO: handle usas separately?
+        totShuf += usas[0]
+        nShuf += usas[1]
+        window.send_tab_shuffle_extra.refresh(shuf, unshuf, uprog, usas)
         if nShuf:
             return (_('Shuffled: {} {} in {} Coin'),
                     _('Shuffled: {} {} in {} Coins'))[0 if nShuf == 1 else 1].format(window.format_amount(totShuf).strip(), window.base_unit(), nShuf)
@@ -794,8 +820,11 @@ class Plugin(BasePlugin):
         if window not in self.windows:
             return
 
-        shuf, unshuf, uprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        shuf, unshuf, uprog, usas = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
         totShuf, nShuf, totUnshuf, nUnshuf, totInProg, nInProg = *shuf, *unshuf, *uprog
+        # TODO: handle usas separately?
+        totShuf += usas[0]
+        nShuf += usas[1]
 
         extra = window.send_tab_shuffle_extra
         extra.refresh(shuf, unshuf, uprog)
@@ -1236,13 +1265,16 @@ class SendTabExtra(QFrame, PrintError):
     _templates = tuple()
 
     @rate_limited(0.250)
-    def refresh(self, shuf=None, unshuf=None, inprog=None):
+    def refresh(self, shuf=None, unshuf=None, inprog=None, usas=None):
         if not hasattr(self.window.wallet, '_shuffle_patched_'):
             # this can happen if this timer fires after the wallet was "un-monkey-patched". It's the price we pay for @rate_limied. :)
             return
-        if shuf is None or unshuf is None or inprog is None:
-            shuf, unshuf, inprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
+        if shuf is None or unshuf is None or inprog is None or usas is None:
+            shuf, unshuf, inprog, usas = CoinUtils.get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
         amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
+        amount += usas[0]
+        n += usas[1]
+        # TODO: handle usas separately?
         if not __class__._templates:  # lazy init
             __class__._templates = (
                 # bold [0]

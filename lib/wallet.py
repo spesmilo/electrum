@@ -649,9 +649,8 @@ class Abstract_Wallet(PrintError):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-            if txi in self.frozen_coins:
-                # cleanup/detect if the 'frozen coin' was spent and remove it from the frozen coin set
-                self.frozen_coins.remove(txi)
+            # cleanup/detect if the 'frozen coin' was spent and remove it from the frozen coin set
+            self.frozen_coins.discard(txi)
         out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
@@ -1249,6 +1248,7 @@ class Abstract_Wallet(PrintError):
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()
         self.save_verified_tx()
+        self.storage.put('frozen_coins', list(self.frozen_coins))
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):

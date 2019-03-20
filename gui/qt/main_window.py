@@ -1505,16 +1505,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_custom_lbl.setHidden(not fee_slider_hidden)
         if text is not None: self.fee_custom_lbl.setText(text)
 
-    def from_list_delete(self, item):
-        i = self.from_list.indexOfTopLevelItem(item)
-        self.pay_from.pop(i)
-        self.redraw_from_list()
-        self.update_fee()
+    def from_list_delete(self, name):
+        item = self.from_list.currentItem()
+        if (item and item.data(0, Qt.UserRole) == name
+                and not item.data(0, Qt.UserRole+1) ):
+            i = self.from_list.indexOfTopLevelItem(item)
+            try:
+                self.pay_from.pop(i)
+            except IndexError:
+                # The list may contain items not in the pay_from if added by a
+                # plugin using the spendable_coin_filter hook
+                pass
+            self.redraw_from_list()
+            self.update_fee()
 
     def from_list_menu(self, position):
         item = self.from_list.itemAt(position)
         menu = QMenu()
-        menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
+        name = item.data(0, Qt.UserRole)
+        action = menu.addAction(_("Remove"), lambda: self.from_list_delete(name))
+        if item.data(0, Qt.UserRole+1):
+            action.setText(_("Not Removable"))
+            action.setDisabled(True)
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
     def set_pay_from(self, coins):
@@ -1528,9 +1540,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         will be grayed out in the UI, to indicate that they will not be used.
         Otherwise all coins will be non-gray (default).
         (Added for CashShuffle 02/23/2019) '''
+        sel = self.from_list.currentItem() and self.from_list.currentItem().data(0, Qt.UserRole)
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
+
+        def name(x):
+            return "{}:{}".format(x['prevout_hash'], x['prevout_n'])
 
         def format(x):
             h = x['prevout_hash']
@@ -1542,11 +1558,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             for i in range(twi.columnCount()):
                 twi.setForeground(i, b)
 
+        def new(item, is_unremovable=False):
+            ret = QTreeWidgetItem( [format(item), self.format_amount(item['value']) ])
+            ret.setData(0, Qt.UserRole, name(item))
+            ret.setData(0, Qt.UserRole+1, is_unremovable)
+            return ret
+
         for item in self.pay_from:
-            twi = QTreeWidgetItem( [format(item), self.format_amount(item['value']) ])
+            twi = new(item)
             if spendable is not None and item not in spendable:
                 grayify(twi)
             self.from_list.addTopLevelItem(twi)
+            if name(item) == sel:
+                self.from_list.setCurrentItem(twi)
+
+        if spendable is not None:  # spendable may be None if no plugin filtered coins.
+            for item in spendable:
+                # append items added by the plugin to the spendable list
+                # at the bottom.  These coins are marked as "not removable"
+                # in the UI (the plugin basically insisted these coins must
+                # be spent with the other coins in the list for privacy).
+                if item not in self.pay_from:
+                    twi = new(item, True)
+                    self.from_list.addTopLevelItem(twi)
+                    if name(item) == sel:
+                        self.from_list.setCurrentItem(twi)
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)

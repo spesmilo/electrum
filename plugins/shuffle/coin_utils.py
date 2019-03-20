@@ -307,7 +307,39 @@ class CoinUtils(PrintError):
         if answer is not None:
             # cache the answer iff it's a definitive answer True/False only
             cache[name] = answer
+            if answer:
+                # rememebr this address as being a "shuffled" address and cache the positive reply
+                getattr(wallet, "_shuffled_address_cache", set()).add(coin['address'])
         return answer
+
+    @staticmethod
+    def is_shuffled_address(wallet, address):
+        ''' Returns True if address contains any shuffled UTXOs.
+            If you want thread safety, caller must hold wallet locks. '''
+        assert isinstance(address, Address)
+        cache = getattr(wallet, '_shuffled_address_cache', None)
+        if cache is None:
+            return False
+        if address in cache:
+            return True
+        utxos = wallet.get_addr_utxo(address)
+        for coin in utxos.values():
+            if CoinUtils.is_coin_shuffled(wallet, coin):
+                cache.add(address)
+                return True
+        return False
+
+    @staticmethod
+    def remove_from_shuffled_address_cache(wallet, addr_set):
+        ''' Purges addresses (pass any iterator, preferably a set)
+        from the _shuffled_address_cache.
+        Caller need not hold any locks (they will be acquired)'''
+        if not addr_set:
+            return
+        if not isinstance(addr_set, set):
+            addr_set = set(addr_set)
+        with wallet.lock, wallet.transaction_lock:
+            wallet._shuffled_address_cache.difference_update(addr_set)
 
     @staticmethod
     def remove_from_shufflecache(wallet, utxo_names):
@@ -324,10 +356,12 @@ class CoinUtils(PrintError):
 
     @staticmethod
     def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-        ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
-        shuf, unshuf, uprog = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
+        ''' Returns a 4-tuple of tuples of (amount_total, num_utxos) that are:
+        'shuffled', 'unshuffled', 'unshuffled_but_in_progress', and
+        'unshuffled_but_spend_as_shuffled' respectively. '''
+        shuf, unshuf, uprog, usas = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
         ret = []
-        for l in ( shuf, unshuf, uprog ):
+        for l in ( shuf, unshuf, uprog, usas ):
             ret.append( (sum(c['value'] for c in l), len(l)) )
         return tuple(ret)
 
@@ -356,16 +390,19 @@ class CoinUtils(PrintError):
 
     @staticmethod
     @profiler
-    def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-        ''' Returns a 3-tupe of mutually exclusive lists: shuffled_utxos, unshuffled_utxos, and unshuffled_but_in_progress '''
-        shuf, unshuf, uprog = [], [], []
+    def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False,
+                                          *, no_in_progress_check = False):
+        ''' Returns a 4-tuple of mutually exclusive lists:
+        shuffled_utxos, unshuffled_utxos, unshuffled_but_in_progress,
+        unshuffled_but_spend_as_shuffled '''
+        shuf, unshuf, uprog, usas = [], [], [], []  # shuffled, unshuffled, unshuffled_in_progress, unshuffled_spend_as_shuffled
         if hasattr(wallet, 'is_coin_shuffled'):
             with wallet.lock, wallet.transaction_lock:
-                coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list()))
+                coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list())) if not no_in_progress_check else set()
                 utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
                 txs = wallet.transactions
                 for utxo in utxos:
-                    state = wallet.is_coin_shuffled(utxo, txs)
+                    state = wallet.is_coin_shuffled(utxo, txs)  # side-effect is that the _shuffled_address_cache gets updated iff true retval
                     if state:
                         shuf.append(utxo)
                     else:
@@ -377,4 +414,12 @@ class CoinUtils(PrintError):
                                 uprog.append(utxo)
                         else:
                             wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}", name)
-        return shuf, unshuf, uprog
+                unshuf_orig = unshuf
+                unshuf = []
+                for utxo in unshuf_orig:
+                    # NEW: Coins that live on shuffled addresses are categorized as "unshuffled: spend as shuffled" and are not eligible for shuffling
+                    if utxo['address'] in wallet._shuffled_address_cache:
+                        usas.append(utxo)
+                    else:
+                        unshuf.append(utxo)
+        return shuf, unshuf, uprog, usas
