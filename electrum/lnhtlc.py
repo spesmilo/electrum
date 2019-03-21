@@ -23,8 +23,7 @@ class HTLCManager:
                 # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 log[sub]['locked_in'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['locked_in'].items()}
                 log[sub]['settles'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['settles'].items()}
-                # FIXME "fails" should be handled like "settles"
-                log[sub]['fails'] = {int(x): y for x, y in log[sub]['fails'].items()}
+                log[sub]['fails'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['fails'].items()}
         self.log = log
 
     def to_save(self):
@@ -67,9 +66,10 @@ class HTLCManager:
 
     def send_rev(self) -> None:
         self.ctn[LOCAL] += 1
-        for htlc_id, ctns in self.log[LOCAL]['settles'].items():
-            if ctns[REMOTE] is None:
-                ctns[REMOTE] = self.ctn[REMOTE] + 1
+        for log_action in ('settles', 'fails'):
+            for htlc_id, ctns in self.log[LOCAL][log_action].items():
+                if ctns[REMOTE] is None:
+                    ctns[REMOTE] = self.ctn[REMOTE] + 1
 
     def recv_rev(self) -> None:
         self.ctn[REMOTE] += 1
@@ -77,9 +77,10 @@ class HTLCManager:
             if ctns[LOCAL] is None:
                 assert ctns[REMOTE] == self.ctn[REMOTE]
                 ctns[LOCAL] = self.ctn[LOCAL] + 1
-        for htlc_id, ctns in self.log[REMOTE]['settles'].items():
-            if ctns[LOCAL] is None:
-                ctns[LOCAL] = self.ctn[LOCAL] + 1
+        for log_action in ('settles', 'fails'):
+            for htlc_id, ctns in self.log[REMOTE][log_action].items():
+                if ctns[LOCAL] is None:
+                    ctns[LOCAL] = self.ctn[LOCAL] + 1
 
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
@@ -105,9 +106,10 @@ class HTLCManager:
                 include = htlc_height <= ctn
             if include:
                 settles = self.log[party]['settles']
-                if htlc_id not in settles or settles[htlc_id][subject] is None or settles[htlc_id][subject] > ctn:
-                    fails = self.log[party]['fails']
-                    if htlc_id not in fails or fails[htlc_id] > ctn:
+                fails = self.log[party]['fails']
+                not_settled = htlc_id not in settles or settles[htlc_id][subject] is None or settles[htlc_id][subject] > ctn
+                not_failed = htlc_id not in fails or fails[htlc_id][subject] is None or fails[htlc_id][subject] > ctn
+                if not_settled and not_failed:
                         l.append(self.log[party]['adds'][htlc_id])
         return l
 
@@ -179,7 +181,7 @@ class HTLCManager:
                 if ctns[LOCAL] == ctn]
 
     def send_fail(self, htlc_id: int) -> None:
-        self.log[REMOTE]['fails'][htlc_id] = self.ctn[REMOTE] + 1
+        self.log[REMOTE]['fails'][htlc_id] = {LOCAL: None, REMOTE: self.ctn[REMOTE] + 1}
 
     def recv_fail(self, htlc_id: int) -> None:
-        self.log[LOCAL]['fails'][htlc_id] = self.ctn[LOCAL] + 1
+        self.log[LOCAL]['fails'][htlc_id] = {LOCAL: self.ctn[LOCAL] + 1, REMOTE: None}
