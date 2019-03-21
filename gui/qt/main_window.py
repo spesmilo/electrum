@@ -3935,7 +3935,7 @@ class TxUpdateMgr(QObject, PrintError):
     notifications from the network thread. It collates them and sends them to
     the appropriate GUI controls in the main_window in an efficient manner. '''
     def __init__(self, main_window_parent):
-        assert isinstance(main_window_parent, ElectrumWindow), "{} must be constructed with an ElectrumWindow as its parent.".format(__class__.__name__)
+        assert isinstance(main_window_parent, ElectrumWindow), "TxUpdateMgr must be constructed with an ElectrumWindow as its parent"
         super().__init__(main_window_parent)
         self.lock = threading.Lock()  # used to lock thread-shared attrs below
         # begin thread-shared attributes
@@ -3943,11 +3943,12 @@ class TxUpdateMgr(QObject, PrintError):
         self.verif_q = []
         self.need_process_v, self.need_process_n = False, False
         # /end thread-shared attributes
-        self.parent().history_updated_signal.connect(self.verifs_get_and_clear, Qt.DirectConnection)  # immediately clear verif_q on history update because it would be redundant to keep the verify queue around after a history list update
-        self.parent().on_timer_signal.connect(self.do_check, Qt.DirectConnection)  # hook into main_window's timer_actions function
+        self.weakParent = Weak.ref(main_window_parent)
+        main_window_parent.history_updated_signal.connect(self.verifs_get_and_clear, Qt.DirectConnection)  # immediately clear verif_q on history update because it would be redundant to keep the verify queue around after a history list update
+        main_window_parent.on_timer_signal.connect(self.do_check, Qt.DirectConnection)  # hook into main_window's timer_actions function
 
     def diagnostic_name(self):
-        return self.parent().diagnostic_name() + "." + __class__.__name__
+        return ((self.weakParent() and self.weakParent().diagnostic_name()) or "???") + "." + __class__.__name__
 
     def do_check(self):
         ''' Called from timer_actions in main_window to check if notifs or
@@ -3982,15 +3983,21 @@ class TxUpdateMgr(QObject, PrintError):
     def verif_add(self, args):
         # args: [wallet, tx_hash, height, conf, timestamp]
         # filter out tx's not for this wallet
-        if args[0] is self.parent().wallet:
+        parent = self.weakParent()
+        if not parent or parent.cleaned_up:
+            return
+        if args[0] is parent.wallet:
             with self.lock:
                 self.verif_q.append(args[1:])
                 self.need_process_v = True
 
     def notif_add(self, args):
+        parent = self.weakParent()
+        if not parent or parent.cleaned_up:
+            return
         tx, wallet = args
         # filter out tx's not for this wallet
-        if wallet is self.parent().wallet:
+        if wallet is parent.wallet:
             with self.lock:
                 self.notif_q.append(tx)
                 self.need_process_n = True
@@ -3999,9 +4006,11 @@ class TxUpdateMgr(QObject, PrintError):
     def process_verifs(self):
         ''' Update history list with tx's from verifs_q, but limit the
         GUI update rate to once per second. '''
+        parent = self.weakParent()
+        if not parent or parent.cleaned_up:
+            return
         items = self.verifs_get_and_clear()
-        parent = self.parent()
-        if items and parent and not parent.cleaned_up:
+        if items:
             parent.history_list.setUpdatesEnabled(False)
             n_updates = 0
             for item in items:
@@ -4014,8 +4023,10 @@ class TxUpdateMgr(QObject, PrintError):
 
     @rate_limited(5.0, classlevel=True)
     def process_notifs(self):
-        parent = self.parent()
-        if parent and parent.network and not parent.cleaned_up:
+        parent = self.weakParent()
+        if not parent or parent.cleaned_up:
+            return
+        if parent.network:
             n_ok = 0
             txns = self.notifs_get_and_clear()
             if txns:
