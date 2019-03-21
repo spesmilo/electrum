@@ -118,7 +118,7 @@ class Peer(PrintError):
             #self.print_error("Received '%s'" % message_type.upper(), payload)
             return
         # raw message is needed to check signature
-        if message_type=='node_announcement':
+        if message_type in ['node_announcement', 'channel_update']:
             payload['raw'] = message
         execution_result = f(payload)
         if asyncio.iscoroutinefunction(f):

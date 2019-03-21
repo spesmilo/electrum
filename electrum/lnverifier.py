@@ -194,7 +194,7 @@ def verify_sigs_for_channel_announcement(msg_bytes: bytes) -> bool:
 
 
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
-    msg_bytes = encode_msg('channel_update', **chan_upd)
+    msg_bytes = chan_upd['raw']
     pre_hash = msg_bytes[2+64:]
     h = sha256d(pre_hash)
     sig = chan_upd['signature']
