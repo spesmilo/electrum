@@ -516,7 +516,7 @@ class Channel(PrintError):
         assert type(subject) is HTLCOwner
         initial = self.config[subject].initial_msat
 
-        for direction, htlc in self.hm.settled_htlcs(subject, ctn):
+        for direction, htlc in self.hm.all_settled_htlcs_ever(subject, ctn):
             if direction == SENT:
                 initial -= htlc.amount_msat
             else:
@@ -594,9 +594,9 @@ class Channel(PrintError):
         return self.config[subject].ctn
 
     def total_msat(self, direction):
+        """Return the cumulative total msat amount received/sent so far."""
         assert type(direction) is Direction
-        sub = LOCAL if direction == SENT else REMOTE
-        return htlcsum(self.hm.settled_htlcs_by(sub, self.config[sub].ctn))
+        return htlcsum(self.hm.all_settled_htlcs_ever_by_direction(LOCAL, direction))
 
     def get_unfulfilled_htlcs(self):
         log = self.hm.log[REMOTE]

@@ -8,6 +8,7 @@ from .util import bh2u
 class HTLCManager:
 
     def __init__(self, local_ctn=0, remote_ctn=0, log=None):
+        # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
         self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
         self.expect_sig = {SENT: False, RECEIVED: False}
         if log is None:
@@ -16,7 +17,6 @@ class HTLCManager:
         else:
             assert type(log) is dict
             log = {HTLCOwner(int(x)): y for x, y in deepcopy(log).items()}
-            # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
             for sub in (LOCAL, REMOTE):
                 log[sub]['adds'] = {int(x): UpdateAddHtlc(*y) for x, y in log[sub]['adds'].items()}
                 coerceHtlcOwner2IntMap = lambda x: {HTLCOwner(int(y)): z for y, z in x.items()}
@@ -83,7 +83,9 @@ class HTLCManager:
 
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
-        """
+        """Return the list of received or sent (depending on direction) HTLCs
+        in subject's ctx at ctn.
+
         direction is relative to subject!
         """
         assert type(subject) is HTLCOwner
@@ -91,12 +93,9 @@ class HTLCManager:
         if ctn is None:
             ctn = self.ctn[subject]
         l = []
-        if direction == SENT and subject == LOCAL:
-            party = LOCAL
-        elif direction == RECEIVED and subject == REMOTE:
-            party = LOCAL
-        else:
-            party = REMOTE
+        # subject's ctx
+        # party is the proposer of the HTLCs
+        party = subject if direction == SENT else subject.inverted()
         for htlc_id, ctns in self.log[party]['locked_in'].items():
             htlc_height = ctns[subject]
             if htlc_height is None:
@@ -113,6 +112,7 @@ class HTLCManager:
         return l
 
     def htlcs(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+        """Return the list of HTLCs in subject's ctx at ctn."""
         assert type(subject) is HTLCOwner
         if ctn is None:
             ctn = self.ctn[subject]
@@ -122,11 +122,13 @@ class HTLCManager:
         return l
 
     def current_htlcs(self, subject: HTLCOwner) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+        """Return the list of HTLCs in subject's oldest unrevoked ctx."""
         assert type(subject) is HTLCOwner
         ctn = self.ctn[subject]
         return self.htlcs(subject, ctn)
 
     def pending_htlcs(self, subject: HTLCOwner) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+        """Return the list of HTLCs in subject's next ctx (one after oldest unrevoked)."""
         assert type(subject) is HTLCOwner
         ctn = self.ctn[subject] + 1
         return self.htlcs(subject, ctn)
@@ -137,23 +139,33 @@ class HTLCManager:
     def recv_settle(self, htlc_id: int) -> None:
         self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.ctn[LOCAL] + 1, REMOTE: None}
 
-    def settled_htlcs_by(self, subject: HTLCOwner, ctn: int = None) -> Sequence[UpdateAddHtlc]:
+    def all_settled_htlcs_ever_by_direction(self, subject: HTLCOwner, direction: Direction,
+                                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
+        """Return the list of all HTLCs that have been ever settled in subject's
+        ctx up to ctn, filtered to only "direction".
+        """
         assert type(subject) is HTLCOwner
         if ctn is None:
             ctn = self.ctn[subject]
+        # subject's ctx
+        # party is the proposer of the HTLCs
+        party = subject if direction == SENT else subject.inverted()
         d = []
-        for htlc_id, ctns in self.log[subject]['settles'].items():
-            if ctns[subject] <= ctn:
-                d.append(self.log[subject]['adds'][htlc_id])
+        for htlc_id, ctns in self.log[party]['settles'].items():
+            if ctns[subject] is not None and ctns[subject] <= ctn:
+                d.append(self.log[party]['adds'][htlc_id])
         return d
 
-    def settled_htlcs(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+    def all_settled_htlcs_ever(self, subject: HTLCOwner, ctn: int = None) \
+            -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+        """Return the list of all HTLCs that have been ever settled in subject's
+        ctx up to ctn.
+        """
         assert type(subject) is HTLCOwner
         if ctn is None:
             ctn = self.ctn[subject]
-        sent = [(SENT, x) for x in self.settled_htlcs_by(subject, ctn)]
-        other = subject.inverted()
-        received = [(RECEIVED, x) for x in self.settled_htlcs_by(other, ctn)]
+        sent = [(SENT, x) for x in self.all_settled_htlcs_ever_by_direction(subject, SENT, ctn)]
+        received = [(RECEIVED, x) for x in self.all_settled_htlcs_ever_by_direction(subject, RECEIVED, ctn)]
         return sent + received
 
     def received_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:

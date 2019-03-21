@@ -84,7 +84,7 @@ class TestHTLCManager(unittest.TestCase):
         self.assertEqual(A.current_htlcs(LOCAL), [])
         self.assertEqual(A.current_htlcs(REMOTE), [])
         self.assertEqual(B.current_htlcs(REMOTE), [])
-        self.assertEqual(len(A.settled_htlcs(LOCAL)), 1)
+        self.assertEqual(len(A.all_settled_htlcs_ever(LOCAL)), 1)
         self.assertEqual(len(A.sent_in_ctn(2)), 1)
         self.assertEqual(len(B.received_in_ctn(2)), 1)
 
