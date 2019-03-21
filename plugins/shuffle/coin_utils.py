@@ -164,11 +164,20 @@ class CoinUtils(PrintError):
     def add_transaction_signatures(transaction, signatures):
         "Add players' signatures to transaction"
         inputs = transaction.inputs()
+        missing = list()
         for i, txin in enumerate(inputs):
-            sig_index = txin['tx_hash'] + ":" + str(txin['tx_pos'])
-            if signatures.get(sig_index, None):
-                inputs[i]['signatures'] = [signatures[sig_index].decode()]
+            utxo = "{}:{}".format(txin['tx_hash'], txin['tx_pos'])
+            sig = signatures.get(utxo)
+            if sig:
+                try:
+                    txin['signatures'] = [sig.decode()]
+                except ValueError:
+                    sig = None # Misc. unicode or hex decode error, fall thru...
+            if not sig:
+                # missing signature or decode error above.
+                missing.append((i, utxo))
         transaction.raw = transaction.serialize()
+        return missing
 
     @staticmethod
     def IsValidDERSignatureEncoding_With_Extract(sig):
@@ -285,7 +294,7 @@ class CoinUtils(PrintError):
         try:
             sigbytes = bfh(signature.decode())
         except ValueError:
-            # not properly hex encoded (garbage data)
+            # not properly hex encoded or UnicodeDecodeError (garbage data)
             return False
         if not sigbytes or sigbytes[-1] != 0x41:
             return False

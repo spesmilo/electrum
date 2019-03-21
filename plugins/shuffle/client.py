@@ -207,7 +207,7 @@ class ProtocolThread(threading.Thread, PrintError):
                 self.start_protocol()
         except AbortProtocol as e:
             self.print_error(repr(e))
-            self.looget.send("Error: {}".format(e))
+            self.logger.send("Error: {}".format(e))
         finally:
             self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.scale, self.coin))
             self.comm.close()  # simply force socket close if exiting thread for any reason

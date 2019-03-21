@@ -390,10 +390,13 @@ class Round(PrintError):
             self.signatures = {}
             self.log_message("got transaction signatures")
             pubkeys = {}
+            utxo_to_vk = {}
+            vk_to_player = {}
             for vk, vk_pubkeys in self.inputs.items():
                 for pubkey, utxos in vk_pubkeys.items():
                     for utxo in utxos:
                         pubkeys[utxo] = pubkey
+                        utxo_to_vk[utxo] = vk
             def do_blame(accused, player):
                 self.messages.blame_wrong_transaction_signature(accused)
                 self.send_message()
@@ -404,6 +407,7 @@ class Round(PrintError):
                 if accused:
                     do_blame(accused, player)
                     return
+                vk_to_player[vk] = player
                 player_signatures = self.messages.get_signatures()
                 for utxo, sig in player_signatures.items():
                     pubkey = pubkeys.get(utxo)
@@ -411,7 +415,16 @@ class Round(PrintError):
                         do_blame(vk, player)
                         return
                     self.signatures.update(player_signatures)
-            self.coin_utils.add_transaction_signatures(self.transaction, self.signatures)
+            missing = self.coin_utils.add_transaction_signatures(self.transaction, self.signatures)
+            if missing:
+                # Hmm, Scond check. If we get here there were inputs without signatures.
+                for i, utxo in missing:
+                    vk = utxo_to_vk.get(utxo)
+                    if not vk:
+                        continue
+                    player = vk_to_player.get(vk) or '?'
+                    do_blame(vk, player)
+                raise AbortProtocol("Inputs without signatures: ", missing)
             res, status = self.coin_utils.broadcast_transaction(self.transaction)
             if self.transaction.txid():
                 # Register the txid as belonging to cashshuffle, unconditionally.
