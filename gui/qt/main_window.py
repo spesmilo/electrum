@@ -2250,7 +2250,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.cashshuffle_status_button = StatusBarButton(
             self.cashshuffle_icon(),
             '', # ToolTip will be set in update_cashshuffle code
-            self.toggle_cashshuffle
+            self.cashshuffle_icon_leftclick
         )
         self.cashshuffle_toggle_action = QAction("", self.cashshuffle_status_button) # action text will get set in update_cashshuffle_icon()
         self.cashshuffle_toggle_action.triggered.connect(self.toggle_cashshuffle)
@@ -3057,7 +3057,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         en = self.is_cashshuffle_enabled()
         if self._cash_shuffle_flag == 0:
             self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
-            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle\nRight-click for context menu"))
+            rcfcm = _("Right-click for context menu")
+            self.cashshuffle_status_button.setToolTip(
+                (_("Left-click to view pools") + "\n" + rcfcm) if en
+                else  (_("Toggle CashShuffle") + "\n" + rcfcm)
+            )
             self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
             self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
             self.cashshuffle_viewpools_action.setEnabled(True)
@@ -3101,6 +3105,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         p = self.cashshuffle_plugin_if_loaded()
         if p:
             p.view_pools(self)
+
+    def cashshuffle_icon_leftclick(self):
+        if self.is_cashshuffle_enabled():
+            if self._cash_shuffle_flag != 0:
+                # Jump to settings.
+                self.cashshuffle_settings_action.trigger()
+                return
+            if self.cashshuffle_viewpools_action.isVisible():
+                # New! We just let this icon be the "View pools..." action when
+                # the plugin is already loaded and enabled. This hopefully will
+                # discourage disabling. Also it's been found that "View pools..."
+                # is the most popular action anyway -- might as well make it
+                # convenient to access with 1-click.  (@zquestz suggested this)
+                self.cashshuffle_viewpools_action.trigger()
+                return
+        #else... in all other cases just toggle cashshuffle
+        self.toggle_cashshuffle()
 
     def toggle_cashshuffle(self):
         if not self.is_wallet_cashshuffle_compatible():
