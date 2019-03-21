@@ -611,6 +611,7 @@ class LNWorker(PrintError):
 
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
+        self.channel_db.load_data()
         routing_hints = []
         with self.lock:
             channels = list(self.channels.values())
