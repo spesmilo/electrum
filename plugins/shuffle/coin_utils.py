@@ -206,16 +206,21 @@ class CoinUtils(PrintError):
         #s=33308936342624208176251215154315566707800991341260116503885941528977175948962,
         #sig='3045022100b463a43fb7f7bb5f68f2cfb4c86bdfdc14cac6eaf13c49b623ca06f04cd853af022049a4309b8c96bace3c536867c0cfc4fa5cbff94cf484385f1e1e623db3632ea2'
         #// Minimum and maximum size constraints.
-        assert len(sig) >= 8 and len(sig) <= 72
-        assert sig[0] == 0x30
-        assert sig[1] == len(sig)-2 # Check length
-        assert sig[2] == 0x02
+        def Assert(b):
+            ''' We do it this way because if the Python interpreter is run with
+            the -O (optimize) option, the keyword 'assert' is a no-op.'''
+            if not b:
+                raise AssertionError("Invalid DER signature encoding")
+        Assert(len(sig) >= 8 and len(sig) <= 72)
+        Assert(sig[0] == 0x30)
+        Assert(sig[1] == len(sig)-2) # Check length
+        Assert(sig[2] == 0x02)
         r_length = sig[3]
         # zero length integers are not allowed
-        assert r_length > 0
+        Assert(r_length > 0)
         r_pos = 4
         # Negative numbers are not allowed for R.
-        assert not (sig[r_pos] & 0x80)
+        Assert(not (sig[r_pos] & 0x80))
         # // Make sure the length of the R element is consistent with the signature
         # // size.
         # // Remove:
@@ -224,7 +229,7 @@ class CoinUtils(PrintError):
         # // * 2 bytes for the integer type of R and S.
         # // * 2 bytes for the size of R and S.
         # // * 1 byte for S itself.
-        assert r_length <= len(sig) - 7
+        Assert(r_length <= len(sig) - 7)
         # // Null bytes at the start of R are not allowed, unless R would otherwise be
         # // interpreted as a negative number.
         # //
@@ -232,22 +237,22 @@ class CoinUtils(PrintError):
         # //     consistent with the size of the signature or we risk to access out of
         # //     bound elements.
         if r_length > 1 and sig[4] == 0x00:
-            assert sig[5] & 0x80
+            Assert(sig[5] & 0x80)
         r = int.from_bytes(sig[r_pos : r_pos + r_length], byteorder='big')
 
         s_start = r_pos + r_length
-        assert sig[s_start] == 0x02
+        Assert(sig[s_start] == 0x02)
         s_length = sig[s_start+1]
         # zero length integers are not allowed
-        assert s_length > 0
+        Assert(s_length > 0)
         s_pos = s_start+2
         # Negative numbers not allowed
-        assert not (sig[s_pos] & 0x80)
+        Assert(not (sig[s_pos] & 0x80))
         #// Verify that the length of S is consistent with the size of the signature
         #// including metadatas:
         #// * 1 byte for the integer type of S.
         #// * 1 byte for the size of S.
-        assert s_pos + s_length == len(sig)
+        Assert(s_pos + s_length == len(sig))
         #// Null bytes at the start of S are not allowed, unless S would otherwise be
         #// interpreted as a negative number.
         #//
@@ -255,7 +260,7 @@ class CoinUtils(PrintError):
         #//     are consistent with the size of the signature or we risk to access
         #//     out of bound elements.
         if s_length > 1 and sig[s_pos] == 0x00:
-            assert sig[s_pos + 1] & 0x80
+            Assert(sig[s_pos + 1] & 0x80)
         s = int.from_bytes(sig[s_pos : s_pos + s_length], byteorder='big')
         return r, s
 
@@ -277,12 +282,16 @@ class CoinUtils(PrintError):
         # calculate sighash digest (implicitly this is for sighash 0x41)
         pre_hash = Hash(bfh(transaction.serialize_preimage(tx_num)))
         order = generator_secp256k1.order()
-        sigbytes = bfh(signature.decode())
+        try:
+            sigbytes = bfh(signature.decode())
+        except ValueError:
+            # not properly hex encoded (garbage data)
+            return False
         if not sigbytes or sigbytes[-1] != 0x41:
             return False
-        DERsig = sigbytes[:-1]
-        # ensure DER encoding is canonical and sighash byte is 0x41 and extract r,s if OK
+        DERsig = sigbytes[:-1]  # lop off the sighash byte for the DER check below
         try:
+            # ensure DER encoding is canonical, and extract r,s if OK
             r, s = CoinUtils.IsValidDERSignatureEncoding_With_Extract(DERsig)
         except AssertionError:
             return False
