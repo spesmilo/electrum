@@ -90,6 +90,7 @@ class Exception_Window(QWidget):
         main_box.addWidget(label)
 
         self.description_textfield = QTextEdit()
+        self.description_textfield.setAcceptRichText(False)  # Force plain 'ol text descriptions.. no rich-text pastes
         self.description_textfield.setFixedHeight(50)
         main_box.addWidget(self.description_textfield)
 
@@ -189,7 +190,7 @@ class Exception_Hook(QObject):
     ''' Exception Hook singleton.  Only one of these will be extant. It is
     created by the ElectrumGui singleton, and it lives forever until app exit.
     (But ONLY if the `show_crash_reporter` config key is set.) '''
-    
+
     _report_exception = QtCore.pyqtSignal(object, object, object, object)
     _instance = None
 
