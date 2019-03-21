@@ -412,8 +412,9 @@ class CoinUtils(PrintError):
             # cache the answer iff it's a definitive answer True/False only
             cache[name] = answer
             if answer:
+                addr = coin.get('address')  # coin['address'] may be undefined if caller is doing funny stuff.
                 # rememebr this address as being a "shuffled" address and cache the positive reply
-                getattr(wallet, "_shuffled_address_cache", set()).add(coin['address'])
+                if addr: getattr(wallet, "_shuffled_address_cache", set()).add(addr)
         return answer
 
     @staticmethod
