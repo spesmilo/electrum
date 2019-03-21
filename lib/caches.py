@@ -131,7 +131,7 @@ class _ExpiringCacheMgr(PrintError):
 
     def mgr_thread(self):
         cls = type(self)
-        self.print_error("thread started")
+        #self.print_error("thread started")
         try:
             while True:
                 try:
