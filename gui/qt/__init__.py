@@ -351,7 +351,7 @@ class ElectrumGui(QObject, PrintError):
             # up.
             __class__._quit_after_last_window()  # checks if qApp.quitOnLastWindowClosed() is True, and if so, calls qApp.quit()
 
-        window.deleteLater()
+        #window.deleteLater()  # <--- This has the potential to cause bugs (esp. with misbehaving plugins), so commented-out. The object gets deleted anyway when Python GC kicks in. Forcing a delete may risk python to have a dangling reference to a deleted C++ object.
 
     def gc_schedule(self):
         ''' Schedule garbage collection to happen in the near future.
