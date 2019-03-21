@@ -2,6 +2,11 @@ from . import message_pb2 as message_factory
 
 from random import shuffle
 
+class AbortProtocol(RuntimeError):
+    ''' If this or a subclass is raised, protocol ends. Pass a message to print
+    to debug console. '''
+    pass
+
 class Messages:
     # packet phases
     ANNOUNCEMENT                = message_factory.ANNOUNCEMENT
@@ -42,7 +47,7 @@ class Messages:
             if len(self.packets.ListFields()) > 0:
                 return f(self)
             else:
-                return None
+                raise AbortProtocol("check_for_length: got 0 packets.ListFields for `{}'".format(f.__qualname__))
         return wrapper
 
     def __init__(self):

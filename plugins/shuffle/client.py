@@ -14,7 +14,7 @@ MSG_SERVER_OK = "Ok: Server is ok"
 
 from .coin_utils import CoinUtils
 from .crypto import Crypto
-from .messages import Messages
+from .messages import Messages, AbortProtocol
 from .round import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
 from .conf_keys import ConfKeys  # config keys per wallet and global
@@ -205,6 +205,9 @@ class ProtocolThread(threading.Thread, PrintError):
                 return
             if not self.done.is_set():
                 self.start_protocol()
+        except AbortProtocol as e:
+            self.print_error(repr(e))
+            self.looget.send("Error: {}".format(e))
         finally:
             self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.scale, self.coin))
             self.comm.close()  # simply force socket close if exiting thread for any reason

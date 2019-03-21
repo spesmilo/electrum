@@ -2,12 +2,8 @@ from .client import ERR_BAD_SERVER_PREFIX
 from .comms import BadServerPacketError
 from electroncash.util import profiler, PrintError
 from .crypto import CryptoError
+from .messages import AbortProtocol
 
-
-class AbortProtocol(RuntimeError):
-    ''' If this or a subclass is raised, protocol ends. Pass a message to print
-    to debug console. '''
-    pass
 
 class ImplementationMissing(AbortProtocol):
     pass
@@ -118,9 +114,6 @@ class Round(PrintError):
         except N_Minus_1ShuffleDisabled as e:
             self.print_error(repr(e))
             self.logchan.send("Error: N-Minus-1 Shuffle situation encountered, aborting protocol early.")
-        except AbortProtocol as e:
-            self.print_error(repr(e))
-            self.logchan.send("Error: Protocol aborted.")
         finally:
             self.done = True
 
