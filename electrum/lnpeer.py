@@ -860,6 +860,7 @@ class Peer(PrintError):
         if offset:
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
+            payload['raw'] = channel_update
             try:
                 self.print_error("trying to apply channel update on our db", payload)
                 self.channel_db.on_channel_update(payload)
