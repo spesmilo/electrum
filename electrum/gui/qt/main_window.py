@@ -613,6 +613,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                        else:
+                            self.notify(_("New irrelevant transaction received: {}").format(self.format_amount_and_units(v)))
 
     def notify(self, message):
         if self.tray:

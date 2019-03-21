@@ -466,7 +466,6 @@ def parse_redeemScript_multisig(redeem_script: bytes):
 
 def get_address_from_output_script(_bytes, *, net=None):
     decoded = [x for x in script_GetOp(_bytes)]
-
     # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
@@ -490,6 +489,11 @@ def get_address_from_output_script(_bytes, *, net=None):
         match = [ opcode, opcodes.OP_PUSHDATA4 ]
         if match_decoded(decoded, match):
             return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1], witver=witver, net=net)
+
+    #1 of 1 multisig
+    match = [ opcodes.OP_1, opcodes.OP_PUSHDATA4, opcodes.OP_1, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(decoded, match):
+        return TYPE_ADDRESS, hash160_to_p2pkh(decoded[1][1], net=net)
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
