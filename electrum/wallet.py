@@ -180,6 +180,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
+      
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:

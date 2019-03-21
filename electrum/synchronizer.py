@@ -200,8 +200,7 @@ class Synchronizer(ThreadJob):
             self.print_error("missing tx", self.requested_tx)
         import pdb; pdb.set_trace()
         addrset=set(self.wallet.get_addresses())    
-        whitelisttokenaddr=bitcoin.script_to_address(constants.net.WHITELISTCOINSDESTINATION)
-        addrset.add(whitelisttokenaddr)
+        addrset.add(constants.net.WHITELISTCOINSADDRESS)
         self.subscribe_to_addresses(addrset)
         self.initialized = True
 

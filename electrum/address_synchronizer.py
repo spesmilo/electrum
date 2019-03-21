@@ -27,12 +27,14 @@ from collections import defaultdict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
+from .util import PrintError, profiler, bfh, bh2u, VerifiedTxInfo, TxMinedStatus
+from . import transaction
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
+from . import constants
 
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
@@ -63,6 +65,9 @@ class AddressSynchronizer(PrintError):
         self.transaction_lock = threading.RLock()
         # address -> list(txid, height)
         self.history = storage.get('addr_history',{})
+        # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
+        self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', {})
+        self.kyc_pubkey             = storage.get('kyc_pubkey', [])
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
         self.verified_tx = {}
@@ -637,6 +642,38 @@ class AddressSynchronizer(PrintError):
             for n, v, a, cb in d:
                 delta += v
         return delta
+
+    # Parse policy transactions, e.g. whitelist token transactions.
+    def parse_policy_tx(self, tx):
+        data = []
+        datatype = None
+        v_out=0
+        is_whitelist = False
+        for txin in tx.inputs():
+            addr=self.get_txin_address(txin)
+            if addr is constants.net.WHITELISTCOINSADDRESS:
+                is_whitelist = True
+                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
+                for n, v, a, cb in d:
+                    if n == txin['prevout_n']:
+                        datatype, payload = transaction.get_data_from_policy_output_script(d.script)
+                        break
+
+        if datatype is None:
+            for output in tx.outputs():
+                script = output.scriptPubKey
+                datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
+                
+        #Reverse the final N-3 bytes
+        if len(payload) > 3:    
+            ba1=bytearray(payload[:3])
+            ba2=bytearray(payload[3:])
+            ba2.reverse()
+            data = bh2u(ba1+ba2)
+
+
+        return data
+
 
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """

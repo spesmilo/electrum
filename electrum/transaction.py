@@ -73,6 +73,7 @@ class TxOutput(NamedTuple):
     vnonce: int = 0
     surjection_proof: str = None
     range_proof: str = None
+    scriptPubKey: str = None
 
 
 class BCDataStream(object):
@@ -463,6 +464,22 @@ def parse_redeemScript_multisig(redeem_script: bytes):
     redeem_script_sanitized = multisig_script(pubkeys, m)
     return m, n, x_pubkeys, pubkeys, redeem_script_sanitized
 
+def get_data_from_policy_output_script(_bytes, *, net=None):
+    decoded = [x for x in script_GetOp(_bytes)]
+
+    '''Set a tracepoint in the Python debugger that works with Qt'''
+    from PyQt5.QtCore import pyqtRemoveInputHook
+    from pdb import set_trace
+    pyqtRemoveInputHook()
+    set_trace()
+
+    #Policy transactions are 1 of 2 multisig. The data e.g. KYC public key are in the 
+    match = [ opcodes.OP_1, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(decoded, match):
+        return TYPE_DATA, decoded[2][1]
+
+    return TYPE_SCRIPT, bh2u(_bytes)
+
 
 def get_address_from_output_script(_bytes, *, net=None):
     decoded = [x for x in script_GetOp(_bytes)]
@@ -489,11 +506,6 @@ def get_address_from_output_script(_bytes, *, net=None):
         match = [ opcode, opcodes.OP_PUSHDATA4 ]
         if match_decoded(decoded, match):
             return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1], witver=witver, net=net)
-
-    #1 of 1 multisig
-    match = [ opcodes.OP_1, opcodes.OP_PUSHDATA4, opcodes.OP_1, opcodes.OP_CHECKMULTISIG ]
-    if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash160_to_p2pkh(decoded[1][1], net=net)
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
@@ -759,7 +771,7 @@ class Transaction:
             return
         d = deserialize(self.raw, force_full_parse)
         self._inputs = d['inputs']
-        self._outputs = [TxOutput(x['type'], x['address'], x['value'], x['value_version'], x['asset'], x['asset_version'], x['nonce'], x['nonce_version'], x['surjection_proof'], x['range_proof']) for x in d['outputs']]
+        self._outputs = [TxOutput(x['type'], x['address'], x['value'], x['value_version'], x['asset'], x['asset_version'], x['nonce'], x['nonce_version'], x['surjection_proof'], x['range_proof'], x['scriptPubKey']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
         self.is_partial_originally = d['partial']

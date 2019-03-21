@@ -25,6 +25,8 @@
 
 import os
 import json
+from electrum import bitcoin
+from .bitcoin import *
 
 
 def read_json(filename, default):
@@ -75,6 +77,7 @@ class OceanMainnet:
     CONTROLER3 = "04de3441f8a7ecb17417cc764143bda6f19ee5dc85de94534af5a411cd6ef12b59054419dbbc46c139787fce75f1be9901a8e0aadcfd2462c3fafba995d342483e"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
     WHITELISTCOINSDESTINATION = "76a9146a1e616f61b9b810a71332c3074f355c8dfebcbf88ac"
+    WHITELISTCOINSADDRESS = "1Ag72DW1ssmtDvNmMexQYdQitpJZyMwmn3"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
