@@ -502,45 +502,53 @@ class Channel(PrintError):
         self.set_remote_commitment()
         self.remote_commitment_to_be_revoked = prev_remote_commitment
 
-    def balance(self, subject, ctn=None):
+    def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """
         This balance in mSAT is not including reserve and fees.
-        So a node cannot actually use it's whole balance.
+        So a node cannot actually use its whole balance.
         But this number is simple, since it is derived simply
         from the initial balance, and the value of settled HTLCs.
         Note that it does not decrease once an HTLC is added,
         failed or fulfilled, since the balance change is only
-        commited to later when the respective commitment
-        transaction as been revoked.
+        committed to later when the respective commitment
+        transaction has been revoked.
         """
-        assert type(subject) is HTLCOwner
-        initial = self.config[subject].initial_msat
+        assert type(whose) is HTLCOwner
+        initial = self.config[whose].initial_msat
 
-        for direction, htlc in self.hm.all_settled_htlcs_ever(subject, ctn):
-            if direction == SENT:
-                initial -= htlc.amount_msat
+        for direction, htlc in self.hm.all_settled_htlcs_ever(ctx_owner, ctn):
+            # note: could "simplify" to (whose * ctx_owner == direction * SENT)
+            if whose == ctx_owner:
+                if direction == SENT:
+                    initial -= htlc.amount_msat
+                else:
+                    initial += htlc.amount_msat
             else:
-                initial += htlc.amount_msat
+                if direction == SENT:
+                    initial += htlc.amount_msat
+                else:
+                    initial -= htlc.amount_msat
 
         return initial
 
-    def balance_minus_outgoing_htlcs(self, subject):
+    def balance_minus_outgoing_htlcs(self, whose, *, ctx_owner=HTLCOwner.LOCAL):
         """
         This balance in mSAT, which includes the value of
         pending outgoing HTLCs, is used in the UI.
         """
-        assert type(subject) is HTLCOwner
-        ctn = self.hm.ctn[subject] + 1
-        return self.balance(subject, ctn)\
-                - htlcsum(self.hm.htlcs_by_direction(subject, SENT, ctn))
+        assert type(whose) is HTLCOwner
+        ctn = self.hm.ctn[ctx_owner] + 1
+        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)\
+                - htlcsum(self.hm.htlcs_by_direction(ctx_owner, SENT, ctn))
 
     def available_to_spend(self, subject):
         """
         This balance in mSAT, while technically correct, can
         not be used in the UI cause it fluctuates (commit fee)
         """
+        # FIXME whose balance? whose ctx?
         assert type(subject) is HTLCOwner
-        return self.balance_minus_outgoing_htlcs(subject)\
+        return self.balance_minus_outgoing_htlcs(subject, ctx_owner=subject)\
                 - self.config[-subject].reserve_sat * 1000\
                 - calc_onchain_fees(
                       # TODO should we include a potential new htlc, when we are called from receive_htlc?
@@ -696,7 +704,8 @@ class Channel(PrintError):
         #    ctn -= 1
         assert type(subject) is HTLCOwner
         other = REMOTE if LOCAL == subject else LOCAL
-        remote_msat, local_msat = self.balance(other, ctn), self.balance(subject, ctn)
+        local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
+        remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
         received_htlcs = self.hm.htlcs_by_direction(subject, SENT if subject == LOCAL else RECEIVED, ctn)
         sent_htlcs = self.hm.htlcs_by_direction(subject, RECEIVED if subject == LOCAL else SENT, ctn)
         if subject != LOCAL:
