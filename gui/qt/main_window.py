@@ -3107,6 +3107,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             p.view_pools(self)
 
     def cashshuffle_icon_leftclick(self):
+        self.toggle_cashshuffle()
+        return
+        # delete the above 2 lines if we want the left-click to revert to
+        # Josh's suggestion (leaving the code in here for now)
         if self.is_cashshuffle_enabled():
             if self._cash_shuffle_flag != 0:
                 # Jump to settings.
