@@ -424,6 +424,8 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
+            self.storage.put('unassigned_kyc_pubkeys', self.unassigned_kyc_pubkeys)
+            self.storage.put('kyc_pubkey', self.kyc_pubkey)
             if write:
                 self.storage.write()
 
@@ -659,18 +661,19 @@ class AddressSynchronizer(PrintError):
                         datatype, payload = transaction.get_data_from_policy_output_script(d.script)
                         break
 
-        if datatype is None:
-            for output in tx.outputs():
-                script = output.scriptPubKey
-                datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
+            if datatype is None:
+                for output in tx.outputs():
+                    script = output.scriptPubKey
+                    datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
                 
-        #Reverse the final N-3 bytes
-        if len(payload) > 3:    
-            ba1=bytearray(payload[:3])
-            ba2=bytearray(payload[3:])
-            ba2.reverse()
-            data = bh2u(ba1+ba2)
+            #Reverse the final N-3 bytes
+            if len(payload) > 3:    
+                ba1=bytearray(payload[:3])
+                ba2=bytearray(payload[3:])
+                ba2.reverse()
+                data = bh2u(ba1+ba2)
 
+            self.unassigned_kyc_pubkeys.add(data)
 
         return data
 
