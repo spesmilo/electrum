@@ -248,6 +248,24 @@ class Coinbase(ExchangeBase):
         return {ccy: Decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
 
 
+class CoinCap(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.coincap.io', '/v2/rates/bitcoin/')
+        return {'USD': Decimal(json['data']['rateUsd'])}
+
+    def history_ccys(self):
+        return ['USD']
+
+    async def request_history(self, ccy):
+        # Currently 2000 days is the maximum in 1 API call
+        # (and history starts on 2017-03-23)
+        history = await self.get_json('api.coincap.io',
+                                      '/v2/assets/bitcoin/history?interval=d1&limit=2000')
+        return dict([(datetime.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'), h['priceUsd'])
+                     for h in history['data']])
+
+
 class CoinDesk(ExchangeBase):
 
     async def get_currencies(self):
@@ -275,6 +293,25 @@ class CoinDesk(ExchangeBase):
                  % (start, end))
         json = await self.get_json('api.coindesk.com', query)
         return json['bpi']
+
+
+class CoinGecko(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
+        return dict([(ccy.upper(), Decimal(d['value']))
+                     for ccy, d in json['rates'].items()])
+
+    def history_ccys(self):
+        # CoinGecko seems to have historical data for all ccys it supports
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        history = await self.get_json('api.coingecko.com',
+                                      '/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=max' % ccy)
+
+        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
+                     for h in history['prices']])
 
 
 class itBit(ExchangeBase):
