@@ -346,7 +346,7 @@ class FxThread(ThreadJob):
         diff_str = ''
         if is_diff:
             diff_str = '+' if amount >= 0 else '-'
-        fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
+        fmt_str = "%s{:%s.%df}" % (diff_str, "," if commas else "", max(0, prec))
         try:
             rounded_amount = round(amount, prec)
         except decimal.InvalidOperation:
