@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.factory import Factory
-from kivy.properties import ObjectProperty
+from kivy.properties import ObjectProperty, BooleanProperty
 from kivy.lang import Builder
 
 Builder.load_string('''
@@ -36,6 +36,7 @@ Builder.load_string('''
                 text: _('History rates')
             CheckBox:
                 id:hist
+                active: popup.has_history_rates
                 on_active: popup.on_checkbox_history(self.active)
 
         Widget:
@@ -84,18 +85,22 @@ from functools import partial
 class FxDialog(Factory.Popup):
 
     def __init__(self, app, plugins, config, callback):
-        Factory.Popup.__init__(self)
         self.app = app
         self.config = config
         self.callback = callback
         self.fx = self.app.fx
-        self.fx.set_history_config(False)
-        self.ids.hist.active = False
+        self.has_history_rates = self.fx.get_history_config(default=True)
+
+        Factory.Popup.__init__(self)
         self.add_currencies()
 
     def add_exchanges(self):
-        exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), self.ids.hist.active)) if self.fx.is_enabled() else []
-        mx = self.fx.exchange.name() if self.fx.is_enabled() else ''
+        if self.fx.is_enabled():
+            exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), self.has_history_rates))
+            mx = self.fx.exchange.name()
+        else:
+            exchanges = []
+            mx = ''
         ex = self.ids.exchanges
         ex.values = exchanges
         ex.text = (mx if mx in exchanges else exchanges[0]) if self.fx.is_enabled() else ''
@@ -107,15 +112,16 @@ class FxDialog(Factory.Popup):
             self.fx.set_exchange(text)
 
     def add_currencies(self):
-        currencies = [_('None')] + self.fx.get_currencies(self.ids.hist.active)
+        currencies = [_('None')] + self.fx.get_currencies(self.has_history_rates)
         my_ccy = self.fx.get_currency() if self.fx.is_enabled() else _('None')
         self.ids.ccy.values = currencies
         self.ids.ccy.text = my_ccy
 
     def on_checkbox_history(self, checked):
         self.fx.set_history_config(checked)
-        self.ids.hist.active = checked
+        self.has_history_rates = checked
         self.add_currencies()
+        self.on_currency(self.ids.ccy.text)
 
     def on_currency(self, ccy):
         b = (ccy != _('None'))
