@@ -21,6 +21,11 @@ from .network import Network
 from .simple_config import SimpleConfig
 
 
+DEFAULT_ENABLED = False
+DEFAULT_CURRENCY = "EUR"
+DEFAULT_EXCHANGE = "BitcoinAverage"  # default exchange should ideally provide historical rates
+
+
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
@@ -509,7 +514,7 @@ class FxThread(ThreadJob):
                 await self.exchange.update_safe(self.ccy)
 
     def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate'))
+        return bool(self.config.get('use_exchange_rate', DEFAULT_ENABLED))
 
     def set_enabled(self, b):
         self.config.set_key('use_exchange_rate', bool(b))
@@ -535,10 +540,10 @@ class FxThread(ThreadJob):
 
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
-        return self.config.get("currency", "EUR")
+        return self.config.get("currency", DEFAULT_CURRENCY)
 
     def config_exchange(self):
-        return self.config.get('use_exchange', 'BitcoinAverage')
+        return self.config.get('use_exchange', DEFAULT_EXCHANGE)
 
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
@@ -554,7 +559,7 @@ class FxThread(ThreadJob):
             self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
-        class_ = globals().get(name, BitcoinAverage)
+        class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
@@ -624,3 +629,6 @@ class FxThread(ThreadJob):
         from .util import timestamp_to_datetime
         date = timestamp_to_datetime(timestamp)
         return self.history_rate(date)
+
+
+assert globals().get(DEFAULT_EXCHANGE), f"default exchange {DEFAULT_EXCHANGE} does not exist"
