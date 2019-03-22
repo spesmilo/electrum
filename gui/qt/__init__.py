@@ -41,6 +41,7 @@ from electroncash.util import (UserCancelled, PrintError, print_error,
                                standardize_path, finalization_print_error,
                                get_new_wallet_name)
 from electroncash.wallet import UnknownWalletType
+from electroncash.address import AddressError
 
 from .installwizard import InstallWizard, GoBack
 
@@ -266,7 +267,8 @@ class ElectrumGui(QObject, PrintError):
 
                 try:
                     wallet = self.daemon.load_wallet(path, None)
-                except (ValueError, UnknownWalletType, OSError, TypeError) as e:
+                except (ValueError, UnknownWalletType, OSError, TypeError,
+                        AddressError) as e:
                     # Bad or corrupt wallet or unknown type of wallet,
                     # proceed to wizard with a default wallet name/path combo.
                     self.print_error(repr(e))
