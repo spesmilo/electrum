@@ -1126,7 +1126,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        priv, compressed = self.get_tweaked_private_key(address, index, password)
+        priv, compressed = self.get_tweaked_private_key(addr, index, password)
         return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):

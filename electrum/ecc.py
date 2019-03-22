@@ -270,9 +270,9 @@ class ECPubkey(object):
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
         verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1'):
+    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1', ):
         """
-        ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
+        ECIES encryption/decryption methods; AES-256-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
         assert_bytes(message)
 
@@ -281,7 +281,8 @@ class ECPubkey(object):
         ephemeral = ECPrivkey(ephemeral_exponent)
         ecdh_key = (self * ephemeral.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
-        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
+        iv = hashlib.sha256(key).digest()[:16]
+        key_e, key_m = key[0:32], key[32:]
         ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = ephemeral.get_public_key_bytes(compressed=True)
         encrypted = magic + ephemeral_pubkey + ciphertext
@@ -423,7 +424,8 @@ class ECPrivkey(ECPubkey):
         ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
         ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
-        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
+        iv = hashlib.sha256(key).digest()[:16]
+        key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
