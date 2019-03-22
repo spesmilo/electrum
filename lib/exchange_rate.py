@@ -132,16 +132,19 @@ class BitcoinAverage(ExchangeBase):
         return dict([(r.replace("BCH", ""), PyDecimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
-    def history_ccys(self):
-        return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
-                'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
-                'ZAR']
-
-    def request_history(self, ccy):
-        history = self.get_csv('apiv2.bitcoinaverage.com',
-                               "/indices/global/history/BCH%s?period=alltime&format=csv" % ccy)
-        return dict([(h['DateTime'][:10], h['Average'])
-                     for h in history])
+    # note: historical rates used to be freely available
+    # but this is no longer the case. see spesmilo#5188
+    # (Turned off until the unlikely event that the situation changes.)
+    #def history_ccys(self):
+    #    return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
+    #            'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
+    #            'ZAR']
+    #
+    #def request_history(self, ccy):
+    #    history = self.get_csv('apiv2.bitcoinaverage.com',
+    #                           "/indices/global/history/BCH%s?period=alltime&format=csv" % ccy)
+    #    return dict([(h['DateTime'][:10], h['Average'])
+    #                 for h in history])
 
 
 class Bitmarket(ExchangeBase):
@@ -395,11 +398,20 @@ class FxThread(ThreadJob):
         self.on_quotes()
 
     def set_exchange(self, name):
-        class_ = globals().get(name, Kraken)
-        self.print_error("using exchange", name)
+        default_class = globals().get(self.default_exchange)
+        class_ = globals().get(name, default_class)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
         self.exchange = class_(self.on_quotes, self.on_history)
+        if self.get_history_config() and self.ccy not in self.exchange.history_ccys() and class_ != default_class:
+            # this exchange has no history for this ccy. Try the default exchange.
+            # If that also fails the user will be stuck in a strange UI
+            # situation where the checkbox is checked but they see no history
+            # Note this code is here to migrate users from previous history
+            # API exchanges in config that are no longer serving histories.
+            self.set_exchange(self.default_exchange)
+            return
+        self.print_error("using exchange", name)
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.timeout = 0
