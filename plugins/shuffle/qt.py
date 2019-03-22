@@ -1071,7 +1071,7 @@ class Plugin(BasePlugin):
 class SendTabExtraDisabled(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user CashShuffle was disabled for this wallet '''
 
-    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5_grayed.png scaled to 100px width
+    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5_grayed.png scaled to 75px width
 
     def __init__(self, window):
         self.send_tab = window.send_tab
@@ -1118,7 +1118,7 @@ class SendTabExtra(QFrame, PrintError):
 
     needRefreshSignal = pyqtSignal() # protocol thread uses this signal to tell us that amounts have changed
     needWalletSaveSignal = pyqtSignal() # protocol thread uses this signal to tell us that the wallet should be saved to disk using storage.write
-    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5.png scaled to 100px width
+    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5.png scaled to 125px width
 
     def __init__(self, window):
         self.send_tab = window.send_tab
