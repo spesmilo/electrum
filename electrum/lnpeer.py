@@ -540,14 +540,13 @@ class Peer(PrintError):
             raise Exception('Unknown channel_reestablish')
         self.channel_reestablished[chan_id].set_result(payload)
 
-    def try_to_get_remote_to_force_close_with_their_latest(chan_id):
+    def try_to_get_remote_to_force_close_with_their_latest(self, chan_id):
         self.print_error("trying to get remote to force close", bh2u(chan_id))
         self.send_message(
             "channel_reestablish",
             channel_id=chan_id,
             next_local_commitment_number=0,
-            next_remote_revocation_number=0
-        )
+            next_remote_revocation_number=0)
 
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
