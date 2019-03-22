@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 import traceback
+from typing import Union
 
 import base64
 
@@ -11,6 +12,18 @@ from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from electrum.i18n import _
 from electrum.util import log_exceptions, ignore_exceptions, make_aiohttp_session
 from electrum.network import Network
+
+
+class ErrorConnectingServer(Exception):
+    def __init__(self, reason: Union[str, Exception] = None):
+        self.reason = reason
+
+    def __str__(self):
+        header = _("Error connecting to {} server").format('Labels')
+        reason = self.reason
+        if isinstance(reason, BaseException):
+            reason = repr(reason)
+        return f"{header}: {reason}" if reason else header
 
 
 class LabelsPlugin(BasePlugin):
@@ -109,7 +122,10 @@ class LabelsPlugin(BasePlugin):
         wallet_id = wallet_data[2]
         nonce = 1 if force else self.get_nonce(wallet) - 1
         self.print_error("asking for labels since nonce", nonce)
-        response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
+        try:
+            response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
+        except Exception as e:
+            raise ErrorConnectingServer(e) from e
         if response["labels"] is None:
             self.print_error('no new labels')
             return
@@ -141,7 +157,10 @@ class LabelsPlugin(BasePlugin):
     @ignore_exceptions
     @log_exceptions
     async def pull_safe_thread(self, wallet, force):
-        await self.pull_thread(wallet, force)
+        try:
+            await self.pull_thread(wallet, force)
+        except ErrorConnectingServer as e:
+            self.print_error(str(e))
 
     def pull(self, wallet, force):
         if not wallet.network: raise Exception(_('You are offline.'))
