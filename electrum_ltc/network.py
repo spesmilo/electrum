@@ -376,7 +376,8 @@ class Network(PrintError):
         async def get_donation_address():
             addr = await session.send_request('server.donation_address')
             if not bitcoin.is_address(addr):
-                self.print_error(f"invalid donation address from server: {addr}")
+                if addr:  # ignore empty string
+                    self.print_error(f"invalid donation address from server: {repr(addr)}")
                 addr = ''
             self.donation_address = addr
         async def get_server_peers():
