@@ -1117,6 +1117,7 @@ class SendTabExtra(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user of shuffled coin status & totals '''
 
     needRefreshSignal = pyqtSignal() # protocol thread uses this signal to tell us that amounts have changed
+    needWalletSaveSignal = pyqtSignal() # protocol thread uses this signal to tell us that the wallet should be saved to disk using storage.write
     pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5.png scaled to 100px width
 
     def __init__(self, window):
@@ -1210,6 +1211,7 @@ class SendTabExtra(QFrame, PrintError):
         self.window.history_updated_signal.connect(self.refresh)
         self.needRefreshSignal.connect(self.refresh)
         self.needRefreshSignal.connect(self.window.update_fee)
+        self.needWalletSaveSignal.connect(self.wallet.storage.write)
         self.spendButtons.buttonClicked.connect(lambda x="ignored": self.refresh())
         self.pauseBut.clicked.connect(self.onClickedPause)
 

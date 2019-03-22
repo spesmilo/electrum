@@ -356,6 +356,11 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         if extra:
             extra.needRefreshSignal.emit()
 
+    def tell_gui_to_save_wallet(self):
+        extra = getattr(self.window, 'send_tab_shuffle_extra', None)
+        if extra:
+            extra.needWalletSaveSignal.emit()
+
     @classmethod
     def set_lower_and_upper_bound(cls, lower, upper):
         ''' Sets the class level LOWER_BOUND and UPPER_BOUND, and also saves
@@ -838,6 +843,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return
         need_refresh = False
+        shufchg_saved = self.wallet._shuffle_change_shared_with_others.copy()
         with self.wallet.lock, self.wallet.transaction_lock:
             if self.is_wallet_ready():
                 try:
@@ -861,7 +867,13 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                 except RuntimeWarning as e:
                     self.print_error("check_for_coins error: {}".format(str(e)))
         if need_refresh:
-            CoinUtils.store_shuffle_change_shared_with_others(self.wallet, write=True)  # save the change address set used if we actually got a new thread started, since this data needs to be remembered so we don't leak shuffled addresses to peers, see #105
+            if shufchg_saved != self.wallet._shuffle_change_shared_with_others:
+                # save the change address set used if we actually got a new thread started,
+                # since this data needs to be remembered so we don't leak shuffled addresses
+                # to peers, see #105. Note the actual write will happen in the refresh of
+                # the main thread.
+                CoinUtils.store_shuffle_change_shared_with_others(self.wallet)
+                self.tell_gui_to_save_wallet()
             # Ok, at least one thread started, so reserved funds for threads have changed. indicate this in GUI
             self.tell_gui_to_refresh()
 
