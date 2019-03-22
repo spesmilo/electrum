@@ -15,6 +15,8 @@ RUN apt-get update -q && \
         zlib1g-dev=1:1.2.8.dfsg-1ubuntu1.1 \
         libffi6=3.1~rc1+r3.0.13-12ubuntu0.2 \
         libffi-dev=3.1~rc1+r3.0.13-12ubuntu0.2 \
+        libncurses5-dev=5.9+20140118-1ubuntu1 \
+        libsqlite3-dev=3.8.2-1ubuntu2.2 \
         libusb-1.0-0-dev=2:1.0.17-1ubuntu2 \
         libudev-dev=204-5ubuntu20.29 \
         gettext=0.18.3.1-1ubuntu3.1 \
