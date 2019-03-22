@@ -23,7 +23,7 @@ from .simple_config import SimpleConfig
 
 DEFAULT_ENABLED = False
 DEFAULT_CURRENCY = "EUR"
-DEFAULT_EXCHANGE = "BitcoinAverage"  # default exchange should ideally provide historical rates
+DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -142,22 +142,15 @@ class ExchangeBase(PrintError):
         rates = await self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
+
 class BitcoinAverage(ExchangeBase):
+    # note: historical rates used to be freely available
+    # but this is no longer the case. see #5188
 
     async def get_rates(self, ccy):
         json = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
         return dict([(r.replace("BTC", ""), Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
-
-    def history_ccys(self):
-        # BitcoinAverage seems to have historical data for all ccys it supports
-        return CURRENCIES[self.name()]
-
-    async def request_history(self, ccy):
-        history = await self.get_csv('apiv2.bitcoinaverage.com',
-                               "/indices/global/history/BTC%s?period=alltime&format=csv" % ccy)
-        return dict([(h['DateTime'][:10], h['Average'])
-                     for h in history])
 
 
 class Bitcointoyou(ExchangeBase):
