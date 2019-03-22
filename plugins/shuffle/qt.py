@@ -395,6 +395,7 @@ def monkey_patches_apply(window):
         wallet._shuffled_address_cache = set()
         wallet._addresses_cashshuffle_reserved = set()
         wallet._last_change = None
+        CoinUtils.load_shuffle_change_shared_with_others(wallet)  # sets wallet._shuffle_change_shared_with_others
         # Paranoia -- force wallet into this single change address mode in case
         # other code (plugins, etc) generate tx's. We don't want tx generation
         # code to clobber our shuffle tx output addresses.
@@ -460,6 +461,8 @@ def monkey_patches_remove(window):
         delattr(wallet, "_shuffled_address_cache")
         delattr(wallet, '_shuffle_patched_')
         delattr(wallet, "_last_change")
+        CoinUtils.store_shuffle_change_shared_with_others(wallet) # save _shuffle_change_shared_with_others to storage -- note this doesn't call storage.write() for performance reasons.
+        delattr(wallet, '_shuffle_change_shared_with_others')
         CoinUtils.unfreeze_frozen_by_shuffling(wallet)
         print_error("[shuffle] Unpatched wallet")
 

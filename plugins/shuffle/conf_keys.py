@@ -27,3 +27,4 @@ class ConfKeys:
         COINS_FROZEN_BY_SHUFFLING = 'coins_frozen_by_shuffling' # list of coins frozen by shuffling. in case we crash.
         SPEND_UNSHUFFLED_NAGGER_NOPROMPT = 'shuffle_spend_unshuffled_nonag'  # Whether or not to nag the user when they select "spend unshuffled" in Send tab.
         DISABLE_NAGGER_NOPROMPT = 'shuffle_disable_nonag'
+        CHANGE_SHARED_WITH_OTHERS = 'shuffle_change_addrs_shared_with_others' # A list of addresses we've sent over the network as 'change' addrs. These should not be used as shuffled output addresses as it would leak a bit of privacy. See clifordsymack#105

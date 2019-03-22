@@ -347,7 +347,7 @@ class CoinUtils(PrintError):
         return "{}:{}".format(coin['prevout_hash'], coin['prevout_n'])
 
     @staticmethod
-    def unfreeze_frozen_by_shuffling(wallet):
+    def unfreeze_frozen_by_shuffling(wallet, *, write=False):
         with wallet.lock, wallet.transaction_lock:
             coins_frozen_by_shuffling = wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list())
             if coins_frozen_by_shuffling:
@@ -355,6 +355,38 @@ class CoinUtils(PrintError):
                 if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
                 wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
             wallet.storage.put(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, None) # deletes key altogether from storage
+        if write:
+            wallet.storage.write()
+
+    @staticmethod
+    def store_shuffle_change_shared_with_others(wallet, *, write=False):
+        ''' Reads wallet _shuffle_change_shared_with_others and saves
+        it to storage. _shuffle_patched_ needs to be set. '''
+        if not hasattr(wallet, '_shuffle_patched_'):
+            return
+        # save _shuffle_change_shared_with_others to storage
+        wallet.storage.put(ConfKeys.PerWallet.CHANGE_SHARED_WITH_OTHERS,
+                           [a.to_storage_string()
+                            for a in wallet._shuffle_change_shared_with_others.copy()])
+        if write:
+            wallet.storage.write()
+
+    @staticmethod
+    def load_shuffle_change_shared_with_others(wallet):
+        ''' Modifies wallet instance and adds _shuffle_change_shared_with_others
+        retrieving it from storage. _shuffle_patched_ need not be set. '''
+        wallet._shuffle_change_shared_with_others = set()
+        tmpadrs = wallet.storage.get(ConfKeys.PerWallet.CHANGE_SHARED_WITH_OTHERS, [])
+        if isinstance(tmpadrs, (list, tuple, set)):
+            for a in tmpadrs:
+                try:
+                    a = Address.from_string(a)
+                    if not wallet.get_address_history(a):  # no need to re-add to set if it has a history since it won't be shared anyway with the network if it's been used. This set is used only to not cross over shuffled out addresses with change addresses for unused addrs when shuffling
+                        wallet._shuffle_change_shared_with_others.add(a)
+                except (AddressError, TypeError):
+                    pass
+
+
 
     @staticmethod
     def is_coin_shuffled(wallet, coin, txs_in=None):
@@ -490,25 +522,39 @@ class CoinUtils(PrintError):
 
     # Called from either the wallet code or the shufflethread.
     # The wallet code calls this when spending either shuffled-only or unshuffled-only coins in a tx.
+    # for_shufflethread may be a bool or an int. If int:
+    # 0    : not for shuffle threads, use the one wallet-global 'reserved' change guaranteed to not have any history, which won't ever conflict with the shuffle threads (used in 'Send' tab)
+    # 1    : for 'change' address use in shuffle threads. This address will be marked as having been 'announced' and will not be eligible to be used as a shuffled output address
+    # >= 2 : for 'shuffled output' address use in shuffle threads. This address is guaranteed to have never been shared over the network with other shufflers AND to be unused
     @staticmethod
-    def get_new_change_address_safe(wallet, for_shufflethread=False):
+    def get_new_change_address_safe(wallet, for_shufflethread=0):
+        for_shufflethread = int(for_shufflethread or 0) # coerce to int in case it was a bool or None
         with wallet.lock, wallet.transaction_lock:
             if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
                 # if they keep hitting preview on the same tx, give them the same change each time
                 return wallet._last_change
             change = None
             for address in wallet.get_unused_addresses(for_change=True):
-                if address not in wallet._addresses_cashshuffle_reserved:
+                if (address not in wallet._addresses_cashshuffle_reserved
+                        and (for_shufflethread < 2 or address not in wallet._shuffle_change_shared_with_others)):
                     change = address
                     break
             while not change:
                 address = wallet.create_new_address(for_change=True)
-                if address not in wallet._addresses_cashshuffle_reserved:
+                if (address not in wallet._addresses_cashshuffle_reserved
+                        and (for_shufflethread < 2 or address not in wallet._shuffle_change_shared_with_others)):
                     change = address
             wallet._addresses_cashshuffle_reserved.add(change)
             if not for_shufflethread:
                 # new change address generated for code outside the shuffle threads. cache and return it next time.
                 wallet._last_change = change
+            if for_shufflethread < 2:
+                # this was either a 'change' output for the shuffle thread
+                # or a UI 'change' output. Either way mark it as having been
+                # somewhat privacy-reduced so that if this function is called
+                # with for_shufflethread=2, we won't ever give this particular
+                # change address out again.). See issue clifordsymack#105
+                wallet._shuffle_change_shared_with_others.add(change)
             return change
 
     @staticmethod

@@ -748,7 +748,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         id_sk = self.generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
 
-        output = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
+        output = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=2)
         # Check if we will really use the change address. We definitely won't
         # be receving to it if the change is below dust threshold (see #67).
         # Furthermore, we may not receive change even if this check predicts we
@@ -761,7 +761,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
             # USE this change address. (In that case it will be freed up later
             # after shuffling anyway so no address leaking occurs).
             # We just reserve it if we think we MAY need it.
-            change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
+            change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=1)
         else:
             # We *definitely* won't receive any change no matter who
             # participates because we are very close to scale.
@@ -861,6 +861,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                 except RuntimeWarning as e:
                     self.print_error("check_for_coins error: {}".format(str(e)))
         if need_refresh:
+            CoinUtils.store_shuffle_change_shared_with_others(self.wallet, write=True)  # save the change address set used if we actually got a new thread started, since this data needs to be remembered so we don't leak shuffled addresses to peers, see #105
             # Ok, at least one thread started, so reserved funds for threads have changed. indicate this in GUI
             self.tell_gui_to_refresh()
 
