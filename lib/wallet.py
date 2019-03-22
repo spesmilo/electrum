@@ -2206,6 +2206,10 @@ wallet_constructors = {
 def register_constructor(wallet_type, constructor):
     wallet_constructors[wallet_type] = constructor
 
+class UnknownWalletType(RuntimeError):
+    ''' Raised if encountering an unknown wallet type '''
+    pass
+
 # former WalletFactory
 class Wallet(object):
     """The main wallet "entry point".
@@ -2232,4 +2236,4 @@ class Wallet(object):
             return Multisig_Wallet
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
-        raise RuntimeError("Unknown wallet type: " + str(wallet_type))
+        raise UnknownWalletType("Unknown wallet type: " + str(wallet_type))
