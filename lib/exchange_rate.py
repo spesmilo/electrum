@@ -17,8 +17,8 @@ from .util import PrintError, ThreadJob, print_error
 
 
 DEFAULT_ENABLED = False
-DEFAULT_CURRENCY = "EUR"
-DEFAULT_EXCHANGE = "Kraken"
+DEFAULT_CURRENCY = "USD"
+DEFAULT_EXCHANGE = "CoinGecko"  # Note the exchange here should ideally also support history rates
 
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
@@ -315,6 +315,9 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob):
 
+    default_currency = DEFAULT_CURRENCY
+    default_exchange = DEFAULT_EXCHANGE
+
     def __init__(self, config, network):
         self.config = config
         self.network = network
@@ -376,10 +379,10 @@ class FxThread(ThreadJob):
 
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
-        return self.config.get("currency", DEFAULT_CURRENCY)
+        return self.config.get("currency", self.default_currency)
 
     def config_exchange(self):
-        return self.config.get('use_exchange', DEFAULT_EXCHANGE)
+        return self.config.get('use_exchange', self.default_exchange)
 
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()

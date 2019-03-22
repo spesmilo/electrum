@@ -3262,14 +3262,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.fx.get_history_config()
                 c = self.fx.get_currency()
-                exchanges = self.fx.get_exchanges_by_ccy(c, h)
+                h = self.fx.get_history_config()
             else:
-                exchanges = self.fx.get_exchanges_by_ccy('USD', False)
+                c, h = self.fx.default_currency, False
+            exchanges = self.fx.get_exchanges_by_ccy(c, h)
+            conf_exchange = self.fx.config_exchange()
             ex_combo.clear()
             ex_combo.addItems(sorted(exchanges))
-            ex_combo.setCurrentIndex(ex_combo.findText(self.fx.config_exchange()))
+            idx = ex_combo.findText(conf_exchange)  # try and restore previous exchange if in new list
+            if idx < 0:
+                # hmm, previous exchange wasn't in new h= setting. Try default exchange.
+                idx = ex_combo.findText(self.fx.default_exchange)
+            idx = 0 if idx < 0 else idx # if still no success (idx < 0) -> default to the first exchange in combo
+            if exchanges: # don't set index if no exchanges, as any index is illegal. this shouldn't happen.
+                ex_combo.setCurrentIndex(idx)  # note this will emit a currentIndexChanged signal if it's changed
+
 
         def on_currency(hh):
             if not self.fx: return
@@ -3289,12 +3297,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_history(checked):
             if not self.fx: return
+            changed = bool(self.fx.get_history_config()) != bool(checked)
             self.fx.set_history_config(checked)
             update_exchanges()
             self.history_list.refresh_headers()
             if self.fx.is_enabled() and checked:
                 # reset timeout to get historical rates
                 self.fx.timeout = 0
+                if changed:
+                    self.history_list.update()  # this won't happen too often as it's rate-limited
 
         def on_fiat_address(checked):
             if not self.fx: return
