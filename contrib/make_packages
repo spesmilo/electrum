@@ -3,7 +3,7 @@
 contrib=$(dirname "$0")
 test -n "$contrib" -a -d "$contrib" || exit
 
-whereis pip3
+which pip3
 if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
 rm -rf "$contrib"/../packages/

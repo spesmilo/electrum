@@ -9,7 +9,7 @@ function fail {
 contrib=$(dirname "$0")
 test -n "$contrib" -a -d "$contrib" || fail "Could not find the contrib/ directory"
 
-whereis git || fail "Git is required to proceed"
+which git || fail "Git is required to proceed"
 
 echo "Refreshing submodules..."
 git submodule init
@@ -47,4 +47,3 @@ git clean -f -x -q
 popd
 
 echo "libsecp256k1.0.so has been placed in the electroncash 'lib' folder."
-
