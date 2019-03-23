@@ -1,3 +1,6 @@
 [submodule "contrib/osx/CalinsQRReader"]
 	path = contrib/osx/CalinsQRReader
 	url = https://github.com/cculianu/CalinsQRReader
+[submodule "contrib/secp256k1"]
+	path = contrib/secp256k1
+	url = https://github.com/Electron-Cash/secp256k1
