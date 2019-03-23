@@ -1857,7 +1857,7 @@ class Network(util.DaemonThread):
         ret -= set(self.config.get('server_whitelist_removed', [])) # this key is all the servers that were hardcoded in the whitelist that the user explicitly removed
         return ret, servers_to_hostmap(ret)
 
-    def is_whitelist_only(self): return bool(self.config.get('whitelist_servers_only', False))
+    def is_whitelist_only(self): return bool(self.config.get('whitelist_servers_only', True))
 
     def set_whitelist_only(self, b):
         if bool(b) == self.is_whitelist_only():
