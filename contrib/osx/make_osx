@@ -15,8 +15,8 @@ VERSION=`git describe --tags`
 PYTHON_VERSION=3.6.8
 BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
-GIT_REPO_ACCT=https://github.com/cashshuffle
-GIT_REPO=https://github.com/clifordsymack/Electron-Cash
+GIT_REPO_ACCT=https://github.com/Electron-Cash
+GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })

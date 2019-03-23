@@ -63,8 +63,8 @@ class UpdateChecker(QWidget, PrintError):
     _dl_prog = pyqtSignal(object, int) # [0 -> 100] range
 
     #url = "https://www.c3-soft.com/downloads/BitcoinCash/Electron-Cash/update_check" # Testing URL
-    url = "https://raw.github.com/clifordsymack/Electron-Cash/master/contrib/update_checker/releases.json" # Release URL
-    download_url = "https://github.com/clifordsymack/Electron-Cash/releases"
+    url = "https://raw.github.com/Electron-Cash/Electron-Cash/master/contrib/update_checker/releases.json" # Release URL
+    download_url = "https://electroncash.org/#download"
 
     VERSION_ANNOUNCEMENT_SIGNING_ADDRESSES = (
         address.Address.from_string("bitcoincash:qphax4cg8sxuc0qnzk6sx25939ma7y877uz04s2z82", net=MainNet), # Calin's key

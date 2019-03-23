@@ -3,7 +3,7 @@
 NAME_ROOT=Electron-Cash
 PYTHON_VERSION=3.5.4
 
-CHECKOUT_TAG=3.3.6
+CHECKOUT_TAG=4.0.0
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -27,7 +27,7 @@ if [ -d electrum ]; then
     git pull
     cd ..
 else
-    URL=https://github.com/clifordsymack/Electron-Cash
+    URL=https://github.com/Electron-Cash/Electron-Cash
     git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
 fi
 
