@@ -129,7 +129,7 @@ See `contrib/build-wine/ <contrib/build-wine>`_.
 Android
 -------
 
-See the file `gui/kivy/Readme.txt file <gui/kivy/Readme.txt>`_.
+See the file `gui/kivy/Readme.txt <gui/kivy/Readme.txt>`_.
 
 iOS
 -------
