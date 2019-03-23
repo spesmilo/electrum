@@ -19,8 +19,12 @@ build_dll() {
         --enable-module-recovery \
         --enable-experimental \
         --enable-module-ecdh \
+        --disable-jni \
         --with-bignum=no \
-        --disable-jni || fail "Could not run ./configure for secp256k1"
+        --enable-module-schnorr \
+        --disable-tests \
+        --disable-static \
+        --enable-shared || fail "Could not run ./configure for secp256k1"
     make -j4 || fail "Could not build secp256k1"
     ${1}-strip .libs/libsecp256k1-0.dll
 }
