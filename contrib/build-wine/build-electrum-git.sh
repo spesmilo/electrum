@@ -38,7 +38,7 @@ for repo in electrum-locale; do
         git pull
         cd ..
     else
-        URL=https://github.com/cashshuffle/$repo
+        URL=https://github.com/Electron-Cash/$repo
         git clone -b master $URL $repo
     fi
 done
