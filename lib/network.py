@@ -80,6 +80,7 @@ def filter_version(servers):
         try:
             return version.normalize_version(vv) >= version.normalize_version(version.PROTOCOL_VERSION)
         except Exception as e:
+            util.print_error("filter_version:", repr(e))
             return False
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
 
