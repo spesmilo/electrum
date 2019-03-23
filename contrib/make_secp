@@ -3,11 +3,7 @@
 function fail {
     RED='\033[0;31m'
     printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
-    if [ -z "$2" ]; then
-        exit 1
-    else
-        exit "$2"
-    fi
+    exit 1
 }
 
 contrib=$(dirname "$0")
@@ -43,7 +39,7 @@ if [ "$uname" = "Darwin" ]; then
 elif [ "$uname" = "Linux" ]; then
     libsec_lib="libsecp256k1.so.0"
 else
-    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)" 0
+    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
 fi
 cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
 git checkout master  # Undo the previous explicit checkout to this hash
