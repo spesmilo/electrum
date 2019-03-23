@@ -38,7 +38,7 @@ from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
 from electroncash.util import (UserCancelled, PrintError, print_error,
-                               standardize_path, finalization_print_error,
+                               standardize_path, finalization_print_error, Weak,
                                get_new_wallet_name)
 
 from .installwizard import InstallWizard, GoBack
@@ -88,6 +88,14 @@ class ElectrumGui(QObject, PrintError):
         # Dark Theme -- ideally set this before any widgets are created.
         self.set_dark_theme_if_needed()
         # /
+        # Wallet Password Cache
+        # wallet -> (password, QTimer) map for some plugins (like CashShuffle)
+        # that need wallet passwords to operate, and we don't want to prompt
+        # for pw twice right after the InstallWizard runs (see #106).
+        # Entries in this map are deleted after 10 seconds by the QTimer (which
+        # also deletes itself)
+        self._wallet_password_cache = Weak.KeyDictionary()
+        # /
         self.update_checker = UpdateChecker()
         self.update_checker_timer = QTimer(self); self.update_checker_timer.timeout.connect(self.on_auto_update_timeout); self.update_checker_timer.setSingleShot(False)
         self.update_checker.got_new_version.connect(lambda x: self.show_update_checker(parent=None, skip_check=True))
@@ -135,6 +143,38 @@ class ElectrumGui(QObject, PrintError):
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
         ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
+
+    def get_cached_password(self, wallet):
+        ''' Passwords in the cache only live for a very short while (10 seconds)
+        after wallet window creation, and only if it's a new window. This
+        mechanism is a convenience for plugins that need access to the wallet
+        password and it would make for poor UX for the user to enter their
+        password twice when opening a new window '''
+        entry = self._wallet_password_cache.get(wallet)
+        if entry:
+            return entry[0]
+
+    def _expire_cached_password(self, weakWallet):
+        ''' Timer callback, called after 10 seconds. '''
+        wallet = weakWallet() if isinstance(weakWallet, Weak.ref) else weakWallet
+        if wallet:
+            entry = self._wallet_password_cache.pop(wallet, None)
+            if entry:
+                timer = entry[1]
+                timer.stop(); timer.deleteLater()
+
+    def _cache_password(self, wallet, password):
+        self._expire_cached_password(wallet)
+        if password is None:
+            return
+        timer = QTimer()  # NB a top-level parentless QObject will get delete by Python when its Python refct goes to 0, which is what we want here. Future programmers: Do not give this timer a parent!
+        self._wallet_password_cache[wallet] = (password, timer)
+        weakWallet = Weak.ref(wallet)
+        weakSelf = Weak.ref(self)
+        def timeout():
+            slf = weakSelf()
+            slf and slf._expire_cached_password(weakWallet)
+        timer.setSingleShot(True); timer.timeout.connect(timeout); timer.start(10000)  # 10 sec
 
     def _set_icon(self):
         # if running from source, give the app an icon
@@ -226,10 +266,12 @@ class ElectrumGui(QObject, PrintError):
             return
         if self.nd:
             self.nd.on_update()
+            run_hook("on_network_dialog", self.nd)
             self.nd.show()
             self.nd.raise_()
             return
         self.nd = NetworkDialog(self.daemon.network, self.config)
+        run_hook("on_network_dialog", self.nd)
         self.nd.show()
 
     def create_window_for_wallet(self, wallet):
@@ -237,7 +279,6 @@ class ElectrumGui(QObject, PrintError):
         self.windows.append(w)
         finalization_print_error(w, "[{}] finalized".format(w.diagnostic_name()))
         self.build_tray_menu()
-        # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)
         return w
 
@@ -281,7 +322,7 @@ class ElectrumGui(QObject, PrintError):
                     storage = WalletStorage(path, manual_upgrades=True)
                     wizard = InstallWizard(self.config, self.app, self.plugins, storage)
                     try:
-                        wallet = wizard.run_and_get_wallet()
+                        wallet, password = wizard.run_and_get_wallet() or (None, None)
                     except UserCancelled:
                         pass
                     except GoBack as e:
@@ -294,6 +335,7 @@ class ElectrumGui(QObject, PrintError):
                         return
                     wallet.start_threads(self.daemon.network)
                     self.daemon.add_wallet(wallet)
+                    self._cache_password(wallet, password)
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
                 if '2fa' in str(e):

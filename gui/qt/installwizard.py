@@ -220,6 +220,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.name_e.setText(n)
 
         while True:
+            password = None
             if self.storage.file_exists() and not self.storage.is_encrypted():
                 break
             if self.loop.exec_() != 2:  # 2 = next
@@ -260,7 +261,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 return
             self.storage.upgrade()
             self.wallet = Wallet(self.storage)
-            return self.wallet
+            return self.wallet, password
 
         action = self.storage.get_action()
         if action and action != 'new':
@@ -276,10 +277,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         if action:
             # self.wallet is set in run
             self.run(action)
-            return self.wallet
+            return self.wallet, password
 
         self.wallet = Wallet(self.storage)
-        return self.wallet
+        return self.wallet, password
 
 
 

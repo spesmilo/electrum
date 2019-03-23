@@ -41,6 +41,12 @@
     <file>icons/tab_contacts.png</file>
     <file>icons/tab_converter.png</file>
     <file>icons/tab_converter_bw.png</file>
+    <file>icons/cashshuffle_on_error.png</file>
+    <file>icons/cashshuffle_on.png</file>
+    <file>icons/cashshuffle_off.png</file>
+    <file>icons/cash_shuffle5.png</file>
+    <file>icons/cash_shuffle5_2.png</file>
+    <file>icons/cash_shuffle5_grayed.png</file>
     <file>icons/tab_history.png</file>
     <file>icons/tab_receive.png</file>
     <file>icons/tab_send.png</file>

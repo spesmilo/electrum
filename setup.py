@@ -82,6 +82,7 @@ setup(
         'electroncash_plugins.trezor',
         'electroncash_plugins.digitalbitbox',
         'electroncash_plugins.virtualkeyboard',
+        'electroncash_plugins.shuffle',
     ],
     package_dir={
         'electroncash': 'lib',
@@ -96,6 +97,10 @@ setup(
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electron-cash.mo',
+        ],
+        'electroncash_plugins.shuffle' : [
+            'servers.json',
+            'protobuf/*.proto'
         ]
     },
     scripts=['electron-cash'],

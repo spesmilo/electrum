@@ -304,13 +304,12 @@ class Abstract_Wallet(PrintError):
                 self.storage.write()
 
     def clear_history(self):
-        with self.transaction_lock:
+        with self.lock, self.transaction_lock:
             self.txi = {}
             self.txo = {}
             self.tx_fees = {}
             self.pruned_txo = {}
-        self.save_transactions()
-        with self.lock:
+            self.save_transactions()
             self._addr_bal_cache = {}
             self._history = {}
             self.tx_addr_hist = defaultdict(set)
@@ -372,12 +371,12 @@ class Abstract_Wallet(PrintError):
     def set_up_to_date(self, up_to_date):
         with self.lock:
             self.up_to_date = up_to_date
-        if up_to_date:
-            self.save_transactions(write=True)
-            # if the verifier is also up to date, persist that too;
-            # otherwise it will persist its results when it finishes
-            if self.verifier and self.verifier.is_up_to_date():
-                self.save_verified_tx(write=True)
+            if up_to_date:
+                self.save_transactions(write=True)
+                # if the verifier is also up to date, persist that too;
+                # otherwise it will persist its results when it finishes
+                if self.verifier and self.verifier.is_up_to_date():
+                    self.save_verified_tx(write=True)
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
@@ -650,9 +649,8 @@ class Abstract_Wallet(PrintError):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-            if txi in self.frozen_coins:
-                # cleanup/detect if the 'frozen coin' was spent and remove it from the frozen coin set
-                self.frozen_coins.remove(txi)
+            # cleanup/detect if the 'frozen coin' was spent and remove it from the frozen coin set
+            self.frozen_coins.discard(txi)
         out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
@@ -745,29 +743,35 @@ class Abstract_Wallet(PrintError):
 
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
         ''' Note that exclude_frozen = True checks for BOTH address-level and coin-level frozen status. '''
-        coins = []
-        if domain is None:
-            domain = self.get_addresses()
-        if exclude_frozen:
-            domain = set(domain) - self.frozen_addresses
-        for addr in domain:
-            utxos = self.get_addr_utxo(addr)
-            for x in utxos.values():
-                if exclude_frozen and x['is_frozen_coin']:
-                    continue
-                if confirmed_only and x['height'] <= 0:
-                    continue
-                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
-                    continue
-                coins.append(x)
-                continue
-        return coins
+        with self.lock:
+            with self.transaction_lock:
+                coins = []
+                if domain is None:
+                    domain = self.get_addresses()
+                if exclude_frozen:
+                    domain = set(domain) - self.frozen_addresses
+                for addr in domain:
+                    utxos = self.get_addr_utxo(addr)
+                    for x in utxos.values():
+                        if exclude_frozen and x['is_frozen_coin']:
+                            continue
+                        if confirmed_only and x['height'] <= 0:
+                            continue
+                        if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                            continue
+                        coins.append(x)
+                        continue
+                return coins
 
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
 
     def get_addresses(self):
         return self.get_receiving_addresses() + self.get_change_addresses()
+
+    def get_change_addresses(self):
+        ''' Reimplemented in subclasses for wallets that have a change address set/derivation path. '''
+        return []
 
     def get_frozen_balance(self):
         if not self.frozen_coins:
@@ -1071,17 +1075,25 @@ class Abstract_Wallet(PrintError):
         if change_addr:
             change_addrs = [change_addr]
         else:
-            addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-            if self.use_change and addrs:
-                # New change addresses are created only after a few
-                # confirmations.  Select the unused addresses within the
-                # gap limit; if none take one at random
-                change_addrs = [addr for addr in addrs if
-                                self.get_num_tx(addr) == 0]
-                if not change_addrs:
-                    change_addrs = [random.choice(addrs)]
-            else:
-                change_addrs = [inputs[0]['address']]
+            # This new hook is for 'Cashshuffle Enabled' mode which will:
+            # Reserve a brand new change address if spending shuffled-only *or* unshuffled-only coins and
+            # disregard the "use_change" setting since to preserve privacy we must use a new change address each time.
+            # Pick and lock a new change address. This "locked" change address will not be used by the shuffle threads.
+            # Note that subsequent calls to this function will return the same change address until that address is involved
+            # in a tx and has a history, at which point a new address will get generated and "locked".
+            change_addrs = run_hook("get_change_addrs", self)
+            if not change_addrs: # hook gave us nothing, so find a change addr based on classic Electron Cash rules.
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                if self.use_change and addrs:
+                    # New change addresses are created only after a few
+                    # confirmations.  Select the unused addresses within the
+                    # gap limit; if none take one at random
+                    change_addrs = [addr for addr in addrs if
+                                    self.get_num_tx(addr) == 0]
+                    if not change_addrs:
+                        change_addrs = [random.choice(addrs)]
+                else:
+                    change_addrs = [inputs[0]['address']]
 
         assert all(isinstance(addr, Address) for addr in change_addrs)
 
@@ -1169,25 +1181,26 @@ class Abstract_Wallet(PrintError):
             Note that if passing prevout:n strings as input, 'is_mine()' status is not checked for the specified coin.
             Also note that coin-level freezing is set/unset independent of address-level freezing, however both must
             be satisfied for a coin to be defined as spendable. '''
-        ok = 0
-        for utxo in utxos:
-            if isinstance(utxo, str):
-                if freeze:
-                    self.frozen_coins |= { utxo }
-                else:
-                    self.frozen_coins -= { utxo }
-                ok += 1
-            elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
-                txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
-                if freeze:
-                    self.frozen_coins |= { txo }
-                else:
-                    self.frozen_coins -= { txo }
-                utxo['is_frozen_coin'] = bool(freeze)
-                ok += 1
-        if ok:
-            self.storage.put('frozen_coins', list(self.frozen_coins))
-        return ok
+        with self.lock:
+            ok = 0
+            for utxo in utxos:
+                if isinstance(utxo, str):
+                    if freeze:
+                        self.frozen_coins.add( utxo )
+                    else:
+                        self.frozen_coins.discard( utxo )
+                    ok += 1
+                elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
+                    txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
+                    if freeze:
+                        self.frozen_coins.add( txo )
+                    else:
+                        self.frozen_coins.discard( txo )
+                    utxo['is_frozen_coin'] = bool(freeze)
+                    ok += 1
+            if ok:
+                self.storage.put('frozen_coins', list(self.frozen_coins))
+            return ok
 
     def prepare_for_verifier(self):
         # review transactions that are in the history
@@ -1235,6 +1248,7 @@ class Abstract_Wallet(PrintError):
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()
         self.save_verified_tx()
+        self.storage.put('frozen_coins', list(self.frozen_coins))
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
@@ -1391,15 +1405,18 @@ class Abstract_Wallet(PrintError):
             except UserCancelled:
                 continue
 
-    def get_unused_addresses(self):
+    def get_unused_addresses(self, *, for_change=False):
+        assert type(for_change) is bool
         # fixme: use slots from expired requests
-        domain = self.get_receiving_addresses()
-        return [addr for addr in domain
-                if not self.get_address_history(addr)
-                and addr not in self.receive_requests]
+        with self.lock, self.transaction_lock:
+            domain = self.get_receiving_addresses() if not for_change else (self.get_change_addresses() or self.get_receiving_addresses())
+            return [addr for addr in domain
+                    if not self.get_address_history(addr)
+                    and addr not in self.receive_requests]
 
-    def get_unused_address(self):
-        addrs = self.get_unused_addresses()
+    def get_unused_address(self, *, for_change=False):
+        assert type(for_change) is bool
+        addrs = self.get_unused_addresses(for_change=for_change)
         if addrs:
             return addrs[0]
 
@@ -1717,9 +1734,6 @@ class ImportedWalletBase(Simple_Wallet):
 
     def get_receiving_addresses(self):
         return self.get_addresses()
-
-    def get_change_addresses(self):
-        return []
 
     def delete_address(self, address):
         assert isinstance(address, Address)

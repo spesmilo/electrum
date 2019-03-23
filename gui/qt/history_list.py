@@ -29,6 +29,7 @@ from .util import *
 import electroncash.web as web
 from electroncash.i18n import _
 from electroncash.util import timestamp_to_datetime, profiler, Weak
+from electroncash.plugins import run_hook
 
 
 TX_ICONS = [
@@ -117,6 +118,12 @@ class HistoryList(MyTreeWidget):
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             label = self.wallet.get_label(tx_hash)
+            should_skip = run_hook("history_list_filter", self, h_item, label)
+            if should_skip:
+                # For implementation of fast plugin filters (such as CashShuffle
+                # shuffle tx filtering), we short-circuit return. This is
+                # faster than using the MyTreeWidget filter definted in .util
+                continue
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self._get_icon_for_status(status)
@@ -221,4 +228,7 @@ class HistoryList(MyTreeWidget):
             menu.addAction(self.invoiceIcon, _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
+
+        run_hook("history_list_context_menu_setup", self, menu, item, tx_hash)  # Plugins can modify menu
+
         menu.exec_(self.viewport().mapToGlobal(position))

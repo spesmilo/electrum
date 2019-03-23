@@ -63,6 +63,7 @@ from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
+from .popup_widget import ShowPopupLabel, KillPopupLabel
 
 from .util import *
 
@@ -129,6 +130,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.internalpluginsdialog = None
         self.externalpluginsdialog = None
         self.require_fee_update = False
+        self.force_use_single_change_addr = None  # this is set by the CashShuffle plugin to a single string that will go into the tool-tip explaining why this preference option is disabled (see self.settings_dialog)
         self.tl_windows = []
         self.tx_external_keypairs = {}
         self._tx_dialogs = Weak.Set()
@@ -219,6 +221,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
+
+        QTimer.singleShot(300, self.do_cash_shuffle_reminder)
 
     def on_history(self, event, *args):
         # NB: event should always be 'on_history'
@@ -813,6 +817,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
 
+                extra = run_hook("balance_label_extra", self)
+                if isinstance(extra, str) and extra:
+                    text += " [{}]".format(extra)
+
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
@@ -832,6 +840,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
         self.status_button.setIcon( icon )
+        self.update_cashshuffle_icon()
 
 
     def update_wallet(self):
@@ -1339,6 +1348,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
 
+                extra = run_hook("not_enough_funds_extra", self)
+                if isinstance(extra, str) and extra:
+                    text += " ({})".format(extra)
+
             elif self.fee_e.isModified():
                 amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.DEFAULT
             elif self.amount_e.isModified():
@@ -1490,34 +1503,84 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_custom_lbl.setHidden(not fee_slider_hidden)
         if text is not None: self.fee_custom_lbl.setText(text)
 
-    def from_list_delete(self, item):
-        i = self.from_list.indexOfTopLevelItem(item)
-        self.pay_from.pop(i)
-        self.redraw_from_list()
-        self.update_fee()
+    def from_list_delete(self, name):
+        item = self.from_list.currentItem()
+        if (item and item.data(0, Qt.UserRole) == name
+                and not item.data(0, Qt.UserRole+1) ):
+            i = self.from_list.indexOfTopLevelItem(item)
+            try:
+                self.pay_from.pop(i)
+            except IndexError:
+                # The list may contain items not in the pay_from if added by a
+                # plugin using the spendable_coin_filter hook
+                pass
+            self.redraw_from_list()
+            self.update_fee()
 
     def from_list_menu(self, position):
         item = self.from_list.itemAt(position)
         menu = QMenu()
-        menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
+        name = item.data(0, Qt.UserRole)
+        action = menu.addAction(_("Remove"), lambda: self.from_list_delete(name))
+        if item.data(0, Qt.UserRole+1):
+            action.setText(_("Not Removable"))
+            action.setDisabled(True)
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
     def set_pay_from(self, coins):
         self.pay_from = list(coins)
         self.redraw_from_list()
 
-    def redraw_from_list(self):
+    def redraw_from_list(self, *, spendable=None):
+        ''' Optional kwarg spendable indicates *which* of the UTXOs in the
+        self.pay_from list are actually spendable.  If this arg is specifid,
+        coins in the self.pay_from list that aren't also in the 'spendable' list
+        will be grayed out in the UI, to indicate that they will not be used.
+        Otherwise all coins will be non-gray (default).
+        (Added for CashShuffle 02/23/2019) '''
+        sel = self.from_list.currentItem() and self.from_list.currentItem().data(0, Qt.UserRole)
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
+
+        def name(x):
+            return "{}:{}".format(x['prevout_hash'], x['prevout_n'])
 
         def format(x):
             h = x['prevout_hash']
             return '{}...{}:{:d}\t{}'.format(h[0:10], h[-10:],
                                              x['prevout_n'], x['address'])
+        def grayify(twi):
+            b = twi.foreground(0)
+            b.setColor(Qt.gray)
+            for i in range(twi.columnCount()):
+                twi.setForeground(i, b)
+
+        def new(item, is_unremovable=False):
+            ret = QTreeWidgetItem( [format(item), self.format_amount(item['value']) ])
+            ret.setData(0, Qt.UserRole, name(item))
+            ret.setData(0, Qt.UserRole+1, is_unremovable)
+            return ret
 
         for item in self.pay_from:
-            self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
+            twi = new(item)
+            if spendable is not None and item not in spendable:
+                grayify(twi)
+            self.from_list.addTopLevelItem(twi)
+            if name(item) == sel:
+                self.from_list.setCurrentItem(twi)
+
+        if spendable is not None:  # spendable may be None if no plugin filtered coins.
+            for item in spendable:
+                # append items added by the plugin to the spendable list
+                # at the bottom.  These coins are marked as "not removable"
+                # in the UI (the plugin basically insisted these coins must
+                # be spent with the other coins in the list for privacy).
+                if item not in self.pay_from:
+                    twi = new(item, True)
+                    self.from_list.addTopLevelItem(twi)
+                    if name(item) == sel:
+                        self.from_list.setCurrentItem(twi)
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)
@@ -2006,10 +2069,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.clear_receive_tab()
 
     def get_coins(self, isInvoice = False):
+        coins = []
         if self.pay_from:
-            return self.pay_from
+            coins = self.pay_from.copy()
         else:
-            return self.wallet.get_spendable_coins(None, self.config, isInvoice)
+            coins = self.wallet.get_spendable_coins(None, self.config, isInvoice)
+        run_hook("spendable_coin_filter", self, coins) # may modify coins -- used by CashShuffle if in shuffle = ENABLED mode.
+        if self.pay_from:
+            # coins may have been filtered, so indicate this in the UI
+            self.redraw_from_list(spendable=coins)
+        return coins
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
@@ -2175,6 +2244,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
 
+
+        self.cashshuffle_status_button = StatusBarButton(
+            self.cashshuffle_icon(),
+            '', # ToolTip will be set in update_cashshuffle code
+            self.cashshuffle_icon_leftclick
+        )
+        self.cashshuffle_toggle_action = QAction("", self.cashshuffle_status_button) # action text will get set in update_cashshuffle_icon()
+        self.cashshuffle_toggle_action.triggered.connect(self.toggle_cashshuffle)
+        self.cashshuffle_settings_action = QAction("", self.cashshuffle_status_button)
+        self.cashshuffle_settings_action.triggered.connect(self.show_cashshuffle_settings)
+        self.cashshuffle_viewpools_action = QAction(_("View pools..."), self.cashshuffle_status_button)
+        self.cashshuffle_viewpools_action.triggered.connect(self.show_cashshuffle_pools)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_viewpools_action)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_settings_action)
+        self.cashshuffle_separator_action = sep = QAction(self.cashshuffle_status_button); sep.setSeparator(True)
+        self.cashshuffle_status_button.addAction(sep)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
+        self.cashshuffle_status_button.setContextMenuPolicy(Qt.ActionsContextMenu)
+
+        sb.addPermanentWidget(self.cashshuffle_status_button)
+
         self.addr_converter_button = StatusBarButton(
             self.cashaddr_icon(),
             _("Toggle CashAddr Display"),
@@ -2209,6 +2299,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             self.wallet.update_password(password, new_password, encrypt_file)
+            run_hook("on_new_password", self, password, new_password)
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -2941,6 +3032,130 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for window in self.gui_object.windows:
             window.cashaddr_toggled_signal.emit()
 
+    def cashshuffle_plugin_if_loaded(self):
+        return self.gui_object.plugins.get_internal_plugin("shuffle", force_load = False)
+
+    def is_cashshuffle_enabled(self):
+        plugin = self.cashshuffle_plugin_if_loaded()
+        return bool(plugin and plugin.is_enabled() and plugin.window_has_cashshuffle(self))
+
+    def cashshuffle_icon(self):
+        if self.is_cashshuffle_enabled():
+            if self._cash_shuffle_flag == 1:
+                return QIcon(":icons/cashshuffle_on_error.png")
+            else:
+                return QIcon(":icons/cashshuffle_on.png")
+        else:
+            self._cash_shuffle_flag = 0
+            return QIcon(":icons/cashshuffle_off.png")
+
+    def update_cashshuffle_icon(self):
+        self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
+        loaded = bool(self.cashshuffle_plugin_if_loaded())
+        en = self.is_cashshuffle_enabled()
+        if self._cash_shuffle_flag == 0:
+            self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
+            rcfcm = _("Right-click for context menu")
+            self.cashshuffle_status_button.setToolTip(
+                (_("Left-click to view pools") + "\n" + rcfcm) if en
+                else  (_("Toggle CashShuffle") + "\n" + rcfcm)
+            )
+            self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
+            self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
+            self.cashshuffle_viewpools_action.setEnabled(True)
+        elif self._cash_shuffle_flag == 1: # Network server error
+            self.cashshuffle_status_button.setStatusTip(_('CashShuffle Error: Could not connect to server'))
+            self.cashshuffle_status_button.setToolTip(_('Right-click to select a different CashShuffle server'))
+            self.cashshuffle_settings_action.setText(_("Resolve Server Problem..."))
+            self.cashshuffle_viewpools_action.setEnabled(False)
+        self.cashshuffle_settings_action.setVisible(en or loaded)
+        self.cashshuffle_viewpools_action.setVisible(en)
+        if en:
+            # ensure 'Disable CashShuffle' appears at the end of the context menu
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_toggle_action)
+            self.cashshuffle_status_button.addAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
+        else:
+            # ensure 'Enable CashShuffle' appears at the beginning of the context menu
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.removeAction(self.cashshuffle_toggle_action)
+            actions = self.cashshuffle_status_button.actions()
+            self.cashshuffle_status_button.insertAction(actions[0] if actions else None, self.cashshuffle_separator_action)
+            self.cashshuffle_status_button.insertAction(self.cashshuffle_separator_action, self.cashshuffle_toggle_action)
+
+
+    def show_cashshuffle_settings(self):
+        p = self.cashshuffle_plugin_if_loaded()
+        if p:
+            msg = None
+            if self._cash_shuffle_flag == 1:
+                # had error
+                msg = _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server.")
+            p.settings_dialog(self, msg)
+            #else:  # commented-out. Enable this if you want to use the non-modal network settings as the destination for this action
+            #    # no error -- use the free-floating non-modal network dialog
+            #    if not p.show_cashshuffle_tab_in_network_dialog(self):
+            #        # Huh. Network dialog creation/show failed. Fall back to modal window
+            #        p.settings_dialog(self, msg)
+
+    def show_cashshuffle_pools(self):
+        p = self.cashshuffle_plugin_if_loaded()
+        if p:
+            p.view_pools(self)
+
+    def cashshuffle_icon_leftclick(self):
+        self.toggle_cashshuffle()
+        return
+        # delete the above 2 lines if we want the left-click to revert to
+        # Josh's suggestion (leaving the code in here for now)
+        if self.is_cashshuffle_enabled():
+            if self._cash_shuffle_flag != 0:
+                # Jump to settings.
+                self.cashshuffle_settings_action.trigger()
+                return
+            if self.cashshuffle_viewpools_action.isVisible():
+                # New! We just let this icon be the "View pools..." action when
+                # the plugin is already loaded and enabled. This hopefully will
+                # discourage disabling. Also it's been found that "View pools..."
+                # is the most popular action anyway -- might as well make it
+                # convenient to access with 1-click.  (@zquestz suggested this)
+                self.cashshuffle_viewpools_action.trigger()
+                return
+        #else... in all other cases just toggle cashshuffle
+        self.toggle_cashshuffle()
+
+    def toggle_cashshuffle(self):
+        if not self.is_wallet_cashshuffle_compatible():
+            self.show_warning(_("This wallet type cannot be used with CashShuffle."), parent=self)
+            return
+        plugins = self.gui_object.plugins
+        p0 = self.cashshuffle_plugin_if_loaded()
+        p = p0 or plugins.enable_internal_plugin("shuffle")
+        if not p:
+            raise RuntimeError("Could not find CashShuffle plugin")
+        was_enabled = p.window_has_cashshuffle(self)
+        if was_enabled and not p.warn_if_shuffle_disable_not_ok(self):
+            # user at nag screen said "no", so abort
+            self.update_cashshuffle_icon()
+            return
+        enable_flag = not was_enabled
+        self._cash_shuffle_flag = 0
+        KillPopupLabel("CashShuffleError")
+        if not p0:
+            # plugin was not loaded -- so flag window as wanting cashshuffle and do init
+            p.window_set_wants_cashshuffle(self, enable_flag)
+            p.init_qt(self.gui_object)
+        else:
+            # plugin was already started -- just add the window to the plugin
+            p.window_set_cashshuffle(self, enable_flag)
+        self.update_cashshuffle_icon()
+        self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 3000)
+        if enable_flag and self.config.get("show_utxo_tab") is None:
+            self.toggle_tab(self.utxo_tab) # toggle utxo tab to 'on' if user never specified it should be off.
+
+
+
     def settings_dialog(self):
         self.need_restart = False
         d = WindowModalDialog(self.top_level_window(), _('Preferences'))
@@ -3174,32 +3389,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
         usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(self.wallet.use_change)
-        def on_usechange(x):
-            usechange_result = x == Qt.Checked
-            if self.wallet.use_change != usechange_result:
-                self.wallet.use_change = usechange_result
-                self.wallet.storage.put('use_change', self.wallet.use_change)
-                multiple_cb.setEnabled(self.wallet.use_change)
-        usechange_cb.stateChanged.connect(on_usechange)
-        usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
+        if self.force_use_single_change_addr:
+            usechange_cb.setChecked(True)
+            usechange_cb.setEnabled(False)
+            if isinstance(self.force_use_single_change_addr, str):
+                usechange_cb.setToolTip(self.force_use_single_change_addr)
+        else:
+            usechange_cb.setChecked(self.wallet.use_change)
+            usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
+            def on_usechange(x):
+                usechange_result = x == Qt.Checked
+                if self.wallet.use_change != usechange_result:
+                    self.wallet.use_change = usechange_result
+                    self.wallet.storage.put('use_change', self.wallet.use_change)
+                    multiple_cb.setEnabled(self.wallet.use_change)
+            usechange_cb.stateChanged.connect(on_usechange)
         tx_widgets.append((usechange_cb, None))
 
-        def on_multiple(x):
-            multiple = x == Qt.Checked
-            if self.wallet.multiple_change != multiple:
-                self.wallet.multiple_change = multiple
-                self.wallet.storage.put('multiple_change', multiple)
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
-        multiple_cb.setEnabled(self.wallet.use_change)
-        multiple_cb.setToolTip('\n'.join([
-            _('In some cases, use up to 3 change addresses in order to break '
-              'up large coin amounts and obfuscate the recipient address.'),
-            _('This may result in higher transactions fees.')
-        ]))
-        multiple_cb.setChecked(multiple_change)
-        multiple_cb.stateChanged.connect(on_multiple)
+        if self.force_use_single_change_addr:
+            multiple_cb.setEnabled(False)
+            multiple_cb.setChecked(False)
+            if isinstance(self.force_use_single_change_addr, str):
+                multiple_cb.setToolTip(self.force_use_single_change_addr)
+        else:
+            multiple_cb.setEnabled(self.wallet.use_change)
+            multiple_cb.setToolTip('\n'.join([
+                _('In some cases, use up to 3 change addresses in order to break '
+                  'up large coin amounts and obfuscate the recipient address.'),
+                _('This may result in higher transactions fees.')
+            ]))
+            multiple_cb.setChecked(multiple_change)
+            def on_multiple(x):
+                multiple = x == Qt.Checked
+                if self.wallet.multiple_change != multiple:
+                    self.wallet.multiple_change = multiple
+                    self.wallet.storage.put('multiple_change', multiple)
+            multiple_cb.stateChanged.connect(on_multiple)
         tx_widgets.append((multiple_cb, None))
 
         def fmt_docs(key, klass):
@@ -3618,6 +3845,103 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('CPFP no longer valid'))
             return
         self.show_transaction(new_tx)
+
+    def is_wallet_cashshuffle_compatible(self):
+        from electroncash.keystore import Hardware_KeyStore
+        from electroncash.wallet import ImportedWalletBase, Multisig_Wallet
+        if (self.wallet.is_watching_only()
+            or isinstance(self.wallet, (Multisig_Wallet, ImportedWalletBase))
+            or any([isinstance(k, Hardware_KeyStore) for k in self.wallet.get_keystores()])):
+            # wallet is watching-only, multisig, or hardware so.. not compatible
+            return False
+        return True
+
+    _cs_reminder_pixmap = None
+    def do_cash_shuffle_reminder(self):
+        if not self.wallet or not self.is_wallet_cashshuffle_compatible():
+            return
+        from electroncash_plugins.shuffle.conf_keys import ConfKeys
+        p = self.cashshuffle_plugin_if_loaded()
+        storage = self.wallet.storage
+        cashshuffle_flag = storage.get(ConfKeys.PerWallet.ENABLED, False)
+        enabled = cashshuffle_flag and p and p.is_enabled()
+        nagger_answer = storage.get(ConfKeys.PerWallet.MAIN_WINDOW_NAGGER_ANSWER, None)
+        if not enabled:
+            if nagger_answer is None:  # nagger_answer is None if they've never said "Never ask"
+                if __class__._cs_reminder_pixmap is None:
+                    # lazy init. Cache it to class level.
+                    __class__._cs_reminder_pixmap = QPixmap(":icons/cash_shuffle5.png").scaledToWidth(150, Qt.SmoothTransformation)
+                icon = __class__._cs_reminder_pixmap
+                message = '''
+                <big>{}</big></b>
+                <p>{}</p>
+                '''.format(_("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled."),
+                           _("Would you like to enable CashShuffle for this wallet?"))
+                info = ' '.join([_("If you enable it, Electron Cash will shuffle your coins for greater <b>privacy</b>. However, you will pay fractions of a penny per shuffle in transaction fees."),
+                                 _("(You can always toggle it later using the CashShuffle button.)")])
+                res, chkd = self.msg_box(icon=icon,
+                                         parent=self.top_level_window(),
+                                         title=_('Would you like to turn on CashShuffle?'),
+                                         text=message, rich_text=True, informative_text=info,
+                                         checkbox_text=_("Never ask for this wallet"),
+                                         buttons=(_('Enable CashShuffle'), _("Not now")),
+                                         defaultButton=_('Enable CashShuffle'), escapeButton=("Not now") )
+                if chkd:
+                    # they don't want to be asked again, so just remember what they answered and apply this answer each time.
+                    storage.put(ConfKeys.PerWallet.MAIN_WINDOW_NAGGER_ANSWER, bool(res==0))
+            else:
+                # They's specified "Never ask", so apply whatever button they pushed when they said that as the auto-setting.
+                res = 0 if nagger_answer else 1  # if nagge_answer was True, no prompt, just auto-enable, otherwise leave it disabled.
+            if res == 0:
+                self.toggle_cashshuffle()
+
+    _restart_timer = None
+    def restart_cashshuffle(self, msg = None):
+        def ask_then_restart():
+            self._restart_timer.deleteLater(); self._restart_timer = None
+            self.raise_()
+            if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
+                p = self.cashshuffle_plugin_if_loaded()
+                if p:
+                    p.restart_all()
+                    self.notify(_("CashShuffle restarted"))
+                else:
+                    self.notify(_("CashShuffle could not be restarted"))
+        if self._restart_timer:
+            self._restart_timer.stop()
+            self._restart_timer.deleteLater()
+        self._restart_timer = QTimer(self); self._restart_timer.setSingleShot(True)
+        self._restart_timer.timeout.connect(ask_then_restart)
+        self._restart_timer.start(100)
+        if self.internalpluginsdialog and self.internalpluginsdialog.isVisible():
+            self.internalpluginsdialog.reject()
+
+    _cash_shuffle_flag = 0
+    def cashshuffle_set_flag(self, flag):
+        flag = int(flag)
+        changed = flag != self._cash_shuffle_flag
+        if not changed:
+            return
+        if flag:
+            def onClick():
+                KillPopupLabel("CashShuffleError")
+                self.show_cashshuffle_settings()
+            ShowPopupLabel(name = "CashShuffleError",
+                           text="<center><b>{}</b><br><small>{}</small></center>".format(_("Server Error"),_("Right-click to resolve")),
+                           target=self.cashshuffle_status_button,
+                           timeout=20000, onClick=onClick, onRightClick=onClick)
+        else:
+            KillPopupLabel("CashShuffleError")
+        self.print_error("Cash Shuffle flag is now {}".format(flag))
+        oldTip = self.cashshuffle_status_button.statusTip()
+        self._cash_shuffle_flag = flag
+        self.update_status()
+        newTip = self.cashshuffle_status_button.statusTip()
+        if newTip != oldTip:
+            self.statusBar().showMessage(newTip, 7500)
+
+    def cashshuffle_get_flag(self):
+        return self._cash_shuffle_flag
 
     def rebuild_history(self):
         if self.gui_object.warn_if_no_network(self):
