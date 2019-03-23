@@ -3,6 +3,7 @@
 # python setup.py sdist --format=zip,gztar
 
 from setuptools import setup
+import setuptools.command.sdist
 import os
 import sys
 import platform
@@ -60,7 +61,23 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         (os.path.join(share_dir, 'metainfo/'), ['org.electroncash.ElectronCash.appdata.xml']),
     ]
 
+class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
+  """Does some custom stuff before calling super().run()."""
+
+  def run(self):
+    """Run command."""
+    self.announce("Running make_locale...")
+    0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
+    self.announce("Running make_packages...")
+    0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
+    self.announce("Running make_secp...")
+    0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
+    super().run()
+
 setup(
+    cmdclass={
+        'sdist': MakeAllBeforeSdist,
+    },
     name="Electron Cash",
     version=version.PACKAGE_VERSION,
     install_requires=requirements + ['pyqt5'],
@@ -96,6 +113,7 @@ setup(
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',
+            'libsecp256k1*',
             'locale/*/LC_MESSAGES/electron-cash.mo',
         ],
         'electroncash_plugins.shuffle' : [

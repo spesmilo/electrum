@@ -1,0 +1,50 @@
+#!/bin/bash
+
+function fail {
+    RED='\033[0;31m'
+    printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
+    exit 1
+}
+
+contrib=$(dirname "$0")
+test -n "$contrib" -a -d "$contrib" || fail "Could not find the contrib/ directory"
+
+whereis git || fail "Git is required to proceed"
+
+echo "Refreshing submodules..."
+git submodule init
+git submodule update
+
+echo "Building libsecp256k1..."
+LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+
+pushd "$contrib"/secp256k1 || fail "Could not chdir to ${contrib}/secp256k1"
+git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
+git clean -f -x -q
+./autogen.sh || fail "Could not run autogen for secp256k1"
+./configure \
+    --enable-module-recovery \
+    --enable-experimental \
+    --enable-module-ecdh \
+    --disable-jni \
+    --with-bignum=no \
+    --enable-module-schnorr \
+    --disable-tests \
+    --disable-static \
+    --enable-shared || fail "Could not configure secp256k1"
+make -j4 || fail "Could not build secp256k1"
+uname=`uname -s`
+if [ "$uname" = "Darwin" ]; then
+    libsec_lib="libsecp256k1.0.dylib"
+elif [ "$uname" = "Linux" ]; then
+    libsec_lib="libsecp256k1.so.0"
+else
+    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
+fi
+cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
+git checkout master  # Undo the previous explicit checkout to this hash
+git clean -f -x -q
+popd
+
+echo "libsecp256k1.0.so has been placed in the electroncash 'lib' folder."
+
