@@ -3,39 +3,38 @@
 
 set -e
 
+function fail {
+    RED='\033[0;31m'
+    printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
+    exit 1
+}
+
 build_dll() {
     #sudo apt-get install -y mingw-w64
     export SOURCE_DATE_EPOCH=1530212462
-    ./autogen.sh
+    ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
     echo "LDFLAGS = -no-undefined" >> Makefile.am
     LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
         --host=$1 \
         --enable-module-recovery \
         --enable-experimental \
         --enable-module-ecdh \
-        --disable-jni
-    make
+        --with-bignum=no \
+        --disable-jni || fail "Could not run ./configure for secp256k1"
+    make -j4 || fail "Could not build secp256k1"
     ${1}-strip .libs/libsecp256k1-0.dll
 }
 
-
-cd /tmp/electrum-build
-
-if [ ! -d secp256k1 ]; then
-    git clone https://github.com/bitcoin-core/secp256k1.git
-    cd secp256k1;
-else
-    cd secp256k1
-    git pull
-fi
-
-LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
-git reset --hard $LIBSECP_VERSION
+pushd ../secp256k1 || fail "Could not chdir to secp256k1"
+LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark Blundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
 git clean -f -x -q
 
 build_dll i686-w64-mingw32  # 64-bit would be: x86_64-w64-mingw32
-mv .libs/libsecp256k1-0.dll libsecp256k1.dll
+mv .libs/libsecp256k1-0.dll libsecp256k1.dll || fail "Could not find generated DLL"
 
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+
+popd
 
 echo "building libsecp256k1 finished"

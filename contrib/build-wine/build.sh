@@ -16,6 +16,10 @@ rm "$here"/dist/* -rf
 rm -fr /tmp/electrum-build
 mkdir -p /tmp/electrum-build
 
+echo "Refreshing submodules..."
+git submodule init
+git submodule update
+
 $here/build-secp256k1.sh || exit 1
 
 $here/prepare-wine.sh && \

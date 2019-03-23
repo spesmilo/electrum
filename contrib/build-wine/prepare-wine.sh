@@ -46,6 +46,7 @@ verify_hash() {
 
 # Let's begin!
 cd `dirname $0`
+HERE="$PWD"
 set -e
 
 # Clean up Wine environment
@@ -129,7 +130,7 @@ cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 # libsecp256k1
 mkdir -p $WINEPREFIX/drive_c/tmp
-cp /tmp/electrum-build/secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/
+cp "$HERE"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/
 
 
 # add dlls needed for pyinstaller:
