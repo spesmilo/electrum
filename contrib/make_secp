@@ -47,3 +47,4 @@ git clean -f -x -q
 popd
 
 echo "libsecp256k1.0.so has been placed in the electroncash 'lib' folder."
+

@@ -62,7 +62,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         (os.path.join(share_dir, 'metainfo/'), ['org.electroncash.ElectronCash.appdata.xml']),
     ]
 
-class MakeAllBeforeMixin:
+class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
   """Does some custom stuff before calling super().run()."""
 
   def run(self):
@@ -72,19 +72,12 @@ class MakeAllBeforeMixin:
     self.announce("Running make_packages...")
     0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
     self.announce("Running make_secp...")
-    0==os.system("contrib/make_secp") or self.announce("Could not make libsecp256k1, continuing anyway...")
+    0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
     super().run()
-
-class MakeAllBeforeSdist(setuptools.command.sdist.sdist, MakeAllBeforeMixin):
-    pass
-
-class MakeAllBeforeBuild(setuptools.command.build_py.build_py, MakeAllBeforeMixin):
-    pass
 
 setup(
     cmdclass={
         'sdist': MakeAllBeforeSdist,
-        'build': MakeAllBeforeBuild
     },
     name="Electron Cash",
     version=version.PACKAGE_VERSION,
