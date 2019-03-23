@@ -4,7 +4,6 @@
 
 from setuptools import setup
 import setuptools.command.sdist
-import setuptools.command.build_py
 import os
 import sys
 import platform
