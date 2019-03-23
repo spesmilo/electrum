@@ -67,6 +67,10 @@ Create translations (optional)::
 
     sudo apt-get install python-requests gettext
     ./contrib/make_locale
+    
+Compile libsecp256k1 (optional)::
+
+    ./contrib/make_secp
 
 For plugin development, see the `plugin documentation <plugins/README.rst>`_.
 
@@ -93,30 +97,41 @@ pip ("can't combine user with prefix."). To solve this, it is necessary to
 upgrade your pip to the official version::
 
     pip install pip --user
+    
+**Note:** You should also compile the secp256k1 library for fast elliptic curve 
+cryptographic functions. Otherwise, transaction signing or coin shuffling
+operations will be extremely slow::
+
+    ./contrib/make_secp
+
+This will install ``libsecp256k1.so.0`` into the ``lib/`` folder.
 
 Linux (source with packages)
 ----------------------------
 
-Run the following to create the release tarball under `dist/`::
+Run the following to create the release tarball under ``dist/``::
 
     ./setup.py sdist
+
+This command will run the above ``make_locale``, ``make_packages``, and ``make_secp``
+commands for you and it will bundle everything into the aforementioned release tarball.
 
 Mac OS X / macOS
 --------
 
-See `contrib/osx/`.
+See `contrib/osx/ <contrib/osx/>`_.
 
 Windows
 -------
 
-See `contrib/build-wine/`.
+See `contrib/build-wine/ <contrib/build-wine>`_.
 
 Android
 -------
 
-See `gui/kivy/Readme.txt` file.
+See the file `gui/kivy/Readme.txt file <gui/kivy/Readme.txt>`_.
 
 iOS
 -------
 
-See `ios/`.
+See `ios/ <ios/>`_.
