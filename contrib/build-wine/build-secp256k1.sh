@@ -26,7 +26,7 @@ build_dll() {
 }
 
 pushd ../secp256k1 || fail "Could not chdir to secp256k1"
-LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark Blundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
 git clean -f -x -q
 

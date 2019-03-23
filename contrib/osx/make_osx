@@ -17,7 +17,7 @@ BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
 GIT_REPO_ACCT=https://github.com/Electron-Cash
 GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
-LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark Blundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+LIBSECP_VERSION="a1d5a30364d2ca8ed8bb3ef3dd345cc75708a8b2"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })
 MAJ_MIN=${MAJ_MIN[0]}.${MAJ_MIN[1]}
