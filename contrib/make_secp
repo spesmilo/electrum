@@ -3,7 +3,11 @@
 function fail {
     RED='\033[0;31m'
     printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
-    exit 1
+    if [ -z "$2" ]; then
+        exit 1
+    else
+        exit "$2"
+    fi
 }
 
 contrib=$(dirname "$0")
@@ -33,7 +37,7 @@ git clean -f -x -q
     --disable-static \
     --enable-shared || fail "Could not configure secp256k1"
 make -j4 || fail "Could not build secp256k1"
-uname=`uname`
+uname=`uname -s`
 if [ "$uname" = "Darwin" ]; then
     libsec_lib="libsecp256k1.0.dylib"
 elif [ "$uname" = "Linux" ]; then
