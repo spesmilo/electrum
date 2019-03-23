@@ -97,14 +97,13 @@ tar xz --directory $BUILDDIR
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
 
 info "Building libsecp256k1"
-#git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
-#git reset --hard $LIBSECP_VERSION
 git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
 git clean -f -x -q
 ./autogen.sh || fail "Could not run autogen for secp256k1"
 ./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni --with-bignum=no || fail "Could not configure for secp256k1"
 make -j4 || fail "Could not build secp256k1"
+git checkout master  # Undo the previous explicit checkout to this hash
 popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
 
