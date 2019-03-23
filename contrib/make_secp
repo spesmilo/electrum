@@ -43,7 +43,7 @@ if [ "$uname" = "Darwin" ]; then
 elif [ "$uname" = "Linux" ]; then
     libsec_lib="libsecp256k1.so.0"
 else
-    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
+    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)" 0
 fi
 cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
 git checkout master  # Undo the previous explicit checkout to this hash
