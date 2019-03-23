@@ -23,6 +23,9 @@ if sys.version_info[:3] < (3, 5, 2):
 data_files = []
 
 if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
+    0==os.system("contrib/make_locale") or sys.exit("Could not make locale")
+    0==os.system("contrib/make_packages") or sys.exit("Could not make locale")
+    0==os.system("contrib/make_secp") or sys.exit("Could not make locale")
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--user', dest='is_user', action='store_true', default=False)
     parser.add_argument('--system', dest='is_user', action='store_false', default=False)
@@ -96,6 +99,7 @@ setup(
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',
+            'libsecp256k1*',
             'locale/*/LC_MESSAGES/electron-cash.mo',
         ],
         'electroncash_plugins.shuffle' : [
