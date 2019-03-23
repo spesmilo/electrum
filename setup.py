@@ -75,16 +75,16 @@ class MakeAllBeforeMixin:
     0==os.system("contrib/make_secp") or self.announce("Could not make libsecp256k1, continuing anyway...")
     super().run()
 
-class MakAllBeforeSdist(setuptools.command.sdist.sdist, MakeAllBeforeMixin):
+class MakeAllBeforeSdist(setuptools.command.sdist.sdist, MakeAllBeforeMixin):
     pass
 
-class MakAllBeforeBuild(setuptools.command.build_py.build_py, MakeAllBeforeMixin):
+class MakeAllBeforeBuild(setuptools.command.build_py.build_py, MakeAllBeforeMixin):
     pass
 
 setup(
     cmdclass={
         'sdist': MakeAllBeforeSdist,
-        'build': MakAllBeforeBuild
+        'build': MakeAllBeforeBuild
     },
     name="Electron Cash",
     version=version.PACKAGE_VERSION,
