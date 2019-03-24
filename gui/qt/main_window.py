@@ -222,7 +222,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
 
-        QTimer.singleShot(300, self.do_cash_shuffle_reminder)
+        #try:
+        #    # Amaury's recommendation -- only remind a subset of users to enable it.
+        #    self.remind_cashshuffle_enabled = bool(int.from_bytes(bytes.fromhex(self.wallet.get_public_key(self.wallet.get_addresses()[0])), byteorder='big') & 0x3)
+        #except (AttributeError, ValueError, TypeError):
+        #    # wallet lacks the get_public_key method
+        #    self.remind_cashshuffle_enabled = False
+        self.remind_cashshuffle_enabled = False  # For now globally disabled
+        #QTimer.singleShot(300, self.do_cash_shuffle_reminder)
 
     def on_history(self, event, *args):
         # NB: event should always be 'on_history'
@@ -3858,7 +3865,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     _cs_reminder_pixmap = None
     def do_cash_shuffle_reminder(self):
-        if not self.wallet or not self.is_wallet_cashshuffle_compatible():
+        if not self.remind_cashshuffle_enabled:
+            # NB: This is now disabled.  We return early from this function.
+            # Amaury recommended we do this prompting/reminder in a future
+            # release after the initial public release, or we roll it out
+            # for a subset of users (hence this flag).
+            return
+        if self.cleaned_up or not self.wallet or not self.is_wallet_cashshuffle_compatible():
             return
         from electroncash_plugins.shuffle.conf_keys import ConfKeys
         p = self.cashshuffle_plugin_if_loaded()

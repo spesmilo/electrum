@@ -604,6 +604,12 @@ class Plugin(BasePlugin):
     def _enable_for_window(self, window):
         name = window.wallet.basename()
         self.print_error("Window '{}' registered, performing window-specific startup code".format(name))
+        if window.gui_object.warn_if_no_secp(
+                parent=window,
+                message=_("CashShuffle requires libsecp; cannot enable shuffling for this wallet."),
+                icon=QMessageBox.Critical):
+            self.print_error("Refusing to enable CashShuffle for window '{}' because no libsecp :(".format(name))
+            return
         cached_password = window.gui_object.get_cached_password(window.wallet)
         password = None
         while window.wallet.has_password():
