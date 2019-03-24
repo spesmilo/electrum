@@ -45,6 +45,7 @@ fi
 cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
 git checkout master  # Undo the previous explicit checkout to this hash
 git clean -f -x -q
+rm -fr .libs/
 popd
 
 echo "$libsec_lib has been placed in the electroncash 'lib' folder."
