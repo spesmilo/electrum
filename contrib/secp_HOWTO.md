@@ -3,11 +3,15 @@
 
 ![CodeIcon](https://img.icons8.com/color/96/000000/smartphone-cpu.png)
 
-If you have gotten to this page, likely you have been sent here by Electron Cash's "nagger" dialog informing you that you don't have **libsecp** installed.  The purpose of this document is to instruct you on how to rectify the situation.
+If you have gotten to this page, likely you have been sent here by Electron Cash's  dialog informing you that you don't have **libsecp** installed.  The purpose of this document is to instruct you on how to rectify the situation.
 
 ### About libsecp256k1-0
 
-This library was originally developed by [Peter Wuille](https://twitter.com/pwuille?lang=en) for Bitcoin, and has since been adapted or reused in many major cryptocurrencies for fast elliptic curve operations.  Electron Cash uses this library as a secure way to sign and verify transactions.  Electron Cash's [CashShuffle](https://www.cashshuffle.com) component also makes heavy use of this library since it is secure and fast, and as such it is highly recommended you install it if using [CashShuffle](https://www.cashshuffle.com).
+This library was originally developed by [Peter Wuille](https://twitter.com/pwuille?lang=en) for Bitcoin, and has since been adapted and used in many major cryptocurrencies for fast elliptic curve operations.  Electron Cash uses this library as a secure way to sign and verify transactions.
+
+### CashShuffle requires libsecp256k1-0
+
+Electron Cash's [CashShuffle](https://www.cashshuffle.com) makes heavy use elliptic curve cryptography with each message sent.  Since Python-only cryptography is incredibly slow (and potentially susceptible to side-channel exploits), libsecp is required for [CashShuffle](https://www.cashshuffle.com) within Electron Cash.  The reason for this requirement is simple: you would be interfering with the speed and security of other shufflers by *not* using libsecp. Thus in order to be a reliable partner for other shuffle participants, Electron Cash requires you to use this library if you want to enable [CashShuffle](https://www.cashshuffle.com).
 
 You have a few options:
 
@@ -37,7 +41,7 @@ The steps are as follows:
 
 ### Last resort: Try your package manager
 
-We say this is a last resort because in the future Electron Cash will benefit from the customized *[Bitcoin ABC](https://www.bitcoinabc.org)* based libsecp we provide (with the Schnorr signature module enabled).  But for now, your package manager's `libsecp256k1-0` will be sufficient.  *Note: Not all distributions provide this library as a package, so your mileage may vary.*
+We say this is a last resort because in the future Electron Cash will benefit from the customized *[Bitcoin ABC](https://github.com/Bitcoin-ABC/bitcoin-abc/tree/master/src/secp256k1)* based libsecp we provide (with the Schnorr signature module enabled).  But for now, your package manager's `libsecp256k1-0` will be sufficient.  *Note: Not all distributions provide this library as a package, so your mileage may vary.*
 
 Example Ubuntu command:
 ```
