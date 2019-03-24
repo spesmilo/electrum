@@ -68,7 +68,7 @@ Create translations (optional)::
     sudo apt-get install python-requests gettext
     ./contrib/make_locale
     
-Compile libsecp256k1 (optional)::
+Compile libsecp256k1 (optional, yet highly recommended)::
 
     ./contrib/make_secp
 
@@ -99,8 +99,8 @@ upgrade your pip to the official version::
     pip install pip --user
     
 **Note:** You should also compile the secp256k1 library for fast elliptic curve 
-cryptographic functions. Otherwise, transaction signing or coin shuffling
-operations will be extremely slow::
+cryptographic functions. Otherwise, transaction signing will be extremely slow,
+and you won't have access to the CashShuffle functionality of Electron Cash::
 
     ./contrib/make_secp
 
