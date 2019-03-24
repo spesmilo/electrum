@@ -1,9 +1,9 @@
 # libsecp256k1-0 for Electron Cash
-## Mini HOW-TO 
+## Mini HOW-TO
 
 ![CodeIcon](https://img.icons8.com/color/96/000000/smartphone-cpu.png)
 
-If you have gotten to this page, likely you have been sent here by Electron Cash's "nagger" dialog informing you that you don't have **libsecp** installed.  The purpose of this document is to instruct you on how to rectify the situation. 
+If you have gotten to this page, likely you have been sent here by Electron Cash's "nagger" dialog informing you that you don't have **libsecp** installed.  The purpose of this document is to instruct you on how to rectify the situation.
 
 ### About libsecp256k1-0
 
@@ -13,7 +13,7 @@ You have a few options:
 
   - If on **Windows**, it's recommended you run one of the [release .exe files available here](https://www.electroncash.org/#download). The library is included in the `.exe`.
   - If on **macOS**, it's recommended you install Electron Cash from the [release .dmg available here](https://www.electroncash.org/#download). The library is included in the `.app` bundle.
-  - For **Linux x86_64** (the most common architecture), the Electron Cash [release srcdist .tar.gz available here](https://www.electroncash.org/#download) should have the library pre-compiled and living in the `lib/` subfolder of the tarball. You can simply run Electron Cash "from source" (which, paradoxically, does include a compiled library embedded within it), and it should work. 
+  - For **Linux x86_64** (the most common architecture), the Electron Cash [release srcdist .tar.gz available here](https://www.electroncash.org/#download) should have the library pre-compiled and living in the `lib/` subfolder of the tarball. You can simply run Electron Cash "from source" (which, paradoxically, does include a compiled library embedded within it), and it should work.
   - For other architectures and/or Unixey OS's, or if running from *git head* then proceed to the sections below.
 
 ### If running from github head -- dev mode ;)
@@ -24,7 +24,7 @@ You have a few options:
 
 ### If you are running from the "srcdist" (.tar.gz) but the provided .so file doesn't work...
 
-Chances are you either are on an exotic architecture (such as 32 bit intel, non x86_64, etc) or are on a non-Linux unix such as BSD, HURD, etc.  Don't despair! You can still get this working provided the below preconditions are met:
+Chances are you either are on an exotic architecture (such as 32 bit Intel, non-x86_64, etc) or are on a non-Linux Unix such as BSD, HURD, etc.  Don't despair! You can still get this working provided the below preconditions are met:
 
 - You must be on a "Unix-like" OS that can execute Bash scripts and/or run `configure` scripts successfully.  Windows using MSYS should work fine (but admitedly is untested by us).
 - You must have a C compiler, automake, & libtool installed.
@@ -37,7 +37,7 @@ The steps are as follows:
 
 ### Last resort: Try your package manager
 
-We say this is a last resort because in the future Electron Cash will benefit from the customized *[Bitcoin ABC](https://www.bitcoinabc.org)* based libsecp we provide (with the Schnorr signature module enabled).  But for now, your package manager's `libsecp256k1-0` will be sufficient.  *Note: Not all distributions provide this library as a package, so your mileage may vary.* 
+We say this is a last resort because in the future Electron Cash will benefit from the customized *[Bitcoin ABC](https://www.bitcoinabc.org)* based libsecp we provide (with the Schnorr signature module enabled).  But for now, your package manager's `libsecp256k1-0` will be sufficient.  *Note: Not all distributions provide this library as a package, so your mileage may vary.*
 
 Example Ubuntu command:
 ```
