@@ -13,6 +13,8 @@ This library was originally developed by [Peter Wuille](https://twitter.com/pwui
 
 Electron Cash's [CashShuffle](https://www.cashshuffle.com) makes heavy use elliptic curve cryptography with each message sent.  Since Python-only cryptography is incredibly slow (and potentially susceptible to side-channel exploits), libsecp is required for [CashShuffle](https://www.cashshuffle.com) within Electron Cash.  The reason for this requirement is simple: you would be interfering with the speed and security of other shufflers by *not* using libsecp. Thus in order to be a reliable partner for other shuffle participants, Electron Cash requires you to use this library if you want to enable [CashShuffle](https://www.cashshuffle.com).
 
+### Using libsecp with Electron Cash
+
 You have a few options:
 
   - If on **Windows**, it's recommended you run one of the [release .exe files available here](https://www.electroncash.org/#download). The library is included in the `.exe`.
