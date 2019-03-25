@@ -953,6 +953,8 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
         timeout = aiohttp.ClientTimeout(total=10)
+    elif isinstance(timeout, (int, float)):
+        timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
     if proxy:

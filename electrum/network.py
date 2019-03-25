@@ -1159,7 +1159,9 @@ class Network(PrintError):
             await asyncio.sleep(0.1)
 
     @classmethod
-    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
+    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
+                                  body: bytes = None, json: dict = None, headers=None,
+                                  on_finish=None, timeout=None):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1169,7 +1171,7 @@ class Network(PrintError):
             on_finish = default_on_finish
         network = cls.get_instance()
         proxy = network.proxy if network else None
-        async with make_aiohttp_session(proxy) as session:
+        async with make_aiohttp_session(proxy, timeout=timeout) as session:
             if method == 'get':
                 async with session.get(url, params=params, headers=headers) as resp:
                     return await on_finish(resp)
@@ -1193,7 +1195,8 @@ class Network(PrintError):
         else:
             loop = asyncio.get_event_loop()
         coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
-        return coro.result(5)
+        # note: _send_http_on_proxy has its own timeout, so no timeout here:
+        return coro.result()
 
     # methods used in scripts
     async def get_peers(self):

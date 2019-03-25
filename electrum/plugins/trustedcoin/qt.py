@@ -67,12 +67,12 @@ class HandlerTwoFactor(QObject, PrintError):
             return
         window = self.window.top_level_window()
         auth_code = self.plugin.auth_dialog(window)
-        try:
-            wallet.on_otp(tx, auth_code)
-        except:
-            on_failure(sys.exc_info())
-            return
-        on_success(tx)
+        WaitingDialog(parent=window,
+                      message=_('Waiting for TrustedCoin server to sign transaction...'),
+                      task=lambda: wallet.on_otp(tx, auth_code),
+                      on_success=lambda *args: on_success(tx),
+                      on_error=on_failure)
+
 
 class Plugin(TrustedCoinPlugin):
 
