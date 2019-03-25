@@ -36,6 +36,7 @@ import json
 import dns
 import dns.resolver
 import ipaddress
+import sys
 
 import socks
 from . import util
