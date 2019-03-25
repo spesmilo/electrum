@@ -1850,7 +1850,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.tree = QTreeWidget()
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.setMinimumHeight(50)
-        self.tree.setHeaderItem(QTreeWidgetItem([_('Tier'), _('Members'), _('Type'), _('Version'), _('Full')]))
+        self.tree.setHeaderItem(QTreeWidgetItem([_('Tier'), _('Players'), _('Type'), _('Version'), _('Full')]))
         vbox2.addWidget(self.tree)
         # The "simple view" checkbox
         hbox = QHBoxLayout()

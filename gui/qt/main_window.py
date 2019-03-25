@@ -3064,8 +3064,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
             rcfcm = _("Right-click for context menu")
             self.cashshuffle_status_button.setToolTip(
-                (_("Left-click to view pools") + "\n" + rcfcm) if en
-                else  (_("Toggle CashShuffle") + "\n" + rcfcm)
+                (_("Toggle CashShuffle") + "\n" + rcfcm)
+                #(_("Left-click to view pools") + "\n" + rcfcm) if en
+                #else  (_("Toggle CashShuffle") + "\n" + rcfcm)
             )
             self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
             self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
