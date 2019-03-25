@@ -89,8 +89,13 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
         item.setText(5, _("Coinbase"))
     elif (u_value >= BackgroundShufflingThread.LOWER_BOUND
               and u_value < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
-        if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
-            item.setText(5, _("In queue"))
+        window = utxo_list.parent
+        if (window and window.background_process and utxo_list.wallet.network
+                and utxo_list.wallet.network.is_connected()):
+            if window.background_process.get_paused():
+                item.setText(5, _("Paused"))
+            else:
+                item.setText(5, _("In queue"))
         else:
             item.setText(5, _("Offline"))
 
@@ -1230,12 +1235,12 @@ class SendTabExtra(QFrame, PrintError):
                                     .format(_("CashShuffle Enabled"), _("Only <b>shuffled</b> funds will be sent")))
             self.titleLabel.help_text = self.msg
             self.forceUnpause()
-            self.pauseBut.setDisabled(True)
+            #self.pauseBut.setDisabled(True)
         elif which == self.SpendingModeUnshuffled:
             self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
                                     .format(_("CashShuffle Enabled"), _("Only <i>unshuffled</i> funds will be sent")))
             self.titleLabel.help_text = self.msg2
-            self.pauseBut.setEnabled(bool(self.window.background_process and not self.window.background_process.is_offline_mode()))
+            #self.pauseBut.setEnabled(bool(self.window.background_process and not self.window.background_process.is_offline_mode()))
             noprompt = self.wallet.storage.get(ConfKeys.PerWallet.SPEND_UNSHUFFLED_NAGGER_NOPROMPT, False)
             if not noprompt:
                 ans, chk = self.window.question(
@@ -1257,6 +1262,7 @@ class SendTabExtra(QFrame, PrintError):
             self.window.background_process.set_paused(b)
             # Note: GUI refresh() wil later also set this string but we set it immediately here so UI feel peppier
             self.pauseBut.setText(_("Pause Shuffling") if not b else _("Shuffling Paused"))
+            self.window.utxo_list.update()
 
     def do_clear(self): # called by plugin hook do_clear()
         self.forceUnpause()
@@ -1327,7 +1333,7 @@ class SendTabExtra(QFrame, PrintError):
             self.pauseBut.setChecked(False)
         self.pauseBut.setText(_("Pause Shuffling") if not self.pauseBut.isChecked() else _("Shuffling Paused"))
 
-        self.pauseBut.setEnabled(bool(self.window.background_process and mode == self.SpendingModeUnshuffled
+        self.pauseBut.setEnabled(bool(self.window.background_process #and mode == self.SpendingModeUnshuffled
                                       and not self.window.background_process.is_offline_mode()))
 
 
