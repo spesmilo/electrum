@@ -81,7 +81,7 @@ class random_sk(EC_KEY):
     def __init__(self):
         G = generator_secp256k1
         _r  = G.order()
-        pvk = ecdsa.util.randrange( pow(2,256) ) %_r
+        pvk = ecdsa.util.randrange( _r )
         eck = EC_KEY.__init__(self, number_to_string(pvk,_r))
 
 def make_fake_public_key(compressed=True, secret_key = None):
@@ -103,7 +103,7 @@ class Crypto_cheater(Crypto):
     """
 
     def generate_fake_key_pair(self):
-        self.fake_private_key = ecdsa.util.randrange( pow(2,256) ) %self._r
+        self.fake_private_key = ecdsa.util.randrange( self._r )
         self.fake_eck = EC_KEY(number_to_string(self.fake_private_key, self._r))
         self.fake_public_key = point_to_ser(self.fake_private_key*self.G,True)
 
