@@ -12,10 +12,15 @@ rdymac - Website and translations.
 kyuupichan - Miscellaneous.
 Sombernight - many fixes
 Jonald Fyookball - Imperator
-Calin Culianu - iOS version, MacOS packaging, MacOS QRScanner, miscellaneous
+Calin Culianu - iOS version, MacOS packaging, MacOS QRScanner, CashShuffle, miscellaneous
 Malcolm Smith - New Android Version, tuneups and fixups
 Roger Taylor - new version 1.4 blockchain synch code, external plugin system, miscellanous
-Mark Lundeberg - Windows zbar, SLP (Tokens) work, various miscellanity
+Mark Lundeberg - Windows zbar, SLP (Tokens) work, cryptography, CashShuffle, miscellaneous
+James Cramer - Simple Ledger Protocol (Tokens)
 Jochen Hoenicke - Trezor, Ledger, and other miscellaneous fixes
-Jonas Lundqvist - BIP70 fix, currency exchanges
+Jonas Lundqvist - BIP70 fix, currency exchanges, Android
 Marcel O'Neil - Miscellaneous + packaging fixups
+Clifford - CashShuffle
+imaginaryusername - UI and privacy recommendations
+emergent_reasons - Code review and uncanny bug detection
+Josh Ellithorpe - CashShuffle server
