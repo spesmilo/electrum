@@ -516,30 +516,40 @@ class Network(PrintError):
 
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
-        def needs_dns_resolving(host2):
+        def needs_dns_resolving(host):
             try:
-                ipaddress.ip_address(host2)
+                ipaddress.ip_address(host)
                 return False  # already valid IP
             except ValueError:
                 pass  # not an IP
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True
-        try:
-            if needs_dns_resolving(host):
-                answers = dns.resolver.query(host)
-                addr = str(answers[0])
-            else:
-                addr = host
-        except dns.exception.DNSException as e:
-            # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-            # this is normal. Simply report back failure:
-            raise socket.gaierror(11001, 'getaddrinfo failed') from e
-        except BaseException as e:
-            # Possibly internal error in dnspython :( see #4483
+        def resolve_with_dnspython(host):
+            # try IPv6
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
+                return str(answers[0])
+            except dns.exception.DNSException as e:
+                pass
+            except BaseException as e:
+                print_error(f'dnspython failed to resolve dns (AAAA) with error: {e}')
+            # try IPv4
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.A)
+                return str(answers[0])
+            except dns.exception.DNSException as e:
+                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
+                # this is normal. Simply report back failure:
+                raise socket.gaierror(11001, 'getaddrinfo failed') from e
+            except BaseException as e:
+                # Possibly internal error in dnspython :( see #4483
+                print_error(f'dnspython failed to resolve dns (A) with error: {e}')
             # Fall back to original socket.getaddrinfo to resolve dns.
-            print_error('dnspython failed to resolve dns with error:', e)
-            addr = host
+            return host
+        addr = host
+        if needs_dns_resolving(host):
+            addr = resolve_with_dnspython(host)
         return socket._getaddrinfo(addr, *args, **kwargs)
 
     @log_exceptions
