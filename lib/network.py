@@ -33,9 +33,6 @@ from collections import defaultdict
 import threading
 import socket
 import json
-import dns
-import dns.resolver
-import ipaddress
 
 import socks
 from . import util
@@ -560,53 +557,8 @@ class Network(util.DaemonThread):
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
             socket.socket = socket._socketobject
-            if sys.platform == 'win32':
-                # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
-                # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
-                # see spesmilo#4421
-                socket.getaddrinfo = self._fast_getaddrinfo
-            else:
-                socket.getaddrinfo = socket._getaddrinfo
+            socket.getaddrinfo = socket._getaddrinfo
         self.notify('proxy')
-
-    @staticmethod
-    def _fast_getaddrinfo(host, *args, **kwargs):
-        # taken from electrum commit 9b0773cf2bf139eafe4a828c8964461d34ea9e23
-        def needs_dns_resolving(host):
-            try:
-                ipaddress.ip_address(host)
-                return False  # already valid IP
-            except ValueError:
-                pass  # not an IP
-            if str(host) in ('localhost', 'localhost.',):
-                return False
-            return True
-        def resolve_with_dnspython(host):
-            # try IPv4
-            try:
-                answers = dns.resolver.query(host, dns.rdatatype.A)
-                return str(answers[0])
-            except dns.exception.DNSException as e:
-                pass
-            except BaseException as e:
-                # Possibly internal error in dnspython :( see #4483
-                util.print_error('dnspython failed to resolve dns (A) with error: {}'.format(e))
-            # try IPv6
-            try:
-                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
-                return str(answers[0])
-            except dns.exception.DNSException as e:
-                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-                # this is normal. Simply report back failure:
-                raise socket.gaierror(11001, 'getaddrinfo failed') from e
-            except BaseException as e:
-                util.print_error('dnspython failed to resolve dns (AAAA) with error: {}'.format(e))
-            # Fall back to original socket.getaddrinfo to resolve dns.
-            return host
-        addr = host
-        if needs_dns_resolving(host):
-            addr = resolve_with_dnspython(host)
-        return socket._getaddrinfo(addr, *args, **kwargs)
 
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces
