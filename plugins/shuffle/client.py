@@ -134,6 +134,7 @@ class ProtocolThread(threading.Thread, PrintError):
             messages += self.comm.recv()
         self.messages.packets.ParseFromString(messages)
         seen_utxos = set()
+        seen_pubkeys = set()
         for packet in self.messages.packets.packet:
             player_number = packet.packet.number
             player_key = str(packet.packet.from_key.key)
@@ -143,12 +144,15 @@ class ProtocolThread(threading.Thread, PrintError):
                 coins = set(inp.coins) # ensure unique set of inputs
                 dupes = seen_utxos & coins
                 if dupes:
-                    raise AbortProtocol("Dupe input for player {}; dupe utxo(s): {} ".format(player_number, *dupes))
+                    raise AbortProtocol("Dupe input for player {}; dupe utxo(s): {} ".format(player_number, str(dupes)))
                 seen_utxos.update(coins)
                 if len(coins) != 1:
                     # enforce 1 input per player, to do more breaks fee model.
                     # we need a dynamic fee model: see issue tracker #74
                     raise AbortProtocol('Extra or missing input for player {}; each player must have exactly 1 input!'.format(player_number))
+                if pk in seen_pubkeys:
+                    raise AbortProtocol("Dupe pubkey for player {}; dupe pubkey: {} ".format(player_number, pk))
+                seen_pubkeys.add(pk)
                 self.all_inputs[player_key][pk] = list(coins)
         if self.players:
             self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
