@@ -67,7 +67,7 @@ Create translations (optional)::
 
     sudo apt-get install python-requests gettext
     ./contrib/make_locale
-    
+
 Compile libsecp256k1 (optional, yet highly recommended)::
 
     ./contrib/make_secp
@@ -97,8 +97,8 @@ pip ("can't combine user with prefix."). To solve this, it is necessary to
 upgrade your pip to the official version::
 
     pip install pip --user
-    
-**Note:** You should also compile the secp256k1 library for fast elliptic curve 
+
+**Note:** You should also compile the secp256k1 library for fast elliptic curve
 cryptographic functions. Otherwise, transaction signing will be extremely slow,
 and you won't have access to the CashShuffle functionality of Electron Cash::
 
@@ -113,8 +113,10 @@ Run the following to create the release tarball under ``dist/``::
 
     ./setup.py sdist
 
-This command will run the above ``make_locale``, ``make_packages``, and ``make_secp``
-commands for you and it will bundle everything into the aforementioned release tarball.
+This command will *NOT* run the above ``make_locale`` and ``make_packages`` for
+you, so you should run them if you want to include Python packages and
+translations in the srcdist.  It will, however run ``make_secp`` for you and
+it will bundle libsecp256k1-0 into the aforementioned release tarball.
 
 Mac OS X / macOS
 --------

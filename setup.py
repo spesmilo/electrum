@@ -66,10 +66,10 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
 
   def run(self):
     """Run command."""
-    self.announce("Running make_locale...")
-    0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
-    self.announce("Running make_packages...")
-    0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
+    #self.announce("Running make_locale...")
+    #0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
+    #self.announce("Running make_packages...")
+    #0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
     self.announce("Running make_secp...")
     0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
     super().run()
