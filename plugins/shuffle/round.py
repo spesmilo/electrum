@@ -851,7 +851,7 @@ class Round(PrintError):
         nobody is to blame and the shuffle completed successfully.
         """
         offenders = set()
-        seen_pubkeys = set()
+        seen_utxos = set()
         amount = self.shuffle_amount + self.fee
         def get_vk(pubkey):
             # note that in the current implementation the pubkey IS the vk,
@@ -870,11 +870,14 @@ class Round(PrintError):
             pubkey = txin['pubkeys'][0]
             vk = get_vk(pubkey)
             assert vk
-            if pubkey in seen_pubkeys:
-                # Defensive programming
-                raise RuntimeError('check_and_blame_insufficient_funds_phase_5: only 1 input per player is allowed!')
-            seen_pubkeys.add(pubkey)
-            inp = { pubkey : [self.coin_utils.get_name(txin)] }
+            utxo_name = self.coin_utils.get_name(txin)
+            if utxo_name in seen_utxos:
+                # Dupe input.  This also indicates a bug in phase0
+                self.print_error("***** WARNING: Phase 0 UTXO-is-unique check is to blame here! FIXME!")
+                offenders.add(vk)
+                continue
+            seen_utxos.add(utxo_name)
+            inp = { pubkey : [utxo_name] }
             is_ok, total = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, amount)
             if is_ok is False: # None indicates blockchain server fault, False indicates actual negative reply
                 if total is None:

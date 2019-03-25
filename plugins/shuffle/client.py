@@ -133,20 +133,23 @@ class ProtocolThread(threading.Thread, PrintError):
         for __ in range(self.number_of_players):
             messages += self.comm.recv()
         self.messages.packets.ParseFromString(messages)
+        seen_utxos = set()
         for packet in self.messages.packets.packet:
             player_number = packet.packet.number
             player_key = str(packet.packet.from_key.key)
             self.players[player_number] = player_key
             self.all_inputs[player_key] = {}
             for pk, inp in packet.packet.message.inputs.items():
-                coins = list(set(inp.coins)) # ensure unique set of inputs
+                coins = set(inp.coins) # ensure unique set of inputs
+                dupes = seen_utxos & coins
+                if dupes:
+                    raise AbortProtocol("Dupe input for player {}; dupe utxo(s): {} ".format(player_number, *dupes))
+                seen_utxos.update(coins)
                 if len(coins) != 1:
                     # enforce 1 input per player, to do more breaks fee model.
                     # we need a dynamic fee model: see issue tracker #74
-                    self.logger.send('Error: Extra or missing input for player {}; each player must have exactly 1 input!'.format(player_number))
-                    self.done.set()
-                    return
-                self.all_inputs[player_key][pk] = coins
+                    raise AbortProtocol('Extra or missing input for player {}; each player must have exactly 1 input!'.format(player_number))
+                self.all_inputs[player_key][pk] = list(coins)
         if self.players:
             self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
         if self.number_of_players < 3:
