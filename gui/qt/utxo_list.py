@@ -32,7 +32,7 @@ class UTXOList(MyTreeWidget):
     col_output_point = 4  # <-- index of the 'Output point' column. make sure to update this if you modify the header below...
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1, deferred_updates=True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         # force attributes to always be defined, even if None, at construction.
@@ -199,6 +199,8 @@ class UTXOList(MyTreeWidget):
             self.parent.set_frozen_state(list(addrs), b)
 
     def update_labels(self):
+        if self.should_defer_update_incr():
+            return
         root = self.invisibleRootItem()
         child_count = root.childCount()
         for i in range(child_count):

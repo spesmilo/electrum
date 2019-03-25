@@ -42,7 +42,7 @@ class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     def __init__(self, parent=None):
-        super().__init__(parent, self.create_menu, [], 2)
+        super().__init__(parent, self.create_menu, [], 2, deferred_updates=True)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -232,6 +232,8 @@ class AddressList(MyTreeWidget):
             super().keyPressEvent(event)
 
     def update_labels(self):
+        if self.should_defer_update_incr():
+            return
         def update_recurse(root):
             child_count = root.childCount()
             for i in range(child_count):

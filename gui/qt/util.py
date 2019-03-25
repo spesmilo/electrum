@@ -433,7 +433,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 class MyTreeWidget(QTreeWidget):
 
     def __init__(self, parent, create_menu, headers, stretch_column=None,
-                 editable_columns=None):
+                 editable_columns=None, *, deferred_updates=False):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
         self.config = self.parent.config
@@ -444,6 +444,8 @@ class MyTreeWidget(QTreeWidget):
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
+        self.deferred_updates = deferred_updates
+        self.deferred_update_ct, self._forced_update = 0, False
 
         # Control which columns are editable
         self.editor = None
@@ -523,6 +525,7 @@ class MyTreeWidget(QTreeWidget):
             if self.editor is None and self.pending_update:
                 self.pending_update = False
                 self.on_update()
+                self.deferred_update_ct = 0
 
     def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
@@ -531,14 +534,28 @@ class MyTreeWidget(QTreeWidget):
         self.parent.wallet.set_label(key, text)
         self.parent.update_labels()
 
+    def should_defer_update_incr(self):
+        ret = (self.deferred_updates and not self.isVisible()
+               and not self._forced_update )
+        if ret:
+            self.deferred_update_ct += 1
+        return ret
+
     def update(self):
         # Defer updates if editing
         if self.editor:
             self.pending_update = True
         else:
+            # Deferred update mode won't actually update the GUI if it's
+            # not on-screen, and will instead update it the next time it is
+            # shown.  This has been found to radically speed up large wallets
+            # on initial synch or when new TX's arrive.
+            if self.should_defer_update_incr():
+                return
             self.setUpdatesEnabled(False)
             scroll_pos_val = self.verticalScrollBar().value() # save previous scroll bar position
             self.on_update()
+            self.deferred_update_ct = 0
             def restoreScrollBar():
                 self.updateGeometry()
                 self.verticalScrollBar().setValue(scroll_pos_val) # restore scroll bar to previous
@@ -548,7 +565,16 @@ class MyTreeWidget(QTreeWidget):
             self.filter(self.current_filter)
 
     def on_update(self):
+        # Reimplemented in subclasses
         pass
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if e.isAccepted() and self.deferred_update_ct:
+            self._forced_update = True
+            self.update()
+            self._forced_update = False
+            # self.deferred_update_ct will be set right after on_update is called because some subclasses use @rate_limiter on the update() method
 
     def get_leaves(self, root):
         child_count = root.childCount()
