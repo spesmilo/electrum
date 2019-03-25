@@ -1,0 +1,84 @@
+Popup:
+    title: "Electrum"
+    confirmed: 0
+    unconfirmed: 0
+    unmatured: 0
+    watching_only: app.wallet.is_watching_only()
+    has_seed: app.wallet.has_seed()
+    on_parent:
+        self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
+    BoxLayout:
+        orientation: 'vertical'
+        ScrollView:
+            GridLayout:
+                cols: 1
+                height: self.minimum_height
+                size_hint_y: None
+                padding: '10dp'
+                spacing: '10dp'
+                padding: '10dp'
+                spacing: '10dp'
+                GridLayout:
+                    cols: 1
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: '10dp'
+                    BoxLabel:
+                        text: _('Wallet Name')
+                        value: app.wallet_name
+                    BoxLabel:
+                        text: _("Wallet type:")
+                        value: app.wallet.wallet_type
+                    BoxLabel:
+                        text: _("Balance") + ':'
+                        value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
+                    BoxLabel:
+                        text: _("Confirmed") + ':'
+                        opacity: 1 if root.confirmed else 0
+                        value: app.format_amount_and_units(root.confirmed)
+                        opacity: 1 if root.confirmed else 0
+                    BoxLabel:
+                        text: _("Unconfirmed") + ':'
+                        opacity: 1 if root.unconfirmed else 0
+                        value: app.format_amount_and_units(root.unconfirmed)
+                    BoxLabel:
+                        text: _("Unmatured") + ':'
+                        opacity: 1 if root.unmatured else 0
+                        value: app.format_amount_and_units(root.unmatured)
+                        opacity: 1 if root.unmatured else 0
+
+                GridLayout:
+                    cols: 1
+                    height: self.minimum_height
+                    size_hint_y: None
+                    padding: '10dp'
+                    spacing: '10dp'
+                    id: master_public_keys
+                    TopLabel:
+                        text: _('Master Public Key')
+                    RefLabel:
+                        data: app.wallet.get_master_public_key() or 'None'
+                        name: _('Master Public Key')
+
+
+                TopLabel:
+                    id: seed_label
+                    text: _('This wallet is watching-only') if root.watching_only else ''
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: '' if not root.has_seed else (_('Hide seed') if seed_label.text else _('Show seed'))
+                disabled: not root.has_seed
+                on_release:
+                    setattr(seed_label, 'text', '') if seed_label.text else app.show_seed(seed_label)
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Delete')
+                on_release:
+                    root.dismiss()
+                    app.delete_wallet()

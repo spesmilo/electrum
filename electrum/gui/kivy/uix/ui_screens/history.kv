@@ -1,0 +1,78 @@
+#:import _ electrum.gui.kivy.i18n._
+#:import Factory kivy.factory.Factory
+#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+#:set btc_symbol chr(171)
+#:set mbtc_symbol chr(187)
+
+
+
+<CardLabel@Label>
+    color: 0.95, 0.95, 0.95, 1
+    size_hint: 1, None
+    text: ''
+    text_size: self.width, None
+    height: self.texture_size[1]
+    halign: 'left'
+    valign: 'top'
+
+
+<HistoryItem@CardItem>
+    icon: 'atlas://electrum/gui/kivy/theming/light/important'
+    message: ''
+    is_mine: True
+    amount: '--'
+    action: _('Sent') if self.is_mine else _('Received')
+    amount_color: '#FF6657' if self.is_mine else '#2EA442'
+    confirmations: 0
+    date: ''
+    quote_text: ''
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        allow_stretch: True
+        width: self.height*1.5
+        mipmap: True
+    BoxLayout:
+        orientation: 'vertical'
+        Widget
+        CardLabel:
+            text:
+                u'[color={color}]{s}[/color]'.format(s='<<' if root.is_mine else '>>', color=root.amount_color)\
+                + ' ' + root.action + ' ' + (root.quote_text if app.is_fiat else root.amount)
+            font_size: '15sp'
+        CardLabel:
+            color: .699, .699, .699, 1
+            font_size: '14sp'
+            shorten: True
+            text: root.date + '   ' + root.message
+        Widget
+
+<HistoryRecycleView>:
+    viewclass: 'HistoryItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
+
+
+HistoryScreen:
+    name: 'history'
+    content: history_container
+    BoxLayout:
+        orientation: 'vertical'
+        Button:
+            background_color: 0, 0, 0, 0
+            text: app.fiat_balance if app.is_fiat else app.balance
+            markup: True
+            color: .9, .9, .9, 1
+            font_size: '30dp'
+            bold: True
+            size_hint: 1, 0.25
+            on_release: app.is_fiat = not app.is_fiat if app.fx.is_enabled() else False
+        HistoryRecycleView:
+            id: history_container
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'

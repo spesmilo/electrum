@@ -5,7 +5,7 @@ Electrum-Satochip - Lightweight Bitcoin client for the Satochip Hardware Wallet
 
   Licence: MIT Licence
   Author: Thomas Voegtlin, modified by Toporin
-  Language: Python
+  Language: Python (>= 3.6)
   Homepage: 
 
 Introduction
@@ -49,7 +49,7 @@ Download the .whl files from https://sourceforge.net/projects/pyscard/files/pysc
 
 In PowerShell, run electrum on the testnet (-v allows for verbose output)::
 
-    python .\electrum -v --testnet
+    python .\run_electrum -v --testnet
     
 
 Development version (Ubuntu)
@@ -75,13 +75,11 @@ Run install (this should install dependencies)::
     
 Install pyscard (https://pyscard.sourceforge.io/)
 Pyscard is required to connect to the smartcard:: 
-
     sudo apt-get install pcscd
     sudo apt-get install python3-pyscard
 (For alternatives, see https://github.com/LudovicRousseau/pyscard/blob/master/INSTALL.md for more detailed installation instructions)
  
 To run Electrum use::
-
  python3 electrum -v --testnet 
  
  
@@ -90,23 +88,9 @@ Test suite
  
 To run the test suite, run::
 
-    python -m unittest plugins.satochip.test_CardConnector
+    python -m unittest electrum.plugins.satochip.test_CardConnector
  
 The test suite uses the following default PIN code: "12345678".
 If you run the test suite after (or before) electrum, you may block the card if the PIN used are not the same!
 If the card is locked, you will have to reinstall the javacard applet on the card.
-
-
-
-
-
-
-
-
-
-    
-    
-    
-    
-
 

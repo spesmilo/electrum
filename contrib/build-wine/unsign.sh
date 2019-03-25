@@ -11,7 +11,6 @@ fi
 # exit if command fails
 set -e
 
-rm -rf signed
 mkdir -p signed >/dev/null 2>&1
 mkdir -p signed/stripped >/dev/null 2>&1
 

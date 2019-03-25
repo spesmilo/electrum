@@ -10,21 +10,25 @@ for i, x in enumerate(sys.argv):
 else:
     raise Exception('no name')
 
-#DebugSatochip
-#PYTHON_VERSION = '3.5.4'
-PYTHON_VERSION = '3.6.8'
-PYHOME = 'c:/python' + PYTHON_VERSION
+PYHOME = 'c:/python3'
 
 home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('trezorlib')
+hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('satochip') #DebugSatochip
 hiddenimports += collect_submodules('smartcard') #DebugSatochip
+hiddenimports += collect_submodules('ckcc')
+
+# safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
+# release a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
+hiddenimports.remove('safetlib.qt.pinmatrix')
+
 
 # Add libusb binary
 binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
@@ -35,36 +39,39 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
 
 datas = [
-    (home+'lib/*.json', 'electrum'),
-    (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'lib/locale', 'electrum/locale'),
-    (home+'plugins', 'electrum_plugins'),
+    (home+'electrum/*.json', 'electrum'),
+    (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
+    (home+'electrum/locale', 'electrum/locale'),
+    (home+'electrum/plugins', 'electrum/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
-	#(PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win_amd64.pyd', '.\\smartcard\\scard\\') #debugSatochip	
-	(PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win32.pyd', '.\\smartcard\\scard\\') #debugSatochip	
+    (home+'electrum/gui/icons', 'electrum/gui/icons'),
+    (PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win32.pyd', '.\\smartcard\\scard\\') #debugSatochip	
 ]
 datas += collect_data_files('trezorlib')
+datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('ckcc')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum',
-              home+'gui/qt/main_window.py',
-              home+'gui/text.py',
-              home+'lib/util.py',
-              home+'lib/wallet.py',
-              home+'lib/simple_config.py',
-              home+'lib/bitcoin.py',
-              home+'lib/dnssec.py',
-              home+'lib/commands.py',
-              home+'plugins/cosigner_pool/qt.py',
-              home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/client.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
-			  home+'plugins/satochip/qt.py', #DebugSatochip
-			  #home+'packages/requests/utils.py'
+a = Analysis([home+'run_electrum',
+              home+'electrum/gui/qt/main_window.py',
+              home+'electrum/gui/text.py',
+              home+'electrum/util.py',
+              home+'electrum/wallet.py',
+              home+'electrum/simple_config.py',
+              home+'electrum/bitcoin.py',
+              home+'electrum/dnssec.py',
+              home+'electrum/commands.py',
+              home+'electrum/plugins/cosigner_pool/qt.py',
+              home+'electrum/plugins/email_requests/qt.py',
+              home+'electrum/plugins/trezor/qt.py',
+              home+'electrum/plugins/safe_t/client.py',
+              home+'electrum/plugins/safe_t/qt.py',
+              home+'electrum/plugins/keepkey/qt.py',
+              home+'plugins/satochip/qt.py', #DebugSatochip
+              home+'electrum/plugins/coldcard/qt.py',
+              #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
              datas=datas,
@@ -75,9 +82,27 @@ a = Analysis([home+'electrum',
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
-    if 'pyconfig' in d[0]: 
+    if 'pyconfig' in d[0]:
         a.datas.remove(d)
         break
+
+# Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
+qt_bins2remove=('qt5web', 'qt53d', 'qt5game', 'qt5designer', 'qt5quick',
+                'qt5location', 'qt5test', 'qt5xml', r'pyqt5\qt\qml\qtquick')
+print("Removing Qt binaries:", *qt_bins2remove)
+for x in a.binaries.copy():
+    for r in qt_bins2remove:
+        if x[0].lower().startswith(r):
+            a.binaries.remove(x)
+            print('----> Removed x =', x)
+
+qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales', )
+print("Removing Qt datas:", *qt_data2remove)
+for x in a.datas.copy():
+    for r in qt_data2remove:
+        if x[0].lower().startswith(r):
+            a.datas.remove(x)
+            print('----> Removed x =', x)
 
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
@@ -92,12 +117,12 @@ exe_standalone = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.datas, 
+    a.datas,
     name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + ".exe"),
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'electrum/gui/icons/electrum.ico',
     console=True) #DebugSatochip True
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
@@ -110,7 +135,7 @@ exe_portable = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'electrum/gui/icons/electrum.ico',
     console=True) #DebugSatochip True
 
 #####
@@ -124,7 +149,7 @@ exe_dependent = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'electrum/gui/icons/electrum.ico',
     console=False)
 
 coll = COLLECT(
@@ -135,6 +160,6 @@ coll = COLLECT(
     strip=None,
     upx=True,
     debug=False,
-    icon=home+'icons/electrum.ico',
+    icon=home+'electrum/gui/icons/electrum.ico',
     console=False,
     name=os.path.join('dist', 'electrum'))

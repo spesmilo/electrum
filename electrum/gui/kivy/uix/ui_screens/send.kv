@@ -1,0 +1,127 @@
+#:import _ electrum.gui.kivy.i18n._
+#:import Decimal decimal.Decimal
+#:set btc_symbol chr(171)
+#:set mbtc_symbol chr(187)
+#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+
+
+SendScreen:
+    id: s
+    name: 'send'
+    address: ''
+    amount: ''
+    message: ''
+    is_pr: False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        SendReceiveBlueBottom:
+            id: blue_bottom
+            size_hint: 1, None
+            height: self.minimum_height
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: payto_e
+                    text: s.address if s.address else _('Recipient')
+                    shorten: True
+                    on_release: Clock.schedule_once(lambda dt: app.show_info(_('Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code.')))
+                    #on_release: Clock.schedule_once(lambda dt: app.popup_dialog('contacts'))
+            CardSeparator:
+                opacity: int(not root.is_pr)
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum/gui/kivy/theming/light/calculator'
+                    opacity: 0.7
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: amount_e
+                    default_text: _('Amount')
+                    text: s.amount if s.amount else _('Amount')
+                    disabled: root.is_pr
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
+            CardSeparator:
+                opacity: int(not root.is_pr)
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum/gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: description
+                    text: s.message if s.message else (_('No Description') if root.is_pr else _('Description'))
+                    disabled: root.is_pr
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
+            CardSeparator:
+                opacity: int(not root.is_pr)
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum/gui/kivy/theming/light/star_big_inactive'
+                    opacity: 0.7
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: fee_e
+                    default_text: _('Fee')
+                    text: app.fee_status
+                    on_release: Clock.schedule_once(lambda dt: app.fee_dialog(s, True))
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            IconButton:
+                size_hint: 0.6, 1
+                on_release: s.parent.do_save()
+                icon: 'atlas://electrum/gui/kivy/theming/light/save'
+            Button:
+                text: _('Invoices')
+                size_hint: 1, 1
+                on_release: Clock.schedule_once(lambda dt: app.invoices_dialog(s))
+            Button:
+                text: _('Paste')
+                on_release: s.parent.do_paste()
+            IconButton:
+                id: qr
+                size_hint: 0.6, 1
+                on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
+                icon: 'atlas://electrum/gui/kivy/theming/light/camera'
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                text: _('Clear')
+                on_release: s.parent.do_clear()
+            Widget:
+                size_hint: 1, 1
+            Button:
+                text: _('Pay')
+                size_hint: 1, 1
+                on_release: s.parent.do_send()
+        Widget:
+            size_hint: 1, 1
+
+

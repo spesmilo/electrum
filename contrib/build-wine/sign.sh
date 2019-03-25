@@ -15,6 +15,7 @@ if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
 fi
 
+rm -rf signed
 mkdir -p signed >/dev/null 2>&1
 
 cd dist
