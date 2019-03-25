@@ -78,28 +78,45 @@ class Test_bitcoin(unittest.TestCase):
         # produced by libsecp versus python ecdsa, etc. This is because nonces
         # may differ.  We ran into this when switching from Bitcoin Core libsecp
         # to Bitcoin ABC libsecp.  Amaury Sechet confirmed this to be true.
-        # So.. the below test is flawed.  Instead, we verify that both
-        # signatures pass. The hard-coded one as well as the generated one.
+        # Mark Lundeberg suggested we still do binary exact matches from a set,
+        # though, just to notice when nonces of the underlying lib change.
+        # So.. the below test is has been updated to use a set.
         #self.assertEqual(sig1_b64, b'H/9jMOnj4MFbH3d7t4yCQ9i7DgZU/VZ278w3+ySv2F4yIsdqjsc5ng3kmN8OZAThgyfCZOQxZCWza9V5XzlVY0Y=')
         #self.assertEqual(sig2_b64, b'G84dmJ8TKIDKMT9qBRhpX2sNmR0y5t+POcYnFFJCs66lJmAs3T8A6Sbpx7KA6yTQ9djQMabwQXRrDomOkIKGn18=')
         #
-        # Hardcoded sigs were generated with an old version of Python ECDSA by Electrum team:
-        our_sig1 = base64.b64decode(b'H/9jMOnj4MFbH3d7t4yCQ9i7DgZU/VZ278w3+ySv2F4yIsdqjsc5ng3kmN8OZAThgyfCZOQxZCWza9V5XzlVY0Y=')
-        our_sig2 = base64.b64decode(b'G84dmJ8TKIDKMT9qBRhpX2sNmR0y5t+POcYnFFJCs66lJmAs3T8A6Sbpx7KA6yTQ9djQMabwQXRrDomOkIKGn18=')
+        # Hardcoded sigs were generated with an old version of Python ECDSA by Electrum team.
+        # New sigs generated with Bitcoin-ABC libsecp variant.  Both verify against each other ok
+        # They just have different byte patterns we can expect due to different nonces used (both are to spec).
+        accept_b64_1 = {
+            # Older core libsecp/python ecdsa nonce produces this deterministic signature
+            b'H/9jMOnj4MFbH3d7t4yCQ9i7DgZU/VZ278w3+ySv2F4yIsdqjsc5ng3kmN8OZAThgyfCZOQxZCWza9V5XzlVY0Y=',
+            # New Bitoin ABC libsecp nonce produces this deterministic signature
+            b'IA+oq/uGz4kKA2bNgxPcM+T216abyUiBhofMg1J8fC5BLAbbIpF2toCHaO7/LQAxhQBtu5D6ROq1JjXiRwPAASg=',
+        }
+        accept_b64_2 = {
+            # core/ecdsa
+            b'G84dmJ8TKIDKMT9qBRhpX2sNmR0y5t+POcYnFFJCs66lJmAs3T8A6Sbpx7KA6yTQ9djQMabwQXRrDomOkIKGn18=',
+            # libsecp bitcoin-abc
+            b'HP+MT0B/Ga++0DEXDJE0oBb1DEsBMX0j+i2mbyEI4nwVMZkwc/pHgL2KlntotC+k8uU8y/M4YAdO4n7vfuUVL8A=',
+        }
 
+        # does it match with one of our hard-coded sigs in the set?
+        self.assertTrue(sig1_b64 in accept_b64_1)
+        self.assertTrue(sig2_b64 in accept_b64_2)
         # can it verify its own sigs?
         self.assertTrue(verify_message(addr1, sig1, msg1))
         self.assertTrue(verify_message(addr2, sig2, msg2))
-        # can it verify our hard-coded sigs?
-        self.assertTrue(verify_message(addr1, our_sig1, msg1))
-        self.assertTrue(verify_message(addr2, our_sig2, msg2))
+        # Can we verify the hardcoded sigs (this checks that the underlying ECC
+        # libs basically are ok with either nonce being used)
+        for sig in accept_b64_1:
+            self.assertTrue(verify_message(addr1, base64.b64decode(sig), msg1))
+        for sig in accept_b64_2:
+            self.assertTrue(verify_message(addr2, base64.b64decode(sig), msg2))
 
         self.assertRaises(Exception, verify_message, addr1, b'wrong', msg1)
         # test for bad sigs for a message
         self.assertFalse(verify_message(addr1, sig2, msg1))
-        self.assertFalse(verify_message(addr1, our_sig2, msg1))
         self.assertFalse(verify_message(addr2, sig1, msg2))
-        self.assertFalse(verify_message(addr2, our_sig1, msg2))
 
     def test_aes_homomorphic(self):
         """Make sure AES is homomorphic."""
