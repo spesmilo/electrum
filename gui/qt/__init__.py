@@ -83,7 +83,7 @@ class ElectrumGui(QObject, PrintError):
         self._set_icon()
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
-        self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
+        self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
         self.nd = None
         # Dark Theme -- ideally set this before any widgets are created.
         self.set_dark_theme_if_needed()

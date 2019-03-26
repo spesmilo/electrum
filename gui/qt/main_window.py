@@ -3636,9 +3636,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         disconnect_signals()
 
     def clean_up_children(self):
-        # the menu bar and status bar hold references to self, so clear them to help GC this window
-        if self.menuBar():
-            self.menuBar().clear()  # Note we need to clear here rather than setParent(None) to avoid a crash bug. See #1167
+        # status bar holds references to self, so clear it to help GC this window
+        # Note that due to quirks on macOS and the shared menu bar, we do *NOT* clear
+        # the menuBar.  But I've found it goes away anyway on its own after window deletion.
         self.setStatusBar(None)
         # Reparent children to 'None' so python GC can clean them up sooner rather than later.
         # This also hopefully helps accelerate this window's GC.
