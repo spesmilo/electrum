@@ -467,19 +467,21 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def get_private_key(self, sequence, password):
         seed = self.get_hex_seed(password)
-        self.check_seed(seed)
+        secexp = self.check_seed(seed)
         for_change, n = sequence
-        secexp = self.stretch_key(seed)
         pk = self.get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
 
     def check_seed(self, seed):
+        ''' As a performance optimization we also return the stretched key
+        in case the caller needs it. Otherwise we raise InvalidPassword. '''
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string()
         if master_public_key != bfh(self.mpk):
             print_error('invalid password (mpk)', self.mpk, bh2u(master_public_key))
             raise InvalidPassword()
+        return secexp
 
     def check_password(self, password):
         seed = self.get_hex_seed(password)
