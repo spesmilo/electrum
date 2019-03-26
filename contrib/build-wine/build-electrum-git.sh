@@ -1,6 +1,7 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
+#PYTHON_VERSION=3.6.8
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -17,8 +18,26 @@ set -e
 
 mkdir -p tmp
 cd tmp
+		  
+if [ -d ./electrum ]; then
+  rm ./electrum -rf
+fi
 
-pushd $WINEPREFIX/drive_c/electrum
+#git clone https://github.com/spesmilo/electrum -b master
+git clone https://github.com/Toporin/electrum-satochip -b satochip electrum #DebugSatochip
+
+pushd electrum
+if [ ! -z "$1" ]; then
+    # a commit/tag/branch was specified
+    if ! git cat-file -e "$1" 2> /dev/null
+    then  # can't find target
+        # try pull requests
+        git config --local --add remote.origin.fetch '+refs/pull/*/merge:refs/remotes/origin/pr/*'
+        git fetch --all
+    fi
+    git checkout $1
+fi
+			 
 
 # Load electrum-locale for this release
 git submodule init
@@ -33,7 +52,7 @@ if ! which msgfmt > /dev/null 2>&1; then
     exit 1
 fi
 for i in ./locale/*; do
-    dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
+    dir=$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
@@ -42,7 +61,10 @@ popd
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-cp $WINEPREFIX/drive_c/electrum/LICENCE .
+rm -rf $WINEPREFIX/drive_c/electrum
+cp -r electrum $WINEPREFIX/drive_c/electrum
+cp electrum/LICENCE .
+cp -r ./electrum/contrib/deterministic-build/electrum-locale/locale $WINEPREFIX/drive_c/electrum/electrum/locale
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
@@ -75,3 +97,4 @@ cd ..
 
 echo "Done."
 sha256sum dist/electrum*exe
+
