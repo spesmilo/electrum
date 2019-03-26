@@ -71,6 +71,8 @@ class InvoiceList(MyTreeView):
         for idx, pr in enumerate(inv_list):
             key = pr.get_id()
             status = self.parent.invoices.get_status(key)
+            if status is None:
+                continue
             requestor = pr.get_requestor()
             exp = pr.get_expiration_date()
             date_str = format_time(exp) if exp else _('Never')

@@ -516,31 +516,47 @@ class Network(PrintError):
 
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
-        def needs_dns_resolving(host2):
+        def needs_dns_resolving(host):
             try:
-                ipaddress.ip_address(host2)
+                ipaddress.ip_address(host)
                 return False  # already valid IP
             except ValueError:
                 pass  # not an IP
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True
-        try:
-            if needs_dns_resolving(host):
-                answers = dns.resolver.query(host)
-                addr = str(answers[0])
-            else:
-                addr = host
-        except dns.exception.DNSException as e:
-            # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-            # this is normal. Simply report back failure:
-            raise socket.gaierror(11001, 'getaddrinfo failed') from e
-        except BaseException as e:
-            # Possibly internal error in dnspython :( see #4483
+        def resolve_with_dnspython(host):
+            addrs = []
+            # try IPv6
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                pass
+            except BaseException as e:
+                print_error(f'dnspython failed to resolve dns (AAAA) with error: {e}')
+            # try IPv4
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.A)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
+                # Simply report back failure; except if we already have some results.
+                if not addrs:
+                    raise socket.gaierror(11001, 'getaddrinfo failed') from e
+            except BaseException as e:
+                # Possibly internal error in dnspython :( see #4483
+                print_error(f'dnspython failed to resolve dns (A) with error: {e}')
+            if addrs:
+                return addrs
             # Fall back to original socket.getaddrinfo to resolve dns.
-            print_error('dnspython failed to resolve dns with error:', e)
-            addr = host
-        return socket._getaddrinfo(addr, *args, **kwargs)
+            return [host]
+        addrs = [host]
+        if needs_dns_resolving(host):
+            addrs = resolve_with_dnspython(host)
+        list_of_list_of_socketinfos = [socket._getaddrinfo(addr, *args, **kwargs) for addr in addrs]
+        list_of_socketinfos = [item for lst in list_of_list_of_socketinfos for item in lst]
+        return list_of_socketinfos
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -1149,7 +1165,9 @@ class Network(PrintError):
             await asyncio.sleep(0.1)
 
     @classmethod
-    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
+    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
+                                  body: bytes = None, json: dict = None, headers=None,
+                                  on_finish=None, timeout=None):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1159,7 +1177,7 @@ class Network(PrintError):
             on_finish = default_on_finish
         network = cls.get_instance()
         proxy = network.proxy if network else None
-        async with make_aiohttp_session(proxy) as session:
+        async with make_aiohttp_session(proxy, timeout=timeout) as session:
             if method == 'get':
                 async with session.get(url, params=params, headers=headers) as resp:
                     return await on_finish(resp)
@@ -1183,7 +1201,8 @@ class Network(PrintError):
         else:
             loop = asyncio.get_event_loop()
         coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
-        return coro.result(5)
+        # note: _send_http_on_proxy has its own timeout, so no timeout here:
+        return coro.result()
 
     # methods used in scripts
     async def get_peers(self):
