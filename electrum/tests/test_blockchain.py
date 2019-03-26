@@ -70,6 +70,52 @@ class TestBlockchain(SequentialTestCase):
         self.assertTrue(chain.can_connect(header))
         chain.save_header(header)
 
+    def test_parents_after_forking(self):
+        blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            config=self.config, forkpoint=0, parent=None,
+            forkpoint_hash=constants.net.GENESIS, prev_hash=None)
+        open(chain_u.path(), 'w+').close()
+        self._append_header(chain_u, self.HEADERS['A'])
+        self._append_header(chain_u, self.HEADERS['B'])
+        self._append_header(chain_u, self.HEADERS['C'])
+        self._append_header(chain_u, self.HEADERS['D'])
+        self._append_header(chain_u, self.HEADERS['E'])
+        self._append_header(chain_u, self.HEADERS['F'])
+        self._append_header(chain_u, self.HEADERS['O'])
+        self._append_header(chain_u, self.HEADERS['P'])
+        self._append_header(chain_u, self.HEADERS['Q'])
+
+        self.assertEqual(None, chain_u.parent)
+
+        chain_l = chain_u.fork(self.HEADERS['G'])
+        self._append_header(chain_l, self.HEADERS['H'])
+        self._append_header(chain_l, self.HEADERS['I'])
+        self._append_header(chain_l, self.HEADERS['J'])
+        self._append_header(chain_l, self.HEADERS['K'])
+        self._append_header(chain_l, self.HEADERS['L'])
+
+        self.assertEqual(None,    chain_l.parent)
+        self.assertEqual(chain_l, chain_u.parent)
+
+        chain_z = chain_l.fork(self.HEADERS['M'])
+        self._append_header(chain_z, self.HEADERS['N'])
+        self._append_header(chain_z, self.HEADERS['X'])
+        self._append_header(chain_z, self.HEADERS['Y'])
+        self._append_header(chain_z, self.HEADERS['Z'])
+
+        self.assertEqual(chain_z, chain_u.parent)
+        self.assertEqual(chain_z, chain_l.parent)
+        self.assertEqual(None,    chain_z.parent)
+
+        self._append_header(chain_u, self.HEADERS['R'])
+        self._append_header(chain_u, self.HEADERS['S'])
+        self._append_header(chain_u, self.HEADERS['T'])
+        self._append_header(chain_u, self.HEADERS['U'])
+
+        self.assertEqual(chain_z, chain_u.parent)
+        self.assertEqual(chain_z, chain_l.parent)
+        self.assertEqual(None,    chain_z.parent)
+
     def test_forking_and_swapping(self):
         blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
             config=self.config, forkpoint=0, parent=None,

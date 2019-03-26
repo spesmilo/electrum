@@ -22,7 +22,7 @@
 # SOFTWARE.
 import os
 import threading
-from typing import Optional, Dict
+from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
@@ -187,8 +187,7 @@ class Blockchain(util.PrintError):
         return constants.net.CHECKPOINTS
 
     def get_max_child(self) -> Optional[int]:
-        with blockchains_lock: chains = list(blockchains.values())
-        children = list(filter(lambda y: y.parent==self, chains))
+        children = self.get_direct_children()
         return max([x.forkpoint for x in children]) if children else None
 
     def get_max_forkpoint(self) -> int:
@@ -197,6 +196,11 @@ class Blockchain(util.PrintError):
         """
         mc = self.get_max_child()
         return mc if mc is not None else self.forkpoint
+
+    def get_direct_children(self) -> Sequence['Blockchain']:
+        with blockchains_lock:
+            return list(filter(lambda y: y.parent==self, blockchains.values()))
+
 
     @with_lock
     def get_branch_size(self) -> int:
@@ -318,14 +322,21 @@ class Blockchain(util.PrintError):
         self.swap_with_parent()
 
     def swap_with_parent(self) -> None:
-        parent_lock = self.parent.lock if self.parent is not None else threading.Lock()
-        with parent_lock, self.lock, blockchains_lock:  # this order should not deadlock
+        with self.lock, blockchains_lock:
             # do the swap; possibly multiple ones
             cnt = 0
-            while self._swap_with_parent():
+            while True:
+                old_parent = self.parent
+                if not self._swap_with_parent():
+                    break
+                # make sure we are making progress
                 cnt += 1
-                if cnt > len(blockchains):  # make sure we are making progress
+                if cnt > len(blockchains):
                     raise Exception(f'swapping fork with parent too many times: {cnt}')
+                # we might have become the parent of some of our former siblings
+                for old_sibling in old_parent.get_direct_children():
+                    if self.check_hash(old_sibling.forkpoint - 1, old_sibling._prev_hash):
+                        old_sibling.parent = self
 
     def _swap_with_parent(self) -> bool:
         """Check if this chain became stronger than its parent, and swap
@@ -350,6 +361,8 @@ class Blockchain(util.PrintError):
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         self.assert_headers_file_available(parent.path())
+        assert forkpoint > parent.forkpoint, (f"forkpoint of parent chain ({parent.forkpoint}) "
+                                              f"should be at lower height than children's ({forkpoint})")
         with open(parent.path(), 'rb') as f:
             f.seek((forkpoint - parent.forkpoint)*HEADER_SIZE)
             parent_data = f.read(parent_branch_size*HEADER_SIZE)
