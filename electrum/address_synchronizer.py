@@ -525,14 +525,14 @@ class AddressSynchronizer(PrintError):
         with self.lock:
             return dict(self.unverified_tx)  # copy
 
-    def undo_verifications(self, blockchain, height):
+    def undo_verifications(self, blockchain, above_height):
         '''Used by the verifier when a reorg has happened'''
         txs = set()
         with self.lock:
             for tx_hash in self.db.list_verified_tx():
                 info = self.db.get_verified_tx(tx_hash)
                 tx_height = info.height
-                if tx_height >= height:
+                if tx_height > above_height:
                     header = blockchain.read_header(tx_height)
                     if not header or hash_header(header) != info.header_hash:
                         self.db.remove_verified_tx(tx_hash)

@@ -70,6 +70,62 @@ class TestBlockchain(SequentialTestCase):
         self.assertTrue(chain.can_connect(header))
         chain.save_header(header)
 
+    def test_get_height_of_last_common_block_with_chain(self):
+        blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            config=self.config, forkpoint=0, parent=None,
+            forkpoint_hash=constants.net.GENESIS, prev_hash=None)
+        open(chain_u.path(), 'w+').close()
+        self._append_header(chain_u, self.HEADERS['A'])
+        self._append_header(chain_u, self.HEADERS['B'])
+        self._append_header(chain_u, self.HEADERS['C'])
+        self._append_header(chain_u, self.HEADERS['D'])
+        self._append_header(chain_u, self.HEADERS['E'])
+        self._append_header(chain_u, self.HEADERS['F'])
+        self._append_header(chain_u, self.HEADERS['O'])
+        self._append_header(chain_u, self.HEADERS['P'])
+        self._append_header(chain_u, self.HEADERS['Q'])
+
+        chain_l = chain_u.fork(self.HEADERS['G'])
+        self._append_header(chain_l, self.HEADERS['H'])
+        self._append_header(chain_l, self.HEADERS['I'])
+        self._append_header(chain_l, self.HEADERS['J'])
+        self._append_header(chain_l, self.HEADERS['K'])
+        self._append_header(chain_l, self.HEADERS['L'])
+
+        self.assertEqual({chain_u:  8, chain_l: 5}, chain_u.get_parent_heights())
+        self.assertEqual({chain_l: 11},             chain_l.get_parent_heights())
+
+        chain_z = chain_l.fork(self.HEADERS['M'])
+        self._append_header(chain_z, self.HEADERS['N'])
+        self._append_header(chain_z, self.HEADERS['X'])
+        self._append_header(chain_z, self.HEADERS['Y'])
+        self._append_header(chain_z, self.HEADERS['Z'])
+
+        self.assertEqual({chain_u:  8, chain_z: 5}, chain_u.get_parent_heights())
+        self.assertEqual({chain_l: 11, chain_z: 8}, chain_l.get_parent_heights())
+        self.assertEqual({chain_z: 13},             chain_z.get_parent_heights())
+        self.assertEqual(5, chain_u.get_height_of_last_common_block_with_chain(chain_l))
+        self.assertEqual(5, chain_l.get_height_of_last_common_block_with_chain(chain_u))
+        self.assertEqual(5, chain_u.get_height_of_last_common_block_with_chain(chain_z))
+        self.assertEqual(5, chain_z.get_height_of_last_common_block_with_chain(chain_u))
+        self.assertEqual(8, chain_l.get_height_of_last_common_block_with_chain(chain_z))
+        self.assertEqual(8, chain_z.get_height_of_last_common_block_with_chain(chain_l))
+
+        self._append_header(chain_u, self.HEADERS['R'])
+        self._append_header(chain_u, self.HEADERS['S'])
+        self._append_header(chain_u, self.HEADERS['T'])
+        self._append_header(chain_u, self.HEADERS['U'])
+
+        self.assertEqual({chain_u: 12, chain_z: 5}, chain_u.get_parent_heights())
+        self.assertEqual({chain_l: 11, chain_z: 8}, chain_l.get_parent_heights())
+        self.assertEqual({chain_z: 13},             chain_z.get_parent_heights())
+        self.assertEqual(5, chain_u.get_height_of_last_common_block_with_chain(chain_l))
+        self.assertEqual(5, chain_l.get_height_of_last_common_block_with_chain(chain_u))
+        self.assertEqual(5, chain_u.get_height_of_last_common_block_with_chain(chain_z))
+        self.assertEqual(5, chain_z.get_height_of_last_common_block_with_chain(chain_u))
+        self.assertEqual(8, chain_l.get_height_of_last_common_block_with_chain(chain_z))
+        self.assertEqual(8, chain_z.get_height_of_last_common_block_with_chain(chain_l))
+
     def test_parents_after_forking(self):
         blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
             config=self.config, forkpoint=0, parent=None,

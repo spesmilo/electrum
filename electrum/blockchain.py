@@ -201,6 +201,27 @@ class Blockchain(util.PrintError):
         with blockchains_lock:
             return list(filter(lambda y: y.parent==self, blockchains.values()))
 
+    def get_parent_heights(self) -> Mapping['Blockchain', int]:
+        """Returns map: (parent chain -> height of last common block)"""
+        with blockchains_lock:
+            result = {self: self.height()}
+            chain = self
+            while True:
+                parent = chain.parent
+                if parent is None: break
+                result[parent] = chain.forkpoint - 1
+                chain = parent
+            return result
+
+    def get_height_of_last_common_block_with_chain(self, other_chain: 'Blockchain') -> int:
+        last_common_block_height = 0
+        our_parents = self.get_parent_heights()
+        their_parents = other_chain.get_parent_heights()
+        for chain in our_parents:
+            if chain in their_parents:
+                h = min(our_parents[chain], their_parents[chain])
+                last_common_block_height = max(last_common_block_height, h)
+        return last_common_block_height
 
     @with_lock
     def get_branch_size(self) -> int:

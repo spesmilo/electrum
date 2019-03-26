@@ -168,17 +168,16 @@ class SPV(NetworkJobOnDefaultServer):
             raise InnerNodeOfSpvProofIsValidTx()
 
     async def _maybe_undo_verifications(self):
-        def undo_verifications():
-            height = self.blockchain.get_max_forkpoint()
-            self.print_error("undoing verifications back to height {}".format(height))
-            tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
+        old_chain = self.blockchain
+        cur_chain = self.network.blockchain()
+        if cur_chain != old_chain:
+            self.blockchain = cur_chain
+            above_height = cur_chain.get_height_of_last_common_block_with_chain(old_chain)
+            self.print_error(f"undoing verifications above height {above_height}")
+            tx_hashes = self.wallet.undo_verifications(self.blockchain, above_height)
             for tx_hash in tx_hashes:
                 self.print_error("redoing", tx_hash)
                 self.remove_spv_proof_for_tx(tx_hash)
-
-        if self.network.blockchain() != self.blockchain:
-            self.blockchain = self.network.blockchain()
-            undo_verifications()
 
     def remove_spv_proof_for_tx(self, tx_hash):
         self.merkle_roots.pop(tx_hash, None)
