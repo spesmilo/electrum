@@ -541,7 +541,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object.start_new_window(full_path, None)
 
     def init_menubar(self):
-        menubar = QMenuBar()
+        menubar = self.menuBar()
         menubar.setObjectName(self.diagnostic_name() + ".QMenuBar")
         destroyed_print_error(menubar)
 
@@ -603,8 +603,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # Settings / Preferences are all reserved keywords in OSX using this as work around
         tools_menu.addAction(_("Electron Cash preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         gui_object = self.gui_object
-        weakSelf = Weak(self)
-        tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf))
+        weakSelf = Weak.ref(self)
+        tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()))
         tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog)
         tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog)
         tools_menu.addSeparator()
@@ -632,7 +632,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
 
-        self.setMenuBar(menubar)
 
     def donate_to_server(self):
         d = self.network.get_donation_address()
@@ -2282,9 +2281,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
-        weakSelf = Weak(self)
+        weakSelf = Weak.ref(self)
         gui_object = self.gui_object
-        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), lambda: gui_object.show_network_dialog(weakSelf))
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), lambda: gui_object.show_network_dialog(weakSelf()))
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
@@ -3709,7 +3708,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
             self.internalpluginsdialog.raise_()
             return
-        d = WindowModalDialog(self.top_level_window(), _('Optional Features'))
+        d = WindowModalDialog(parent=self, title=_('Optional Features'))
         weakD = Weak.ref(d)
 
         gui_object = self.gui_object
@@ -3909,26 +3908,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if res == 0:
                 self.toggle_cashshuffle()
 
-    _restart_timer = None
-    def restart_cashshuffle(self, msg = None):
-        def ask_then_restart():
-            self._restart_timer.deleteLater(); self._restart_timer = None
-            self.raise_()
-            if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
-                p = self.cashshuffle_plugin_if_loaded()
-                if p:
-                    p.restart_all()
-                    self.notify(_("CashShuffle restarted"))
-                else:
-                    self.notify(_("CashShuffle could not be restarted"))
-        if self._restart_timer:
-            self._restart_timer.stop()
-            self._restart_timer.deleteLater()
-        self._restart_timer = QTimer(self); self._restart_timer.setSingleShot(True)
-        self._restart_timer.timeout.connect(ask_then_restart)
-        self._restart_timer.start(100)
-        if self.internalpluginsdialog and self.internalpluginsdialog.isVisible():
-            self.internalpluginsdialog.reject()
+    def restart_cashshuffle(self, msg = None, parent = None):
+        if (parent or self).question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?")),
+                                     app_modal=True):
+            p = self.cashshuffle_plugin_if_loaded()
+            if p:
+                p.restart_all()
+                self.notify(_("CashShuffle restarted"))
+            else:
+                self.notify(_("CashShuffle could not be restarted"))
 
     _cash_shuffle_flag = 0
     def cashshuffle_set_flag(self, flag):

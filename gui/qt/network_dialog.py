@@ -40,7 +40,7 @@ from .util import *
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(QDialog, MessageBoxMixin):
+class NetworkDialog(MessageBoxMixin, QDialog):
     network_updated_signal = pyqtSignal()
 
     def __init__(self, network, config):

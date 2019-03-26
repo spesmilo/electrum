@@ -40,7 +40,7 @@ from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash.simple_config import SimpleConfig, get_config
 from electroncash.wallet import Abstract_Wallet
-from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited, ColorScheme, destroyed_print_error
+from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseButton, HelpLabel, OkButton, rate_limited, ColorScheme, destroyed_print_error, AppModalDialog
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.amountedit import BTCAmountEdit
@@ -503,6 +503,9 @@ class Plugin(BasePlugin):
         self._hide_history_txs = False
         self.initted = False
 
+    def is_defunct(self):
+        return Plugin.instance is not self
+
     @hook
     def init_qt(self, gui):
         if self.initted:
@@ -529,7 +532,7 @@ class Plugin(BasePlugin):
         if not nd: return
         self.print_error("OnNetworkDialog", str(nd))
         if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
-            nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
+            nd.__shuffle_settings__ = st = SettingsTab(parent=nd.nlayout.tabs, config=nd.nlayout.config)
             nd.nlayout.tabs.addTab(st, _("CashShuffle"))
             st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
         elif nd.__shuffle_settings__:
@@ -615,6 +618,7 @@ class Plugin(BasePlugin):
                 icon=QMessageBox.Critical):
             self.print_error("Refusing to enable CashShuffle for window '{}' because no libsecp :(".format(name))
             return
+        if self.is_defunct(): return  # we need to do this because presentation of above dialog box may mean user had the opportunity to close the plugin in another window
         cached_password = window.gui_object.get_cached_password(window.wallet)
         password = None
         while window.wallet.has_password():
@@ -625,6 +629,7 @@ class Plugin(BasePlugin):
             else:
                 pwdlg = PasswordDialog(parent=window.top_level_window(), msg=msg)
                 password = pwdlg.run()
+            if self.is_defunct(): return  # we need to do this because presentation of above dialog box may mean user had the opportunity to close the plugin in another window
             if password is None:
                 # User cancelled password input
                 if not self.warn_if_shuffle_disable_not_ok(window, msg=_('CashShuffle will now be <i>disabled</i> for a wallet which has previously had it <b>enabled</b>. Are you sure?')):
@@ -638,10 +643,12 @@ class Plugin(BasePlugin):
                 break
             except Exception as e:
                 window.show_error(str(e), parent=window)
+                if self.is_defunct(): return  # we need to do this because presentation of above dialog box may mean user had the opportunity to close the plugin in another window
                 continue
         network_settings = Plugin.get_network_settings(window.config)
         if not network_settings:
             network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"), restart_ask = False)
+        if self.is_defunct(): return  # we need to do this because presentation of above dialog box may mean user had the opportunity to close the plugin in another window
         if not network_settings:
             self.window_set_cashshuffle(window, False)
             window.show_error(_("Can't get network, disabling CashShuffle."), parent=window)
@@ -919,7 +926,7 @@ class Plugin(BasePlugin):
             window = window_parent(window)
         assert window and isinstance(window, ElectrumWindow)
 
-        d = SettingsDialog(None, _("CashShuffle Settings"), window.config, msg)
+        d = SettingsDialog(title=_("CashShuffle Settings"), config=window.config, message=msg)
         try:
             server_ok = False
             ns = None
@@ -966,7 +973,8 @@ class Plugin(BasePlugin):
             # NB: if no window at this point, settings will take effect next time CashShuffle is enabled for a window
             if window:
                 # window will raise itself.
-                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."),
+                                           parent = Plugin.network_dialog)
 
     @staticmethod
     def save_network_settings(config, network_settings):
@@ -1356,22 +1364,28 @@ class NetworkCheckerDelegateMixin:
     settingsChanged = pyqtSignal(dict)
     statusChanged = pyqtSignal(dict)
 
-class SettingsDialog(WindowModalDialog, PrintError, NetworkCheckerDelegateMixin):
+class SettingsDialogMixin(NetworkCheckerDelegateMixin, PrintError):
+    ''' Abstrat Base class -- do not instantiate this as it will raise errors
+    because the pyqtSignal cannot be bound to a non-QObject.
+
+    Instead, use SettingsDialog and/or SettingsTab which interit from this and
+    are proper QObject subclasses.
+
+    Also call __init__ on the QObject/QWidget first before calling this
+    class's __init__ method.'''
     # from base: settingsChanged = pyqtSignal(dict)
     # from base: statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
 
     _DEFAULT_HOST_SUBSTR = "shuffle.servo.cash"  # on fresh install, prefer this server as default (substring match)
 
-    def __init__(self, parent, title, config, message=None):
-        super().__init__(parent, title)
+    def __init__(self, config, message=None):
+        assert config
+        assert isinstance(self, QWidget)
         self.config = config
         self.networkChecker = None
         self.serverOk = None
         self._vpLastStatus = dict()
-        if not isinstance(self, SettingsTab):
-            self.setWindowModality(Qt.ApplicationModal)
-            self.setMinimumSize(400, 350)
         self.setup(message)
 
         #DEBUG
@@ -1379,15 +1393,20 @@ class SettingsDialog(WindowModalDialog, PrintError, NetworkCheckerDelegateMixin)
 
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
-
+    def _qwidget_base(self):
+        mytype = type(self)
+        classes = mytype.__mro__
+        for c in classes:
+            if issubclass(c, QWidget) and c is not mytype and c is not SettingsDialogMixin:
+                return c
     def showEvent(self, e):
-        super().showEvent(e)
+        self._qwidget_base().showEvent(self, e)
         self.startNetworkChecker()
     def hideEvent(self, e):
-        super().hideEvent(e)
+        self._qwidget_base().hideEvent(self, e)
         self.stopNetworkChecker()
     def closeEvent(self, e):
-        super().closeEvent(e)
+        self._qwidget_base().closeEvent(self, e)
     def from_combobox(self):
         d = self.cb.currentData()
         if isinstance(d, dict):
@@ -1613,8 +1632,42 @@ class SettingsDialog(WindowModalDialog, PrintError, NetworkCheckerDelegateMixin)
             self.networkChecker = None
             self.print_error("Stopped network checker.")
     # /
+# /SettingsDialogMixin
+class SettingsDialog(SettingsDialogMixin, AppModalDialog):
+    ''' Concrete class for the stand-alone Settings window you get when
+    you right-click and get "CashShuffle Settings..." from the CashShuffle status
+    button context menu '''
+    def __init__(self, title, config, message=None, windowFlags=None):
+        AppModalDialog.__init__(self, title=title, windowFlags=windowFlags, parent=None)
+        self.setMinimumSize(400, 350)
+        SettingsDialogMixin.__init__(self, config=config, message=message)
 # /SettingsDialog
-class NetworkChecker(QThread, PrintError):
+class SettingsTab(SettingsDialogMixin, QWidget):
+    # Apparently if you inherit from a C++ object first it creates problems.
+    # You are supposed to inherit from the mixins in Python first, then the
+    # Qt C++ object last. Who knew. All of Electron Cash codebase apparently
+    # is doing it wrong.
+    # See this: http://python.6.x6.nabble.com/Issue-with-multiple-inheritance-td5207771.html
+    # So we inherit from our mixin first. (Note I had problems with overriding
+    # __init__ here and Qt's C++ calling the wrong init here.)
+    applyChanges = pyqtSignal(object)
+
+    def __init__(self, parent, config, message=None):
+        QWidget.__init__(self, parent=parent)
+        SettingsDialogMixin.__init__(self, config=config, message=message)
+        # add the "Apply" button to the bottom
+        self.apply = QPushButton(_("Apply"), self)
+        hbox = QHBoxLayout()
+        self.vbox.addLayout(hbox)
+        self.vbox.addStretch()
+        hbox.addStretch(1)
+        hbox.addWidget(self.apply)
+        self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
+    def _vpOnPoolsBut(self):
+        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=False, parent_window=self)
+# /SettingsTab
+
+class NetworkChecker(PrintError, QThread):
     ''' Runs in a separate thread, checks the server automatically when the settings form changes
         and publishes results to GUI thread. '''
     pollTimeSecs = 15.0
@@ -1725,25 +1778,6 @@ class NetworkChecker(QThread, PrintError):
             del c
     # / run
 # / NetworkChecker
-
-class SettingsTab(SettingsDialog):
-    applyChanges = pyqtSignal(object)
-
-    def __init__(self, parent, title, config, message=None):
-        super().__init__(parent, title, config, message)
-        self.setWindowModality(Qt.NonModal)
-        self.setWindowFlags(Qt.Widget) # force non-dialog
-        # add the "Apply" button to the bottom
-        self.apply = QPushButton(_("Apply"), self)
-        hbox = QHBoxLayout()
-        self.vbox.addLayout(hbox)
-        self.vbox.addStretch()
-        hbox.addStretch(1)
-        hbox.addWidget(self.apply)
-        self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
-    def _vpOnPoolsBut(self):
-        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=False, parent_window=self)
-# /SettingsTab
 
 class PoolsWinMgr(QObject, PrintError):
     simpleChangedSig = pyqtSignal()
@@ -2010,26 +2044,12 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             self.print_error("Stopped network checker.")
 # /PoolsWindow
 
-class AppModalDialog(WindowModalDialog):
-    ''' Convenience class -- like the WindowModalDialog but is app-modal.
-    Has all the MessageBoxMixin convenience methods.  Is always top-level and
-    parentless.'''
-    def __init__(self, title=None, windowFlags=None):
-        dummy_parent = QWidget()  # this is here because WindowModalDialog forces a parent with an assert.
-        super().__init__(parent=dummy_parent, title=title)
-        self.setParent(None)
-        self.setWindowModality(Qt.ApplicationModal)
-        del dummy_parent
-        if windowFlags is not None:
-            self.setWindowFlags(windowFlags)
-# /AppModalDialog
-
 class CoinSelectionSettingsWindow(AppModalDialog, PrintError):
     ''' The pop-up window to manage minimum/maximum coin amount settings.
     Accessible from a link in the "CashShuffle Settings.." window or Network
     Dialog tab. '''
     def __init__(self, title=None):
-        super().__init__(title=title or _("CashShuffle - Coin Selection Settings"))
+        super().__init__(title=title or _("CashShuffle - Coin Selection Settings"), parent=None)
         vbox = QVBoxLayout(self)
         lbl = QLabel(_("Specify minimum and maximum coin amounts to select for shuffling:"))
         lbl.setWordWrap(True)

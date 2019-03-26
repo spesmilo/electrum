@@ -162,10 +162,11 @@ class CancelButton(QPushButton):
 class MessageBoxMixin:
     def top_level_window_recurse(self, window=None):
         window = window or self
-        classes = (WindowModalDialog, QMessageBox)
         for n, child in enumerate(window.children()):
-            # Test for visibility as old closed dialogs may not be GC-ed
-            if isinstance(child, classes) and child.isVisible():
+            if (isinstance(child, QWidget) and child.isWindow()
+                    and child.windowModality() != Qt.NonModal
+                    # Test for visibility as old closed dialogs may not be GC-ed
+                    and child.isVisible()):
                 return self.top_level_window_recurse(child)
         return window
 
@@ -209,7 +210,8 @@ class MessageBoxMixin:
                 defaultButton=QMessageBox.NoButton,  # IFF buttons is a list, use a string appearing in the list to specify this
                 rich_text=False, detail_text=None, informative_text=None,
                 checkbox_text=None, checkbox_ischecked=False,  # If checkbox_text is set, will add a checkbox, and return value becomes a tuple (result(), isChecked())
-                escapeButton=QMessageBox.NoButton  # IFF buttons is a list, use a string appearing in the list to specify this
+                escapeButton=QMessageBox.NoButton,  # IFF buttons is a list, use a string appearing in the list to specify this
+                app_modal=False  # IFF true, set the popup window to be application modal
                 ):
         ''' Note about 'new' msg_box API (this applies to all of the above functions that call into this as well):
             - `icon' may not be either a standard QMessageBox.Icon or a QPixmap for a custom icon.
@@ -221,7 +223,7 @@ class MessageBoxMixin:
         '''
         parent = parent or self.top_level_window()
         d = QMessageBoxMixin(parent)
-        d.setWindowModality(Qt.WindowModal)
+        d.setWindowModality(Qt.ApplicationModal if app_modal else Qt.WindowModal)
         d.setWindowTitle(title)
         if isinstance(buttons, (list, tuple)):
             # new! We support a button list, which specifies button text
@@ -282,6 +284,18 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
         self.setWindowModality(Qt.WindowModal)
         if title:
             self.setWindowTitle(title)
+
+class AppModalDialog(MessageBoxMixin, QDialog):
+    ''' Convenience class -- like the WindowModalDialog but is app-modal.
+    Has all the MessageBoxMixin convenience methods.  Is always top-level and
+    parentless.'''
+    def __init__(self, parent=None, title=None, windowFlags=None):
+        QDialog.__init__(self, parent=parent)
+        self.setWindowModality(Qt.ApplicationModal)
+        if title:
+            self.setWindowTitle(title)
+        if windowFlags is not None:
+            self.setWindowFlags(windowFlags)
 
 
 class WaitingDialog(WindowModalDialog):
