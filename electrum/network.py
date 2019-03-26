@@ -526,10 +526,11 @@ class Network(PrintError):
                 return False
             return True
         def resolve_with_dnspython(host):
+            addrs = []
             # try IPv6
             try:
                 answers = dns.resolver.query(host, dns.rdatatype.AAAA)
-                return str(answers[0])
+                addrs += [str(answer) for answer in answers]
             except dns.exception.DNSException as e:
                 pass
             except BaseException as e:
@@ -537,7 +538,7 @@ class Network(PrintError):
             # try IPv4
             try:
                 answers = dns.resolver.query(host, dns.rdatatype.A)
-                return str(answers[0])
+                addrs += [str(answer) for answer in answers]
             except dns.exception.DNSException as e:
                 # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
                 # this is normal. Simply report back failure:
@@ -545,12 +546,16 @@ class Network(PrintError):
             except BaseException as e:
                 # Possibly internal error in dnspython :( see #4483
                 print_error(f'dnspython failed to resolve dns (A) with error: {e}')
+            if addrs:
+                return addrs
             # Fall back to original socket.getaddrinfo to resolve dns.
-            return host
-        addr = host
+            return [host]
+        addrs = [host]
         if needs_dns_resolving(host):
-            addr = resolve_with_dnspython(host)
-        return socket._getaddrinfo(addr, *args, **kwargs)
+            addrs = resolve_with_dnspython(host)
+        list_of_list_of_socketinfos = [socket._getaddrinfo(addr, *args, **kwargs) for addr in addrs]
+        list_of_socketinfos = [item for lst in list_of_list_of_socketinfos for item in lst]
+        return list_of_socketinfos
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
