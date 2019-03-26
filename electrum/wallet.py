@@ -508,19 +508,20 @@ class Abstract_Wallet(AddressSynchronizer):
                 'to_height': to_height,
                 'start_balance': Satoshis(start_balance),
                 'end_balance': Satoshis(end_balance),
-                'income': Satoshis(income),
-                'expenditures': Satoshis(expenditures)
+                'incoming': Satoshis(income),
+                'outgoing': Satoshis(expenditures)
             }
             if fx and fx.is_enabled() and fx.get_history_config():
                 unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
-                summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
-                summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
-                summary['fiat_expenditures'] = Fiat(fiat_expenditures, fx.ccy)
-                summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
-                summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
-                summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
-                summary['start_fiat_value'] = Fiat(fx.historical_value(COIN, start_date), fx.ccy)
-                summary['end_fiat_value'] = Fiat(fx.historical_value(COIN, end_date), fx.ccy)
+                summary['fiat_currency'] = fx.ccy
+                summary['fiat_capital_gains'] = Fiat(capital_gains, fx.ccy)
+                summary['fiat_incoming'] = Fiat(fiat_income, fx.ccy)
+                summary['fiat_outgoing'] = Fiat(fiat_expenditures, fx.ccy)
+                summary['fiat_unrealized_gains'] = Fiat(unrealized, fx.ccy)
+                summary['fiat_start_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
+                summary['fiat_end_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
+                summary['fiat_start_value'] = Fiat(fx.historical_value(COIN, start_date), fx.ccy)
+                summary['fiat_end_value'] = Fiat(fx.historical_value(COIN, end_date), fx.ccy)
         else:
             summary = {}
         return {
@@ -538,6 +539,7 @@ class Abstract_Wallet(AddressSynchronizer):
         fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
         fiat_value = fiat_value if fiat_value is not None else self.default_fiat_value(tx_hash, fx, value)
         fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
+        item['fiat_currency'] = fx.ccy
         item['fiat_rate'] = Fiat(fiat_rate, fx.ccy)
         item['fiat_value'] = Fiat(fiat_value, fx.ccy)
         item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None

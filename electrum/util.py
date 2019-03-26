@@ -148,7 +148,7 @@ class Satoshis(object):
         return 'Satoshis(%d)'%self.value
 
     def __str__(self):
-        return format_satoshis(self.value) + " BTC"
+        return format_satoshis(self.value)
 
     def __eq__(self, other):
         return self.value == other.value
@@ -174,7 +174,7 @@ class Fiat(object):
         if self.value is None or self.value.is_nan():
             return _('No Data')
         else:
-            return "{:.2f}".format(self.value) + ' ' + self.ccy
+            return "{:.2f}".format(self.value)
 
     def __eq__(self, other):
         return self.ccy == other.ccy and self.value == other.value
