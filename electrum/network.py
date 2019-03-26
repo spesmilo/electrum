@@ -540,9 +540,10 @@ class Network(PrintError):
                 answers = dns.resolver.query(host, dns.rdatatype.A)
                 addrs += [str(answer) for answer in answers]
             except dns.exception.DNSException as e:
-                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-                # this is normal. Simply report back failure:
-                raise socket.gaierror(11001, 'getaddrinfo failed') from e
+                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
+                # Simply report back failure; except if we already have some results.
+                if not addrs:
+                    raise socket.gaierror(11001, 'getaddrinfo failed') from e
             except BaseException as e:
                 # Possibly internal error in dnspython :( see #4483
                 print_error(f'dnspython failed to resolve dns (A) with error: {e}')
