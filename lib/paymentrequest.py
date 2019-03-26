@@ -533,4 +533,5 @@ class InvoiceStore(object):
         return self.invoices.values()
 
     def unpaid_invoices(self):
-        return [ self.invoices[k] for k in filter(lambda x: self.get_status(x)!=PR_PAID, self.invoices.keys())]
+        return [v for k, v in self.invoices.items()
+                if self.get_status(k) not in (PR_PAID, None)]
