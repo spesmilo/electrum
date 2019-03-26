@@ -3708,7 +3708,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
             self.internalpluginsdialog.raise_()
             return
-        d = WindowModalDialog(parent=self, title=_('Optional Features'))
+        d = WindowModalDialog(parent=self.top_level_window(), title=_('Optional Features'))
         weakD = Weak.ref(d)
 
         gui_object = self.gui_object
