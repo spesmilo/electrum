@@ -157,16 +157,16 @@ and there is no warning message.
 # Release 3.1.2
   * Additional security improvements related to JSONRPC
 
-# Release 3.1.3 
+# Release 3.1.3
   * Android only release for security fixes
 
-# Release 3.1.5 
+# Release 3.1.5
   * Various bug fixes
 
 # Release 3.1.6
 
   * Enable Bip70 payment requests for merchants like BitPay.
-  * Prohibit unconfirmed inputs on payment request (invoice) payments 
+  * Prohibit unconfirmed inputs on payment request (invoice) payments
     because Bitpay will reject them anyway.
   * Remove Bitpay address format from address converter as Bitpay is
     now fully on CashAddr.
@@ -272,3 +272,52 @@ and there is no warning message.
 * Various internal bugfixes and code refactoring (cculianu, ecdsa, SomberNight)
 * servers.json updated (torusJKL)
 * Fixed a compatibility issue with Qt 5.12 (SomberNight, cculianu)
+
+# Release 4.0.0
+
+* Privacy features have been added, most notably CashShuffle has been integrated
+  strongly into the wallet. It is an optional plugin for shuffling coins
+  securely with other users. Coin control and other logic has been added as
+  well. The bulk of the work for this release has been this feature.
+  (Clifford, cculianu, Josh Ellothorpe, Mark Lundeberg, Jonald Fyookball,
+  imaginaryusername, emergent_reasons, acidsploit, and others).
+* Fix #1174, #1178 - Resurrection of .onion support (requires enabling of
+  non-SSL).
+* Fixups for qr code image saving (cculianu), #1175
+* Closing a wallet now actually closes its daemon threads. Closing a wallet
+  window now also implicitly closes any tx dialog child windows it created.
+  Closing the last wallet window in the app will quit the app, even if other
+  child windows are still alive. (cculianu)
+* Coins tab layout fixups #1180, including right click -> Copy X (cculianu,
+  Mark Lundeberg, SomberNight)
+* Addition of Wallet -> Scan beyon gap... tool #1194 (cculianu)
+* Fixed #968 for the Receive tab -- when the form is unsaved it now always is
+  *guaranteed* to refresh itself with a new unused address in real time.
+  (cculianu)
+* Tx notification systray popup was too intermittent.  It now pops up more
+  frequently when reeiving or synching a new wallet. The wording used has also
+  been simplified. (cculianu)
+* Fix #1182 - Bad proxy can end up in config file (cculianu)
+* Fix #1215 - Tabs that are not being shown are no longer refreshed in the GUI.
+  They refresh themselves when you switch to them, however, if they need to.
+  This should improve perception of UI responsiveness for large wallets
+  especially. (cculianu)
+* Fixed some bugs related to switching chains (forks) #1185 (cculianu)
+* Fixed a bug where importing a private key didn't update the history until
+  app restart. (cculianu)
+* Fix Network Dialog layout (SomberNight)
+* Fix sign message not accept rich text spesmilo#5210 (SomberNight)
+* Fix #1189 - Cope better with unknown wallet formats or corrupt wallets on
+  startup.  This should improve the experience for SLP users that also use
+  regular Electron Cash (cculianu)
+* Switch over to bitcoin-abc libsecp in preparation for Schnorr signatures.
+  Libsecp is now actually bundled with the Linux "source" tarball. (cculianu)
+* Fix to exchange rate prefs screen UI and deletion of BitcoinAverage as a
+  historical rate provider (cculianu)
+* If running from source, app now has an icon on all platforms (cculianu)
+* Fix ubuntu installation for virtual-env (acidsploit)
+* Due to phishing being a recurrent annoyance, "Preferred servers only" now
+  defaults to "CHECKED" for new installs. (cculianu)
+* Many performance improvements, especially for large wallets (cculianu)
+* Cache address balance in memory rather than recompute each call (SomberNight)
+* Various internal bugfixes (cculianu, SomberNight, ecdsa)
