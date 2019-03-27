@@ -762,7 +762,7 @@ def parse_URI(uri: str, on_pr: Callable=None) -> dict:
         out['address'] = address
     if 'amount' in out:
         am = out['amount']
-        m = re.match('([0-9\.]+)X([0-9])', am)
+        m = re.match(r'([0-9.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
@@ -965,10 +965,10 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
             username=proxy.get('user', None),
             password=proxy.get('password', None),
             rdns=True,
-            ssl_context=ssl_context,
+            ssl=ssl_context,
         )
     else:
-        connector = aiohttp.TCPConnector(ssl_context=ssl_context)
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
 
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
