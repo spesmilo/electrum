@@ -38,7 +38,7 @@ Chances are you either are on an exotic architecture (such as 32 bit Intel, non-
 
 The steps are as follows:
 
-   - You will neede to `git clone` the repository from [https://github.com/Electron-Cash/Electron-Cash](https://github.com/Electron-Cash/Electron-Cash)
+   - You will need to `git clone` the repository from [https://github.com/Electron-Cash/Electron-Cash](https://github.com/Electron-Cash/Electron-Cash)
    - Proceed to the **"github head"** section above.
 
 ### Last resort: Try your package manager
