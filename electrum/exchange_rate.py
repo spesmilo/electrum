@@ -241,7 +241,7 @@ class BlockchainInfo(ExchangeBase):
 class Bylls(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('bylls.com', 'api/price?from_currency=BTC&to_currency=CAD')
+        json = await self.get_json('bylls.com', '/api/price?from_currency=BTC&to_currency=CAD')
         return {'CAD': Decimal(json['public_price']['to_price'])}
 
 
