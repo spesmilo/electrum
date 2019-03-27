@@ -279,7 +279,7 @@ and there is no warning message.
   strongly into the wallet. It is an optional plugin for shuffling coins
   securely with other users. Coin control and other logic has been added as
   well. The bulk of the work for this release has been this feature.
-  (Clifford, cculianu, Josh Ellothorpe, Mark Lundeberg, Jonald Fyookball,
+  (Clifford, cculianu, Josh Ellithorpe, Mark Lundeberg, Jonald Fyookball,
   imaginaryusername, emergent_reasons, acidsploit, and others).
 * Fix #1174, #1178 - Resurrection of .onion support (requires enabling of
   non-SSL).
