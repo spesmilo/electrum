@@ -37,7 +37,7 @@ from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
 
-RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
+RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
