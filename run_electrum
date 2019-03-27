@@ -25,6 +25,7 @@
 # SOFTWARE.
 import os
 import sys
+import warnings
 
 
 MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
@@ -34,6 +35,7 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 if sys.version_info[:3] < _min_python_version_tuple:
     sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
 
+warnings.simplefilter('default', DeprecationWarning)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -319,7 +321,10 @@ if __name__ == '__main__':
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbosity') if config_options.get('gui') != 'kivy' else '')
+    log_verbosity = config_options.get('verbosity') if config_options.get('gui') != 'kivy' else ''
+    set_verbosity(log_verbosity)
+    if not log_verbosity:
+        warnings.simplefilter('ignore', DeprecationWarning)
 
     # check uri
     uri = config_options.get('url')
