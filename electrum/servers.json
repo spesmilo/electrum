@@ -195,12 +195,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrum3.hachre.de": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrumx.bot.nu": {
         "pruning": "-",
         "s": "50002",
