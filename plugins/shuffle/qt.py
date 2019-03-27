@@ -1391,22 +1391,14 @@ class SettingsDialogMixin(NetworkCheckerDelegateMixin, PrintError):
         #DEBUG
         destroyed_print_error(self)
 
-    #def __del__(self):
-    #    self.print_error("(Instance deleted)")
-    def _qwidget_base(self):
-        mytype = type(self)
-        classes = mytype.__mro__
-        for c in classes:
-            if issubclass(c, QWidget) and c is not mytype and c is not SettingsDialogMixin:
-                return c
     def showEvent(self, e):
-        self._qwidget_base().showEvent(self, e)
+        super().showEvent(e)
         self.startNetworkChecker()
     def hideEvent(self, e):
-        self._qwidget_base().hideEvent(self, e)
+        super().hideEvent(e)
         self.stopNetworkChecker()
     def closeEvent(self, e):
-        self._qwidget_base().closeEvent(self, e)
+        super().closeEvent(e)
     def from_combobox(self):
         d = self.cb.currentData()
         if isinstance(d, dict):
