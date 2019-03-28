@@ -62,17 +62,31 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     ]
 
 class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
-  """Does some custom stuff before calling super().run()."""
+    """Does some custom stuff before calling super().run()."""
 
-  def run(self):
-    """Run command."""
-    #self.announce("Running make_locale...")
-    #0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
-    #self.announce("Running make_packages...")
-    #0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
-    self.announce("Running make_secp...")
-    0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
-    super().run()
+    user_options = setuptools.command.sdist.sdist.user_options + [
+        ("disable-secp", None, "Disable libsecp256k1 complilation.")
+    ]
+
+    def initialize_options(self):
+        self.disable_secp = None
+        super().initialize_options()
+
+    def finalize_options(self):
+        if self.disable_secp is None:
+            self.disable_secp = False # Default to build secp
+        super().finalize_options()
+
+    def run(self):
+        """Run command."""
+        #self.announce("Running make_locale...")
+        #0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
+        #self.announce("Running make_packages...")
+        #0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
+        if not self.disable_secp:
+            self.announce("Running make_secp...")
+            0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
+        super().run()
 
 setup(
     cmdclass={
