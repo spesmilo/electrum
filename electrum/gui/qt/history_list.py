@@ -579,7 +579,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu = QMenu()
         if height == TX_HEIGHT_LOCAL:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
+
+        amount_columns = [HistoryColumns.COIN_VALUE, HistoryColumns.RUNNING_COIN_BALANCE, HistoryColumns.FIAT_VALUE, HistoryColumns.FIAT_ACQ_PRICE, HistoryColumns.FIAT_CAP_GAINS]
+        if column in amount_columns:
+            column_data = column_data.strip()
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
