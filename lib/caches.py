@@ -5,7 +5,7 @@ import threading
 import queue
 import weakref
 from collections import defaultdict
-from electroncash.util import PrintError
+from .util import PrintError
 
 class ExpiringCache:
     ''' A fast cache useful for storing tens of thousands of lightweight items.
