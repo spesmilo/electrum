@@ -385,7 +385,6 @@ class SettingsDialog(WindowModalDialog):
                         handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
                         return
                     if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
-                       orig_scale = img.width(), img.height()
                        img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) # force to our dest size
                        if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
                            handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
