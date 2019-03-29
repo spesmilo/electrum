@@ -3,7 +3,7 @@ import threading
 import os
 
 from PyQt5.QtCore import Qt, QStandardPaths
-from PyQt5.QtGui import QImage, QBitmap
+from PyQt5.QtGui import QImage, QBitmap, qRed, qGreen, qBlue
 from PyQt5.QtWidgets import QGridLayout, QInputDialog, QPushButton
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
@@ -285,7 +285,11 @@ class SettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         thread = keystore.thread
-        hs_cols, hs_rows = (128, 64)
+        is_model_T = devmgr.client_by_id(device_id) and devmgr.client_by_id(device_id).features.model == 'T'
+        if is_model_T:
+            hs_rows, hs_cols, hs_mono = 144, 144, False
+        else:
+            hs_cols, hs_rows, hs_mono = 128, 64, True
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -373,19 +377,20 @@ class SettingsDialog(WindowModalDialog):
 
             __class__.last_hs_dir = os.path.dirname(filename) # remember previous location
 
-            if filename.endswith('.toif'):
+            if filename.lower().endswith('.toif') or filename.lower().endswith('.toig'):
+                which = filename.lower()[-1].encode('ascii')  # .toif or .toig = f or g in header
                 img = open(filename, 'rb').read()
-                if img[:8] != b'TOIf\x90\x00\x90\x00':
-                    handler.show_error('File is not a TOIF file with size of 144x144')
+                if img[:8] != b'TOI' + which + int(hs_cols).to_bytes(2, byteorder='little') + int(hs_rows).to_bytes(2, byteorder='little'):
+                    handler.show_error('File is not a TOI{} file with size of {}x{}'.format(which.decode('ascii').upper(), hs_cols, hs_rows))
                     return
             else:
-                def read_and_convert_using_qt(handler, filename, hs_cols, hs_rows, invert=True):
+                def read_and_convert_using_qt_to_raw_mono(handler, filename, hs_cols, hs_rows, invert=True):
                     img = QImage(filename)
                     if img.isNull():
                         handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
                         return
                     if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
-                       img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) # force to our dest size
+                       img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)  # force to our dest size. Note that IgnoreAspectRatio guarantess the right size. Ther other modes don't
                        if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
                            handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
                            return
@@ -415,8 +420,48 @@ class SettingsDialog(WindowModalDialog):
                             for i in range(begin, end):
                                 bimg[i] = ~bimg[i] & 0xff  # invert b/w
                     return bytes(bimg)
+                def read_and_convert_using_qt_to_toif(handler, filename, hs_cols, hs_rows):
+                    img = QImage(filename)
+                    if img.isNull():
+                        handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
+                        return
+                    if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
+                       img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)  # force to our dest size. Note that IgnoreAspectRatio guarantess the right size. Ther other modes don't
+                       if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
+                           handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
+                           return
+                    target_fmt = QImage.Format_RGB888
+                    img = img.convertToFormat(QImage.Format_Indexed8).convertToFormat(target_fmt)  # dither it down to 256 colors to reduce image complexity then back up to 24 bit for easy reading
+                    if img.isNull():
+                        handler.show_error("Could not dither or re-render image")
+                        return
+                    def qimg_to_toif(img, handler):
+                        try:
+                            import struct, zlib
+                        except ImportError as e:
+                            handler.show_error("Could not convert image, a required library is missing: {}".format(e))
+                            return
+                        data, pixeldata = bytearray(), bytearray()
+                        data += b'TOIf'
+                        for y in range(img.width()):
+                            for x in range(img.height()):
+                                rgb = img.pixel(x,y)
+                                r, g, b = qRed(rgb), qGreen(rgb), qBlue(rgb)
+                                c = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3)
+                                pixeldata += struct.pack(">H", c)
+                        z = zlib.compressobj(level=9, wbits=10)
+                        zdata = z.compress(bytes(pixeldata)) + z.flush()
+                        zdata = zdata[2:-4]  # strip header and checksum
+                        data += struct.pack("<HH", img.width(), img.height())
+                        data += struct.pack("<I", len(zdata))
+                        data += zdata
+                        return bytes(data)
+                    return qimg_to_toif(img, handler)
                 # /read_and_convert_using_qt
-                img = read_and_convert_using_qt(handler, filename, hs_cols, hs_rows)
+                if hs_mono and not is_model_T:
+                    img = read_and_convert_using_qt_to_raw_mono(handler, filename, hs_cols, hs_rows)
+                else:
+                    img = read_and_convert_using_qt_to_toif(handler, filename, hs_cols, hs_rows)
                 if not img:
                     return
             invoke_client('change_homescreen', img)
@@ -522,8 +567,10 @@ class SettingsDialog(WindowModalDialog):
         homescreen_msg = QLabel(_("You can set the homescreen on your "
                                   "device to personalize it. You can choose any "
                                   "image and it will be dithered, scaled and "
-                                  "converted to {} x {} monochrome "
-                                  "for the device.").format(hs_cols, hs_rows))
+                                  "converted to {} x {} {} "
+                                  "for the device.").format(hs_cols, hs_rows,
+                                                            _("monochrome") if hs_mono
+                                                            else _("color")))
         homescreen_msg.setWordWrap(True)
         settings_glayout.addWidget(homescreen_label, 4, 0)
         settings_glayout.addWidget(homescreen_change_button, 4, 1)
