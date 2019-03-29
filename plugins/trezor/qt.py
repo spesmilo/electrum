@@ -1,7 +1,9 @@
 from functools import partial
 import threading
+import os
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QStandardPaths
+from PyQt5.QtGui import QImage, QBitmap
 from PyQt5.QtWidgets import QGridLayout, QInputDialog, QPushButton
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
@@ -272,6 +274,8 @@ class SettingsDialog(WindowModalDialog):
     We want users to be able to wipe a device even if they've forgotten
     their PIN.'''
 
+    last_hs_dir = None
+
     def __init__(self, window, plugin, keystore, device_id):
         title = _("{} Settings").format(plugin.device)
         super(SettingsDialog, self).__init__(window, title)
@@ -357,10 +361,17 @@ class SettingsDialog(WindowModalDialog):
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
-            dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename, __ = dialog.getOpenFileName()
+            le_dir = ((__class__.last_hs_dir and [__class__.last_hs_dir])
+                      or QStandardPaths.standardLocations(QStandardPaths.DesktopLocation)
+                      or QStandardPaths.standardLocations(QStandardPaths.PicturesLocation)
+                      or QStandardPaths.standardLocations(QStandardPaths.HomeLocation)
+                      or [''])[0]
+            filename, __ = QFileDialog.getOpenFileName(self, _("Choose Homescreen"), le_dir)
+
             if not filename:
                 return  # user cancelled
+
+            __class__.last_hs_dir = os.path.dirname(filename) # remember previous location
 
             if filename.endswith('.toif'):
                 img = open(filename, 'rb').read()
@@ -368,20 +379,47 @@ class SettingsDialog(WindowModalDialog):
                     handler.show_error('File is not a TOIF file with size of 144x144')
                     return
             else:
-                from PIL import Image # FIXME
-                im = Image.open(filename)
-                if im.size != (128, 64):
-                    handler.show_error('Image must be 128 x 64 pixels')
+                def read_and_convert_using_qt(handler, filename, hs_cols, hs_rows, invert=True):
+                    img = QImage(filename)
+                    if img.isNull():
+                        handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
+                        return
+                    if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
+                       orig_scale = img.width(), img.height()
+                       img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) # force to our dest size
+                       if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
+                           handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
+                           return
+                    bm = QBitmap.fromImage(img, Qt.MonoOnly) # ensures 1bpp, dithers any colors
+                    if bm.isNull():
+                        handler.show_error('Could not convert image to monochrome')
+                        return
+                    target_fmt = QImage.Format_Mono
+                    img = bm.toImage().convertToFormat(target_fmt, Qt.MonoOnly|Qt.ThresholdDither|Qt.AvoidDither) # ensures MSB bytes again (above steps may have twiddled the bytes)
+                    lineSzOut = hs_cols // 8  # bits -> num bytes per line
+                    bimg = bytearray(hs_rows * lineSzOut)  # 1024 bytes for a 128x64 img
+                    bpl = img.bytesPerLine()
+                    if bpl < lineSzOut:
+                        handler.show_error("Internal error converting image")
+                        return
+                    # read in 1 scan line at a time since the scan lines may be > our target packed image
+                    for row in range(hs_rows):
+                        # copy image scanlines 1 line at a time to destination buffer
+                        ucharptr = img.constScanLine(row)  # returned type is basically void*
+                        ucharptr.setsize(bpl)  # inform python how big this C array is
+                        b = bytes(ucharptr)  # aaand.. work with bytes.
+
+                        begin = row * lineSzOut
+                        end = begin + lineSzOut
+                        bimg[begin:end] = b[0:lineSzOut]
+                        if invert:
+                            for i in range(begin, end):
+                                bimg[i] = ~bimg[i] & 0xff  # invert b/w
+                    return bytes(bimg)
+                # /read_and_convert_using_qt
+                img = read_and_convert_using_qt(handler, filename, hs_cols, hs_rows)
+                if not img:
                     return
-                im = im.convert('1')
-                pix = im.load()
-                img = bytearray(1024)
-                for j in range(64):
-                    for i in range(128):
-                        if pix[i, j]:
-                            o = (i + j * 128)
-                            img[o // 8] |= (1 << (7 - o % 8))
-                img = bytes(img)
             invoke_client('change_homescreen', img)
 
         def clear_homescreen():
@@ -481,18 +519,12 @@ class SettingsDialog(WindowModalDialog):
         homescreen_change_button = QPushButton(_("Change..."))
         homescreen_clear_button = QPushButton(_("Reset"))
         homescreen_change_button.clicked.connect(change_homescreen)
-        try:
-            import PIL
-        except ImportError:
-            homescreen_change_button.setDisabled(True)
-            homescreen_change_button.setToolTip(
-                _("Required package 'PIL' is not available - Please install it or use the Trezor website instead.")
-            )
         homescreen_clear_button.clicked.connect(clear_homescreen)
         homescreen_msg = QLabel(_("You can set the homescreen on your "
-                                  "device to personalize it.  You must "
-                                  "choose a {} x {} monochrome black and "
-                                  "white image.").format(hs_cols, hs_rows))
+                                  "device to personalize it. You can choose any "
+                                  "image and it will be dithered, scaled and "
+                                  "converted to {} x {} monochrome "
+                                  "for the device.").format(hs_cols, hs_rows))
         homescreen_msg.setWordWrap(True)
         settings_glayout.addWidget(homescreen_label, 4, 0)
         settings_glayout.addWidget(homescreen_change_button, 4, 1)

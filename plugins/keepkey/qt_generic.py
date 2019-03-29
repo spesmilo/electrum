@@ -300,7 +300,7 @@ class SettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         thread = keystore.thread
-        hs_rows, hs_cols = (64, 128)
+        hs_cols, hs_rows = (128, 64)
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -381,7 +381,7 @@ class SettingsDialog(WindowModalDialog):
             if filename:
                 im = Image.open(str(filename))
                 if im.size != (hs_cols, hs_rows):
-                    raise Exception('Image must be 64 x 128 pixels')
+                    raise Exception('Image must be {} x {} pixels'.format(hs_cols, hs_rows))
                 im = im.convert('1')
                 pix = im.load()
                 img = ''
