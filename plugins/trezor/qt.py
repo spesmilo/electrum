@@ -393,6 +393,7 @@ class SettingsDialog(WindowModalDialog):
                         return
                 except OSError as e:
                     handler.show_error('Error reading {}: {}'.format(filename, e))
+                    return
             else:
                 def read_and_convert_using_qt_to_raw_mono(handler, filename, hs_cols, hs_rows, invert=True):
                     img = QImage(filename)
