@@ -287,7 +287,7 @@ class SettingsDialog(WindowModalDialog):
         thread = keystore.thread
         is_model_T = devmgr.client_by_id(device_id) and devmgr.client_by_id(device_id).features.model == 'T'
         if is_model_T:
-            hs_rows, hs_cols, hs_mono = 144, 144, False
+            hs_cols, hs_rows, hs_mono = 144, 144, False
         else:
             hs_cols, hs_rows, hs_mono = 128, 64, True
 
