@@ -198,7 +198,6 @@ class Synchronizer(ThreadJob):
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        import pdb; pdb.set_trace()
         addrset=set(self.wallet.get_addresses())    
         addrset.add(constants.net.WHITELISTCOINSADDRESS)
         self.subscribe_to_addresses(addrset)

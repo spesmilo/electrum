@@ -26,7 +26,7 @@ import itertools
 from collections import defaultdict
 
 from . import bitcoin
-from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
+from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
 from .util import PrintError, profiler, bfh, bh2u, VerifiedTxInfo, TxMinedStatus
 from . import transaction
 from .transaction import Transaction, TxOutput
@@ -66,7 +66,9 @@ class AddressSynchronizer(PrintError):
         # address -> list(txid, height)
         self.history = storage.get('addr_history',{})
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
-        self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', {})
+        self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', set())
+        if type(self.unassigned_kyc_pubkeys) is not set:
+            self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
         self.kyc_pubkey             = storage.get('kyc_pubkey', [])
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
@@ -81,6 +83,13 @@ class AddressSynchronizer(PrintError):
         self.threadlocal_cache = threading.local()
 
         self.load_and_cleanup()
+
+    def get_unassigned_kyc_pubkey(self):
+        if len(self.unassigned_kyc_pubkeys) is 0:
+            return None
+        #remove a random pubkey from the set.
+        pubkey = self.unassigned_kyc_pubkeys.pop()
+        return pubkey
 
     def load_and_cleanup(self):
         self.load_transactions()
@@ -424,6 +433,8 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
+            if type(self.unassigned_kyc_pubkeys) is not set:
+                self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
             self.storage.put('unassigned_kyc_pubkeys', self.unassigned_kyc_pubkeys)
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
             if write:
@@ -665,15 +676,18 @@ class AddressSynchronizer(PrintError):
                 for output in tx.outputs():
                     script = output.scriptPubKey
                     datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
-                
-            #Reverse the final N-3 bytes
-            if len(payload) > 3:    
+            data=bytes(32)
+            if len(payload) > 3 and datatype is TYPE_DATA:    
                 ba1=bytearray(payload[:3])
                 ba2=bytearray(payload[3:])
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
-            self.unassigned_kyc_pubkeys.add(data)
+                if len(self.unassigned_kyc_pubkeys) is 0:
+                   self.unassigned_kyc_pubkeys=set()
+                elif type(self.unassigned_kyc_pubkeys) is not set:
+                    self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
+                self.unassigned_kyc_pubkeys.add(bfh(data))
 
         return data
 

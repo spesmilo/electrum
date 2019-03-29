@@ -615,13 +615,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
                         #else:
                             #Policy asset: whitelist token etc.
-                        '''Set a tracepoint in the Python debugger that works with Qt'''
-                        #from PyQt4.QtCore import pyqtRemoveInputHook
-                        # Or for Qt5
-                        from PyQt5.QtCore import pyqtRemoveInputHook
-                        from pdb import set_trace
-                        pyqtRemoveInputHook()
-                        set_trace()
+            
                         data = self.wallet.parse_policy_tx(tx)
                         if len(data) > 0:    
                             self.notify(_("New policy data received: {}").format(data))

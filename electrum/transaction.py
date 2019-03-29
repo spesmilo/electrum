@@ -467,12 +467,6 @@ def parse_redeemScript_multisig(redeem_script: bytes):
 def get_data_from_policy_output_script(_bytes, *, net=None):
     decoded = [x for x in script_GetOp(_bytes)]
 
-    '''Set a tracepoint in the Python debugger that works with Qt'''
-    from PyQt5.QtCore import pyqtRemoveInputHook
-    from pdb import set_trace
-    pyqtRemoveInputHook()
-    set_trace()
-
     #Policy transactions are 1 of 2 multisig. The data e.g. KYC public key are in the 
     match = [ opcodes.OP_1, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(decoded, match):

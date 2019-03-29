@@ -26,6 +26,7 @@
 import base64
 import hmac
 import hashlib
+import sys
 from typing import Union
 
 
@@ -93,6 +94,12 @@ def point_to_ser(P, compressed=True) -> bytes:
         return bfh(('%02x' % (2+(y&1))) + ('%064x' % x))
     return bfh('04'+('%064x' % x)+('%064x' % y))
 
+def is_odd(x, y):
+    curve = curve_secp256k1
+    if curve.contains_point(x, y):
+        return bool(y & 1)
+    else:
+        raise Exception('is_odd: Point not found on elliptic curve.')
 
 def get_y_coord_from_x(x, odd=True):
     curve = curve_secp256k1
@@ -270,25 +277,44 @@ class ECPubkey(object):
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
         verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1', ):
+    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1', ephemeral= None):
         """
         ECIES encryption/decryption methods; AES-256-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
         assert_bytes(message)
-
-        randint = ecdsa.util.randrange(CURVE_ORDER)
-        ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
-        ephemeral = ECPrivkey(ephemeral_exponent)
-        ecdh_key = (self * ephemeral.secret_scalar).get_public_key_bytes(compressed=True)
+        if ephemeral is None:
+            randint = ecdsa.util.randrange(CURVE_ORDER)
+            ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
+            ephemeral = ECPrivkey(ephemeral_exponent)
+        else:
+            assert(type(ephemeral) == ECPrivkey)
+        ecdh_key, bth, pkb = self.ecdh(ephemeral.secret_scalar)
         key = hashlib.sha512(ecdh_key).digest()
-        iv = hashlib.sha256(key).digest()[:16]
+        iv = hashlib.sha1(key).digest()[:16]
         key_e, key_m = key[0:32], key[32:]
         ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = ephemeral.get_public_key_bytes(compressed=True)
         encrypted = magic + ephemeral_pubkey + ciphertext
         mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
-        return base64.b64encode(encrypted + mac)
+        return base64.b64encode(encrypted + mac), ecdh_key, mac, bth, pkb
+
+
+    def ecdh(self, scalar: int):
+        """
+        Compute the elliptic curve Diffie-Hellman shared secret
+        """
+        key=self*scalar
+        x, y = key.point()
+        bytestohash=bytearray(0)
+        if(y & 1):
+            bytestohash.append(0x03)
+        else:
+            bytestohash.append(0x02)
+        bytestohash.extend(bytearray(x.to_bytes(32, sys.byteorder)))
+        result=hashlib.sha256(bytes(bytestohash)).digest()
+        public_key_bytes=key.get_public_key_bytes(compressed=True)
+        return bytes(hashlib.sha256(bytes(public_key_bytes)).digest()), bytes(bytestohash), public_key_bytes
 
     @classmethod
     def order(cls):
@@ -424,7 +450,7 @@ class ECPrivkey(ECPubkey):
         ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
         ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
-        iv = hashlib.sha256(key).digest()[:16]
+        iv = hashlib.sha1(key).digest()[:16]
         key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()

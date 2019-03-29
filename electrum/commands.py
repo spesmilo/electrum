@@ -32,11 +32,12 @@ import ast
 import base64
 from functools import wraps
 from decimal import Decimal
+from io import StringIO, BytesIO
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from . import bitcoin
-from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS, pubkey_to_address
 from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -310,6 +311,52 @@ class Commands:
         out = []
         for addr in self.wallet.get_addresses():
             out.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+        return out
+
+    @command('w')
+    def dumpkycfile(self, filename=None, password=None):
+        address=self.wallet.create_new_address()
+        onboardUserPubKey=self.wallet.get_public_key(address)
+
+
+
+        index=self.wallet.get_address_index(address)
+     
+        onboardUserKey_serialized, redeem_script=self.wallet.export_private_key(address, password)   
+        txin_type = self.wallet.get_txin_type(address)
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        onboardUserKey=ecc.ECPrivkey(secret_bytes)
+       # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
+      
+        onboardPubKey=self.wallet.get_unassigned_kyc_pubkey()
+        if onboardPubKey is None:
+            return "No unassigned KYC public keys available."
+
+        ss = StringIO()
+
+        out = []
+        for addr in self.wallet.get_addresses():
+            ss.write("{} {}\n".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+
+        #Encrypt the addresses string
+        encrypted, ecdh_key, mac, bth, pkb = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+
+        ss2 = StringIO()
+        str_encrypted=str(encrypted)
+        #Remove the b'' characters (first 2 and last characters)
+        str_encrypted=str_encrypted[2:]
+        str_encrypted=str_encrypted[:-1]
+        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+
+
+
+        ss2.write(str_encrypted)
+        out=[bh2u(onboardPubKey), onboardUserPubKey, bh2u(bytes(ecdh_key)), bh2u(bytes(mac)), bh2u(bth), bh2u(pkb)]
+
+        if filename:
+            f=open(filename, 'w')
+            f.write(ss2.getvalue())
+
         return out
 
     @command('w')
@@ -743,7 +790,8 @@ command_options = {
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
-    'tweaked':     (None, "Show tweaked public keys")
+    'tweaked':     (None, "Show tweaked public keys"),
+    'filename':    (None, "Output file name")
 }
 
 

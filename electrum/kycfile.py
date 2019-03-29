@@ -4,6 +4,8 @@
 
 # A class for read/write for an encrypted KYC file used in the user onboarding process
 
+from io import StringIO
+
 class CKYCFile:
 	def __init__(self):
 		#self.file
@@ -13,11 +15,12 @@ class CKYCFile:
 		self.initVec=[]
 		self.whitelist=[]
 		self.addressKeys=[]
-		#self.decryptedStream
+		self.decryptedStream=StringIO("")
 		self.filename=""
 
 	def clear(self):
-		pass
+		addressKeys.clear()
+		decryptedStream.clear()
 
 	def read(self):
 		pass
