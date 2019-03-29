@@ -387,6 +387,13 @@ class CoinUtils(PrintError):
                     pass
 
 
+    @staticmethod
+    def coin_name_to_dict(coin_name):
+        tok = coin_name.split(':')
+        return {
+            'prevout_hash' : tok[0],
+            'prevout_n'    : int(tok[1])
+        }
 
     @staticmethod
     def is_coin_shuffled(wallet, coin, txs_in=None):

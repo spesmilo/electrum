@@ -67,12 +67,13 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
 
     prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, Qt.UserRole+1) or ""
+    is_reshuffle = name in utxo_list.wallet._reshuffles
 
     u_value = utxo['value']
 
-    if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
+    if not is_reshuffle and utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, _("Shuffled"))
-    elif utxo['address'] in utxo_list.wallet._shuffled_address_cache:  # we hit the cache directly as a performance hack. we don't really need a super-accurate reply as this is for UI and the cache will eventually be accurate
+    elif not is_reshuffle and utxo['address'] in utxo_list.wallet._shuffled_address_cache:  # we hit the cache directly as a performance hack. we don't really need a super-accurate reply as this is for UI and the cache will eventually be accurate
         item.setText(5, _("Shuffled Addr"))
     elif not prog and ("a" in frozenstring or "c" in frozenstring):
         item.setText(5, _("Frozen"))
@@ -81,7 +82,10 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
     elif u_value < BackgroundShufflingThread.LOWER_BOUND: # too small
         item.setText(5, _("Too small"))
     elif utxo['height'] <= 0: # not_confirmed
-        item.setText(5, _("Unconfirmed"))
+        if is_reshuffle:
+            item.setText(5, _("Unconfirmed (reshuf)"))
+        else:
+            item.setText(5, _("Unconfirmed"))
 # for now we unconditionally disallow coinbase coins. See CashShuffle issue #64
 #    elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
 #        item.setText(5, _("Not mature"))
@@ -95,7 +99,10 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
             if window.background_process.get_paused():
                 item.setText(5, _("Paused"))
             else:
-                item.setText(5, _("In queue"))
+                if is_reshuffle:
+                    item.setText(5, _("In queue (reshuf)"))
+                else:
+                    item.setText(5, _("In queue"))
         else:
             item.setText(5, _("Offline"))
 
@@ -111,6 +118,36 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
         item.setText(5, txt)
     elif prog == "completed":
         item.setText(5, _("Done"))
+
+def my_custom_utxo_context_menu_setup(window, utxo_list, menu, selected):
+    ''' Adds CashShuffle related actions to the utxo_list context (right-click)
+    menu '''
+    wallet = window.wallet
+    shuffled_selected = [name for name,flags in selected.items()
+                         if (not flags
+                             and wallet.is_coin_shuffled(CoinUtils.coin_name_to_dict(name))
+                             and name not in wallet._reshuffles)]
+    reshuffles_selected = [name for name in selected if name in wallet._reshuffles]
+    menu.addSection(_('CashShuffle'))
+    def on_reshuffle():
+        wallet._reshuffles.update(set(shuffled_selected))
+        utxo_list.update()
+
+    def on_cancel_reshuffles():
+        wallet._reshuffles.difference_update(set(reshuffles_selected))
+        utxo_list.update()
+
+    len_shufs, len_reshufs = len(shuffled_selected), len(reshuffles_selected)
+    if len_shufs:
+        if len_shufs == 1:
+            action = menu.addAction(_('Reshuffle Coin'), on_reshuffle)
+        else:
+            action = menu.addAction(_('Reshuffle {} Shuffled').format(len_shufs), on_reshuffle)
+    if len_reshufs:
+        if len_reshufs == 1:
+            action = menu.addAction(_('Cancel Reshuffle'), on_cancel_reshuffles)
+        else:
+            action = menu.addAction(_('Cancel {} Reshuffles').format(len_reshufs), on_cancel_reshuffles)
 
 def _make_label(window, tot, shufamt, chg, fee, scale):
     is_dusty_fee = not chg and fee - BackgroundShufflingThread.FEE > 0
@@ -273,6 +310,7 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
     inputs = tx.inputs()
     addrs_to_freeze = set()
     coins_to_purge_from_shuffle_cache = list()
+    coins_to_purge_from_reshuffles = set()
     wallet = window.wallet
     all_addresses = None
     def is_mine(a):
@@ -290,7 +328,9 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
         if isinstance(addr, Address) and is_mine(addr):
             # This coin was ours, purge True/False results from the
             # _is_shuffled_cache for this coin.
-            coins_to_purge_from_shuffle_cache.append(CoinUtils.get_name(inp))
+            name = CoinUtils.get_name(inp)
+            coins_to_purge_from_shuffle_cache.append(name)
+            coins_to_purge_from_reshuffles.add(name)
             if addr not in addrs_to_freeze and wallet.is_coin_shuffled(inp):
                 # We spent a shuffled coin belonging to us.
                 # Freeze that address to protect privacy.
@@ -308,6 +348,7 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
     CoinUtils.remove_from_shufflecache(wallet, coins_to_purge_from_shuffle_cache)
     # "forget" that these addresses were designated as shuffled addresses.
     CoinUtils.remove_from_shuffled_address_cache(wallet, addrs_to_freeze)
+    wallet._reshuffles.difference_update(coins_to_purge_from_reshuffles)
 
 
 def _got_tx(window, tx):
@@ -399,6 +440,7 @@ def monkey_patches_apply(window):
         wallet._is_shuffled_cache = dict()
         wallet._shuffled_address_cache = set()
         wallet._addresses_cashshuffle_reserved = set()
+        wallet._reshuffles = set()
         wallet._last_change = None
         CoinUtils.load_shuffle_change_shared_with_others(wallet)  # sets wallet._shuffle_change_shared_with_others
         # Paranoia -- force wallet into this single change address mode in case
@@ -466,6 +508,7 @@ def monkey_patches_remove(window):
         delattr(wallet, "_shuffled_address_cache")
         delattr(wallet, '_shuffle_patched_')
         delattr(wallet, "_last_change")
+        delattr(wallet, "_reshuffles")
         CoinUtils.store_shuffle_change_shared_with_others(wallet) # save _shuffle_change_shared_with_others to storage -- note this doesn't call storage.write() for performance reasons.
         delattr(wallet, '_shuffle_change_shared_with_others')
         CoinUtils.unfreeze_frozen_by_shuffling(wallet)
@@ -668,6 +711,12 @@ class Plugin(BasePlugin):
     @hook
     def utxo_list_item_setup(self, utxo_list, item, x, name):
         my_custom_item_setup(utxo_list, item, x, name)
+
+    @hook
+    def utxo_list_context_menu_setup(self, utxo_list, menu, selected):
+        window = utxo_list.parent
+        if window in self.windows:
+            my_custom_utxo_context_menu_setup(window, utxo_list, menu, selected)
 
     @hook
     def history_list_filter(self, history_list, h_item, label):

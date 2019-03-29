@@ -612,6 +612,10 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         retVal = False
         if sender and not thr.already_did_cleanup:
             if message.endswith('complete protocol'):
+                # Flag this as no longer being a reshuffle (for UI purposes and
+                # sanity as the _reshuffle flag trumps other flags when
+                # selecting candidate coins)
+                self.wallet._reshuffles.discard(sender)
                 # remember this 'just spent' coin for self.timeout amount of
                 # time as a guard to ensure that we wait for the tx to show
                 # up in the wallet before considerng it again for shuffling
@@ -829,23 +833,25 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         if not getattr(self.wallet, "is_coin_shuffled", None):
             raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
         _get_name = CoinUtils.get_name
-        return [c for c in self.wallet.get_utxos(exclude_frozen=True,
-                                                 confirmed_only=True,
-                                                 mature=True)
-                # pre-filter out coins we know won't apply to any scale.
-                if (
-                    # Note: the 'is False' is intentional -- we are interested
-                    # in coins that we know for SURE are not shuffled.
-                    # is_coin_shuffled() also returns None in cases where the tx
-                    # isn't in the history yet (a rare occurrence)
-                    self.wallet.is_coin_shuffled(c) is False
-                    and c['value'] >= self.LOWER_BOUND  # inside config'd range
-                    and c['value'] < self.UPPER_BOUND   # inside config'd range
-                    and _get_name(c) not in self.done_utxos  # coin was not just shuffled
-                    and not c['coinbase']  # coin is not coinbase coin -- we never shuffle coinbase coins
-                    and not CoinUtils.is_shuffled_address(self.wallet, c['address']) # coin is not sitting on a shuffled address
-                    )
-                ]
+        candidates = []
+        for c in self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True, mature=True):
+            name = _get_name(c)
+            is_reshuffle = name in self.wallet._reshuffles
+            # pre-filter out coins we know won't apply to any scale.
+            if (
+                # Note: the 'is False' is intentional -- we are interested
+                # in coins that we know for SURE are not shuffled.
+                # is_coin_shuffled() also returns None in cases where the tx
+                # isn't in the history yet (a rare occurrence)
+                (is_reshuffle or self.wallet.is_coin_shuffled(c) is False)
+                and c['value'] >= self.LOWER_BOUND  # inside config'd range
+                and c['value'] < self.UPPER_BOUND   # inside config'd range
+                and name not in self.done_utxos  # coin was not just shuffled
+                and not c['coinbase']  # coin is not coinbase coin -- we never shuffle coinbase coins
+                and (is_reshuffle or not CoinUtils.is_shuffled_address(self.wallet, c['address'])) # coin is not sitting on a shuffled address
+                ):
+                    candidates.append(c)
+        return candidates
 
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return

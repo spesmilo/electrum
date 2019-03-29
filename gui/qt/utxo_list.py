@@ -178,6 +178,8 @@ class UTXOList(MyTreeWidget):
                 # they have some address-level frozen in the selection, so add the menu action "Unfreeze addresses"
                 menu.addAction(_("Unfreeze Addresses"), lambda: self.set_frozen_addresses_for_coins(list(selected.keys()), False))
 
+        run_hook('utxo_list_context_menu_setup', self, menu, selected)
+
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def on_permit_edit(self, item, column):
