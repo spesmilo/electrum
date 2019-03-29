@@ -38,6 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
+from io import StringIO, BytesIO
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -66,8 +67,6 @@ TX_STATUS = [
     _('Not Verified'),
     _('Local'),
 ]
-
-
 
 def relayfee(network):
     from .simple_config import FEERATE_DEFAULT_RELAY
@@ -1592,6 +1591,52 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     def pubkeys_to_address(self, pubkey):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
+    def get_kyc_string(self, password=None):
+        address=self.create_new_address()
+        onboardUserPubKey=self.get_public_key(address)
+         
+        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        txin_type = self.get_txin_type(address)
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
+      
+        onboardPubKey=self.get_unassigned_kyc_pubkey()
+        if onboardPubKey is None:
+            return "No unassigned KYC public keys available."
+
+        ss = StringIO()
+
+        address_pubkey_list = []
+        for addr in self.get_addresses():
+            line="{} {}".format(addr, ''.join(self.get_public_keys(addr, False)))
+            address_pubkey_list.append(line)
+            ss.write(line)
+            ss.write("\n")
+
+        #Encrypt the addresses string
+        encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+
+        ss2 = StringIO()
+        str_encrypted=str(encrypted)
+        #Remove the b'' characters (first 2 and last characters)
+        str_encrypted=str_encrypted[2:]
+        str_encrypted=str_encrypted[:-1]
+        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write(str_encrypted)
+        kyc_string=ss2.getvalue()
+
+        return kyc_string
+
+    def dumpkycfile(self, filename=None, password=None):
+        kycfile_string = self.get_kyc_string(password)
+
+        if filename:
+            f=open(filename, 'w')
+            f.write(kycfile_string)
+            f.close()
+            return True
+        return False
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n

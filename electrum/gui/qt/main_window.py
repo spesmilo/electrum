@@ -99,6 +99,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
+    show_kycaddresses_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -486,7 +487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
-        wallet_menu.addAction(_("&Register"), lambda: webbrowser.open("http://commerceblock.com"))
+        wallet_menu.addAction(_("&Register"), self.register_wallet_dialog)
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -603,8 +604,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                     if v > 0:
                         total_amount += v
-                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
+                if total_amount > 0:
+                    self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                        .format(num_txns, self.format_amount_and_units(total_amount)))
                 self.tx_notifications = []
             else:
                 for tx in self.tx_notifications:
@@ -617,10 +619,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                             #Policy asset: whitelist token etc.
             
                         data = self.wallet.parse_policy_tx(tx)
-                        if len(data) > 0:    
-                            self.notify(_("New policy data received: {}").format(data))
-
-
+                        
                             
     def notify(self, message):
         if self.tray:
@@ -2464,6 +2463,82 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             tx = transaction.Transaction(r)
             self.show_transaction(tx)
+
+    @protected
+    def register_wallet_dialog(self, password):
+        if self.wallet.is_watching_only():
+            self.show_message(_("This is a watching-only wallet"))
+            return
+
+        if isinstance(self.wallet, Multisig_Wallet):
+            self.show_message(_('This is a multi-signature wallet.') + '\n' +
+                            _('Registration is not currently supported.'))
+        
+        d = WindowModalDialog(self, _('Register wallet'))
+        d.setMinimumSize(980, 300)
+        vbox = QVBoxLayout(d)
+
+        msg = "%s\n%s\n%s" % (_("Your addresses and public keys will be exported to an encrypted KYC file, readable only by the DGLD federation and this wallet."),
+                              _("Your private keys will not be exported."),
+                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."))
+        
+        vbox.addWidget(QLabel(msg))
+
+        defaultname = 'kycfile.dat'
+        select_msg = _('Select file to export your encrypted addresses and public keys to')
+        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg, b_csv_select=False)
+        vbox.addLayout(hbox)
+
+        e = QTextEdit()
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+
+        b = OkButton(d, _('Export'))
+        b.setEnabled(False)
+        vbox.addLayout(Buttons(CancelButton(d), b))
+
+        kycfileString=self.wallet.get_kyc_string(password)
+
+        def show_kycaddresses():
+            #s = "\n".join( map( lambda x: x[0], addressList.items()))
+            e.setText(kycfileString)
+            b.setEnabled(True)
+            nonlocal done
+            done = True
+
+        def on_dialog_closed(*args):
+            nonlocal done
+
+
+        show_kycaddresses()
+        d.finished.connect(on_dialog_closed)
+
+        if not d.exec_():
+            done = True
+            return
+
+        filename = filename_e.text()
+        if not filename:
+            return
+
+        try:
+            f=open(filename, 'w')
+            f.write(kycfileString)
+            f.close()
+        except (IOError, os.error) as reason:
+            txt = "\n".join([
+                _("Electrum was unable to produce a kycfile export."),
+                str(reason)
+            ])
+            self.show_critical(txt, title=_("Unable to create kycfile"))
+
+        except Exception as e:
+            self.show_message(str(e))
+            return
+
+        self.show_message(_("kycfile exported."))
+        webbrowser.open("http://commerceblock.com")
+
 
     @protected
     def export_privkeys_dialog(self, password):

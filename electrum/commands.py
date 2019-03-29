@@ -315,51 +315,7 @@ class Commands:
 
     @command('w')
     def dumpkycfile(self, filename=None, password=None):
-        address=self.wallet.create_new_address()
-        onboardUserPubKey=self.wallet.get_public_key(address)
-
-
-
-        index=self.wallet.get_address_index(address)
-     
-        onboardUserKey_serialized, redeem_script=self.wallet.export_private_key(address, password)   
-        txin_type = self.wallet.get_txin_type(address)
-        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-        onboardUserKey=ecc.ECPrivkey(secret_bytes)
-       # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
-      
-        onboardPubKey=self.wallet.get_unassigned_kyc_pubkey()
-        if onboardPubKey is None:
-            return "No unassigned KYC public keys available."
-
-        ss = StringIO()
-
-        out = []
-        for addr in self.wallet.get_addresses():
-            line="{} {}\n".format(addr, ''.join(self.wallet.get_public_keys(addr, False)))
-            ss.write(line)
-            out.append(line)
-
-
-        #Encrypt the addresses string
-        encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
-
-        ss2 = StringIO()
-        str_encrypted=str(encrypted)
-        #Remove the b'' characters (first 2 and last characters)
-        str_encrypted=str_encrypted[2:]
-        str_encrypted=str_encrypted[:-1]
-        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
-
-
-
-        ss2.write(str_encrypted)
-
-        if filename:
-            f=open(filename, 'w')
-            f.write(ss2.getvalue())
-
-        return out
+       return self.wallet.dumpkycfile(filename, password)
 
     @command('w')
     def getbalance(self):

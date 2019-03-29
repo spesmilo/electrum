@@ -24,6 +24,7 @@
 import threading
 import itertools
 from collections import defaultdict
+import random
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
@@ -88,8 +89,7 @@ class AddressSynchronizer(PrintError):
         if len(self.unassigned_kyc_pubkeys) is 0:
             return None
         #remove a random pubkey from the set.
-        pubkey = self.unassigned_kyc_pubkeys.pop()
-        return pubkey
+        return random.sample(self.unassigned_kyc_pubkeys, 1)[0]
 
     def load_and_cleanup(self):
         self.load_transactions()
