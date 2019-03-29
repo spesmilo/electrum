@@ -199,7 +199,7 @@ class SettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         thread = keystore.thread
-        hs_rows, hs_cols = (64, 128)
+        hs_cols, hs_rows = (128, 64)
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -410,7 +410,7 @@ class SettingsDialog(WindowModalDialog):
         homescreen_msg = QLabel(_("You can set the homescreen on your "
                                   "device to personalize it.  You must "
                                   "choose a {} x {} monochrome black and "
-                                  "white image.").format(hs_rows, hs_cols))
+                                  "white image.").format(hs_cols, hs_rows))
         homescreen_msg.setWordWrap(True)
         settings_glayout.addWidget(homescreen_label, 4, 0)
         settings_glayout.addWidget(homescreen_change_button, 4, 1)
