@@ -379,24 +379,34 @@ class SettingsDialog(WindowModalDialog):
 
             if filename.lower().endswith('.toif') or filename.lower().endswith('.toig'):
                 which = filename.lower()[-1].encode('ascii')  # .toif or .toig = f or g in header
-                img = open(filename, 'rb').read()
-                if img[:8] != b'TOI' + which + int(hs_cols).to_bytes(2, byteorder='little') + int(hs_rows).to_bytes(2, byteorder='little'):
-                    handler.show_error('File is not a TOI{} file with size of {}x{}'.format(which.decode('ascii').upper(), hs_cols, hs_rows))
+                if which == b'g':
+                    # For now I couldn't get Grayscale TOIG to work on any device, disabled
+                    handler.show_error(_('Grayscale TOI files are not currently supported. Try a PNG or JPG file instead.'))
                     return
+                if not is_model_T:
+                    handler.show_error(_('At this time, only the Trezor Model T supports the direct loading of TOIF files. Try a PNG or JPG file instead.'))
+                    return
+                try:
+                    img = open(filename, 'rb').read()
+                    if img[:8] != b'TOI' + which + int(hs_cols).to_bytes(2, byteorder='little') + int(hs_rows).to_bytes(2, byteorder='little'):
+                        handler.show_error(_('Image must be a TOI{} file of size {}x{}').format(which.decode('ascii').upper(), hs_cols, hs_rows))
+                        return
+                except OSError as e:
+                    handler.show_error('Error reading {}: {}'.format(filename, e))
             else:
                 def read_and_convert_using_qt_to_raw_mono(handler, filename, hs_cols, hs_rows, invert=True):
                     img = QImage(filename)
                     if img.isNull():
-                        handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
+                        handler.show_error(_('Could not load the image {} -- unknown format or other error').format(os.path.basename(filename)))
                         return
                     if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
                        img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)  # force to our dest size. Note that IgnoreAspectRatio guarantess the right size. Ther other modes don't
                        if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
-                           handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
+                           handler.show_error(_("Could not scale image to {} x {} pixels").format(hs_cols, hs_rows))
                            return
                     bm = QBitmap.fromImage(img, Qt.MonoOnly) # ensures 1bpp, dithers any colors
                     if bm.isNull():
-                        handler.show_error('Could not convert image to monochrome')
+                        handler.show_error(_('Could not convert image to monochrome'))
                         return
                     target_fmt = QImage.Format_Mono
                     img = bm.toImage().convertToFormat(target_fmt, Qt.MonoOnly|Qt.ThresholdDither|Qt.AvoidDither) # ensures MSB bytes again (above steps may have twiddled the bytes)
@@ -404,7 +414,7 @@ class SettingsDialog(WindowModalDialog):
                     bimg = bytearray(hs_rows * lineSzOut)  # 1024 bytes for a 128x64 img
                     bpl = img.bytesPerLine()
                     if bpl < lineSzOut:
-                        handler.show_error("Internal error converting image")
+                        handler.show_error(_("Internal error converting image"))
                         return
                     # read in 1 scan line at a time since the scan lines may be > our target packed image
                     for row in range(hs_rows):
@@ -423,23 +433,23 @@ class SettingsDialog(WindowModalDialog):
                 def read_and_convert_using_qt_to_toif(handler, filename, hs_cols, hs_rows):
                     img = QImage(filename)
                     if img.isNull():
-                        handler.show_error('Could not load the image {} -- unknown format or other error'.format(os.path.basename(filename)))
+                        handler.show_error(_('Could not load the image {} -- unknown format or other error').format(os.path.basename(filename)))
                         return
                     if (img.width(), img.height()) != (hs_cols, hs_rows): # do we need to scale it ?
                        img = img.scaled(hs_cols, hs_rows, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)  # force to our dest size. Note that IgnoreAspectRatio guarantess the right size. Ther other modes don't
                        if img.isNull() or (img.width(), img.height()) != (hs_cols, hs_rows):
-                           handler.show_error("Could not scale image to {} x {} pixels".format(hs_cols, hs_rows))
+                           handler.show_error(_("Could not scale image to {} x {} pixels").format(hs_cols, hs_rows))
                            return
                     target_fmt = QImage.Format_RGB888
                     img = img.convertToFormat(QImage.Format_Indexed8).convertToFormat(target_fmt)  # dither it down to 256 colors to reduce image complexity then back up to 24 bit for easy reading
                     if img.isNull():
-                        handler.show_error("Could not dither or re-render image")
+                        handler.show_error(_("Could not dither or re-render image"))
                         return
                     def qimg_to_toif(img, handler):
                         try:
                             import struct, zlib
                         except ImportError as e:
-                            handler.show_error("Could not convert image, a required library is missing: {}".format(e))
+                            handler.show_error(_("Could not convert image, a required library is missing: {}").format(e))
                             return
                         data, pixeldata = bytearray(), bytearray()
                         data += b'TOIf'
