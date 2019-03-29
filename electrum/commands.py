@@ -336,10 +336,13 @@ class Commands:
 
         out = []
         for addr in self.wallet.get_addresses():
-            ss.write("{} {}\n".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+            line="{} {}\n".format(addr, ''.join(self.wallet.get_public_keys(addr, False)))
+            ss.write(line)
+            out.append(line)
+
 
         #Encrypt the addresses string
-        encrypted, ecdh_key, mac, bth, pkb = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+        encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
 
         ss2 = StringIO()
         str_encrypted=str(encrypted)
@@ -351,7 +354,6 @@ class Commands:
 
 
         ss2.write(str_encrypted)
-        out=[bh2u(onboardPubKey), onboardUserPubKey, bh2u(bytes(ecdh_key)), bh2u(bytes(mac)), bh2u(bth), bh2u(pkb)]
 
         if filename:
             f=open(filename, 'w')

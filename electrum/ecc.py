@@ -288,7 +288,7 @@ class ECPubkey(object):
             ephemeral = ECPrivkey(ephemeral_exponent)
         else:
             assert(type(ephemeral) == ECPrivkey)
-        ecdh_key, bth, pkb = self.ecdh(ephemeral.secret_scalar)
+        ecdh_key = self.ecdh(ephemeral.secret_scalar)
         key = hashlib.sha512(ecdh_key).digest()
         iv = hashlib.sha1(key).digest()[:16]
         key_e, key_m = key[0:32], key[32:]
@@ -297,7 +297,7 @@ class ECPubkey(object):
         encrypted = magic + ephemeral_pubkey + ciphertext
         mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
-        return base64.b64encode(encrypted + mac), ecdh_key, mac, bth, pkb
+        return base64.b64encode(encrypted + mac), ecdh_key, mac
 
 
     def ecdh(self, scalar: int):
@@ -305,16 +305,8 @@ class ECPubkey(object):
         Compute the elliptic curve Diffie-Hellman shared secret
         """
         key=self*scalar
-        x, y = key.point()
-        bytestohash=bytearray(0)
-        if(y & 1):
-            bytestohash.append(0x03)
-        else:
-            bytestohash.append(0x02)
-        bytestohash.extend(bytearray(x.to_bytes(32, sys.byteorder)))
-        result=hashlib.sha256(bytes(bytestohash)).digest()
         public_key_bytes=key.get_public_key_bytes(compressed=True)
-        return bytes(hashlib.sha256(bytes(public_key_bytes)).digest()), bytes(bytestohash), public_key_bytes
+        return bytes(hashlib.sha256(bytes(public_key_bytes)).digest())
 
     @classmethod
     def order(cls):
