@@ -4,3 +4,6 @@
 [submodule "contrib/secp256k1"]
 	path = contrib/secp256k1
 	url = https://github.com/Electron-Cash/secp256k1
+[submodule "contrib/electrum-locale"]
+	path = contrib/electrum-locale
+	url = https://github.com/Electron-Cash/electrum-locale

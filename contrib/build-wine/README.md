@@ -1,44 +1,24 @@
 Windows Binary Builds
 =====================
 
+In order to build for Windows, you must use docker.
+Don't worry! It's fast and produces 100% reproducible builds.
+You may do so by issuing the following command (from the top-level of this
+repository)::
 
-These scripts can be used for cross-compilation of Windows Electron Cash executables from Linux/Wine.
-Produced binaries are deterministic so you should be able to generate binaries that match the official releases.
+    $ contrib/build-wine/build.sh BRACH_OR_TAG
 
-Usage:
-1. Install Wine 2, or Wine 3 e.g.
+Where BRANCH_OR_TAG above is a git branch or tag you wish to build.
 
-```
-$ sudo apt-get install wine-development
-$ sudo ln -sf /usr/bin/wine-development /usr/local/bin/wine
-$ wine --version
- wine-2.0 (Debian 2.0-3+b2)
-```
+Note: If on a Linux host, the above script may ask you for your password as
+docker requires commands be run via sudo.  Make sure you are in the /etc/sudoers
+file.  On a macOS host, this is not the case and docker can be run as a normal
+user.
 
-or
+The built .exe files will be placed in: `contrib/build-wine/dist/`
 
-```
-$ pacman -S wine
-$ wine --version
- wine-2.21
-```
+---
 
-2. Install the following dependencies:
+Alternatively, you may follow the instructions in the `docker/` subfolder here:
 
- - dirmngr
- - gpg
- - 7Zip
- - Wine (>= v2)
- - (and, for building libsecp256k1)
-   - mingw-w64
-   - autotools-dev
-   - autoconf
-   - libtool
-
-3. Make sure `/opt` is writable by the current user.
-4. Run `build.sh [<git-ref>]`, where <git-ref> (e.g., 3.3.1) is the branch/tag
-   you want to be checked out from official repo.
-   (optional -- defaults a hardcoded tag found in build-electrum-git.sh )
-   Note that build.sh may fail the first time after fetching gpg signatures.
-   It should work correctly on the second try.
-5. The generated binaries are in `dist`.
+- [docker/README.md](docker/README.md)

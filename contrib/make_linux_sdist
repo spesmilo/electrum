@@ -1,0 +1,21 @@
+#!/bin/bash
+
+contrib=$(dirname "$0")
+test -n "$contrib" -a -d "$contrib" || (echo "Could not find the contrib/ directory" && exit 1)
+pushd "$contrib"
+contrib=`pwd`  # abs path name
+
+. "$contrib"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+set -e
+
+pushd "$contrib"/..
+
+"$contrib"/make_locale && \
+    "$contrib"/make_packages && \
+    python3 setup.py sdist --enable-secp --format=zip,gztar || fail "Failed."
+
+info "Linux source distribution (including compiled libseck256k1) has been placed in dist/"
+
+popd
+popd

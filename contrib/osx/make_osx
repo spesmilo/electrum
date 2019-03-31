@@ -1,22 +1,35 @@
 #!/bin/bash
 
 build_dir=$(dirname "$0")
-test -n "$build_dir" -a -d "$build_dir" || exit
+test -n "$build_dir" -a -d "$build_dir" || (echo "Cannot determine build dir. FIXME!" && exit 1)
 
-. "$build_dir"/base.sh # functions we use below
+. "$build_dir"/../base.sh # functions we use below
+
+function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
+    infoName="$1"
+    file="$2"
+    identity="$3"
+    deep=""
+    if [ -z "$identity" ]; then
+        # we are ok with them not passing anything; master script calls us unconditionally even if no identity is specified
+        return
+    fi
+    if [ -d "$file" ]; then
+        deep="--deep"
+    fi
+    if [ -z "$infoName" ] || [ -z "$file" ] || [ -z "$identity" ] || [ ! -e "$file" ]; then
+        fail "Argument error to internal function DoCodeSignMaybe()"
+    fi
+    info "Code signing ${infoName}..."
+    codesign -f -v $deep -s "$identity" --preserve-metadata=requirements,entitlements "$file" || fail "Could not code sign ${infoName}"
+}
 
 cd $build_dir/../..
 
-
-export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
 
 # Paramterize
-PYTHON_VERSION=3.6.8
 BUILDDIR=/tmp/electron-cash-build
-PACKAGE=Electron-Cash
-GIT_REPO_ACCT=https://github.com/Electron-Cash
-GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
 LIBSECP_VERSION="9896f7062e67e05f9a1aa7163099fb2e052db9e8"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })
@@ -56,7 +69,7 @@ if [ -n "$have_brew" ]; then
     done
 fi
 
-info "Installing Python $PYTHON_VERSION"
+info "Installing Python $PYTHON_VERSION"  # NB: $PYTHON_VERSION comes from ../base.sh
 export PATH=~/.pyenv/bin:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/.pyenv/shims:~/Library/Python/${MAJ_MIN}/bin:"$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
@@ -71,7 +84,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 info "Installing PyInstaller"
 python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip -I --user && pyenv rehash || fail "Could not install PyInstaller"
 
-info "Using these versions for building $PACKAGE:"
+info "Using these versions for building $PACKAGE:"  # NB: PACKAGE var comes from ../base.sh
 sw_vers
 python3 --version
 echo -n "Pyinstaller "

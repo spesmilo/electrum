@@ -111,7 +111,7 @@ Linux (source with packages)
 
 Run the following to create the release tarball under ``dist/``::
 
-    ./setup.py sdist
+    ./setup.py sdist --enable-secp
 
 This command will *NOT* run the above ``make_locale`` and ``make_packages`` for
 you, so you should run them if you want to include Python packages and

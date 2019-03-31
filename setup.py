@@ -65,16 +65,19 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
     """Does some custom stuff before calling super().run()."""
 
     user_options = setuptools.command.sdist.sdist.user_options + [
-        ("disable-secp", None, "Disable libsecp256k1 complilation.")
+        ("disable-secp", None, "Disable libsecp256k1 complilation (default)."),
+        ("enable-secp", None, "Enable libsecp256k1 complilation.")
     ]
 
     def initialize_options(self):
         self.disable_secp = None
+        self.enable_secp = None
         super().initialize_options()
 
     def finalize_options(self):
-        if self.disable_secp is None:
-            self.disable_secp = False # Default to build secp
+        if self.enable_secp is None:
+            self.enable_secp = False
+        self.enable_secp = not self.disable_secp and self.enable_secp
         super().finalize_options()
 
     def run(self):
@@ -83,7 +86,7 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
         #0==os.system("contrib/make_locale") or sys.exit("Could not make locale, aborting")
         #self.announce("Running make_packages...")
         #0==os.system("contrib/make_packages") or sys.exit("Could not make locale, aborting")
-        if not self.disable_secp:
+        if self.enable_secp:
             self.announce("Running make_secp...")
             0==os.system("contrib/make_secp") or sys.exit("Could not build libsecp256k1")
         super().run()

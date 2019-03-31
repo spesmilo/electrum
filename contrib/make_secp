@@ -1,22 +1,20 @@
 #!/bin/bash
 
-function fail {
-    RED='\033[0;31m'
-    NC='\033[0m' # No Color
-    printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
-    exit 1
-}
-
 contrib=$(dirname "$0")
-test -n "$contrib" -a -d "$contrib" || fail "Could not find the contrib/ directory"
+test -n "$contrib" -a -d "$contrib" || (echo "Could not find the contrib/ directory" && exit 1)
+pushd "$contrib"
+contrib=`pwd`  # get abs path
+. "$contrib"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+set -e
 
 which git || fail "Git is required to proceed"
 
-echo "Refreshing submodules..."
+info "Refreshing submodules..."
 git submodule init
 git submodule update
 
-echo "Building libsecp256k1..."
+info "Building libsecp256k1..."
 LIBSECP_VERSION="9896f7062e67e05f9a1aa7163099fb2e052db9e8"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 
 pushd "$contrib"/secp256k1 || fail "Could not chdir to ${contrib}/secp256k1"
@@ -48,4 +46,6 @@ git clean -f -x -q
 rm -fr .libs/
 popd
 
-echo "$libsec_lib has been placed in the electroncash 'lib' folder."
+info "$libsec_lib has been placed in the electroncash 'lib' folder."
+
+popd
