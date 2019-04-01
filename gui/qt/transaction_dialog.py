@@ -78,7 +78,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.tx_hash_e  = ButtonsLineEdit()
         weakSelfRef = Weak.ref(self)
         qr_show = lambda: weakSelfRef() and weakSelfRef().main_window.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
-        self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
+        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        self.tx_hash_e.addButton(icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
         self.tx_desc = QLabel()
@@ -110,7 +111,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.setDefault(True)
 
         self.qr_button = b = QPushButton()
-        b.setIcon(QIcon(":icons/qrcode.png"))
+        b.setIcon(QIcon(icon))
         b.clicked.connect(self.show_qr)
 
         self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx),
@@ -301,7 +302,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
         chg = QTextCharFormat()
-        chg.setBackground(QBrush(QColor("yellow")))
+        chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(True)))
         chg.setToolTip(_("Wallet change address"))
 
         def text_format(addr):

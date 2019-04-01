@@ -13,7 +13,8 @@ class ShowQRTextEdit(ButtonsTextEdit):
     def __init__(self, text=None):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
-        self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
+        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        self.addButton(icon, self.qr_show, _("Show as QR code"))
 
         run_hook('show_text_edit', self)
 
