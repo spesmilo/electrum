@@ -154,7 +154,7 @@ prepare_wine() {
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
             [ -z "$NOPGP" ] && verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-            wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION
+            wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION || fail "Failed to install Python component: ${msifile}"
         done
 
         info "Upgrading pip ..."
@@ -163,18 +163,18 @@ prepare_wine() {
 
         info "Installing pywin32-ctypes ..."
         # Install pywin32-ctypes (needed by pyinstaller)
-        $PYTHON -m pip install pywin32-ctypes==0.1.2
+        $PYTHON -m pip install pywin32-ctypes==0.1.2 || fail "Failed to install pywin32-ctypes"
 
         info "Installing PySocks ..."
         # install PySocks
-        $PYTHON -m pip install win_inet_pton==1.0.1
+        $PYTHON -m pip install win_inet_pton==1.0.1 || fail "Failed to install PySocks"
 
         info "Installing Packages from requirements-binaries ..."
-        $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt
+        $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
 
         info "Installing Pyinstaller ..."
         # Install PyInstaller
-        $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
+        $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip || fail "Failed to install Pyinstaller"
 
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
@@ -269,11 +269,11 @@ build_the_app() {
 
         # Install frozen dependencies
         info "Installing frozen dependencies ..."
-        $PYTHON -m pip install -r "$here"/../deterministic-build/requirements.txt
-        $PYTHON -m pip install -r "$here"/../deterministic-build/requirements-hw.txt
+        $PYTHON -m pip install -r "$here"/../deterministic-build/requirements.txt || fail "Failed to install requirements"
+        $PYTHON -m pip install -r "$here"/../deterministic-build/requirements-hw.txt || fail "Failed to install requirements-hw"
 
         pushd $WINEPREFIX/drive_c/electroncash
-        $PYTHON setup.py install
+        $PYTHON setup.py install || fail "Failed setup.py install"
         popd
 
         rm -rf dist/
@@ -295,7 +295,7 @@ build_the_app() {
         wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electron-cash.nsi || fail "makensis failed"
 
         cd dist
-        mv Electron-Cash-setup.exe $NAME_ROOT-$VERSION-setup.exe
+        mv Electron-Cash-setup.exe $NAME_ROOT-$VERSION-setup.exe  || fail "Failed to move $NAME_ROOT-$VERSION-setup.exe to the output dist/ directory"
 
         popd
 
