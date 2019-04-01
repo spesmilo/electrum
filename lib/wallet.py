@@ -1601,13 +1601,23 @@ class Abstract_Wallet(PrintError):
         return True
 
     def get_sorted_requests(self, config):
-        def f(x):
-            try:
-                addr = x['address']
-                return self.get_address_index(addr) or addr
-            except:
-                return addr
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
+        m = map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys())
+        try:
+            def f(x):
+                try:
+                    addr = x['address']
+                    return self.get_address_index(addr) or addr
+                except:
+                    return addr
+            return sorted(m, key=f)
+        except TypeError:
+            # See issue #1231 -- can get inhomogenous results in the above
+            # sorting function due to the 'or addr' possible return.
+            # This can happen if addresses for some reason drop out of wallet
+            # while, say, the history rescan is running and it can't yet find
+            # an address index for an address.  In that case we will
+            # return an unsorted list to the caller.
+            return list(m)
 
     def get_fingerprint(self):
         raise NotImplementedError()
