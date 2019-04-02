@@ -47,9 +47,9 @@ folder.
     $ git checkout $REV
     $ sudo docker run -it \
         --name electroncash-wine-builder-cont \
-        -v $PWD:/opt/wine64/drive_c/electrum \
+        -v $PWD:/opt/wine64/drive_c/electroncash \
         --rm \
-        --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
+        --workdir /opt/wine64/drive_c/electroncash/contrib/build-wine \
         electroncash-wine-builder-img \
         ./_build.sh $REV
     ```
