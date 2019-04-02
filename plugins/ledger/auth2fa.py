@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import *
 from electroncash.i18n import _
 from electroncash_gui.qt.util import *
 from electroncash.util import print_msg
+from electroncash.address import Address
+from electroncash import networks
 
 import os, hashlib, websocket, logging, json, copy
 from electroncash_gui.qt.qrcodewidget import QRCodeWidget
@@ -37,7 +39,7 @@ class LedgerAuthDialog(QDialog):
         self.handler = handler
         self.txdata = data
         self.idxs = self.txdata['keycardData'] if self.txdata['confirmationType'] > 1 else ''
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(1000)
         self.setWindowTitle(_("Ledger Wallet Authentication"))
         self.cfg = copy.deepcopy(self.handler.win.wallet.get_keystore().cfg)
         self.dongle = self.handler.win.wallet.get_keystore().get_client().dongle
@@ -118,9 +120,17 @@ class LedgerAuthDialog(QDialog):
         def pin_changed(s):
             if len(s) < len(self.idxs):
                 i = self.idxs[len(s)]
-                addr = self.txdata['address']
-                addr = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
-                self.addrtext.setHtml(str(addr))
+                address = self.txdata['address']
+
+                # Always generate the mainnet address as the code is generated from mainnet address
+                addressstr = address.to_string(Address.FMT_LEGACY, net=networks.MainNet)
+                addressstr = addressstr[:i] + '<u><b>' + addressstr[i:i+1] + '</u></b>' + addressstr[i+1:]
+
+                # We also show the UI address if it is different
+                if networks.net.TESTNET or not Address.FMT_UI == Address.FMT_LEGACY:
+                    addressstr = address.to_ui_string() + '\n' + addressstr
+
+                self.addrtext.setHtml(str(addressstr))
             else:
                 self.addrtext.setHtml(_("Press Enter"))
 

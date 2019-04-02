@@ -30,14 +30,16 @@ MSG_NEEDS_FW_UPDATE_CASHADDR = _('Firmware version (or "Bitcoin Cash" app) too o
                                _('Please update at https://www.ledgerwallet.com')
 MSG_NEEDS_SW_UPDATE_CASHADDR = _('python-btchip is too old for CashAddr support. ') + \
                                _('Please update to v0.1.27 or greater')
+BITCOIN_CASH_SUPPORT_HW1 = (1, 0, 4)
 BITCOIN_CASH_SUPPORT = (1, 1, 8)
 CASHADDR_SUPPORT = (1, 2, 5)
 
 class Ledger_Client():
 
-    def __init__(self, hidDevice):
+    def __init__(self, hidDevice, isHW1=False):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
+        self.isHW1 = isHW1
 
     def is_pairable(self):
         return True
@@ -53,6 +55,9 @@ class Ledger_Client():
 
     def label(self):
         return ""
+
+    def is_hw1(self):
+        return self.isHW1
 
     def i4b(self, x):
         return pack('>I', x)
@@ -143,7 +148,8 @@ class Ledger_Client():
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version']
-            self.bitcoinCashSupported = versiontuple(firmware) >= BITCOIN_CASH_SUPPORT
+            self.bitcoinCashSupported = versiontuple(firmware) >= BITCOIN_CASH_SUPPORT or \
+                self.is_hw1() and versiontuple(firmware) >= BITCOIN_CASH_SUPPORT_HW1
             self.cashaddrFWSupported = versiontuple(firmware) >= CASHADDR_SUPPORT
 
             if not checkFirmware(firmwareInfo) or not self.supports_bitcoin_cash():
@@ -171,7 +177,12 @@ class Ledger_Client():
                 self.dongleObject.verifyPin(pin)
 
             try:
-                self.dongleObject.getWalletPublicKey("44'/145'/0'/0/0", showOnScreen=False, cashAddr=True)
+                try:
+                    self.dongleObject.getWalletPublicKey("44'/145'/0'/0/0", showOnScreen=False, cashAddr=True)
+                except BTChipException as e:
+                    # This call fails on HW1/Nano with a specific error, due to it not supporting cashaddr
+                    if (e.sw != 0x6b00):
+                        raise e
                 self.cashaddrSWSupported = True
             except TypeError:
                 self.cashaddrSWSupported = False
@@ -254,7 +265,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def cashaddr_alert(self):
         """Alert users about fw/sw updates for cashaddr."""
         if Address.FMT_UI == Address.FMT_CASHADDR:
-            if not self.get_client_electrum().fw_supports_cashaddr():
+            # Do not warn if the device is HW1, they have no display anyway
+            if not self.get_client_electrum().fw_supports_cashaddr() and not self.get_client_electrum().is_hw1():
                 self.handler.show_warning(MSG_NEEDS_FW_UPDATE_CASHADDR)
             if not self.get_client_electrum().sw_supports_cashaddr():
                 self.handler.show_warning(MSG_NEEDS_SW_UPDATE_CASHADDR)
@@ -399,7 +411,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
             # Sign all inputs
             inputIndex = 0
-            rawTx = tx.serialize()
             self.get_client().enableAlternate2fa(False)
             cashaddr = Address.FMT_UI == Address.FMT_CASHADDR
             if cashaddr and self.get_client_electrum().supports_cashaddr():
@@ -408,7 +419,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 self.get_client().startUntrustedTransaction(True, inputIndex,
                                                             chipInputs, redeemScripts[inputIndex])
-            outputData = self.get_client().finalizeInputFull(txOutput)
+            # we don't set meaningful outputAddress, amount and fees
+            # as we only care about the alternateEncoding==True branch
+            outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(tx.serialize(True)))
             outputData['outputData'] = txOutput
             transactionOutput = outputData['outputData']
             if outputData['confirmationNeeded']:
@@ -507,8 +520,9 @@ class LedgerPlugin(HW_PluginBase):
         self.handler = handler
 
         client = self.get_btchip_device(device)
+        ishw1 = device.product_key[0] == 0x2581
         if client is not None:
-            client = Ledger_Client(client)
+            client = Ledger_Client(client, ishw1)
         return client
 
     def setup_device(self, device_info, wizard):
