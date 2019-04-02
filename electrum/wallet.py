@@ -543,10 +543,6 @@ class Abstract_Wallet(AddressSynchronizer):
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         i_max = None
         for i, o in enumerate(outputs):
             if o.type == TYPE_ADDRESS:
