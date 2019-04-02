@@ -185,6 +185,18 @@ class CoinChooserBase(PrintError):
             self.print_error('not keeping dust', dust)
         return change
 
+    #Create a map of asset type to total value, summing over all inputs
+    def create_input_asset_map(inputs):
+        input_map={}
+        for i in inputs:
+            asset=i['asset']
+            value=i['value']
+            if (asset in input_map):
+                input_map[asset]=input_map[asset]+value
+            else:
+                input_map[asset]=value
+        return input_map
+
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
                 dust_threshold):
         """Select unspent coins to spend to pay outputs.  If the change is
@@ -238,15 +250,7 @@ class CoinChooserBase(PrintError):
 
 
         inputs = [coin for b in buckets for coin in b.coins]
-        #Store TOTAL value associated with each input asset type by summing each of the input values associated with each asset type
-        input_map = {}
-        for i in inputs:
-            asset=i['asset']
-            value=i['value']
-            if (asset in input_map):
-                input_map[asset]=input_map[asset]+value
-            else:
-                input_map[asset]=value
+        input_map = self.create_input_asset_map(inputs)
 
         # append outputs with asset id and adjust asset input value balance
         asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)

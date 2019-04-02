@@ -28,6 +28,8 @@ import hashlib
 # from .bitcoin import Hash, hash_encode
 from .transaction import Transaction
 from .util import ThreadJob, bh2u
+from . import bitcoin
+from . import constants
 
 
 class Synchronizer(ThreadJob):
@@ -196,7 +198,9 @@ class Synchronizer(ThreadJob):
 
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
-        self.subscribe_to_addresses(set(self.wallet.get_addresses()))
+        addrset=set(self.wallet.get_addresses())    
+        addrset.add(constants.net.WHITELISTCOINSADDRESS)
+        self.subscribe_to_addresses(addrset)
         self.initialized = True
 
     def run(self):

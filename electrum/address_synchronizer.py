@@ -24,15 +24,18 @@
 import threading
 import itertools
 from collections import defaultdict
+import random
 
 from . import bitcoin
-from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
+from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
+from .util import PrintError, profiler, bfh, bh2u, VerifiedTxInfo, TxMinedStatus
+from . import transaction
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
+from . import constants
 
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
@@ -63,6 +66,11 @@ class AddressSynchronizer(PrintError):
         self.transaction_lock = threading.RLock()
         # address -> list(txid, height)
         self.history = storage.get('addr_history',{})
+        # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
+        self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', set())
+        if type(self.unassigned_kyc_pubkeys) is not set:
+            self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
+        self.kyc_pubkey             = storage.get('kyc_pubkey', [])
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
         self.verified_tx = {}
@@ -76,6 +84,12 @@ class AddressSynchronizer(PrintError):
         self.threadlocal_cache = threading.local()
 
         self.load_and_cleanup()
+
+    def get_unassigned_kyc_pubkey(self):
+        if len(self.unassigned_kyc_pubkeys) is 0:
+            return None
+        #remove a random pubkey from the set.
+        return random.sample(self.unassigned_kyc_pubkeys, 1)[0]
 
     def load_and_cleanup(self):
         self.load_transactions()
@@ -419,6 +433,10 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
+            if type(self.unassigned_kyc_pubkeys) is not set:
+                self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
+            self.storage.put('unassigned_kyc_pubkeys', self.unassigned_kyc_pubkeys)
+            self.storage.put('kyc_pubkey', self.kyc_pubkey)
             if write:
                 self.storage.write()
 
@@ -637,6 +655,42 @@ class AddressSynchronizer(PrintError):
             for n, v, a, cb in d:
                 delta += v
         return delta
+
+    # Parse policy transactions, e.g. whitelist token transactions.
+    def parse_policy_tx(self, tx):
+        data = []
+        datatype = None
+        v_out=0
+        is_whitelist = False
+        for txin in tx.inputs():
+            addr=self.get_txin_address(txin)
+            if addr is constants.net.WHITELISTCOINSADDRESS:
+                is_whitelist = True
+                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
+                for n, v, a, cb in d:
+                    if n == txin['prevout_n']:
+                        datatype, payload = transaction.get_data_from_policy_output_script(d.script)
+                        break
+
+            if datatype is None:
+                for output in tx.outputs():
+                    script = output.scriptPubKey
+                    datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
+            data=bytes(32)
+            if len(payload) > 3 and datatype is TYPE_DATA:    
+                ba1=bytearray(payload[:3])
+                ba2=bytearray(payload[3:])
+                ba2.reverse()
+                data = bh2u(ba1+ba2)
+
+                if len(self.unassigned_kyc_pubkeys) is 0:
+                   self.unassigned_kyc_pubkeys=set()
+                elif type(self.unassigned_kyc_pubkeys) is not set:
+                    self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
+                self.unassigned_kyc_pubkeys.add(bfh(data))
+
+        return data
+
 
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """

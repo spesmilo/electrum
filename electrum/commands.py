@@ -32,11 +32,12 @@ import ast
 import base64
 from functools import wraps
 from decimal import Decimal
+from io import StringIO, BytesIO
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from . import bitcoin
-from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS, pubkey_to_address
 from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -311,6 +312,10 @@ class Commands:
         for addr in self.wallet.get_addresses():
             out.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
         return out
+
+    @command('w')
+    def dumpkycfile(self, filename=None, password=None):
+       return self.wallet.dumpkycfile(filename, password)
 
     @command('w')
     def getbalance(self):
@@ -743,7 +748,8 @@ command_options = {
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
-    'tweaked':     (None, "Show tweaked public keys")
+    'tweaked':     (None, "Show tweaked public keys"),
+    'filename':    (None, "Output file name")
 }
 
 

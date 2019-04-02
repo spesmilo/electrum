@@ -132,6 +132,8 @@ class AddressList(MyTreeWidget):
             # setup column 1
             if self.wallet.is_frozen(address):
                 address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
+            if self.wallet.is_registered(address):
+                address_item.setBackground(1, ColorScheme.GREY.as_color(True))
             if self.wallet.is_beyond_limit(address):
                 address_item.setBackground(1, ColorScheme.RED.as_color(True))
             # add item
@@ -182,6 +184,12 @@ class AddressList(MyTreeWidget):
                 menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state([addr], True))
             else:
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
+
+            if not self.wallet.is_registered(addr):
+                menu.addAction(_("Register"), lambda: self.parent.set_registered_state([addr], True))
+                
+            else:
+                menu.addAction(_("UnRegister"), lambda: self.parent.set_registered_state([addr], False))
 
         coins = self.wallet.get_utxos(addrs)
         if coins:

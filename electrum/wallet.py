@@ -38,6 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
+from io import StringIO, BytesIO
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -66,8 +67,6 @@ TX_STATUS = [
     _('Not Verified'),
     _('Local'),
 ]
-
-
 
 def relayfee(network):
     from .simple_config import FEERATE_DEFAULT_RELAY
@@ -176,9 +175,11 @@ class Abstract_Wallet(AddressSynchronizer):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
+        self.registered_addresses  = set(storage.get('registered_addresses',[]))
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
+      
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -542,6 +543,10 @@ class Abstract_Wallet(AddressSynchronizer):
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
         i_max = None
         for i, o in enumerate(outputs):
             if o.type == TYPE_ADDRESS:
@@ -607,7 +612,15 @@ class Abstract_Wallet(AddressSynchronizer):
 
             # add asset information to output
             outputs[i_max] = outputs[i_max]._replace(value=amount)
-            input_map = {i['asset']: i['value'] for i in inputs}
+            input_map = {}
+            for i in inputs:
+                asset=i['asset']
+                value=i['value']
+                if (asset in input_map):
+                    input_map[asset]=input_map[asset]+value
+                else:
+                    input_map[asset]=value
+
             asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
                 for o in outputs for (asset, value) in coinchooser.get_asset_outputs(o.value, input_map)]
 
@@ -632,6 +645,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
+    def is_registered(self, addr):
+        return addr in self.registered_addresses
+
     def set_frozen_state(self, addrs, freeze):
         '''Set frozen state of the addresses to FREEZE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
@@ -640,6 +656,17 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 self.frozen_addresses -= set(addrs)
             self.storage.put('frozen_addresses', list(self.frozen_addresses))
+            return True
+        return False
+
+    def set_registered_state(self, addrs, freeze):
+        '''Set frozen state of the addresses to REGISTERED, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if freeze:
+                self.registered_addresses |= set(addrs)
+            else:
+                self.registered_addresses -= set(addrs)
+            self.storage.put('registered_addresses', list(self.registered_addresses))
             return True
         return False
 
@@ -1110,7 +1137,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        priv, compressed = self.get_tweaked_private_key(address, index, password)
+        priv, compressed = self.get_tweaked_private_key(addr, index, password)
         return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):
@@ -1576,6 +1603,65 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     def pubkeys_to_address(self, pubkey):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
+    def get_kyc_string(self, password=None):
+        address=self.create_new_address()
+        onboardUserPubKey=self.get_public_key(address)
+         
+        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        txin_type = self.get_txin_type(address)
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
+      
+        onboardPubKey=self.get_unassigned_kyc_pubkey()
+        if onboardPubKey is None:
+            return "No unassigned KYC public keys available."
+
+        ss = StringIO()
+
+        addrs=self.get_addresses()
+
+        address_pubkey_list = []
+        for addr in addrs:
+            line="{} {}".format(addr, ''.join(self.get_public_keys(addr, False)))
+            address_pubkey_list.append(line)
+            ss.write(line)
+            ss.write("\n")
+
+
+        self.set_registered_state(addrs, True)
+
+        #Encrypt the addresses string
+        encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+
+        ss2 = StringIO()
+        str_encrypted=str(encrypted)
+        #Remove the b'' characters (first 2 and last characters)
+        str_encrypted=str_encrypted[2:]
+        str_encrypted=str_encrypted[:-1]
+        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write(str_encrypted)
+        kyc_string=ss2.getvalue()
+
+        return kyc_string
+
+    def dumpkycfile(self, filename=None, password=None):
+        kycfile_string = self.get_kyc_string(password)
+
+        if filename:
+            f=open(filename, 'w')
+            f.write(kycfile_string)
+            f.close()
+            return True
+        return False
+
+    def register_addresses(self, addrs):
+        self.set_registered_state(addrs, True)
+        self.start_register_address_transaction_builder(addrs)
+
+    def register_address(self, addr):
+        self.set_registered_state(addr, True)
+        self.start_register_address_transaction_builder(addrs)
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
