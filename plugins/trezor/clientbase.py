@@ -263,10 +263,9 @@ class TrezorClientBase(PrintError):
                 #
                 # See trezor.py initialize_device() function for the caller that
                 # expects this code to be here and exit its event loop.
-                wizard = getattr(self.handler, '_wizard', None)
-                loop = wizard and getattr(wizard, 'loop', None)
-                if loop and loop.isRunning():
-                    loop.exit(3)
+                loops = getattr(self.handler, '_loops', None)
+                if loops and loops[0].isRunning():
+                    loops[0].exit(3)
         self.handler.show_message(message.format(self.device), on_cancel)
 
     def get_pin(self, code=None):

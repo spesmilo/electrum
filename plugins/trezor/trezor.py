@@ -195,7 +195,9 @@ class TrezorPlugin(HW_PluginBase):
 
     def _chk_settings_do_popup_maybe(self, handler, method, model, settings):
         recovery_type = settings and settings[-1]
-        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+        if (method == TIM_RECOVER
+            and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS
+            and model != 'T'):  # I'm pretty sure this only applies to the '1' not the 'T'
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -210,7 +212,7 @@ class TrezorPlugin(HW_PluginBase):
                 "will be entered into your computer."
         ).format(self.device)
         choices = [
-            # Must be short as QT doesn't word-wrap radio button text
+            # Must be short as Qt doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
             (TIM_RECOVER, _("Recover from a seed you have previously written down")),
         ]
@@ -218,7 +220,8 @@ class TrezorPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         model = client.get_trezor_model()
         def f(method):
-            handler._wizard = wizard  # hack to prevent trezor transport errors from stalling the UI here. see clientbase.py button_request which aborts the wizard on transport error
+            loops = [wizard.loop]  # We do it this way so as to pop the loop when it's done. This avoids possible multiple calls to loop.exit from different code paths.
+            handler._loops = loops  # hack to prevent trezor transport errors from stalling the UI here. see clientbase.py button_request which aborts the wizard event loop on transport error
             try:
                 import threading
 
@@ -228,11 +231,12 @@ class TrezorPlugin(HW_PluginBase):
                 # from trezorlib.  So we do this all-stop popup first if needed.
                 self._chk_settings_do_popup_maybe(handler, method, model, settings)
 
-                errors=[]
-                t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler, errors))
+                errors = []
+                t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, loops, errors))
                 t.setDaemon(True)
                 t.start()
                 exit_code = wizard.loop.exec_()
+                loops.pop()
                 if exit_code != 0:
                     if errors and isinstance(errors[0], BaseException):
                         msg = str(errors[0]).strip()
@@ -246,13 +250,13 @@ class TrezorPlugin(HW_PluginBase):
                     # signal that this is not the case:
                     raise UserCancelled()
             finally:
-                delattr(handler, '_wizard') # /clean up hack
+                delattr(handler, '_loops') # /clean up hack
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-    def _initialize_device_safe(self, settings, method, device_id, wizard, handler, errors):
+    def _initialize_device_safe(self, settings, method, device_id, loops, errors):
         exit_code = 0
         try:
-            self._initialize_device(settings, method, device_id, wizard, handler)
+            self._initialize_device(settings, method, device_id)
         except UserCancelled:
             exit_code = 2
         except BaseException as e:
@@ -260,9 +264,11 @@ class TrezorPlugin(HW_PluginBase):
             errors.append(e)
             exit_code = 1
         finally:
-            wizard.loop.exit(exit_code)
+            l = loops.copy()  # leverage the GIL here for thread safety.
+            if l:
+                l[0].exit(exit_code)
 
-    def _initialize_device(self, settings, method, device_id, wizard, handler):
+    def _initialize_device(self, settings, method, device_id):
         item, label, pin_protection, passphrase_protection, recovery_type = settings
 
         devmgr = self.device_manager()
