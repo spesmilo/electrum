@@ -192,16 +192,23 @@ class TrezorPlugin(HW_PluginBase):
         # Note: testnet supported only by unofficial firmware
         return "Bcash Testnet" if NetworkConstants.TESTNET else "Bcash"
 
+
+    def _chk_settings_do_popup_maybe(self, handler, method, model, settings):
+        recovery_type = settings and settings[-1]
+        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+            handler.show_error(_(
+                "You will be asked to enter 24 words regardless of your "
+                "seed's actual length.  If you enter a word incorrectly or "
+                "misspell it, you cannot change it or go back - you will need "
+                "to start again from the beginning.\n\nSo please enter "
+                "the words carefully!"))
+
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
         msg = _("Choose how you want to initialize your {}.\n\n"
-                "The first two methods are secure as no secret information "
-                "is entered into your computer.\n\n"
-                "For the last two methods you input secrets on your keyboard "
-                "and upload them to your {}, and so you should "
-                "only do those on a computer you know to be trustworthy "
-                "and free of malware."
-        ).format(self.device, self.device)
+                "Either method is secure since no secret information "
+                "will be entered into your computer."
+        ).format(self.device)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
@@ -211,42 +218,52 @@ class TrezorPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         model = client.get_trezor_model()
         def f(method):
-            import threading
-            settings = self.request_trezor_init_settings(wizard, method, model)
-            t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.setDaemon(True)
-            t.start()
-            exit_code = wizard.loop.exec_()
-            if exit_code != 0:
-                # this method (initialize_device) was called with the expectation
-                # of leaving the device in an initialized state when finishing.
-                # signal that this is not the case:
-                raise UserCancelled()
+            handler._wizard = wizard  # hack to prevent trezor transport errors from stalling the UI here. see clientbase.py button_request which aborts the wizard on transport error
+            try:
+                import threading
+
+                settings = self.request_trezor_init_settings(wizard, method, model)
+                # We do this popup business here because doing it in the
+                # thread interferes with whatever other popups may happen
+                # from trezorlib.  So we do this all-stop popup first if needed.
+                self._chk_settings_do_popup_maybe(handler, method, model, settings)
+
+                errors=[]
+                t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler, errors))
+                t.setDaemon(True)
+                t.start()
+                exit_code = wizard.loop.exec_()
+                if exit_code != 0:
+                    if errors and isinstance(errors[0], BaseException):
+                        msg = str(errors[0]).strip()
+                        if msg:
+                            # we do this here in the main thread so as to give
+                            # the user the opportunity to actually *see* the error
+                            # window before the wizard "goes back"
+                            handler.show_error(msg)
+                    # this method (initialize_device) was called with the expectation
+                    # of leaving the device in an initialized state when finishing.
+                    # signal that this is not the case:
+                    raise UserCancelled()
+            finally:
+                delattr(handler, '_wizard') # /clean up hack
         wizard.choice_dialog(title=_('Initialize Device'), message=msg, choices=choices, run_next=f)
 
-    def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
+    def _initialize_device_safe(self, settings, method, device_id, wizard, handler, errors):
         exit_code = 0
         try:
             self._initialize_device(settings, method, device_id, wizard, handler)
         except UserCancelled:
-            exit_code = 1
+            exit_code = 2
         except BaseException as e:
             traceback.print_exc(file=sys.stderr)
-            handler.show_error(str(e))
+            errors.append(e)
             exit_code = 1
         finally:
             wizard.loop.exit(exit_code)
 
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection, recovery_type = settings
-
-        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
-            handler.show_error(_(
-                "You will be asked to enter 24 words regardless of your "
-                "seed's actual length.  If you enter a word incorrectly or "
-                "misspell it, you cannot change it or go back - you will need "
-                "to start again from the beginning.\n\nSo please enter "
-                "the words carefully!"))
 
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)

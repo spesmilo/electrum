@@ -7,7 +7,7 @@ from electroncash.keystore import bip39_normalize_passphrase
 from electroncash.bitcoin import serialize_xpub
 
 from trezorlib.client import TrezorClient
-from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
+from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError, TrezorException
 from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType
 import trezorlib.btc
 import trezorlib.device
@@ -17,7 +17,7 @@ MESSAGES = {
     4: _("Confirm internal entropy on your {} device to begin"),
     5: _("Write down the seed word shown on your {}"),
     6: _("Confirm on your {} that you want to wipe it clean"),
-    7: _("Confirm on your {} device the message to sign"),
+    7: _("Confirm the operation on on your {} device"),
     8: _("Confirm the total amount spent and the transaction fee on your {} device"),
     10: _("Confirm wallet address on your {} device"),
     14: _("Choose on your {} device where to enter your passphrase"),
@@ -247,7 +247,27 @@ class TrezorClientBase(PrintError):
 
     def button_request(self, code):
         message = self.msg or MESSAGES.get(code) or MESSAGES['default']
-        self.handler.show_message(message.format(self.device), self.client.cancel)
+        def on_cancel():
+            try:
+                self.client.cancel()
+            except TrezorException as e:
+                self.print_error("Exception during cancel call:", repr(e))
+                self.handler.show_error(_("The {} device is now in an inconsistent state."
+                                          "\n\nYou may have to unplug the device and plug it back in and restart what you were doing.")
+                                        .format(self.device))
+            finally:
+                # HACK. This is to get out of the situation with a stuck install wizard
+                # when there is a client error after user hits "cancel" in the GUI.
+                # Unfortunately the libusb transport is buggy as hell... and there is
+                # no way to cancel an in-process command that I can tell.
+                #
+                # See trezor.py initialize_device() function for the caller that
+                # expects this code to be here and exit its event loop.
+                wizard = getattr(self.handler, '_wizard', None)
+                loop = wizard and getattr(wizard, 'loop', None)
+                if loop and loop.isRunning():
+                    loop.exit(3)
+        self.handler.show_message(message.format(self.device), on_cancel)
 
     def get_pin(self, code=None):
         if code == 2:

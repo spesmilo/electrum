@@ -200,7 +200,9 @@ class BaseWizard(object):
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
-            descr = "%s [%s, %s]" % (label, name, state)
+            try: transport_str = str(info.device.path)[:20]
+            except: transport_str = 'unknown transport'
+            descr = "%s [%s, %s, %s]" % (label, name, state, transport_str)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
@@ -219,7 +221,9 @@ class BaseWizard(object):
             self.choose_hw_device()
             return
         except BaseException as e:
-            self.show_error(str(e))
+            if str(e).strip():
+                # This prevents showing an empty "UserCancelled" message
+                self.show_error(str(e))
             self.choose_hw_device()
             return
         f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
