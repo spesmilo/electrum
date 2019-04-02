@@ -202,16 +202,19 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_message(str(e))
 
     def sign(self):
+        def cleanup():
+            self.main_window.pop_top_level_window(self)
+
         def sign_done(success):
             if success:
+                self.sign_button.setDisabled(True)
                 self.prompt_if_unsaved = True
                 self.saved = False
             self.update()
-            self.main_window.pop_top_level_window(self)
+            cleanup()
 
-        self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
-        self.main_window.sign_tx(self.tx, sign_done)
+        self.main_window.sign_tx(self.tx, sign_done, on_pw_cancel=cleanup)
 
     def save(self):
         name = 'signed_%s.txn' % (self.tx.txid()[0:8]) if self.tx.is_complete() else 'unsigned.txn'

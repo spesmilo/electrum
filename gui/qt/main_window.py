@@ -1604,10 +1604,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def request_password(self, *args, **kwargs):
             parent = self.top_level_window()
             password = None
+            on_pw_cancel = kwargs.pop('on_pw_cancel', None)
             while self.wallet.has_password():
                 password = self.password_dialog(parent=parent)
                 if password is None:
                     # User cancelled password input
+                    if callable(on_pw_cancel):
+                        on_pw_cancel()
                     return
                 try:
                     self.wallet.check_password(password)

@@ -2,6 +2,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QVBoxLayout, QGridLayout, QPushButton)
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
+from electroncash_gui.qt.util import MONOSPACE_FONT
 import random
 
 
@@ -34,14 +35,8 @@ class Plugin(BasePlugin):
         elif i == 2:
             chars = '1234567890!?.,;:/%&()[]{}+-'
 
-        n = len(chars)
-        s = []
-        for i in range(n):
-            while True:
-                k = random.randint(0, n - 1)
-                if k not in s:
-                    s.append(k)
-                    break
+        s = list(chars)
+        random.shuffle(s)
 
         def add_target(t):
             return lambda: pw.setText(str(pw.text()) + t)
@@ -49,11 +44,11 @@ class Plugin(BasePlugin):
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.setSpacing(2)
-        for i in range(n):
-            l_button = QPushButton(chars[s[i]])
-            l_button.setFixedWidth(25)
-            l_button.setFixedHeight(25)
-            l_button.clicked.connect(add_target(chars[s[i]]))
+        font = QFont(MONOSPACE_FONT)
+        for i,c in enumerate(s):
+            l_button = QPushButton(c)
+            l_button.setFont(font)
+            l_button.clicked.connect(add_target(c))
             grid.addWidget(l_button, i // 6, i % 6)
 
         vbox.addLayout(grid)
