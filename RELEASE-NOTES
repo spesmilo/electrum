@@ -321,3 +321,25 @@ and there is no warning message.
 * Many performance improvements, especially for large wallets (cculianu)
 * Cache address balance in memory rather than recompute each call (SomberNight)
 * Various internal bugfixes (cculianu, SomberNight, ecdsa)
+
+# Release 4.0.1
+
+* Trezor support has been improved with many bugs fixed. It should be less
+  crashy overall when restoring seeds or when cancelling dialogs. (cculianu)
+  Special thanks to Technologov for providing feedback and for donating Trezor
+  wallets to test & dev on.
+* Added ability to load any image to Trezor One or Model T's home screen. The
+  image will be scaled and dithered correctly.  You can load PNG, JPG, GIF,
+  SVG or whatever other image formats Qt supports. (cculianu)
+* CashShuffle: Implemented Coins Tab (right click) -> Reshuffle Coin. Use this
+  feature if want to shuffle already-shuffled coins again to keep liquidity up
+  or for even more privacy. (cculianu)
+* Fix #1235 - Email plugin was broken and crashy. It works now. (cculianu)
+* Virtual keyboard plugin looked terrible on some platforms, particularly macOS.
+  Its layout has been improved to look ok on all plafrotms. (cculianu)
+* Windows build now is on Python 3.6.8
+* Fix #1238 & #1239 - Dark Mode had some hard to read GUI elements due to poorly
+  chosen colors in the Transaction Dialog. Fixed. (cculianu)
+* Fix #1231 - Request list esoteric crash when rebuilding history. (cculianu)
+* Merge PR #959 - Fix the support for Ledger HW1/Nano legacy hardware w/o
+  touching Nano S/Blue (tompre, EchterAgo)
