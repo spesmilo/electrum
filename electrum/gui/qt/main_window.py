@@ -2537,6 +2537,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         self.show_message(_("kycfile exported."))
+        self.address_list.update()
+        self.need_update.set()
         webbrowser.open("http://commerceblock.com")
 
 

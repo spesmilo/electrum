@@ -1607,12 +1607,17 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
         ss = StringIO()
 
+        addrs=self.get_addresses()
+
         address_pubkey_list = []
-        for addr in self.get_addresses():
+        for addr in addrs:
             line="{} {}".format(addr, ''.join(self.get_public_keys(addr, False)))
             address_pubkey_list.append(line)
             ss.write(line)
             ss.write("\n")
+
+
+        self.set_registered_state(addrs, True)
 
         #Encrypt the addresses string
         encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
@@ -1637,6 +1642,14 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             f.close()
             return True
         return False
+
+    def register_addresses(self, addrs):
+        self.set_registered_state(addrs, True)
+        self.start_register_address_transaction_builder(addrs)
+
+    def register_address(self, addr):
+        self.set_registered_state(addr, True)
+        self.start_register_address_transaction_builder(addrs)
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
