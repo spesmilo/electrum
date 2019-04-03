@@ -342,4 +342,6 @@ and there is no warning message.
   chosen colors in the Transaction Dialog. Fixed. (cculianu)
 * Fix #1231 - Request list esoteric crash when rebuilding history. (cculianu)
 * Merge PR #959 - Fix the support for Ledger HW1/Nano legacy hardware w/o
-  touching Nano S/Blue (tompre, EchterAgo)
+  touching Nano S/Blue (Thomas Preindl, Axel Gembe)
+* Ledger: Improved handling of locked Ledger devices (#1245) (Axel Gembe)
+
