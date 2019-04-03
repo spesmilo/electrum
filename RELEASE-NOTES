@@ -346,3 +346,5 @@ and there is no warning message.
 * Merge PR #959 - Fix the support for Ledger HW1/Nano legacy hardware w/o
   touching Nano S/Blue (Thomas Preindl, Axel Gembe)
 * Ledger: Improved handling of locked Ledger devices (#1245) (Axel Gembe)
+* HW Wallets: Fixed devices not being closed properly in some cases (#1246)
+  (Axel Gembe)
