@@ -5,7 +5,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
-from electroncash.util import format_satoshis_plain
+from electroncash.util import format_satoshis_plain, inv_base_units
 
 
 class MyLineEdit(QLineEdit):
@@ -78,13 +78,8 @@ class BTCAmountEdit(AmountEdit):
 
     def _base_unit(self):
         p = self.decimal_point()
-        assert p in [2, 5, 8]
-        if p == 8:
-            return 'BCH'
-        if p == 5:
-            return 'mBCH'
-        if p == 2:
-            return 'cash'
+        if p in inv_base_units:
+            return inv_base_units[p]
         raise Exception('Unknown base unit')
 
     def get_amount(self):
@@ -115,7 +110,7 @@ class BTCSatsByteEdit(BTCAmountEdit):
             x = float(PyDecimal(str(self.text())))
         except:
             return None
-        return x if x > 0.0 else None    
+        return x if x > 0.0 else None
     def setAmount(self, amount):
         if amount is None:
             self.setText(" ") # Space forces repaint in case units changed

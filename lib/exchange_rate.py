@@ -13,7 +13,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import PrintError, ThreadJob, print_error
+from .util import PrintError, ThreadJob, print_error, inv_base_units
 
 
 DEFAULT_ENABLED = False
@@ -442,7 +442,7 @@ class FxThread(ThreadJob):
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
         default_prec = 2
-        if (base_unit == "cash"):
+        if base_unit == inv_base_units.get(2):  # if base_unit == 'bits', increase precision on fiat as bits is pretty tiny as of 2019
             default_prec = 4
         return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate, default_prec ), self.ccy )

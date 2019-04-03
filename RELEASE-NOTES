@@ -324,6 +324,8 @@ and there is no warning message.
 
 # Release 4.0.1
 
+* Lowest base unit in GUI has been renamed from 'cash' to 'bits' by popular
+  demand.  It turns out the 'cash' unit never was popular. (cculianu)
 * Trezor support has been improved with many bugs fixed. It should be less
   crashy overall when restoring seeds or when cancelling dialogs. (cculianu)
   Special thanks to Technologov for providing feedback and for donating Trezor
@@ -344,4 +346,3 @@ and there is no warning message.
 * Merge PR #959 - Fix the support for Ledger HW1/Nano legacy hardware w/o
   touching Nano S/Blue (Thomas Preindl, Axel Gembe)
 * Ledger: Improved handling of locked Ledger devices (#1245) (Axel Gembe)
-
