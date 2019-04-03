@@ -863,10 +863,11 @@ class DeviceMgr(ThreadJob, PrintError):
                     connected[client] = pair
                 else:
                     disconnected_ids.append(pair[1])
-            self.clients = connected
 
-        # Unpair disconnected devices
-        for id_ in disconnected_ids:
-            self.unpair_id(id_)
+            # Unpair disconnected devices
+            for id_ in disconnected_ids:
+                self.unpair_id(id_)
+
+            self.clients = connected
 
         return devices
