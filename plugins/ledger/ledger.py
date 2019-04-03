@@ -2,6 +2,7 @@ from struct import pack, unpack
 import hashlib
 import sys
 import traceback
+import inspect
 
 from electroncash import bitcoin
 from electroncash.address import Address
@@ -33,6 +34,20 @@ MSG_NEEDS_SW_UPDATE_CASHADDR = _('python-btchip is too old for CashAddr support.
 BITCOIN_CASH_SUPPORT_HW1 = (1, 0, 4)
 BITCOIN_CASH_SUPPORT = (1, 1, 8)
 CASHADDR_SUPPORT = (1, 2, 5)
+
+def test_pin_unlocked(func):
+    """Function decorator to test the Ledger for being unlocked, and if not,
+    raise a human-readable exception.
+    """
+    def catch_exception(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except BTChipException as e:
+            if e.sw == 0x6982:
+                raise Exception(_('Your Ledger is locked. Please unlock it.'))
+            else:
+                raise
+    return catch_exception
 
 class Ledger_Client():
 
@@ -68,20 +83,6 @@ class Ledger_Client():
         except BaseException:
             return False
         return True
-
-    def test_pin_unlocked(func):
-        """Function decorator to test the Ledger for being unlocked, and if not,
-        raise a human-readable exception.
-        """
-        def catch_exception(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except BTChipException as e:
-                if e.sw == 0x6982:
-                    raise Exception(_('Your Ledger is locked. Please unlock it.'))
-                else:
-                    raise
-        return catch_exception
 
     @test_pin_unlocked
     def get_xpub(self, bip32_path, xtype):
@@ -176,17 +177,8 @@ class Ledger_Client():
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
 
-            try:
-                try:
-                    self.dongleObject.getWalletPublicKey("44'/145'/0'/0/0", showOnScreen=False, cashAddr=True)
-                except BTChipException as e:
-                    # This call fails on HW1/Nano with a specific error, due to it not supporting cashaddr
-                    if (e.sw != 0x6b00):
-                        raise e
-                self.cashaddrSWSupported = True
-            except TypeError:
-                self.cashaddrSWSupported = False
-
+            gwpkArgSpecs = inspect.getfullargspec(self.dongleObject.getWalletPublicKey)
+            self.cashaddrSWSupported = 'cashAddr' in gwpkArgSpecs.args
         except BTChipException as e:
             if (e.sw == 0x6faa):
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
@@ -281,6 +273,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
+    @test_pin_unlocked
     @set_and_unset_signing
     def sign_message(self, sequence, message, password):
         message = message.encode('utf8')
@@ -303,6 +296,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
             elif e.sw == 0x6985:  # cancelled by user
                 return b''
+            elif e.sw == 0x6982:
+                raise  # pin lock. decorator will catch it
             else:
                 self.give_error(e, True)
         except UserWarning:
@@ -324,6 +319,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # And convert it
         return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
 
+    @test_pin_unlocked
     @set_and_unset_signing
     def sign_transaction(self, tx, password):
         if tx.is_complete():
@@ -448,8 +444,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
             self.handler.show_error(_('Cancelled by user'))
             return
         except BTChipException as e:
-            if e.sw == 0x6985:  # cancelled by user
+            if e.sw in (0x6985, 0x6d00):  # cancelled by user
                 return
+            elif e.sw == 0x6982:
+                raise  # pin lock. decorator will catch it
             else:
                 traceback.print_exc(file=sys.stderr)
                 self.give_error(e, True)
@@ -464,6 +462,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             txin['signatures'][signingPos] = bh2u(signatures[i])
         tx.raw = tx.serialize()
 
+    @test_pin_unlocked
     @set_and_unset_signing
     def show_address(self, sequence):
         client = self.get_client()
@@ -476,8 +475,22 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 client.getWalletPublicKey(address_path, showOnScreen=True, cashAddr=True)
             else:
                 client.getWalletPublicKey(address_path, showOnScreen=True)
-        except:
-            pass
+        except BTChipException as e:
+            if e.sw == 0x6985:  # cancelled by user
+                pass
+            elif e.sw == 0x6982:
+                raise  # pin lock. decorator will catch it
+            elif e.sw == 0x6b00:  # hw.1 raises this
+                self.handler.show_error('{}\n{}\n{}'.format(
+                    _('Error showing address') + ':',
+                    e,
+                    _('Your device might not have support for this functionality.')))
+            else:
+                traceback.print_exc(file=sys.stderr)
+                self.handler.show_error(e)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
+            self.handler.show_error(e)
         finally:
             self.handler.finished()
 
