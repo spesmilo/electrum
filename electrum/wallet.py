@@ -175,7 +175,8 @@ class Abstract_Wallet(AddressSynchronizer):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
-        self.registered_addresses  = set(storage.get('registered_addresses',[]))
+        self.registered_addresses  = set(storage.get('registered_addresses', []))
+        self.pending_addresses     = set(storage.get('pending_addresses', []))
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
@@ -540,6 +541,15 @@ class Abstract_Wallet(AddressSynchronizer):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
+    def make_unsigned_register_address_transaction(self,
+                inputs, outputs, config, addrs, fixed_fee=None,
+                change_addr=None, is_sweep=False):
+       #Register address transaction
+       
+
+
+
+
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
@@ -579,6 +589,17 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 # coin_chooser will set change address
                 change_addrs = []
+
+              # Fee estimator
+        if fixed_fee is None:
+            fee_estimator = config.estimate_fee
+        elif isinstance(fixed_fee, Number):
+            fee_estimator = lambda size: fixed_fee
+        elif callable(fixed_fee):
+            fee_estimator = fixed_fee
+        else:
+            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
+
 
         # Fee estimator
         if fixed_fee is None:
@@ -634,8 +655,14 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
+    def is_pending(self, addr):
+        return addr in self.pending_addresses
+
     def is_registered(self, addr):
         return addr in self.registered_addresses
+        
+    def get_pending_addresses(self):
+        return self.pending_addresses
 
     def set_frozen_state(self, addrs, freeze):
         '''Set frozen state of the addresses to FREEZE, True or False'''
@@ -648,17 +675,29 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
         return False
 
-    def set_registered_state(self, addrs, freeze):
-        '''Set frozen state of the addresses to REGISTERED, True or False'''
+    def set_registered_state(self, addrs, state: bool):
+        '''Set registered state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
-            if freeze:
+            if state:
                 self.registered_addresses |= set(addrs)
             else:
                 self.registered_addresses -= set(addrs)
-            self.storage.put('registered_addresses', list(self.registered_addresses))
+            self.storage.put('registered_addresses', list(self.frozen_addresses))
+            return True
+        return False
+        
+    def set_pending_state(self, addr):
+        '''Set pending state of the addresses to STATE, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if state:
+                self.pending_addresses |= set(addrs)
+            else:
+                self.pending_addresses -= set(addrs)
+            self.storage.put('registered_addresses', list(self.frozen_addresses))
             return True
         return False
 
+        
     def wait_until_synchronized(self, callback=None):
         def wait_for_wallet():
             self.set_up_to_date(False)
@@ -1199,6 +1238,88 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_billing_address(self, addr):
         # overloaded for TrustedCoin wallets
         return False
+
+    def parse_user_onboard_tx(self, transaction: transaction.Transaction):
+        #Parse each of the output scriptpubkeys.
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
+        outputs = transaction.outputs()
+        decoded=[]
+        for output in outputs:
+            transaction.parse_scriptSig(decoded, output['scriptPubKey'])
+            txtype=decoded['type']
+            if txtype == 'registeraddress':
+                break
+
+        if txtype != 'registeraddress':
+            return False
+
+        data=decoded['data']
+
+        pubKeySize=33
+        addressSize=20
+        minPayloadSize=2
+
+        i1=0
+        i2=33
+
+        if(data.size()<2*pubKeySize+minPayloadSize):
+            return False
+        
+        kyc_pubkey = data[i1:i2]
+        #Check if this is my onboarding TX
+        try:
+            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
+        except InvalidECPointException:
+            return False
+        
+        it1=it2
+        it2+=33
+        userOnboardPubKey = data[33:66]         
+        try:
+            _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
+        except InvalidECPointException:
+            return False
+        
+        if not self.wallet.is_my_userOnboardPubKey(userOnboardPubKey):
+                return False
+         
+        #Check that the kyc public key is in the list of unassigned kyc public keys 
+        #(kyc private key owner is therefore the whitelisting token owner)
+        if not self.wallet.is_unassigned_kyc_pubkey(kyc_pubkey):
+            return False
+
+        #Check that this wallet holds the onboard user private key
+        txn_type='p2pkh'
+        onboardAddress=bitcoin.pubkey_to_address(txn_type, userOnboardPubKey)
+        try:
+            onboardUserKey_serialized, redeem_script=self.wallet.export_private_key(onboardAddress, password)   
+        except WalletFileException:
+            return False
+
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        try:
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        except InvalidECPointException:
+            return False
+
+        it1=it2
+        ciphertext=data[it1:]
+        try:
+            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext)
+        except Exception:
+            return False
+
+        #Confirm that this was encrypted by the kyc private key owner
+        if not ephemeral == kyc_pubkey:
+            return False
+
+        self.wallet.set_kyc_pubkey(_kyc_pubkey)
+        return True
+
 
 
 class Simple_Wallet(Abstract_Wallet):

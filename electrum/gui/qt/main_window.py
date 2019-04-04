@@ -65,6 +65,7 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
+from . import registeraddress_script
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -1521,8 +1522,94 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coins = self.get_coins()
         return outputs, fee_estimator, label, coins
 
+    def read_pending_addresses(self):
+        kyc_pubkey = self.wallet.get_kyc_pubkey()
+        if kyc_pubkey is None:
+            return
+
+        label = 'registeraddresstx'
+
+        addrs_pending = self.wallet.get_pending_addresses()
+
+        if not addrs_pending:
+            self.show_error(_('No addresses pending registration'))
+            return
+
+        rasript = registeraddress_script.RegisterAddressScript(self.wallet)
+        rascript.append(addrs_pending)
+
+        #Register the address to the wallet's kyc pubkey
+        #Generate a new ephemeral pub key for encryption from the wallet
+        self.wallet.get_
+        rascript.Finalize(kyc_pubkey)
+
+        output = TxOutput()
+        output['scriptPubKey']=bh2u(bytes(rascript.size()))
+
+        outputs = [output]
+
+        if not outputs:
+            self.show_error(_('No outputs'))
+            return
+
+        fee_estimator = self.get_send_fee_estimator()
+        coins = self.get_coins()
+        return outputs, fee_estimator, label, coins, rascript
+
     def do_preview(self):
         self.do_send(preview = True)
+
+    def do_register_addresses(self, addr):
+        if run_hook('abort_register_addresses', self):
+            return
+        r = self.read_pending_addresses()
+        if not r:
+            return
+        outputs, fee_estimator, tx_desc, coins, rascript = r
+
+        try:
+            is_sweep = bool(self.tx_external_keypairs)
+            tx = self.wallet.make_unsigned_transaction(
+                coins, outputs, self.config, fixed_fee=fee_estimator,
+                is_sweep=is_sweep)
+        except NotEnoughFunds:
+            self.show_message(_("Insufficient funds"))
+            return
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            self.show_message(str(e))
+            return
+
+        input=tx.inputs()[0]
+        inputAddress = self.wallet.get_txin_address(input)
+        inputPubKey = self.wallet.get_public_key(inputAddress)
+        
+        #Check that this wallet holds the onboard user private key
+        txn_type='p2pkh'
+        try:
+            inputKey_serialized, redeem_script=self.wallet.export_private_key(inputAddress, password)   
+        except WalletFileException:
+            return False
+
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(inputKey_serialized)
+        try:
+            _inputKey=ecc.ECPrivkey(secret_bytes)
+        except InvalidECPointException:
+            return False
+
+        #Re-finalize, encrypting with the privkey of the sending address
+        rascript.Finalize(self.wallet.get_kyc_pubKey(),_inputKey)
+
+        output = TxOutput()
+        output['scriptPubKey']=bh2u(bytes(rascript.size()))
+
+        outputs = [output]
+
+        if not outputs:
+            self.show_error(_('No outputs'))
+            return
+
+        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, True)
 
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
@@ -1531,6 +1618,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not r:
             return
         outputs, fee_estimator, tx_desc, coins = r
+        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, preview)
+
+    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False):    
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
@@ -1780,6 +1870,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def set_registered_state(self, addrs, reg):
         self.wallet.set_registered_state(addrs, reg)
+        self.address_list.update()
+        self.utxo_list.update()
+        self.update_fee() 
+
+    def set_pending_state(self, addrs):
+        self.wallet.set_pending_state(addrs)
+        self.address_list.update()
+        self.utxo_list.update()
+        self.update_fee()
+
+    def set_register_pending_state(self, addrs, reg):
+        self.wallet.set_register_pending_state(addrs, reg)
         self.address_list.update()
         self.utxo_list.update()
         self.update_fee()

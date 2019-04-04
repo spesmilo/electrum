@@ -70,7 +70,7 @@ class AddressSynchronizer(PrintError):
         self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', set())
         if type(self.unassigned_kyc_pubkeys) is not set:
             self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
-        self.kyc_pubkey             = storage.get('kyc_pubkey', [])
+        self.kyc_pubkey             = storage.get('kyc_pubkey', None)
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
         self.verified_tx = {}
@@ -84,6 +84,16 @@ class AddressSynchronizer(PrintError):
         self.threadlocal_cache = threading.local()
 
         self.load_and_cleanup()
+
+    def is_unassigned_kyc_pubkey(self, pubkey):
+        return pubkey in self.unassigned_kyc_pubkeys
+
+    def set_kyc_pubkey(self, pubkey):
+        self.unassigned_kyc_pubkeys.remove(pubkey)
+        self.kyc_pubkey=pubkey
+
+    def get_kyc_pubkey(self):
+        return self.kyc_pubkey
 
     def get_unassigned_kyc_pubkey(self):
         if len(self.unassigned_kyc_pubkeys) is 0:

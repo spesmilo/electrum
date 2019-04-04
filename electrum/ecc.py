@@ -446,7 +446,7 @@ class ECPrivkey(ECPubkey):
         key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()
-        return aes_decrypt_with_iv(key_e, iv, ciphertext)
+        return aes_decrypt_with_iv(key_e, iv, ciphertext), ephemeral_pubkey_bytes
 
 
 def construct_sig65(sig_string, recid, is_compressed):
