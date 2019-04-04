@@ -383,7 +383,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Recognize outputs - only one output and one change is authorized
         if not p2shTransaction:
             for _type, address, amount in tx.outputs():
-                assert _type == TYPE_ADDRESS
+                if not _type == TYPE_ADDRESS:
+                    self.give_error(_("Only address outputs are supported by {}").format(self.name))
                 info = tx.output_info.get(address)
                 if (info is not None) and (len(tx.outputs()) != 1):
                     index, xpubs, m = info

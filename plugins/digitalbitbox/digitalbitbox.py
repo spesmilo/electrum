@@ -542,7 +542,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
             # Build pubkeyarray from outputs
             for _type, address, amount in tx.outputs():
-                assert _type == TYPE_ADDRESS
+                if not _type == TYPE_ADDRESS:
+                    self.give_error(_("Only address outputs are supported by {}").format(self.name))
                 info = tx.output_info.get(address)
                 if info is not None:
                     index, xpubs, m = info
