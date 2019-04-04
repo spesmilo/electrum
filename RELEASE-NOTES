@@ -352,5 +352,6 @@ and there is no warning message.
   (Axel Gembe)
 * HW Wallets: Improved messaging for user when trying to detect a HW device
   and dependent libraries are missing. This affects the install wizard and it
-  is hope it will assist users in installing the required libs. (#1244, #1251)
-  (Axel Gembe)
+  is hope it will assist users in troubleshooting. (#1244, #1251) (Axel Gembe)
+* HW Wallets: Show proper error message when trying to sign a tx with OP_RETURN
+  (#1254) (Axel Gembe)
