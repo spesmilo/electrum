@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import os
+import sys
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation, bip44_derivation_145
@@ -167,13 +168,6 @@ class BaseWizard(object):
         title = _('Hardware Keystore')
         # check available plugins
         support = self.plugins.get_hardware_support()
-        if not support:
-            msg = '\n'.join([
-                _('No hardware wallet support found on your system.'),
-                _('Please install the relevant libraries (eg python-trezor for Trezor).'),
-            ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
-            return
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
@@ -186,13 +180,30 @@ class BaseWizard(object):
                 continue
             devices += list(map(lambda x: (name, x), u))
         if not devices:
-            msg = ''.join([
-                _('No hardware device detected.') + '\n',
-                _('To trigger a rescan, press \'Next\'.') + '\n\n',
-                _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
-                _('On Linux, you might have to add a new permission to your udev rules.'),
-            ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            msgs = [
+                _('No hardware device detected.') + '<br><br>',
+                _('To trigger a rescan, press \'Next\'.') + '<br><br>'
+            ]
+
+            if sys.platform in ('win32', 'win64', 'windows'):
+                msgs.append(_('Go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + '<br>')
+
+            if sys.platform in ('linux', 'linux2', 'linux3'):
+                msgs.append(_('You might have to add a new permission to your udev rules.') + '<br>')
+
+            support_no_libs = [s for s in support if not s[2].libraries_available]
+            if len(support_no_libs) > 0:
+                msgs.append('<br>' + _('Please install the relevant libraries for these plugins: '))
+                msgs.append(', '.join(s[2].name for s in support_no_libs))
+                msgs.append('<br>' + _('On most systems you can do so with this command:') + '<br>')
+                msgs.append('pip3 install -r contrib/requirements/requirements-hw.txt<br>')
+
+            msgs.append(_("<br>If this problem persists (and you really do have a hardware device connected), "
+                          "please visit <a href=\"{0}\">{0}</a> to file an issue "
+                          "report with the developers.").format('https://github.com/Electron-Cash/Electron-Cash/issues/new'))
+
+            msg = ''.join(msgs)
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(), rich=True, select=True, links=True)
             return
         # select device
         self.devices = devices

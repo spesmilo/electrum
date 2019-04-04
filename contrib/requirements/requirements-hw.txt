@@ -2,3 +2,4 @@ Cython>=0.27
 trezor>=0.11
 keepkey
 btchip-python
+hidapi
