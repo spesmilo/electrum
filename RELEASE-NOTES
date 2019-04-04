@@ -340,8 +340,8 @@ and there is no warning message.
   or for even more privacy. (cculianu)
 * Fix #1235 - Email plugin was broken and crashy. It works now. (cculianu)
 * Virtual keyboard plugin looked terrible on some platforms, particularly macOS.
-  Its layout has been improved to look ok on all plafrotms. (cculianu)
-* Windows build now is on Python 3.6.8
+  Its layout has been improved to look good on all plafrotms. (cculianu)
+* Windows build is now on Python 3.6.8
 * Fix #1238 & #1239 - Dark Mode had some hard to read GUI elements due to poorly
   chosen colors in the Transaction Dialog. Fixed. (cculianu)
 * Fix #1231 - Request list esoteric crash when rebuilding history. (cculianu)
@@ -352,6 +352,6 @@ and there is no warning message.
   (Axel Gembe)
 * HW Wallets: Improved messaging for user when trying to detect a HW device
   and dependent libraries are missing. This affects the install wizard and it
-  is hope it will assist users in troubleshooting. (#1244, #1251) (Axel Gembe)
+  is hoped it will assist users in troubleshooting. (#1244, #1251) (Axel Gembe)
 * HW Wallets: Show proper error message when trying to sign a tx with OP_RETURN
   (#1254) (Axel Gembe)
