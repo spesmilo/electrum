@@ -26,7 +26,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os,sys
+import os, sys
+
+# Note CashShuffle's .proto files have namespace conflicts with keepkey
+# This is a workaround to force the python implementation versus the C++
+# implementation which does more intelligent things with protobuf namespaces
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+
 #uncomment this line when running on linux to debug kivy.
 #Should have 3D acceleration turn on, on VM.  Also guest additions CD image.
 #os.environ['KIVY_GL_BACKEND']='sdl2'
