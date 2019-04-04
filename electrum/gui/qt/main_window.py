@@ -1522,7 +1522,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coins = self.get_coins()
         return outputs, fee_estimator, label, coins
 
-    def read_pending_addresses(self):
+    def read_pending_addresses(self, pay_from_coins, pay_from_address):
         kyc_pubkey = self.wallet.get_kyc_pubkey()
         if kyc_pubkey is None:
             return
@@ -1540,8 +1540,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         #Register the address to the wallet's kyc pubkey
         #Generate a new ephemeral pub key for encryption from the wallet
-        self.wallet.get_
-        rascript.Finalize(kyc_pubkey)
+        txn_type='p2pkh'
+        try:
+            inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)   
+        except WalletFileException:
+            return False
+
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(inputKey_serialized)
+        try:
+            _inputKey=ecc.ECPrivkey(secret_bytes)
+        except InvalidECPointException:
+            return False
+
+        rascript.Finalize(kyc_pubkey, _inputKey)
 
         output = TxOutput()
         output['scriptPubKey']=bh2u(bytes(rascript.size()))
@@ -1554,60 +1565,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         fee_estimator = self.get_send_fee_estimator()
         coins = self.get_coins()
-        return outputs, fee_estimator, label, coins, rascript
+        return outputs, fee_estimator, label, coins
 
     def do_preview(self):
         self.do_send(preview = True)
 
-    def do_register_addresses(self, addr):
+    def do_register_addresses(self, pay_from_coins, pay_from_address):
         if run_hook('abort_register_addresses', self):
             return
-        r = self.read_pending_addresses()
-        if not r:
-            return
-        outputs, fee_estimator, tx_desc, coins, rascript = r
 
-        try:
-            is_sweep = bool(self.tx_external_keypairs)
-            tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
-        except NotEnoughFunds:
-            self.show_message(_("Insufficient funds"))
-            return
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
-            return
+        self.set_pay_from(pay_from_coins)
+        self.update_fee()
 
-        input=tx.inputs()[0]
-        inputAddress = self.wallet.get_txin_address(input)
-        inputPubKey = self.wallet.get_public_key(inputAddress)
-        
-        #Check that this wallet holds the onboard user private key
-        txn_type='p2pkh'
-        try:
-            inputKey_serialized, redeem_script=self.wallet.export_private_key(inputAddress, password)   
-        except WalletFileException:
-            return False
-
-        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(inputKey_serialized)
-        try:
-            _inputKey=ecc.ECPrivkey(secret_bytes)
-        except InvalidECPointException:
-            return False
-
-        #Re-finalize, encrypting with the privkey of the sending address
-        rascript.Finalize(self.wallet.get_kyc_pubKey(),_inputKey)
-
-        output = TxOutput()
-        output['scriptPubKey']=bh2u(bytes(rascript.size()))
-
-        outputs = [output]
-
-        if not outputs:
-            self.show_error(_('No outputs'))
-            return
+        outputs, fee_estimator, tx_desc, coins = self.read_pending_addresses(pay_from_coins, pay_from_address)
 
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, True)
 
@@ -1945,6 +1915,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.set_pay_from(coins)
         self.show_send_tab()
         self.update_fee()
+
+    def send_registeraddress_tx_from_coins(coins):
+        self.do_register_addresses(coins)
+
 
     def paytomany(self):
         self.show_send_tab()
