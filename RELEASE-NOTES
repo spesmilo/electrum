@@ -326,6 +326,8 @@ and there is no warning message.
 
 * Lowest base unit in GUI has been renamed from 'cash' to 'bits' by popular
   demand.  It turns out the 'cash' unit never was popular. (cculianu)
+* CashShuffle & Keepkey: Fixed a bug in google protobuf that prevented both
+  plugins from being loaded simultaneously. #1227 (cculianu)
 * Trezor support has been improved with many bugs fixed. It should be less
   crashy overall when restoring seeds or when cancelling dialogs. (cculianu)
   Special thanks to Technologov for providing feedback and for donating Trezor
@@ -347,4 +349,8 @@ and there is no warning message.
   touching Nano S/Blue (Thomas Preindl, Axel Gembe)
 * Ledger: Improved handling of locked Ledger devices (#1245) (Axel Gembe)
 * HW Wallets: Fixed devices not being closed properly in some cases (#1246)
+  (Axel Gembe)
+* HW Wallets: Improved messaging for user when trying to detect a HW device
+  and dependent libraries are missing. This affects the install wizard and it
+  is hope it will assist users in installing the required libs. (#1244, #1251)
   (Axel Gembe)
