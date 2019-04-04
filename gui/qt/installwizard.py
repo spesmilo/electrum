@@ -425,24 +425,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.show_message(msg)
 
     @wizard_dialog
-    def confirm_dialog(self, title, message, run_next, rich = False, select = False, links = False):
-        self.confirm(message, title, rich, select, links)
+    def confirm_dialog(self, title, message, run_next):
+        self.confirm(message, title)
 
-    def confirm(self, message, title, rich = False, select = False, links = False):
+    def confirm(self, message, title):
         label = WWLabel(message)
 
-        if rich:
-            label.setTextFormat(Qt.RichText)
-
-        textInteractionFlags = Qt.LinksAccessibleByMouse
-        if select:
-            textInteractionFlags |= Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard
-
-        if links:
-            textInteractionFlags |= Qt.LinksAccessibleByKeyboard
-            label.setOpenExternalLinks(True)
-
+        textInteractionFlags = (Qt.LinksAccessibleByMouse
+                                | Qt.TextSelectableByMouse
+                                | Qt.TextSelectableByKeyboard
+                                | Qt.LinksAccessibleByKeyboard)
         label.setTextInteractionFlags(textInteractionFlags)
+        label.setOpenExternalLinks(True)
 
         vbox = QVBoxLayout()
         vbox.addWidget(label)
