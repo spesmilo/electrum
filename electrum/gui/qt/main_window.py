@@ -44,7 +44,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QWidget, QMenu, QSizePolicy, QStatusBar)
 
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
-                      coinchooser, paymentrequest)
+                      coinchooser, paymentrequest, registeraddress_script)
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -65,7 +65,7 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
-from . import registeraddress_script
+
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -620,6 +620,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                             #Policy asset: whitelist token etc.
             
                         data = self.wallet.parse_policy_tx(tx)
+                        self.wallet.parse_user_onboard_tx(tx)
                         
                             
     def notify(self, message):
@@ -1525,7 +1526,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def read_pending_addresses(self, pay_from_coins, pay_from_address):
         kyc_pubkey = self.wallet.get_kyc_pubkey()
         if kyc_pubkey is None:
-            return
+            return None
 
         label = 'registeraddresstx'
 
@@ -1564,22 +1565,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         fee_estimator = self.get_send_fee_estimator()
-        coins = self.get_coins()
-        return outputs, fee_estimator, label, coins
+        return outputs, fee_estimator, label
 
     def do_preview(self):
         self.do_send(preview = True)
 
     def do_register_addresses(self, pay_from_coins, pay_from_address):
+        '''Set a tracepoint in the Python debugger that works with Qt'''
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         if run_hook('abort_register_addresses', self):
             return
 
         self.set_pay_from(pay_from_coins)
         self.update_fee()
 
-        outputs, fee_estimator, tx_desc, coins = self.read_pending_addresses(pay_from_coins, pay_from_address)
+        r = self.read_pending_addresses(pay_from_coins, pay_from_address)
 
-        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, True)
+        if r is None:
+            return
+        
+        outputs, fee_estimator, tx_desc = r
+
+        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True)
 
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
@@ -1844,8 +1855,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_list.update()
         self.update_fee() 
 
-    def set_pending_state(self, addrs):
-        self.wallet.set_pending_state(addrs)
+    def set_pending_state(self, addrs, pending):
+        self.wallet.set_pending_state(addrs, pending)
         self.address_list.update()
         self.utxo_list.update()
         self.update_fee()

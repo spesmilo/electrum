@@ -541,14 +541,6 @@ class Abstract_Wallet(AddressSynchronizer):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_register_address_transaction(self,
-                inputs, outputs, config, addrs, fixed_fee=None,
-                change_addr=None, is_sweep=False):
-       #Register address transaction
-       
-
-
-
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
@@ -675,10 +667,10 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
         return False
 
-    def set_registered_state(self, addrs, state: bool):
+    def set_registered_state(self, addrs,  reg: bool):
         '''Set registered state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
-            if state:
+            if reg:
                 self.registered_addresses |= set(addrs)
             else:
                 self.registered_addresses -= set(addrs)
@@ -686,10 +678,10 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
         return False
         
-    def set_pending_state(self, addr):
+    def set_pending_state(self, addrs, pend: bool):
         '''Set pending state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
-            if state:
+            if pend:
                 self.pending_addresses |= set(addrs)
             else:
                 self.pending_addresses -= set(addrs)
@@ -697,7 +689,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
         return False
 
-        
     def wait_until_synchronized(self, callback=None):
         def wait_for_wallet():
             self.set_up_to_date(False)
@@ -1239,14 +1230,14 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
-    def parse_user_onboard_tx(self, transaction: transaction.Transaction):
+    def parse_user_onboard_tx(self, tx: transaction.Transaction):
         #Parse each of the output scriptpubkeys.
         from PyQt5.QtCore import pyqtRemoveInputHook
         from pdb import set_trace
         pyqtRemoveInputHook()
         set_trace()
 
-        outputs = transaction.outputs()
+        outputs = tx.outputs()
         decoded=[]
         for output in outputs:
             transaction.parse_scriptSig(decoded, output['scriptPubKey'])

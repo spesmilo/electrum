@@ -133,7 +133,7 @@ class AddressList(MyTreeWidget):
             if self.wallet.is_frozen(address):
                 address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
             if self.wallet.is_pending(address):
-                address_item.setBackground(1, ColorScheme.ORANGE.as_color(True))
+                address_item.setBackground(1, ColorScheme.GREY.as_color(True))
             elif self.wallet.is_registered(address):
                 address_item.setBackground(1, ColorScheme.GREEN.as_color(True))
             if self.wallet.is_beyond_limit(address):
@@ -195,6 +195,8 @@ class AddressList(MyTreeWidget):
         coins = self.wallet.get_utxos(addrs)
         if coins:
             menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
+            if not multi_select:
+                menu.addAction(_("Send registeraddress transaction from"), lambda: self.parent.do_register_addresses(coins, addr))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
