@@ -1,10 +1,10 @@
-# -*- mode: python -*-
+# -*- mode: python3 -*-
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 import sys, os
 
 PACKAGE='Electron-Cash'
-BUNDLE_IDENTIFIER='org.electroncash.' + PACKAGE # Used for info.plist 
+BUNDLE_IDENTIFIER='org.electroncash.' + PACKAGE # Used for info.plist
 PYPKG='electroncash'
 MAIN_SCRIPT='electron-cash'
 ICONS_FILE='electron.icns'
@@ -77,8 +77,14 @@ for d in a.datas:
         break
 # Remove QtWeb and other stuff that we know we never use.
 # This is a hack of sorts that works to keep the binary file size reasonable.
-bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation', 'qttest', 'qtxml')
-files2remove=('libqsqlmysql.dylib', 'libdeclarative_multimedia.dylib', 'libqtquickscene2dplugin.dylib', 'libqtquickscene3dplugin.dylib')
+bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation',
+             'qttest', 'qtxml', 'qtqml', 'qtsql', 'qtserialport', 'qtsensors',
+             'qtpositioning', 'qtnfc', 'qthelp', 'qtbluetooth', 'qtmultimedia',
+             'pyqt5/qt/qml', 'pyqt5/qt/plugins/position',
+             'pyqt5/qt/plugins/mediaservice', 'pyqt5/qt/plugins/audio',
+             'pyqt5/qt/plugins/sqldrivers', )
+files2remove=('libqsqlmysql.dylib', 'libdeclarative_multimedia.dylib',
+              'libqtquickscene2dplugin.dylib', 'libqtquickscene3dplugin.dylib', )
 print("Removing", *(bins2remove + files2remove))
 for x in a.binaries.copy():
     for r in bins2remove:
