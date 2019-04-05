@@ -49,7 +49,8 @@ class OceanMainnet:
     SEGWIT_HRP = "bc"
 #    GENESIS = "786331c97fac638be2e962b8b388d5a0506c7e98091da265b5334fad059600fe"
 #    GENESIS = "c8a0dc6295a81c86d103ea677a1e6e7e5b9a11a7ee702a8543f9b6a51694d51c"
-    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
+#    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
+    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -77,9 +78,11 @@ class OceanMainnet:
     CONTROLER2 = "04925c07cdc8b04b6f4ab84e6e120648d91517911d2a28decf9ad37cae333413a58975c89eeec3fac0b576b23927df84bc6093d2e8c997effd928cd7defa627db7"
     CONTROLER3 = "04de3441f8a7ecb17417cc764143bda6f19ee5dc85de94534af5a411cd6ef12b59054419dbbc46c139787fce75f1be9901a8e0aadcfd2462c3fafba995d342483e"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
-    WHITELISTCOINSDESTINATION = "76a9144ff9b5c6885f87fb5519cc45c1474f301a73224a88ac"
+    WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
+    #"76a9144ff9b5c6885f87fb5519cc45c1474f301a73224a88ac"
     #Derive using e.g. ocean-cli decodescript
-    WHITELISTCOINSADDRESS = "18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
+    WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
+    #"18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
