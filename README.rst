@@ -58,6 +58,13 @@ Run install (this should install dependencies)::
 
     python3 setup.py install
 
+or for Debian based systems ( tested on Debian v9 Stretch )::
+
+    sudo apt update
+    sudo apt install python3-dnspython python3-pyaes libsecp256k1-0 python3-protobuf python3-jsonrpclib-pelix python3-ecdsa python3-qrcode python3-pyqt5 python3-socks
+
+Then
+
 Compile the protobuf description file::
 
     sudo apt-get install protobuf-compiler
