@@ -126,6 +126,8 @@ class UTXOList(MyTreeView):
             col = idx.column()
             column_title = self.model().horizontalHeaderItem(col).text()
             copy_text = self.model().itemFromIndex(idx).text() if col != self.Columns.OUTPOINT else selected[0]
+            if col == self.Columns.AMOUNT:
+                copy_text = copy_text.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
             # "Freeze coin"
             if not self.wallet.is_frozen_coin(utxo_dict):
