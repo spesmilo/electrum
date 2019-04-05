@@ -1,4 +1,4 @@
-# -*- mode: python -*-
+# -*- mode: python3 -*-
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
@@ -25,6 +25,14 @@ binaries = [("c:/tmp/libusb-1.0.dll", ".")]
 
 # Add secp library
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+
+# Add Windows OpenGL and D3D implementation DLLs (see #1255 and #1253)
+binaries += [
+    ('C:/python*/libEGL.dll', '.'),
+    ('C:/python*/libGLESv2.dll', '.'),
+    ('C:/python*/d3dcompiler_*.dll', '.'),
+    ('C:/python*/opengl32sw.dll', '.'),
+]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
@@ -76,14 +84,18 @@ for d in a.datas:
 
 # Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
 qt_bins2remove=('qt5web', 'qt53d', 'qt5game', 'qt5designer', 'qt5quick',
-                'qt5location', 'qt5test', 'qt5xml', r'pyqt5\qt\qml\qtquick')
+                'qt5location', 'qt5test', 'qt5xml', r'pyqt5\qt\qml\qtquick',
+                'qt5qml', 'qt5printsupport', )
 print("Removing Qt binaries:", *qt_bins2remove)
 for x in a.binaries.copy():
     for r in qt_bins2remove:
         if x[0].lower().startswith(r):
             a.binaries.remove(x)
             print('----> Removed x =', x)
-qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales', )
+qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales',
+                r'pyqt5\qt\plugins\printsupport',
+                r'pyqt5\qt\plugins\platforms\qwebgl',
+                r'pyqt5\qt\plugins\platforms\qminimal', )
 print("Removing Qt datas:", *qt_data2remove)
 for x in a.datas.copy():
     for r in qt_data2remove:

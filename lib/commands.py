@@ -873,6 +873,10 @@ def get_parser():
     parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
+    if sys.platform in ('windows', 'win32'):
+        # Hack to support forcing QT_OPENGL env var. See #1255. This allows us
+        # to perhaps add a custom installer shortcut to force software rendering
+        parser_gui.add_argument("-O", "--qt_opengl", dest="qt_opengl", default=None, help="(Windows only) If using Qt gui, override the QT_OPENGL env-var with this value (angle,software,desktop are possible overrides)")
     add_network_options(parser_gui)
     add_global_options(parser_gui)
     # daemon

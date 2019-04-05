@@ -25,6 +25,7 @@
 import ast
 import os
 import time
+import sys
 
 # from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
@@ -309,6 +310,16 @@ class Daemon(DaemonThread):
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
+        if (sys.platform in ('windows', 'win32')
+            and config.get('qt_opengl') and gui_name == 'qt'):
+            # Hack to force QT_OPENGL env var. See #1255
+            #
+            # Note if the user provides a bad override here.. the app may crash
+            # or not run properly on windows. We don't do anything about that
+            # since this command line option is ultimately intended to just
+            # be used for an installer-generated shortcut.
+            #
+            os.environ['QT_OPENGL'] = str(config.get('qt_opengl'))
         gui = __import__('electroncash_gui.' + gui_name, fromlist=['electroncash_gui'])
         self.gui = gui.ElectrumGui(config, self, plugins)
         self.gui.main()

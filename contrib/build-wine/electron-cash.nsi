@@ -103,10 +103,12 @@ Function .onInit
 FunctionEnd
 
 Section
-  SetOutPath $INSTDIR
-
   ;Uninstall previous version files
-  RMDir /r "$INSTDIR\*.*"
+  Push $INSTDIR
+  Call RemoveAskIfExists
+
+  SetOutPath $INSTDIR ; side-effect is it creates dir if not exist
+
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
 
@@ -130,6 +132,8 @@ Section
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
+  ;See #1255 where some users have bad opengl drivers and need to use software-only rendering. Requires we package openglsw32.dll with the app.
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} (Software OpenGL).lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "--qt_opengl software" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "--testnet" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
 
 
@@ -152,6 +156,20 @@ Section
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0"
 SectionEnd
+
+; Ask the user if they want to blow away an existing directory
+Function RemoveAskIfExists
+    Pop $R0
+    IfFileExists "$R0\*.*" DoesExist DoesNotExist
+    DoesExist:
+        MessageBox MB_YESNO `"$R0" already exists, delete its content and continue installing?` IDYES yes IDNO no
+            no:
+                Abort "Select a different install destination and try again."
+            yes:
+                RMDir /r "$R0\*.*"
+    DoesNotExist:
+        Return
+FunctionEnd
 
 ;--------------------------------
 ;Descriptions
