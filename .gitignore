@@ -17,6 +17,7 @@ env/
 bin/
 /app.fil
 tmp/
+lib/*.so.0
 
 # tox files
 .cache/
