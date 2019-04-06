@@ -115,7 +115,9 @@ class NodesListWidget(QTreeWidget):
 
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
-            self.on_activated(self.currentItem(), self.currentColumn())
+            item, col = self.currentItem(), self.currentColumn()
+            if item and col > -1:
+                self.on_activated(item, col)
         else:
             QTreeWidget.keyPressEvent(self, event)
 
@@ -212,7 +214,9 @@ class ServerListWidget(QTreeWidget):
 
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
-            self.on_activated(self.currentItem(), self.currentColumn())
+            item, col = self.currentItem(), self.currentColumn()
+            if item and col > -1:
+                self.on_activated(item, col)
         else:
             QTreeWidget.keyPressEvent(self, event)
 

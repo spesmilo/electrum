@@ -490,7 +490,9 @@ class MyTreeWidget(QTreeWidget):
 
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
-            self.on_activated(self.currentItem(), self.currentColumn())
+            item, col = self.currentItem(), self.currentColumn()
+            if item and col > -1:
+                self.on_activated(item, col)
         else:
             QTreeWidget.keyPressEvent(self, event)
 
