@@ -1520,6 +1520,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def from_list_menu(self, position):
         item = self.from_list.itemAt(position)
+        if not item:
+            return
         menu = QMenu()
         name = item.data(0, Qt.UserRole)
         action = menu.addAction(_("Remove"), lambda: self.from_list_delete(name))
