@@ -46,12 +46,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electron.coinucopia.io": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electron.jochen-hoenicke.de": {
         "pruning": "-",
         "s": "51002",
