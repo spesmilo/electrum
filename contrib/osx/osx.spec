@@ -84,11 +84,23 @@ bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation',
              'pyqt5/qt/plugins/mediaservice', 'pyqt5/qt/plugins/audio',
              'pyqt5/qt/plugins/sqldrivers', )
 files2remove=('libqsqlmysql.dylib', 'libdeclarative_multimedia.dylib',
-              'libqtquickscene2dplugin.dylib', 'libqtquickscene3dplugin.dylib', )
+              'libqtquickscene2dplugin.dylib', 'libqtquickscene3dplugin.dylib',
+              'libqtquickcontrols2imaginestyleplugin.dylib', 'libqwebgl.dylib',
+              'libqtquickextrasflatplugin.dylib', 'ibqtcanvas3d.dylib',
+              'libqtquickcontrolsplugin.dylib', 'libqtquicktemplates2plugin.dylib',
+              'libqtlabsplatformplugin.dylib', 'libdeclarative_sensors.dylib',
+              'libdeclarative_location.dylib', )
 print("Removing", *(bins2remove + files2remove))
 for x in a.binaries.copy():
+    item = x[0].lower()
+    fn = x[1].lower()
+    if os.path.basename(fn) in files2remove:
+        a.binaries.remove(x)
+        print('----> Removed:', x)
+        continue
     for r in bins2remove:
-        if x[0].lower().startswith(r) or os.path.basename(x[1].lower()) in files2remove:
+        pyqt5_r = 'pyqt5.' + r
+        if item.startswith(r) or item.startswith(pyqt5_r):
             a.binaries.remove(x)
             print('----> Removed:', x)
             break # break from inner loop
