@@ -167,7 +167,7 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # must force a codesign again because Info.plist modified above
 
 info "Creating .DMG"
-dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmg_settings.py "" dist/$PACKAGE-$VERSION-macosx.dmg || fail "Could not create .DMG"
+dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmgbuild.spec "" dist/$PACKAGE-$VERSION-macosx.dmg || fail "Could not create .DMG"
 
 DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}-macosx.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 

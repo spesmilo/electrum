@@ -2,9 +2,12 @@
 
 import os.path
 
-PACKAGE = defines.get('PACKAGE', 'NO-PACKAGE')
+PACKAGE = defines.get('PACKAGE')
 
-background = 'contrib/osx/background.png'
+if not PACKAGE:
+    raise RuntimeError('Please pass a -D PACKAGE=PackageName define to dmgbuild')
+
+background = 'contrib/osx/fancy_dmg.png'
 volume_name = PACKAGE
 application = 'dist/{}.app'.format(PACKAGE)
 
