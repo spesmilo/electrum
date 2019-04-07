@@ -15,6 +15,24 @@ function fail {
 function warn {
 	printf "\r⚠️  ${YELLOW}WARNING:${NC}  ${1}\n"
 }
+function verify_hash() {
+    local file=$1 expected_hash=$2
+    sha_prog=`which sha256sum || which gsha256sum`
+    if [ -z "$sha_prog" ]; then
+        fail "Please install sha256sum or gsha256sum"
+    fi
+    if [ ! -e "$file" ]; then
+        fail "Cannot verify hash for $file -- not found!"
+    fi
+    actual_hash=$($sha_prog $file | awk '{print $1}')
+    if [ "$actual_hash" == "$expected_hash" ]; then
+        return 0
+    else
+        warn "Hash verify failed, removing '$file' as a safety measure"
+        rm "$file"
+        fail "$file $actual_hash (unexpected hash)"
+    fi
+}
 
 # Now, some variables that affect all build scripts
 

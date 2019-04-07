@@ -82,7 +82,10 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing PyInstaller"
-python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip -I --user && pyenv rehash || fail "Could not install PyInstaller"
+mkdir -p $BUILDDIR
+curl -L https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip > $BUILDDIR/my_pyinstaller.zip
+verify_hash $BUILDDIR/my_pyinstaller.zip 543b2d98847f99df45d23e344c85acf3bfc5c057c95c09f444fd1b6b2cae749c
+python3 -m pip install $BUILDDIR/my_pyinstaller.zip -I --user && pyenv rehash || fail "Could not install PyInstaller"
 
 info "Using these versions for building $PACKAGE:"  # NB: PACKAGE var comes from ../base.sh
 sw_vers
@@ -97,7 +100,7 @@ git submodule init
 git submodule update
 
 rm  -rf $BUILDDIR > /dev/null 2>&1
-mkdir $BUILDDIR
+mkdir -p $BUILDDIR
 
 info "Installing dmgbuild..."
 python3 -m pip install -I --user dmgbuild || fail "Could not install dmgbuild"
@@ -107,9 +110,10 @@ info "Making locale..."
 python3 ./contrib/make_locale || fail "Failed to make locale..."
 
 info "Downloading libusb..."
-curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
-tar xz --directory $BUILDDIR
-cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
+curl -L https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
+    tar xz --directory $BUILDDIR || fail "Could not download libusb"
+verify_hash $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib d147e7382dfa676d93e8b17d160d50f68e4b01f58f3647c90a8899a7a0519ca3  # this exits on failure
+cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx || fail "Could not copy libusb"
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
