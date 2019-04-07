@@ -10,7 +10,7 @@ function info {
 	printf "\r💬 ${BLUE}INFO:${NC}  ${1}\n"
 }
 function fail {
-    printf "\r🗯  ${RED}ERROR:${NC}  ${1}\n"
+    printf "\r🗯  ${RED}ERROR:${NC}  ${1}\n" >&2
     exit 1
 }
 function warn {
@@ -20,7 +20,7 @@ function printok {
     printf "\r👍  ${GREEN}OK:${NC}  ${1}\n"
 }
 
-function verify_hash() {
+function verify_hash {
     local file=$1 expected_hash=$2
     sha_prog=`which sha256sum || which gsha256sum`
     if [ -z "$sha_prog" ]; then
@@ -37,6 +37,20 @@ function verify_hash() {
         warn "Hash verify failed, removing '$file' as a safety measure"
         rm "$file"
         fail "$file $actual_hash (unexpected hash)"
+    fi
+}
+
+# based on https://superuser.com/questions/497940/script-to-verify-a-signature-with-gpg
+function verify_signature {
+    local file=$1 keyring=$2 out=
+    bn=`basename $file .asc`
+    info "Verifying PGP signature for $bn ..."
+    if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) \
+            && echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
+        printok "$bn signature verified"
+        return 0
+    else
+        fail "$out"
     fi
 }
 
