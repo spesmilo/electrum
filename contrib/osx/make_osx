@@ -58,7 +58,7 @@ fi
 have_brew=`which brew`
 if [ -n "$have_brew" ]; then
     info "Ensuring Python prerequisites are installed via brew"
-    for a in openssl readline sqlite3 xz zlib; do
+    for a in openssl readline sqlite3 xz zlib coreutils; do
         brew list $a > /dev/null 2>&1
         if [ "$?" != "0" ]; then
             info "Installing $a"
