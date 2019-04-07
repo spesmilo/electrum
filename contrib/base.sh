@@ -29,9 +29,10 @@ function verify_hash {
     if [ ! -e "$file" ]; then
         fail "Cannot verify hash for $file -- not found!"
     fi
+    bn=`basename $file`
     actual_hash=$($sha_prog $file | awk '{print $1}')
     if [ "$actual_hash" == "$expected_hash" ]; then
-        printok "'$file' hash verified"
+        printok "'$bn' hash verified"
         return 0
     else
         warn "Hash verify failed, removing '$file' as a safety measure"
@@ -52,6 +53,34 @@ function verify_signature {
     else
         fail "$out"
     fi
+}
+
+function download_if_not_exist() {
+    local file_name=$1 url=$2
+    if [ ! -e $file_name ] ; then
+        wget -O $file_name "$url" || fail "Failed to download $file_name"
+    fi
+}
+
+# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/templates/header.sh
+function retry() {
+  local result=0
+  local count=1
+  while [ $count -le 3 ]; do
+    [ $result -ne 0 ] && {
+      echo -e "\nThe command \"$@\" failed. Retrying, $count of 3.\n" >&2
+    }
+    ! { "$@"; result=$?; }
+    [ $result -eq 0 ] && break
+    count=$(($count + 1))
+    sleep 1
+  done
+
+  [ $count -gt 3 ] && {
+    echo -e "\nThe command \"$@\" failed 3 times.\n" >&2
+  }
+
+  return $result
 }
 
 # Now, some variables that affect all build scripts
