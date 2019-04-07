@@ -159,20 +159,25 @@ class WalletsVC(WalletsVCBase):
 
     @objc_method
     def setAmount_andUnits_unconf_(self, amt, units, unconf) -> None:
-        #ats = NSMutableAttributedString.alloc().initWithString_(units).autorelease()
+        ats = None
         if unconf:
             unconf = " " + unconf.strip()
-            '''ats.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(
-                unconf,
+            ats = NSAttributedString.alloc().initWithString_attributes_(
+                amt,
                 {
-                    NSFontAttributeName: UIFont.systemFontOfSize_(11.0)
+                    NSForegroundColorAttributeName: utils.uicolor_custom('nav')
                 }
-                ).autorelease())
-            '''
+            ).autorelease()
         else:
             unconf = ''
-        self.walletAmount.text = amt
-        #self.walletUnits.attributedText = ats
+        if ats:
+            # User has unconfired balance -- show blue text
+            self.walletAmount.text = None
+            self.walletAmount.attributedText = ats
+        else:
+            # User has regular balance -- show regular text
+            self.walletAmount.attributedText = None
+            self.walletAmount.text = amt
         self.walletUnits.text = units+unconf
         if self.modalDrawerVC:
             self.modalDrawerVC.amount.text = amt

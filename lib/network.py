@@ -46,9 +46,7 @@ from . import version
 
 
 DEFAULT_AUTO_CONNECT = True
-NODES_RETRY_INTERVAL = 60
-SERVER_RETRY_INTERVAL = 10
-
+DEFAULT_WHITELIST_SERVERS_ONLY = True
 
 def parse_servers(result):
     """ parse servers list into dict format"""
@@ -199,6 +197,11 @@ class Network(util.DaemonThread):
     """
 
     INSTANCE = None # Only 1 Network instance is ever alive during app lifetime (it's a singleton)
+
+    # These defaults are decent for the desktop app. Other platforms may
+    # override these at any time (iOS sets these to lower values).
+    NODES_RETRY_INTERVAL = 60  # How often to retry a node we know about in secs, if we are connected to less than 10 nodes
+    SERVER_RETRY_INTERVAL = 10  # How often to reconnect when server down in secs
 
     def __init__(self, config=None):
         if config is None:
@@ -957,7 +960,7 @@ class Network(util.DaemonThread):
             server_count = len(self.interfaces) + len(self.connecting)
             if server_count < self.num_server:
                 self.start_random_interface()
-                if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
+                if now - self.nodes_retry_time > self.NODES_RETRY_INTERVAL:
                     self.print_error('network: retrying connections')
                     self.disconnected_servers = set([])
                     self.nodes_retry_time = now
@@ -970,7 +973,7 @@ class Network(util.DaemonThread):
                         self.switch_to_random_interface()
                 else:
                     if self.default_server in self.disconnected_servers:
-                        if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
+                        if now - self.server_retry_time > self.SERVER_RETRY_INTERVAL:
                             self.disconnected_servers.remove(self.default_server)
                             self.server_retry_time = now
                     else:
@@ -1858,7 +1861,7 @@ class Network(util.DaemonThread):
         ret -= set(self.config.get('server_whitelist_removed', [])) # this key is all the servers that were hardcoded in the whitelist that the user explicitly removed
         return ret, servers_to_hostmap(ret)
 
-    def is_whitelist_only(self): return bool(self.config.get('whitelist_servers_only', True))
+    def is_whitelist_only(self): return bool(self.config.get('whitelist_servers_only', DEFAULT_WHITELIST_SERVERS_ONLY))
 
     def set_whitelist_only(self, b):
         if bool(b) == self.is_whitelist_only():

@@ -367,6 +367,11 @@ class ElectrumGui(PrintError):
             # methods of this class only, and specifically not be
             # partials, lambdas or methods of subobjects.  Hence...
             self.daemon.network.register_callback(self.on_network, interests)
+            # Set the node and server retry interval to more reasonable valus for iOS
+            # This is because on mobile we really may have a spotty connection so
+            # it pays to retry often
+            self.daemon.network.NODES_RETRY_INTERVAL = 20  # seconds
+            self.daemon.network.SERVER_RETRY_INTERVAL = 3  # seconds
             utils.NSLog("REGISTERED NETWORK CALLBACKS")
 
     def unregister_network_callbacks(self):
@@ -644,20 +649,22 @@ class ElectrumGui(PrintError):
                 walletStatus = wallets.StatusOnline
                 networkStatusText = _("Online")
                 c, u, x = self.wallet.get_balance()
-                walletBalanceTxt = self.format_amount(c)
+                walletBalanceTxt = self.format_amount(c+u+x)
                 walletUnitTxt = self.base_unit()
-                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
+                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c+u+x))
                 ux = 0
+                adjective = 'unconf.'
                 if u:
-                    s = " [%s unconfirmed]"%(self.format_amount(u, True).strip())
+                    s = " [%s unconfirmed]"%(self.format_amount(u, u < 0).strip())
                     text +=  s
                     ux += u
                 if x:
-                    s = " [%s unmatured]"%(self.format_amount(x, True).strip())
+                    s = " [%s unmatured]"%(self.format_amount(x, x < 0).strip())
                     text += s
                     ux += x
+                    adjective = 'unavail.'
                 if ux:
-                    walletUnconfTxt += "[%s unconf.]"%(self.format_amount(ux, True)).strip()
+                    walletUnconfTxt += "[%s %s]"%(self.format_amount(ux, ux < 0).strip(), adjective)  # [134 unconf.]
 
                 # append fiat balance and price
                 if self.daemon.fx.is_enabled():

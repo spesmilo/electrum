@@ -4,6 +4,11 @@
 #
 # MIT License
 #
+import os
+# Disable google protobuf C++ implementation since we don't have the .so files
+# anyway on iOS.  this call isn't strictly necessary but we may as well
+# do it just to be sure.
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 
 # The below line needs to be here becasue the iOS main.m evaluates this script and looks for a
 # Python class (that is bridged to ObjC) named "PythonAppDelegate", which gets the
