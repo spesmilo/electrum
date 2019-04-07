@@ -92,29 +92,6 @@ prepare_wine() {
         PYHOME=c:/python$PYTHON_VERSION  # NB: PYTON_VERSION comes from ../base.sh
         PYTHON="wine $PYHOME/python.exe -OO -B"
 
-
-        # based on https://superuser.com/questions/497940/script-to-verify-a-signature-with-gpg
-        verify_signature() {
-            local file=$1 keyring=$2 out=
-            info "Verifying PGP signature for $(basename $file .asc) ..."
-            if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) \
-                    && echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
-                return 0
-            else
-                fail "$out" >&2
-            fi
-        }
-
-        verify_hash() {
-            local file=$1 expected_hash=$2 out=
-            actual_hash=$(sha256sum $file | awk '{print $1}')
-            if [ "$actual_hash" == "$expected_hash" ]; then
-                return 0
-            else
-                fail "$file $actual_hash (unexpected hash)" >&2
-            fi
-        }
-
         # Clean up Wine environment. Breaks docker so leave this commented-out.
         #echo "Cleaning $WINEPREFIX"
         #rm -rf $WINEPREFIX
@@ -174,7 +151,9 @@ prepare_wine() {
 
         info "Installing Pyinstaller ..."
         # Install PyInstaller
-        $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip || fail "Failed to install Pyinstaller"
+        wget https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip || fail "Could not download Pyinstaller"
+        verify_hash fix_2952.zip b5084345fa7454cf8901e32d005e68bd24ded403829e10fbc61527a92e68909a
+        $PYTHON -m pip install fix_2952.zip || fail "Failed to install Pyinstaller"
 
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 

@@ -1,5 +1,5 @@
 Cython>=0.27
-trezor>=0.11
+trezor[hidapi]>=0.11.0
 keepkey
 btchip-python
 hidapi
