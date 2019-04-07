@@ -276,5 +276,6 @@ echo '            - "Strip Debug Symbols During Copy" = NO '
 echo '            - "Strip Linked Product" = NO '
 echo '            - "Strip Style" = Debugging Symbols '
 echo '            - "Enable Bitcode" = NO '
+echo '            - "Valid Architectures" = arm64 '
 echo ''
 
