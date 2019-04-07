@@ -26,6 +26,7 @@ function verify_hash() {
     fi
     actual_hash=$($sha_prog $file | awk '{print $1}')
     if [ "$actual_hash" == "$expected_hash" ]; then
+        info "$file hash verified OK"
         return 0
     else
         warn "Hash verify failed, removing '$file' as a safety measure"
