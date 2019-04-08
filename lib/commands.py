@@ -33,7 +33,7 @@ from functools import wraps
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 
 from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 from .import bitcoin
 from .address import Address
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
@@ -577,12 +577,27 @@ class Commands:
     @command('')
     def encrypt(self, pubkey, message):
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
-        return bitcoin.encrypt_message(message, pubkey)
+        if not isinstance(pubkey, (str, bytes, bytearray)) or not isinstance(message, (str, bytes, bytearray)):
+            raise RuntimeError("pubkey and message text must both be strings")
+        message = to_bytes(message)
+        res =  bitcoin.encrypt_message(message, pubkey)
+        if isinstance(res, (bytes, bytearray)):
+            # prevent "JSON serializable" errors in case this came from
+            # cmdline. See #1270
+            res = res.decode('utf-8')
+        return res
 
     @command('wp')
     def decrypt(self, pubkey, encrypted, password=None):
         """Decrypt a message encrypted with a public key."""
-        return self.wallet.decrypt_message(pubkey, encrypted, password)
+        if not isinstance(pubkey, str) or not isinstance(encrypted, str):
+            raise RuntimeError("pubkey and encrypted text must both be strings")
+        res = self.wallet.decrypt_message(pubkey, encrypted, password)
+        if isinstance(res, (bytes, bytearray)):
+            # prevent "JSON serializable" errors in case this came from
+            # cmdline. See #1270
+            res = res.decode('utf-8')
+        return res
 
     def _format_request(self, out):
         pr_str = {
