@@ -865,6 +865,7 @@ def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
     parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
+    parser.add_argument("-x", "--disable_preferred_servers_only", action='store_false', dest="whitelist_servers_only", default=None, help="Disables 'preferred servers only' for this session. This must be used in conjunction with --server or --oneserver for them to work if they are outside the whitelist in servers.json (or the user-specified whitelist).")
 
 def add_global_options(parser):
     group = parser.add_argument_group('global options')
