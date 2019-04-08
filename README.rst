@@ -92,38 +92,10 @@ the mapped import paths work correctly.
 Creating Binaries
 =================
 
+Linux AppImage & Source Tarball
+--------------
 
-To create binaries, create the 'packages/' directory::
-
-    ./contrib/make_packages
-
-This directory contains the python dependencies used by Electron Cash.
-
-The `make_packages` command may fail with some Ubuntu-packaged versions of
-pip ("can't combine user with prefix."). To solve this, it is necessary to
-upgrade your pip to the official version::
-
-    pip install pip --user
-
-**Note:** You should also compile the secp256k1 library for fast elliptic curve
-cryptographic functions. Otherwise, transaction signing will be extremely slow,
-and you won't have access to the CashShuffle functionality of Electron Cash::
-
-    ./contrib/make_secp
-
-This will install ``libsecp256k1.so.0`` into the ``lib/`` folder.
-
-Linux (source with packages)
-----------------------------
-
-Run the following to create the release tarball under ``dist/``::
-
-    ./setup.py sdist --enable-secp
-
-This command will *NOT* run the above ``make_locale`` and ``make_packages`` for
-you, so you should run them if you want to include Python packages and
-translations in the srcdist.  It will, however run ``make_secp`` for you and
-it will bundle libsecp256k1-0 into the aforementioned release tarball.
+See `contrib/build-linux/README.md <contrib/build-linux/README.md>`_.
 
 Mac OS X / macOS
 --------
