@@ -297,7 +297,7 @@ class ECPubkey(object):
         encrypted = magic + ephemeral_pubkey + ciphertext
         mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
-        return base64.b64encode(encrypted + mac), ecdh_key, mac
+        return base64.b64encode(encrypted + mac)
 
 
     def ecdh(self, scalar: int):
@@ -440,7 +440,7 @@ class ECPrivkey(ECPubkey):
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ecdsa_point.x(), ecdsa_point.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
         ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
-        ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
+        ecdh_key = ephemeral_pubkey.ecdh(self.secret_scalar)
         key = hashlib.sha512(ecdh_key).digest()
         iv = hashlib.sha1(key).digest()[:16]
         key_e, key_m = key[0:32], key[32:]
