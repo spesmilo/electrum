@@ -199,8 +199,8 @@ class Synchronizer(ThreadJob):
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
         addrset=set(self.wallet.get_addresses())    
-        addrset.add(constants.net.WHITELISTCOINSADDRESS)
         self.subscribe_to_addresses(addrset)
+        self.subscribe_to_addresses(set([constants.net.WHITELISTCOINSADDRESS]))
         self.initialized = True
 
     def run(self):

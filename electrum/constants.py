@@ -47,10 +47,9 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-#    GENESIS = "786331c97fac638be2e962b8b388d5a0506c7e98091da265b5334fad059600fe"
+    GENESIS = "786331c97fac638be2e962b8b388d5a0506c7e98091da265b5334fad059600fe"
 #    GENESIS = "c8a0dc6295a81c86d103ea677a1e6e7e5b9a11a7ee702a8543f9b6a51694d51c"
 #    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
-    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -86,10 +85,12 @@ class OceanMainnet:
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
-
     TESTNET = True
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = []
+    ADDRTYPE_P2PKH = 235
+    ADDRTYPE_P2SH = 75               
+    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
 
 class OceanRegtest(OceanMainnet):
 
@@ -136,7 +137,6 @@ def set_simnet():
 def set_mainnet():
     global net
     net = OceanMainnet
-
 
 def set_testnet():
     global net
