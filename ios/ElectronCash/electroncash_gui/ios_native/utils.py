@@ -668,6 +668,8 @@ def present_modal_picker(parentVC : ObjCInstance,
                          okButtonTitle : str = "OK",
                          cancelButtonTitle : str = "Cancel") -> ObjCInstance:
     assert parentVC is not None and items is not None and len(items)
+    if not isinstance(items, list):
+        items = list(items)  # will raise if not compatible type
     helper = UTILSModalPickerHelper.new().autorelease()
     objs = NSBundle.mainBundle.loadNibNamed_owner_options_("ModalPickerView",helper,None)
     if not objs: raise Exception("Could not load ModalPickerView nib!")
