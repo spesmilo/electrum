@@ -2,7 +2,7 @@ Electron-Cash, iOS Native UI
 ============================
 
 This subdirectory implements an iOS native UI for Electron Cash, using UIKit via
-'rubicon-ios' Python bindings. It uses the 'Briefcase' project to create an Xcode project which contains within it a Python interpreter, plus all scripts and dependent python packages.  Only Python 3.5 is supported at the present time.
+'rubicon-ios' Python bindings. It uses the 'Briefcase' project to create an Xcode project which contains within it a Python interpreter, plus all scripts and dependent python packages.  Python 3.6 or above is recommended.
 
 - Rubicon-iOS Web Page: https://pybee.org/project/projects/bridges/rubicon/
 - Briefcase Web Page: https://pybee.org/project/projects/tools/briefcase/
@@ -13,17 +13,17 @@ Quick Start Instructions
 
    * MacOS 10.11 or above is required with Xcode installed (Xcode >= 10.1)
    * MacPorts is required (Brew may work too but is untested)
-   * Python 3.5 must be installed via MacPorts/Brew
+   * Python 3.6 must be installed via either MacPorts or Brew
    * cookiecutter, briefcase, pbxproj, and setuptools python packages must be installed::
    
-           sudo python3 -m pip install 'setuptools==40.6.2'
-           sudo python3 -m pip install 'cookiecutter==1.6.0'
-           sudo python3 -m pip install 'briefcase==0.2.6'
-           sudo python3 -m pip install 'pbxproj==2.5.1'
+           python3 -m pip install 'setuptools==40.6.2' --user
+           python3 -m pip install 'cookiecutter==1.6.0' --user
+           python3 -m pip install 'briefcase==0.2.6' --user
+           python3 -m pip install 'pbxproj==2.5.1' --user
            
-           (NOTE: The exact versions specified above are known to work!)
+           (NOTE: The exact versions specified above are known to work, but you may also try and use newer version as well.)
 
-   * If you're using Brew, use pyenv to setup a Python 3.5 environment, and do the above commands *without* sudo
+   * If you're using Brew, use pyenv to setup a Python 3.6 environment.
 
 2. Generate the iOS project using the included shell script::
 
@@ -45,6 +45,7 @@ For reasons that aren't entirely clear to me (but likely due to the way libPytho
  - **Strip Linked Product** = NO
  - **Strip Style** = Debugging Symbols
  - **Enable Bitcode** = NO
+ - **Valid Architectures** = arm64
    
 For more information, see this stackoverflow post: https://stackoverflow.com/questions/22261753/ios-app-wont-start-on-testflight-ad-hoc-distribution
 
