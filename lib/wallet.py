@@ -608,6 +608,9 @@ class Abstract_Wallet(PrintError):
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
                     if fee and self.network and self.network.config.has_fee_estimates():
+                        # NB: this branch will not be taken as has_fee_estimates()
+                        # will always return false since we disabled querying
+                        # the fee histogram as it's useless for BCH anyway.
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)

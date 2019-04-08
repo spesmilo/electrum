@@ -286,6 +286,10 @@ class SimpleConfig(PrintError):
 
     def has_fee_estimates(self):
         #return len(self.fee_estimates)==4
+        # We disabled fee estimates for BCH.  They do more harm than good.
+        # Our blocks aren't full and it is not the intention for them to ever
+        # be full according to all the full node implementers.  This is a
+        # coreism that must die. :)
         return False
 
     def custom_fee_rate(self):
