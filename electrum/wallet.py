@@ -608,14 +608,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
             # add asset information to output
             outputs[i_max] = outputs[i_max]._replace(value=amount)
-            input_map = {}
-            for i in inputs:
-                asset=i['asset']
-                value=i['value']
-                if (asset in input_map):
-                    input_map[asset]=input_map[asset]+value
-                else:
-                    input_map[asset]=value
+            input_map = coinchooser.get_input_asset_map(inputs)
 
             asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
                 for o in outputs for (asset, value) in coinchooser.get_asset_outputs(o.value, input_map)]
