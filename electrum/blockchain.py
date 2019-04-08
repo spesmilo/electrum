@@ -44,10 +44,8 @@ def serialize_header(res, get_hash = False):
         + rev_hex(res.get('merkle_root')) \
         + rev_hex(res.get('contract_hash'))
 
-    # special exception for current testnet
-    if not constants.net.TESTNET:
-        s += rev_hex(res.get('attestation_hash'))
-        s += rev_hex(res.get('mapping_hash'))
+    s += rev_hex(res.get('attestation_hash'))
+    s += rev_hex(res.get('mapping_hash'))
 
     s += int_to_hex(int(res.get('timestamp')), 4) +\
          int_to_hex(int(res.get('block_height')), 4)
@@ -86,9 +84,8 @@ def deserialize_header(s, height):
     h['merkle_root'] = hash_encode(s[36:68])
     h['contract_hash'] = hash_encode(s[68:100])
 
-    if not constants.net.TESTNET:
-        h['attestation_hash'] = hash_encode(s[100:132])
-        h['mapping_hash'] = hash_encode(s[132:164])
+    h['attestation_hash'] = hash_encode(s[100:132])
+    h['mapping_hash'] = hash_encode(s[132:164])
 
     h['timestamp'] = hex_to_int(s[constants.net.BASIC_HEADER_SIZE-8:constants.net.BASIC_HEADER_SIZE-4])
     h['block_height'] = height

@@ -92,6 +92,23 @@ class OceanTestnet(OceanMainnet):
     ADDRTYPE_P2SH = 75               
     GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
 
+    XPRV_HEADERS = {
+        'standard':    0x04358394,  # xprv
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
+        'p2wsh-p2sh':  0x0295b005,  # Yprv
+        'p2wpkh':      0x04b2430c,  # zprv
+        'p2wsh':       0x02aa7a99,  # Zprv
+
+    }
+
+    XPUB_HEADERS = {
+        'standard':    0x043587cf,  # xpub
+        'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+        'p2wsh-p2sh':  0x0295b43f,  # Ypub
+        'p2wpkh':      0x04b24746,  # zpub
+        'p2wsh':       0x02aa7ed3,  # Zpub
+    }
+
 class OceanRegtest(OceanMainnet):
 
     TESTNET = True
