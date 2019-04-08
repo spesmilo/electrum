@@ -5,7 +5,7 @@
 # Copyright (C) 2011 thomasv@gitorious
 #
 # Electron Cash - lightweight Bitcoin Cash client
-# Copyright (C) 2017-2018 The Electron Cash Developers
+# Copyright (C) 2017-2019 The Electron Cash Developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -96,7 +96,7 @@ def check_imports():
 if not is_android:  # Avoid unnecessarily slowing down app startup.
     check_imports()
 
-# load local module as electrum
+# load local lib etc modules as electroncash*
 if is_local:
     import imp
     imp.load_module('electroncash', *imp.find_module('lib'))
