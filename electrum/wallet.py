@@ -1734,7 +1734,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         self.set_registered_state(addrs, True)
 
         #Encrypt the addresses string
-        encrypted, ecdh_key, mac = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
 
         ss2 = StringIO()
         str_encrypted=str(encrypted)
