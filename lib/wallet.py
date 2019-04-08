@@ -607,7 +607,7 @@ class Abstract_Wallet(PrintError):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
-                    if fee and self.network.config.has_fee_estimates():
+                    if fee and self.network and self.network.config.has_fee_estimates():
                         size = tx.estimated_size()
                         fee_per_kb = fee * 1000 / size
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)
@@ -1025,12 +1025,20 @@ class Abstract_Wallet(PrintError):
             if not tx:
                 return 3, 'unknown'
             fee = self.tx_fees.get(tx_hash)
-            if fee and self.network and self.network.config.has_fee_estimates():
-                size = len(tx.raw)/2
-                low_fee = int(self.network.config.dynfee(0)*size/1000)
-                is_lowfee = fee < low_fee * 0.5
-            else:
+            # we disable fee estimates in BCH for now.
+            #if fee and self.network and self.network.config.has_fee_estimates():
+            #    size = len(tx.raw)/2
+            #    low_fee = int(self.network.config.dynfee(0)*size/1000)
+            #    is_lowfee = fee < low_fee * 0.5
+            #else:
+            #    is_lowfee = False
+            # and instead if it's less than 1.0 sats/B we flag it as low_fee
+            try:
+                # NB len(tx.raw) is 2x the byte size as it's hex encoded.
+                is_lowfee = int(fee) / (int(len(tx.raw)) / 2.0) < 1.0  # if less than 1.0 sats/B, complain. otherwise don't.
+            except (TypeError, ValueError):  # If for some reason fee was None or invalid, just pass on through.
                 is_lowfee = False
+            # /
             if height < 0:
                 status = 0
             elif height == 0 and is_lowfee:
