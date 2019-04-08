@@ -73,16 +73,16 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
 popd
 
 info "Copying .exe files out of our build directory ..."
-mkdir -p contrib/build-wine/dist
+mkdir -p dist/
 files=$FRESH_CLONE_DIR/contrib/build-wine/dist/*.exe
 for f in $files; do
     bn=`basename $f`
-    cp -fpv $f contrib/build-wine/dist/$bn || fail "Failed to copy $bn"
-    touch contrib/build-wine/dist/$bn || fail "Failed to update timestamp on $bn"
+    cp -fpv $f dist/$bn || fail "Failed to copy $bn"
+    touch dist/$bn || fail "Failed to update timestamp on $bn"
 done
 
 info "Removing $FRESH_CLONE ..."
 $SUDO rm -fr $FRESH_CLONE
 
 echo ""
-info "Done. Built .exe files have been placed in contrib/build-wine/dist"
+info "Done. Built .exe files have been placed in dist/"

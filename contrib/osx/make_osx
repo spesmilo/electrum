@@ -76,6 +76,10 @@ if [ -d "~/.pyenv" ]; then
 else
   curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
 fi
+# Pre-download the tarball and verify its hash
+mkdir -p ~/.pyenv/cache
+download_if_not_exist ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
+verify_hash ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz $PYTHON_SRC_TARBALL_HASH
 PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 pyenv global $PYTHON_VERSION && pyenv rehash || \
 fail "Unable to use Python $PYTHON_VERSION"

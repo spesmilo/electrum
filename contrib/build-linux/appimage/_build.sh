@@ -24,6 +24,8 @@ mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
 
 . "$CONTRIB"/base.sh
 
+info "Refreshing submodules ..."
+git submodule update --init
 
 info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"
@@ -33,7 +35,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/probonopd/App
 verify_hash "$CACHEDIR/appimagetool" "c13026b9ebaa20a17e7e0a4c818a901f0faba759801d8ceab3bb6007dde00372"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
 
 
@@ -54,10 +56,9 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 )
 
 
-info "Building libsecp256k1"
+#info "Building libsecp256k1"  # make_secp below already prints this
 (
     pushd "$PROJECT_ROOT"
-    git submodule update --init
 
     "$CONTRIB"/make_secp || fail "Could not build libsecp"
 
@@ -84,7 +85,6 @@ info "Installing pip"
 info "Preparing electrum-locale"
 (
     cd "$PROJECT_ROOT"
-    git submodule update --init
 
     pushd "$CONTRIB"/electrum-locale
     if ! which msgfmt > /dev/null 2>&1; then
