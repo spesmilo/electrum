@@ -685,7 +685,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 self.pending_addresses |= set(addrs)
             else:
                 self.pending_addresses -= set(addrs)
-            self.storage.put('registered_addresses', list(self.frozen_addresses))
+            self.storage.put('pending_addresses', list(self.pending_addresses))
             return True
         return False
 
@@ -1240,7 +1240,8 @@ class Abstract_Wallet(AddressSynchronizer):
         outputs = tx.outputs()
         decoded=[]
         for output in outputs:
-            transaction.parse_scriptSig(decoded, output['scriptPubKey'])
+            output_dict=dict(output)
+            transaction.parse_scriptSig(decoded, output_dict['scriptPubKey'])
             txtype=decoded['type']
             if txtype == 'registeraddress':
                 break
