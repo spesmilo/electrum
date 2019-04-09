@@ -734,16 +734,22 @@ class Network(util.DaemonThread):
             if error is None:
                 self.donation_address = result
         elif method == 'blockchain.estimatefee':
-            if error is None and result > 0:
-                i = params[0]
-                fee = int(result*COIN)
-                self.config.update_fee_estimates(i, fee)
-                self.print_error("fee_estimates[%d]" % i, fee)
-                self.notify('fee')
+            try:
+                if error is None and result > 0:
+                    i = params[0]
+                    fee = int(result*COIN)
+                    self.config.update_fee_estimates(i, fee)
+                    self.print_error("fee_estimates[%d]" % i, fee)
+                    self.notify('fee')
+            except (TypeError, ValueError) as e:
+                self.print_error("bad server data in blockchain.estimatefee:", result, "error:", repr(e))
         elif method == 'blockchain.relayfee':
-            if error is None:
-                self.relay_fee = int(result * COIN)
-                self.print_error("relayfee", self.relay_fee)
+            try:
+                if error is None:
+                    self.relay_fee = int(result * COIN)
+                    self.print_error("relayfee", self.relay_fee)
+            except (TypeError, ValueError) as e:
+                self.print_error("bad server data in blockchain.relayfee:", result, "error:", repr(e))
         elif method == 'blockchain.block.headers':
             self.on_block_headers(interface, request, response)
         elif method == 'blockchain.block.header':
