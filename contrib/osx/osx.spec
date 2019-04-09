@@ -65,6 +65,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += collect_submodules('hideezlib')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 # safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
@@ -84,6 +85,7 @@ datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
+datas += collect_data_files('hideezlib')
 
 # Add the QR Scanner helper app
 datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
@@ -113,6 +115,8 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/plugins/keepkey/qt.py',
               electrum+'electrum/plugins/ledger/qt.py',
               electrum+'electrum/plugins/coldcard/qt.py',
+              electrum+'electrum/plugins/hideez/client.py',
+              electrum+'electrum/plugins/hideez/qt.py',
               ],
              binaries=binaries,
              datas=datas,
