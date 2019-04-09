@@ -17,10 +17,13 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build --no-cache -t electroncash-appimage-builder-img contrib/build-linux/appimage
+    $ sudo docker build --no-cache -t electroncash-appimage-builder-img \
+        -f contrib/build-linux/appimage/Dockerfile_ub1404 \
+        contrib/build-linux/appimage
     ```
 
     _Note:_ If you are using a MacOS host, run the above **without** `sudo`.
+    _Note 2:_ If you want to build an Ubuntu 18.04 based image, replace `Dockerfile_ub1404` above with `Dockerfile_ub1804`
 
 3. Build binary
 

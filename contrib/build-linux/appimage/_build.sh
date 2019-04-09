@@ -108,9 +108,14 @@ mkdir -p "$CACHEDIR/pip_cache"
 
 
 info "Copying zbar"
-mkdir -p "$APPDIR/usr/lib/x86_64-linux-gnu"
-cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/x86_64-linux-gnu/libzbar.so.0" || fail "Could not copy zbar"
-
+if [ -e /usr/lib/x86_64-linux-gnu/libzbar.so.0 ]; then
+    # Ubuntu 18.04 dockerfile image puts it in x86_64-linux-gnu
+    mkdir -p "$APPDIR/usr/lib/x86_64-linux-gnu"
+    cp /usr/lib/x86_64-linux-gnu/libzbar.so.0 "$APPDIR/usr/lib/x86_64-linux-gnu/libzbar.so.0" || fail "Could not copy zbar"
+else
+    # Earlier Ubuntu image puts it in plain old /usr/lib
+    cp /usr/lib/libzbar.so.0 "$APPDIR/usr/lib/libzbar.so.0" || fail "Could not copy zbar"
+fi
 
 info "Copying desktop integration"
 cp "$PROJECT_ROOT/electron-cash.desktop" "$APPDIR/electron-cash.desktop"
