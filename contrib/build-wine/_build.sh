@@ -76,13 +76,13 @@ prepare_wine() {
         pushd "$here"
         here=`pwd`
         # Please update these carefully, some versions won't work under Wine
-        NSIS_URL=https://prdownloads.sourceforge.net/nsis/nsis-3.02.1-setup.exe?download
+        NSIS_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/nsis-3.02.1-setup.exe'
         NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
 
-        ZBAR_URL=https://sourceforge.net/projects/zbarw/files/zbarw-20121031-setup.exe/download
+        ZBAR_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/zbarw-20121031-setup.exe'
         ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
 
-        LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.21/libusb-1.0.21.7z?download
+        LIBUSB_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libusb-1.0.21.7z'
         LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
 
         ## These settings probably don't need change
@@ -138,13 +138,11 @@ prepare_wine() {
         # upgrade pip
         $PYTHON -m pip install pip --upgrade
 
-        info "Installing pywin32-ctypes ..."
-        # Install pywin32-ctypes (needed by pyinstaller)
-        $PYTHON -m pip install pywin32-ctypes==0.1.2 || fail "Failed to install pywin32-ctypes"
-
-        info "Installing PySocks ..."
-        # install PySocks
-        $PYTHON -m pip install win_inet_pton==1.0.1 || fail "Failed to install PySocks"
+        # The below requirements-wine-build.txt uses hashed packages that we
+        # need for pyinstaller and other parts of the build.  Using a hashed
+        # requirements file hardens the build against dependency attacks.
+        info "Installing build requirements from requirements-wine-build.txt ..."
+        $PYTHON -m pip install -I -r $here/requirements-wine-build.txt || fail "Failed to install build requirements"
 
         info "Installing Packages from requirements-binaries ..."
         $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
@@ -159,23 +157,24 @@ prepare_wine() {
 
         info "Installing ZBar ..."
         # Install ZBar
-        wget -q -O zbar.exe "$ZBAR_URL"
+        wget -O zbar.exe "$ZBAR_URL"
         verify_hash zbar.exe $ZBAR_SHA256
         wine zbar.exe /S || fail "Could not install zbar"
 
 
-        info "Upgrading setuptools ..."
-        # Upgrade setuptools (so Electrum can be installed later)
-        $PYTHON -m pip install setuptools --upgrade
+        #The below has been commented-out as our requirements-wine-build.txt already handles this
+        #info "Upgrading setuptools ..."
+        # Upgrade setuptools (so Electron-Cash can be installed later)
+        #$PYTHON -m pip install setuptools --upgrade
 
         info "Installing NSIS ..."
         # Install NSIS installer
-        wget -q -O nsis.exe "$NSIS_URL"
+        wget -O nsis.exe "$NSIS_URL"
         verify_hash nsis.exe $NSIS_SHA256
         wine nsis.exe /S || fail "Could not run nsis"
 
         info "Installing libusb ..."
-        wget -q -O libusb.7z "$LIBUSB_URL"
+        wget -O libusb.7z "$LIBUSB_URL"
         verify_hash libusb.7z "$LIBUSB_SHA256"
         7z x -olibusb libusb.7z
         mkdir -p $WINEPREFIX/drive_c/tmp
