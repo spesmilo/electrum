@@ -76,20 +76,36 @@ if [ -d "~/.pyenv" ]; then
 else
   curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
 fi
-# Pre-download the tarball and verify its hash
-mkdir -p ~/.pyenv/cache
-download_if_not_exist ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz $PYTHON_SRC_TARBALL_HASH
+if ~/.pyenv/bin/pyenv versions | grep -q "$PYTHON_VERSION"; then
+    warn "Python $PYTHON_VERSION already exists in pyenv!"
+    warn "We will proceed to use this version but you really should start with a fresh, clean version of Python by removing ~/.pyenv altogether."
+else
+    # Pre-download the tarball and verify its hash
+    mkdir -p ~/.pyenv/cache
+    download_if_not_exist ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
+    verify_hash ~/.pyenv/cache/Python-$PYTHON_VERSION.tar.xz $PYTHON_SRC_TARBALL_HASH
+fi
+# The below just switches to this python version if already installed..
+# or does a build-install from the file in ~/.pyenv/cache if not installed
 PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
-pyenv global $PYTHON_VERSION && pyenv rehash || \
-fail "Unable to use Python $PYTHON_VERSION"
+    pyenv global $PYTHON_VERSION && pyenv rehash || \
+    fail "Unable to use Python $PYTHON_VERSION"
 
+# We use a hashed requirements file for even the build tools to prevent
+# dependency attacks even in the build process
+info "Installing dmgbuild, requests, and other build tools we need..."
+python3 -m pip install -I --user -r $build_dir/requirements-osx-build.txt \
+    || fail "Could not install osx-requirements"
 
+# We use a custom PyInstaller that has deep codesigning as well as AppleEvents
+# forwarding.  Note both these patches have been submitted to the PyInstaller
+# project but have yet to be merged in (they are very backlogged).
 info "Installing PyInstaller"
 mkdir -p $BUILDDIR
-curl -L https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip > $BUILDDIR/my_pyinstaller.zip
-verify_hash $BUILDDIR/my_pyinstaller.zip 543b2d98847f99df45d23e344c85acf3bfc5c057c95c09f444fd1b6b2cae749c
-python3 -m pip install $BUILDDIR/my_pyinstaller.zip -I --user && pyenv rehash || fail "Could not install PyInstaller"
+curl -L https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip > $BUILDDIR/PyInstaller34_AECS.zip
+verify_hash $BUILDDIR/PyInstaller34_AECS.zip 543b2d98847f99df45d23e344c85acf3bfc5c057c95c09f444fd1b6b2cae749c
+python3 -m pip install $BUILDDIR/PyInstaller34_AECS.zip -I --user && pyenv rehash \
+    || fail "Could not install PyInstaller"
 
 info "Using these versions for building $PACKAGE:"  # NB: PACKAGE var comes from ../base.sh
 sw_vers
@@ -106,10 +122,6 @@ git submodule update
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir -p $BUILDDIR
 
-info "Installing dmgbuild..."
-python3 -m pip install -I --user dmgbuild || fail "Could not install dmgbuild"
-info "Installing requests..."
-python3 -m pip install -I --user requests || fail "Could not install requests"
 info "Making locale..."
 python3 ./contrib/make_locale || fail "Failed to make locale..."
 

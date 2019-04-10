@@ -1,0 +1,7 @@
+dmgbuild==1.3.2
+requests==2.21.0
+macholib>=1.8
+altgraph
+pefile>=2017.8.1
+setuptools
+future
