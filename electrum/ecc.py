@@ -423,7 +423,7 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig_string)
         return sig65
 
-    def decrypt_message(self, encrypted, magic=b'BIE1'):
+    def decrypt_message(self, encrypted, magic=b'BIE1', get_ephemeral=False):
         encrypted = base64.b64decode(encrypted)
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
@@ -446,7 +446,10 @@ class ECPrivkey(ECPubkey):
         key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()
-        return aes_decrypt_with_iv(key_e, iv, ciphertext), ephemeral_pubkey_bytes
+        plaintext = aes_decrypt_with_iv(key_e, iv, ciphertext) 
+        if get_ephemeral is True:
+            return plaintext, ephemeral_pubkey
+        return plaintext
 
 
 def construct_sig65(sig_string, recid, is_compressed):

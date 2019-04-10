@@ -548,7 +548,8 @@ class Commands:
     @command('wp')
     def decrypt(self, pubkey, encrypted, password=None):
         """Decrypt a message encrypted with a public key."""
-        return self.wallet.decrypt_message(pubkey, encrypted, password)
+        plaintext = self.wallet.decrypt_message(pubkey, encrypted, password, get_ephemeral=False)
+        return plaintext
 
     def _format_request(self, out):
         pr_str = {

@@ -66,6 +66,9 @@ from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
 
+        
+
+
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -602,6 +605,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if num_txns >= 3:
                 total_amount = 0
                 for tx in self.tx_notifications:
+                    if self.wallet.parse_policy_tx(tx):
+                        continue
                     is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                     if v > 0:
                         total_amount += v
@@ -612,15 +617,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 for tx in self.tx_notifications:
                     if tx:
+                        if self.wallet.parse_policy_tx(tx):
+                            continue
                         self.tx_notifications.remove(tx)
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
-                        #else:
-                            #Policy asset: whitelist token etc.
-            
-                        data = self.wallet.parse_policy_tx(tx)
-                        self.wallet.parse_user_onboard_tx(tx)
+                        
+                           
+
+
                         
                             
     def notify(self, message):
@@ -1524,10 +1530,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return outputs, fee_estimator, label, coins
 
     def read_pending_addresses(self, pay_from_coins, pay_from_address):
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         kyc_pubkey = self.wallet.get_kyc_pubkey()
         if kyc_pubkey is None:
             return None
@@ -1576,11 +1578,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_register_addresses(self, pay_from_coins, pay_from_address):
         '''Set a tracepoint in the Python debugger that works with Qt'''
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
         pyqtRemoveInputHook()
         set_trace()
-
         if run_hook('abort_register_addresses', self):
             return
 

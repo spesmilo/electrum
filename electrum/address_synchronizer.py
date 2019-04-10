@@ -141,6 +141,17 @@ class AddressSynchronizer(PrintError):
                     return addr
         return None
 
+    def get_txin_asset(self, txi):
+        asset = txi.get('asset')
+        prevout_hash = txi.get('prevout_hash')
+        prevout_n = txi.get('prevout_n')
+        dd = self.txo.get(prevout_hash, {})
+        for addr, l in dd.items():
+            for n, v, a, is_cb in l:
+                if n == prevout_n:
+                    return asset
+        return None
+
     def get_txout_address(self, txo: TxOutput):
         if txo.type == TYPE_ADDRESS:
             addr = txo.address
@@ -667,29 +678,46 @@ class AddressSynchronizer(PrintError):
         return delta
 
     # Parse policy transactions, e.g. whitelist token transactions.
-    def parse_policy_tx(self, tx):
+    def parse_whitelist_tx(self, tx):
         data = []
         datatype = None
         v_out=0
-        is_whitelist = False
         for txin in tx.inputs():
-            addr=self.get_txin_address(txin)
-            if addr is constants.net.WHITELISTCOINSADDRESS:
-                is_whitelist = True
-                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
-                for n, v, a, cb in d:
-                    if n == txin['prevout_n']:
+            #Check inputs for address data (unassign)
+            addr = self.get_txin_address(txin)
+            d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
+            prevout_n=txin['prevout_n']
+            for n, v, a, cb in d:
+                if n == prevout_n:
+                    if a == constants.net.WHITELISTASSET:
                         datatype, payload = transaction.get_data_from_policy_output_script(d.script)
-                        break
+                        if datatype != TYPE_DATA:
+                            continue
+                        if len(payload) > 3:    
+                            data=bytes(32)
+                            ba1=bytearray(payload[:3])
+                            ba2=bytearray(payload[3:])
+                            ba2.reverse()
+                            data = bh2u(ba1+ba2)
+                            if type(self.unassigned_kyc_pubkeys) is not set:
+                                self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
+                            self.unassigned_kyc_pubkeys.remove(bfh(data))
 
-            if datatype is None:
-                for output in tx.outputs():
-                    script = output.scriptPubKey
-                    datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
-            data=bytes(32)
-            if len(payload) > 3 and datatype is TYPE_DATA:    
-                ba1=bytearray(payload[:3])
-                ba2=bytearray(payload[3:])
+        #Check outputs for address data (assign)
+        for output in tx.outputs():
+            if output.asset != constants.net.WHITELISTASSET:
+                continue
+            script = output.scriptPubKey
+            datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
+            
+            if datatype != TYPE_DATA:
+                continue
+            #Reverse after this number of bytes
+            nrev=3
+            if len(payload) > nrev:   
+                data=bytes(32)
+                ba1=bytearray(payload[:nrev])
+                ba2=bytearray(payload[nrev:])
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
@@ -699,7 +727,7 @@ class AddressSynchronizer(PrintError):
                     self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
                 self.unassigned_kyc_pubkeys.add(bfh(data))
 
-        return data
+        return (datatype==TYPE_DATA)
 
 
     def get_wallet_delta(self, tx):

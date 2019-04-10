@@ -222,15 +222,25 @@ class Xpub:
         self.xpub = None
         self.xpub_receive = None
         self.xpub_change = None
+        self.xpub_encryption = None
 
     def get_master_public_key(self):
         return self.xpub
 
-    def derive_pubkey(self, for_change, n):
-        xpub = self.xpub_change if for_change else self.xpub_receive
+    def derive_pubkey(self, for_change, n, for_encryption=False):
+        if for_encryption:
+            xpub=self.xpub_encryption
+            for_change=False
+        else:
+            xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
-            xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
-            if for_change:
+            if for_encryption:
+                xpub = bip32_public_derivation(self.xpub, "%d", "%d/%d"%for_encryption%for_encryption%for_change)
+            else
+                xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
+            if for_encryption:
+                self.xpub_encryption = xpub
+            elif for_change:
                 self.xpub_change = xpub
             else:
                 self.xpub_receive = xpub
@@ -404,7 +414,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         return string_to_number(x)
 
     @classmethod
-    def get_sequence(self, mpk, for_change, n):
+    def get_sequence(self, mpk, for_change, n)
         return string_to_number(Hash(("%d:%d:"%(n, for_change)).encode('ascii') + bfh(mpk)))
 
     @classmethod

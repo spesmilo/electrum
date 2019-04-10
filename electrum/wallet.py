@@ -214,13 +214,14 @@ class Abstract_Wallet(AddressSynchronizer):
         return os.path.basename(self.storage.path)
 
     def save_addresses(self):
-        self.storage.put('addresses', {'receiving':self.receiving_addresses, 'change':self.change_addresses})
+        self.storage.put('addresses', {'receiving':self.receiving_addresses, 'change':self.change_addresses, 'encryption':self.encryption_addresses})
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
         if type(d) != dict: d={}
         self.receiving_addresses = d.get('receiving', [])
         self.change_addresses = d.get('change', [])
+        self.encryption_addresses = d.get('encryption', [])
 
     def test_addresses_sanity(self):
         addrs = self.get_receiving_addresses()
@@ -899,6 +900,16 @@ class Abstract_Wallet(AddressSynchronizer):
                     choice = addr
         return choice
 
+    def get_unused_encryption_address(self):
+        addrs = self.get_unused_encryption_addresses()
+        if addrs:
+            addr = addrs[0]
+
+    def get_unused_encryption_addresses(self):
+        domain = self.get_encryption_addresses()
+        return [addr for addr in domain if not self.history.get(addr)
+                and addr not in self.receive_requests.keys()]
+
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
@@ -1230,26 +1241,29 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
+    def parse_policy_tx(self, tx: transaction.Transaction):
+        if self.parse_whitelist_tx(tx):
+            return True
+        if self.parse_user_onboard_tx(tx):
+            return True
+        return False
+
     def parse_user_onboard_tx(self, tx: transaction.Transaction):
-        #Parse each of the output scriptpubkeys.
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
+        decoded=dict()
+        data=None       
         outputs = tx.outputs()
-        decoded=[]
         for output in outputs:
-            output_dict=dict(output)
-            transaction.parse_scriptSig(decoded, output_dict['scriptPubKey'])
-            txtype=decoded['type']
-            if txtype == 'registeraddress':
-                break
+            transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
+            if len(decoded) is not 0:
+                txtype=decoded['type']
+                if txtype == 'registeraddress':
+                    data=decoded['data']
+                    break
+                else:
+                    decoded=[]
 
-        if txtype != 'registeraddress':
+        if data is None:
             return False
-
-        data=decoded['data']
 
         pubKeySize=33
         addressSize=20
@@ -1258,56 +1272,53 @@ class Abstract_Wallet(AddressSynchronizer):
         i1=0
         i2=33
 
-        if(data.size()<2*pubKeySize+minPayloadSize):
-            return False
+        if(len(data)<2*pubKeySize+minPayloadSize):
+            return True
         
         kyc_pubkey = data[i1:i2]
         #Check if this is my onboarding TX
         try:
             _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
         except InvalidECPointException:
-            return False
+            return True
         
-        it1=it2
-        it2+=33
-        userOnboardPubKey = data[33:66]         
+        i1=i2
+        i2+=33
+        userOnboardPubKey = data[i1:i2]         
         try:
             _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
         except InvalidECPointException:
-            return False
+            return True
         
-        if not self.wallet.is_my_userOnboardPubKey(userOnboardPubKey):
-                return False
+        #Check that this wallet holds the onboard user private key
+        onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        if not self.is_mine(onboardAddress):
+            return True
          
         #Check that the kyc public key is in the list of unassigned kyc public keys 
         #(kyc private key owner is therefore the whitelisting token owner)
-        if not self.wallet.is_unassigned_kyc_pubkey(kyc_pubkey):
-            return False
-
-        #Check that this wallet holds the onboard user private key
-        txn_type='p2pkh'
-        onboardAddress=bitcoin.pubkey_to_address(txn_type, userOnboardPubKey)
-        try:
-            onboardUserKey_serialized, redeem_script=self.wallet.export_private_key(onboardAddress, password)   
-        except WalletFileException:
-            return False
+        #if not self.is_unassigned_kyc_pubkey(kyc_pubkey):
+        #    return False
+        onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
 
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-        try:
-            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        except InvalidECPointException:
-            return False
+        
+        _onboardUserKey=ecc.ECPrivkey(secret_bytes)
 
-        it1=it2
-        ciphertext=data[it1:]
+        i1=i2
+        ciphertext=data[i1:]
         try:
-            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext)
+            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True)
         except Exception:
-            return False
+            return True
 
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == kyc_pubkey:
-            return False
+            return True
 
         self.wallet.set_kyc_pubkey(_kyc_pubkey)
         return True
@@ -1538,6 +1549,9 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_receiving_addresses(self):
         return self.receiving_addresses
 
+    def get_encryption_addresses(self):
+        return self.encryption_addresses
+
     def get_change_addresses(self):
         return self.change_addresses
 
@@ -1593,18 +1607,29 @@ class Deterministic_Wallet(Abstract_Wallet):
             self._addr_to_addr_index[addr] = (False, i)
         for i, addr in enumerate(self.change_addresses):
             self._addr_to_addr_index[addr] = (True, i)
+        for i, addr in enumerate(self.encryption_addresses):
+            self._addr_to_addr_index[addr] = (True, False, i)
 
-    def create_new_address(self, for_change=False):
-        assert type(for_change) is bool
+    def create_new_address(self, for_change:bool=False, for_encryption:bool=False):
+        if for_encryption:
+            for_change=False
         with self.lock:
-            addr_list = self.change_addresses if for_change else self.receiving_addresses
+            if for_change:
+                addr_list=self.change_addresses
+            elif for_encryption:
+                addr_list=self.encryption_addresses
+            else:
+                addr_list=self.receiving_addresses
             n = len(addr_list)
-            x = self.derive_pubkeys(for_change, n)
+            x = self.derive_pubkeys(for_change, n, for_encryption)
             if self.contracts:
                 x = self.tweak_pubkeys(x, self.contracts[-1])
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
-            self._addr_to_addr_index[address] = (for_change, n)
+            if for_encryption:
+                self._addr_to_addr_index[address] = (for_change, for_encryption, n)
+            else:
+                self._addr_to_addr_index[address] = (for_change, n)
             self.save_addresses()
             self.add_address(address)
             return address
@@ -1658,12 +1683,12 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
 
-    def get_pubkey(self, c, i):
-        return self.derive_pubkeys(c, i)
+    def get_pubkey(self, c, i, for_encryption=False):
+        return self.derive_pubkeys(c, i, for_encryption)
 
-    def get_public_key(self, address, tweaked=True):
-        sequence = self.get_address_index(address)
-        pubkey = self.get_pubkey(*sequence)
+    def get_public_key(self, address, tweaked=True, for_encryption=False):
+        c, i = self.get_address_index(address)
+        pubkey = self.get_pubkey(c, i, for_encryption)
         if tweaked:
             return self.get_tweaked_public_key(address, pubkey)
         return pubkey
@@ -1689,8 +1714,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def get_master_public_key(self):
         return self.keystore.get_master_public_key()
 
-    def derive_pubkeys(self, c, i):
-        return self.keystore.derive_pubkey(c, i)
+    def derive_pubkeys(self, c, i, e=False):
+        return self.keystore.derive_pubkey(c, i, e)
 
     def tweak_pubkeys(self, c, t):
         return self.keystore.tweak_pubkey(c, t)
@@ -1706,8 +1731,8 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
     def get_kyc_string(self, password=None):
-        address=self.create_new_address()
-        onboardUserPubKey=self.get_public_key(address)
+        address=self.create_new_address(for_encryption=True)
+        onboardUserPubKey=self.get_public_key(address, for_encryption=True)
          
         onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
         txin_type = self.get_txin_type(address)

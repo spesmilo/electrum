@@ -6,7 +6,7 @@ class RegisterAddressScript():
 		self.wallet=wallet
 
 	def finalize(self, ePubKey, ePrivKey=None) -> str:
-		self.encrypted, ecdh_key, mac = ecc.ECPubkey(ePubKey).encrypt_message(self.payload, ephemeral=ePrivKey)
+		self.encrypted = ecc.ECPubkey(ePubKey).encrypt_message(self.payload, ephemeral=ePrivKey)
 		return b2hu(opcodes.OP_REGISTERADDRESS) + bitcoin.push_script(b2hu(self.encrypted))
 
 	def append(self, addrs):

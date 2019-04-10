@@ -83,6 +83,7 @@ class OceanMainnet:
     #Derive using e.g. ocean-cli decodescript
     WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
     #"18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
+    WHITELISTASSET="06ac64b25aa03694714f4c6ab47e6216600d39878b660714d7e553ed4d465307"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):

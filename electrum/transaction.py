@@ -444,6 +444,7 @@ def parse_scriptSig(d, _bytes):
     if match_decoded(decoded, match):
         d['type']='registeraddress'
         d['data']=decoded[1][1]
+        return
 
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
                 bh2u(_bytes))
@@ -477,7 +478,7 @@ def get_data_from_policy_output_script(_bytes, *, net=None):
     if match_decoded(decoded, match):
         return TYPE_DATA, decoded[2][1]
 
-    return TYPE_SCRIPT, bh2u(_bytes)
+    return None, None
 
 
 def get_address_from_output_script(_bytes, *, net=None):
