@@ -617,9 +617,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 for tx in self.tx_notifications:
                     if tx:
+                        self.tx_notifications.remove(tx)
                         if self.wallet.parse_policy_tx(tx):
                             continue
-                        self.tx_notifications.remove(tx)
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))

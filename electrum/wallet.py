@@ -1242,9 +1242,14 @@ class Abstract_Wallet(AddressSynchronizer):
         return False
 
     def parse_policy_tx(self, tx: transaction.Transaction):
-        if self.parse_whitelist_tx(tx):
-            return True
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         if self.parse_user_onboard_tx(tx):
+            return True
+        if self.parse_whitelist_tx(tx):
             return True
         return False
 
@@ -1289,16 +1294,12 @@ class Abstract_Wallet(AddressSynchronizer):
             _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
         except InvalidECPointException:
             return True
-        
+
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         if not self.is_mine(onboardAddress):
             return True
-         
+ 
         #Check that the kyc public key is in the list of unassigned kyc public keys 
         #(kyc private key owner is therefore the whitelisting token owner)
         #if not self.is_unassigned_kyc_pubkey(kyc_pubkey):
@@ -1634,26 +1635,44 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.add_address(address)
             return address
 
-    def synchronize_sequence(self, for_change):
+    def synchronize_sequence(self, for_change, for_encryption=False):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
-            addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
+            if for_encryption:
+                addresses=self.get_encryption_addresses()
+            elif for_change:
+                addresses = self.get_change_addresses() 
+            else:
+                addresses = self.get_receiving_addresses()
+
             if len(addresses) < limit:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, for_encryption)
                 continue
             if list(map(lambda a: self.address_is_old(a), addresses[-limit:] )) == limit*[False]:
                 break
             else:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, for_encryption)
 
     def synchronize(self):
         with self.lock:
             self.synchronize_sequence(False)
             self.synchronize_sequence(True)
+            self.synchronize_sequence(False, True)
 
     def is_beyond_limit(self, address):
-        is_change, i = self.get_address_index(address)
-        addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
+        is_encryption=False
+        r = self.get_address_index(address)
+        if len(r) == 2:
+            is_change, i = r
+        else:
+            is_encryption, is_change, i = r
+        if is_encryption:
+            is_change=False
+            addr_list = self.get_encryption_addresses()
+        elif is_change:
+            addr_list = self.get_change_addresses() 
+        else:
+            addr_list = self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False
@@ -1731,9 +1750,14 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
     def get_kyc_string(self, password=None):
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         address=self.create_new_address(for_encryption=True)
         onboardUserPubKey=self.get_public_key(address, for_encryption=True)
-         
+
         onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
         txin_type = self.get_txin_type(address)
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
