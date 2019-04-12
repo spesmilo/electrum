@@ -102,8 +102,7 @@ class SPV(NetworkJobOnDefaultServer):
                 raise
             self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
-            try: self.requested_merkle.remove(tx_hash)
-            except KeyError: pass
+            self.requested_merkle.discard(tx_hash)
             return
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
@@ -126,8 +125,7 @@ class SPV(NetworkJobOnDefaultServer):
                 raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
-        try: self.requested_merkle.remove(tx_hash)
-        except KeyError: pass
+        self.requested_merkle.discard(tx_hash)
         self.print_error("verified %s" % tx_hash)
         header_hash = hash_header(header)
         tx_info = TxMinedInfo(height=tx_height,
@@ -181,10 +179,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     def remove_spv_proof_for_tx(self, tx_hash):
         self.merkle_roots.pop(tx_hash, None)
-        try:
-            self.requested_merkle.remove(tx_hash)
-        except KeyError:
-            pass
+        self.requested_merkle.discard(tx_hash)
 
     def is_up_to_date(self):
         return not self.requested_merkle
