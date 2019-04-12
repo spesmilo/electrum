@@ -746,7 +746,7 @@ class ElectrumWindow(App):
             if not self.wallet.up_to_date or server_height == 0:
                 status = _("Synchronizing...")
             elif server_lag > 1:
-                status = _("Server lagging")
+                status = _("Server is lagging ({} blocks)").format(server_lag)
             else:
                 status = ''
         else:
