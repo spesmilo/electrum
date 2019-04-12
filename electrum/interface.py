@@ -30,6 +30,7 @@ import traceback
 import asyncio
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
+from ipaddress import IPv4Network, IPv6Network, ip_address
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification
@@ -50,6 +51,8 @@ if TYPE_CHECKING:
 
 
 ca_path = certifi.where()
+
+BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
 
 class NetworkTimeout:
@@ -187,6 +190,7 @@ class Interface(PrintError):
         self.network = network
         self._set_proxy(proxy)
         self.session = None  # type: NotificationSession
+        self._ipaddr_bucket = None
 
         self.tip_header = None
         self.tip = 0
@@ -395,6 +399,9 @@ class Interface(PrintError):
             return conn, 0
         return conn, res['count']
 
+    def is_main_server(self) -> bool:
+        return self.network.default_server == self.server
+
     async def open_session(self, sslc, exit_early=False):
         async with aiorpcx.Connector(NotificationSession,
                                      host=self.host, port=self.port,
@@ -408,6 +415,9 @@ class Interface(PrintError):
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
+            if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
+                raise GracefulDisconnect(f'too many connected servers already '
+                                         f'in bucket {self.bucket_based_on_ipaddress()}')
             self.print_error("connection established. version: {}".format(ver))
 
             async with self.group as group:
@@ -603,6 +613,35 @@ class Interface(PrintError):
     @classmethod
     def client_name(cls) -> str:
         return f'electrum/{version.ELECTRUM_VERSION}'
+
+    def is_tor(self):
+        return self.host.endswith('.onion')
+
+    def ip_addr(self) -> Optional[str]:
+        session = self.session
+        if not session: return None
+        peer_addr = session.peer_address()
+        if not peer_addr: return None
+        return peer_addr[0]
+
+    def bucket_based_on_ipaddress(self) -> str:
+        def do_bucket():
+            if self.is_tor():
+                return BUCKET_NAME_OF_ONION_SERVERS
+            ip_addr = ip_address(self.ip_addr())
+            if not ip_addr:
+                return ''
+            if ip_addr.version == 4:
+                slash16 = IPv4Network(ip_addr).supernet(prefixlen_diff=32-16)
+                return str(slash16)
+            elif ip_addr.version == 6:
+                slash48 = IPv6Network(ip_addr).supernet(prefixlen_diff=128-48)
+                return str(slash48)
+            return ''
+
+        if not self._ipaddr_bucket:
+            self._ipaddr_bucket = do_bucket()
+        return self._ipaddr_bucket
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
