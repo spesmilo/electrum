@@ -237,10 +237,7 @@ class Interface(PrintError):
         return True
 
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
-        try:
-            ca_signed = await self.is_server_ca_signed(ca_ssl_context)
-        except (OSError, aiorpcx.socks.SOCKSError) as e:
-            raise ErrorGettingSSLCertFromServer(e) from e
+        ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
@@ -282,7 +279,10 @@ class Interface(PrintError):
         # see if we already have cert for this server; or get it for the first time
         ca_sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         if not self._is_saved_ssl_cert_available():
-            await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+            try:
+                await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+            except (OSError, aiorpcx.socks.SOCKSError) as e:
+                raise ErrorGettingSSLCertFromServer(e) from e
         # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
         if siz == 0:
@@ -360,7 +360,7 @@ class Interface(PrintError):
                     break
                 await asyncio.sleep(1)
             else:
-                raise Exception("could not get certificate")
+                raise GracefulDisconnect("could not get certificate after 10 tries")
 
     async def get_certificate(self):
         sslc = ssl.SSLContext()
