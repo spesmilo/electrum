@@ -59,6 +59,8 @@ from .i18n import _
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
+NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_RECENT_SERVERS = 20
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -111,9 +113,11 @@ def filter_protocol(hostmap, protocol='s'):
     return eligible
 
 
-def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap=None, protocol='s', exclude_set=None):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
+    if exclude_set is None:
+        exclude_set = set()
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -381,7 +385,11 @@ class Network(PrintError):
                 addr = ''
             self.donation_address = addr
         async def get_server_peers():
-            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
+            server_peers = await session.send_request('server.peers.subscribe')
+            random.shuffle(server_peers)
+            max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
+            server_peers = server_peers[:max_accepted_peers]
+            self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -595,7 +603,7 @@ class Network(PrintError):
                 await self.switch_lagging_interface()
 
     def _set_oneserver(self, oneserver: bool):
-        self.num_server = 10 if not oneserver else 0
+        self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
         self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
@@ -701,7 +709,7 @@ class Network(PrintError):
         if server in self.recent_servers:
             self.recent_servers.remove(server)
         self.recent_servers.insert(0, server)
-        self.recent_servers = self.recent_servers[0:20]
+        self.recent_servers = self.recent_servers[:NUM_RECENT_SERVERS]
         self._save_recent_servers()
 
     async def connection_down(self, interface: Interface):
