@@ -403,7 +403,7 @@ class Interface(PrintError):
             self.session.interface = self
             self.session.default_timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
             try:
-                ver = await session.send_request('server.version', [version.ELECTRUM_VERSION, version.PROTOCOL_VERSION])
+                ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])
             except aiorpcx.jsonrpc.RPCError as e:
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
@@ -599,6 +599,10 @@ class Interface(PrintError):
         _assert_header_does_not_check_against_any_chain(bad_header)
         self.print_error("exiting backward mode at", height)
         return height, header, bad, bad_header
+
+    @classmethod
+    def client_name(cls) -> str:
+        return f'electrum/{version.ELECTRUM_VERSION}'
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
