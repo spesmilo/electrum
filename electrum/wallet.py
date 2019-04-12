@@ -1242,11 +1242,6 @@ class Abstract_Wallet(AddressSynchronizer):
         return False
 
     def parse_policy_tx(self, tx: transaction.Transaction):
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
         if self.parse_user_onboard_tx(tx):
             return True
         if self.parse_whitelist_tx(tx):
@@ -1295,6 +1290,11 @@ class Abstract_Wallet(AddressSynchronizer):
         except InvalidECPointException:
             return True
 
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
         if not self.is_mine(onboardAddress):
@@ -1321,7 +1321,10 @@ class Abstract_Wallet(AddressSynchronizer):
         if not ephemeral == kyc_pubkey:
             return True
 
-        self.wallet.set_kyc_pubkey(_kyc_pubkey)
+
+        self.set_kyc_pubkey(_kyc_pubkey)
+
+        set_trace()
         return True
 
 
