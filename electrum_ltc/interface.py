@@ -30,6 +30,7 @@ import traceback
 import asyncio
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
+from ipaddress import IPv4Network, IPv6Network, ip_address
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification
@@ -50,6 +51,8 @@ if TYPE_CHECKING:
 
 
 ca_path = certifi.where()
+
+BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
 
 class NetworkTimeout:
@@ -187,6 +190,7 @@ class Interface(PrintError):
         self.network = network
         self._set_proxy(proxy)
         self.session = None  # type: NotificationSession
+        self._ipaddr_bucket = None
 
         self.tip_header = None
         self.tip = 0
@@ -233,10 +237,7 @@ class Interface(PrintError):
         return True
 
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
-        try:
-            ca_signed = await self.is_server_ca_signed(ca_ssl_context)
-        except (OSError, aiorpcx.socks.SOCKSError) as e:
-            raise ErrorGettingSSLCertFromServer(e) from e
+        ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
@@ -278,7 +279,10 @@ class Interface(PrintError):
         # see if we already have cert for this server; or get it for the first time
         ca_sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         if not self._is_saved_ssl_cert_available():
-            await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+            try:
+                await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+            except (OSError, aiorpcx.socks.SOCKSError) as e:
+                raise ErrorGettingSSLCertFromServer(e) from e
         # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
         if siz == 0:
@@ -356,7 +360,7 @@ class Interface(PrintError):
                     break
                 await asyncio.sleep(1)
             else:
-                raise Exception("could not get certificate")
+                raise GracefulDisconnect("could not get certificate after 10 tries")
 
     async def get_certificate(self):
         sslc = ssl.SSLContext()
@@ -395,6 +399,9 @@ class Interface(PrintError):
             return conn, 0
         return conn, res['count']
 
+    def is_main_server(self) -> bool:
+        return self.network.default_server == self.server
+
     async def open_session(self, sslc, exit_early=False):
         async with aiorpcx.Connector(NotificationSession,
                                      host=self.host, port=self.port,
@@ -403,11 +410,14 @@ class Interface(PrintError):
             self.session.interface = self
             self.session.default_timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
             try:
-                ver = await session.send_request('server.version', [version.ELECTRUM_VERSION, version.PROTOCOL_VERSION])
+                ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])
             except aiorpcx.jsonrpc.RPCError as e:
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
+            if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
+                raise GracefulDisconnect(f'too many connected servers already '
+                                         f'in bucket {self.bucket_based_on_ipaddress()}')
             self.print_error("connection established. version: {}".format(ver))
 
             async with self.group as group:
@@ -599,6 +609,39 @@ class Interface(PrintError):
         _assert_header_does_not_check_against_any_chain(bad_header)
         self.print_error("exiting backward mode at", height)
         return height, header, bad, bad_header
+
+    @classmethod
+    def client_name(cls) -> str:
+        return f'electrum/{version.ELECTRUM_VERSION}'
+
+    def is_tor(self):
+        return self.host.endswith('.onion')
+
+    def ip_addr(self) -> Optional[str]:
+        session = self.session
+        if not session: return None
+        peer_addr = session.peer_address()
+        if not peer_addr: return None
+        return peer_addr[0]
+
+    def bucket_based_on_ipaddress(self) -> str:
+        def do_bucket():
+            if self.is_tor():
+                return BUCKET_NAME_OF_ONION_SERVERS
+            ip_addr = ip_address(self.ip_addr())
+            if not ip_addr:
+                return ''
+            if ip_addr.version == 4:
+                slash16 = IPv4Network(ip_addr).supernet(prefixlen_diff=32-16)
+                return str(slash16)
+            elif ip_addr.version == 6:
+                slash48 = IPv6Network(ip_addr).supernet(prefixlen_diff=128-48)
+                return str(slash48)
+            return ''
+
+        if not self._ipaddr_bucket:
+            self._ipaddr_bucket = do_bucket()
+        return self._ipaddr_bucket
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:

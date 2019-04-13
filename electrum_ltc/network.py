@@ -52,13 +52,15 @@ from . import blockchain
 from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import (Interface, serialize_server, deserialize_server,
-                        RequestTimedOut, NetworkTimeout)
+                        RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
+NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_RECENT_SERVERS = 20
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -111,9 +113,11 @@ def filter_protocol(hostmap, protocol='s'):
     return eligible
 
 
-def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap=None, protocol='s', exclude_set=None):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
+    if exclude_set is None:
+        exclude_set = set()
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -381,7 +385,11 @@ class Network(PrintError):
                 addr = ''
             self.donation_address = addr
         async def get_server_peers():
-            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
+            server_peers = await session.send_request('server.peers.subscribe')
+            random.shuffle(server_peers)
+            max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
+            server_peers = server_peers[:max_accepted_peers]
+            self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -595,7 +603,7 @@ class Network(PrintError):
                 await self.switch_lagging_interface()
 
     def _set_oneserver(self, oneserver: bool):
-        self.num_server = 10 if not oneserver else 0
+        self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
         self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
@@ -701,7 +709,7 @@ class Network(PrintError):
         if server in self.recent_servers:
             self.recent_servers.remove(server)
         self.recent_servers.insert(0, server)
-        self.recent_servers = self.recent_servers[0:20]
+        self.recent_servers = self.recent_servers[:NUM_RECENT_SERVERS]
         self._save_recent_servers()
 
     async def connection_down(self, interface: Interface):
@@ -747,6 +755,30 @@ class Network(PrintError):
 
         self._add_recent_server(server)
         self.trigger_callback('network_updated')
+
+    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
+        # main interface is exempt. this makes switching servers easier
+        if iface_to_check.is_main_server():
+            return True
+        # bucket connected interfaces
+        with self.interfaces_lock:
+            interfaces = list(self.interfaces.values())
+        if iface_to_check in interfaces:
+            interfaces.remove(iface_to_check)
+        buckets = defaultdict(list)
+        for iface in interfaces:
+            buckets[iface.bucket_based_on_ipaddress()].append(iface)
+        # check proposed server against buckets
+        onion_servers = buckets[BUCKET_NAME_OF_ONION_SERVERS]
+        if iface_to_check.is_tor():
+            # keep number of onion servers below half of all connected servers
+            if len(onion_servers) > NUM_TARGET_CONNECTED_SERVERS // 2:
+                return False
+        else:
+            bucket = iface_to_check.bucket_based_on_ipaddress()
+            if len(buckets[bucket]) > 0:
+                return False
+        return True
 
     async def _init_headers_file(self):
         b = blockchain.get_best_chain()
@@ -1141,11 +1173,20 @@ class Network(PrintError):
         async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+                # FIXME this should try to honour "healthy spread of connected servers"
                 self._start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
+        async def maintain_healthy_spread_of_connected_servers():
+            with self.interfaces_lock: interfaces = list(self.interfaces.values())
+            random.shuffle(interfaces)
+            for iface in interfaces:
+                if not self.check_interface_against_healthy_spread_of_connected_servers(iface):
+                    self.print_error(f"disconnecting from {iface.server}. too many connected "
+                                     f"servers already in bucket {iface.bucket_based_on_ipaddress()}")
+                    await self._close_interface(iface)
         async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
@@ -1156,6 +1197,7 @@ class Network(PrintError):
             try:
                 await launch_already_queued_up_new_interfaces()
                 await maybe_queue_new_interfaces_to_be_launched_later()
+                await maintain_healthy_spread_of_connected_servers()
                 await maintain_main_interface()
             except asyncio.CancelledError:
                 # suppress spurious cancellations
