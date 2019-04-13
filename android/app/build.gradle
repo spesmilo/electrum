@@ -39,9 +39,8 @@ android {
 
         python {
             pip {
+                install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
                 install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements-android.txt"
-                install "pycryptodomex==3.6.6"
-                install "setuptools==40.6.3"  // pkg_resources is used in android/console.py.
             }
         }
         ndk {

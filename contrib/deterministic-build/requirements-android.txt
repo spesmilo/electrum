@@ -1,14 +1,5 @@
-certifi==2018.4.16
-chardet==3.0.4
-dnspython==1.15.0
-ecdsa==0.13
-idna==2.6
-jsonrpclib-pelix==0.3.1
-protobuf==3.5.2.post1
-pyaes==1.6.1
-PySocks==1.6.8
-qrcode==6.0
-requests==2.18.4
-six==1.11.0
-urllib3==1.22
-
+pycryptodomex==3.6.6 \
+    --hash=sha256:9571b443ac25a40a4cd39ec0c3149e1f07bdde652b220cd23e725e6d0be9f12f \
+    --hash=sha256:22c1f21f5f95f6da92ef8cdf218a01cc2beeb336e62098a9d1a2b78cbe041a50 \
+    --hash=sha256:4a22e5c064f9b36b395492431f9540ec7fa3f044eeceafcfe850021519c930cb \
+    --hash=sha256:05b558187dc5c8aed31a992adfa07cce30197308e17aef97f901aeaee3cb7e3e
