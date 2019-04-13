@@ -10,9 +10,7 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 
 # pinned versions
-PYTHON_VERSION=3.6.8
 PKG2APPIMAGE_COMMIT="83483c2971fcaa1cb0c1253acd6c731ef8404381"
-LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 
 VERSION=`git describe --tags --dirty --always`
@@ -187,7 +185,7 @@ rm "$APPDIR"/usr/lib/python3.6/site-packages/pyblake2-*.dist-info/RECORD
 rm "$APPDIR"/usr/lib/python3.6/site-packages/hidapi-*.dist-info/RECORD
 
 
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
 
 info "Creating the AppImage"
@@ -195,7 +193,7 @@ info "Creating the AppImage"
     cd "$BUILDDIR"
     chmod +x "$CACHEDIR/appimagetool"
     "$CACHEDIR/appimagetool" --appimage-extract
-    env VERSION="$VERSION" ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
+    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
 )
 
 
