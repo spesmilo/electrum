@@ -247,16 +247,18 @@ class cachedproperty:
         setattr(obj, self.f.__name__, value)
         return value
 
-class Monotonic(int):
-    ''' Returns a monotonically increasing int each time its default c'tor
-    is called. Thread-safe.'''
-    _i = 0
-    _lock = threading.Lock()
-    def __new__(cls):
-        with cls._lock:
-            try: return cls._i
-            finally: cls._i += 1
-_human_readable_thread_ids = defaultdict(Monotonic)
+class Monotonic:
+    ''' Returns a monotonically increasing int each time an instance is called
+    as a function. Thread-safe.'''
+    __slots__ = ('_i', '_lock')
+    def __init__(self):
+        self._i = 0
+        self._lock = threading.Lock()
+    def __call__(self):
+        with self._lock:
+            try: return self._i
+            finally: self._i += 1
+_human_readable_thread_ids = defaultdict(Monotonic())
 _t0 = time.time()
 def print_error(*args):
     if not is_verbose: return
