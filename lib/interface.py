@@ -216,7 +216,9 @@ class TcpConnection(threading.Thread, util.PrintError):
                         b = pem.dePem(cert, 'CERTIFICATE')
                         x = x509.X509(b)
                     except:
-                        traceback.print_exc(file=sys.stderr)
+                        if util.is_verbose:
+                            self.print_error("Error checking certificate, traceback follows")
+                            traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
                         return
                     try:
@@ -240,7 +242,9 @@ class TcpConnection(threading.Thread, util.PrintError):
         try:
             socket = self.get_socket()
         except OSError:
-            traceback.print_exc()
+            if util.is_verbose:
+                self.print_error("Error getting socket, traceback follows")
+                traceback.print_exc(file=sys.stderr)
             socket = None
 
         if socket:
@@ -276,9 +280,9 @@ class Interface(util.PrintError):
         self.unanswered_requests = {}
         self.last_send = time.time()
         self.closed_remotely = False
-        
+
         self.mode = None
-        
+
     def __repr__(self):
         return "<{}.{} {}>".format(__name__, type(self).__name__, self.format_address())
 
@@ -390,7 +394,9 @@ def check_cert(host, cert):
         b = pem.dePem(cert, 'CERTIFICATE')
         x = x509.X509(b)
     except:
-        traceback.print_exc(file=sys.stdout)
+        if util.is_verbose:
+            print_error("Error checking certificate, traceback follows")
+            traceback.print_exc(file=sys.stderr)
         return
 
     try:
