@@ -251,7 +251,7 @@ class cachedproperty:
 class Monotonic:
     ''' Returns a monotonically increasing int each time an instance is called
     as a function. Optionally thread-safe.'''
-    __slots__ = ('__call__')
+    __slots__ = ('__call__',)
     def __init__(self, locking=False):
         counter = itertools.count()
         self.__call__ = incr = lambda: next(counter)
