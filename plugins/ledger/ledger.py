@@ -5,8 +5,8 @@ import traceback
 import inspect
 
 from electroncash import bitcoin
-from electroncash.address import Address
-from electroncash.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electroncash.address import Address, OpCodes
+from electroncash.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT, int_to_hex, var_int
 from electroncash.i18n import _
 from electroncash.plugins import BasePlugin
 from electroncash.keystore import Hardware_KeyStore
@@ -394,8 +394,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for _type, address, amount in tx.outputs():
-                if not _type == TYPE_ADDRESS:
-                    self.give_error(_("Only address outputs are supported by {}").format(self.name))
+                if self.get_client_electrum().is_hw1():
+                    if not _type == TYPE_ADDRESS:
+                        self.give_error(_("Only address outputs are supported by {}").format(self.hw_type))
+                else:
+                    if not _type in [TYPE_ADDRESS, TYPE_SCRIPT]:
+                        self.give_error(_("Only address and script outputs are supported by {}").format(self.hw_type))
+                    if _type == TYPE_SCRIPT and not address.script[0] == OpCodes.OP_RETURN:
+                        self.give_error(_("Only OP_RETURN script outputs are supported by {}").format(self.hw_type))
                 info = tx.output_info.get(address)
                 if (info is not None) and len(tx.outputs()) > 1 \
                         and not has_change:
