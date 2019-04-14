@@ -79,6 +79,7 @@ class _ExpiringCacheMgr(PrintError):
     _instance = None
     tick = 0
     tick_interval = 10.0  # seconds; we wake up this often to update 'tick' and also to expire old items for overflowing caches
+    debug = False  # If true we print to console when caches expire and go away
 
     def __init__(self, add_iter=None):
         cls = type(self)
@@ -118,9 +119,11 @@ class _ExpiringCacheMgr(PrintError):
             slf = cls._instance
             assert slf.thread.is_alive()
             slf.livect -= 1 # we need to keep this counter because the weak set doesn't have the correct length at this point yet.
-            slf.print_error("Cache '{}' has been gc'd, {} still alive".format(name, slf.livect))
+            if cls.debug:
+                slf.print_error("Cache '{}' has been gc'd, {} still alive".format(name, slf.livect))
             if not slf.livect:  # all caches have been gc'd, kill the thread
-                slf.print_error("No more caches, stopping manager thread and removing singleton")
+                if cls.debug:
+                    slf.print_error("No more caches, stopping manager thread and removing singleton")
                 slf.q.put(None)  # signal thread to stop
                 thread2join = slf.thread
                 cls._instance = None  # kill self.
@@ -149,7 +152,8 @@ class _ExpiringCacheMgr(PrintError):
                         tf = time.time()
                         self.print_error("{}: flushed {} items in {:.02f} msec".format(c.name, num,(tf-t0)*1e3))
         finally:
-            self.print_error("thread exit")
+            if cls.debug:
+                self.print_error("thread exit")
 
     @classmethod
     def _try_to_expire_old_items(cls, d_orig, num):
