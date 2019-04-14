@@ -31,6 +31,7 @@ import threading
 import hmac
 import stat
 import inspect, weakref
+import itertools
 from locale import localeconv
 
 from .i18n import _
@@ -249,21 +250,25 @@ class cachedproperty:
 
 class Monotonic:
     ''' Returns a monotonically increasing int each time an instance is called
-    as a function. Thread-safe.'''
-    __slots__ = ('_i', '_lock')
-    def __init__(self):
-        self._i = 0
-        self._lock = threading.Lock()
-    def __call__(self):
-        with self._lock:
-            try: return self._i
-            finally: self._i += 1
-_human_readable_thread_ids = defaultdict(Monotonic())
+    as a function. Optionally thread-safe.'''
+    __slots__ = ('_counter', '__call__')
+    def __init__(self, locking=False):
+        self._counter = itertools.count()
+        self.__call__ = incr = lambda: next(self._counter)
+        if locking:
+            lock = threading.Lock()
+            def incr_with_lock():
+                with lock: return incr()
+            self.__call__ = incr_with_lock
+
+_human_readable_thread_ids = defaultdict(Monotonic(locking=False))  # locking not needed on Monotonic instance as we lock the dict anyway
+_human_readable_thread_ids_lock = threading.Lock()
 _t0 = time.time()
 def print_error(*args):
     if not is_verbose: return
     if verbose_thread_id:
-        args = ("|%02d|"%_human_readable_thread_ids[threading.get_ident()], *args)
+        with _human_readable_thread_ids_lock:
+            args = ("|%02d|"%_human_readable_thread_ids[threading.get_ident()], *args)
     if verbose_timestamps:
         args = ("|%7.3f|"%(time.time() - _t0), *args)
     print_stderr(*args)
