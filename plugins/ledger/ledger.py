@@ -148,10 +148,10 @@ class Ledger_Client():
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
-            firmware = firmwareInfo['version']
-            self.bitcoinCashSupported = versiontuple(firmware) >= BITCOIN_CASH_SUPPORT or \
-                self.is_hw1() and versiontuple(firmware) >= BITCOIN_CASH_SUPPORT_HW1
-            self.cashaddrFWSupported = versiontuple(firmware) >= CASHADDR_SUPPORT
+            firmwareVersion = versiontuple(firmwareInfo['version'])
+            self.bitcoinCashSupported = firmwareVersion >= BITCOIN_CASH_SUPPORT or \
+                self.is_hw1() and firmwareVersion >= BITCOIN_CASH_SUPPORT_HW1
+            self.cashaddrFWSupported = firmwareVersion >= CASHADDR_SUPPORT
 
             if not checkFirmware(firmwareInfo) or not self.supports_bitcoin_cash():
                 self.dongleObject.dongle.close()
