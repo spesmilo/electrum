@@ -760,6 +760,8 @@ class Network(PrintError):
         # main interface is exempt. this makes switching servers easier
         if iface_to_check.is_main_server():
             return True
+        if not iface_to_check.bucket_based_on_ipaddress():
+            return True
         # bucket connected interfaces
         with self.interfaces_lock:
             interfaces = list(self.interfaces.values())

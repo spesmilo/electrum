@@ -628,7 +628,10 @@ class Interface(PrintError):
         def do_bucket():
             if self.is_tor():
                 return BUCKET_NAME_OF_ONION_SERVERS
-            ip_addr = ip_address(self.ip_addr())
+            try:
+                ip_addr = ip_address(self.ip_addr())
+            except ValueError:
+                return ''
             if not ip_addr:
                 return ''
             if ip_addr.version == 4:
