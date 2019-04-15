@@ -355,3 +355,39 @@ and there is no warning message.
   is hoped it will assist users in troubleshooting. (#1244, #1251) (Axel Gembe)
 * HW Wallets: Show proper error message when trying to sign a tx with OP_RETURN
   (#1254) (Axel Gembe)
+
+# Release 4.0.2
+
+* Set the gap limit for change from 6 to 20. This is because we realized
+  CashShuffle wallets already behave as if the gap limit were 12 (reserving
+  addresses as they shuffle).  We just made it official. (Mark Lundeberg)
+* Ledger HW Wallet: Added support for OP_RETURN and also multiple transaction
+  outputs (on devices that support it). Code mainly taken from Electrum but
+  adapted and modified by us. (Axel Gembe)
+* Added Linux AppImage builds -- these builds are self-contained binaries with
+  everything rolled into a single file.  It should make it much easier for
+  Linux users not wishing to install dependencies to simply run Electron Cash.
+  Based off Electrum's implementation, with our own customizations. (cculianu)
+* OSX: Made the DMG release use a "fancy" dmg with graphics and a symlink to
+  /Applications as is customary on macOS. (cculianu)
+* Lib: Fixed a potential crash bug if the server sends bad data to the client.
+  (cculianu)
+* Deprecated support for Python 3.5.  Electron Cash now requires Python 3.6+.
+* CLI: Added -x/--disable_preferred_servers command-line option (#1222)
+  (cculianu)
+* CLI: encrypt/decrypt commands were broken. They are now working. (#1270)
+  (cculianu)
+* Disabled all fee estimates in the codebase.  They are useless on BCH anyway
+  and were a holdover from our BTC roots.  BCH tx's always confirm next block
+  if they pay the minimum 1.0 sats/B fee anyway.  Fee estimates are not needed.
+  Also disabled the "Estimated confirmation time:" label from the Transaction
+  Dialog winow.  This is not informative either for similar reasons. (cculianu)
+* Hardened build system against dependency vulnerabilities (cculianu)
+* Fixed bug when Coins -> "Spend" and you right-click in the Send tab's
+  coins area. (#1269) (Mark Lundeberg)
+* Winows: Added some missing OpenGL libs to the built package.  Qt will now
+  use OpenGL or fall back to ANGLE (GL -> D3D translation layer) or software
+  rendering. The fallbacks help with buggy drivers. (cculianu, Axel Gembe)
+* Fixed Tx Dialog breaking on esoteric scriptsigs (#1263) (Mark Lundeberg)
+* Strip whitespace when copying various right-click -> "Copy Amount" to the
+  clipboard. (cculianu)
