@@ -90,7 +90,7 @@ class OceanTestnet(OceanMainnet):
     CHECKPOINTS = []
     ADDRTYPE_P2PKH = 235
     ADDRTYPE_P2SH = 75               
-    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
+    GENESIS = "5ab1cb43487f39b1e279683418ca6c144da720ed7340e4df85b5f6fc6148a187"
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv
