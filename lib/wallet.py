@@ -180,7 +180,7 @@ class Abstract_Wallet(PrintError):
         # Python's GIL makes thread-safe implicitly).
         self._addr_bal_cache = {}
 
-        self.gap_limit_for_change = 6 # constant
+        self.gap_limit_for_change = 20 # constant
         # saved fields
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
