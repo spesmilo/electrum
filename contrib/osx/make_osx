@@ -94,7 +94,7 @@ PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 # We use a hashed requirements file for even the build tools to prevent
 # dependency attacks even in the build process
 info "Installing dmgbuild, requests, and other build tools we need..."
-python3 -m pip install -I --user -r $build_dir/requirements-osx-build.txt \
+python3 -m pip install -I --user -r contrib/osx/requirements-osx-build.txt \
     || fail "Could not install osx-requirements"
 
 # We use a custom PyInstaller that has deep codesigning as well as AppleEvents
