@@ -52,8 +52,8 @@ class HW_PluginBase(BasePlugin):
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
 
-def is_any_tx_output_on_change_branch(tx: Transaction):
-    if not getattr(tx, 'output_info', None):
+def is_any_tx_output_on_change_branch(tx: Transaction) -> bool:
+    if not tx.output_info:
         return False
     for o in tx.outputs():
         info = tx.output_info.get(o[1])

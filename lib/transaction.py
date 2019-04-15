@@ -425,6 +425,12 @@ class Transaction:
         self.locktime = 0
         self.version = 1
 
+        # attribute used by HW wallets to tell the hw keystore about any outputs
+        # in the tx that are to self (change), etc. See wallet.py add_hw_info
+        # which writes to this dict and the various hw wallet plugins which
+        # read this dict.
+        self.output_info = dict()
+
         # Ephemeral meta-data used internally to keep track of interesting things.
         # This is currently written-to by coinchooser to tell UI code about 'dust_to_fee', which
         # is change that's too small to go to change outputs (below dust threshold) and needed
