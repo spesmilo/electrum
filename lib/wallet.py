@@ -197,10 +197,14 @@ class Abstract_Wallet(PrintError):
         history = storage.get('addr_history',{})
         self._history = self.to_Address_dict(history)
 
-        self.load_keystore()
-        self.load_addresses()
-        self.load_transactions()
-        self.build_reverse_history()
+        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
+        # interface.is_up_to_date() returns true when all requests have been answered and processed
+        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
+        self.up_to_date = False
+
+        # locks: if you need to take multiple ones, acquire them in the order they are defined here!
+        self.lock = threading.RLock()
+        self.transaction_lock = threading.RLock()
 
         # load requests
         requests = self.storage.get('payment_requests', {})
@@ -217,16 +221,6 @@ class Abstract_Wallet(PrintError):
         # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
         self.verified_tx = storage.get('verified_tx3', {})
 
-        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
-        # interface.is_up_to_date() returns true when all requests have been answered and processed
-        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-        self.up_to_date = False
-        # locks: if you need to take multiple ones, acquire them in the order they are defined here!
-        self.lock = threading.RLock()
-        self.transaction_lock = threading.RLock()
-
-        self.check_history()
-
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
@@ -234,6 +228,14 @@ class Abstract_Wallet(PrintError):
         # invoices and contacts
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
+
+        # Now, finally, after object is constructed -- we can do this
+        self.load_keystore()
+        self.load_addresses()
+        self.load_transactions()
+        self.build_reverse_history()
+
+        self.check_history()
 
         # Print debug message on finalization
         finalization_print_error(self, "[{}/{}] finalized".format(__class__.__name__, self.diagnostic_name()))
