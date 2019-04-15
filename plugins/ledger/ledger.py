@@ -5,13 +5,14 @@ import traceback
 import inspect
 
 from electroncash import bitcoin
-from electroncash.address import Address
-from electroncash.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electroncash.address import Address, OpCodes
+from electroncash.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT, int_to_hex, var_int
 from electroncash.i18n import _
 from electroncash.plugins import BasePlugin
 from electroncash.keystore import Hardware_KeyStore
 from electroncash.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electroncash.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
@@ -34,6 +35,7 @@ MSG_NEEDS_SW_UPDATE_CASHADDR = _('python-btchip is too old for CashAddr support.
 BITCOIN_CASH_SUPPORT_HW1 = (1, 0, 4)
 BITCOIN_CASH_SUPPORT = (1, 1, 8)
 CASHADDR_SUPPORT = (1, 2, 5)
+MULTI_OUTPUT_SUPPORT = (1, 1, 4)
 
 def test_pin_unlocked(func):
     """Function decorator to test the Ledger for being unlocked, and if not,
@@ -145,13 +147,17 @@ class Ledger_Client():
     def supports_cashaddr(self):
         return self.fw_supports_cashaddr() and self.sw_supports_cashaddr()
 
+    def supports_multi_output(self):
+        return self.multiOutputSupported
+
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
-            firmware = firmwareInfo['version']
-            self.bitcoinCashSupported = versiontuple(firmware) >= BITCOIN_CASH_SUPPORT or \
-                self.is_hw1() and versiontuple(firmware) >= BITCOIN_CASH_SUPPORT_HW1
-            self.cashaddrFWSupported = versiontuple(firmware) >= CASHADDR_SUPPORT
+            firmwareVersion = versiontuple(firmwareInfo['version'])
+            self.bitcoinCashSupported = firmwareVersion >= BITCOIN_CASH_SUPPORT or \
+                self.is_hw1() and firmwareVersion >= BITCOIN_CASH_SUPPORT_HW1
+            self.cashaddrFWSupported = firmwareVersion >= CASHADDR_SUPPORT
+            self.multiOutputSupported = firmwareVersion >= MULTI_OUTPUT_SUPPORT
 
             if not checkFirmware(firmwareInfo) or not self.supports_bitcoin_cash():
                 self.dongleObject.dongle.close()
@@ -333,9 +339,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         signatures = []
         preparedTrustedInputs = []
         changePath = ""
-        changeAmount = None
         output = None
-        outputAmount = None
         p2shTransaction = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
@@ -380,19 +384,38 @@ class Ledger_KeyStore(Hardware_KeyStore):
             txOutput += script
         txOutput = bfh(txOutput)
 
-        # Recognize outputs - only one output and one change is authorized
+        # Recognize outputs
+        # - only one output and one change is authorized (for hw.1 and nano)
+        # - at most one output can bypass confirmation (~change) (for all)
         if not p2shTransaction:
+            if not self.get_client_electrum().supports_multi_output():
+                if len(tx.outputs()) > 2:
+                    self.give_error("Transaction with more than 2 outputs not supported")
+            has_change = False
+            any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for _type, address, amount in tx.outputs():
-                if not _type == TYPE_ADDRESS:
-                    self.give_error(_("Only address outputs are supported by {}").format(self.name))
+                if self.get_client_electrum().is_hw1():
+                    if not _type == TYPE_ADDRESS:
+                        self.give_error(_("Only address outputs are supported by {}").format(self.hw_type))
+                else:
+                    if not _type in [TYPE_ADDRESS, TYPE_SCRIPT]:
+                        self.give_error(_("Only address and script outputs are supported by {}").format(self.hw_type))
+                    if _type == TYPE_SCRIPT and not address.script[0] == OpCodes.OP_RETURN:
+                        self.give_error(_("Only OP_RETURN script outputs are supported by {}").format(self.hw_type))
                 info = tx.output_info.get(address)
-                if (info is not None) and (len(tx.outputs()) != 1):
+                if (info is not None) and len(tx.outputs()) > 1 \
+                        and not has_change:
                     index, xpubs, m = info
-                    changePath = self.get_derivation()[2:] + "/{:d}/{:d}".format(*index)
-                    changeAmount = amount
+                    on_change_branch = index[0] == 1
+                    # prioritise hiding outputs on the 'change' branch from user
+                    # because no more than one change address allowed
+                    if on_change_branch == any_output_on_change_branch:
+                        changePath = self.get_derivation()[2:] + "/{:d}/{:d}".format(*index)
+                        has_change = True
+                    else:
+                        output = address
                 else:
                     output = address
-                    outputAmount = amount
 
         self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:

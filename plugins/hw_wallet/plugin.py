@@ -26,7 +26,7 @@
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-
+from electroncash import Transaction
 
 class HW_PluginBase(BasePlugin):
     # Derived classes provide:
@@ -51,3 +51,13 @@ class HW_PluginBase(BasePlugin):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
+
+def is_any_tx_output_on_change_branch(tx: Transaction):
+    if not getattr(tx, 'output_info', None):
+        return False
+    for o in tx.outputs():
+        info = tx.output_info.get(o[1])
+        if info is not None:
+            if info[0][0] == 1:
+                return True
+    return False
