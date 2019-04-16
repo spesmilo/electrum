@@ -43,9 +43,6 @@ mainnet_block_explorers = {
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                        Address.FMT_CASHADDR,
                        {'tx': 'transaction', 'addr': 'address'}),
-    'Blocktrail.com': ('https://blocktrail.com/BCC',
-                       Address.FMT_LEGACY,
-                       {'tx': 'tx', 'addr': 'address'}),
     'BTC.com': ('https://bch.btc.com',
                        Address.FMT_CASHADDR,
                        {'tx': '', 'addr': ''}),
@@ -57,9 +54,6 @@ mainnet_block_explorers = {
 DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
 
 testnet_block_explorers = {
-    'Blocktrail.com': ('https://www.blocktrail.com/tBCC',
-                       Address.FMT_LEGACY,
-                       {'tx': 'tx', 'addr': 'address'}),
     'Bitcoin.com'   : ('https://explorer.bitcoin.com/tbch',
                        Address.FMT_LEGACY,  # For some reason testnet expects legacy and fails on bchtest: addresses.
                        {'tx': 'tx', 'addr': 'address'}),
