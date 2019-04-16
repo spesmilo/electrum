@@ -2933,16 +2933,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def get_priv_keys():
             return keystore.get_private_keys(keys_e.toPlainText())
 
+        def has_bip38_keys():
+            keys = [k for k in keys_e.toPlainText().split() if k]
+            return any(bitcoin.is_bip38_key(k) for k in keys)
 
         def enable_sweep():
-            try:
-                sweepok = bool(get_address_text() and get_priv_keys())
-                hasbip38 = False
-            except ValueError as e:
-                if e.args != ('bip38',):
-                    raise
-                sweepok = False
-                hasbip38 = True
+            hasbip38 = has_bip38_keys()
+            sweepok = bool(get_address_text() and not hasbip38 and get_priv_keys())
             sweep_button.setEnabled(sweepok)
             bip38_warn_label.setHidden(not hasbip38)
 

@@ -1121,7 +1121,7 @@ class Bip38Key:
             cls(bip38_enc_key, net=net)
             return True # if we get to this point the key was successfully decoded.
         except cls.Error as e:
-            print_error("[Bip38Key.isBip38] {}:".format(bip38_enc_key), e)
+            #print_error("[Bip38Key.isBip38] {}:".format(bip38_enc_key), e)
             return False
 
     @staticmethod
