@@ -722,9 +722,6 @@ def get_private_keys(text):
     # for each line, remove all whitespace
     parts = list(filter(bool, (''.join(x.split()) for x in parts)))
 
-    if any(x.startswith('6P') for x in parts):
-        raise ValueError('bip38')
-
     if parts and all(bitcoin.is_private_key(x) for x in parts):
         return parts
 

@@ -64,6 +64,9 @@ except:
 class InvalidPadding(Exception):
     pass
 
+class KeyIsBip38Error(ValueError):
+    ''' Raised by deserialize_privkey to signify a key is a bip38 encrypted
+    '6P' key. '''
 
 def append_PKCS7_padding(data):
     assert_bytes(data)
@@ -426,14 +429,19 @@ def serialize_privkey(secret, compressed, txin_type, *, net=None):
 
 
 def deserialize_privkey(key, *, net=None):
+    ''' Returns the deserialized key if kye is a WIF key (non bip38), raises
+    otherwise. '''
     # whether the pubkey is compressed should be visible from the keystore
     if net is None: net = networks.net
     vch = DecodeBase58Check(key)
+    if is_bip38_key(key):
+        raise KeyIsBip38Error('bip38')
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), False
     elif vch:
         txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - net.WIF_PREFIX]
-        assert len(vch) in [33, 34]
+        if len(vch) not in (33, 34):  # We do it this way because eg iOS runs with PYTHONOPTIMIZE=1
+            raise AssertionError('Key {} has invalid length'.format(key))
         compressed = len(vch) == 34
         return txin_type, vch[1:33], compressed
     else:
@@ -469,6 +477,7 @@ def address_from_private_key(sec, *, net=None):
     return pubkey_to_address(txin_type, public_key, net=net)
 
 def is_private_key(key, *, net=None):
+    ''' Returns True if key is a WIF key (and also non bip38) '''
     if net is None: net = networks.net
     try:
         k = deserialize_privkey(key, net=net)
@@ -952,6 +961,12 @@ def is_bip38_available(require_fast=True):
         return False
     return True
 
+def is_bip38_key(bip38str, *, net=None):
+    ''' Returns True iff the '6P...' passed-in string is a valid Bip38 encrypted
+    key. False otherwise.  Does not require is_bip38_available to return a valid
+    result. '''
+    return Bip38Key.isBip38(bip38str, net=net)
+
 def bip38_decrypt(enc_key, password, *, require_fast=True, net=None):
     ''' Pass a bip38 key eg '6PnQ46rtBGW4XuiudqinAZYobT4Aa8GdtYkjG1LvXK3RBq6ARJA3txjj21'
     and a password. Both should be str's. Returns a tuple of:
@@ -1054,6 +1069,8 @@ class Bip38Key:
         pass
 
     def __init__(self, enc, *, net=None):
+        if isinstance(enc, (bytearray, bytes)):
+            enc = enc.decode('ascii')
         assert isinstance(enc, str), "Bip38Key must be instantiated with an encrypted bip38 key string!"
         if not enc.startswith('6P'):
             raise Bip38Key.DecodeError("Provided bip38 key string appears to not be valid. Expected a '6P' prefix!")
@@ -1098,10 +1115,10 @@ class Bip38Key:
         return "UnknownKey"
 
     @classmethod
-    def isBip38(cls, bip38_enc_key):
+    def isBip38(cls, bip38_enc_key, *, net=None):
         ''' Returns true if the encryped key string is a valid bip38 key. '''
         try:
-            cls(bip38_enc_key)
+            cls(bip38_enc_key, net=net)
             return True # if we get to this point the key was successfully decoded.
         except cls.Error as e:
             print_error("[Bip38Key.isBip38] {}:".format(bip38_enc_key), e)
