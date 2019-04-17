@@ -409,7 +409,7 @@ class CoinUtils(PrintError):
                          If none, will grab wallet.transactions.
 
             We define a shuffled output as:
-              - being in a tx where there are at least 2 other outputs of the same amount
+              - being in a tx where there are at least 3 other outputs of the same amount
               - being in a tx where if you group the outputs by amount, the utxo in question
                 belongs to the longest (or tied for longest) group.
               - all output addresses for this group must be different/unique.

@@ -336,11 +336,14 @@ def _got_tx_check_if_spent_shuffled_coin_and_freeze_used_address_etc(window, tx)
                 # Freeze that address to protect privacy.
                 addrs_to_freeze.add(addr)
     if addrs_to_freeze:
-        wallet.set_frozen_state(addrs_to_freeze, True)
-        for addr in addrs_to_freeze:
-            name = addr.to_storage_string()
-            if not wallet.labels.get(name):
-                wallet.set_label(name, _("Shuffled coin spent (frozen for privacy)"))
+        change_addr_set = set(wallet.get_change_addresses())
+        addrs_to_freeze2 = addrs_to_freeze & change_addr_set  # we *ONLY* freeze if change address. see #1291
+        if addrs_to_freeze2:
+            wallet.set_frozen_state(addrs_to_freeze2, True)
+            for addr in addrs_to_freeze2:
+                name = addr.to_storage_string()
+                if not wallet.labels.get(name):  # only put a label in there if no label there already
+                    wallet.set_label(name, _("Shuffled coin spent (frozen for privacy)"))
     # the below is to prevent the "is_shuffled_cache" from growing forever which
     # impacts performance and wastes memory.  Since we were checking a seen TX
     # anyway, might as well expire coins from the cache that were spent.
