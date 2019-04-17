@@ -44,6 +44,16 @@ If you cloned the git repository, you need to compile extra files
 before you can run Electron Cash. Read the next section, "Development
 Version".
 
+Hardware Wallet - Ledger Nano S
+-------------------------------
+
+Electron Cash natively support Ledger Nano S hardware wallet. If you plan to use
+you need an additional dependency, namely btchip. To install it run this command::
+
+    sudo pip3 install btchip-python
+
+If you still have problems connecting to your Nano S please have a look at this
+`troubleshooting <https://support.ledger.com/hc/en-us/articles/115005165269-Fix-connection-issues>` section on Ledger website.
 
 
 Development version
