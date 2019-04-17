@@ -1,4 +1,4 @@
-
+# -*- mode: python3 -*-
 import os
 import sys
 import threading
@@ -17,6 +17,7 @@ from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import *
 from .password_dialog import PasswordLayout, PW_NEW
+from .bip38_importer import Bip38Importer
 
 
 class GoBack(Exception):
@@ -347,6 +348,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
+
+    def bip38_prompt_for_pw(self, bip38_keys):
+        ''' Reimplemented from basewizard superclass. Expected to return the pw
+        dict or None. '''
+        d = Bip38Importer(bip38_keys, parent=self.top_level_window())
+        res = d.exec_()
+        d.setParent(None)  # python GC quicker if this happens
+        return d.decoded_keys  # dict will be empty if user cancelled
 
     @wizard_dialog
     def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False):

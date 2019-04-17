@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# -*- mode: python3 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
@@ -429,7 +430,7 @@ def serialize_privkey(secret, compressed, txin_type, *, net=None):
 
 
 def deserialize_privkey(key, *, net=None):
-    ''' Returns the deserialized key if kye is a WIF key (non bip38), raises
+    ''' Returns the deserialized key if key is a WIF key (non bip38), raises
     otherwise. '''
     # whether the pubkey is compressed should be visible from the keystore
     if net is None: net = networks.net

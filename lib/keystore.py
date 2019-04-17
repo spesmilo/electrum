@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- mode: python -*-
+# -*- mode: python3 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2016  The Electrum developers
@@ -716,18 +716,27 @@ def is_address_list(text):
     return parts and all(Address.is_valid(x) for x in parts)
 
 
-def get_private_keys(text):
+def get_private_keys(text, *, allow_bip38=False):
+    ''' Returns the list of WIF private keys parsed out of text (whitespace
+    delimiited).
+    Note that if any of the tokens in text are invalid, will return None.
+    Optionally allows for bip38 encrypted WIF keys. Requires fast bip38. '''
     # break by newline
     parts = text.split('\n')
     # for each line, remove all whitespace
     parts = list(filter(bool, (''.join(x.split()) for x in parts)))
 
-    if parts and all(bitcoin.is_private_key(x) for x in parts):
+    if parts and all((bitcoin.is_private_key(x)
+                        or (allow_bip38
+                            and bitcoin.is_bip38_available()
+                            and bitcoin.is_bip38_key(x) )
+                     )
+                     for x in parts):
         return parts
 
 
-def is_private_key_list(text):
-    return bool(get_private_keys(text))
+def is_private_key_list(text, *, allow_bip38=False):
+    return bool(get_private_keys(text, allow_bip38=allow_bip38))
 
 
 is_mpk = lambda x: is_old_mpk(x) or is_xpub(x)

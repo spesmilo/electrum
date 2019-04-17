@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# -*- mode: python3 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2016 Thomas Voegtlin
@@ -130,16 +131,32 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def import_addresses_or_keys(self):
-        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
+        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, allow_bip38=True)
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin Cash addresses (this will create a watching-only wallet), or a list of private keys.")
+        if bitcoin.is_bip38_available():
+            message += " " + _("BIP38 encrpted keys are supported.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True)
+
+    def bip38_prompt_for_pw(self, bip38_keys):
+        ''' Implemented in Qt InstallWizard subclass '''
+        raise NotImplemented('bip38_prompt_for_pw not implemented')
 
     def on_import(self, text):
         if keystore.is_address_list(text):
             self.wallet = ImportedAddressWallet.from_text(self.storage, text)
-        elif keystore.is_private_key_list(text):
+        elif keystore.is_private_key_list(text, allow_bip38=True):
+
+            bip38_keys = [k for k in text.split() if k and bitcoin.is_bip38_key(k)]
+            if bip38_keys:
+                decrypted = self.bip38_prompt_for_pw(bip38_keys)
+                if not decrypted:
+                    self.go_back()
+                    return
+                for b38, tup in decrypted.items():
+                    wif, adr = tup
+                    text = text.replace(b38, wif)  # kind of a hack.. but works. replace the bip38 key with the wif key in the text.
 
             self.wallet = ImportedPrivkeyWallet.from_text(self.storage, text,
                                                           None)

@@ -2910,7 +2910,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
-        bip38_warn_label = QLabel(_("<b>ERROR: Electron Cash does not support import of passworded BIP38 private keys (private keys starting in 6P...).</b> Decrypt keys to WIF format (starting with 5, K, or L) in order to sweep."))
+        bip38_warn_label = QLabel(_("<b>BIPI38 support is disabled because a requisite library is not installed.</b> Please install 'cryptodomex' or omit BIP38 private keys (private keys starting in 6P...). Decrypt keys to WIF format (starting with 5, K, or L) in order to sweep."))
         bip38_warn_label.setWordWrap(True)
         bip38_warn_label.setHidden(True)
         vbox.addWidget(bip38_warn_label)
@@ -2931,17 +2931,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return addr_combo.currentText()
 
         def get_priv_keys():
-            return keystore.get_private_keys(keys_e.toPlainText())
+            return keystore.get_private_keys(keys_e.toPlainText(), allow_bip38=True)
 
-        def has_bip38_keys():
+        def has_bip38_keys_but_no_bip38():
+            if bitcoin.is_bip38_available():
+                return False
             keys = [k for k in keys_e.toPlainText().split() if k]
             return any(bitcoin.is_bip38_key(k) for k in keys)
 
         def enable_sweep():
-            hasbip38 = has_bip38_keys()
-            sweepok = bool(get_address_text() and not hasbip38 and get_priv_keys())
+            bad_bip38 = has_bip38_keys_but_no_bip38()
+            sweepok = bool(get_address_text() and not bad_bip38 and get_priv_keys())
             sweep_button.setEnabled(sweepok)
-            bip38_warn_label.setHidden(not hasbip38)
+            bip38_warn_label.setHidden(not bad_bip38)
 
         keys_e.textChanged.connect(enable_sweep)
         enable_sweep()
@@ -2952,7 +2954,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         try:
             self.do_clear()
-            coins, keypairs = sweep_preparations(get_priv_keys(), self.network)
+            keys = get_priv_keys()
+            bip38s = {}
+            for i, k in enumerate(keys):
+                if bitcoin.is_bip38_key(k):
+                    bip38s[k] = i
+            if bip38s:
+                # For all the BIP38s detected, prompt for password
+                from .bip38_importer import Bip38Importer
+                d = Bip38Importer(bip38s.keys(), parent=self.top_level_window())
+                d.exec_()
+                d.setParent(None)
+                if d.decoded_keys:
+                    for k,tup in d.decoded_keys.items():
+                        wif, adr = tup
+                        # rewrite the keys they specified with the decrypted WIF in the keys list for sweep_preparations to work below...
+                        i = bip38s[k]
+                        keys[i] = wif
+                else:
+                    self.show_message(_("User cancelled"))
+                    return
+            coins, keypairs = sweep_preparations(keys, self.network)
             self.tx_external_keypairs = keypairs
             self.payto_e.setText(get_address_text())
             self.spend_coins(coins)
@@ -3001,7 +3023,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_privkey():
             return
         title, msg = _('Import private keys'), _("Enter private keys")
-        self._do_import(title, msg, lambda x: self.wallet.import_private_key(x, password))
+        def func(key):
+            if bitcoin.is_bip38_available() and bitcoin.is_bip38_key(key):
+                from .bip38_importer import Bip38Importer
+                d = Bip38Importer([key], parent=self.top_level_window(),
+                    message = _('A BIP38 key was specified, please enter a password to decrypt it'),
+                    show_count = False)
+                d.exec_()
+                d.setParent(None)  # python GC quicker if this happens
+                if d.decoded_keys:
+                    wif, adr = d.decoded_keys[key]
+                    return self.wallet.import_private_key(wif, password)
+                else:
+                    raise util.UserCancelled()
+            else:
+                return self.wallet.import_private_key(key, password)
+        self._do_import(title, msg, func)
 
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()
