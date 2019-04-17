@@ -2914,7 +2914,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         bip38_warn_label.setWordWrap(True)
         bip38_warn_label.setHidden(True)
         vbox.addWidget(bip38_warn_label)
-        vbox.addWidget(QLabel(_("Enter private keys:")))
+        extra = ""
+        if bitcoin.is_bip38_available():
+            extra += " " + _('or BIP38 keys')
+        vbox.addWidget(QLabel(_("Enter private keys") + extra + " :"))
 
         keys_e = ScanQRTextEdit(allow_multi=True)
         keys_e.setTabChangesFocus(True)
@@ -3023,6 +3026,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_privkey():
             return
         title, msg = _('Import private keys'), _("Enter private keys")
+        if bitcoin.is_bip38_available():
+            msg += " " + _('or BIP38 keys')
         def func(key):
             if bitcoin.is_bip38_available() and bitcoin.is_bip38_key(key):
                 from .bip38_importer import Bip38Importer
