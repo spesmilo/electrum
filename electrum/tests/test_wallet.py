@@ -93,6 +93,7 @@ class FakeFxThread:
     timestamp_rate = FxThread.timestamp_rate
     ccy_amount_str = FxThread.ccy_amount_str
     history_rate = FxThread.history_rate
+    can_use_spot_price_for_date = FxThread.can_use_spot_price_for_date
 
 class FakeWallet:
     def __init__(self, fiat_value):
