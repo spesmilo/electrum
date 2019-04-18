@@ -183,6 +183,8 @@ class ConsoleTextEdit(QtWidgets.QPlainTextEdit):
             return
         elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
             self.parent().clear()
+        elif event.key() == QtCore.Qt.Key_Insert and event.modifiers() == QtCore.Qt.NoModifier:
+            self.setOverwriteMode(not self.overwriteMode())
 
         super(ConsoleTextEdit, self).keyPressEvent(event)
 
