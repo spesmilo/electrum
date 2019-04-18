@@ -32,6 +32,7 @@ import hmac
 import stat
 import inspect, weakref
 import itertools
+import subprocess
 from locale import localeconv
 
 from .i18n import _
@@ -345,7 +346,7 @@ def android_headers_dir():
 def ensure_sparse_file(filename):
     if os.name == "nt":
         try:
-            os.system("fsutil sparse setFlag \""+ filename +"\" 1")
+            subprocess.call("fsutil sparse setFlag \""+ filename +"\" 1", shell=True)
         except:
             pass
 
