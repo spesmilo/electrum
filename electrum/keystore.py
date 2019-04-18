@@ -752,19 +752,21 @@ def is_address_list(text):
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
 
-def get_private_keys(text, *, allow_spaces_inside_key=True):
+def get_private_keys(text, *, allow_spaces_inside_key=True, raise_on_error=False):
     if allow_spaces_inside_key:  # see #1612
         parts = text.split('\n')
         parts = map(lambda x: ''.join(x.split()), parts)
         parts = list(filter(bool, parts))
     else:
         parts = text.split()
-    if bool(parts) and all(bitcoin.is_private_key(x) for x in parts):
+    if bool(parts) and all(bitcoin.is_private_key(x, raise_on_error=raise_on_error) for x in parts):
         return parts
 
 
-def is_private_key_list(text, *, allow_spaces_inside_key=True):
-    return bool(get_private_keys(text, allow_spaces_inside_key=allow_spaces_inside_key))
+def is_private_key_list(text, *, allow_spaces_inside_key=True, raise_on_error=False):
+    return bool(get_private_keys(text,
+                                 allow_spaces_inside_key=allow_spaces_inside_key,
+                                 raise_on_error=raise_on_error))
 
 
 is_mpk = lambda x: is_old_mpk(x) or is_xpub(x)

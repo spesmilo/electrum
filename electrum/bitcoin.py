@@ -615,11 +615,13 @@ def is_address(addr: str, *, net=None) -> bool:
            or is_b58_address(addr, net=net)
 
 
-def is_private_key(key: str) -> bool:
+def is_private_key(key: str, *, raise_on_error=False) -> bool:
     try:
-        k = deserialize_privkey(key)
-        return k is not False
-    except:
+        deserialize_privkey(key)
+        return True
+    except BaseException as e:
+        if raise_on_error:
+            raise
         return False
 
 
