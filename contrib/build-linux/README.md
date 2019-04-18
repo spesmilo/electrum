@@ -13,7 +13,7 @@ Source tarballs
     $ contrib/build-linux/srcdist_docker/build.sh COMMIT_OR_TAG
     ```
 
-    Where `COMMIT_OR_TAG` is a git commit or branch or tag (eg `master`, `4.0.0`, etc).
+    Where `COMMIT_OR_TAG` is a git commit or branch or tag (eg `master`, `4.0.2`, etc).
 
 2. A `.tar.gz` and a `.zip` file of Electron Cash will be placed in the `dist/` subdirectory.
 
@@ -27,7 +27,7 @@ AppImage
     $ contrib/build-linux/appimage/build.sh COMMIT_OR_TAG
     ```
 
-    Where `COMMIT_OR_TAG` is a git commit or branch or tag (eg `master`, `4.0.0`, etc).
+    Where `COMMIT_OR_TAG` is a git commit or branch or tag (eg `master`, `4.0.2`, etc).
 
 2. The built stand-alone Linux program will be placed in `dist/`.
 
