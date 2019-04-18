@@ -56,9 +56,11 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         self.setText(data)
 
     def qr_input(self):
-        from electroncash import qrscanner, get_config
+        from electroncash import get_config
+        from .qrreader import QrReaderCameraDialog
         try:
-            data = qrscanner.scan_barcode(get_config().get_video_device())
+            dialog = QrReaderCameraDialog(parent=self)
+            data = dialog.scan(get_config().get_video_device())
         except BaseException as e:
             self.show_error(str(e))
             data = ''

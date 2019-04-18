@@ -35,6 +35,7 @@ from functools import partial
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtMultimedia import QCameraInfo
 
 from electroncash import keystore, get_config
 from electroncash.address import Address, ScriptOutput
@@ -3396,18 +3397,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         block_ex_combo.currentIndexChanged.connect(on_be)
         gui_widgets.append((block_ex_label, block_ex_combo))
 
-        from electroncash import qrscanner
-        system_cameras = qrscanner._find_system_cameras()
+        system_cameras = QCameraInfo.availableCameras()
         qr_combo = QComboBox()
         qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
+        for cam in system_cameras:
+            qr_combo.addItem(cam.description(), cam.deviceName())
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.libzbar is not None)
+        qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))

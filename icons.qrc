@@ -24,6 +24,7 @@
     <file>icons/network.png</file>
     <file>icons/qrcode.png</file>
     <file>icons/qrcode_white.png</file>
+    <file>icons/qr_finder.svg</file>
     <file>icons/preferences.png</file>
     <file>icons/seed.png</file>
     <file>icons/status_connected.png</file>
