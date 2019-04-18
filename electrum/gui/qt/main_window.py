@@ -2564,6 +2564,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('This is a multi-signature wallet.') + '\n' +
                             _('Registration is not currently supported.'))
         
+
+        kycfileString=self.wallet.get_kyc_string(password)
+        if kycfileString == None:
+            self.show_critical(txt, title=_("Unable to encrypt kyc data"))
+
+
         d = WindowModalDialog(self, _('Register wallet'))
         d.setMinimumSize(980, 300)
         vbox = QVBoxLayout(d)
@@ -2587,7 +2593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         b.setEnabled(False)
         vbox.addLayout(Buttons(CancelButton(d), b))
 
-        kycfileString=self.wallet.get_kyc_string(password)
+
 
         def show_kycaddresses():
             #s = "\n".join( map( lambda x: x[0], addressList.items()))
@@ -2617,7 +2623,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             f.close()
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Electrum was unable to produce a kycfile export."),
+                _("Unable to export kyc file."),
                 str(reason)
             ])
             self.show_critical(txt, title=_("Unable to create kycfile"))

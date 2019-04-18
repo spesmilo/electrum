@@ -903,7 +903,8 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_unused_encryption_address(self):
         addrs = self.get_unused_encryption_addresses()
         if addrs:
-            addr = addrs[0]
+            return addrs[0]
+        
 
     def get_unused_encryption_addresses(self):
         domain = self.get_encryption_addresses()
@@ -1537,7 +1538,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
-        self.gap_limit = storage.get('gap_limit', 20)
+        self.gap_limit = storage.get('gap_limit', 100)
 
     def has_seed(self):
         return self.keystore.has_seed()
@@ -1708,9 +1709,15 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def get_pubkey(self, c, i, for_encryption=False):
         return self.derive_pubkeys(c, i, for_encryption)
 
-    def get_public_key(self, address, tweaked=True, for_encryption=False):
-        c, i = self.get_address_index(address)
-        pubkey = self.get_pubkey(c, i, for_encryption)
+    def get_public_key(self, address, tweaked=True):
+        r = self.get_address_index(address)
+        if len(r) == 3:
+            e, c, i = self.get_address_index(address)
+        else:
+            c, i = self.get_address_index(address)
+
+        pubkey = self.get_pubkey(c, i, e)
+
         if tweaked:
             return self.get_tweaked_public_key(address, pubkey)
         return pubkey
@@ -1758,8 +1765,10 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         pyqtRemoveInputHook()
         set_trace()
 
-        address=self.create_new_address(for_encryption=True)
-        onboardUserPubKey=self.get_public_key(address, for_encryption=True)
+        address=self.get_unused_encryption_address()
+        if address == None:
+            return "No wallet encryption keys available."
+        onboardUserPubKey=self.get_public_key(address)
 
         onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
         txin_type = self.get_txin_type(address)
@@ -1819,7 +1828,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
-    gap_limit = 20
+    gap_limit = 100
 
     def __init__(self, storage):
         self.wallet_type = storage.get('wallet_type')
