@@ -112,8 +112,6 @@ pyz = PYZ(a.pure)
 #####
 # "standalone" exe with all dependencies packed into it
 
-#options = [ ('v', None, 'OPTION')]  - put this in the following exe list to debug and turn console=true
-
 exe_standalone = EXE(
     pyz,
     a.scripts,
@@ -125,7 +123,6 @@ exe_standalone = EXE(
     upx=False,
     icon=home+'icons/electron.ico',
     console=False)
-    # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 exe_portable = EXE(
     pyz,
