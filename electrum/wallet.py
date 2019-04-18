@@ -1291,25 +1291,30 @@ class Abstract_Wallet(AddressSynchronizer):
         except InvalidECPointException:
             return True
 
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
         if not self.is_mine(onboardAddress):
             return True
- 
+
         #Check that the kyc public key is in the list of unassigned kyc public keys 
         #(kyc private key owner is therefore the whitelisting token owner)
         #if not self.is_unassigned_kyc_pubkey(kyc_pubkey):
         #    return False
-        onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sor out what to do for encrypted wallets.
+                return True
+            else:
+                return True
+        else:
+            password = None
 
-        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-        
-        _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        try: 
+            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return True
 
         i1=i2
         ciphertext=data[i1:]
@@ -1319,13 +1324,17 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
 
         #Confirm that this was encrypted by the kyc private key owner
-        if not ephemeral == kyc_pubkey:
+        if not ephemeral == _kyc_pubkey:
             return True
 
-
-        self.set_kyc_pubkey(_kyc_pubkey)
-
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
         set_trace()
+
+        self.set_kyc_pubkey(kyc_pubkey)
+        
+
         return True
 
 
@@ -1616,9 +1625,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             self._addr_to_addr_index[addr] = (True, False, i)
 
     def create_new_address(self, for_change:bool=False, for_encryption:bool=False):
-        if for_encryption:
-            for_change=False
         with self.lock:
+            if for_encryption:
+                for_change=False
             if for_change:
                 addr_list=self.change_addresses
             elif for_encryption:
@@ -1632,7 +1641,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
             if for_encryption:
-                self._addr_to_addr_index[address] = (for_change, for_encryption, n)
+                self._addr_to_addr_index[address] = (for_encryption, for_change, n)
             else:
                 self._addr_to_addr_index[address] = (for_change, n)
             self.save_addresses()

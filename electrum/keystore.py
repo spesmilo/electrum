@@ -235,7 +235,7 @@ class Xpub:
             xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
             if for_encryption:
-                xpub = bip32_public_derivation(self.xpub, "%d"%for_encryption, "%d/%d"%(for_encryption,for_change))
+                xpub = bip32_public_derivation(self.xpub, "", "/%d/%d"%(for_encryption,for_change))
             else:
                 xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
             if for_encryption:
@@ -246,7 +246,7 @@ class Xpub:
                 self.xpub_receive = xpub
         return self.get_pubkey_from_xpub(xpub, (n,))
 
-    def tweak_pubkey(self, c, t):
+    def tweak_pubkey(self, c, t, e=False):
         if not t:
             return c
         tweak = bfh(t)[::-1]
