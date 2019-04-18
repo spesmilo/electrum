@@ -4,7 +4,7 @@ import sys
 import traceback
 
 from electrum import ecc
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, is_segwit_script_type
 from electrum.bip32 import BIP32Node
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
@@ -518,7 +518,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
-        segwit = Transaction.is_segwit_inputtype(txin_type)
+        segwit = is_segwit_script_type(txin_type)
         segwitNative = txin_type == 'p2wpkh'
         try:
             client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
