@@ -62,7 +62,6 @@ from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
-from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
 
@@ -207,7 +206,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
-        self.fee_slider.update()
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
@@ -322,11 +320,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.history_list.update_item(*args)
         elif event == 'fee':
             if self.config.is_dynfee():
-                self.fee_slider.update()
                 self.do_update_fee()
         elif event == 'fee_histogram':
             if self.config.is_dynfee():
-                self.fee_slider.update()
                 self.do_update_fee()
             # todo: update only unconfirmed tx
             self.history_list.update()
@@ -1126,32 +1122,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addStretch(1)
         grid.addLayout(hbox, 4, 4)
 
-        msg = _('Ocean sidechain transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
-              + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
-              + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
+        msg = _('Ocean sidechain transactions require a fee to be processed. ') + '\n\n'\
+              + _('The fee that is required is proportional to the size of the transaction, and can be paid in any asset. ')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
-
-        def fee_cb(dyn, pos, fee_rate):
-            if dyn:
-                if self.config.use_mempool_fees():
-                    self.config.set_key('depth_level', pos, False)
-                else:
-                    self.config.set_key('fee_level', pos, False)
-            else:
-                self.config.set_key('fee_per_kb', fee_rate, False)
-
-            if fee_rate:
-                fee_rate = Decimalf(fee_rate)
-                self.feerate_e.setAmount(quantize_feerate(fee_rate / 1000))
-            else:
-                self.feerate_e.setAmount(None)
-            self.fee_e.setModified(False)
-
-            self.fee_slider.activate()
-            self.spend_max() if self.is_max else self.update_fee()
-
-        self.fee_slider = FeeSlider(self, self.config, fee_cb)
-        self.fee_slider.setFixedWidth(140)
 
         def on_fee_or_feerate(edit_changed, editing_finished):
             edit_other = self.feerate_e if edit_changed == self.fee_e else self.fee_e
@@ -1164,7 +1137,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # edit_changed was edited just now, so make sure we will
                 # freeze the correct fee setting (this)
                 edit_other.setModified(False)
-            self.fee_slider.deactivate()
             self.update_fee()
 
         class TxSizeLabel(QLabel):
@@ -1179,26 +1151,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
+        self.feerate_e.setReadOnly(True)
         self.feerate_e.textEdited.connect(partial(on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(on_fee_or_feerate, self.feerate_e, True))
 
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         self.fee_e.textEdited.connect(partial(on_fee_or_feerate, self.fee_e, False))
         self.fee_e.editingFinished.connect(partial(on_fee_or_feerate, self.fee_e, True))
-
-        def feerounding_onclick():
-            text = (self.feerounding_text + '\n\n' +
-                    _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
-                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
-                    _('Also, dust is not kept as change, but added to the fee.'))
-            QMessageBox.information(self, 'Fee rounding', text)
-
-        self.feerounding_icon = QPushButton(QIcon(':icons/info.png'), '')
-        self.feerounding_icon.setFixedWidth(20)
-        self.feerounding_icon.setFlat(True)
-        self.feerounding_icon.clicked.connect(feerounding_onclick)
-        self.feerounding_icon.setVisible(False)
 
         self.connect_fields(self, self.amount_e, self.fiat_send_e, self.fee_e)
 
@@ -1213,16 +1172,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(self.feerate_e)
         hbox.addWidget(self.size_e)
         hbox.addWidget(self.fee_e)
-        hbox.addWidget(self.feerounding_icon, Qt.AlignLeft)
         hbox.addStretch(1)
 
         vbox_feecontrol = QVBoxLayout()
         vbox_feecontrol.addWidget(self.fee_adv_controls)
-        vbox_feecontrol.addWidget(self.fee_slider)
 
         grid.addLayout(vbox_feecontrol, 5, 1, 1, -1)
 
-        if not self.config.get('show_fee', False):
+        if not self.config.get('show_fee', True):
             self.fee_adv_controls.setVisible(False)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
@@ -1349,7 +1306,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.fee_e.setAmount(None)
                 if not freeze_feerate:
                     self.feerate_e.setAmount(None)
-                self.feerounding_icon.setVisible(False)
 
                 if isinstance(e, NotEnoughFunds):
                     self.not_enough_funds = True
@@ -1374,7 +1330,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # Displayed fee/fee_rate values are set according to user input.
             # Due to rounding or dropping dust in CoinChooser,
             # actual fees often differ somewhat.
-            if freeze_feerate or self.fee_slider.is_active():
+            if freeze_feerate:
                 displayed_feerate = self.feerate_e.get_amount()
                 if displayed_feerate is not None:
                     displayed_feerate = quantize_feerate(displayed_feerate)
@@ -1394,12 +1350,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 displayed_fee = displayed_fee if displayed_fee else 0
                 displayed_feerate = quantize_feerate(displayed_fee / size) if displayed_fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
-
-            # show/hide fee rounding icon
-            feerounding = (fee - displayed_fee) if fee else 0
-            self.set_feerounding_text(int(feerounding))
-            self.feerounding_icon.setToolTip(self.feerounding_text)
-            self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
             if self.is_max:
                 amount = tx.output_value()
@@ -1628,7 +1578,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
             self.show_error('\n'.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server"),
-                _("Try to raise your transaction fee, or use a server with a lower relay fee.")
+                _("Raise the fee to the minimum network level")
             ]))
             return
 
@@ -1645,11 +1595,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             _("Amount to be sent") + ": " + self.format_amount_and_units(amount),
             _("Mining fee") + ": " + self.format_amount_and_units(fee),
         ]
-
-        x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
         confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
         if fee > confirm_rate * tx.estimated_size() / 1000:
@@ -1837,7 +1782,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                   self.fee_e, self.feerate_e]:
             e.setText('')
             e.setFrozen(False)
-        self.fee_slider.activate()
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.size_e.setAmount(0)
         self.feerounding_icon.setVisible(False)
@@ -2964,7 +2908,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==2)
             self.config.set_key('dynamic_fees', x>0)
-            self.fee_slider.update()
         fee_type_combo.currentIndexChanged.connect(on_fee_type)
         fee_widgets.append((fee_type_label, fee_type_combo))
 
@@ -3438,9 +3381,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee = fee_rate * total_size / 1000
             fee = min(max_fee, fee)
             fee_e.setAmount(fee)
-        fee_slider = FeeSlider(self, self.config, on_rate)
-        fee_slider.update()
-        grid.addWidget(fee_slider, 4, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
@@ -3472,8 +3412,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_rate(dyn, pos, fee_rate):
             fee = fee_rate * tx_size / 1000
             fee_e.setAmount(fee)
-        fee_slider = FeeSlider(self, self.config, on_rate)
-        vbox.addWidget(fee_slider)
         cb = QCheckBox(_('Final'))
         vbox.addWidget(cb)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
