@@ -161,9 +161,11 @@ class Satoshis(object):
 class Fiat(object):
     __slots__ = ('value', 'ccy')
 
-    def __new__(cls, value, ccy):
+    def __new__(cls, value: Optional[Decimal], ccy: str):
         self = super(Fiat, cls).__new__(cls)
         self.ccy = ccy
+        if not isinstance(value, (Decimal, type(None))):
+            raise TypeError(f"value should be Decimal or None, not {type(value)}")
         self.value = value
         return self
 
@@ -177,7 +179,12 @@ class Fiat(object):
             return "{:.2f}".format(self.value)
 
     def __eq__(self, other):
-        return self.ccy == other.ccy and self.value == other.value
+        if self.ccy != other.ccy:
+            return False
+        if isinstance(self.value, Decimal) and isinstance(other.value, Decimal) \
+                and self.value.is_nan() and other.value.is_nan():
+            return True
+        return self.value == other.value
 
     def __ne__(self, other):
         return not (self == other)
