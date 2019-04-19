@@ -93,9 +93,17 @@ function retry() {
 export PYTHONHASHSEED=22
 PYTHON_VERSION=3.6.8  # Windows, OSX & Linux AppImage use this to determine what to download/build
 PYTHON_SRC_TARBALL_HASH="35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
+DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
 if [ -z "$GIT_REPO" ] ; then
-    GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
-else
+    # If no override from env is present, use default. Support for overrides
+    # for the GIT_REPO has been added to allows contributors to test containers
+    # that are on local filesystem (while devving) or are their own github forks
+    GIT_REPO="$DEFAULT_GIT_REPO"
+fi
+if [ "$GIT_REPO" != "$DEFAULT_GIT_REPO" ]; then
+    # We check if it's default because we unconditionally propagate $GIT_REPO
+    # in env to _build.sh inside the docker container, and we don't want to
+    # print this message if it turns out to just be the default.
     info "Picked up override from env: GIT_REPO=${GIT_REPO}"
 fi
 GIT_DIR_NAME=`basename $GIT_REPO`

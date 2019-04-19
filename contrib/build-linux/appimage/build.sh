@@ -76,7 +76,10 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
 ) || fail "Could not create a fresh clone from git"
 
 (
+    # NOTE: We propagate forward the GIT_REPO override to the container's env,
+    # just in case it needs to see it.
     $SUDO docker run -it \
+    -e GIT_REPO="$GIT_REPO" \
     --name electroncash-appimage-builder-cont-$DOCKER_SUFFIX \
     -v $FRESH_CLONE_DIR:/opt/electroncash \
     --rm \
