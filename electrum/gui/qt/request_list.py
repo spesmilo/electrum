@@ -135,6 +135,7 @@ class RequestList(MyTreeView):
                 items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DESCRIPTION].setData(address, Qt.UserRole)
             self.model().insertRow(self.model().rowCount(), items)
+        self.filter()
 
     def create_menu(self, position):
         idx = self.indexAt(position)

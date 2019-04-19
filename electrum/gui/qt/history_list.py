@@ -249,9 +249,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         self.endInsertRows()
         if selected_row:
             self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
-        f = self.view.current_filter
-        if f:
-            self.view.filter(f)
+        self.view.filter()
         # update summary
         self.summary = r['summary']
         if not self.view.years and self.transactions:

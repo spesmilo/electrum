@@ -89,6 +89,7 @@ class InvoiceList(MyTreeView):
             b = len(inv_list) > 0
             self.setVisible(b)
             self.parent.invoices_label.setVisible(b)
+        self.filter()
 
     def import_invoices(self):
         import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.update)
