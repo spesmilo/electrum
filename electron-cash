@@ -27,7 +27,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os, sys
-import ctypes
 
 # Note CashShuffle's .proto files have namespace conflicts with keepkey
 # This is a workaround to force the python implementation versus the C++
@@ -115,7 +114,7 @@ from electroncash.commands import get_parser, known_commands, Commands, config_v
 from electroncash import daemon
 from electroncash import keystore
 from electroncash.mnemonic import Mnemonic
-from electroncash.winconsole import create_or_attach_console
+from electroncash.winconsole import create_or_attach_console  # Import ok on other platforms, won't be called.
 import electroncash_plugins
 import electroncash.web as web
 
@@ -319,12 +318,7 @@ if __name__ == '__main__':
     # On windows, allocate a console if needed
     if sys.platform.startswith('win'):
         force_console = '-v' in sys.argv or '--verbose' in sys.argv
-        if not create_or_attach_console(create=force_console, title='Electron Cash Console') and force_console:
-            # Force console specified and we couldn't get a console, fail
-            MB_ICONERROR = 0x10
-            MB_OK = 0
-            ctypes.windll.user32.MessageBoxW(0, 'Failed to get a console', 'Electron Cash', MB_OK | MB_ICONERROR)
-            sys.exit(1)
+        create_or_attach_console(create=force_console, title='Electron Cash Console')  # this may fail if the terminal was msys. Silently ignore errors here and hope for the best.
 
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))

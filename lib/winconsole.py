@@ -55,19 +55,24 @@ def create_or_attach_console(attach: bool = True, create: bool = False, title: s
     If a console was found or created, it will redirect current output handles to this console.
     """
     std_out_handle = ctypes.windll.kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-    if std_out_handle > 0:
-        if ctypes.windll.kernel32.GetFileType(std_out_handle) == FILE_TYPE_DISK:
-            # Output is being redirected to a file, do nothing
-            return
 
     has_console = std_out_handle > 0
 
-    if not has_console and attach:
-        # Try to attach to a parent console
-        for pid in parent_process_pids():
-            if ctypes.windll.kernel32.AttachConsole(pid):
-                has_console = True
-                break
+    if has_console:
+        # Output is being redirected to a file, or we have an msys console.
+        # do nothing
+        return True
+
+    try:
+        if attach:
+            # Try to attach to a parent console
+            for pid in parent_process_pids():
+                if ctypes.windll.kernel32.AttachConsole(pid):
+                    has_console = True
+                    break
+    except ImportError:
+        # User's system lacks psutil
+        return  # Return None in case caller wants to differntiate exceptional failures from regular False return
 
     if not has_console and create:
         # Try to allocate a new console
@@ -75,16 +80,22 @@ def create_or_attach_console(attach: bool = True, create: bool = False, title: s
             has_console = True
 
     if not has_console:
+        # Indicate to caller no console is to be had.
         return False
+
+    try:
+        # Reopen Pythons console input and output handles
+        conout = open('CONOUT$', 'w')
+        sys.stdout = conout
+        sys.stderr = conout
+        sys.stdin = open('CONIN$', 'r')
+    except OSError:
+        # If we get here, we likely were in MinGW / MSYS where CONOUT$ / CONIN$
+        # are not valid files or some other weirdness occurred. Give up.
+        return  # return None to indicate underlying exception
 
     if title:
         # Set the console title
         ctypes.windll.kernel32.SetConsoleTitleW(title)
-
-    # Reopen Pythons console input and output handles
-    conout = open('CONOUT$', 'w')
-    sys.stdout = conout
-    sys.stderr = conout
-    sys.stdin = open('CONIN$', 'r')
 
     return True
