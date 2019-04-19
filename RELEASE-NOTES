@@ -360,15 +360,22 @@ and there is no warning message.
 
 * Set the gap limit for change from 6 to 20. This is because we realized
   CashShuffle wallets already behave as if the gap limit were 12 (reserving
-  addresses as they shuffle).  We just made it official. (Mark Lundeberg)
+  addresses as they shuffle). We just made it official. (Mark Lundeberg)
 * Added BIP38 private key support. You can create an import wallet, import
   private keys, or sweep private keys using BIP38.  In either of those 3,
   specify a mix of WIF and/or BIP38 keys and you will be prompted to enter the
   password to decrypt the BIP38 keys in question, 1 at a time. (#1289)
   (cculianu)
+* Added Windows CLI support if running from cmd.exe or WindowsPowerShell
+  (previously the console output was always mute even if running with -v --
+  it only worked for msys, mingw, cygiwn, etc, but not normal Windows console).
+  (#1295) (Axel Gembe)
+* Windows: Make console no longer flash on startup (#1294) (Axel Gembe)
 * Fix to minor esoteric/rare bug in CashShuffle where it may be overzealously
   freezing receiving addresses with non-shuffle outputs on them. (#1291)
   (cculianu)
+* Ledger HW Wallet: Remove non-working websocket 2FA for legacy ledger devices
+  (#1298) (Axel Gembe)
 * Ledger HW Wallet: Added support for OP_RETURN and also multiple transaction
   outputs (on devices that support it). Code mainly taken from Electrum but
   adapted and modified by us. (Axel Gembe)
