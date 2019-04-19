@@ -49,10 +49,28 @@ def parent_process_pids() -> int:
 
 def create_or_attach_console(attach: bool = True, create: bool = False, title: str = None) -> bool:
     """
-    First this checks if output is redirected to a file and does nothing if it is. Then it tries
-    to attach to the console of any parent process and if not successful it optionally creates a
-    console or fails.
-    If a console was found or created, it will redirect current output handles to this console.
+    Workaround to the fact that cmd.exe based execution of this program means
+    it has no stdout handles and thus is always silent, thereby rendering
+    vernbose console output or command-line usage problematic.
+
+    First, check if we have STD_OUTPUT_HANDLE (a console) and do nothing if
+    there is one, returning True.
+
+    Otherwise, try to attach to the console of any ancestor process, and return
+    True.
+
+    If not successful, optionally (create=True) create a new console.
+
+    NB: Creating a new console results in a 'cmd.exe' console window to be
+    created on the Windows desktop, so only pass create=True if that's
+    acceptable.
+
+    If a console was found or created, we redirect current output handles
+    (sys.stdout, sys.stderr) to this found and/or created console.
+
+    Always return True on success or if there was a console already,
+    False or None on failure (a None return indicates a missing lib or some
+    other unspecified exception was raised when attempting to create a console).
     """
     std_out_handle = ctypes.windll.kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
 
