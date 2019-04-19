@@ -135,11 +135,11 @@ class PayToEdit(ScanQRTextEdit):
             else:
                 total += amount
 
-        self.win.is_max = is_max
+        self.win.max_button.setChecked(is_max)
         self.outputs = outputs
         self.payto_address = None
 
-        if self.win.is_max:
+        if self.win.max_button.isChecked():
             self.win.do_update_fee()
         else:
             self.amount_edit.setAmount(total if outputs else None)

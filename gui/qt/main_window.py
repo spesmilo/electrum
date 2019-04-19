@@ -121,7 +121,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
-        self.is_max = False
         self.payment_request = None
         self.checking_accounts = False
         self.qr_window = None
@@ -1273,6 +1272,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(140)
+        self.max_button.setCheckable(True)
         grid.addWidget(self.max_button, 5, 3)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
@@ -1288,7 +1288,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.config.set_key('fee_level', pos, False)
             else:
                 self.config.set_key('fee_per_kb', fee_rate, False)
-            self.spend_max() if self.is_max else self.update_fee()
+            self.spend_max() if self.max_button.isChecked() else self.update_fee()
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
@@ -1334,9 +1334,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.message_opreturn_e.editingFinished.connect(self.update_fee)
         self.opreturn_rawhex_cb.stateChanged.connect(self.update_fee)
 
-        def reset_max(t):
-            self.is_max = False
-            self.max_button.setEnabled(not bool(t))
+        def reset_max(text):
+            self.max_button.setChecked(False)
+            enabled = not bool(text) and not self.amount_e.isReadOnly()
+            self.max_button.setEnabled(enabled)
         self.amount_e.textEdited.connect(reset_max)
         self.fiat_send_e.textEdited.connect(reset_max)
 
@@ -1397,7 +1398,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def spend_max(self):
-        self.is_max = True
+        self.max_button.setChecked(True)
         self.do_update_fee()
 
     def update_fee(self):
@@ -1450,7 +1451,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''
         freeze_fee = (self.fee_e.isModified()
                       and (self.fee_e.text() or self.fee_e.hasFocus()))
-        amount = '!' if self.is_max else self.amount_e.get_amount()
+        amount = '!' if self.max_button.isChecked() else self.amount_e.get_amount()
         fee_rate = None
         if amount is None:
             if not freeze_fee:
@@ -1459,7 +1460,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.statusBar().showMessage('')
         else:
             fee = self.fee_e.get_amount() if freeze_fee else None
-            outputs = self.payto_e.get_outputs(self.is_max)
+            outputs = self.payto_e.get_outputs(self.max_button.isChecked())
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
@@ -1491,7 +1492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 fee = None if self.not_enough_funds else tx.get_fee()
                 self.fee_e.setAmount(fee)
 
-            if self.is_max:
+            if self.max_button.isChecked():
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
             if fee is not None:
@@ -1637,7 +1638,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if errors:
                 self.show_warning(_("Invalid lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
                 return
-            outputs = self.payto_e.get_outputs(self.is_max)
+            outputs = self.payto_e.get_outputs(self.max_button.isChecked())
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
                 alias = self.payto_e.toPlainText()
@@ -1699,7 +1700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
 
-        amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
+        amount = tx.output_value() if self.max_button.isChecked() else sum(map(lambda x:x[2], outputs))
         fee = tx.get_fee()
 
         #if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 and tx.requires_fee(self.wallet):
@@ -1948,7 +1949,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.opreturn_label.setHidden(True)
 
     def do_clear(self):
-        self.is_max = False
+        self.max_button.setChecked(False)
         self.not_enough_funds = False
         self.op_return_toolong = False
         self.payment_request = None
