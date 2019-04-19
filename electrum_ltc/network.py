@@ -734,7 +734,8 @@ class Network(PrintError):
     @log_exceptions
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.proxy)
-        timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        # note: using longer timeouts here as DNS can sometimes be slow!
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
