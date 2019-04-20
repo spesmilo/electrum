@@ -29,8 +29,8 @@ import struct
 
 from . import cashaddr, networks
 from enum import IntEnum
-from .bitcoin import EC_KEY, is_minikey, minikey_to_private_key
-from .util import cachedproperty
+from .bitcoin import EC_KEY, is_minikey, minikey_to_private_key, SCRIPT_TYPES
+from .util import cachedproperty, inv_dict
 
 _sha256 = hashlib.sha256
 _new_hash = hashlib.new
@@ -271,8 +271,14 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
             # The Casascius coins were uncompressed
             return minikey_to_private_key(WIF_privkey), False
         raw = Base58.decode_check(WIF_privkey)
-        if not raw or raw[0] != net.WIF_PREFIX:
-            raise ValueError('private key has invalid WIF prefix')
+        if not raw:
+            raise ValueError('Private key WIF decode error; unable to decode.')
+        if raw[0] != net.WIF_PREFIX:
+            # try and generate a helpful error message as this propagates up to the UI if they are creating a new wallet.
+            extra = inv_dict(SCRIPT_TYPES).get(int(raw[0]-net.WIF_PREFIX), '')
+            if extra:
+                extra = "; this corresponds to a key of type: '{}' which is unsupported for importing from WIF key.".format(extra)
+            raise ValueError("Private key has invalid WIF version byte (expected: 0x{:x} got: 0x{:x}){}".format(net.WIF_PREFIX, raw[0], extra))
         if len(raw) == 34 and raw[-1] == 1:
             return raw[1:33], True
         if len(raw) == 33:

@@ -2995,7 +2995,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                            allow_multi=True)
         if not text:
             return
-        bad = []
+        bad, bad_info = [], []
         good = []
         for key in str(text).split():
             try:
@@ -3003,11 +3003,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 good.append(addr)
             except BaseException as e:
                 bad.append(key)
+                bad_info.append("{}: {}".format(key, str(e)))
                 continue
         if good:
             self.show_message(_("The following addresses were added") + ':\n' + '\n'.join(good))
         if bad:
-            self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(bad))
+            self.show_warning(_("The following could not be imported") + ':\n' + '\n'.join(bad), detail_text='\n\n'.join(bad_info))
         self.address_list.update()
         self.history_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history

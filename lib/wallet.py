@@ -125,6 +125,8 @@ def sweep_preparations(privkeys, network, imax=100):
             # WIF serialization does not distinguish p2pkh and p2pk
             # we also search for pay-to-pubkey outputs
             find_utxos_for_privkey('p2pk', privkey, compressed)
+        elif txin_type == 'p2sh':
+            raise BaseException(_("The specified WIF key '{}' is a p2sh WIF key. These key types cannot be swept.").format(sec))
     if not inputs:
         raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
     return inputs, keypairs
