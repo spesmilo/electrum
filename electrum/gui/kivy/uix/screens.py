@@ -152,7 +152,7 @@ class HistoryScreen(CScreen):
                 fx = self.app.fx
                 fiat_value = value / Decimal(bitcoin.COIN) * self.app.wallet.price_at_timestamp(tx_hash, fx.timestamp_rate)
                 fiat_value = Fiat(fiat_value, fx.ccy)
-                ri['quote_text'] = str(fiat_value)
+                ri['quote_text'] = fiat_value.to_ui_string()
         return ri
 
     def update(self, see_all=False):

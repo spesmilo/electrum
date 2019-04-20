@@ -178,6 +178,12 @@ class Fiat(object):
         else:
             return "{:.2f}".format(self.value)
 
+    def to_ui_string(self):
+        if self.value is None or self.value.is_nan():
+            return _('No Data')
+        else:
+            return "{:.2f}".format(self.value) + ' ' + self.ccy
+
     def __eq__(self, other):
         if self.ccy != other.ccy:
             return False
