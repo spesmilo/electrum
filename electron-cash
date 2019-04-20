@@ -108,8 +108,9 @@ from electroncash import SimpleConfig, Network
 from electroncash import networks
 from electroncash.wallet import Wallet, ImportedPrivkeyWallet, ImportedAddressWallet
 from electroncash.storage import WalletStorage
-from electroncash.util import print_msg, print_stderr, json_encode, json_decode
-from electroncash.util import set_verbosity, InvalidPassword
+from electroncash.util import (print_msg, print_stderr, json_encode, json_decode,
+                               set_verbosity, InvalidPassword)
+from electroncash.i18n import _
 from electroncash.commands import get_parser, known_commands, Commands, config_variables
 from electroncash import daemon
 from electroncash import keystore
@@ -317,8 +318,18 @@ if __name__ == '__main__':
 
     # On windows, allocate a console if needed
     if sys.platform.startswith('win'):
-        force_console = '-v' in sys.argv or '--verbose' in sys.argv
-        create_or_attach_console(create=force_console, title='Electron Cash Console')  # this may fail if the terminal was msys. Silently ignore errors here and hope for the best.
+        require_console = '-v' in sys.argv or '--verbose' in sys.argv
+        console_title = _("Electron Cash - Verbose Output") if require_console else None
+        # Attempt to attach to ancestor process console. If create=True we will
+        # create a new conole window if no ancestor process console exists.
+        # (Presumably if user ran with -v, they expect console output).
+        # The below is required to be able to get verbose or console output
+        # if running from cmd.exe (see spesmilo#2592, Electron-Cash#1295).
+        # The below will be a no-op if the terminal was msys/mingw/cygwin, since
+        # there will already be a console attached in that case.
+        # Worst case: The below will silently ignore errors so that startup
+        # may proceed unimpeded.
+        create_or_attach_console(create=require_console, title=console_title)
 
     # on osx, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))

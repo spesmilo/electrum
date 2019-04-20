@@ -22,13 +22,15 @@
 # SOFTWARE.
 
 """
-This module is for to handling console attaching and / or creation in Windows binaries that are
-built for the Windows subsystem and therefore do not automatically allocate a console.
+This module is for to handling console attaching and / or creation in Windows
+binaries that are built for the Windows subsystem and therefore do not
+automatically allocate a console.
 """
 
 import sys
 import os
 import ctypes
+import atexit
 
 STD_OUTPUT_HANDLE = -11
 FILE_TYPE_DISK = 1
@@ -47,7 +49,18 @@ def parent_process_pids() -> int:
         # Parent process not found, likely terminated, nothing we can do
         pass
 
-def create_or_attach_console(attach: bool = True, create: bool = False, title: str = None) -> bool:
+def get_console_title() -> str:
+    ''' Return the current console title as a string. May return None on error. '''
+    b = bytes(1024)
+    b_ptr = ctypes.c_char_p(b)
+    title = None
+    title_len = ctypes.windll.kernel32.GetConsoleTitleW(b_ptr, len(b)//2)  # GetConsoleTitleW expects size in 2-byte chars
+    if title_len > 0:
+        title = b.decode('utf-16')[:title_len]
+    return title
+
+def create_or_attach_console(*, attach: bool = True, create: bool = False,
+                             title: str = None) -> bool:
     """
     Workaround to the fact that cmd.exe based execution of this program means
     it has no stdout handles and thus is always silent, thereby rendering
@@ -92,10 +105,13 @@ def create_or_attach_console(attach: bool = True, create: bool = False, title: s
         # User's system lacks psutil
         return  # Return None in case caller wants to differntiate exceptional failures from regular False return
 
+    created = False
+
     if not has_console and create:
         # Try to allocate a new console
         if ctypes.windll.kernel32.AllocConsole():
             has_console = True
+            created = True
 
     if not has_console:
         # Indicate to caller no console is to be had.
@@ -113,7 +129,11 @@ def create_or_attach_console(attach: bool = True, create: bool = False, title: s
         return  # return None to indicate underlying exception
 
     if title:
-        # Set the console title
+        old_title = get_console_title() if not created else None  # save the old title only if not created by us
+        # Set the console title, if specified
         ctypes.windll.kernel32.SetConsoleTitleW(title)
+        if old_title is not None:
+            # undo the setting of the console title at app exit
+            atexit.register(ctypes.windll.kernel32.SetConsoleTitleW, old_title)
 
     return True
