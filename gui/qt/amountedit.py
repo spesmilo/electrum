@@ -27,7 +27,6 @@ class AmountEdit(MyLineEdit):
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
-        self.help_palette = QPalette()
 
     def decimal_point(self):
         return 8
@@ -60,7 +59,7 @@ class AmountEdit(MyLineEdit):
             textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
             textRect.adjust(2, 0, -10, 0)
             painter = QPainter(self)
-            painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Mid).color())
+            painter.setPen(QColor(Qt.gray))  # NB: we hard-code gray here. It works ok for dark and light. FIXME: figure out why palette broke on Mojave dark mode see #1262
             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
 
     def get_amount(self):
