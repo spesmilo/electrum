@@ -235,8 +235,8 @@ class Console(QtWidgets.QPlainTextEdit):
         self.set_json(False)
 
 
-    def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Tab:
+    def keyPressEvent(self, event: QtGui.QKeyEvent):
+        if event.key() == QtCore.Qt.Key_Tab and event.modifiers() == QtCore.Qt.NoModifier:
             self.completions()
             return
 
