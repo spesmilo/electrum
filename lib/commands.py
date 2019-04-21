@@ -893,6 +893,7 @@ def get_parser():
         # Hack to support forcing QT_OPENGL env var. See #1255. This allows us
         # to perhaps add a custom installer shortcut to force software rendering
         parser_gui.add_argument("-O", "--qt_opengl", dest="qt_opengl", default=None, help="(Windows only) If using Qt gui, override the QT_OPENGL env-var with this value (angle,software,desktop are possible overrides)")
+    parser_gui.add_argument("-R", "--relax_warnings", action="store_true", dest="relaxwarn", default=False, help="Disables certain warnings that might be annoying during development and/or testing")
     add_network_options(parser_gui)
     add_global_options(parser_gui)
     # daemon
