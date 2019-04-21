@@ -19,7 +19,7 @@ from .util import ColorScheme, MONOSPACE_FONT
 class ConsoleWarningOverlay(QtWidgets.QWidget):
     STYLESHEET = '''
     QLabel, QLabel link {
-        color: rgb(0, 0, 0);
+        color: rgb(0, 64, 0);
         background-color: rgb(200, 220, 200, 215);
         border: 2px solid;
         border-color: rgb(16, 120, 16, 215);
@@ -31,9 +31,9 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
 
     STYLESHEET_DARK = '''
     QLabel, QLabel link {
-        color: rgb(200, 220, 200);
-        background-color: rgb(12, 3, 3, 215);
-        border: 3px solid;
+        color: rgb(180, 220, 180);
+        background-color: rgb(3, 12, 3, 215);
+        border: 2px solid;
         border-color: rgb(3, 96, 3, 215);
         border-radius: 16px;
         padding: 16px;
@@ -50,7 +50,7 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
 
         util.finalization_print_error(self)
 
-        warning_fmt = '<h1 align="center">{0}</h1><p align=center><font size=-1>{1} {2}</font></p><p align=center><font size=-1><a href="{3}">{3}</a></font></p><p align="center">{4}</p>'
+        warning_fmt = '<h1 align="center">{0}</h1><p align=center><font size=-1>{1} {2}</font></p><p align=center><font size=-1><a href="{3}" {5}>{3}</a></font></p><p align="center">{4}</p>'
         warning_text = warning_fmt.format(
             _('WARNING'),
             _('Do not enter code here that you don\'t understand. Executing the wrong code could '
@@ -58,7 +58,8 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
             _("If someone you do not trust wants you to enter something here, that person might "
               "be attempting a social engineering / phishing attack on you."),
             'https://en.wikipedia.org/wiki/Social_engineering_(security)',
-            _("Type: '{}' below to proceed").format('<b>' + self.CONFIRM_TEXT + '</b>')
+            _("Type: '{}' below to proceed").format('<b>' + self.CONFIRM_TEXT + '</b>'),
+            'style="color: #3399ff;"' if ColorScheme.dark_scheme else '',
         )
 
         self.setStyleSheet(self.STYLESHEET_DARK if ColorScheme.dark_scheme else self.STYLESHEET)
