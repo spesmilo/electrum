@@ -1,13 +1,20 @@
+from datetime import datetime
+from typing import NamedTuple, Callable
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from kivy.clock import Clock
 from kivy.uix.label import Label
+from kivy.uix.dropdown import DropDown
+from kivy.uix.button import Button
 
+from .question import Question
 from electrum.gui.kivy.i18n import _
-from datetime import datetime
+
 from electrum.util import InvalidPassword
+
 
 Builder.load_string('''
 
@@ -73,15 +80,13 @@ Builder.load_string('''
             size_hint: 1, None
             height: '48dp'
             Button:
+                id: action_button
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else _('Bump fee') if root.can_rbf else ''
-                disabled: not(root.can_sign or root.can_broadcast or root.can_rbf)
-                opacity: 0 if self.disabled else 1
-                on_release:
-                    if root.can_sign: root.do_sign()
-                    if root.can_broadcast: root.do_broadcast()
-                    if root.can_rbf: root.do_rbf()
+                text: ''
+                disabled: True
+                opacity: 0
+                on_release: root.on_action_button_clicked()
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -95,6 +100,12 @@ Builder.load_string('''
 ''')
 
 
+class ActionButtonOption(NamedTuple):
+    text: str
+    func: Callable
+    enabled: bool
+
+
 class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
@@ -102,6 +113,7 @@ class TxDialog(Factory.Popup):
         self.app = app
         self.wallet = self.app.wallet
         self.tx = tx
+        self._action_button_fn = lambda btn: None
 
     def on_open(self):
         self.update()
@@ -131,6 +143,44 @@ class TxDialog(Factory.Popup):
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
+        self.update_action_button()
+
+    def update_action_button(self):
+        action_button = self.ids.action_button
+        options = (
+            ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
+            ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
+            ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+        )
+        num_options = sum(map(lambda o: bool(o.enabled), options))
+        # if no options available, hide button
+        if num_options == 0:
+            action_button.disabled = True
+            action_button.opacity = 0
+            return
+        action_button.disabled = False
+        action_button.opacity = 1
+
+        if num_options == 1:
+            # only one option, button will correspond to that
+            for option in options:
+                if option.enabled:
+                    action_button.text = option.text
+                    self._action_button_fn = option.func
+        else:
+            # multiple options. button opens dropdown which has one sub-button for each
+            dropdown = DropDown()
+            action_button.text = _('Options')
+            self._action_button_fn = dropdown.open
+            for option in options:
+                if option.enabled:
+                    btn = Button(text=option.text, size_hint_y=None, height=48)
+                    btn.bind(on_release=option.func)
+                    dropdown.add_widget(btn)
+
+    def on_action_button_clicked(self):
+        action_button = self.ids.action_button
+        self._action_button_fn(action_button)
 
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
