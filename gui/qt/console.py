@@ -191,7 +191,7 @@ class Console(QtWidgets.QWidget):
             self.warningOverlay = ConsoleWarningOverlay(self)
             self.warningOverlay.resize(self.size())
 
-            fp = self.focusPolicy()
+            fp = self.editor.focusPolicy()
             blur_effect = QtWidgets.QGraphicsBlurEffect()
             blur_effect.setBlurRadius(7)
             self.editor.setGraphicsEffect(blur_effect)
