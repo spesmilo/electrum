@@ -731,7 +731,10 @@ class ColorScheme:
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")
-    GRAY = ColorSchemeItem("#777777", "#a0a0a4")  # darkGray, gray
+    if sys.platform.startswith("win"):
+        GRAY = ColorSchemeItem("#6a6864", "#a0a0a4")  # darkGray, gray
+    else:
+        GRAY = ColorSchemeItem("#777777", "#a0a0a4")  # darkGray, gray
 
     @staticmethod
     def has_dark_background(widget):
