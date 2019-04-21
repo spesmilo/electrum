@@ -2206,7 +2206,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_console_tab(self):
         from .console import Console
-        self.console = console = Console()
+        self.console = console = Console(parent=self)
         return console
 
     def update_console(self):
