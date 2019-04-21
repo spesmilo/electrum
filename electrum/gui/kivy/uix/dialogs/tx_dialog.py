@@ -14,6 +14,7 @@ from .question import Question
 from electrum.gui.kivy.i18n import _
 
 from electrum.util import InvalidPassword
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 
 
 Builder.load_string('''
@@ -143,6 +144,7 @@ class TxDialog(Factory.Popup):
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
+        self.is_local_tx = height == TX_HEIGHT_LOCAL
         self.update_action_button()
 
     def update_action_button(self):
@@ -151,6 +153,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+            ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.is_local_tx),
         )
         num_options = sum(map(lambda o: bool(o.enabled), options))
         # if no options available, hide button
@@ -233,3 +236,23 @@ class TxDialog(Factory.Popup):
         text = bfh(raw_tx)
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=raw_tx)
+
+    def remove_local_tx(self):
+        txid = self.tx.txid()
+        to_delete = {txid}
+        to_delete |= self.wallet.get_depending_transactions(txid)
+        question = _("Are you sure you want to remove this transaction?")
+        if len(to_delete) > 1:
+            question = _(
+                "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
+            )
+
+        def on_prompt(b):
+            if b:
+                for tx in to_delete:
+                    self.wallet.remove_transaction(tx)
+                self.wallet.storage.write()
+                self.app._trigger_update_wallet()  # FIXME private...
+                self.dismiss()
+        d = Question(question, on_prompt)
+        d.open()
