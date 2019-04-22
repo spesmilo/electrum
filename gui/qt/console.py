@@ -21,11 +21,7 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
     QLabel, QLabel link {
         color: rgb(0, 64, 0);
         background-color: rgb(200, 220, 200, 215);
-        border: 2px solid;
         border-color: rgb(16, 120, 16, 215);
-        border-radius: 16px;
-        padding: 16px;
-        font: 16pt;
     }
     '''
 
@@ -33,13 +29,24 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
     QLabel, QLabel link {
         color: rgb(180, 220, 180);
         background-color: rgb(3, 12, 3, 215);
-        border: 2px solid;
         border-color: rgb(3, 96, 3, 215);
-        border-radius: 16px;
+    }
+    '''
+
+    STYLESHEET_COMMON = '''
+    QLabel, QLabel link {
+        border: 2px solid;
         padding: 16px;
         font: 16pt;
     }
     '''
+
+    BORDER_RADIUS = 16
+    STYLESHEET_BORDER_RADIUS = '''
+    QLabel, QLabel link {{
+        border-radius: {0}px;
+    }}
+    '''.format(BORDER_RADIUS)
 
     CONFIRM_TEXT = _("I UNDERSTAND THE RISK").upper()
 
@@ -62,9 +69,13 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
             'style="color: #3399ff;"' if ColorScheme.dark_scheme else '',
         )
 
-        self.setStyleSheet(self.STYLESHEET_DARK if ColorScheme.dark_scheme else self.STYLESHEET)
+        style_sheet = self.STYLESHEET_DARK if ColorScheme.dark_scheme else self.STYLESHEET
+        style_sheet = style_sheet + self.STYLESHEET_COMMON
+        style_sheet = style_sheet + self.STYLESHEET_BORDER_RADIUS
+        self.setStyleSheet(style_sheet)
 
         layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(35,35,35,35)
         self.setLayout(layout)
 
         warning_label = QtWidgets.QLabel(warning_text)
@@ -73,7 +84,6 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
         warning_label.setWordWrap(True)
         warning_label.setOpenExternalLinks(True)
         layoutLbl = QtWidgets.QVBoxLayout()
-        layoutLbl.setContentsMargins(25,25,25,25)
         layoutLbl.addWidget(warning_label)
         layout.addLayout(layoutLbl, 1)
 
@@ -87,6 +97,9 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
         hbox_layout = QtWidgets.QHBoxLayout()
         layout.addLayout(hbox_layout)
 
+        fixed = QtWidgets.QSizePolicy.Fixed
+        hbox_layout.addSpacerItem(QtWidgets.QSpacerItem(self.BORDER_RADIUS, 0, fixed, fixed))
+
         self.input_edit = QtWidgets.QLineEdit()
         self.input_edit.textChanged.connect(self.on_text_changed)
         self.input_edit.returnPressed.connect(self.on_confirm)
@@ -99,6 +112,8 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
 
         self.dontaskagain_cbx = QtWidgets.QCheckBox(_("&Don't ask again"))
         hbox_layout.addWidget(self.dontaskagain_cbx)
+
+        hbox_layout.addSpacerItem(QtWidgets.QSpacerItem(self.BORDER_RADIUS, 0, fixed, fixed))
 
     def input_ok(self) -> bool:
         """
