@@ -149,11 +149,20 @@ class ConsoleTextEdit(QtWidgets.QPlainTextEdit):
             self.parent().warningOverlay.keyPressEvent(event)
             return
 
-        if event.key() == QtCore.Qt.Key_Tab and event.modifiers() == QtCore.Qt.NoModifier:
-            self.parent().completions()
-            return
+        if event.key() == QtCore.Qt.Key_Tab or event.key() == QtCore.Qt.Key_Backtab:
+            if (event.modifiers() & QtCore.Qt.ControlModifier) == QtCore.Qt.ControlModifier:
+                # Ctrl + Tab / Ctrl + Shift + Tab for navigating the tab control, just let the parent handle it
+                pass
+            elif (event.modifiers() & QtCore.Qt.ShiftModifier) == QtCore.Qt.ShiftModifier:
+                # Shift + Tab, give focus to previous widget
+                self.parent().focusPreviousChild()
+                return
+            else:
+                # No Ctrl / Shift pressed, show completions
+                self.parent().completions()
+                return
 
-        self.parent().hide_completions()
+        closed_completions = self.parent().hide_completions()
 
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.parent().runCommand()
@@ -305,9 +314,9 @@ class Console(QtWidgets.QWidget):
         self.editor.moveCursor(QtGui.QTextCursor.End)
         self.completions_visible = True
 
-    def hide_completions(self):
+    def hide_completions(self) -> bool:
         if not self.completions_visible:
-            return
+            return False
         c = self.editor.textCursor()
         c.setPosition(self.completions_pos)
         l = self.completions_end - self.completions_pos
@@ -315,6 +324,7 @@ class Console(QtWidgets.QWidget):
 
         self.editor.moveCursor(QtGui.QTextCursor.End)
         self.completions_visible = False
+        return True
 
     def getConstruct(self, command):
         if self.construct:
