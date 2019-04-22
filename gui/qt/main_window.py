@@ -912,19 +912,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
         msg = _('Bitcoin Cash address where the payment should be received. Note that each payment request uses a different Bitcoin Cash address.')
-        self.receive_address_label = HelpLabel(_('Receiving address'), msg)
+        label = HelpLabel(_('&Receiving address'), msg)
+        label.setBuddy(self.receive_address_e)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         self.cashaddr_toggled_signal.connect(self.update_receive_address_widget)
-        grid.addWidget(self.receive_address_label, 0, 0)
+        grid.addWidget(label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
 
         self.receive_message_e = QLineEdit()
-        grid.addWidget(QLabel(_('Description')), 1, 0)
+        label = QLabel(_('&Description'))
+        label.setBuddy(self.receive_message_e)
+        grid.addWidget(label, 1, 0)
         grid.addWidget(self.receive_message_e, 1, 1, 1, -1)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
-        grid.addWidget(QLabel(_('Requested amount')), 2, 0)
+        label = QLabel(_('Requested &amount'))
+        label.setBuddy(self.receive_amount_e)
+        grid.addWidget(label, 2, 0)
         grid.addWidget(self.receive_amount_e, 2, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
@@ -944,17 +949,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin Cash addresses.'),
             _('The Bitcoin Cash address never expires and will always be part of this Electron Cash wallet.'),
         ])
-        grid.addWidget(HelpLabel(_('Request expires'), msg), 3, 0)
+        label = HelpLabel(_('Request &expires'), msg)
+        label.setBuddy(self.expires_combo)
+        grid.addWidget(label, 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
         self.expires_label.hide()
         grid.addWidget(self.expires_label, 3, 1)
 
-        self.save_request_button = QPushButton(_('Save'))
+        self.save_request_button = QPushButton(_('&Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
 
-        self.new_request_button = QPushButton(_('Clear'))
+        self.new_request_button = QPushButton(_('&Clear'))
         self.new_request_button.clicked.connect(self.new_payment_request)
 
         weakSelf = Weak.ref(self)
@@ -973,11 +980,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.new_request_button)
         grid.addLayout(buttons, 4, 1, 1, 2)
 
-        self.receive_requests_label = QLabel(_('Requests'))
+        self.receive_requests_label = QLabel(_('Re&quests'))
 
         from .request_list import RequestList
         self.request_list = RequestList(self)
         self.request_list.chkVisible()
+
+        self.receive_requests_label.setBuddy(self.request_list)
 
         # layout
         vbox_g = QVBoxLayout()
