@@ -22,7 +22,7 @@
 # SOFTWARE.
 import binascii
 import os, sys, re, json
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
 from datetime import datetime
 import decimal
@@ -32,17 +32,19 @@ import urllib
 import threading
 import hmac
 import stat
-import inspect
 from locale import localeconv
 import asyncio
 import urllib.request, urllib.parse, urllib.error
 import builtins
 import json
 import time
+from typing import NamedTuple, Optional
+import ssl
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
+import certifi
 
 from .i18n import _
 
@@ -54,6 +56,9 @@ if TYPE_CHECKING:
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
+
+
+ca_path = certifi.where()
 
 
 base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
@@ -129,6 +134,8 @@ class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
 
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
 class Satoshis(object):
     __slots__ = ('value',)
 
@@ -141,14 +148,24 @@ class Satoshis(object):
         return 'Satoshis(%d)'%self.value
 
     def __str__(self):
-        return format_satoshis(self.value) + " BTC"
+        return format_satoshis(self.value)
 
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
+
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
 class Fiat(object):
     __slots__ = ('value', 'ccy')
 
-    def __new__(cls, value, ccy):
+    def __new__(cls, value: Optional[Decimal], ccy: str):
         self = super(Fiat, cls).__new__(cls)
         self.ccy = ccy
+        if not isinstance(value, (Decimal, type(None))):
+            raise TypeError(f"value should be Decimal or None, not {type(value)}")
         self.value = value
         return self
 
@@ -159,10 +176,29 @@ class Fiat(object):
         if self.value is None or self.value.is_nan():
             return _('No Data')
         else:
+            return "{:.2f}".format(self.value)
+
+    def to_ui_string(self):
+        if self.value is None or self.value.is_nan():
+            return _('No Data')
+        else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
+
+    def __eq__(self, other):
+        if self.ccy != other.ccy:
+            return False
+        if isinstance(self.value, Decimal) and isinstance(other.value, Decimal) \
+                and self.value.is_nan() and other.value.is_nan():
+            return True
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
+        # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
@@ -176,7 +212,7 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
-        return super(MyEncoder, self).default(obj)
+        return super().default(obj)
 
 class PrintError(object):
     '''A handy base class'''
@@ -334,18 +370,8 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def get_func_name(args):
-        arg_names_from_sig = inspect.getfullargspec(func).args
-        # prepend class name if there is one (and if we can find it)
-        if len(arg_names_from_sig) > 0 and len(args) > 0 \
-                and arg_names_from_sig[0] in ('self', 'cls', 'klass'):
-            classname = args[0].__class__.__name__
-        else:
-            classname = ''
-        name = '{}.{}'.format(classname, func.__name__) if classname else func.__name__
-        return name
     def do_profile(args, kw_args):
-        name = get_func_name(args)
+        name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
@@ -394,6 +420,21 @@ def assert_file_in_datadir_available(path, config_path):
             'Should be at {}'.format(path))
 
 
+def standardize_path(path):
+    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+
+
+def get_new_wallet_name(wallet_folder: str) -> str:
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
+
+
 def assert_bytes(*args):
     """
     porting helper, assert args type
@@ -438,7 +479,6 @@ def to_bytes(something, encoding='utf8') -> bytes:
 
 
 bfh = bytes.fromhex
-hfu = binascii.hexlify
 
 
 def bh2u(x: bytes) -> str:
@@ -449,7 +489,7 @@ def bh2u(x: bytes) -> str:
     >>> bh2u(x)
     '01020A'
     """
-    return hfu(x).decode('ascii')
+    return x.hex()
 
 
 def user_dir():
@@ -465,9 +505,38 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
+
+def resource_path(*parts):
+    return os.path.join(pkg_dir, *parts)
+
+
+# absolute path to python package folder of electrum ("lib")
+pkg_dir = os.path.split(os.path.realpath(__file__))[0]
+
+
 def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None
+
+
+def is_hash256_str(text: str) -> bool:
+    if not isinstance(text, str): return False
+    if len(text) != 64: return False
+    try:
+        bytes.fromhex(text)
+    except:
+        return False
+    return True
+
+
+def is_non_negative_integer(val) -> bool:
+    try:
+        val = int(val)
+        if val >= 0:
+            return True
+    except:
+        pass
+    return False
 
 
 def format_satoshis_plain(x, decimal_point = 8):
@@ -706,7 +775,7 @@ def parse_URI(uri: str, on_pr: Callable=None) -> dict:
         out['address'] = address
     if 'amount' in out:
         am = out['amount']
-        m = re.match('([0-9\.]+)X([0-9])', am)
+        m = re.match(r'([0-9.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
@@ -742,17 +811,25 @@ def parse_URI(uri: str, on_pr: Callable=None) -> dict:
     return out
 
 
-def create_URI(addr, amount, message):
+def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
+                     *, extra_query_params: Optional[dict] = None) -> str:
     from . import bitcoin
     if not bitcoin.is_address(addr):
         return ""
+    if extra_query_params is None:
+        extra_query_params = {}
     query = []
-    if amount:
-        query.append('amount=%s'%format_satoshis_plain(amount))
+    if amount_sat:
+        query.append('amount=%s'%format_satoshis_plain(amount_sat))
     if message:
         query.append('message=%s'%urllib.parse.quote(message))
+    for k, v in extra_query_params.items():
+        if not isinstance(k, str) or k != urllib.parse.quote(k):
+            raise Exception(f"illegal key for URI: {repr(k)}")
+        v = urllib.parse.quote(v)
+        query.append(f"{k}={v}")
     p = urllib.parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
-    return urllib.parse.urlunparse(p)
+    return str(urllib.parse.urlunparse(p))
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -803,6 +880,10 @@ def setup_thread_excepthook():
         self.run = run_with_except_hook
 
     threading.Thread.__init__ = init
+
+
+def send_exception_to_crash_reporter(e: BaseException):
+    sys.excepthook(type(e), e, e.__traceback__)
 
 
 def versiontuple(v):
@@ -872,25 +953,23 @@ def ignore_exceptions(func):
     return wrapper
 
 
-class TxMinedStatus(NamedTuple):
-    height: int
-    conf: int
-    timestamp: int
-    header_hash: str
+class TxMinedInfo(NamedTuple):
+    height: int                        # height of block that mined tx
+    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    timestamp: Optional[int] = None    # timestamp of block that mined tx
+    txpos: Optional[int] = None        # position of tx in serialized block
+    header_hash: Optional[str] = None  # hash of block that mined tx
 
 
-class VerifiedTxInfo(NamedTuple):
-    height: int
-    timestamp: int
-    txpos: int
-    header_hash: str
-
-
-def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
+def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
-        timeout = aiohttp.ClientTimeout(total=10)
+        timeout = aiohttp.ClientTimeout(total=30)
+    elif isinstance(timeout, (int, float)):
+        timeout = aiohttp.ClientTimeout(total=timeout)
+    ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+
     if proxy:
         connector = SocksConnector(
             socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
@@ -898,11 +977,13 @@ def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
             port=int(proxy['port']),
             username=proxy.get('user', None),
             password=proxy.get('password', None),
-            rdns=True
+            rdns=True,
+            ssl=ssl_context,
         )
-        return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
     else:
-        return aiohttp.ClientSession(headers=headers, timeout=timeout)
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+    return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
 class SilentTaskGroup(TaskGroup):
@@ -986,3 +1067,76 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          name='EventLoop')
     loop_thread.start()
     return loop, stopping_fut, loop_thread
+
+
+class OrderedDictWithIndex(OrderedDict):
+    """An OrderedDict that keeps track of the positions of keys.
+
+    Note: very inefficient to modify contents, except to add new items.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._key_to_pos = {}
+        self._pos_to_key = {}
+
+    def _recalc_index(self):
+        self._key_to_pos = {key: pos for (pos, key) in enumerate(self.keys())}
+        self._pos_to_key = {pos: key for (pos, key) in enumerate(self.keys())}
+
+    def pos_from_key(self, key):
+        return self._key_to_pos[key]
+
+    def value_from_pos(self, pos):
+        key = self._pos_to_key[pos]
+        return self[key]
+
+    def popitem(self, *args, **kwargs):
+        ret = super().popitem(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def move_to_end(self, *args, **kwargs):
+        ret = super().move_to_end(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def clear(self):
+        ret = super().clear()
+        self._recalc_index()
+        return ret
+
+    def pop(self, *args, **kwargs):
+        ret = super().pop(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def update(self, *args, **kwargs):
+        ret = super().update(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def __delitem__(self, *args, **kwargs):
+        ret = super().__delitem__(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def __setitem__(self, key, *args, **kwargs):
+        is_new_key = key not in self
+        ret = super().__setitem__(key, *args, **kwargs)
+        if is_new_key:
+            pos = len(self) - 1
+            self._key_to_pos[key] = pos
+            self._pos_to_key[pos] = key
+        return ret
+
+
+def multisig_type(wallet_type):
+    '''If wallet_type is mofn multi-sig, return [m, n],
+    otherwise return None.'''
+    if not wallet_type:
+        return None
+    match = re.match(r'(\d+)of(\d+)', wallet_type)
+    if match:
+        match = [int(x) for x in match.group(1, 2)]
+    return match

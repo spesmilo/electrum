@@ -26,17 +26,18 @@
 import re
 from decimal import Decimal
 
-from PyQt5.QtGui import *
+from PyQt5.QtGui import QFontMetrics
 
 from electrum import bitcoin
 from electrum.util import bfh, PrintError
-from electrum.transaction import TxOutput
+from electrum.transaction import TxOutput, push_script
+from electrum.bitcoin import opcodes
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
 
-RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
+RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
@@ -91,12 +92,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             return bitcoin.TYPE_SCRIPT, script
 
     def parse_script(self, x):
-        from electrum.transaction import opcodes, push_script
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':
-                assert word in opcodes.lookup
-                opcode_int = opcodes.lookup[word]
+                opcode_int = opcodes[word]
                 assert opcode_int < 256  # opcode is single-byte
                 script += bitcoin.int_to_hex(opcode_int)
             else:
@@ -153,11 +152,11 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             else:
                 total += output.value
 
-        self.win.is_max = is_max
+        self.win.max_button.setChecked(is_max)
         self.outputs = outputs
         self.payto_address = None
 
-        if self.win.is_max:
+        if self.win.max_button.isChecked():
             self.win.do_update_fee()
         else:
             self.amount_edit.setAmount(total if outputs else None)

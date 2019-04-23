@@ -1,10 +1,11 @@
 import time
 from struct import pack
 
+from electrum import ecc
 from electrum.i18n import _
 from electrum.util import PrintError, UserCancelled
 from electrum.keystore import bip39_normalize_passphrase
-from electrum.bip32 import serialize_xpub, convert_bip32_path_to_list_of_uint32
+from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
 
 
 class GuiMixin(object):
@@ -156,7 +157,12 @@ class SafeTClientBase(GuiMixin, PrintError):
         address_n = self.expand_path(bip32_path)
         creating = False
         node = self.get_public_node(address_n, creating).node
-        return serialize_xpub(xtype, node.chain_code, node.public_key, node.depth, self.i4b(node.fingerprint), self.i4b(node.child_num))
+        return BIP32Node(xtype=xtype,
+                         eckey=ecc.ECPubkey(node.public_key),
+                         chaincode=node.chain_code,
+                         depth=node.depth,
+                         fingerprint=self.i4b(node.fingerprint),
+                         child_number=self.i4b(node.child_num)).to_xpub()
 
     def toggle_passphrase(self):
         if self.features.passphrase_protection:

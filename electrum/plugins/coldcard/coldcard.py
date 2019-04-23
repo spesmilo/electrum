@@ -6,7 +6,7 @@ from struct import pack, unpack
 import os, sys, time, io
 import traceback
 
-from electrum.bip32 import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
+from electrum.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
 from electrum.i18n import _
 from electrum.plugin import Device
 from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
@@ -17,6 +17,7 @@ from electrum.util import print_error, bfh, bh2u, versiontuple, UserFacingExcept
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
+from ..hw_wallet.plugin import LibraryFoundButUnusable
 
 try:
     import hid
@@ -39,12 +40,7 @@ try:
         def mitm_verify(self, sig, expect_xpub):
             # verify a signature (65 bytes) over the session key, using the master bip32 node
             # - customized to use specific EC library of Electrum.
-            from electrum.ecc import ECPubkey
-
-            xtype, depth, parent_fingerprint, child_number, chain_code, K_or_k \
-                = deserialize_xpub(expect_xpub)
-
-            pubkey = ECPubkey(K_or_k)
+            pubkey = BIP32Node.from_xkey(expect_xpub).eckey
             try:
                 pubkey.verify_message_hash(sig[1:65], self.session_key)
                 return True
@@ -118,6 +114,8 @@ class CKCCClient:
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
             # probably indicating programing error, not hacking
+            print_error("[coldcard]", f"xpubs. reported by device: {self.dev.master_xpub}. "
+                                      f"stored in file: {expected_xpub}")
             raise RuntimeError("Expecting 0x%08x but that's not whats connected?!" %
                                     expected_xfp)
 
@@ -188,12 +186,12 @@ class CKCCClient:
         # TODO handle timeout?
         # change type of xpub to the requested type
         try:
-            __, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+            node = BIP32Node.from_xkey(xpub)
         except InvalidMasterKeyVersionBytes:
             raise UserFacingException(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
                                       .format(self.device)) from None
         if xtype != 'standard':
-            xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+            xpub = node._replace(xtype=xtype).to_xpub()
         return xpub
 
     def ping_check(self):
@@ -454,9 +452,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         # inputs section
         for txin in inputs:
-            utxo = txin['prev_tx'].outputs()[txin['prevout_n']]
-            spendable = txin['prev_tx'].serialize_output(utxo)
-            write_kv(PSBT_IN_WITNESS_UTXO, spendable)
+            if Transaction.is_segwit_input(txin):
+                utxo = txin['prev_tx'].outputs()[txin['prevout_n']]
+                spendable = txin['prev_tx'].serialize_output(utxo)
+                write_kv(PSBT_IN_WITNESS_UTXO, spendable)
+            else:
+                write_kv(PSBT_IN_NON_WITNESS_UTXO, str(txin['prev_tx']))
 
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
 
@@ -605,7 +606,7 @@ class ColdcardPlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
 
-        self.libraries_available = self.check_libraries_available() and requirements_ok
+        self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:
             return
 
@@ -615,9 +616,13 @@ class ColdcardPlugin(HW_PluginBase):
     def get_library_version(self):
         import ckcc
         try:
-            return ckcc.__version__
+            version = ckcc.__version__
         except AttributeError:
-            return 'unknown'
+            version = 'unknown'
+        if requirements_ok:
+            return version
+        else:
+            raise LibraryFoundButUnusable(library_version=version)
 
     def detect_simulator(self):
         # if there is a simulator running on this machine,

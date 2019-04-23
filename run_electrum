@@ -25,6 +25,17 @@
 # SOFTWARE.
 import os
 import sys
+import warnings
+
+
+MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
+_min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
+
+
+if sys.version_info[:3] < _min_python_version_tuple:
+    sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
+
+warnings.simplefilter('default', DeprecationWarning)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -44,13 +55,13 @@ def check_imports():
         import dns
         import pyaes
         import ecdsa
-        import requests
+        import certifi
         import qrcode
         import google.protobuf
         import jsonrpclib
         import aiorpcx
     except ImportError as e:
-        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%str(e))
+        sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -58,7 +69,7 @@ def check_imports():
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
-    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
+    assert os.path.exists(certifi.where())
 
 
 if not is_android:
@@ -310,7 +321,10 @@ if __name__ == '__main__':
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbosity') if config_options.get('gui') != 'kivy' else '')
+    log_verbosity = config_options.get('verbosity') if config_options.get('gui') != 'kivy' else ''
+    set_verbosity(log_verbosity)
+    if not log_verbosity:
+        warnings.simplefilter('ignore', DeprecationWarning)
 
     # check uri
     uri = config_options.get('url')
@@ -354,6 +368,16 @@ if __name__ == '__main__':
                     if pid:
                         print_stderr("starting daemon (PID %d)" % pid)
                         sys.exit(0)
+                    # redirect standard file descriptors
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                    si = open(os.devnull, 'r')
+                    so = open(os.devnull, 'w')
+                    se = open(os.devnull, 'w')
+                    os.dup2(si.fileno(), sys.stdin.fileno())
+                    os.dup2(so.fileno(), sys.stdout.fileno())
+                    os.dup2(se.fileno(), sys.stderr.fileno())
+                # run daemon
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd)
                 if config.get('websocket_server'):

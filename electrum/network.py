@@ -37,20 +37,30 @@ import traceback
 
 import dns
 import dns.resolver
+import aiorpcx
 from aiorpcx import TaskGroup
+from aiohttp import ClientResponse
 
 from . import util
-from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bfh, SilentTaskGroup
+from .util import (PrintError, print_error, log_exceptions, ignore_exceptions,
+                   bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
+                   is_hash256_str, is_non_negative_integer)
+
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
+from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
-from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
+from .interface import (Interface, serialize_server, deserialize_server,
+                        RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
+from .i18n import _
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
+NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_RECENT_SERVERS = 20
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -103,9 +113,11 @@ def filter_protocol(hostmap, protocol='s'):
     return eligible
 
 
-def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap=None, protocol='s', exclude_set=None):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
+    if exclude_set is None:
+        exclude_set = set()
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -157,6 +169,48 @@ def deserialize_proxy(s: str) -> Optional[dict]:
     return proxy
 
 
+class BestEffortRequestFailed(Exception): pass
+
+
+class TxBroadcastError(Exception):
+    def get_message_for_gui(self):
+        raise NotImplementedError()
+
+
+class TxBroadcastHashMismatch(TxBroadcastError):
+    def get_message_for_gui(self):
+        return "{}\n{}\n\n{}" \
+            .format(_("The server returned an unexpected transaction ID when broadcasting the transaction."),
+                    _("Consider trying to connect to a different server, or updating Electrum."),
+                    str(self))
+
+
+class TxBroadcastServerReturnedError(TxBroadcastError):
+    def get_message_for_gui(self):
+        return "{}\n{}\n\n{}" \
+            .format(_("The server returned an error when broadcasting the transaction."),
+                    _("Consider trying to connect to a different server, or updating Electrum."),
+                    str(self))
+
+
+class TxBroadcastUnknownError(TxBroadcastError):
+    def get_message_for_gui(self):
+        return "{}\n{}" \
+            .format(_("Unknown error when broadcasting the transaction."),
+                    _("Consider trying to connect to a different server, or updating Electrum."))
+
+
+class UntrustedServerReturnedError(Exception):
+    def __init__(self, *, original_exception):
+        self.original_exception = original_exception
+
+    def __str__(self):
+        return _("The server returned an error.")
+
+    def __repr__(self):
+        return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
+
+
 INSTANCE = None
 
 
@@ -177,10 +231,10 @@ class Network(PrintError):
         if config is None:
             config = {}  # Do not use mutables as default values!
         self.config = SimpleConfig(config) if isinstance(config, dict) else config  # type: SimpleConfig
-        blockchain.blockchains = blockchain.read_blockchains(self.config)
-        self.print_error("blockchains", list(blockchain.blockchains))
+        blockchain.read_blockchains(self.config)
+        self.print_error("blockchains", list(map(lambda b: b.forkpoint, blockchain.blockchains.values())))
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
-        self._blockchain_index = 0
+        self._blockchain = blockchain.get_best_chain()
         # Server for addresses and transactions
         self.default_server = self.config.get('server', None)
         # Sanitize default server
@@ -193,7 +247,7 @@ class Network(PrintError):
         if not self.default_server:
             self.default_server = pick_random_server()
 
-        self.main_taskgroup = None
+        self.main_taskgroup = None  # type: TaskGroup
 
         # locks
         self.restart_lock = asyncio.Lock()
@@ -226,6 +280,9 @@ class Network(PrintError):
         self.server_queue = None
         self.proxy = None
 
+        # Dump network messages (all interfaces).  Set at runtime from the console.
+        self.debug = False
+
         self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
@@ -234,7 +291,7 @@ class Network(PrintError):
         return fut.result()
 
     @staticmethod
-    def get_instance():
+    def get_instance() -> Optional["Network"]:
         return INSTANCE
 
     def with_recent_servers_lock(func):
@@ -321,9 +378,18 @@ class Network(PrintError):
             self.banner = await session.send_request('server.banner')
             self.notify('banner')
         async def get_donation_address():
-            self.donation_address = await session.send_request('server.donation_address')
+            addr = await session.send_request('server.donation_address')
+            if not bitcoin.is_address(addr):
+                if addr:  # ignore empty string
+                    self.print_error(f"invalid donation address from server: {repr(addr)}")
+                addr = ''
+            self.donation_address = addr
         async def get_server_peers():
-            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
+            server_peers = await session.send_request('server.peers.subscribe')
+            random.shuffle(server_peers)
+            max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
+            server_peers = server_peers[:max_accepted_peers]
+            self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -403,7 +469,7 @@ class Network(PrintError):
     @with_recent_servers_lock
     def get_servers(self):
         # start with hardcoded servers
-        out = constants.net.DEFAULT_SERVERS
+        out = dict(constants.net.DEFAULT_SERVERS)  # copy
         # add recent servers
         for s in self.recent_servers:
             try:
@@ -458,31 +524,47 @@ class Network(PrintError):
 
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
-        def needs_dns_resolving(host2):
+        def needs_dns_resolving(host):
             try:
-                ipaddress.ip_address(host2)
+                ipaddress.ip_address(host)
                 return False  # already valid IP
             except ValueError:
                 pass  # not an IP
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True
-        try:
-            if needs_dns_resolving(host):
-                answers = dns.resolver.query(host)
-                addr = str(answers[0])
-            else:
-                addr = host
-        except dns.exception.DNSException as e:
-            # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-            # this is normal. Simply report back failure:
-            raise socket.gaierror(11001, 'getaddrinfo failed') from e
-        except BaseException as e:
-            # Possibly internal error in dnspython :( see #4483
+        def resolve_with_dnspython(host):
+            addrs = []
+            # try IPv6
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                pass
+            except BaseException as e:
+                print_error(f'dnspython failed to resolve dns (AAAA) with error: {e}')
+            # try IPv4
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.A)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
+                # Simply report back failure; except if we already have some results.
+                if not addrs:
+                    raise socket.gaierror(11001, 'getaddrinfo failed') from e
+            except BaseException as e:
+                # Possibly internal error in dnspython :( see #4483
+                print_error(f'dnspython failed to resolve dns (A) with error: {e}')
+            if addrs:
+                return addrs
             # Fall back to original socket.getaddrinfo to resolve dns.
-            print_error('dnspython failed to resolve dns with error:', e)
-            addr = host
-        return socket._getaddrinfo(addr, *args, **kwargs)
+            return [host]
+        addrs = [host]
+        if needs_dns_resolving(host):
+            addrs = resolve_with_dnspython(host)
+        list_of_list_of_socketinfos = [socket._getaddrinfo(addr, *args, **kwargs) for addr in addrs]
+        list_of_socketinfos = [item for lst in list_of_list_of_socketinfos for item in lst]
+        return list_of_socketinfos
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -521,7 +603,7 @@ class Network(PrintError):
                 await self.switch_lagging_interface()
 
     def _set_oneserver(self, oneserver: bool):
-        self.num_server = 10 if not oneserver else 0
+        self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
         self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
@@ -559,17 +641,24 @@ class Network(PrintError):
             filtered = list(filter(lambda iface: iface.blockchain.check_hash(pref_height, pref_hash),
                                    interfaces))
             if filtered:
+                self.print_error("switching to preferred fork")
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
                 return
-        # try to switch to longest chain
-        if self.blockchain().parent_id is None:
-            return  # already on longest chain
-        filtered = list(filter(lambda iface: iface.blockchain.parent_id is None,
+            else:
+                self.print_error("tried to switch to preferred fork but no interfaces are on it")
+        # try to switch to best chain
+        if self.blockchain().parent is None:
+            return  # already on best chain
+        filtered = list(filter(lambda iface: iface.blockchain.parent is None,
                                interfaces))
         if filtered:
+            self.print_error("switching to best chain")
             chosen_iface = random.choice(filtered)
             await self.switch_to_interface(chosen_iface.server)
+        else:
+            # FIXME switch to best available?
+            self.print_error("tried to switch to best chain but no interfaces are on it")
 
     async def switch_to_interface(self, server: str):
         """Switch to server as our main interface. If no connection exists,
@@ -620,25 +709,33 @@ class Network(PrintError):
         if server in self.recent_servers:
             self.recent_servers.remove(server)
         self.recent_servers.insert(0, server)
-        self.recent_servers = self.recent_servers[0:20]
+        self.recent_servers = self.recent_servers[:NUM_RECENT_SERVERS]
         self._save_recent_servers()
 
-    async def connection_down(self, server):
+    async def connection_down(self, interface: Interface):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
+        if not interface: return
+        server = interface.server
         self.disconnected_servers.add(server)
         if server == self.default_server:
             self._set_status('disconnected')
-        interface = self.interfaces.get(server, None)
-        if interface:
-            await self._close_interface(interface)
-            self.trigger_callback('network_updated')
+        await self._close_interface(interface)
+        self.trigger_callback('network_updated')
+
+    def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
+        if self.oneserver and not self.auto_connect:
+            return request_type.MOST_RELAXED
+        if self.proxy:
+            return request_type.RELAXED
+        return request_type.NORMAL
 
     @ignore_exceptions  # do not kill main_taskgroup
     @log_exceptions
     async def _run_new_interface(self, server):
-        interface = Interface(self, server, self.config.path, self.proxy)
-        timeout = 10 if not self.proxy else 20
+        interface = Interface(self, server, self.proxy)
+        # note: using longer timeouts here as DNS can sometimes be slow!
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
@@ -660,8 +757,34 @@ class Network(PrintError):
         self._add_recent_server(server)
         self.trigger_callback('network_updated')
 
+    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
+        # main interface is exempt. this makes switching servers easier
+        if iface_to_check.is_main_server():
+            return True
+        if not iface_to_check.bucket_based_on_ipaddress():
+            return True
+        # bucket connected interfaces
+        with self.interfaces_lock:
+            interfaces = list(self.interfaces.values())
+        if iface_to_check in interfaces:
+            interfaces.remove(iface_to_check)
+        buckets = defaultdict(list)
+        for iface in interfaces:
+            buckets[iface.bucket_based_on_ipaddress()].append(iface)
+        # check proposed server against buckets
+        onion_servers = buckets[BUCKET_NAME_OF_ONION_SERVERS]
+        if iface_to_check.is_tor():
+            # keep number of onion servers below half of all connected servers
+            if len(onion_servers) > NUM_TARGET_CONNECTED_SERVERS // 2:
+                return False
+        else:
+            bucket = iface_to_check.bucket_based_on_ipaddress()
+            if len(buckets[bucket]) > 0:
+                return False
+        return True
+
     async def _init_headers_file(self):
-        b = blockchain.blockchains[0]
+        b = blockchain.get_best_chain()
         filename = b.path()
         length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
@@ -701,46 +824,221 @@ class Network(PrintError):
                             continue  # try again
                     return success_fut.result()
                 # otherwise; try again
-            raise Exception('no interface to do request on... gave up.')
+            raise BestEffortRequestFailed('no interface to do request on... gave up.')
         return make_reliable_wrapper
 
+    def catch_server_exceptions(func):
+        async def wrapper(self, *args, **kwargs):
+            try:
+                return await func(self, *args, **kwargs)
+            except aiorpcx.jsonrpc.CodeMessageError as e:
+                raise UntrustedServerReturnedError(original_exception=e) from e
+        return wrapper
+
     @best_effort_reliable
+    @catch_server_exceptions
     async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int) -> dict:
+        if not is_hash256_str(tx_hash):
+            raise Exception(f"{repr(tx_hash)} is not a txid")
+        if not is_non_negative_integer(tx_height):
+            raise Exception(f"{repr(tx_height)} is not a block height")
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, *, timeout=10):
-        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
+    async def broadcast_transaction(self, tx, *, timeout=None) -> None:
+        if timeout is None:
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        try:
+            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
+            # note: both 'out' and exception messages are untrusted input from the server
+        except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
+            raise  # pass-through
+        except aiorpcx.jsonrpc.CodeMessageError as e:
+            self.print_error(f"broadcast_transaction error: {repr(e)}")
+            raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
+        except BaseException as e:  # intentional BaseException for sanity!
+            self.print_error(f"broadcast_transaction error2: {repr(e)}")
+            send_exception_to_crash_reporter(e)
+            raise TxBroadcastUnknownError() from e
         if out != tx.txid():
-            raise Exception(out)
-        return out  # txid
+            self.print_error(f"unexpected txid for broadcast_transaction: {out} != {tx.txid()}")
+            raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
+
+    @staticmethod
+    def sanitize_tx_broadcast_response(server_msg) -> str:
+        # Unfortunately, bitcoind and hence the Electrum protocol doesn't return a useful error code.
+        # So, we use substring matching to grok the error message.
+        # server_msg is untrusted input so it should not be shown to the user. see #4968
+        server_msg = str(server_msg)
+        server_msg = server_msg.replace("\n", r"\n")
+        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/policy/policy.cpp
+        # grep "reason ="
+        policy_error_messages = {
+            r"version": _("Transaction uses non-standard version."),
+            r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
+            r"scriptsig-size": None,
+            r"scriptsig-not-pushonly": None,
+            r"scriptpubkey": None,
+            r"bare-multisig": None,
+            r"dust": _("Transaction could not be broadcast due to dust outputs."),
+            r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
+        }
+        for substring in policy_error_messages:
+            if substring in server_msg:
+                msg = policy_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/script/script_error.cpp
+        script_error_messages = {
+            r"Script evaluated without error but finished with a false/empty top stack element",
+            r"Script failed an OP_VERIFY operation",
+            r"Script failed an OP_EQUALVERIFY operation",
+            r"Script failed an OP_CHECKMULTISIGVERIFY operation",
+            r"Script failed an OP_CHECKSIGVERIFY operation",
+            r"Script failed an OP_NUMEQUALVERIFY operation",
+            r"Script is too big",
+            r"Push value size limit exceeded",
+            r"Operation limit exceeded",
+            r"Stack size limit exceeded",
+            r"Signature count negative or greater than pubkey count",
+            r"Pubkey count negative or limit exceeded",
+            r"Opcode missing or not understood",
+            r"Attempted to use a disabled opcode",
+            r"Operation not valid with the current stack size",
+            r"Operation not valid with the current altstack size",
+            r"OP_RETURN was encountered",
+            r"Invalid OP_IF construction",
+            r"Negative locktime",
+            r"Locktime requirement not satisfied",
+            r"Signature hash type missing or not understood",
+            r"Non-canonical DER signature",
+            r"Data push larger than necessary",
+            r"Only non-push operators allowed in signatures",
+            r"Non-canonical signature: S value is unnecessarily high",
+            r"Dummy CHECKMULTISIG argument must be zero",
+            r"OP_IF/NOTIF argument must be minimal",
+            r"Signature must be zero for failed CHECK(MULTI)SIG operation",
+            r"NOPx reserved for soft-fork upgrades",
+            r"Witness version reserved for soft-fork upgrades",
+            r"Public key is neither compressed or uncompressed",
+            r"Extra items left on stack after execution",
+            r"Witness program has incorrect length",
+            r"Witness program was passed an empty witness",
+            r"Witness program hash mismatch",
+            r"Witness requires empty scriptSig",
+            r"Witness requires only-redeemscript scriptSig",
+            r"Witness provided for non-witness script",
+            r"Using non-compressed keys in segwit",
+            r"Using OP_CODESEPARATOR in non-witness script",
+            r"Signature is found in scriptCode",
+        }
+        for substring in script_error_messages:
+            if substring in server_msg:
+                return substring
+        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/validation.cpp
+        # grep "REJECT_"
+        # should come after script_error.cpp (due to e.g. non-mandatory-script-verify-flag)
+        validation_error_messages = {
+            r"coinbase",
+            r"tx-size-small",
+            r"non-final",
+            r"txn-already-in-mempool",
+            r"txn-mempool-conflict",
+            r"txn-already-known",
+            r"non-BIP68-final",
+            r"bad-txns-nonstandard-inputs",
+            r"bad-witness-nonstandard",
+            r"bad-txns-too-many-sigops",
+            r"mempool min fee not met",
+            r"min relay fee not met",
+            r"absurdly-high-fee",
+            r"too-long-mempool-chain",
+            r"bad-txns-spends-conflicting-tx",
+            r"insufficient fee",
+            r"too many potential replacements",
+            r"replacement-adds-unconfirmed",
+            r"mempool full",
+            r"non-mandatory-script-verify-flag",
+            r"mandatory-script-verify-flag-failed",
+        }
+        for substring in validation_error_messages:
+            if substring in server_msg:
+                return substring
+        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/rpc/rawtransaction.cpp
+        # grep "RPC_TRANSACTION"
+        # grep "RPC_DESERIALIZATION_ERROR"
+        rawtransaction_error_messages = {
+            r"Missing inputs",
+            r"transaction already in block chain",
+            r"TX decode failed",
+        }
+        for substring in rawtransaction_error_messages:
+            if substring in server_msg:
+                return substring
+        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/consensus/tx_verify.cpp
+        # grep "REJECT_"
+        tx_verify_error_messages = {
+            r"bad-txns-vin-empty",
+            r"bad-txns-vout-empty",
+            r"bad-txns-oversize",
+            r"bad-txns-vout-negative",
+            r"bad-txns-vout-toolarge",
+            r"bad-txns-txouttotal-toolarge",
+            r"bad-txns-inputs-duplicate",
+            r"bad-cb-length",
+            r"bad-txns-prevout-null",
+            r"bad-txns-inputs-missingorspent",
+            r"bad-txns-premature-spend-of-coinbase",
+            r"bad-txns-inputvalues-outofrange",
+            r"bad-txns-in-belowout",
+            r"bad-txns-fee-outofrange",
+        }
+        for substring in tx_verify_error_messages:
+            if substring in server_msg:
+                return substring
+        # otherwise:
+        return _("Unknown error")
 
     @best_effort_reliable
-    async def request_chunk(self, height, tip=None, *, can_return_early=False):
+    @catch_server_exceptions
+    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
+        if not is_non_negative_integer(height):
+            raise Exception(f"{repr(height)} is not a block height")
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
     @best_effort_reliable
+    @catch_server_exceptions
     async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
+        if not is_hash256_str(tx_hash):
+            raise Exception(f"{repr(tx_hash)} is not a txid")
         return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash],
                                                          timeout=timeout)
 
     @best_effort_reliable
+    @catch_server_exceptions
     async def get_history_for_scripthash(self, sh: str) -> List[dict]:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
         return await self.interface.session.send_request('blockchain.scripthash.get_history', [sh])
 
     @best_effort_reliable
+    @catch_server_exceptions
     async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
         return await self.interface.session.send_request('blockchain.scripthash.listunspent', [sh])
 
     @best_effort_reliable
+    @catch_server_exceptions
     async def get_balance_for_scripthash(self, sh: str) -> dict:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
         return await self.interface.session.send_request('blockchain.scripthash.get_balance', [sh])
 
     def blockchain(self) -> Blockchain:
         interface = self.interface
         if interface and interface.blockchain is not None:
-            self._blockchain_index = interface.blockchain.forkpoint
-        return blockchain.blockchains[self._blockchain_index]
+            self._blockchain = interface.blockchain
+        return self._blockchain
 
     def get_blockchains(self):
         out = {}  # blockchain_id -> list(interfaces)
@@ -752,13 +1050,6 @@ class Network(PrintError):
                 out[chain_id] = r
         return out
 
-    async def disconnect_from_interfaces_on_given_blockchain(self, chain: Blockchain) -> Sequence[Interface]:
-        chain_id = chain.forkpoint
-        ifaces = self.get_blockchains().get(chain_id) or []
-        for interface in ifaces:
-            await self.connection_down(interface.server)
-        return ifaces
-
     def _set_preferred_chain(self, chain: Blockchain):
         height = chain.get_max_forkpoint()
         header_hash = chain.get_hash(height)
@@ -768,7 +1059,7 @@ class Network(PrintError):
         }
         self.config.set_key('blockchain_preferred_block', self._blockchain_preferred_block)
 
-    async def follow_chain_given_id(self, chain_id: int) -> None:
+    async def follow_chain_given_id(self, chain_id: str) -> None:
         bc = blockchain.blockchains.get(chain_id)
         if not bc:
             raise Exception('blockchain {} not found'.format(chain_id))
@@ -809,7 +1100,7 @@ class Network(PrintError):
 
     async def _start(self):
         assert not self.main_taskgroup
-        self.main_taskgroup = SilentTaskGroup()
+        self.main_taskgroup = main_taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self.connecting and not self.server_queue
         self.print_error('starting network')
@@ -823,7 +1114,9 @@ class Network(PrintError):
         async def main():
             try:
                 await self._init_headers_file()
-                async with self.main_taskgroup as group:
+                # note: if a task finishes with CancelledError, that
+                # will NOT raise, and the group will keep the other tasks running
+                async with main_taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
             except Exception as e:
@@ -844,7 +1137,7 @@ class Network(PrintError):
             await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.print_error(f"exc during main_taskgroup cancellation: {repr(e)}")
-        self.main_taskgroup = None
+        self.main_taskgroup = None  # type: TaskGroup
         self.interface = None  # type: Interface
         self.interfaces = {}  # type: Dict[str, Interface]
         self.connecting.clear()
@@ -876,25 +1169,109 @@ class Network(PrintError):
                 await self.switch_to_interface(self.default_server)
 
     async def _maintain_sessions(self):
-        while True:
-            # launch already queued up new interfaces
+        async def launch_already_queued_up_new_interfaces():
             while self.server_queue.qsize() > 0:
                 server = self.server_queue.get()
                 await self.main_taskgroup.spawn(self._run_new_interface(server))
-
-            # maybe queue new interfaces to be launched later
+        async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+                # FIXME this should try to honour "healthy spread of connected servers"
                 self._start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
-
-            # main interface
+        async def maintain_healthy_spread_of_connected_servers():
+            with self.interfaces_lock: interfaces = list(self.interfaces.values())
+            random.shuffle(interfaces)
+            for iface in interfaces:
+                if not self.check_interface_against_healthy_spread_of_connected_servers(iface):
+                    self.print_error(f"disconnecting from {iface.server}. too many connected "
+                                     f"servers already in bucket {iface.bucket_based_on_ipaddress()}")
+                    await self._close_interface(iface)
+        async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
                 if self.config.is_fee_estimates_update_required():
                     await self.interface.group.spawn(self._request_fee_estimates, self.interface)
 
+        while True:
+            try:
+                await launch_already_queued_up_new_interfaces()
+                await maybe_queue_new_interfaces_to_be_launched_later()
+                await maintain_healthy_spread_of_connected_servers()
+                await maintain_main_interface()
+            except asyncio.CancelledError:
+                # suppress spurious cancellations
+                group = self.main_taskgroup
+                if not group or group._closed:
+                    raise
             await asyncio.sleep(0.1)
+
+    @classmethod
+    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
+                                  body: bytes = None, json: dict = None, headers=None,
+                                  on_finish=None, timeout=None):
+        async def default_on_finish(resp: ClientResponse):
+            resp.raise_for_status()
+            return await resp.text()
+        if headers is None:
+            headers = {}
+        if on_finish is None:
+            on_finish = default_on_finish
+        network = cls.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy, timeout=timeout) as session:
+            if method == 'get':
+                async with session.get(url, params=params, headers=headers) as resp:
+                    return await on_finish(resp)
+            elif method == 'post':
+                assert body is not None or json is not None, 'body or json must be supplied if method is post'
+                if body is not None:
+                    async with session.post(url, data=body, headers=headers) as resp:
+                        return await on_finish(resp)
+                elif json is not None:
+                    async with session.post(url, json=json, headers=headers) as resp:
+                        return await on_finish(resp)
+            else:
+                assert False
+
+    @classmethod
+    def send_http_on_proxy(cls, method, url, **kwargs):
+        network = cls.get_instance()
+        if network:
+            assert network._loop_thread is not threading.currentThread()
+            loop = network.asyncio_loop
+        else:
+            loop = asyncio.get_event_loop()
+        coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
+        # note: _send_http_on_proxy has its own timeout, so no timeout here:
+        return coro.result()
+
+    # methods used in scripts
+    async def get_peers(self):
+        while not self.is_connected():
+            await asyncio.sleep(1)
+        session = self.interface.session
+        return parse_servers(await session.send_request('server.peers.subscribe'))
+
+    async def send_multiple_requests(self, servers: List[str], method: str, params: Sequence):
+        responses = dict()
+        async def get_response(server):
+            interface = Interface(self, server, self.proxy)
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
+            try:
+                await asyncio.wait_for(interface.ready, timeout)
+            except BaseException as e:
+                await interface.close()
+                return
+            try:
+                res = await interface.session.send_request(method, params, timeout=10)
+            except Exception as e:
+                res = e
+            responses[interface.server] = res
+        async with TaskGroup() as group:
+            for server in servers:
+                await group.spawn(get_response(server))
+        return responses

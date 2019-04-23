@@ -24,10 +24,7 @@ Popup:
 
                 CardSeparator
                 SettingsItem:
-                    proxy: app.proxy_config.get('mode')
-                    host: app.proxy_config.get('host')
-                    port: app.proxy_config.get('port')
-                    title: _("Proxy") + ': ' + ((self.host +':' + self.port) if self.proxy else _('None'))
+                    title: _("Proxy") + ': ' + app.proxy_str
                     description: _('Proxy configuration')
                     action: lambda x: app.popup_dialog('proxy')
 

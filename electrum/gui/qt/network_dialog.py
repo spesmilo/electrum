@@ -24,11 +24,13 @@
 # SOFTWARE.
 
 import socket
+import time
+from enum import IntEnum
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtCore import Qt, pyqtSignal, QThread
+from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
+                             QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
+                             QTabWidget, QWidget, QLabel)
 
 from electrum.i18n import _
 from electrum import constants, blockchain
@@ -36,7 +38,7 @@ from electrum.util import print_error
 from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
 
-from .util import *
+from .util import Buttons, CloseButton, HelpButton, read_QIcon
 
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
@@ -45,7 +47,7 @@ class NetworkDialog(QDialog):
     def __init__(self, network, config, network_updated_signal_obj):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
-        self.setMinimumSize(500, 20)
+        self.setMinimumSize(500, 300)
         self.nlayout = NetworkChoiceLayout(network, config)
         self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
@@ -82,8 +84,8 @@ class NodesListWidget(QTreeWidget):
             server = item.data(1, Qt.UserRole)
             menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
-            index = item.data(1, Qt.UserRole)
-            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(index))
+            chain_id = item.data(1, Qt.UserRole)
+            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(chain_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
@@ -103,22 +105,23 @@ class NodesListWidget(QTreeWidget):
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
         n_chains = len(chains)
-        for k, items in chains.items():
-            b = blockchain.blockchains[k]
+        for chain_id, interfaces in chains.items():
+            b = blockchain.blockchains.get(chain_id)
+            if b is None: continue
             name = b.get_name()
-            if n_chains >1:
+            if n_chains > 1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_max_forkpoint(), '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.forkpoint)
+                x.setData(1, Qt.UserRole, b.get_id())
             else:
                 x = self
-            for i in items:
+            for i in interfaces:
                 star = ' *' if i == network.interface else ''
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
                 x.addChild(item)
-            if n_chains>1:
+            if n_chains > 1:
                 self.addTopLevelItem(x)
                 x.setExpanded(True)
 
@@ -131,6 +134,11 @@ class NodesListWidget(QTreeWidget):
 
 
 class ServerListWidget(QTreeWidget):
+    class Columns(IntEnum):
+        HOST = 0
+        PORT = 1
+
+    SERVER_STR_ROLE = Qt.UserRole + 100
 
     def __init__(self, parent):
         QTreeWidget.__init__(self)
@@ -144,7 +152,7 @@ class ServerListWidget(QTreeWidget):
         if not item:
             return
         menu = QMenu()
-        server = item.data(1, Qt.UserRole)
+        server = item.data(self.Columns.HOST, self.SERVER_STR_ROLE)
         menu.addAction(_("Use as server"), lambda: self.set_server(server))
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -175,13 +183,13 @@ class ServerListWidget(QTreeWidget):
             if port:
                 x = QTreeWidgetItem([_host, port])
                 server = serialize_server(_host, port, protocol)
-                x.setData(1, Qt.UserRole, server)
+                x.setData(self.Columns.HOST, self.SERVER_STR_ROLE, server)
                 self.addTopLevelItem(x)
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(self.Columns.HOST, QHeaderView.Stretch)
+        h.setSectionResizeMode(self.Columns.PORT, QHeaderView.ResizeToContents)
 
         super().update()
 
@@ -269,7 +277,7 @@ class NetworkChoiceLayout(object):
         self.proxy_password.textEdited.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
-        self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
+        self.tor_cb.setIcon(read_QIcon("tor_logo.png"))
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
@@ -410,8 +418,8 @@ class NetworkChoiceLayout(object):
         self.set_protocol(p)
         self.set_server()
 
-    def follow_branch(self, index):
-        self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
+    def follow_branch(self, chain_id):
+        self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
 
     def follow_server(self, server):
@@ -465,6 +473,9 @@ class NetworkChoiceLayout(object):
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def suggest_proxy(self, found_proxy):
+        if found_proxy is None:
+            self.tor_cb.hide()
+            return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
         if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
@@ -504,10 +515,14 @@ class TorDetector(QThread):
     def run(self):
         # Probable ports for Tor to listen at
         ports = [9050, 9150]
-        for p in ports:
-            if TorDetector.is_tor_port(p):
-                self.found_proxy.emit(("127.0.0.1", p))
-                return
+        while True:
+            for p in ports:
+                if TorDetector.is_tor_port(p):
+                    self.found_proxy.emit(("127.0.0.1", p))
+                    break
+            else:
+                self.found_proxy.emit(None)
+            time.sleep(10)
 
     @staticmethod
     def is_tor_port(port):

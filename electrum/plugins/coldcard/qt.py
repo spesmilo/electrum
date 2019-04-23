@@ -1,9 +1,13 @@
 import time
+from functools import partial
+
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window
 
 from .coldcard import ColdcardPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -11,8 +15,8 @@ from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(ColdcardPlugin, QtPluginBase):
-    icon_unpaired = ":icons/coldcard_unpaired.png"
-    icon_paired = ":icons/coldcard.png"
+    icon_unpaired = "coldcard_unpaired.png"
+    icon_paired = "coldcard.png"
 
     def create_handler(self, window):
         return Coldcard_Handler(window)

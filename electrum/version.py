@@ -1,12 +1,13 @@
-ELECTRUM_VERSION = '3.2.3'   # version of the client package
-APK_VERSION = '3.2.3.1'      # read by buildozer.spec
+ELECTRUM_VERSION = '3.3.4'   # version of the client package
+APK_VERSION = '3.3.4.0'      # read by buildozer.spec
 
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
 # The hash of the mnemonic seed must begin with this
-SEED_PREFIX      = '01'      # Standard wallet
-SEED_PREFIX_2FA  = '101'     # Two-factor authentication
-SEED_PREFIX_SW   = '100'     # Segwit wallet
+SEED_PREFIX        = '01'      # Standard wallet
+SEED_PREFIX_SW     = '100'     # Segwit wallet
+SEED_PREFIX_2FA    = '101'     # Two-factor authentication
+SEED_PREFIX_2FA_SW = '102'     # Two-factor auth, using segwit
 
 
 def seed_prefix(seed_type):
@@ -16,3 +17,5 @@ def seed_prefix(seed_type):
         return SEED_PREFIX_SW
     elif seed_type == '2fa':
         return SEED_PREFIX_2FA
+    elif seed_type == '2fa_segwit':
+        return SEED_PREFIX_2FA_SW

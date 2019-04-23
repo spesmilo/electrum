@@ -25,10 +25,14 @@
 # SOFTWARE.
 
 import threading
+from functools import partial
 
-from PyQt5.Qt import QVBoxLayout, QLabel
-from electrum.gui.qt.password_dialog import PasswordDialog, PW_PASSPHRASE
-from electrum.gui.qt.util import *
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
+
+from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
+from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
+                                  Buttons, CancelButton, TaskThread)
 
 from electrum.i18n import _
 from electrum.util import PrintError
@@ -72,8 +76,8 @@ class QtHandlerBase(QObject, PrintError):
     def _update_status(self, paired):
         if hasattr(self, 'button'):
             button = self.button
-            icon = button.icon_paired if paired else button.icon_unpaired
-            button.setIcon(QIcon(icon))
+            icon_name = button.icon_paired if paired else button.icon_unpaired
+            button.setIcon(read_QIcon(icon_name))
 
     def query_choice(self, msg, labels):
         self.done.clear()
@@ -114,11 +118,16 @@ class QtHandlerBase(QObject, PrintError):
     def passphrase_dialog(self, msg, confirm):
         # If confirm is true, require the user to enter the passphrase twice
         parent = self.top_level_window()
+        d = WindowModalDialog(parent, _("Enter Passphrase"))
         if confirm:
-            d = PasswordDialog(parent, None, msg, PW_PASSPHRASE)
-            confirmed, p, passphrase = d.run()
+            OK_button = OkButton(d)
+            playout = PasswordLayout(msg=msg, kind=PW_PASSPHRASE, OK_button=OK_button)
+            vbox = QVBoxLayout()
+            vbox.addLayout(playout.layout())
+            vbox.addLayout(Buttons(CancelButton(d), OK_button))
+            d.setLayout(vbox)
+            passphrase = playout.new_password() if d.exec_() else None
         else:
-            d = WindowModalDialog(parent, _("Enter Passphrase"))
             pw = QLineEdit()
             pw.setEchoMode(2)
             pw.setMinimumWidth(200)
@@ -194,7 +203,7 @@ class QtPluginBase(object):
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self.show_settings_dialog, window, keystore)
-            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb)
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
             window.statusBar().addPermanentWidget(button)
@@ -228,4 +237,4 @@ class QtPluginBase(object):
         def show_address():
             addr = receive_address_e.text()
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
-        receive_address_e.addButton(":icons/eye1.png", show_address, _("Show on {}").format(plugin.device))
+        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(plugin.device))

@@ -6,6 +6,9 @@ from electrum import constants
 from electrum.simple_config import SimpleConfig
 from electrum import blockchain
 from electrum.interface import Interface
+from electrum.crypto import sha256
+from electrum.util import bh2u
+
 
 class MockTaskGroup:
     async def spawn(self, x): return
@@ -17,10 +20,14 @@ class MockNetwork:
 class MockInterface(Interface):
     def __init__(self, config):
         self.config = config
-        super().__init__(MockNetwork(), 'mock-server:50000:t', self.config.electrum_path(), None)
+        network = MockNetwork()
+        network.config = config
+        super().__init__(network, 'mock-server:50000:t', None)
         self.q = asyncio.Queue()
-        self.blockchain = blockchain.Blockchain(self.config, 2002, None)
+        self.blockchain = blockchain.Blockchain(config=self.config, forkpoint=0,
+                                                parent=None, forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         self.tip = 12
+        self.blockchain._size = self.tip + 1
     async def get_block_header(self, height, assert_mode):
         assert self.q.qsize() > 0, (height, assert_mode)
         item = await self.q.get()
@@ -56,7 +63,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('fork_noconflict', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
+        self.assertEqual(('fork', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def test_fork_conflict(self):
@@ -70,7 +77,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('fork_conflict', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
+        self.assertEqual(('fork', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def test_can_connect_during_backward(self):
@@ -87,7 +94,10 @@ class TestNetwork(unittest.TestCase):
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def mock_fork(self, bad_header):
-        return blockchain.Blockchain(self.config, bad_header['block_height'], None)
+        forkpoint = bad_header['block_height']
+        b = blockchain.Blockchain(config=self.config, forkpoint=forkpoint, parent=None,
+                                  forkpoint_hash=bh2u(sha256(str(forkpoint))), prev_hash=bh2u(sha256(str(forkpoint-1))))
+        return b
 
     def test_chain_false_during_binary(self):
         blockchain.blockchains = {}

@@ -25,8 +25,8 @@ from .password_dialog import PasswordDialog
 
 # global Variables
 is_test = (platform == "linux")
-test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
 test_seed = "grape impose jazz bind spatial mind jelly tourist tank today holiday stomach"
+test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
 test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
 Builder.load_string('''
@@ -629,7 +629,7 @@ class WizardKnownOTPDialog(WizardOTPDialogBase):
 
     def abort_wallet_creation(self):
         self._on_release = True
-        os.unlink(self.wizard.storage.path)
+        os.unlink(self.path)
         self.wizard.terminate()
         self.dismiss()
 
@@ -971,8 +971,10 @@ class InstallWizard(BaseWizard, Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def terminate(self, **kwargs):
-        self.dispatch('on_wizard_complete', self.wallet)
+    def terminate(self, *, storage=None):
+        if storage is None:
+            storage = self.create_storage(self.path)
+        self.dispatch('on_wizard_complete', storage)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
@@ -1027,6 +1029,10 @@ class InstallWizard(BaseWizard, Widget):
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):
+        if force_disable_encrypt_cb:
+            # do not request PIN for watching-only wallets
+            run_next(None, False)
+            return
         def on_success(old_pin, pin):
             assert old_pin is None
             run_next(pin, False)

@@ -23,10 +23,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 import signal
 import sys
 import traceback
 import threading
+from typing import Optional
 
 
 try:
@@ -34,30 +36,23 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
 
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
+                             QMessageBox)
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
-from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, PrintError, profiler,
-                           WalletFileException, BitcoinException)
+                           WalletFileException, BitcoinException, get_new_wallet_name)
+from electrum.wallet import Wallet, Abstract_Wallet
 
-from .installwizard import InstallWizard
+from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 
 
-try:
-    from . import icons_rc
-except Exception as e:
-    print(e)
-    print("Error: Could not find icons file.")
-    print("Please run 'pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py'")
-    sys.exit(1)
-
-from .util import *   # * needed for plugins
+from .util import get_default_language, read_QIcon, ColorScheme
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 
@@ -87,7 +82,7 @@ class ElectrumGui(PrintError):
 
     @profiler
     def __init__(self, config, daemon, plugins):
-        set_language(config.get('language'))
+        set_language(config.get('language', get_default_language()))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
@@ -97,6 +92,7 @@ class ElectrumGui(PrintError):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
+        self.gui_thread = threading.current_thread()
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
@@ -104,7 +100,12 @@ class ElectrumGui(PrintError):
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        self.timer = Timer()
+        self.app.setWindowIcon(read_QIcon("electrum.png"))
+        # timer
+        self.timer = QTimer(self.app)
+        self.timer.setSingleShot(False)
+        self.timer.setInterval(500)  # msec
+
         self.nd = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
@@ -128,7 +129,7 @@ class ElectrumGui(PrintError):
                 self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
             except BaseException as e:
                 use_dark_theme = False
-                self.print_error('Error setting dark theme: {}'.format(e))
+                self.print_error('Error setting dark theme: {}'.format(repr(e)))
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
@@ -152,9 +153,9 @@ class ElectrumGui(PrintError):
 
     def tray_icon(self):
         if self.dark_icon:
-            return QIcon(':icons/electrum_dark_icon.png')
+            return read_QIcon('electrum_dark_icon.png')
         else:
-            return QIcon(':icons/electrum_light_icon.png')
+            return read_QIcon('electrum_light_icon.png')
 
     def toggle_tray_icon(self):
         self.dark_icon = not self.dark_icon
@@ -191,13 +192,13 @@ class ElectrumGui(PrintError):
                                 self.network_updated_signal_obj)
         self.nd.show()
 
-    @profiler
-    def create_window_for_wallet(self, wallet):
+    def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)
+        w.warn_if_watching_only()
         return w
 
     def count_wizards_in_progress(func):
@@ -212,65 +213,76 @@ class ElectrumGui(PrintError):
         return wrapper
 
     @count_wizards_in_progress
-    def start_new_window(self, path, uri, app_is_starting=False):
+    def start_new_window(self, path, uri, *, app_is_starting=False):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
+        wallet = None
         try:
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            d = QMessageBox(QMessageBox.Warning, _('Error'),
-                            _('Cannot load wallet') + ' (1):\n' + str(e))
-            d.exec_()
-            if app_is_starting:
-                # do not return so that the wizard can appear
-                wallet = None
-            else:
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot load wallet') + ' (1):\n' + str(e))
+            # if app is starting, still let wizard to appear
+            if not app_is_starting:
                 return
         if not wallet:
-            storage = WalletStorage(path, manual_upgrades=True)
-            wizard = InstallWizard(self.config, self.app, self.plugins, storage)
-            try:
-                wallet = wizard.run_and_get_wallet(self.daemon.get_wallet)
-            except UserCancelled:
-                pass
-            except GoBack as e:
-                self.print_error('[start_new_window] Exception caught (GoBack)', e)
-            except (WalletFileException, BitcoinException) as e:
-                traceback.print_exc(file=sys.stderr)
-                d = QMessageBox(QMessageBox.Warning, _('Error'),
-                                _('Cannot load wallet') + ' (2):\n' + str(e))
-                d.exec_()
-                return
-            finally:
-                wizard.terminate()
-            if not wallet:
-                return
-
-            if not self.daemon.get_wallet(wallet.storage.path):
-                # wallet was not in memory
-                wallet.start_network(self.daemon.network)
-                self.daemon.add_wallet(wallet)
+            wallet = self._start_wizard_to_select_or_create_wallet(path)
+        if not wallet:
+            return
+        # create or raise window
         try:
-            for w in self.windows:
-                if w.wallet.storage.path == wallet.storage.path:
+            for window in self.windows:
+                if window.wallet.storage.path == wallet.storage.path:
                     break
             else:
-                w = self.create_window_for_wallet(wallet)
+                window = self._create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            d = QMessageBox(QMessageBox.Warning, _('Error'),
-                            _('Cannot create window for wallet') + ':\n' + str(e))
-            d.exec_()
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot create window for wallet') + ':\n' + str(e))
+            if app_is_starting:
+                wallet_dir = os.path.dirname(path)
+                path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
+                self.start_new_window(path, uri)
             return
         if uri:
-            w.pay_to_URI(uri)
-        w.bring_to_top()
-        w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+            window.pay_to_URI(uri)
+        window.bring_to_top()
+        window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
 
-        # this will activate the window
-        w.activateWindow()
-        return w
+        window.activateWindow()
+        return window
+
+    def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
+        wizard = InstallWizard(self.config, self.app, self.plugins)
+        try:
+            path, storage = wizard.select_storage(path, self.daemon.get_wallet)
+            # storage is None if file does not exist
+            if storage is None:
+                wizard.path = path  # needed by trustedcoin plugin
+                wizard.run('new')
+                storage = wizard.create_storage(path)
+            else:
+                wizard.run_upgrades(storage)
+        except (UserCancelled, GoBack):
+            return
+        except WalletAlreadyOpenInMemory as e:
+            return e.wallet
+        except (WalletFileException, BitcoinException) as e:
+            traceback.print_exc(file=sys.stderr)
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot load wallet') + ' (2):\n' + str(e))
+            return
+        finally:
+            wizard.terminate()
+        # return if wallet creation is not complete
+        if storage is None or storage.get_action():
+            return
+        wallet = Wallet(storage)
+        wallet.start_network(self.daemon.network)
+        self.daemon.add_wallet(wallet)
+        return wallet
 
     def close_window(self, window):
         if window in self.windows:
@@ -286,7 +298,7 @@ class ElectrumGui(PrintError):
         # Show network dialog if config does not exist
         if self.daemon.network:
             if self.config.get('auto_connect') is None:
-                wizard = InstallWizard(self.config, self.app, self.plugins, None)
+                wizard = InstallWizard(self.config, self.app, self.plugins)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 

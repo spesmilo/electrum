@@ -25,14 +25,19 @@
 
 from electrum.i18n import _
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
-from .util import *
-from .history_list import HistoryList
+from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
+from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
+class AddressHistoryModel(HistoryModel):
+    def __init__(self, parent, address):
+        super().__init__(parent)
+        self.address = address
+
+    def get_domain(self):
+        return [self.address]
 
 class AddressDialog(WindowModalDialog):
 
@@ -52,7 +57,7 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Address:")))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
-        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)
@@ -66,6 +71,7 @@ class AddressDialog(WindowModalDialog):
             for pubkey in pubkeys:
                 pubkey_e = ButtonsLineEdit(pubkey)
                 pubkey_e.addCopyButton(self.app)
+                pubkey_e.setReadOnly(True)
                 vbox.addWidget(pubkey_e)
 
         try:
@@ -79,16 +85,14 @@ class AddressDialog(WindowModalDialog):
             vbox.addWidget(redeem_e)
 
         vbox.addWidget(QLabel(_("History")))
-        self.hw = HistoryList(self.parent)
-        self.hw.get_domain = self.get_domain
+        addr_hist_model = AddressHistoryModel(self.parent, self.address)
+        self.hw = HistoryList(self.parent, addr_hist_model)
+        addr_hist_model.set_view(self.hw)
         vbox.addWidget(self.hw)
 
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
-        self.hw.update()
-
-    def get_domain(self):
-        return [self.address]
+        addr_hist_model.refresh('address dialog constructor')
 
     def show_qr(self):
         text = self.address

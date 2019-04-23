@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 import traceback
+from typing import Union
 
 import base64
 
@@ -10,6 +11,20 @@ from electrum.plugin import BasePlugin, hook
 from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from electrum.i18n import _
 from electrum.util import log_exceptions, ignore_exceptions, make_aiohttp_session
+from electrum.network import Network
+
+
+class ErrorConnectingServer(Exception):
+    def __init__(self, reason: Union[str, Exception] = None):
+        self.reason = reason
+
+    def __str__(self):
+        header = _("Error connecting to {} server").format('Labels')
+        reason = self.reason
+        if isinstance(reason, BaseException):
+            reason = repr(reason)
+        return f"{header}: {reason}" if reason else header
+
 
 class LabelsPlugin(BasePlugin):
 
@@ -17,7 +32,6 @@ class LabelsPlugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.target_host = 'labels.electrum.org'
         self.wallets = {}
-        self.proxy = None
 
     def encode(self, wallet, msg):
         password, iv, wallet_id = self.wallets[wallet]
@@ -65,15 +79,22 @@ class LabelsPlugin(BasePlugin):
 
     async def do_get(self, url = "/labels"):
         url = 'https://' + self.target_host + url
-        async with make_aiohttp_session(self.proxy) as session:
+        network = Network.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy) as session:
             async with session.get(url) as result:
                 return await result.json()
 
     async def do_post(self, url = "/labels", data=None):
         url = 'https://' + self.target_host + url
-        async with make_aiohttp_session(self.proxy) as session:
+        network = Network.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy) as session:
             async with session.post(url, json=data) as result:
-                return await result.json()
+                try:
+                    return await result.json()
+                except Exception as e:
+                    raise Exception('Could not decode: ' + await result.text()) from e
 
     async def push_thread(self, wallet):
         wallet_data = self.wallets.get(wallet, None)
@@ -101,7 +122,10 @@ class LabelsPlugin(BasePlugin):
         wallet_id = wallet_data[2]
         nonce = 1 if force else self.get_nonce(wallet) - 1
         self.print_error("asking for labels since nonce", nonce)
-        response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
+        try:
+            response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
+        except Exception as e:
+            raise ErrorConnectingServer(e) from e
         if response["labels"] is None:
             self.print_error('no new labels')
             return
@@ -133,7 +157,10 @@ class LabelsPlugin(BasePlugin):
     @ignore_exceptions
     @log_exceptions
     async def pull_safe_thread(self, wallet, force):
-        await self.pull_thread(wallet, force)
+        try:
+            await self.pull_thread(wallet, force)
+        except ErrorConnectingServer as e:
+            self.print_error(str(e))
 
     def pull(self, wallet, force):
         if not wallet.network: raise Exception(_('You are offline.'))
@@ -157,14 +184,6 @@ class LabelsPlugin(BasePlugin):
         self.wallets[wallet] = (password, iv, wallet_id)
         # If there is an auth token we can try to actually start syncing
         asyncio.run_coroutine_threadsafe(self.pull_safe_thread(wallet, False), wallet.network.asyncio_loop)
-        self.proxy = wallet.network.proxy
-        wallet.network.register_callback(self.set_proxy, ['proxy_set'])
 
     def stop_wallet(self, wallet):
-        if not wallet.network: return  # 'offline' mode
-        wallet.network.unregister_callback('proxy_set')
         self.wallets.pop(wallet, None)
-
-    def set_proxy(self, evt_name, new_proxy):
-        self.proxy = new_proxy
-        self.print_error("proxy set")

@@ -1,18 +1,21 @@
 from functools import partial
 import threading
 
-from PyQt5.Qt import Qt
-from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+                             QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
+                             QLineEdit, QRadioButton, QCheckBox, QWidget,
+                             QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton)
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import bh2u
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
-from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC,
+from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
                      RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX)
 
 
@@ -35,6 +38,10 @@ MATRIX_RECOVERY = _(
     "Enter the recovery words by pressing the buttons according to what "
     "the device shows on its display.  You can also use your NUMPAD.\n"
     "Press BACKSPACE to go back a choice or word.\n")
+SEEDLESS_MODE_WARNING = _(
+    "In seedless mode, the mnemonic seed words are never shown to the user.\n"
+    "There is no backup, and the user has a proof of this.\n"
+    "This is an advanced feature, only suggested to be used in redundant multisig setups.")
 
 
 class MatrixDialog(WindowModalDialog):
@@ -182,9 +189,18 @@ class QtPlugin(QtPluginBase):
         if device_id:
             SettingsDialog(window, self, keystore, device_id).exec_()
 
-    def request_trezor_init_settings(self, wizard, method, model):
+    def request_trezor_init_settings(self, wizard, method, device_id):
         vbox = QVBoxLayout()
         next_enabled = True
+
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id)
+        if not client:
+            raise Exception(_("The device was disconnected."))
+        model = client.get_trezor_model()
+        fw_version = client.client.version
+
+        # label
         label = QLabel(_("Enter a label to name your device:"))
         name = QLineEdit()
         hl = QHBoxLayout()
@@ -193,70 +209,57 @@ class QtPlugin(QtPluginBase):
         hl.addStretch(1)
         vbox.addLayout(hl)
 
-        def clean_text(widget):
-            text = widget.toPlainText().strip()
-            return ' '.join(text.split())
+        # word count
+        gb = QGroupBox()
+        hbox1 = QHBoxLayout()
+        gb.setLayout(hbox1)
+        vbox.addWidget(gb)
+        gb.setTitle(_("Select your seed length:"))
+        bg_numwords = QButtonGroup()
+        word_counts = (12, 18, 24)
+        for i, count in enumerate(word_counts):
+            rb = QRadioButton(gb)
+            rb.setText(_("{:d} words").format(count))
+            bg_numwords.addButton(rb)
+            bg_numwords.setId(rb, i)
+            hbox1.addWidget(rb)
+            rb.setChecked(True)
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            gb = QGroupBox()
-            hbox1 = QHBoxLayout()
-            gb.setLayout(hbox1)
-            vbox.addWidget(gb)
-            gb.setTitle(_("Select your seed length:"))
-            bg_numwords = QButtonGroup()
-            for i, count in enumerate([12, 18, 24]):
-                rb = QRadioButton(gb)
-                rb.setText(_("%d words") % count)
-                bg_numwords.addButton(rb)
-                bg_numwords.setId(rb, i)
-                hbox1.addWidget(rb)
-                rb.setChecked(True)
-            cb_pin = QCheckBox(_('Enable PIN protection'))
-            cb_pin.setChecked(True)
-        else:
-            text = QTextEdit()
-            text.setMaximumHeight(60)
-            if method == TIM_MNEMONIC:
-                msg = _("Enter your BIP39 mnemonic:")
-            else:
-                msg = _("Enter the master private key beginning with xprv:")
-                def set_enabled():
-                    from electrum.bip32 import is_xprv
-                    wizard.next_button.setEnabled(is_xprv(clean_text(text)))
-                text.textChanged.connect(set_enabled)
-                next_enabled = False
+        # PIN
+        cb_pin = QCheckBox(_('Enable PIN protection'))
+        cb_pin.setChecked(True)
+        vbox.addWidget(WWLabel(RECOMMEND_PIN))
+        vbox.addWidget(cb_pin)
 
-            vbox.addWidget(QLabel(msg))
-            vbox.addWidget(text)
-            pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
-            pin.setMaximumWidth(100)
-            hbox_pin = QHBoxLayout()
-            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
-            hbox_pin.addWidget(pin)
-            hbox_pin.addStretch(1)
+        # "expert settings" button
+        expert_vbox = QVBoxLayout()
+        expert_widget = QWidget()
+        expert_widget.setLayout(expert_vbox)
+        expert_widget.setVisible(False)
+        expert_button = QPushButton(_("Show expert settings"))
+        def show_expert_settings():
+            expert_button.setVisible(False)
+            expert_widget.setVisible(True)
+        expert_button.clicked.connect(show_expert_settings)
+        vbox.addWidget(expert_button)
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            vbox.addWidget(WWLabel(RECOMMEND_PIN))
-            vbox.addWidget(cb_pin)
-        else:
-            vbox.addLayout(hbox_pin)
-
+        # passphrase
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
         cb_phrase = QCheckBox(_('Enable passphrases'))
         cb_phrase.setChecked(False)
-        vbox.addWidget(passphrase_msg)
-        vbox.addWidget(passphrase_warning)
-        vbox.addWidget(cb_phrase)
+        expert_vbox.addWidget(passphrase_msg)
+        expert_vbox.addWidget(passphrase_warning)
+        expert_vbox.addWidget(cb_phrase)
 
         # ask for recovery type (random word order OR matrix)
+        bg_rectype = None
         if method == TIM_RECOVER and not model == 'T':
             gb_rectype = QGroupBox()
             hbox_rectype = QHBoxLayout()
             gb_rectype.setLayout(hbox_rectype)
-            vbox.addWidget(gb_rectype)
+            expert_vbox.addWidget(gb_rectype)
             gb_rectype.setTitle(_("Select recovery type:"))
             bg_rectype = QButtonGroup()
 
@@ -272,26 +275,36 @@ class QtPlugin(QtPluginBase):
             bg_rectype.addButton(rb2)
             bg_rectype.setId(rb2, RECOVERY_TYPE_MATRIX)
             hbox_rectype.addWidget(rb2)
-        else:
-            bg_rectype = None
 
+        # no backup
+        cb_no_backup = None
+        if method == TIM_NEW:
+            cb_no_backup = QCheckBox(f'''{_('Enable seedless mode')}''')
+            cb_no_backup.setChecked(False)
+            if (model == '1' and fw_version >= (1, 7, 1)
+                    or model == 'T' and fw_version >= (2, 0, 9)):
+                cb_no_backup.setToolTip(SEEDLESS_MODE_WARNING)
+            else:
+                cb_no_backup.setEnabled(False)
+                cb_no_backup.setToolTip(_('Firmware version too old.'))
+            expert_vbox.addWidget(cb_no_backup)
+
+        vbox.addWidget(expert_widget)
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            item = bg_numwords.checkedId()
-            pin = cb_pin.isChecked()
-            recovery_type = bg_rectype.checkedId() if bg_rectype else None
-        else:
-            item = ' '.join(str(clean_text(text)).split())
-            pin = str(pin.text())
-            recovery_type = None
-
-        return (item, name.text(), pin, cb_phrase.isChecked(), recovery_type)
+        return TrezorInitSettings(
+            word_count=word_counts[bg_numwords.checkedId()],
+            label=name.text(),
+            pin_enabled=cb_pin.isChecked(),
+            passphrase_enabled=cb_phrase.isChecked(),
+            recovery_type=bg_rectype.checkedId() if bg_rectype else None,
+            no_backup=cb_no_backup.isChecked() if cb_no_backup else False,
+        )
 
 
 class Plugin(TrezorPlugin, QtPlugin):
-    icon_unpaired = ":icons/trezor_unpaired.png"
-    icon_paired = ":icons/trezor.png"
+    icon_unpaired = "trezor_unpaired.png"
+    icon_paired = "trezor.png"
 
     @classmethod
     def pin_matrix_widget_class(self):
@@ -438,7 +451,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)

@@ -26,12 +26,13 @@ from typing import Sequence, Optional, TYPE_CHECKING
 
 import aiorpcx
 
-from .util import bh2u, VerifiedTxInfo, NetworkJobOnDefaultServer
+from .util import bh2u, TxMinedInfo, NetworkJobOnDefaultServer
 from .crypto import sha256d
 from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
+from .network import UntrustedServerReturnedError
 from . import constants
 
 if TYPE_CHECKING:
@@ -96,11 +97,12 @@ class SPV(NetworkJobOnDefaultServer):
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
             merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
-        except aiorpcx.jsonrpc.RPCError as e:
+        except UntrustedServerReturnedError as e:
+            if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
+                raise
             self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
-            try: self.requested_merkle.remove(tx_hash)
-            except KeyError: pass
+            self.requested_merkle.discard(tx_hash)
             return
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
@@ -116,18 +118,23 @@ class SPV(NetworkJobOnDefaultServer):
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
-            self.print_error(str(e))
-            raise GracefulDisconnect(e)
+            if self.network.config.get("skipmerklecheck"):
+                self.print_error("skipping merkle proof check %s" % tx_hash)
+            else:
+                self.print_error(str(e))
+                raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
-        try: self.requested_merkle.remove(tx_hash)
-        except KeyError: pass
+        self.requested_merkle.discard(tx_hash)
         self.print_error("verified %s" % tx_hash)
         header_hash = hash_header(header)
-        vtx_info = VerifiedTxInfo(tx_height, header.get('timestamp'), pos, header_hash)
-        self.wallet.add_verified_tx(tx_hash, vtx_info)
-        if self.is_up_to_date() and self.wallet.is_up_to_date():
-            self.wallet.save_verified_tx(write=True)
+        tx_info = TxMinedInfo(height=tx_height,
+                              timestamp=header.get('timestamp'),
+                              txpos=pos,
+                              header_hash=header_hash)
+        self.wallet.add_verified_tx(tx_hash, tx_info)
+        #if self.is_up_to_date() and self.wallet.is_up_to_date():
+        #    self.wallet.save_verified_tx(write=True)
 
     @classmethod
     def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):
@@ -159,24 +166,20 @@ class SPV(NetworkJobOnDefaultServer):
             raise InnerNodeOfSpvProofIsValidTx()
 
     async def _maybe_undo_verifications(self):
-        def undo_verifications():
-            height = self.blockchain.get_max_forkpoint()
-            self.print_error("undoing verifications back to height {}".format(height))
-            tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
+        old_chain = self.blockchain
+        cur_chain = self.network.blockchain()
+        if cur_chain != old_chain:
+            self.blockchain = cur_chain
+            above_height = cur_chain.get_height_of_last_common_block_with_chain(old_chain)
+            self.print_error(f"undoing verifications above height {above_height}")
+            tx_hashes = self.wallet.undo_verifications(self.blockchain, above_height)
             for tx_hash in tx_hashes:
                 self.print_error("redoing", tx_hash)
                 self.remove_spv_proof_for_tx(tx_hash)
 
-        if self.network.blockchain() != self.blockchain:
-            self.blockchain = self.network.blockchain()
-            undo_verifications()
-
     def remove_spv_proof_for_tx(self, tx_hash):
         self.merkle_roots.pop(tx_hash, None)
-        try:
-            self.requested_merkle.remove(tx_hash)
-        except KeyError:
-            pass
+        self.requested_merkle.discard(tx_hash)
 
     def is_up_to_date(self):
         return not self.requested_merkle

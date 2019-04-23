@@ -27,13 +27,13 @@ import re
 import math
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
 
-from .util import *
+from .util import icon_path, WindowModalDialog, OkButton, CancelButton, Buttons
 
 
 def check_password_strength(password):
@@ -60,7 +60,7 @@ class PasswordLayout(object):
 
     titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
-    def __init__(self, wallet, msg, kind, OK_button, force_disable_encrypt_cb=False):
+    def __init__(self, msg, kind, OK_button, wallet=None, force_disable_encrypt_cb=False):
         self.wallet = wallet
 
         self.pw = QLineEdit()
@@ -103,10 +103,11 @@ class PasswordLayout(object):
             if wallet and wallet.has_password():
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
                 grid.addWidget(self.pw, 0, 1)
-                lockfile = ":icons/lock.png"
+                lockfile = "lock.png"
             else:
-                lockfile = ":icons/unlock.png"
-            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+                lockfile = "unlock.png"
+            logo.setPixmap(QPixmap(icon_path(lockfile))
+                           .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -169,11 +170,8 @@ class PasswordLayout(object):
 
 class PasswordLayoutForHW(object):
 
-    def __init__(self, wallet, msg, kind, OK_button):
+    def __init__(self, msg, wallet=None):
         self.wallet = wallet
-
-        self.kind = kind
-        self.OK_button = OK_button
 
         vbox = QVBoxLayout()
         label = QLabel(msg + "\n")
@@ -198,10 +196,11 @@ class PasswordLayoutForHW(object):
         vbox.addLayout(logo_grid)
 
         if wallet and wallet.has_storage_encryption():
-            lockfile = ":icons/lock.png"
+            lockfile = "lock.png"
         else:
-            lockfile = ":icons/unlock.png"
-        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+            lockfile = "unlock.png"
+        logo.setPixmap(QPixmap(icon_path(lockfile))
+                       .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         vbox.addLayout(grid)
 
@@ -254,9 +253,11 @@ class ChangePasswordDialogForSW(ChangePasswordDialogBase):
             else:
                 msg = _('Your wallet is password protected and encrypted.')
             msg += ' ' + _('Use this dialog to change your password.')
-        self.playout = PasswordLayout(
-            wallet, msg, PW_CHANGE, OK_button,
-            force_disable_encrypt_cb=not wallet.can_have_keystore_encryption())
+        self.playout = PasswordLayout(msg=msg,
+                                      kind=PW_CHANGE,
+                                      OK_button=OK_button,
+                                      wallet=wallet,
+                                      force_disable_encrypt_cb=not wallet.can_have_keystore_encryption())
 
     def run(self):
         if not self.exec_():
@@ -276,7 +277,7 @@ class ChangePasswordDialogForHW(ChangePasswordDialogBase):
             msg = _('Your wallet file is encrypted.')
         msg += '\n' + _('Note: If you enable this setting, you will need your hardware device to open your wallet.')
         msg += '\n' + _('Use this dialog to toggle encryption.')
-        self.playout = PasswordLayoutForHW(wallet, msg, PW_CHANGE, OK_button)
+        self.playout = PasswordLayoutForHW(msg)
 
     def run(self):
         if not self.exec_():

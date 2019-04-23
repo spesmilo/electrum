@@ -22,15 +22,17 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+import sys
 import copy
 import datetime
 import json
 import traceback
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
+from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
+                             QTextEdit)
 import qrcode
 from qrcode import exceptions
 
@@ -41,7 +43,8 @@ from electrum import simple_config
 from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction
 
-from .util import *
+from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
+                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
 
 
 SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
@@ -98,7 +101,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
         qr_show = lambda: parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
-        self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
+        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+        self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
         self.tx_desc = QLabel()
@@ -139,7 +143,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.setDefault(True)
 
         self.qr_button = b = QPushButton()
-        b.setIcon(QIcon(":icons/qrcode.png"))
+        b.setIcon(read_QIcon(qr_icon))
         b.clicked.connect(self.show_qr)
 
         self.copy_button = CopyButton(lambda: str(self.tx), parent.app)

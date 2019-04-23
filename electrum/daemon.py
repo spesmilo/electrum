@@ -37,7 +37,7 @@ from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import (json_decode, DaemonThread, print_error, to_string,
-                   create_and_start_event_loop, profiler)
+                   create_and_start_event_loop, profiler, standardize_path)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -138,6 +138,7 @@ class Daemon(DaemonThread):
         if self.network:
             self.network.start([self.fx.run])
         self.gui = None
+        # path -> wallet;   make sure path is standardized.
         self.wallets = {}  # type: Dict[str, Abstract_Wallet]
         # Setup JSONRPC server
         self.server = None
@@ -188,6 +189,7 @@ class Daemon(DaemonThread):
             response = wallet is not None
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
+            path = standardize_path(path)
             if path in self.wallets:
                 self.stop_wallet(path)
                 response = True
@@ -235,6 +237,7 @@ class Daemon(DaemonThread):
         return response
 
     def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
+        path = standardize_path(path)
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -248,6 +251,8 @@ class Daemon(DaemonThread):
             storage.decrypt(password)
         if storage.requires_split():
             return
+        if storage.requires_upgrade():
+            return
         if storage.get_action():
             return
         wallet = Wallet(storage)
@@ -257,12 +262,22 @@ class Daemon(DaemonThread):
 
     def add_wallet(self, wallet: Abstract_Wallet):
         path = wallet.storage.path
+        path = standardize_path(path)
         self.wallets[path] = wallet
 
     def get_wallet(self, path):
+        path = standardize_path(path)
         return self.wallets.get(path)
 
+    def delete_wallet(self, path):
+        self.stop_wallet(path)
+        if os.path.exists(path):
+            os.unlink(path)
+            return True
+        return False
+
     def stop_wallet(self, path):
+        path = standardize_path(path)
         wallet = self.wallets.pop(path, None)
         if not wallet: return
         wallet.stop_threads()
@@ -279,6 +294,7 @@ class Daemon(DaemonThread):
         cmd = known_commands[cmdname]
         if cmd.requires_wallet:
             path = config.get_wallet_path()
+            path = standardize_path(path)
             wallet = self.wallets.get(path)
             if wallet is None:
                 return {'error': 'Wallet "%s" is not loaded. Use "electrum daemon load_wallet"'%os.path.basename(path) }
@@ -294,7 +310,10 @@ class Daemon(DaemonThread):
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args, **kwargs)
+        try:
+            result = func(*args, **kwargs)
+        except TypeError as e:
+            raise Exception("Wrapping TypeError to prevent JSONRPC-Pelix from hiding traceback") from e
         return result
 
     def run(self):
@@ -319,12 +338,12 @@ class Daemon(DaemonThread):
         DaemonThread.stop(self)
 
     def init_gui(self, config, plugins):
+        threading.current_thread().setName('GUI')
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
         self.gui = gui.ElectrumGui(config, self, plugins)
-        threading.current_thread().setName('GUI')
         try:
             self.gui.main()
         except BaseException as e:

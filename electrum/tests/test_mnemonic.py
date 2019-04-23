@@ -4,7 +4,7 @@ from electrum import keystore
 from electrum import mnemonic
 from electrum import old_mnemonic
 from electrum.util import bh2u, bfh
-from electrum.bitcoin import is_new_seed
+from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
 from . import SequentialTestCase
@@ -134,6 +134,7 @@ class Test_OldMnemonic(SequentialTestCase):
         self.assertEqual(result, words.split())
         self.assertEqual(old_mnemonic.mn_decode(result), seed)
 
+
 class Test_BIP39Checksum(SequentialTestCase):
 
     def test(self):
@@ -141,3 +142,49 @@ class Test_BIP39Checksum(SequentialTestCase):
         is_checksum_valid, is_wordlist_valid = keystore.bip39_is_checksum_valid(mnemonic)
         self.assertTrue(is_wordlist_valid)
         self.assertTrue(is_checksum_valid)
+
+
+class Test_seeds(SequentialTestCase):
+    """ Test old and new seeds. """
+
+    mnemonics = {
+        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze', 'old'),
+        ('cell dumb heartbeat north boom tease ' * 4, 'old'),
+        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
+        ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
+        ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
+        # below seed is actually 'invalid old' as it maps to 33 hex chars
+        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
+        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
+        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
+        ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
+        ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
+        ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
+        ('x8', 'standard'),
+        ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
+        ('science dawn member doll dutch real ca brick knife deny drive list', ''),
+        (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
+        ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
+        ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
+        ('9dk', 'segwit'),
+    }
+
+    def test_new_seed(self):
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
+        self.assertTrue(is_new_seed(seed))
+
+        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
+        self.assertFalse(is_new_seed(seed))
+
+    def test_old_seed(self):
+        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
+        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
+        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
+        self.assertFalse(is_old_seed("not a seed"))
+
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
+        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
+
+    def test_seed_type(self):
+        for seed_words, _type in self.mnemonics:
+            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)

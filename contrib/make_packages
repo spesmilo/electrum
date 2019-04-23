@@ -1,13 +1,10 @@
 #!/bin/bash
 
-contrib=$(dirname "$0")
-test -n "$contrib" -a -d "$contrib" || exit
+CONTRIB="$(dirname "$0")"
+test -n "$CONTRIB" -a -d "$CONTRIB" || exit
 
-whereis pip3
-if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
-
-rm "$contrib"/../packages/ -r
+rm "$CONTRIB"/../packages/ -r
 
 #Install pure python modules in electrum directory
-pip3 install -r $contrib/deterministic-build/requirements.txt -t $contrib/../packages
+python3 -m pip install -r "$CONTRIB"/deterministic-build/requirements.txt -t "$CONTRIB"/../packages
 

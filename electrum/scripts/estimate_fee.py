@@ -7,8 +7,6 @@ from numbers import Number
 from electrum.network import filter_protocol, Network
 from electrum.util import create_and_start_event_loop, log_exceptions
 
-import util
-
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
 network = Network()
@@ -17,9 +15,9 @@ network.start()
 @log_exceptions
 async def f():
     try:
-        peers = await util.get_peers(network)
+        peers = await network.get_peers()
         peers = filter_protocol(peers)
-        results = await util.send_request(network, peers, 'blockchain.estimatefee', [2])
+        results = await network.send_multiple_requests(peers, 'blockchain.estimatefee', [2])
         print(json.dumps(results, indent=4))
         feerate_estimates = filter(lambda x: isinstance(x, Number), results.values())
         print(f"median feerate: {median(feerate_estimates)}")

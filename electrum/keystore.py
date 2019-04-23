@@ -26,19 +26,19 @@
 
 from unicodedata import normalize
 import hashlib
+from typing import Tuple
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import (deserialize_privkey, serialize_privkey,
-                      public_key_to_p2pkh, seed_type, is_seed)
-from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
-                    bip32_root, deserialize_xprv, bip32_private_derivation,
-                    bip32_private_key, bip32_derivation, BIP32_PRIME,
-                    is_xpub, is_xprv)
+                      public_key_to_p2pkh)
+from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
+                    is_xpub, is_xprv, BIP32Node)
 from .ecc import string_to_number, number_to_string
-from .crypto import pw_decode, pw_encode, sha256d
-from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
+from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
+                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
+from .util import (PrintError, InvalidPassword, WalletFileException,
                    BitcoinException, bh2u, bfh, print_error, inv_dict)
-from .mnemonic import Mnemonic, load_wordlist
+from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
 from .plugin import run_hook
 
 
@@ -92,8 +92,11 @@ class KeyStore(PrintError):
 
 class Software_KeyStore(KeyStore):
 
-    def __init__(self):
+    def __init__(self, d):
         KeyStore.__init__(self)
+        self.pw_hash_version = d.get('pw_hash_version', 1)
+        if self.pw_hash_version not in SUPPORTED_PW_HASH_VERSIONS:
+            raise UnsupportedPasswordHashVersion(self.pw_hash_version)
 
     def may_have_password(self):
         return not self.is_watching_only()
@@ -122,6 +125,15 @@ class Software_KeyStore(KeyStore):
         if keypairs:
             tx.sign(keypairs)
 
+    def update_password(self, old_password, new_password):
+        raise NotImplementedError()  # implemented by subclasses
+
+    def check_password(self, password):
+        raise NotImplementedError()  # implemented by subclasses
+
+    def get_private_key(self, *args, **kwargs) -> Tuple[bytes, bool]:
+        raise NotImplementedError()  # implemented by subclasses
+
 
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
@@ -129,7 +141,7 @@ class Imported_KeyStore(Software_KeyStore):
     type = 'imported'
 
     def __init__(self, d):
-        Software_KeyStore.__init__(self)
+        Software_KeyStore.__init__(self, d)
         self.keypairs = d.get('keypairs', {})
 
     def is_deterministic(self):
@@ -142,6 +154,7 @@ class Imported_KeyStore(Software_KeyStore):
         return {
             'type': self.type,
             'keypairs': self.keypairs,
+            'pw_hash_version': self.pw_hash_version,
         }
 
     def can_import(self):
@@ -161,14 +174,14 @@ class Imported_KeyStore(Software_KeyStore):
         # there will only be one pubkey-privkey pair for it in self.keypairs,
         # and the privkey will encode a txin_type but that txin_type cannot be trusted.
         # Removing keys complicates this further.
-        self.keypairs[pubkey] = pw_encode(serialized_privkey, password)
+        self.keypairs[pubkey] = pw_encode(serialized_privkey, password, version=self.pw_hash_version)
         return txin_type, pubkey
 
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
     def get_private_key(self, pubkey, password):
-        sec = pw_decode(self.keypairs[pubkey], password)
+        sec = pw_decode(self.keypairs[pubkey], password, version=self.pw_hash_version)
         txin_type, privkey, compressed = deserialize_privkey(sec)
         # this checks the password
         if pubkey != ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed):
@@ -189,16 +202,17 @@ class Imported_KeyStore(Software_KeyStore):
         if new_password == '':
             new_password = None
         for k, v in self.keypairs.items():
-            b = pw_decode(v, old_password)
-            c = pw_encode(b, new_password)
+            b = pw_decode(v, old_password, version=self.pw_hash_version)
+            c = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
             self.keypairs[k] = c
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
 
 
 class Deterministic_KeyStore(Software_KeyStore):
 
     def __init__(self, d):
-        Software_KeyStore.__init__(self)
+        Software_KeyStore.__init__(self, d)
         self.seed = d.get('seed', '')
         self.passphrase = d.get('passphrase', '')
 
@@ -206,12 +220,14 @@ class Deterministic_KeyStore(Software_KeyStore):
         return True
 
     def dump(self):
-        d = {}
+        d = {
+            'type': self.type,
+            'pw_hash_version': self.pw_hash_version,
+        }
         if self.seed:
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
-        d['type'] = self.type
         return d
 
     def has_seed(self):
@@ -226,10 +242,13 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed = self.format_seed(seed)
 
     def get_seed(self, password):
-        return pw_decode(self.seed, password)
+        return pw_decode(self.seed, password, version=self.pw_hash_version)
 
     def get_passphrase(self, password):
-        return pw_decode(self.passphrase, password) if self.passphrase else ''
+        if self.passphrase:
+            return pw_decode(self.passphrase, password, version=self.pw_hash_version)
+        else:
+            return ''
 
 
 class Xpub:
@@ -245,7 +264,8 @@ class Xpub:
     def derive_pubkey(self, for_change, n):
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
-            xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
+            rootnode = BIP32Node.from_xkey(self.xpub)
+            xpub = rootnode.subkey_at_public_derivation((for_change,)).to_xpub()
             if for_change:
                 self.xpub_change = xpub
             else:
@@ -254,10 +274,8 @@ class Xpub:
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub, sequence):
-        _, _, _, _, c, cK = deserialize_xpub(xpub)
-        for i in sequence:
-            cK, c = CKD_pub(cK, c, i)
-        return bh2u(cK)
+        node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
+        return node.eckey.get_public_key_hex(compressed=True)
 
     def get_xpubkey(self, c, i):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
@@ -312,11 +330,11 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         return d
 
     def get_master_private_key(self, password):
-        return pw_decode(self.xprv, password)
+        return pw_decode(self.xprv, password, version=self.pw_hash_version)
 
     def check_password(self, password):
-        xprv = pw_decode(self.xprv, password)
-        if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
+        xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
+        if BIP32Node.from_xkey(xprv).chaincode != BIP32Node.from_xkey(self.xpub).chaincode:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
@@ -325,13 +343,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             new_password = None
         if self.has_seed():
             decoded = self.get_seed(old_password)
-            self.seed = pw_encode(decoded, new_password)
+            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
         if self.passphrase:
             decoded = self.get_passphrase(old_password)
-            self.passphrase = pw_encode(decoded, new_password)
+            self.passphrase = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
         if self.xprv is not None:
-            b = pw_decode(self.xprv, old_password)
-            self.xprv = pw_encode(b, new_password)
+            b = pw_decode(self.xprv, old_password, version=self.pw_hash_version)
+            self.xprv = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
     def is_watching_only(self):
         return self.xprv is None
@@ -341,14 +360,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         self.xpub = bip32.xpub_from_xprv(xprv)
 
     def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
-        xprv, xpub = bip32_root(bip32_seed, xtype)
-        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
-        self.add_xprv(xprv)
+        rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
+        node = rootnode.subkey_at_private_derivation(derivation)
+        self.add_xprv(node.to_xprv())
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
-        _, _, _, _, c, k = deserialize_xprv(xprv)
-        pk = bip32_private_key(sequence, k, c)
+        node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(sequence)
+        pk = node.eckey.get_secret_bytes()
         return pk, True
 
 
@@ -362,7 +381,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.mpk = d.get('mpk')
 
     def get_hex_seed(self, password):
-        return pw_decode(self.seed, password).encode('utf8')
+        return pw_decode(self.seed, password, version=self.pw_hash_version).encode('utf8')
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
@@ -432,14 +451,15 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def get_private_key(self, sequence, password):
         seed = self.get_hex_seed(password)
-        self.check_seed(seed)
-        for_change, n = sequence
         secexp = self.stretch_key(seed)
+        self.check_seed(seed, secexp=secexp)
+        for_change, n = sequence
         pk = self.get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
 
-    def check_seed(self, seed):
-        secexp = self.stretch_key(seed)
+    def check_seed(self, seed, *, secexp=None):
+        if secexp is None:
+            secexp = self.stretch_key(seed)
         master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)
         master_public_key = master_private_key.get_public_key_bytes(compressed=False)[1:]
         if master_public_key != bfh(self.mpk):
@@ -484,8 +504,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         if new_password == '':
             new_password = None
         if self.has_seed():
-            decoded = pw_decode(self.seed, old_password)
-            self.seed = pw_encode(decoded, new_password)
+            decoded = pw_decode(self.seed, old_password, version=self.pw_hash_version)
+            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
 
 
@@ -496,7 +517,6 @@ class Hardware_KeyStore(KeyStore, Xpub):
     #   - wallet_type
 
     type = 'hardware'
-    max_change_outputs = 1
 
     def __init__(self, d):
         Xpub.__init__(self)
@@ -581,14 +601,15 @@ def bip39_to_seed(mnemonic, passphrase):
     return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'),
         b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
-# returns tuple (is_checksum_valid, is_wordlist_valid)
-def bip39_is_checksum_valid(mnemonic):
+
+def bip39_is_checksum_valid(mnemonic: str) -> Tuple[bool, bool]:
+    """Test checksum of bip39 mnemonic assuming English wordlist.
+    Returns tuple (is_checksum_valid, is_wordlist_valid)
+    """
     words = [ normalize('NFKD', word) for word in mnemonic.split() ]
     words_len = len(words)
     wordlist = load_wordlist("english.txt")
     n = len(wordlist)
-    checksum_length = 11*words_len//33
-    entropy_length = 32*checksum_length
     i = 0
     words.reverse()
     while words:
@@ -600,13 +621,12 @@ def bip39_is_checksum_valid(mnemonic):
         i = i*n + k
     if words_len not in [12, 15, 18, 21, 24]:
         return False, True
+    checksum_length = 11 * words_len // 33  # num bits
+    entropy_length = 32 * checksum_length  # num bits
     entropy = i >> checksum_length
     checksum = i % 2**checksum_length
-    h = '{:x}'.format(entropy)
-    while len(h) < entropy_length/4:
-        h = '0'+h
-    b = bytearray.fromhex(h)
-    hashed = int(hfu(hashlib.sha256(b).digest()), 16)
+    entropy_bytes = int.to_bytes(entropy, length=entropy_length//8, byteorder="big")
+    hashed = int.from_bytes(sha256(entropy_bytes), byteorder="big")
     calculated_checksum = hashed >> (256 - checksum_length)
     return checksum == calculated_checksum, True
 
@@ -638,7 +658,7 @@ def xtype_from_derivation(derivation: str) -> str:
     elif derivation.startswith("m/45'"):
         return 'standard'
 
-    bip32_indices = list(bip32_derivation(derivation))
+    bip32_indices = convert_bip32_path_to_list_of_uint32(derivation)
     if len(bip32_indices) >= 4:
         if bip32_indices[0] == 48 + BIP32_PRIME:
             # m / purpose' / coin_type' / account' / script_type' / change / address_index

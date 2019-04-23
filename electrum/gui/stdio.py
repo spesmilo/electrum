@@ -6,6 +6,7 @@ from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum.transaction import TxOutput
+from electrum.network import TxBroadcastError, BestEffortRequestFailed
 
 _ = lambda x:x  # i18n
 
@@ -205,8 +206,12 @@ class ElectrumGui:
         print(_("Please wait..."))
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-        except Exception as e:
-            print(repr(e))
+        except TxBroadcastError as e:
+            msg = e.get_message_for_gui()
+            print(msg)
+        except BestEffortRequestFailed as e:
+            msg = repr(e)
+            print(msg)
         else:
             print(_('Payment sent.'))
             #self.do_clear()

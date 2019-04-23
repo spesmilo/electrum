@@ -2,15 +2,12 @@ from functools import partial
 import traceback
 import sys
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 
 from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.gui.qt import EnterButton
-from electrum.gui.qt.util import ThreadedButton, Buttons
-from electrum.gui.qt.util import WindowModalDialog, OkButton
+from electrum.gui.qt.util import ThreadedButton, Buttons, EnterButton, WindowModalDialog, OkButton
 
 from .labels import LabelsPlugin
 
@@ -75,4 +72,8 @@ class Plugin(LabelsPlugin):
 
     @hook
     def on_close_window(self, window):
+        try:
+            self.obj.labels_changed_signal.disconnect(window.update_tabs)
+        except TypeError:
+            pass  # 'method' object is not connected
         self.stop_wallet(window.wallet)

@@ -37,6 +37,7 @@ from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPasswor
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
+from . import constants
 
 
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
@@ -228,6 +229,9 @@ class ECPubkey(object):
     def point(self) -> Tuple[int, int]:
         return self._pubkey.point.x(), self._pubkey.point.y()
 
+    def __repr__(self):
+        return f"<ECPubkey {self.get_public_key_hex()}>"
+
     def __mul__(self, other: int):
         if not isinstance(other, int):
             raise TypeError('multiplication not defined for ECPubkey and {}'.format(type(other)))
@@ -309,16 +313,17 @@ def msg_magic(message: bytes) -> bytes:
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
-def verify_message_with_address(address: str, sig65: bytes, message: bytes):
+def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, net=None):
     from .bitcoin import pubkey_to_address
     assert_bytes(sig65, message)
+    if net is None: net = constants.net
     try:
         h = sha256d(msg_magic(message))
         public_key, compressed = ECPubkey.from_signature65(sig65, h)
         # check public key using the address
         pubkey_hex = public_key.get_public_key_hex(compressed)
         for txin_type in ['p2pkh','p2wpkh','p2wpkh-p2sh']:
-            addr = pubkey_to_address(txin_type, pubkey_hex)
+            addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
             if address == addr:
                 break
         else:
@@ -372,6 +377,12 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid EC private key scalar: zero')
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
         return privkey_32bytes
+
+    def __repr__(self):
+        return f"<ECPrivkey {self.get_public_key_hex()}>"
+
+    def get_secret_bytes(self) -> bytes:
+        return number_to_string(self.secret_scalar, CURVE_ORDER)
 
     def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
         if sigencode is None:

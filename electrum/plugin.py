@@ -251,11 +251,16 @@ class BasePlugin(PrintError):
 
     def close(self):
         # remove self from hooks
-        for k in dir(self):
-            if k in hook_names:
-                l = hooks.get(k, [])
-                l.remove((self, getattr(self, k)))
-                hooks[k] = l
+        for attr_name in dir(self):
+            if attr_name in hook_names:
+                # found attribute in self that is also the name of a hook
+                l = hooks.get(attr_name, [])
+                try:
+                    l.remove((self, getattr(self, attr_name)))
+                except ValueError:
+                    # maybe attr name just collided with hook name and was not hook
+                    continue
+                hooks[attr_name] = l
         self.parent.close_plugin(self)
         self.on_close()
 
@@ -296,8 +301,9 @@ class Device(NamedTuple):
 
 class DeviceInfo(NamedTuple):
     device: Device
-    label: str
-    initialized: bool
+    label: Optional[str] = None
+    initialized: Optional[bool] = None
+    exception: Optional[Exception] = None
 
 
 class HardwarePluginToScan(NamedTuple):
@@ -495,7 +501,8 @@ class DeviceMgr(ThreadJob, PrintError):
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
               'receive will be unspendable.').format(plugin.device))
 
-    def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices=None):
+    def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices=None,
+                              include_failing_clients=False):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
         if not plugin.libraries_available:
@@ -510,14 +517,16 @@ class DeviceMgr(ThreadJob, PrintError):
                 continue
             try:
                 client = self.create_client(device, handler, plugin)
-            except UserFacingException:
-                raise
-            except BaseException as e:
+            except Exception as e:
                 self.print_error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
+                if include_failing_clients:
+                    infos.append(DeviceInfo(device=device, exception=e))
                 continue
             if not client:
                 continue
-            infos.append(DeviceInfo(device, client.label(), client.is_initialized()))
+            infos.append(DeviceInfo(device=device,
+                                    label=client.label(),
+                                    initialized=client.is_initialized()))
 
         return infos
 

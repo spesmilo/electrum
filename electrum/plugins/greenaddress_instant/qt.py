@@ -26,12 +26,16 @@
 import base64
 import urllib.parse
 import sys
-import requests
+from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import QApplication, QPushButton
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
+from electrum.network import Network
+
+if TYPE_CHECKING:
+    from aiohttp import ClientResponse
 
 
 class Plugin(BasePlugin):
@@ -89,15 +93,17 @@ class Plugin(BasePlugin):
             sig = base64.b64encode(sig).decode('ascii')
 
             # 2. send the request
-            response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())),
-                                        headers = {'User-Agent': 'Electrum'})
-            response = response.json()
+            async def handle_request(resp: 'ClientResponse'):
+                resp.raise_for_status()
+                return await resp.json()
+            url = "https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())
+            response = Network.send_http_on_proxy('get', url, headers = {'User-Agent': 'Electrum'}, on_finish=handle_request)
 
             # 3. display the result
             if response.get('verified'):
                 d.show_message(_('{} is covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification successful!'))
             else:
-                d.show_critical(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
+                d.show_warning(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
         except BaseException as e:
             import traceback
             traceback.print_exc(file=sys.stdout)

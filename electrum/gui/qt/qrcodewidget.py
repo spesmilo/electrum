@@ -1,8 +1,7 @@
 import os
 import qrcode
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtGui import QColor
 import PyQt5.QtGui as QtGui
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget)
@@ -66,16 +65,15 @@ class QRCodeWidget(QWidget):
         framesize = min(r.width(), r.height())
         boxsize = int( (framesize - 2*margin)/k )
         size = k*boxsize
-        left = (r.width() - size)/2
-        top = (r.height() - size)/2
-
-        # Make a white margin around the QR in case of dark theme use
+        left = (framesize - size)/2
+        top = (framesize - size)/2
+        # Draw white background with margin
         qp.setBrush(white)
         qp.setPen(white)
-        qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
+        qp.drawRect(0, 0, framesize, framesize)
+        # Draw qr code
         qp.setBrush(black)
         qp.setPen(black)
-
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
@@ -91,7 +89,6 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -106,12 +103,12 @@ class QRDialog(WindowModalDialog):
             filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()  # FIXME also grabs neutral colored padding
                 p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()
                 QApplication.clipboard().setPixmap(p)
                 self.show_message(_("QR code copied to clipboard"))
 

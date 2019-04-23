@@ -12,10 +12,10 @@ from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum.transaction import TxOutput
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
-from electrum.network import NetworkParameters
+from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import deserialize_server
 
-_ = lambda x:x
+_ = lambda x:x  # i18n
 
 
 class ElectrumGui:
@@ -91,7 +91,7 @@ class ElectrumGui:
         self.set_cursor(0)
         return s
 
-    def update(self, event):
+    def update(self, event, *args):
         self.update_history()
         if self.tab == 0:
             self.print_history()
@@ -369,8 +369,12 @@ class ElectrumGui:
         self.show_message(_("Please wait..."), getchar=False)
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-        except Exception as e:
-            self.show_message(repr(e))
+        except TxBroadcastError as e:
+            msg = e.get_message_for_gui()
+            self.show_message(msg)
+        except BestEffortRequestFailed as e:
+            msg = repr(e)
+            self.show_message(msg)
         else:
             self.show_message(_('Payment sent.'))
             self.do_clear()
