@@ -69,6 +69,7 @@ class UTXOList(MyTreeView):
         self.update_headers(self.__class__.headers)
         for idx, x in enumerate(utxos):
             self.insert_utxo(idx, x)
+        self.filter()
 
     def insert_utxo(self, idx, x):
         address = x['address']

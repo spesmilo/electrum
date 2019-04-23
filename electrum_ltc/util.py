@@ -161,9 +161,11 @@ class Satoshis(object):
 class Fiat(object):
     __slots__ = ('value', 'ccy')
 
-    def __new__(cls, value, ccy):
+    def __new__(cls, value: Optional[Decimal], ccy: str):
         self = super(Fiat, cls).__new__(cls)
         self.ccy = ccy
+        if not isinstance(value, (Decimal, type(None))):
+            raise TypeError(f"value should be Decimal or None, not {type(value)}")
         self.value = value
         return self
 
@@ -176,8 +178,19 @@ class Fiat(object):
         else:
             return "{:.2f}".format(self.value)
 
+    def to_ui_string(self):
+        if self.value is None or self.value.is_nan():
+            return _('No Data')
+        else:
+            return "{:.2f}".format(self.value) + ' ' + self.ccy
+
     def __eq__(self, other):
-        return self.ccy == other.ccy and self.value == other.value
+        if self.ccy != other.ccy:
+            return False
+        if isinstance(self.value, Decimal) and isinstance(other.value, Decimal) \
+                and self.value.is_nan() and other.value.is_nan():
+            return True
+        return self.value == other.value
 
     def __ne__(self, other):
         return not (self == other)
@@ -922,7 +935,7 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
-        timeout = aiohttp.ClientTimeout(total=10)
+        timeout = aiohttp.ClientTimeout(total=30)
     elif isinstance(timeout, (int, float)):
         timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)

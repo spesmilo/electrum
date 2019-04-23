@@ -249,9 +249,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         self.endInsertRows()
         if selected_row:
             self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
-        f = self.view.current_filter
-        if f:
-            self.view.filter(f)
+        self.view.filter()
         # update summary
         self.summary = r['summary']
         if not self.view.years and self.transactions:
@@ -612,9 +610,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         to_delete |= self.wallet.get_depending_transactions(delete_tx)
         question = _("Are you sure you want to remove this transaction?")
         if len(to_delete) > 1:
-            question = _(
-                "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
-            )
+            question = (_("Are you sure you want to remove this transaction and {} child transactions?")
+                        .format(len(to_delete) - 1))
         answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
         if answer == QMessageBox.No:
             return

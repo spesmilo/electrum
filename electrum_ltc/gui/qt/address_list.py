@@ -173,6 +173,7 @@ class AddressList(MyTreeView):
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
+        self.filter()
 
     def create_menu(self, position):
         from electrum_ltc.wallet import Multisig_Wallet
