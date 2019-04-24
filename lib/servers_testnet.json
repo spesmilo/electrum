@@ -7,5 +7,9 @@
     },
     "testnet.imaginary.cash": {
         "s": "50002"
+    },
+    "testnet.bitcoincash.network": {
+        "s" : "60002"
     }
+
 }
