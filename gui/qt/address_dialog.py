@@ -53,7 +53,7 @@ class AddressDialog(WindowModalDialog):
 
         vbox.addWidget(QLabel(_("Address:")))
         self.addr_e = ButtonsLineEdit()
-        self.addr_e.addCopyButton(self.app)
+        self.addr_e.addCopyButton()
         icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
@@ -75,7 +75,7 @@ class AddressDialog(WindowModalDialog):
             vbox.addWidget(QLabel(_("Public keys") + ':'))
             for pubkey in pubkeys:
                 pubkey_e = ButtonsLineEdit(pubkey)
-                pubkey_e.addCopyButton(self.app)
+                pubkey_e.addCopyButton()
                 vbox.addWidget(pubkey_e)
 
         try:
@@ -85,7 +85,7 @@ class AddressDialog(WindowModalDialog):
         if redeem_script:
             vbox.addWidget(QLabel(_("Redeem Script") + ':'))
             redeem_e = ShowQRTextEdit(text=redeem_script)
-            redeem_e.addCopyButton(self.app)
+            redeem_e.addCopyButton()
             vbox.addWidget(redeem_e)
 
         vbox.addWidget(QLabel(_("History")))

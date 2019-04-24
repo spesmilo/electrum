@@ -909,7 +909,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.receive_address = None
         self.receive_address_e = ButtonsLineEdit()
-        self.receive_address_e.addCopyButton(self.app)
+        self.receive_address_e.addCopyButton()
         self.receive_address_e.setReadOnly(True)
         msg = _('Bitcoin Cash address where the payment should be received. Note that each payment request uses a different Bitcoin Cash address.')
         label = HelpLabel(_('&Receiving address'), msg)
@@ -2375,7 +2375,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
             mpk_text.setMaximumHeight(150)
-            mpk_text.addCopyButton(self.app)
+            mpk_text.addCopyButton()
             def show_mpk(index):
                 mpk_text.setText(mpk_list[index])
             # only show the combobox in case multiple accounts are available
@@ -2457,11 +2457,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
         vbox.addWidget(QLabel(_("Private key") + ':'))
         keys_e = ShowQRTextEdit(text=pk)
-        keys_e.addCopyButton(self.app)
+        keys_e.addCopyButton()
         vbox.addWidget(keys_e)
         vbox.addWidget(QLabel(_("Redeem Script") + ':'))
         rds_e = ShowQRTextEdit(text=address.to_script().hex())
-        rds_e.addCopyButton(self.app)
+        rds_e.addCopyButton()
         vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
