@@ -184,6 +184,20 @@ class Bitbank(ExchangeBase):
         return {'JPY': Decimal(json['data']['last'])}
 
 
+class BitCambio(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['CAM']['last'])}
+
+
+class BitcoinTrade(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BTD']['last'])}
+
+
 class BitFlyer(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -236,6 +250,20 @@ class BlockchainInfo(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+
+class Brabex(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('exchange.brabex.com.br', 'api/v1/BRL/ticker?crypto_currency=BTC')
+        return {'BRL': Decimal(json['last'])}
+
+
+class Braziliex(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BZX']['last'])}
 
 
 class Bylls(ExchangeBase):
@@ -362,12 +390,27 @@ class NegocieCoins(ExchangeBase):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
 
+
+class PitaiaTrade(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('api.pitaiatrade.com', '/v1/ticker')
+        return {'BRL': Decimal(json['ticker']['buy'])}
+
+
 class TheRockTrading(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.therocktrading.com',
                              '/v1/funds/BTCEUR/ticker')
         return {'EUR': Decimal(json['last'])}
+
+
+class Walltime(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['WAL']['last'])}
 
 
 class Winkdex(ExchangeBase):
@@ -632,3 +675,4 @@ class FxThread(ThreadJob):
 
 
 assert globals().get(DEFAULT_EXCHANGE), f"default exchange {DEFAULT_EXCHANGE} does not exist"
+
