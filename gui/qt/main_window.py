@@ -1990,9 +1990,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_converter_tab(self):
 
         source_address = QLineEdit()
-        cash_address = QLineEdit()
+        cash_address = ButtonsLineEdit()
+        cash_address.addCopyButton()
         cash_address.setReadOnly(True)
-        legacy_address = QLineEdit()
+        legacy_address = ButtonsLineEdit()
+        legacy_address.addCopyButton()
         legacy_address.setReadOnly(True)
 
         widgets = [
