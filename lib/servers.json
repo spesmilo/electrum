@@ -96,6 +96,11 @@
         "s": "50002",
         "t": "50001",
         "version": "1.4"
+    },
+    "bxdp2p6abpqt5etc.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
     }
 }
 
