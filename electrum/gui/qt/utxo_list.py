@@ -31,7 +31,6 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
 from PyQt5.QtWidgets import QAbstractItemView, QMenu
 
 from electrum.i18n import _
-from electrum.bitcoin import is_address
 
 from .util import MyTreeView, ColorScheme, MONOSPACE_FONT
 
@@ -64,26 +63,6 @@ class UTXOList(MyTreeView):
 
     def update(self):
         self.wallet = self.parent.wallet
-<<<<<<< HEAD
-        item = self.currentItem()
-        self.clear()
-        self.utxos = self.wallet.get_utxos()
-        address_items = {}
-        for x in self.utxos:
-            address = x.get('address')
-            height = x.get('height')
-            name = self.get_name(x)
-            label = self.wallet.get_label(x.get('prevout_hash'))
-            amount = self.parent.format_amount(x['value'], whitespaces=True)
-            utxo_item = SortableTreeWidgetItem([address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]])
-            utxo_item.setFont(0, QFont(MONOSPACE_FONT))
-            utxo_item.setFont(2, QFont(MONOSPACE_FONT))
-            utxo_item.setFont(4, QFont(MONOSPACE_FONT))
-            utxo_item.setData(0, Qt.UserRole, name)
-            if self.wallet.is_frozen(address):
-                utxo_item.setBackground(0, ColorScheme.BLUE.as_color(True))
-            self.addChild(utxo_item)
-=======
         utxos = self.wallet.get_utxos()
         self.utxo_dict = {}
         self.model().clear()
@@ -124,7 +103,6 @@ class UTXOList(MyTreeView):
         if not items:
             return None
         return [x.data(Qt.UserRole) for x in items]
->>>>>>> upstream/master
 
     def create_menu(self, position):
         selected = self.get_selected_outpoints()

@@ -675,3 +675,4 @@ class FxThread(ThreadJob):
 
 
 assert globals().get(DEFAULT_EXCHANGE), f"default exchange {DEFAULT_EXCHANGE} does not exist"
+
