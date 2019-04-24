@@ -398,6 +398,14 @@ class PitaiaTrade(ExchangeBase):
         return {'BRL': Decimal(json['ticker']['buy'])}
 
 
+class TemBTC(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('broker.tembtc.com.br', '/api/v3/btcbrl/ticker')
+        return {'BRL': Decimal(json['last'])}
+
+
+
 class TheRockTrading(ExchangeBase):
 
     async def get_rates(self, ccy):

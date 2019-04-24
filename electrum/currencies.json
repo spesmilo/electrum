@@ -386,6 +386,12 @@
         "TWD",
         "USD"
     ],
+    "Brabex": [
+	"BRL"
+    ],
+    "Braziliex": [
+	"BRL"
+    ],    
     "Bylls": [
         "CAD"
     ],
@@ -888,11 +894,20 @@
     "NegocieCoins": [
         "BRL"
     ],
+    "PitaiaTrade": [
+	"BRL"
+    ],
+    "TemBTC": [
+	"BRL"
+    ],
     "TheRockTrading": [
         "EUR"
     ],
     "Zaif": [
         "JPY"
+    ],
+    "Walltime": [
+	"BRL"
     ],
     "itBit": []
 }
