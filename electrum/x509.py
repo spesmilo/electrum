@@ -25,6 +25,7 @@
 
 import hashlib
 import time
+from datetime import datetime
 
 import ecdsa
 
@@ -304,7 +305,8 @@ class X509(object):
         if self.notBefore > now:
             raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
         if self.notAfter <= now:
-            raise CertificateError('Certificate has expired. (%s)' % self.get_common_name())
+            dt = datetime.utcfromtimestamp(time.mktime(self.notAfter))
+            raise CertificateError(f'Certificate ({self.get_common_name()}) has expired (at {dt} UTC).')
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()
