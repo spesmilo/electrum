@@ -259,11 +259,24 @@ class Brabex(ExchangeBase):
         return {'BRL': Decimal(json['last'])}
 
 
+#class Braziliex(ExchangeBase):
+
+#    async def get_rates(self, ccy):
+#        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
+#        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BZX']['last'])}
+
+
 class Braziliex(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
-        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BZX']['last'])}
+        json = await self.get_json('braziliex.com','/api/v1/public/ticker')
+        return {'BRL': Decimal(json['btc_brl']['last']),
+		'LTC': Decimal(json['ltc_brl']['last']),
+		'DCR': Decimal(1/json['dcr_btc']['last']),
+		'ABC': Decimal(1/json['abc_btc']['last']),
+		'MXT': Decimal(1/json['mxt_btc']['last']),
+		'BRZX': Decimal(1/json['brzx_btc']['last']),
+		'EPC': Decimal(1/json['epc_btc']['last']) }
 
 
 class Bylls(ExchangeBase):
@@ -271,7 +284,7 @@ class Bylls(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('bylls.com', '/api/price?from_currency=BTC&to_currency=CAD')
         return {'CAD': Decimal(json['public_price']['to_price'])}
-
+	
 
 class Coinbase(ExchangeBase):
 

@@ -396,7 +396,13 @@
 	"BRL"
     ],
     "Braziliex": [
-	"BRL"
+	"BRL",
+	"LTC",
+	"DCR",
+	"ABC",
+	"MXT",
+	"BRZX",
+	"EPC"
     ],    
     "Bylls": [
         "CAD"
