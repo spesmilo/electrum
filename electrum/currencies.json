@@ -350,8 +350,14 @@
         "VEF",
         "XMR"
     ],
+    "BitCambio": [
+        "BRL"
+    ],	
     "Bitcointoyou": [
         "BRL"
+    ],
+    "BitcoinTrade": [
+	"BRL"
     ],
     "Bitmarket": [
         "PLN"
