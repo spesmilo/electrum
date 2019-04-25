@@ -199,7 +199,7 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def import_addresses_or_keys(self):
-        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
+        v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,

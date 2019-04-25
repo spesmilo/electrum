@@ -39,7 +39,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       push_script, int_to_hex, push_script, b58_address_to_hash160,
-                      opcodes, add_number_to_script, base_decode)
+                      opcodes, add_number_to_script, base_decode, is_segwit_script_type)
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
@@ -815,11 +815,7 @@ class Transaction:
         if _type == 'address' and guess_for_address:
             _type = cls.guess_txintype_from_address(txin['address'])
         has_nonzero_witness = txin.get('witness', '00') not in ('00', None)
-        return cls.is_segwit_inputtype(_type) or has_nonzero_witness
-
-    @classmethod
-    def is_segwit_inputtype(cls, txin_type):
-        return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
+        return is_segwit_script_type(_type) or has_nonzero_witness
 
     @classmethod
     def guess_txintype_from_address(cls, addr):
