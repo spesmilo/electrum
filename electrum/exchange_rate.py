@@ -255,7 +255,7 @@ class BlockchainInfo(ExchangeBase):
 class Brabex(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('exchange.brabex.com.br', 'api/v1/BRL/ticker?crypto_currency=BTC')
+        json = await self.get_json('exchange.brabex.com.br', '/api/v1/BRL/ticker?crypto_currency=BTC')
         return {'BRL': Decimal(json['last'])}
 
 
