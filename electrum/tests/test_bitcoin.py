@@ -742,6 +742,12 @@ class Test_keyImport(SequentialTestCase):
             is_private_key("p2wpkh-p2sh:5JKXxT3wAZHcybJ9YNkuHur9vou6uuAnorBV9A8vVxGNFH5wvTW",
                            raise_on_error=True)
 
+    @needs_test_with_all_ecc_implementations
+    def test_wif_with_invalid_magic_byte_for_compressed_pubkey(self):
+        with self.assertRaises(BitcoinException):
+            is_private_key("KwFAa6AumokBD2dVqQLPou42jHiVsvThY1n25HJ8Ji8REf1wxAQb",
+                           raise_on_error=True)
+
 
 class TestBaseEncode(SequentialTestCase):
 

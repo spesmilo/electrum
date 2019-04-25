@@ -578,7 +578,13 @@ def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
 
     if len(vch) not in [33, 34]:
         raise BitcoinException('invalid vch len for WIF key: {}'.format(len(vch)))
-    compressed = len(vch) == 34
+    compressed = False
+    if len(vch) == 34:
+        if vch[33] == 0x01:
+            compressed = True
+        else:
+            raise BitcoinException(f'invalid WIF key. length suggests compressed pubkey, '
+                                   f'but last byte is {vch[33]} != 0x01')
 
     if is_segwit_script_type(txin_type) and not compressed:
         raise BitcoinException('only compressed public keys can be used in segwit scripts')
