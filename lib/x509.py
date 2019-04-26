@@ -299,9 +299,13 @@ class X509(object):
         not_before = time.mktime(time.strptime(self.notBefore.decode('ascii'), TIMESTAMP_FMT))
         not_after = time.mktime(time.strptime(self.notAfter.decode('ascii'), TIMESTAMP_FMT))
         if not_before > now:
-            raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
+            raise CertificateError('Certificate for {} has not yet entered its valid date range. ({})'
+                                   .format(self.get_common_name(),
+                                           time.strftime("%Y-%M-%d %H:%M:%S",time.localtime(not_before))))
         if not_after <= now:
-            raise CertificateError('Certificate has expired. (%s)' % self.get_common_name())
+            raise CertificateError('Certificate for {} has expired at {}'
+                                   .format(self.get_common_name(),
+                                           time.strftime("%Y-%M-%d %H:%M:%S",time.localtime(not_after))))
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()
