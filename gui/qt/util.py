@@ -610,61 +610,67 @@ class MyTreeWidget(QTreeWidget):
                                 for column in columns]))
 
 
-class ButtonsWidget(QWidget):
+class OverlayControlWidget(QWidget):
+    STYLE_SHEET_COMMON = '''
+    QWidget { background-color: transparent; }
+    QToolButton { border-width: 1px; padding: 0px; margin: 0px; }
+    '''
 
-    def __init__(self):
-        super(QWidget, self).__init__()
-        self.buttons = []
+    STYLE_SHEET_LIGHT = '''
+    QToolButton:hover { border: 1px solid #3daee9; }
+    '''
 
-    def resizeButtons(self):
-        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth
-        y = self.rect().bottom() - frameWidth
-        for button in self.buttons:
-            sz = button.sizeHint()
-            x -= sz.width()
-            button.move(x, y - sz.height())
+    def __init__(self, middle: bool = False):
+        QWidget.__init__(self)
+        self.middle = middle
+        self.overlay_widget = QWidget(self)
+        style_sheet = self.STYLE_SHEET_COMMON
+        if not ColorScheme.dark_scheme:
+            style_sheet = style_sheet + self.STYLE_SHEET_LIGHT
+        self.overlay_widget.setStyleSheet(style_sheet)
+        self.overlay_layout = QHBoxLayout(self.overlay_widget)
+        self.overlay_layout.setContentsMargins(0, 0, 0, 0)
+        self.overlay_layout.setSpacing(1)
 
-    def addButton(self, icon_name, on_click, tooltip):
-        button = QToolButton(self)
-        button.setIcon(QIcon(icon_name))
-        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
-        button.setVisible(True)
+    def resizeEvent(self, e):
+        QWidget.resizeEvent(self, e)
+        frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        overlay_size = self.overlay_widget.sizeHint()
+        x = self.rect().right() - frame_width - overlay_size.width()
+        y = self.rect().bottom() - overlay_size.height()
+        y = y / 2 if self.middle else y - frame_width
+        self.overlay_widget.move(x, y)
+
+    def addWidget(self, widget: QWidget):
+        # The old code positioned the items the other way around, so we just insert at position 0 instead
+        self.overlay_layout.insertWidget(0, widget)
+
+    def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
+        button = QToolButton(self.overlay_widget)
         button.setToolTip(tooltip)
+        button.setIcon(QIcon(icon_name))
         button.clicked.connect(on_click)
-        self.buttons.append(button)
+        self.addWidget(button)
         return button
 
-    def addCopyButton(self, app):
-        self.app = app
-        self.addButton(":icons/copy.png", self.on_copy, _("Copy to clipboard"))
+    def addCopyButton(self) -> QAbstractButton:
+        return self.addButton(":icons/copy.png", self.on_copy, _("Copy to clipboard"))
 
     def on_copy(self):
-        self.app.clipboard().setText(self.text())
+        QApplication.instance().clipboard().setText(self.text())
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
-class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+class ButtonsLineEdit(QLineEdit, OverlayControlWidget):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
-        self.buttons = []
+        OverlayControlWidget.__init__(self, middle=True)
 
-    def resizeEvent(self, e):
-        o = QLineEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
-
-class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+class ButtonsTextEdit(QPlainTextEdit, OverlayControlWidget):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
+        OverlayControlWidget.__init__(self)
         self.setText = self.setPlainText
         self.text = self.toPlainText
-        self.buttons = []
-
-    def resizeEvent(self, e):
-        o = QPlainTextEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
-
 
 class TaskThread(QThread):
     '''Thread that runs background tasks.  Callbacks are guaranteed
