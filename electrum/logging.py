@@ -64,6 +64,31 @@ def _configure_file_logging(log_directory: pathlib.Path):
     root_logger.addHandler(file_handler)
 
 
+def _configure_verbosity(config):
+    verbosity = config.get('verbosity')
+    if not verbosity:
+        return
+    console_stderr_handler.setLevel(logging.DEBUG)
+    if verbosity == '*' or not isinstance(verbosity, str):
+        return
+    # example verbosity:
+    #   debug,network=error,interface=error      // effectively blacklists network and interface
+    #   warning,network=debug,interface=debug    // effectively whitelists network and interface
+    filters = verbosity.split(',')
+    for filt in filters:
+        if not filt: continue
+        items = filt.split('=')
+        if len(items) == 1:
+            level = items[0]
+            electrum_logger.setLevel(level.upper())
+        elif len(items) == 2:
+            logger_name, level = items
+            logger = get_logger(logger_name)
+            logger.setLevel(level.upper())
+        else:
+            raise Exception(f"invalid log filter: {filt}")
+
+
 # --- External API
 
 def get_logger(name: str) -> logging.Logger:
@@ -73,6 +98,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 _logger = get_logger(__name__)
+_logger.setLevel(logging.INFO)
 
 
 class Logger:
@@ -98,8 +124,7 @@ class Logger:
 
 
 def configure_logging(config):
-    if config.get('verbosity'):
-        console_stderr_handler.setLevel(logging.DEBUG)
+    _configure_verbosity(config)
 
     is_android = 'ANDROID_DATA' in os.environ
     if is_android or config.get('disablefilelogging'):

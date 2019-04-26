@@ -47,7 +47,6 @@ hooks = {}
 
 
 class Plugins(DaemonThread):
-    verbosity_filter = 'p'
 
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):

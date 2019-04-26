@@ -223,7 +223,6 @@ class Network(Logger):
     """The Network class manages a set of connections to remote electrum
     servers, each connected socket is handled by an Interface() object.
     """
-    verbosity_filter = 'n'
 
     def __init__(self, config: SimpleConfig=None):
         global INSTANCE

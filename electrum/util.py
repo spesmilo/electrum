@@ -218,29 +218,6 @@ class MyEncoder(json.JSONEncoder):
             return list(obj)
         return super().default(obj)
 
-class PrintError(object):
-    '''A handy base class'''
-    verbosity_filter = ''
-
-    def diagnostic_name(self):
-        return ''
-
-    def log_name(self):
-        msg = self.verbosity_filter or self.__class__.__name__
-        d = self.diagnostic_name()
-        if d: msg += "][" + d
-        return "[%s]" % msg
-
-    def print_error(self, *msg):
-        if self.verbosity_filter in verbosity or verbosity == '*':
-            print_error(self.log_name(), *msg)
-
-    def print_stderr(self, *msg):
-        print_stderr(self.log_name(), *msg)
-
-    def print_msg(self, *msg):
-        print_msg(self.log_name(), *msg)
-
 
 class ThreadJob(Logger):
     """A job that is run periodically from a thread's main loop.  run() is
@@ -282,7 +259,6 @@ class DebugMem(ThreadJob):
 
 class DaemonThread(threading.Thread, Logger):
     """ daemon thread that terminates cleanly """
-    verbosity_filter = 'd'
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -333,19 +309,6 @@ class DaemonThread(threading.Thread, Logger):
             self.logger.info("jnius detach")
         self.logger.info("stopped")
 
-
-verbosity = ''
-def set_verbosity(filters: Union[str, bool]):
-    global verbosity
-    if type(filters) is bool:  # backwards compat
-        verbosity = '*' if filters else ''
-        return
-    verbosity = filters
-
-
-def print_error(*args):
-    if not verbosity: return
-    print_stderr(*args)
 
 def print_stderr(*args):
     args = [str(item) for item in args]
