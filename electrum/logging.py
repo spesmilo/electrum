@@ -133,6 +133,9 @@ def configure_logging(config):
         log_directory = pathlib.Path(config.path) / "logs"
         _configure_file_logging(log_directory)
 
+    # if using kivy, avoid kivy's own logs to get printed twice
+    logging.getLogger('kivy').propagate = False
+
     from . import ELECTRUM_VERSION
     _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - https://github.com/spesmilo/electrum")
     _logger.info(f"Python version: {sys.version}. On platform: {platform.platform()}")
