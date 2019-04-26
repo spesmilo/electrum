@@ -444,6 +444,9 @@ def deserialize_privkey(key, *, net=None):
         if len(vch) not in (33, 34):  # We do it this way because eg iOS runs with PYTHONOPTIMIZE=1
             raise AssertionError('Key {} has invalid length'.format(key))
         compressed = len(vch) == 34
+        if compressed and vch[33] != 0x1:
+            raise ValueError('Invalid WIF key. Length suggests compressed pubkey, '
+                             'but last byte is 0x{:02x} != 0x01'.format(vch[33]))
         return txin_type, vch[1:33], compressed
     else:
         raise ValueError("cannot deserialize", key)
