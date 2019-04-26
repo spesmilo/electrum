@@ -633,7 +633,7 @@ class OverlayControlMixin:
         self.overlay_layout.setSpacing(1)
 
     def resizeEvent(self, e):
-        QWidget.resizeEvent(self, e)
+        super().resizeEvent(e)
         frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         overlay_size = self.overlay_widget.sizeHint()
         x = self.rect().right() - frame_width - overlay_size.width()
