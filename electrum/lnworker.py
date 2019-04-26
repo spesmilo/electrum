@@ -39,7 +39,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
-                     UpdateAddHtlc, Direction)
+                     UpdateAddHtlc, Direction, LnLocalFeatures)
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -74,16 +74,178 @@ encoder = ChannelJsonEncoder()
 
 class LNWorker(PrintError):
 
+    def __init__(self, xprv):
+        self.node_keypair = generate_keypair(keystore.from_xprv(xprv), LnKeyFamily.NODE_KEY, 0)
+        self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
+        self.localfeatures = LnLocalFeatures(0)
+
+    async def maybe_listen(self):
+        listen_addr = self.config.get('lightning_listen')
+        if listen_addr:
+            addr, port = listen_addr.rsplit(':', 2)
+            if addr[0] == '[':
+                # ipv6
+                addr = addr[1:-1]
+            async def cb(reader, writer):
+                transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
+                try:
+                    node_id = await transport.handshake()
+                except:
+                    self.print_error('handshake failure from incoming connection')
+                    return
+                peer = Peer(self, node_id, transport)
+                self.peers[node_id] = peer
+                await self.network.main_taskgroup.spawn(peer.main_loop())
+                self.network.trigger_callback('ln_status')
+            await asyncio.start_server(cb, addr, int(port))
+
+    async def main_loop(self):
+        while True:
+            await asyncio.sleep(1)
+            now = time.time()
+            if len(self.peers) >= NUM_PEERS_TARGET:
+                continue
+            peers = self._get_next_peers_to_try()
+            for peer in peers:
+                last_tried = self._last_tried_peer.get(peer, 0)
+                if last_tried + PEER_RETRY_INTERVAL < now:
+                    await self.add_peer(peer.host, peer.port, peer.pubkey)
+
+    async def add_peer(self, host, port, node_id):
+        if node_id in self.peers:
+            return self.peers[node_id]
+        port = int(port)
+        peer_addr = LNPeerAddr(host, port, node_id)
+        transport = LNTransport(self.node_keypair.privkey, peer_addr)
+        self._last_tried_peer[peer_addr] = time.time()
+        self.print_error("adding peer", peer_addr)
+        peer = Peer(self, node_id, transport)
+        await self.network.main_taskgroup.spawn(peer.main_loop())
+        self.peers[node_id] = peer
+        self.network.trigger_callback('ln_status')
+        return peer
+
+    def start_network(self, network: 'Network'):
+        self.network = network
+        self.config = network.config
+        self.channel_db = self.network.channel_db
+        self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
+        self._add_peers_from_config()
+        # wait until we see confirmations
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        self.first_timestamp_requested = None
+
+    def _add_peers_from_config(self):
+        peer_list = self.config.get('lightning_peers', [])
+        for host, port, pubkey in peer_list:
+            asyncio.run_coroutine_threadsafe(
+                self.add_peer(host, int(port), bfh(pubkey)),
+                self.network.asyncio_loop)
+
+    def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
+        now = time.time()
+        recent_peers = self.channel_db.get_recent_peers()
+        # maintenance for last tried times
+        # due to this, below we can just test membership in _last_tried_peer
+        for peer in list(self._last_tried_peer):
+            if now >= self._last_tried_peer[peer] + PEER_RETRY_INTERVAL:
+                del self._last_tried_peer[peer]
+        # first try from recent peers
+        for peer in recent_peers:
+            if peer.pubkey in self.peers: continue
+            if peer in self._last_tried_peer: continue
+            return [peer]
+        # try random peer from graph
+        unconnected_nodes = self.channel_db.get_200_randomly_sorted_nodes_not_in(self.peers.keys())
+        if unconnected_nodes:
+            for node in unconnected_nodes:
+                addrs = self.channel_db.get_node_addresses(node)
+                if not addrs:
+                    continue
+                host, port = self.choose_preferred_address(addrs)
+                peer = LNPeerAddr(host, port, bytes.fromhex(node.node_id))
+                if peer in self._last_tried_peer: continue
+                self.print_error('taking random ln peer from our channel db')
+                return [peer]
+
+        # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
+        # and only return mainnet nodes. so for the time being dns seeding is disabled:
+        if constants.net in (constants.BitcoinTestnet, ):
+            return [random.choice(FALLBACK_NODE_LIST_TESTNET)]
+        elif constants.net in (constants.BitcoinMainnet, ):
+            return [random.choice(FALLBACK_NODE_LIST_MAINNET)]
+        else:
+            return []
+
+        # try peers from dns seed.
+        # return several peers to reduce the number of dns queries.
+        if not constants.net.LN_DNS_SEEDS:
+            return []
+        dns_seed = random.choice(constants.net.LN_DNS_SEEDS)
+        self.print_error('asking dns seed "{}" for ln peers'.format(dns_seed))
+        try:
+            # note: this might block for several seconds
+            # this will include bech32-encoded-pubkeys and ports
+            srv_answers = resolve_dns_srv('r{}.{}'.format(
+                constants.net.LN_REALM_BYTE, dns_seed))
+        except dns.exception.DNSException as e:
+            return []
+        random.shuffle(srv_answers)
+        num_peers = 2 * NUM_PEERS_TARGET
+        srv_answers = srv_answers[:num_peers]
+        # we now have pubkeys and ports but host is still needed
+        peers = []
+        for srv_ans in srv_answers:
+            try:
+                # note: this might block for several seconds
+                answers = dns.resolver.query(srv_ans['host'])
+            except dns.exception.DNSException:
+                continue
+            try:
+                ln_host = str(answers[0])
+                port = int(srv_ans['port'])
+                bech32_pubkey = srv_ans['host'].split('.')[0]
+                pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
+                peers.append(LNPeerAddr(ln_host, port, pubkey))
+            except Exception as e:
+                self.print_error('error with parsing peer from dns seed: {}'.format(e))
+                continue
+        self.print_error('got {} ln peers from dns seed'.format(len(peers)))
+        return peers
+
+
+
+class LNGossip(LNWorker):
+
+    def __init__(self, network):
+        seed = os.urandom(32)
+        node = BIP32Node.from_rootseed(seed, xtype='standard')
+        xprv = node.to_xprv()
+        super().__init__(xprv)
+        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
+
+
+class LNWallet(LNWorker):
+
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
         self.storage = wallet.storage
+        xprv = self.storage.get('lightning_privkey2')
+        if xprv is None:
+            # TODO derive this deterministically from wallet.keystore at keystore generation time
+            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
+            seed = os.urandom(32)
+            node = BIP32Node.from_rootseed(seed, xtype='standard')
+            xprv = node.to_xprv()
+            self.storage.put('lightning_privkey2', xprv)
+        super().__init__(xprv)
+        self.ln_keystore = keystore.from_xprv(xprv)
+        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
-        self.ln_keystore = self._read_ln_keystore()
-        self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
-        self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
@@ -95,19 +257,20 @@ class LNWorker(PrintError):
 
     def start_network(self, network: 'Network'):
         self.network = network
-        self.config = network.config
-        self.channel_db = self.network.channel_db
-        for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
-            chan.lnwatcher = network.lnwatcher
-        self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
-        self._add_peers_from_config()
-        # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_open, ['channel_open'])
         self.network.register_callback(self.on_channel_closed, ['channel_closed'])
-        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
-        self.first_timestamp_requested = None
+        for chan_id, chan in self.channels.items():
+            self.network.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+            chan.lnwatcher = network.lnwatcher
+        super().start_network(network)
+        for coro in [
+                self.maybe_listen(),
+                self.on_network_update('network_updated'),  # shortcut (don't block) if funding tx locked and verified
+                self.network.lnwatcher.on_network_update('network_updated'),  # ping watcher to check our channels
+                self.reestablish_peers_and_channels()
+        ]:
+            asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
 
     def payment_completed(self, chan: Channel, direction: Direction,
                           htlc: UpdateAddHtlc):
@@ -193,17 +356,6 @@ class LNWorker(PrintError):
             item['balance_msat'] = balance_msat
         return out
 
-    def _read_ln_keystore(self) -> BIP32_KeyStore:
-        xprv = self.storage.get('lightning_privkey2')
-        if xprv is None:
-            # TODO derive this deterministically from wallet.keystore at keystore generation time
-            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
-            seed = os.urandom(32)
-            node = BIP32Node.from_rootseed(seed, xtype='standard')
-            xprv = node.to_xprv()
-            self.storage.put('lightning_privkey2', xprv)
-        return keystore.from_xprv(xprv)
-
     def get_and_inc_counter_for_channel_keys(self):
         with self.lock:
             ctr = self.storage.get('lightning_channel_key_der_ctr', -1)
@@ -211,14 +363,6 @@ class LNWorker(PrintError):
             self.storage.put('lightning_channel_key_der_ctr', ctr)
             self.storage.write()
             return ctr
-
-    def _add_peers_from_config(self):
-        peer_list = self.config.get('lightning_peers', [])
-        for host, port, pubkey in peer_list:
-            asyncio.run_coroutine_threadsafe(
-                self.add_peer(host, int(port), bfh(pubkey)),
-                self.network.asyncio_loop)
-
 
     def suggest_peer(self):
         for node_id, peer in self.peers.items():
@@ -232,20 +376,6 @@ class LNWorker(PrintError):
         assert type(node_id) is bytes
         with self.lock:
             return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
-
-    async def add_peer(self, host, port, node_id):
-        if node_id in self.peers:
-            return self.peers[node_id]
-        port = int(port)
-        peer_addr = LNPeerAddr(host, port, node_id)
-        transport = LNTransport(self.node_keypair.privkey, peer_addr)
-        self._last_tried_peer[peer_addr] = time.time()
-        self.print_error("adding peer", peer_addr)
-        peer = Peer(self, node_id, transport)
-        await self.network.main_taskgroup.spawn(peer.main_loop())
-        self.peers[node_id] = peer
-        self.network.trigger_callback('ln_status')
-        return peer
 
     def save_channel(self, openchannel):
         assert type(openchannel) is Channel
@@ -692,77 +822,6 @@ class LNWorker(PrintError):
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
-        now = time.time()
-        recent_peers = self.channel_db.get_recent_peers()
-        # maintenance for last tried times
-        # due to this, below we can just test membership in _last_tried_peer
-        for peer in list(self._last_tried_peer):
-            if now >= self._last_tried_peer[peer] + PEER_RETRY_INTERVAL:
-                del self._last_tried_peer[peer]
-        # first try from recent peers
-        for peer in recent_peers:
-            if peer.pubkey in self.peers: continue
-            if peer in self._last_tried_peer: continue
-            return [peer]
-        # try random peer from graph
-        unconnected_nodes = self.channel_db.get_200_randomly_sorted_nodes_not_in(self.peers.keys())
-        if unconnected_nodes:
-            for node in unconnected_nodes:
-                addrs = self.channel_db.get_node_addresses(node)
-                if not addrs:
-                    continue
-                host, port = self.choose_preferred_address(addrs)
-                peer = LNPeerAddr(host, port, bytes.fromhex(node.node_id))
-                if peer in self._last_tried_peer: continue
-                self.print_error('taking random ln peer from our channel db')
-                return [peer]
-
-        # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
-        # and only return mainnet nodes. so for the time being dns seeding is disabled:
-        if constants.net in (constants.BitcoinTestnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_TESTNET)]
-        elif constants.net in (constants.BitcoinMainnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_MAINNET)]
-        else:
-            return []
-
-        # try peers from dns seed.
-        # return several peers to reduce the number of dns queries.
-        if not constants.net.LN_DNS_SEEDS:
-            return []
-        dns_seed = random.choice(constants.net.LN_DNS_SEEDS)
-        self.print_error('asking dns seed "{}" for ln peers'.format(dns_seed))
-        try:
-            # note: this might block for several seconds
-            # this will include bech32-encoded-pubkeys and ports
-            srv_answers = resolve_dns_srv('r{}.{}'.format(
-                constants.net.LN_REALM_BYTE, dns_seed))
-        except dns.exception.DNSException as e:
-            return []
-        random.shuffle(srv_answers)
-        num_peers = 2 * NUM_PEERS_TARGET
-        srv_answers = srv_answers[:num_peers]
-        # we now have pubkeys and ports but host is still needed
-        peers = []
-        for srv_ans in srv_answers:
-            try:
-                # note: this might block for several seconds
-                answers = dns.resolver.query(srv_ans['host'])
-            except dns.exception.DNSException:
-                continue
-            try:
-                ln_host = str(answers[0])
-                port = int(srv_ans['port'])
-                bech32_pubkey = srv_ans['host'].split('.')[0]
-                pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
-                peers.append(LNPeerAddr(ln_host, port, pubkey))
-            except Exception as e:
-                self.print_error('error with parsing peer from dns seed: {}'.format(e))
-                continue
-        self.print_error('got {} ln peers from dns seed'.format(len(peers)))
-        return peers
-
     async def reestablish_peers_and_channels(self):
         async def reestablish_peer_for_given_channel():
             # try last good address first
@@ -784,21 +843,23 @@ class LNWorker(PrintError):
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
                 await self.add_peer(host, port, chan.node_id)
 
-        with self.lock:
-            channels = list(self.channels.values())
-        now = time.time()
-        for chan in channels:
-            if chan.is_closed():
-                continue
-            if constants.net is not constants.BitcoinRegtest:
-                ratio = chan.constraints.feerate / self.current_feerate_per_kw()
-                if ratio < 0.5:
-                    self.print_error(f"WARNING: fee level for channel {bh2u(chan.channel_id)} is {chan.constraints.feerate} sat/kiloweight, current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
-            if not chan.should_try_to_reestablish_peer():
-                continue
-            peer = self.peers.get(chan.node_id, None)
-            coro = peer.reestablish_channel(chan) if peer else reestablish_peer_for_given_channel()
-            await self.network.main_taskgroup.spawn(coro)
+        while True:
+            await asyncio.sleep(1)
+            with self.lock:
+                channels = list(self.channels.values())
+            now = time.time()
+            for chan in channels:
+                if chan.is_closed():
+                    continue
+                if constants.net is not constants.BitcoinRegtest:
+                    ratio = chan.constraints.feerate / self.current_feerate_per_kw()
+                    if ratio < 0.5:
+                        self.print_error(f"WARNING: fee level for channel {bh2u(chan.channel_id)} is {chan.constraints.feerate} sat/kiloweight, current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
+                if not chan.should_try_to_reestablish_peer():
+                    continue
+                peer = self.peers.get(chan.node_id, None)
+                coro = peer.reestablish_channel(chan) if peer else reestablish_peer_for_given_channel()
+                await self.network.main_taskgroup.spawn(coro)
 
     def current_feerate_per_kw(self):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
@@ -808,37 +869,3 @@ class LNWorker(PrintError):
         if feerate_per_kvbyte is None:
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(253, feerate_per_kvbyte // 4)
-
-    async def main_loop(self):
-        await self.on_network_update('network_updated')  # shortcut (don't block) if funding tx locked and verified
-        await self.network.lnwatcher.on_network_update('network_updated')  # ping watcher to check our channels
-        listen_addr = self.config.get('lightning_listen')
-        if listen_addr:
-            addr, port = listen_addr.rsplit(':', 2)
-            if addr[0] == '[':
-                # ipv6
-                addr = addr[1:-1]
-            async def cb(reader, writer):
-                transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
-                try:
-                    node_id = await transport.handshake()
-                except:
-                    self.print_error('handshake failure from incoming connection')
-                    return
-                peer = Peer(self, node_id, transport)
-                self.peers[node_id] = peer
-                await self.network.main_taskgroup.spawn(peer.main_loop())
-                self.network.trigger_callback('ln_status')
-
-            await asyncio.start_server(cb, addr, int(port))
-        while True:
-            await asyncio.sleep(1)
-            now = time.time()
-            await self.reestablish_peers_and_channels()
-            if len(self.peers) >= NUM_PEERS_TARGET:
-                continue
-            peers = self._get_next_peers_to_try()
-            for peer in peers:
-                last_tried = self._last_tried_peer.get(peer, 0)
-                if last_tried + PEER_RETRY_INTERVAL < now:
-                    await self.add_peer(peer.host, peer.port, peer.pubkey)

@@ -63,6 +63,7 @@ class Peer(PrintError):
         self.pubkey = pubkey
         self.lnworker = lnworker
         self.privkey = lnworker.node_keypair.privkey
+        self.localfeatures = self.lnworker.localfeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
         self.lnwatcher = lnworker.network.lnwatcher
@@ -76,10 +77,6 @@ class Peer(PrintError):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
         self.payment_preimages = defaultdict(asyncio.Queue)
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
-        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
         self.sent_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]

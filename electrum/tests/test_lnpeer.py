@@ -14,9 +14,9 @@ from electrum.util import bh2u, set_verbosity, create_and_start_event_loop
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum.lnutil import PaymentFailure
+from electrum.lnutil import PaymentFailure, LnLocalFeatures
 from electrum.lnrouter import ChannelDB, LNPathFinder
-from electrum.lnworker import LNWorker
+from electrum.lnworker import LNWallet
 from electrum.lnmsg import encode_msg, decode_msg
 
 from .test_lnchannel import create_test_channels
@@ -74,7 +74,7 @@ class MockStorage:
 class MockWallet:
     storage = MockStorage()
 
-class MockLNWorker:
+class MockLNWallet:
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
         self.chan = chan
         self.remote_keypair = remote_keypair
@@ -85,6 +85,7 @@ class MockLNWorker:
         self.preimages = {}
         self.inflight = {}
         self.wallet = MockWallet()
+        self.localfeatures = LnLocalFeatures(0)
 
     @property
     def lock(self):
@@ -112,12 +113,12 @@ class MockLNWorker:
     def save_invoice(*args, is_paid=False):
         pass
 
-    get_invoice = LNWorker.get_invoice
-    get_preimage = LNWorker.get_preimage
-    _create_route_from_invoice = LNWorker._create_route_from_invoice
-    _check_invoice = staticmethod(LNWorker._check_invoice)
-    _pay_to_route = LNWorker._pay_to_route
-    force_close_channel = LNWorker.force_close_channel
+    get_invoice = LNWallet.get_invoice
+    get_preimage = LNWallet.get_preimage
+    _create_route_from_invoice = LNWallet._create_route_from_invoice
+    _check_invoice = staticmethod(LNWallet._check_invoice)
+    _pay_to_route = LNWallet._pay_to_route
+    force_close_channel = LNWallet.force_close_channel
     get_first_timestamp = lambda self: 0
 
 class MockTransport:
@@ -179,8 +180,8 @@ class TestPeer(SequentialTestCase):
         k1, k2 = keypair(), keypair()
         t1, t2 = transport_pair(self.alice_channel.name, self.bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
-        w1 = MockLNWorker(k1, k2, self.alice_channel, tx_queue=q1)
-        w2 = MockLNWorker(k2, k1, self.bob_channel, tx_queue=q2)
+        w1 = MockLNWallet(k1, k2, self.alice_channel, tx_queue=q1)
+        w2 = MockLNWallet(k2, k1, self.bob_channel, tx_queue=q2)
         p1 = Peer(w1, k1.pubkey, t1)
         p2 = Peer(w2, k2.pubkey, t2)
         w1.peer = p1
@@ -215,7 +216,7 @@ class TestPeer(SequentialTestCase):
     def prepare_ln_message_future(w2 # receiver
             ):
         fut = asyncio.Future()
-        def evt_set(event, _lnworker, msg, _htlc_id):
+        def evt_set(event, _lnwallet, msg, _htlc_id):
             fut.set_result(msg)
         w2.network.register_callback(evt_set, ['ln_message'])
         return fut
@@ -226,7 +227,7 @@ class TestPeer(SequentialTestCase):
         fut = self.prepare_ln_message_future(w2)
 
         async def pay():
-            addr, peer, coro = await LNWorker._pay(w1, pay_req, same_thread=True)
+            addr, peer, coro = await LNWallet._pay(w1, pay_req, same_thread=True)
             await coro
             print("HTLC ADDED")
             self.assertEqual(await fut, 'Payment received')
