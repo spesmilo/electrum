@@ -65,8 +65,7 @@ class PayToEdit(ScanQRTextEdit):
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
-        for button in self.buttons:
-            button.setHidden(b)
+        self.overlay_widget.setHidden(b)
 
     def setGreen(self):
         self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
