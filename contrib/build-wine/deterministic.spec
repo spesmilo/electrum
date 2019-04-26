@@ -77,9 +77,11 @@ a = Analysis([home+'electron-cash',
 
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
-for d in a.datas:
-    if 'pyconfig' in d[0]:
+for d in a.datas.copy():
+    lcase_d0 = d[0].lower()
+    if 'pyconfig' in lcase_d0:
         a.datas.remove(d)
+        print("----> Removed d =", d)
         break
 
 # Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815

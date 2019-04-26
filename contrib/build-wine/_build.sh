@@ -160,7 +160,8 @@ prepare_wine() {
         wget -O zbar.exe "$ZBAR_URL"
         verify_hash zbar.exe $ZBAR_SHA256
         wine zbar.exe /S || fail "Could not install zbar"
-
+        info "Removing unneeded ZBar files ..."
+        rm -vf $WINEPREFIX/drive_c/'Program Files (x86)'/ZBar/bin/zbarcam.*
 
         #The below has been commented-out as our requirements-wine-build.txt already handles this
         #info "Upgrading setuptools ..."
