@@ -301,11 +301,11 @@ class X509(object):
         if not_before > now:
             raise CertificateError('Certificate for {} has not yet entered its valid date range. ({})'
                                    .format(self.get_common_name(),
-                                           time.strftime("%Y-%M-%d %H:%M:%S",time.localtime(not_before))))
+                                           time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(not_before))))
         if not_after <= now:
             raise CertificateError('Certificate for {} has expired at {}'
                                    .format(self.get_common_name(),
-                                           time.strftime("%Y-%M-%d %H:%M:%S",time.localtime(not_after))))
+                                           time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(not_after))))
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()
