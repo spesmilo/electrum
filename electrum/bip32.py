@@ -5,13 +5,15 @@
 import hashlib
 from typing import List, Tuple, NamedTuple, Union, Iterable
 
-from .util import bfh, bh2u, BitcoinException, print_error
+from .util import bfh, bh2u, BitcoinException
 from . import constants
 from . import ecc
 from .crypto import hash_160, hmac_oneshot
 from .bitcoin import rev_hex, int_to_hex, EncodeBase58Check, DecodeBase58Check
+from .logging import get_logger
 
 
+_logger = get_logger(__name__)
 BIP32_PRIME = 0x80000000
 UINT32_MAX = (1 << 32) - 1
 
@@ -24,7 +26,7 @@ def protect_against_invalid_ecpoint(func):
             try:
                 return func(*args[:-1], child_index=child_index)
             except ecc.InvalidECPointException:
-                print_error('bip32 protect_against_invalid_ecpoint: skipping index')
+                _logger.warning('bip32 protect_against_invalid_ecpoint: skipping index')
                 child_index += 1
                 is_prime2 = child_index & BIP32_PRIME
                 if is_prime != is_prime2: raise OverflowError()

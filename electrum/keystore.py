@@ -36,13 +36,17 @@ from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
 from .ecc import string_to_number, number_to_string
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
-from .util import (PrintError, InvalidPassword, WalletFileException,
-                   BitcoinException, bh2u, bfh, print_error, inv_dict)
+from .util import (InvalidPassword, WalletFileException,
+                   BitcoinException, bh2u, bfh, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
 from .plugin import run_hook
+from .logging import Logger
 
 
-class KeyStore(PrintError):
+class KeyStore(Logger):
+
+    def __init__(self):
+        Logger.__init__(self)
 
     def has_seed(self):
         return False
@@ -463,7 +467,6 @@ class Old_KeyStore(Deterministic_KeyStore):
         master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)
         master_public_key = master_private_key.get_public_key_bytes(compressed=False)[1:]
         if master_public_key != bfh(self.mpk):
-            print_error('invalid password (mpk)', self.mpk, bh2u(master_public_key))
             raise InvalidPassword()
 
     def check_password(self, password):
@@ -554,12 +557,12 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def unpaired(self):
         '''A device paired with the wallet was disconnected.  This can be
         called in any thread context.'''
-        self.print_error("unpaired")
+        self.logger.info("unpaired")
 
     def paired(self):
         '''A device paired with the wallet was (re-)connected.  This can be
         called in any thread context.'''
-        self.print_error("paired")
+        self.logger.info("paired")
 
     def can_export(self):
         return False

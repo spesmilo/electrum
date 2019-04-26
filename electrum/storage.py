@@ -30,10 +30,11 @@ import base64
 import zlib
 
 from . import ecc
-from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path
+from .util import profiler, InvalidPassword, WalletFileException, bfh, standardize_path
 from .plugin import run_hook, plugin_loaders
 
 from .json_db import JsonDB
+from .logging import Logger
 
 
 def get_derivation_used_for_hw_device_encryption():
@@ -46,15 +47,16 @@ STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
 
 
 
-class WalletStorage(PrintError):
+class WalletStorage(Logger):
 
     def __init__(self, path, *, manual_upgrades=False):
+        Logger.__init__(self)
         self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = self.path and os.path.exists(self.path)
 
         DB_Class = JsonDB
-        self.print_error("wallet path", self.path)
+        self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
@@ -87,7 +89,7 @@ class WalletStorage(PrintError):
 
     def _write(self):
         if threading.currentThread().isDaemon():
-            self.print_error('warning: daemon thread cannot write db')
+            self.logger.warning('daemon thread cannot write db')
             return
         if not self.db.modified():
             return
@@ -105,7 +107,7 @@ class WalletStorage(PrintError):
         os.replace(temp_path, self.path)
         os.chmod(self.path, mode)
         self._file_exists = True
-        self.print_error("saved", self.path)
+        self.logger.info(f"saved {self.path}")
         self.db.set_modified(False)
 
     def file_exists(self):

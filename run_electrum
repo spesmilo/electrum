@@ -76,6 +76,7 @@ if not is_android:
     check_imports()
 
 
+from electrum.logging import get_logger, configure_logging
 from electrum import util
 from electrum import constants
 from electrum import SimpleConfig
@@ -86,8 +87,8 @@ from electrum.util import set_verbosity, InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
-import electrum.logging
-from electrum.logging import electrum_logger
+
+_logger = get_logger(__name__)
 
 
 # get password routine
@@ -187,12 +188,12 @@ def get_connected_hw_devices(plugins):
         name, plugin = splugin.name, splugin.plugin
         if not plugin:
             e = splugin.exception
-            print_stderr(f"{name}: error during plugin init: {repr(e)}")
+            _logger.error(f"{name}: error during plugin init: {repr(e)}")
             continue
         try:
             u = devmgr.unpaired_device_infos(None, plugin)
-        except:
-            devmgr.print_error(f'error getting device infos for {name}: {e}')
+        except Exception as e:
+            _logger.error(f'error getting device infos for {name}: {repr(e)}')
             continue
         devices += list(map(lambda x: (name, x), u))
     return devices
@@ -339,7 +340,7 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
-    electrum.logging.configure_logging(config)
+    configure_logging(config)
 
     cmdname = config.get('cmd')
 

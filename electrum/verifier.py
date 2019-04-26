@@ -90,7 +90,7 @@ class SPV(NetworkJobOnDefaultServer):
                     await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
                 continue
             # request now
-            self.print_error('requested merkle', tx_hash)
+            self.logger.info(f'requested merkle {tx_hash}')
             self.requested_merkle.add(tx_hash)
             await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
@@ -100,14 +100,14 @@ class SPV(NetworkJobOnDefaultServer):
         except UntrustedServerReturnedError as e:
             if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
                 raise
-            self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
+            self.logger.info(f'tx {tx_hash} not at height {tx_height}')
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
             self.requested_merkle.discard(tx_hash)
             return
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
         if tx_height != merkle.get('block_height'):
-            self.print_error('requested tx_height {} differs from received tx_height {} for txid {}'
+            self.logger.info('requested tx_height {} differs from received tx_height {} for txid {}'
                              .format(tx_height, merkle.get('block_height'), tx_hash))
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
@@ -119,14 +119,14 @@ class SPV(NetworkJobOnDefaultServer):
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
             if self.network.config.get("skipmerklecheck"):
-                self.print_error("skipping merkle proof check %s" % tx_hash)
+                self.logger.info(f"skipping merkle proof check {tx_hash}")
             else:
-                self.print_error(str(e))
+                self.logger.info(str(e))
                 raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         self.requested_merkle.discard(tx_hash)
-        self.print_error("verified %s" % tx_hash)
+        self.logger.info(f"verified {tx_hash}")
         header_hash = hash_header(header)
         tx_info = TxMinedInfo(height=tx_height,
                               timestamp=header.get('timestamp'),
@@ -171,10 +171,10 @@ class SPV(NetworkJobOnDefaultServer):
         if cur_chain != old_chain:
             self.blockchain = cur_chain
             above_height = cur_chain.get_height_of_last_common_block_with_chain(old_chain)
-            self.print_error(f"undoing verifications above height {above_height}")
+            self.logger.info(f"undoing verifications above height {above_height}")
             tx_hashes = self.wallet.undo_verifications(self.blockchain, above_height)
             for tx_hash in tx_hashes:
-                self.print_error("redoing", tx_hash)
+                self.logger.info(f"redoing {tx_hash}")
                 self.remove_spv_proof_for_tx(tx_hash)
 
     def remove_spv_proof_for_tx(self, tx_hash):

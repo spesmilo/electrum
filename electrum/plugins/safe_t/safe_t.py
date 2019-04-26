@@ -115,31 +115,31 @@ class SafeTPlugin(HW_PluginBase):
 
     def create_client(self, device, handler):
         try:
-            self.print_error("connecting to device at", device.path)
+            self.logger.info(f"connecting to device at {device.path}")
             transport = self.transport_handler.get_transport(device.path)
         except BaseException as e:
-            self.print_error("cannot connect at", device.path, str(e))
+            self.logger.info(f"cannot connect at {device.path} {e}")
             return None
 
         if not transport:
-            self.print_error("cannot connect at", device.path)
+            self.logger.info(f"cannot connect at {device.path}")
             return
 
-        self.print_error("connected to device at", device.path)
+        self.logger.info(f"connected to device at {device.path}")
         client = self.client_class(transport, handler, self)
 
         # Try a ping for device sanity
         try:
             client.ping('t')
         except BaseException as e:
-            self.print_error("ping failed", str(e))
+            self.logger.info(f"ping failed {e}")
             return None
 
         if not client.atleast_version(*self.minimum_firmware):
             msg = (_('Outdated {} firmware for device labelled {}. Please '
                      'download the updated firmware from {}')
                    .format(self.device, client.label(), self.firmware_URL))
-            self.print_error(msg)
+            self.logger.info(msg)
             if handler:
                 handler.show_error(msg)
             else:
@@ -199,7 +199,7 @@ class SafeTPlugin(HW_PluginBase):
         except UserCancelled:
             exit_code = 1
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             handler.show_error(str(e))
             exit_code = 1
         finally:

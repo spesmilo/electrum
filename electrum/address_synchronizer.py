@@ -29,12 +29,13 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, TxMinedInfo
+from .util import profiler, bfh, TxMinedInfo
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
@@ -54,7 +55,7 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
-class AddressSynchronizer(PrintError):
+class AddressSynchronizer(Logger):
     """
     inherited by wallet
     """
@@ -63,6 +64,7 @@ class AddressSynchronizer(PrintError):
         self.storage = storage
         self.db = self.storage.db
         self.network = None  # type: Network
+        Logger.__init__(self)
         # verifier (SPV) and synchronizer are started in start_network
         self.synchronizer = None  # type: Synchronizer
         self.verifier = None  # type: SPV
@@ -307,7 +309,7 @@ class AddressSynchronizer(PrintError):
                         self.db.remove_spent_outpoint(prevout_hash, prevout_n)
 
         with self.transaction_lock:
-            self.print_error("removing tx from history", tx_hash)
+            self.logger.info("removing tx from history", tx_hash)
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
@@ -455,7 +457,7 @@ class AddressSynchronizer(PrintError):
         h2.reverse()
         # fixme: this may happen if history is incomplete
         if balance not in [None, 0]:
-            self.print_error("Error: history not synchronized")
+            self.logger.info("Error: history not synchronized")
             return []
 
         return h2

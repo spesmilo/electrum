@@ -35,7 +35,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode, is_hash256_str
+from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from . import bip32
@@ -936,6 +936,7 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
+    group.add_argument("--disablefilelogging", action="store_true", dest="disablefilelogging", default=False, help="Do not log to file")
 
 def get_parser():
     # create main parser
