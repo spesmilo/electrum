@@ -169,6 +169,9 @@
         "USD",
         "EUR"
     ],
+    "Bitragem": [
+	"BRL"
+    ],
     "Bitbank": [
         "JPY"
     ],
@@ -908,6 +911,16 @@
     ],
     "PitaiaTrade": [
 	"BRL"
+    ],
+    "PrecoHoje": [
+	"BRL",
+	"MXT",
+	"USD",
+	"EUR",
+	"DCR",
+	"EPC",
+	"XAU",
+	"DOGE"
     ],
     "TemBTC": [
 	"BRL"

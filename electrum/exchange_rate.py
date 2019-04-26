@@ -226,6 +226,13 @@ class Bitso(ExchangeBase):
         return {'MXN': Decimal(json['last'])}
 
 
+class Bitragem(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('bitragem.com','/api/v1/?instrument=btc_brl')
+        return {'BRL': Decimal(json['result']['btc_brl'])}
+
+
 class BitStamp(ExchangeBase):
 
     async def get_currencies(self):
@@ -409,6 +416,22 @@ class PitaiaTrade(ExchangeBase):
     async def get_rates(self,ccy):
         json = await self.get_json('api.pitaiatrade.com', '/v1/ticker')
         return {'BRL': Decimal(json['ticker']['buy'])}
+
+
+class PrecoHoje(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('bitragem.com','/api/v1/?instrument=precohoje')
+        p = dict([ (i['currencySymbol'],i)  for i in json['currencies']])
+        return { 'BRL': Decimal(p['BTC']['priceBRL']),
+		 'USD': Decimal(p['BTC']['priceUSD']),
+		 'EUR': Decimal(p['BTC']['priceEUR']),
+		 'MXT': Decimal(1/p['MXT']['priceBTC']),
+		 'DCR': Decimal(1/p['DCR']['priceBTC']),
+		 'EPC': Decimal(1/p['EPC']['priceBTC']),
+		 'XAU': Decimal(1/p['DCR']['priceBTC']),
+		 'DOGE': Decimal(1/p['DOGE']['priceBTC'])
+	       }
 
 
 class TemBTC(ExchangeBase):
