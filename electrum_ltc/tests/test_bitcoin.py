@@ -8,7 +8,7 @@ from electrum_ltc.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                                   is_b58_address, address_to_scripthash, is_minikey,
                                   is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
                                   script_num_to_hex, push_script, add_number_to_script, int_to_hex,
-                                  opcodes, base_encode, base_decode)
+                                  opcodes, base_encode, base_decode, BitcoinException)
 from electrum_ltc.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                                 xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                                 is_xpub, convert_bip32_path_to_list_of_uint32,
@@ -735,6 +735,18 @@ class Test_keyImport(SequentialTestCase):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed_privkey(priv_details['priv']))
+
+    @needs_test_with_all_ecc_implementations
+    def test_segwit_uncompressed_pubkey(self):
+        with self.assertRaises(BitcoinException):
+            is_private_key("p2wpkh-p2sh:6udGRabU4ykVSyC14CYs5JdKtHTa7hcpaXaerM9xDQayw9V3r76",
+                           raise_on_error=True)
+
+    @needs_test_with_all_ecc_implementations
+    def test_wif_with_invalid_magic_byte_for_compressed_pubkey(self):
+        with self.assertRaises(BitcoinException):
+            is_private_key("T35S1qU6BBimysGNP3HG2FbQg9Mox1UbMDgGw5vfsgJakYaq8SfU",
+                           raise_on_error=True)
 
 
 class TestBaseEncode(SequentialTestCase):

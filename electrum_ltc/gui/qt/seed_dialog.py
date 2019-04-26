@@ -198,8 +198,14 @@ class KeysLayout(QVBoxLayout):
         return self.text_e.text()
 
     def on_edit(self):
-        b = self.is_valid(self.get_text())
-        self.parent.next_button.setEnabled(b)
+        valid = False
+        try:
+            valid = self.is_valid(self.get_text())
+        except Exception as e:
+            self.parent.next_button.setToolTip(f'{_("Error")}: {str(e)}')
+        else:
+            self.parent.next_button.setToolTip('')
+        self.parent.next_button.setEnabled(valid)
 
 
 class SeedDialog(WindowModalDialog):

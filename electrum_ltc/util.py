@@ -661,6 +661,10 @@ def time_difference(distance_in_time, include_seconds):
 mainnet_block_explorers = {
     'Bchain.info': ('https://bchain.info/',
                         {'tx': 'LTC/tx/', 'addr': 'LTC/addr/'}),
+    'Bitaps.com': ('https://ltc.bitaps.com/',
+                        {'tx': '', 'addr': ''}),
+    'Bitupper Explorer': ('https://bitupper.com/en/explorer/litecoin/',
+                        {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Blockchair.com': ('https://blockchair.com/litecoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'BlockCypher.com': ('https://live.blockcypher.com/ltc/',
@@ -676,6 +680,8 @@ mainnet_block_explorers = {
 }
 
 testnet_block_explorers = {
+    'Bitaps.com': ('https://tltc.bitaps.com/',
+                       {'tx': '', 'addr': ''}),
     'LiteCore': ('https://testnet.litecore.io/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'SoChain': ('https://chain.so/',

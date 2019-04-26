@@ -899,7 +899,12 @@ class AddXpubDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         WizardDialog.__init__(self, wizard, **kwargs)
-        self.is_valid = kwargs['is_valid']
+        def is_valid(x):
+            try:
+                return kwargs['is_valid'](x)
+            except:
+                return False
+        self.is_valid = is_valid
         self.title = kwargs['title']
         self.message = kwargs['message']
         self.allow_multi = kwargs.get('allow_multi', False)

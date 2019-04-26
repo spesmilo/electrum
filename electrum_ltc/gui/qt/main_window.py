@@ -2670,14 +2670,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if bitcoin.is_address(addr):
                 return addr
 
-        def get_pk():
+        def get_pk(*, raise_on_error=False):
             text = str(keys_e.toPlainText())
-            return keystore.get_private_keys(text)
+            return keystore.get_private_keys(text, raise_on_error=raise_on_error)
 
-        f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
+        def on_edit():
+            valid_privkeys = False
+            try:
+                valid_privkeys = get_pk(raise_on_error=True) is not None
+            except Exception as e:
+                button.setToolTip(f'{_("Error")}: {str(e)}')
+            else:
+                button.setToolTip('')
+            button.setEnabled(get_address() is not None and valid_privkeys)
         on_address = lambda text: address_e.setStyleSheet((ColorScheme.DEFAULT if get_address() else ColorScheme.RED).as_stylesheet())
-        keys_e.textChanged.connect(f)
-        address_e.textChanged.connect(f)
+        keys_e.textChanged.connect(on_edit)
+        address_e.textChanged.connect(on_edit)
         address_e.textChanged.connect(on_address)
         on_address(str(address_e.text()))
         if not d.exec_():

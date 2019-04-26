@@ -1472,8 +1472,8 @@ class Imported_Wallet(Simple_Wallet):
         for key in keys:
             try:
                 txin_type, pubkey = self.keystore.import_privkey(key, password)
-            except Exception:
-                bad_keys.append((key, _('invalid private key')))
+            except Exception as e:
+                bad_keys.append((key, _('invalid private key') + f': {e}'))
                 continue
             if txin_type not in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
                 bad_keys.append((key, _('not implemented type') + f': {txin_type}'))
