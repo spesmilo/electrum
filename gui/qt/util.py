@@ -610,7 +610,7 @@ class MyTreeWidget(QTreeWidget):
                                 for column in columns]))
 
 
-class OverlayControlWidget(QWidget):
+class OverlayControlMixin:
     STYLE_SHEET_COMMON = '''
     QWidget { background-color: transparent; }
     QToolButton { border-width: 1px; padding: 0px; margin: 0px; }
@@ -621,7 +621,7 @@ class OverlayControlWidget(QWidget):
     '''
 
     def __init__(self, middle: bool = False):
-        QWidget.__init__(self)
+        assert isinstance(self, QWidget)
         self.middle = middle
         self.overlay_widget = QWidget(self)
         style_sheet = self.STYLE_SHEET_COMMON
@@ -660,15 +660,15 @@ class OverlayControlWidget(QWidget):
         QApplication.instance().clipboard().setText(self.text())
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
-class ButtonsLineEdit(QLineEdit, OverlayControlWidget):
+class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
-        OverlayControlWidget.__init__(self, middle=True)
+        OverlayControlMixin.__init__(self, middle=True)
 
-class ButtonsTextEdit(QPlainTextEdit, OverlayControlWidget):
+class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
-        OverlayControlWidget.__init__(self)
+        OverlayControlMixin.__init__(self)
         self.setText = self.setPlainText
         self.text = self.toPlainText
 
