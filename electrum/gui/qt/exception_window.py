@@ -108,7 +108,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
     def on_close(self):
         Exception_Window._active_window = None
-        sys.__excepthook__(*self.exc_args)
         self.close()
 
     def show_never(self):
@@ -134,16 +133,18 @@ def _show_window(*args):
         Exception_Window._active_window = Exception_Window(*args)
 
 
-class Exception_Hook(QObject):
+class Exception_Hook(QObject, Logger):
     _report_exception = QtCore.pyqtSignal(object, object, object, object)
 
     def __init__(self, main_window, *args, **kwargs):
-        super(Exception_Hook, self).__init__(*args, **kwargs)
+        QObject.__init__(self, *args, **kwargs)
+        Logger.__init__(self)
         if not main_window.config.get(BaseCrashReporter.config_key, default=True):
             return
         self.main_window = main_window
         sys.excepthook = self.handler
         self._report_exception.connect(_show_window)
 
-    def handler(self, *args):
-        self._report_exception.emit(self.main_window, *args)
+    def handler(self, *exc_info):
+        self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        self._report_exception.emit(self.main_window, *exc_info)
