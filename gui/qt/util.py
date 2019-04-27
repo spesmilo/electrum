@@ -15,7 +15,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
+    MONOSPACE_FONT = 'Consolas'
 elif platform.system() == 'Darwin':
     MONOSPACE_FONT = 'Monaco'
 else:
