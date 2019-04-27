@@ -11,7 +11,7 @@ import platform
 from typing import Optional
 
 
-class LogFormatter(logging.Formatter):
+class LogFormatterForFiles(logging.Formatter):
 
     def formatTime(self, record, datefmt=None):
         # timestamps follow ISO 8601 UTC
@@ -21,9 +21,27 @@ class LogFormatter(logging.Formatter):
         return date.strftime(datefmt)
 
 
-LOG_FORMAT = "%(asctime)22s | %(levelname)8s | %(name)s | %(message)s"
-console_formatter = LogFormatter(fmt=LOG_FORMAT)
-file_formatter = LogFormatter(fmt=LOG_FORMAT)
+file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(name)s | %(message)s")
+
+
+class LogFormatterForConsole(logging.Formatter):
+
+    def format(self, record):
+        # strip the main module name from the logger name
+        if record.name.startswith("electrum."):
+            record.name = record.name[9:]
+        # manual map to shorten common module names
+        record.name = record.name.replace("interface.Interface", "interface", 1)
+        record.name = record.name.replace("network.Network", "network", 1)
+        record.name = record.name.replace("synchronizer.Synchronizer", "synchronizer", 1)
+        record.name = record.name.replace("verifier.SPV", "verifier", 1)
+        record.name = record.name.replace("gui.qt.main_window.ElectrumWindow", "gui.qt.main_window", 1)
+        return super().format(record)
+
+
+# try to make console log lines short... no timestamp, short levelname, no "electrum."
+console_formatter = LogFormatterForConsole(fmt="%(levelname).1s | %(name)s | %(message)s")
+
 
 # enable logs universally (including for other libraries)
 root_logger = logging.getLogger()

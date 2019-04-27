@@ -132,7 +132,7 @@ class Synchronizer(SynchronizerBase):
         self.requested_histories = {}
 
     def diagnostic_name(self):
-        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        return self.wallet.diagnostic_name()
 
     def is_up_to_date(self):
         return (not self.requested_addrs

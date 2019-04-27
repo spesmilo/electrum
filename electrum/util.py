@@ -342,13 +342,14 @@ def constant_time_compare(val1, val2):
 
 
 # decorator that prints execution time
+_profiler_logger = _logger.getChild('profiler')
 def profiler(func):
     def do_profile(args, kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _logger.debug(f"[profiler] {name} {t:,.4f}")
+        _profiler_logger.debug(f"{name} {t:,.4f}")
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 

@@ -63,7 +63,7 @@ class SPV(NetworkJobOnDefaultServer):
             await group.spawn(self.main)
 
     def diagnostic_name(self):
-        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        return self.wallet.diagnostic_name()
 
     async def main(self):
         self.blockchain = self.network.blockchain()

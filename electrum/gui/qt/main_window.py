@@ -322,7 +322,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.top_level_window_recurse(override, test_func)
 
     def diagnostic_name(self):
-        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        #return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        return self.wallet.diagnostic_name()
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
