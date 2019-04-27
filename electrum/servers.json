@@ -121,11 +121,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "elec.luggs.co": {
-        "pruning": "-",
-        "s": "443",
-        "version": "1.4"
-    },
     "electrum-server.ninja": {
         "pruning": "-",
         "s": "50002",
@@ -293,11 +288,6 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
-    },
-    "luggscoqbymhvnkp.onion": {
-        "pruning": "-",
-        "t": "80",
         "version": "1.4"
     },
     "ndnd.selfhost.eu": {
