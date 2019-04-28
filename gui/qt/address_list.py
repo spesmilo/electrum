@@ -53,7 +53,7 @@ class AddressList(MyTreeWidget):
         headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
-            headers.insert(4, '{} {}'.format(fx.get_currency(), _(' Balance')))
+            headers.insert(4, '{} {}'.format(fx.get_currency(), _('Balance')))
         self.update_headers(headers)
 
     @rate_limited(1.0, ts_after=True) # We rate limit the address list refresh no more than once every second
