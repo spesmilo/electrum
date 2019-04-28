@@ -356,7 +356,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if self.db.get_transaction(tx_hash):
                 label = self.get_label(tx_hash)
                 tx_mined_status = self.get_tx_height(tx_hash)
-                height, conf = tx_mined_status.height, tx_mined_status.conf
+                height, conf, timestamp = tx_mined_status.height, tx_mined_status.conf, tx_mined_status.timestamp
                 if height > 0:
                     if conf:
                         status = _("{} confirmations").format(conf)

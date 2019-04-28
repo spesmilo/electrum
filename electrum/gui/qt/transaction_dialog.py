@@ -32,7 +32,7 @@ import traceback
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
-                             QTextEdit)
+                             QTextEdit, QFrame)
 import qrcode
 from qrcode import exceptions
 
@@ -105,19 +105,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
-        self.tx_desc = QLabel()
-        vbox.addWidget(self.tx_desc)
-        self.status_label = QLabel()
-        vbox.addWidget(self.status_label)
-        self.date_label = QLabel()
-        vbox.addWidget(self.date_label)
-        self.amount_label = QLabel()
-        vbox.addWidget(self.amount_label)
-        self.size_label = QLabel()
-        vbox.addWidget(self.size_label)
-        self.fee_label = QLabel()
-        vbox.addWidget(self.fee_label)
 
+        self.add_tx_stats(vbox)
+        vbox.addSpacing(10)
         self.add_io(vbox)
 
         self.sign_button = b = QPushButton(_("Sign"))
@@ -257,6 +247,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
+        self.locktime_label.setText(f"LockTime: {self.tx.locktime}")
+        self.rbf_label.setText(f"RBF: {not self.tx.is_final()}")
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -277,9 +269,6 @@ class TxDialog(QDialog, MessageBoxMixin):
         run_hook('transaction_dialog_update', self)
 
     def add_io(self, vbox):
-        if self.tx.locktime > 0:
-            vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
-
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
         ext = QTextCharFormat()
         rec = QTextCharFormat()
@@ -335,6 +324,44 @@ class TxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
+
+    def add_tx_stats(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+        self.tx_desc = QLabel()
+        vbox_left.addWidget(self.tx_desc)
+        self.status_label = QLabel()
+        vbox_left.addWidget(self.status_label)
+        self.date_label = QLabel()
+        vbox_left.addWidget(self.date_label)
+        self.amount_label = QLabel()
+        vbox_left.addWidget(self.amount_label)
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+        self.size_label = QLabel()
+        vbox_right.addWidget(self.size_label)
+        self.fee_label = QLabel()
+        vbox_right.addWidget(self.fee_label)
+        self.rbf_label = QLabel()
+        vbox_right.addWidget(self.rbf_label)
+        self.locktime_label = QLabel()
+        vbox_right.addWidget(self.locktime_label)
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
 
 
 class QTextEditWithDefaultSize(QTextEdit):
