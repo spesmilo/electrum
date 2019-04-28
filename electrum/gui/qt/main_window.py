@@ -468,7 +468,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _("This means you will not be able to spend Bitcoins with it."),
                 _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
             ])
-            self.show_warning(msg, title=_('Information'))
+            self.show_warning(msg, title=_('Watch-only wallet'))
+
+    def warn_if_testnet(self):
+        if not constants.net.TESTNET:
+            return
+        # user might have opted out already
+        if self.config.get('dont_show_testnet_warning', False):
+            return
+        # only show once per process lifecycle
+        if getattr(self.gui_object, '_warned_testnet', False):
+            return
+        self.gui_object._warned_testnet = True
+        msg = ''.join([
+            _("You are in testnet mode."), ' ',
+            _("Testnet coins are worthless."), '\n',
+            _("Testnet is separate from the main Bitcoin network. It is used for testing.")
+        ])
+        cb = QCheckBox(_("Don't show this again."))
+        cb_checked = False
+        def on_cb(x):
+            nonlocal cb_checked
+            cb_checked = x == Qt.Checked
+        cb.stateChanged.connect(on_cb)
+        self.show_warning(msg, title=_('Testnet'), checkbox=cb)
+        if cb_checked:
+            self.config.set_key('dont_show_testnet_warning', True)
 
     def open_wallet(self):
         try:

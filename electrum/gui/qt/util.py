@@ -218,7 +218,8 @@ class MessageBoxMixin(object):
                             title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, rich_text=False):
+                defaultButton=QMessageBox.NoButton, *, rich_text=False,
+                checkbox=None):
         parent = parent or self.top_level_window()
         if type(icon) is QPixmap:
             d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
@@ -233,6 +234,8 @@ class MessageBoxMixin(object):
         else:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse)
             d.setTextFormat(Qt.PlainText)
+        if checkbox is not None:
+            d.setCheckBox(checkbox)
         return d.exec_()
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
