@@ -1492,7 +1492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('No addresses pending registration'))
             return
 
-        rasript = registeraddress_script.RegisterAddressScript(self.wallet)
+        rascript = registeraddress_script.RegisterAddressScript(self.wallet)
         rascript.append(addrs_pending)
 
         #Register the address to the wallet's kyc pubkey
@@ -1528,6 +1528,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_register_addresses(self, pay_from_coins, pay_from_address):
         '''Set a tracepoint in the Python debugger that works with Qt'''
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         pyqtRemoveInputHook()
         set_trace()
         if run_hook('abort_register_addresses', self):

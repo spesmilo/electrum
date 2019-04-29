@@ -24,7 +24,6 @@
 import threading
 import itertools
 from collections import defaultdict
-import random
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
@@ -91,7 +90,8 @@ class AddressSynchronizer(PrintError):
     def set_kyc_pubkey(self, pubkey):
         self.unassigned_kyc_pubkeys.remove(pubkey)
         self.kyc_pubkey=pubkey
-
+        self.save_transactions(write=True)
+        
     def get_kyc_pubkey(self):
         return self.kyc_pubkey
 

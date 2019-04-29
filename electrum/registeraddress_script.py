@@ -11,8 +11,8 @@ class RegisterAddressScript():
 
 	def append(self, addrs):
 		for addr in addrs:
-			self.payload.append(bytes(addr))
-			self.payload.append(bytes(self.wallet.get_public_keys(addr, tweaked=False)[0]))
+			self.payload.extend(bytes(addr, 'utf-8'))
+			self.payload.extend(bytes(self.wallet.get_public_keys(addr, tweaked=False)[0]))
 
 	def clear(self):
 		self.payload=bytearray()

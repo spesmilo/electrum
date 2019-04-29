@@ -1276,10 +1276,10 @@ class Abstract_Wallet(AddressSynchronizer):
         if(len(data)<2*pubKeySize+minPayloadSize):
             return True
         
-        kyc_pubkey = data[i1:i2]
+        kyc_pubkey=data[i1:i2]
         #Check if this is my onboarding TX
         try:
-            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
+            _kyc_pubkey=ecc.ECPubkey(self.kyc_pubkey)
         except InvalidECPointException:
             return True
         
@@ -1295,6 +1295,11 @@ class Abstract_Wallet(AddressSynchronizer):
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
         if not self.is_mine(onboardAddress):
             return True
+
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
 
         #Check that the kyc public key is in the list of unassigned kyc public keys 
         #(kyc private key owner is therefore the whitelisting token owner)
@@ -1326,14 +1331,9 @@ class Abstract_Wallet(AddressSynchronizer):
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == _kyc_pubkey:
             return True
-
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
-        self.set_kyc_pubkey(kyc_pubkey)
         
+        self.set_kyc_pubkey(kyc_pubkey)
+        self.save_transactions(write=True)
 
         return True
 
