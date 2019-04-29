@@ -38,7 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -179,6 +179,17 @@ class InternalAddressCorruption(Exception):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
+
+class TxWalletDetails(NamedTuple):
+    txid: Optional[str]
+    status: str
+    label: str
+    can_broadcast: bool
+    can_bump: bool
+    amount: Optional[int]
+    fee: Optional[int]
+    tx_mined_status: TxMinedInfo
+    mempool_depth_bytes: Optional[int]
 
 
 class Abstract_Wallet(AddressSynchronizer):
@@ -344,25 +355,23 @@ class Abstract_Wallet(AddressSynchronizer):
         return True
         #return self.history.values() != [[]] * len(self.history)
 
-    def get_tx_info(self, tx):
+    def get_tx_info(self, tx) -> TxWalletDetails:
         is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
         exp_n = None
         can_broadcast = False
         can_bump = False
         label = ''
-        height = conf = timestamp = None
         tx_hash = tx.txid()
+        tx_mined_status = self.get_tx_height(tx_hash)
         if tx.is_complete():
             if self.db.get_transaction(tx_hash):
                 label = self.get_label(tx_hash)
-                tx_mined_status = self.get_tx_height(tx_hash)
-                height, conf, timestamp = tx_mined_status.height, tx_mined_status.conf, tx_mined_status.timestamp
-                if height > 0:
-                    if conf:
-                        status = _("{} confirmations").format(conf)
+                if tx_mined_status.height > 0:
+                    if tx_mined_status.conf:
+                        status = _("{} confirmations").format(tx_mined_status.conf)
                     else:
                         status = _('Not verified')
-                elif height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
+                elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.db.get_tx_fee(tx_hash)
@@ -392,7 +401,17 @@ class Abstract_Wallet(AddressSynchronizer):
         else:
             amount = None
 
-        return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
+        return TxWalletDetails(
+            txid=tx_hash,
+            status=status,
+            label=label,
+            can_broadcast=can_broadcast,
+            can_bump=can_bump,
+            amount=amount,
+            fee=fee,
+            tx_mined_status=tx_mined_status,
+            mempool_depth_bytes=exp_n,
+        )
 
     def get_spendable_coins(self, domain, config, *, nonlocal_only=False):
         confirmed_only = config.get('confirmed_only', False)
