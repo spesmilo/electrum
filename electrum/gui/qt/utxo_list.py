@@ -49,7 +49,7 @@ class UTXOList(MyTreeWidget):
             label = self.wallet.get_label(x.get('prevout_hash'))
             amount = self.parent.format_amount(x['value'], whitespaces=True)
             tokrat = token_ratio(self.wallet.get_block_height())
-            rmass = str("%.4f" % (float(x['value'])*tokrat/1.0E+8))
+            rmass = str("%.6f" % (float(x['value'])*tokrat/1.0E+6))
             rmass_str = rmass+" oz "
             utxo_item = SortableTreeWidgetItem([address, asset, amount, rmass_str, '%d'%height, name[0:10] + '...' + name[-2:]])
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))

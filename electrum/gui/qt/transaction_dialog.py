@@ -253,12 +253,13 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
+        fee = self.tx.get_fee()
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
-            amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+            amount_str = _("Amount sent:") + ' %s'% format_amount(-amount-fee) + ' ' + base_unit
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
