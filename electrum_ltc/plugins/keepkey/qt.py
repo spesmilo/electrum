@@ -322,7 +322,6 @@ class SettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         thread = keystore.thread
-        hs_rows, hs_cols = (64, 128)
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -395,27 +394,6 @@ class SettingsDialog(WindowModalDialog):
             if not self.question(msg, title=title):
                 return
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
-
-        def change_homescreen():
-            from PIL import Image  # FIXME
-            dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename, __ = dialog.getOpenFileName()
-            if filename:
-                im = Image.open(str(filename))
-                if im.size != (hs_cols, hs_rows):
-                    raise Exception('Image must be 64 x 128 pixels')
-                im = im.convert('1')
-                pix = im.load()
-                img = ''
-                for j in range(hs_rows):
-                    for i in range(hs_cols):
-                        img += '1' if pix[i, j] else '0'
-                img = ''.join(chr(int(img[i:i + 8], 2))
-                              for i in range(0, len(img), 8))
-                invoke_client('change_homescreen', img)
-
-        def clear_homescreen():
-            invoke_client('change_homescreen', '\x00')
 
         def set_pin():
             invoke_client('set_pin', remove=False)
