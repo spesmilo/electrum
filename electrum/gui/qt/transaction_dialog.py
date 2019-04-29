@@ -29,7 +29,7 @@ import datetime
 import json
 import traceback
 
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
                              QTextEdit, QFrame)
@@ -252,6 +252,14 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.hide()
         self.locktime_label.setText(f"LockTime: {self.tx.locktime}")
         self.rbf_label.setText(f"RBF: {not self.tx.is_final()}")
+        if tx_mined_status.header_hash:
+            self.block_hash_label.setText(_("Included in block: {}")
+                                          .format(tx_mined_status.header_hash))
+            self.block_height_label.setText(_("At block height: {}")
+                                            .format(tx_mined_status.height))
+        else:
+            self.block_hash_label.hide()
+            self.block_height_label.hide()
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -333,14 +341,17 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # left column
         vbox_left = QVBoxLayout()
-        self.tx_desc = QLabel()
+        self.tx_desc = TxDetailLabel()
+        self.tx_desc.setWordWrap(True)
         vbox_left.addWidget(self.tx_desc)
-        self.status_label = QLabel()
+        self.status_label = TxDetailLabel()
         vbox_left.addWidget(self.status_label)
-        self.date_label = QLabel()
+        self.date_label = TxDetailLabel()
         vbox_left.addWidget(self.date_label)
-        self.amount_label = QLabel()
+        self.amount_label = TxDetailLabel()
         vbox_left.addWidget(self.amount_label)
+        self.fee_label = TxDetailLabel()
+        vbox_left.addWidget(self.fee_label)
         vbox_left.addStretch(1)
         hbox_stats.addLayout(vbox_left, 50)
 
@@ -353,14 +364,16 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # right column
         vbox_right = QVBoxLayout()
-        self.size_label = QLabel()
+        self.size_label = TxDetailLabel()
         vbox_right.addWidget(self.size_label)
-        self.fee_label = QLabel()
-        vbox_right.addWidget(self.fee_label)
-        self.rbf_label = QLabel()
+        self.rbf_label = TxDetailLabel()
         vbox_right.addWidget(self.rbf_label)
-        self.locktime_label = QLabel()
+        self.locktime_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_label)
+        self.block_hash_label = TxDetailLabel()
+        vbox_right.addWidget(self.block_hash_label)
+        self.block_height_label = TxDetailLabel()
+        vbox_right.addWidget(self.block_height_label)
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
@@ -370,3 +383,9 @@ class TxDialog(QDialog, MessageBoxMixin):
 class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
         return QSize(0, 100)
+
+
+class TxDetailLabel(QLabel):
+    def __init__(self):
+        super().__init__()
+        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
