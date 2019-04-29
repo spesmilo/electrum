@@ -207,7 +207,7 @@ class NetworkChoiceLayout(object):
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
-        self.autoconnect_cb = QCheckBox(_('Select mapping server automatically'))
+        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
         self.server_host.editingFinished.connect(self.set_server)

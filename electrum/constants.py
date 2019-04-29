@@ -111,6 +111,12 @@ class OceanTestnet(OceanMainnet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
 
+    CONTROLER1 = "0435c3948e09eca97ed55f22383991e6bc3aa8a8eb54c4d28f069380ec5f0d33d6321137f3ed13ebdfea8cb057fac5532b8773a344632ab83c0effd935f36b60c4"
+    CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
+    CONTROLER3 = "0424405f3350d375edb7b0fb5846a4c794ff0cb76d01e94098a56dd5a6008a8dc13980e5ca463d3ea864f17690d049a197dce0e766dae1806412e45105d3761d73"
+ 
+    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
+
 class OceanRegtest(OceanMainnet):
 
     TESTNET = True

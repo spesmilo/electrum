@@ -37,7 +37,7 @@ from .crypto import Hash, sha256, hash_160, hmac_oneshot
 ################################## transactions
 
 COINBASE_MATURITY = 100
-COIN = 100000000
+COIN = 1000000
 TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 21000000
 
 # supported types of transaction outputs

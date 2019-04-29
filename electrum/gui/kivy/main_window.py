@@ -163,7 +163,7 @@ class ElectrumWindow(App):
         self._trigger_update_history()
 
     def _get_bu(self):
-        decimal_point = self.electrum_config.get('decimal_point', 5)
+        decimal_point = self.electrum_config.get('decimal_point', 3)
         return decimal_point_to_base_unit_name(decimal_point)
 
     def _set_bu(self, value):
