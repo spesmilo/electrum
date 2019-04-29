@@ -121,11 +121,18 @@ class TxDialog(Factory.Popup):
 
     def update(self):
         format_amount = self.app.format_amount_and_units
-        tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
-        self.tx_hash = tx_hash or ''
-        if timestamp:
+        tx_details = self.wallet.get_tx_info(self.tx)
+        tx_mined_status = tx_details.tx_mined_status
+        exp_n = tx_details.mempool_depth_bytes
+        amount, fee = tx_details.amount, tx_details.fee
+        self.status_str = tx_details.status
+        self.description = tx_details.label
+        self.can_broadcast = tx_details.can_broadcast
+        self.can_rbf = tx_details.can_bump
+        self.tx_hash = tx_details.txid or ''
+        if tx_mined_status.timestamp:
             self.date_label = _('Date')
-            self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+            self.date_str = datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
         elif exp_n:
             self.date_label = _('Mempool depth')
             self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
@@ -144,7 +151,7 @@ class TxDialog(Factory.Popup):
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
-        self.is_local_tx = height == TX_HEIGHT_LOCAL
+        self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
 
     def update_action_button(self):

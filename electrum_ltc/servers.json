@@ -29,11 +29,6 @@
         "t": "50003",
         "version": "1.4"
     },
-    "elec.luggs.co": {
-        "pruning": "-",
-        "s": "444",
-        "version": "1.4"
-    },
     "electrum-ltc.bysh.me": {
         "pruning": "-",
         "s": "50002",
