@@ -395,7 +395,6 @@ def get_asset_outputs(value, input_map):
     """
     outputs = []
     for (asset, in_value) in input_map.items():
-        assert value > 0
         out_value = min(value, in_value)
         value -= out_value
         input_map[asset] -= out_value
