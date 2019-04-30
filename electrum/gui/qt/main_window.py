@@ -1537,7 +1537,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except InvalidECPointException:
             return False
 
-        output = TxOutput(type=TYPE_SCRIPT, address='', value=0, vvalue=0, scriptPubKey=rascript.finalize(kyc_pubkey, _inputKey))
+        output = TxOutput(type=TYPE_SCRIPT, address=rascript.finalize(kyc_pubkey, _inputKey), value=0, vvalue=1)
 
         outputs = [output]
 
@@ -1552,14 +1552,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.do_send(preview = True)
 
     def do_register_addresses(self, pay_from_coins, pay_from_address):
-        '''Set a tracepoint in the Python debugger that works with Qt'''
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
-        pyqtRemoveInputHook()
-        set_trace()
         if run_hook('abort_register_addresses', self):
             return
 
@@ -1573,7 +1565,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         
         outputs, fee_estimator, tx_desc = r
 
-        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True)
+        self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True, True)
 
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
@@ -1584,12 +1576,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         outputs, fee_estimator, tx_desc, coins = r
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, preview)
 
-    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False):    
+    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False, b_allow_zerospend: bool=False):    
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
                 coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
+                is_sweep=is_sweep, b_allow_zerospend=b_allow_zerospend)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return

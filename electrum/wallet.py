@@ -545,7 +545,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+                                  change_addr=None, is_sweep=False, b_allow_zerospend: bool = False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -605,12 +605,17 @@ class Abstract_Wallet(AddressSynchronizer):
         else:
             raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
 
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         if i_max is None:
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(), b_allow_zerospend)
         else:
             # FIXME?? this might spend inputs with negative effective value...
             sendable = sum(map(lambda x:x['value'], inputs))
@@ -1297,11 +1302,6 @@ class Abstract_Wallet(AddressSynchronizer):
         if not self.is_mine(onboardAddress):
             return True
 
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
         #Check that the kyc public key is in the list of unassigned kyc public keys 
         #(kyc private key owner is therefore the whitelisting token owner)
         #if not self.is_unassigned_kyc_pubkey(kyc_pubkey):
@@ -1771,11 +1771,6 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
     def get_kyc_string(self, password=None):
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
         address=self.get_unused_encryption_address()
         if address == None:
             return "No wallet encryption keys available."
