@@ -66,10 +66,13 @@ class AddressSynchronizer(PrintError):
         # address -> list(txid, height)
         self.history = storage.get('addr_history',{})
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
-        self.unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', set())
-        if type(self.unassigned_kyc_pubkeys) is not set:
-            self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
-        self.kyc_pubkey             = storage.get('kyc_pubkey', None)
+        self.unassigned_kyc_pubkeys = set(storage.get('unassigned_kyc_pubkeys', set()))
+
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        self.kyc_pubkey = storage.get('kyc_pubkey', None)
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
         self.verified_tx = {}
@@ -88,11 +91,17 @@ class AddressSynchronizer(PrintError):
         return pubkey in self.unassigned_kyc_pubkeys
 
     def set_kyc_pubkey(self, pubkey):
-        self.unassigned_kyc_pubkeys.remove(pubkey)
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
         self.kyc_pubkey=pubkey
-        self.save_transactions(write=True)
         
     def get_kyc_pubkey(self):
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
         return self.kyc_pubkey
 
     def get_unassigned_kyc_pubkey(self):
@@ -408,6 +417,8 @@ class AddressSynchronizer(PrintError):
             for prevout_n_str, spending_txid in d.items():
                 prevout_n = int(prevout_n_str)
                 self.spent_outpoints[prevout_hash][prevout_n] = spending_txid
+        self.unassigned_kyc_pubkeys = set(self.storage.get('unassigned_kyc_pubkeys', set()))
+        self.kyc_pubkey = self.storage.get('kyc_pubkey', None)
 
     @profiler
     def load_local_history(self):
@@ -454,9 +465,11 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
-            if type(self.unassigned_kyc_pubkeys) is not set:
-                self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
-            self.storage.put('unassigned_kyc_pubkeys', self.unassigned_kyc_pubkeys)
+            self.storage.put('unassigned_kyc_pubkeys', list(self.unassigned_kyc_pubkeys))
+            from PyQt5.QtCore import pyqtRemoveInputHook
+            from pdb import set_trace
+            pyqtRemoveInputHook()
+            set_trace()
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
             if write:
                 self.storage.write()
@@ -699,8 +712,6 @@ class AddressSynchronizer(PrintError):
                             ba2=bytearray(payload[3:])
                             ba2.reverse()
                             data = bh2u(ba1+ba2)
-                            if type(self.unassigned_kyc_pubkeys) is not set:
-                                self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
                             self.unassigned_kyc_pubkeys.remove(bfh(data))
 
         #Check outputs for address data (assign)
@@ -721,10 +732,6 @@ class AddressSynchronizer(PrintError):
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
-                if len(self.unassigned_kyc_pubkeys) is 0:
-                   self.unassigned_kyc_pubkeys=set()
-                elif type(self.unassigned_kyc_pubkeys) is not set:
-                    self.unassigned_kyc_pubkeys=set(self.unassigned_kyc_pubkeys)
                 self.unassigned_kyc_pubkeys.add(bfh(data))
 
         return (datatype==TYPE_DATA)

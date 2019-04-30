@@ -128,7 +128,16 @@ def push_script(data: str) -> str:
 
     ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
-    data = bfh(data)
+    return push_script_bytes(bfh(data))
+
+
+def push_script_bytes(data: bytes) -> str:
+    """Returns pushed data to the script, automatically
+    choosing canonical opcodes depending on the length of the data.
+    bytes -> hex
+
+    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    """
     from .transaction import opcodes
 
     data_len = len(data)

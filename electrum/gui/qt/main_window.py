@@ -64,6 +64,7 @@ from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .util import *
 from .installwizard import WIF_HELP_TEXT
+from electrum.transaction import Transaction, TxOutput, TYPE_SCRIPT
 
         
 
@@ -1492,8 +1493,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return outputs, fee_estimator, label, coins
 
     def read_pending_addresses(self, pay_from_coins, pay_from_address):
-        kyc_pubkey = self.wallet.get_kyc_pubkey()
-        if kyc_pubkey is None:
+        kyc_pubkey = bfh(self.wallet.get_kyc_pubkey())
+        if kyc_pubkey == None:
             return None
 
         label = 'registeraddresstx'
@@ -1509,6 +1510,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         #Register the address to the wallet's kyc pubkey
         #Generate a new ephemeral pub key for encryption from the wallet
+
+        msg = _('The addresses to be registered will be encrypted.') + '\n' + _('Please enter your password')
+        password = None
+        if self.wallet.has_keystore_encryption():
+            password = self.password_dialog(msg)
+        
         txn_type='p2pkh'
         try:
             inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)   
@@ -1521,10 +1528,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except InvalidECPointException:
             return False
 
-        rascript.Finalize(kyc_pubkey, _inputKey)
-
-        output = TxOutput()
-        output['scriptPubKey']=bh2u(bytes(rascript.size()))
+        output = TxOutput(type=TYPE_SCRIPT, address='', value=0, vvalue=0, scriptPubKey=rascript.finalize(kyc_pubkey, _inputKey))
 
         outputs = [output]
 

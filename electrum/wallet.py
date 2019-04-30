@@ -1280,7 +1280,7 @@ class Abstract_Wallet(AddressSynchronizer):
         kyc_pubkey=data[i1:i2]
         #Check if this is my onboarding TX
         try:
-            _kyc_pubkey=ecc.ECPubkey(self.kyc_pubkey)
+            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
         except InvalidECPointException:
             return True
         
@@ -1333,7 +1333,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if not ephemeral == _kyc_pubkey:
             return True
         
-        self.set_kyc_pubkey(kyc_pubkey)
+        self.set_kyc_pubkey(bh2u(kyc_pubkey))
         self.save_transactions(write=True)
 
         return True
@@ -1725,6 +1725,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
             e, c, i = self.get_address_index(address)
         else:
             c, i = self.get_address_index(address)
+            e = False
 
         pubkey = self.get_pubkey(c, i, e)
 
