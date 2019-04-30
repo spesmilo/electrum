@@ -4,7 +4,7 @@ qrcode
 protobuf
 dnspython
 jsonrpclib-pelix
-qdarkstyle<2.6
+qdarkstyle<3.0
 aiorpcx>=0.17,<0.18
 aiohttp>=3.3.0
 aiohttp_socks
