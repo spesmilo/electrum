@@ -175,14 +175,6 @@ class TestPeer(SequentialTestCase):
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
 
-    def test_require_data_loss_protect(self):
-        mock_lnworker = MockLNWorker(keypair(), keypair(), self.alice_channel, tx_queue=None)
-        mock_transport = NoFeaturesTransport('')
-        p1 = Peer(mock_lnworker, b"\x00" * 33, mock_transport)
-        mock_lnworker.peer = p1
-        with self.assertRaises(LightningPeerConnectionClosed):
-            run(asyncio.wait_for(p1._message_loop(), 1))
-
     def prepare_peers(self):
         k1, k2 = keypair(), keypair()
         t1, t2 = transport_pair(self.alice_channel.name, self.bob_channel.name)
