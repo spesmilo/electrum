@@ -130,6 +130,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tl_windows = []
         self.tx_external_keypairs = {}
 
+
         self.create_status_bar()
         self.need_update = threading.Event()
 
@@ -1437,6 +1438,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fee_estimator = None
         return fee_estimator
 
+    def get_whitelist_fee_estimator(self):
+        #amount=quantize_feerate(self.config.fee_per_byte)
+        amount=self.feerate_e.get_amount()
+        amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
+        fee_estimator = partial(
+            simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
+        return fee_estimator
+
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
             self.show_error(_('Payment request has expired'))
@@ -1520,7 +1529,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('No outputs'))
             return
 
-        fee_estimator = self.get_send_fee_estimator()
+        fee_estimator = self.get_whitelist_fee_estimator()
         return outputs, fee_estimator, label
 
     def do_preview(self):
