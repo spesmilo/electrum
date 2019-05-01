@@ -478,9 +478,10 @@ class NetworkChoiceLayout(object):
             return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
-        if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
-            and self.proxy_host.text() == "127.0.0.1" \
-                and self.proxy_port.text() == str(found_proxy[1]):
+        if (self.proxy_cb.isChecked()
+                and self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
+                and self.proxy_host.text() == "127.0.0.1"
+                and self.proxy_port.text() == str(found_proxy[1])):
             self.tor_cb.setChecked(True)
         self.tor_cb.show()
 
