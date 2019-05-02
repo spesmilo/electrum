@@ -42,6 +42,7 @@ from electrum.plugin import run_hook
 from electrum import simple_config
 from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction
+from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
@@ -51,6 +52,7 @@ SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
 SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
 
 
+_logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
@@ -58,7 +60,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     try:
         d = TxDialog(tx, parent, desc, prompt_if_unsaved)
     except SerializationError as e:
-        traceback.print_exc(file=sys.stderr)
+        _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
     else:
         dialogs.append(d)

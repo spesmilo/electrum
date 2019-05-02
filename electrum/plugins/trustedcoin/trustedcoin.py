@@ -37,17 +37,19 @@ from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32, bitcoin
 from electrum.bitcoin import TYPE_ADDRESS
-from electrum.bip32 import CKD_pub, BIP32Node, xpub_type
+from electrum.bip32 import BIP32Node, xpub_type
 from electrum.crypto import sha256
 from electrum.transaction import TxOutput
 from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds, UserFacingException, PrintError
+from electrum.util import NotEnoughFunds, UserFacingException
 from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
 from electrum.base_wizard import BaseWizard
+from electrum.logging import Logger
+
 
 def get_signing_xpub(xtype):
     if not constants.net.TESTNET:
@@ -117,11 +119,12 @@ class ErrorConnectingServer(Exception):
         return f"{header}:\n{reason}" if reason else header
 
 
-class TrustedCoinCosignerClient(PrintError):
+class TrustedCoinCosignerClient(Logger):
     def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/'):
         self.base_url = base_url
         self.debug = False
         self.user_agent = user_agent
+        Logger.__init__(self)
 
     async def handle_response(self, resp: ClientResponse):
         if resp.status != 200:
@@ -142,7 +145,7 @@ class TrustedCoinCosignerClient(PrintError):
             raise ErrorConnectingServer('You are offline.')
         url = urljoin(self.base_url, relative_url)
         if self.debug:
-            self.print_error(f'<-- {method} {url} {data}')
+            self.logger.debug(f'<-- {method} {url} {data}')
         headers = {}
         if self.user_agent:
             headers['user-agent'] = self.user_agent
@@ -167,7 +170,7 @@ class TrustedCoinCosignerClient(PrintError):
             raise ErrorConnectingServer(e)
         else:
             if self.debug:
-                self.print_error(f'--> {response}')
+                self.logger.debug(f'--> {response}')
             return response
 
     def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
@@ -327,14 +330,14 @@ class Wallet_2fa(Multisig_Wallet):
                 tx = mk_tx(outputs)
                 if tx.input_value() >= fee:
                     raise
-                self.print_error("not charging for this tx")
+                self.logger.info("not charging for this tx")
         else:
             tx = mk_tx(outputs)
         return tx
 
     def on_otp(self, tx, otp):
         if not otp:
-            self.print_error("sign_transaction: no auth code")
+            self.logger.info("sign_transaction: no auth code")
             return
         otp = int(otp)
         long_user_id, short_id = self.get_user_id()
@@ -349,7 +352,7 @@ class Wallet_2fa(Multisig_Wallet):
         if r:
             raw_tx = r.get('transaction')
             tx.update(raw_tx)
-        self.print_error("twofactor: is complete", tx.is_complete())
+        self.logger.info(f"twofactor: is complete {tx.is_complete()}")
         # reset billing_info
         self.billing_info = None
         self.plugin.start_request_thread(self)
@@ -451,7 +454,7 @@ class TrustedCoinPlugin(BasePlugin):
         if wallet.can_sign_without_server():
             return
         if not wallet.keystores['x3/'].get_tx_derivations(tx):
-            self.print_error("twofactor: xpub3 not needed")
+            self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):
             self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
@@ -477,12 +480,12 @@ class TrustedCoinPlugin(BasePlugin):
     def request_billing_info(self, wallet: 'Wallet_2fa', *, suppress_connection_error=True):
         if wallet.can_sign_without_server():
             return
-        self.print_error("request billing info")
+        self.logger.info("request billing info")
         try:
             billing_info = server.get(wallet.get_user_id()[1])
         except ErrorConnectingServer as e:
             if suppress_connection_error:
-                self.print_error(str(e))
+                self.logger.info(str(e))
                 return
             raise
         billing_index = billing_info['billing_index']

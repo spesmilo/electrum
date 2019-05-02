@@ -54,7 +54,7 @@ from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
-                           format_satoshis_plain, NotEnoughFunds, PrintError,
+                           format_satoshis_plain, NotEnoughFunds,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
@@ -69,6 +69,7 @@ from electrum.version import ELECTRUM_VERSION
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
+from electrum.logging import Logger
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -110,7 +111,7 @@ class StatusBarButton(QPushButton):
 from electrum.paymentrequest import PR_PAID
 
 
-class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
+class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
@@ -147,6 +148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.require_fee_update = False
         self.tl_windows = []
         self.tx_external_keypairs = {}
+        Logger.__init__(self)
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -320,8 +322,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.top_level_window_recurse(override, test_func)
 
     def diagnostic_name(self):
-        return "%s/%s" % (PrintError.diagnostic_name(self),
-                          self.wallet.basename() if self.wallet else "None")
+        #return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        return self.wallet.diagnostic_name()
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
@@ -344,7 +346,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
         else:
             try:
-                traceback.print_exception(*exc_info)
+                self.logger.error("on_error", exc_info=exc_info)
             except OSError:
                 pass  # see #4418
             self.show_error(str(e))
@@ -369,7 +371,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # Handle in GUI thread
             self.network_signal.emit(event, args)
         else:
-            self.print_error("unexpected network message:", event, args)
+            self.logger.info(f"unexpected network message: {event} {args}")
 
     def on_network_qt(self, event, args=None):
         # Handle a network message in the GUI thread
@@ -391,7 +393,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.require_fee_update = True
             self.history_model.on_fee_histogram()
         else:
-            self.print_error("unexpected network_qt signal:", event, args)
+            self.logger.info(f"unexpected network_qt signal: {event} {args}")
 
     def fetch_alias(self):
         self.alias_info = None
@@ -407,7 +409,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def close_wallet(self):
         if self.wallet:
-            self.print_error('close_wallet', self.wallet.storage.path)
+            self.logger.info(f'close_wallet {self.wallet.storage.path}')
         run_hook('close_wallet', self.wallet)
 
     @profiler
@@ -444,7 +446,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             assert screen.contains(QRect(*winpos))
             self.setGeometry(*winpos)
         except:
-            self.print_error("using default geometry")
+            self.logger.info("using default geometry")
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
@@ -683,7 +685,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.tx_notification_last_time + rate_limit > now:
             return
         self.tx_notification_last_time = now
-        self.print_error("Notifying GUI about new transactions")
+        self.logger.info("Notifying GUI about new transactions")
         txns = []
         while True:
             try:
@@ -1040,7 +1042,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             self.wallet.add_payment_request(req, self.config)
         except Exception as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('Error adding payment request')
             self.show_error(_('Error adding payment request') + ':\n' + str(e))
         else:
             self.sign_payment_request(addr)
@@ -1447,7 +1449,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         pass
                 return
             except BaseException:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 return
 
             size = tx.estimated_size()
@@ -1636,7 +1638,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
             raise
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             self.show_message(str(e))
             return
 
@@ -1745,7 +1747,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 ack_status, ack_msg = fut.result(timeout=20)
-                self.print_error(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
+                self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
             return status, msg
 
         # Capture current TL window; override might be removed on return
@@ -2123,7 +2125,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             except UserCancelled:
                 return
             except BaseException as e:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 self.show_error(str(e))
                 return
             old_password = hw_dev_pw if self.wallet.has_password() else None
@@ -2141,7 +2143,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
             return
         except BaseException:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('Failed to update password')
             self.show_error(_('Failed to update password'))
             return
         msg = _('Password was updated successfully') if self.wallet.has_password() else _('Password is disabled, this wallet is not protected')
@@ -2279,7 +2281,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             pk, redeem_script = self.wallet.export_private_key(address, password)
         except Exception as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             self.show_message(str(e))
             return
         xtype = bitcoin.deserialize_privkey(pk)[0]
@@ -2415,7 +2417,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('Invalid Public key')
             self.show_warning(_('Invalid Public key'))
             return
         encrypted = public_key.encrypt_message(message)
@@ -2725,7 +2727,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             coins, keypairs = sweep_preparations(get_pk(), self.network)
         except Exception as e:  # FIXME too broad...
-            #traceback.print_exc(file=sys.stderr)
             self.show_message(str(e))
             return
         self.do_clear()
@@ -3299,8 +3300,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
                 grid.addWidget(HelpButton(msg), i, 2)
             except Exception:
-                self.print_msg("error: cannot display plugin", name)
-                traceback.print_exc(file=sys.stdout)
+                self.logger.exception(f"cannot display plugin {name}")
         grid.setRowStretch(len(plugins.descriptions.values()), 1)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()

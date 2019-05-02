@@ -76,16 +76,20 @@ if not is_android:
     check_imports()
 
 
+from electrum.logging import get_logger, configure_logging
 from electrum import util
 from electrum import constants
 from electrum import SimpleConfig
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import set_verbosity, InvalidPassword
+from electrum.util import InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
+
+_logger = get_logger(__name__)
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -184,12 +188,12 @@ def get_connected_hw_devices(plugins):
         name, plugin = splugin.name, splugin.plugin
         if not plugin:
             e = splugin.exception
-            print_stderr(f"{name}: error during plugin init: {repr(e)}")
+            _logger.error(f"{name}: error during plugin init: {repr(e)}")
             continue
         try:
             u = devmgr.unpaired_device_infos(None, plugin)
-        except:
-            devmgr.print_error(f'error getting device infos for {name}: {e}')
+        except Exception as e:
+            _logger.error(f'error getting device infos for {name}: {repr(e)}')
             continue
         devices += list(map(lambda x: (name, x), u))
     return devices
@@ -273,6 +277,9 @@ if __name__ == '__main__':
         sys.argv.append('-h')
 
     # old '-v' syntax
+    # Due to this workaround that keeps old -v working,
+    # more advanced usages of -v need to use '-v='.
+    # e.g. -v=debug,network=warning,interface=error
     try:
         i = sys.argv.index('-v')
     except ValueError:
@@ -320,10 +327,7 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
-    # kivy sometimes freezes when we write to sys.stderr
-    log_verbosity = config_options.get('verbosity') if config_options.get('gui') != 'kivy' else ''
-    set_verbosity(log_verbosity)
-    if not log_verbosity:
+    if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)
 
     # check uri
@@ -336,6 +340,8 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
+    configure_logging(config)
+
     cmdname = config.get('cmd')
 
     if config.get('testnet'):

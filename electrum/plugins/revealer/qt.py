@@ -137,7 +137,7 @@ class Plugin(RevealerPlugin):
             try:
                 self.make_digital(self.d)
             except Exception:
-                traceback.print_exc(file=sys.stdout)
+                self.logger.exception('')
             else:
                 self.cypherseed_dialog(window)
 

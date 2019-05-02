@@ -41,19 +41,21 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
                              QInputDialog)
 
+from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
+                                  WindowModalDialog, get_parent_main_window)
+
 from electrum.plugin import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
-from electrum.util import PrintError
-from ...gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
-                                  WindowModalDialog, get_parent_main_window)
+from electrum.logging import Logger
 
 
-class Processor(threading.Thread, PrintError):
+class Processor(threading.Thread, Logger):
     polling_interval = 5*60
 
     def __init__(self, imap_server, username, password, callback):
         threading.Thread.__init__(self)
+        Logger.__init__(self)
         self.daemon = True
         self.username = username
         self.password = password
@@ -90,7 +92,7 @@ class Processor(threading.Thread, PrintError):
                 self.M = imaplib.IMAP4_SSL(self.imap_server)
                 self.M.login(self.username, self.password)
             except BaseException as e:
-                self.print_error('connecting failed: {}'.format(repr(e)))
+                self.logger.info(f'connecting failed: {repr(e)}')
                 self.connect_wait *= 2
             else:
                 self.reset_connect_wait()
@@ -99,7 +101,7 @@ class Processor(threading.Thread, PrintError):
                 try:
                     self.poll()
                 except BaseException as e:
-                    self.print_error('polling failed: {}'.format(repr(e)))
+                    self.logger.info(f'polling failed: {repr(e)}')
                     break
                 time.sleep(self.polling_interval)
             time.sleep(random.randint(0, self.connect_wait))
@@ -120,7 +122,7 @@ class Processor(threading.Thread, PrintError):
             s.sendmail(self.username, [recipient], msg.as_string())
             s.quit()
         except BaseException as e:
-            self.print_error(e)
+            self.logger.info(e)
 
 
 class QEmailSignalObject(QObject):
@@ -151,7 +153,7 @@ class Plugin(BasePlugin):
         self.wallets = set()
 
     def on_receive(self, pr_str):
-        self.print_error('received payment request')
+        self.logger.info('received payment request')
         self.pr = PaymentRequest(pr_str)
         self.obj.email_new_invoice_signal.emit()
 
@@ -188,12 +190,12 @@ class Plugin(BasePlugin):
             return
         recipient = str(recipient)
         payload = pr.SerializeToString()
-        self.print_error('sending mail to', recipient)
+        self.logger.info(f'sending mail to {recipient}')
         try:
             # FIXME this runs in the GUI thread and blocks it...
             self.processor.send(recipient, message, payload)
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             window.show_message(str(e))
         else:
             window.show_message(_('Request sent.'))

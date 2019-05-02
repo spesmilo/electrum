@@ -43,6 +43,7 @@ from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
 from .plugin import Plugins
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .plugin import DeviceInfo
@@ -65,10 +66,11 @@ class WizardStackItem(NamedTuple):
     storage_data: dict
 
 
-class BaseWizard(object):
+class BaseWizard(Logger):
 
     def __init__(self, config: SimpleConfig, plugins: Plugins):
         super(BaseWizard, self).__init__()
+        Logger.__init__(self)
         self.config = config
         self.plugins = plugins
         self.data = {}
@@ -253,7 +255,7 @@ class BaseWizard(object):
 
         def failed_getting_device_infos(name, e):
             nonlocal debug_msg
-            devmgr.print_error(f'error getting device infos for {name}: {e}')
+            self.logger.info(f'error getting device infos for {name}: {e}')
             indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
             debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
 
@@ -261,7 +263,7 @@ class BaseWizard(object):
         try:
             scanned_devices = devmgr.scan_devices()
         except BaseException as e:
-            devmgr.print_error('error scanning devices: {}'.format(repr(e)))
+            self.logger.info('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
             for splugin in supported_plugins:
@@ -280,7 +282,7 @@ class BaseWizard(object):
                     device_infos = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices,
                                                                 include_failing_clients=True)
                 except BaseException as e:
-                    traceback.print_exc()
+                    self.logger.exception('')
                     failed_getting_device_infos(name, e)
                     continue
                 device_infos_failing = list(filter(lambda di: di.exception is not None, device_infos))
@@ -333,7 +335,7 @@ class BaseWizard(object):
             self.choose_hw_device(purpose, storage=storage)
             return
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             self.show_error(str(e))
             self.choose_hw_device(purpose, storage=storage)
             return
@@ -399,7 +401,7 @@ class BaseWizard(object):
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             self.show_error(e)
             return
         d = {
@@ -517,7 +519,7 @@ class BaseWizard(object):
                 self.choose_hw_device()
                 return
             except BaseException as e:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 self.show_error(str(e))
                 return
             self.request_storage_encryption(
