@@ -1,10 +1,4 @@
 {
-    "abc1.hsmiths.com": {
-        "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.4"
-    },
     "bch.curalle.ovh": {
         "pruning": "-",
         "s": "50002",
