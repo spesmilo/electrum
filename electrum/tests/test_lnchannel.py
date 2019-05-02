@@ -23,6 +23,7 @@ import unittest
 import os
 import binascii
 from pprint import pformat
+import logging
 
 from electrum import bitcoin
 from electrum import lnpeer
@@ -31,7 +32,7 @@ from electrum import lnutil
 from electrum import bip32 as bip32_utils
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
 from electrum.ecc import sig_string_from_der_sig
-from electrum.util import set_verbosity
+from electrum.logging import console_stderr_handler
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
@@ -185,9 +186,9 @@ class TestChannel(unittest.TestCase):
         else:
             self.assertFalse()
 
-    @staticmethod
-    def setUpClass():
-        set_verbosity(True)
+    @classmethod
+    def setUpClass(cls):
+        console_stderr_handler.setLevel(logging.DEBUG)
 
     def setUp(self):
         # Create a test channel which will be used for the duration of this

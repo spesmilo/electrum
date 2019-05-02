@@ -4,13 +4,14 @@ from decimal import Decimal
 import os
 from contextlib import contextmanager
 from collections import defaultdict
+import logging
 
 from electrum.network import Network
 from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, set_verbosity, create_and_start_event_loop
+from electrum.util import bh2u, create_and_start_event_loop
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
@@ -18,6 +19,7 @@ from electrum.lnutil import PaymentFailure, LnLocalFeatures
 from electrum.lnrouter import ChannelDB, LNPathFinder
 from electrum.lnworker import LNWallet
 from electrum.lnmsg import encode_msg, decode_msg
+from electrum.logging import console_stderr_handler
 
 from .test_lnchannel import create_test_channels
 from . import SequentialTestCase
@@ -164,7 +166,7 @@ class TestPeer(SequentialTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        set_verbosity(True)
+        console_stderr_handler.setLevel(logging.DEBUG)
 
     def setUp(self):
         super().setUp()
