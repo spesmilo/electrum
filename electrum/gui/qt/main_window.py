@@ -384,11 +384,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'fee':
             if self.config.is_dynfee():
                 self.fee_slider.update()
-                self.do_update_fee()
+                self.require_fee_update = True
         elif event == 'fee_histogram':
             if self.config.is_dynfee():
                 self.fee_slider.update()
-                self.do_update_fee()
+                self.require_fee_update = True
             self.history_model.on_fee_histogram()
         else:
             self.print_error("unexpected network_qt signal:", event, args)
