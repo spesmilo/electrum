@@ -40,6 +40,7 @@ from electroncash import WalletStorage
 from electroncash.util import (UserCancelled, PrintError, print_error,
                                standardize_path, finalization_print_error, Weak,
                                get_new_wallet_name)
+from electroncash import version
 
 from .installwizard import InstallWizard, GoBack
 
@@ -132,16 +133,23 @@ class ElectrumGui(QObject, PrintError):
 
     def set_dark_theme_if_needed(self):
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        darkstyle_ver = None
         if use_dark_theme:
             try:
                 import qdarkstyle
                 self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+                try:
+                    darkstyle_ver = version.normalize_version(qdarkstyle.__version__)
+                except (ValueError, IndexError, TypeError, NameError, AttributeError) as e:
+                    self.print_error("Warning: Could not determine qdarkstyle version:", repr(e))
             except BaseException as e:
                 use_dark_theme = False
                 self.print_error('Error setting dark theme: {}'.format(repr(e)))
-        # Apply any necessary stylesheet patches
+        # Apply any necessary stylesheet patches. For now this only does anything
+        # if the version is < 2.6.8.
+        # 2.6.8+ seems to have fixed all the issues (for now!)
         from . import style_patcher
-        style_patcher.patch(dark=use_dark_theme)
+        style_patcher.patch(dark=use_dark_theme, darkstyle_ver=darkstyle_ver)
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
