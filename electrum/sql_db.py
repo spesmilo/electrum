@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 
-from .util import PrintError
+from .logging import Logger
 
 
 def sql(func):
@@ -19,9 +19,10 @@ def sql(func):
         return f.result(timeout=10)
     return wrapper
 
-class SqlDB(PrintError):
+class SqlDB(Logger):
     
     def __init__(self, network, path, base):
+        Logger.__init__(self)
         self.base = base
         self.network = network
         self.path = path
@@ -48,4 +49,4 @@ class SqlDB(PrintError):
             future.set_result(result)
         # write
         self.DBSession.commit()
-        self.print_error("SQL thread terminated")
+        self.logger.info("SQL thread terminated")

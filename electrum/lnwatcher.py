@@ -19,7 +19,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import not_, or_
 from .sql_db import SqlDB, sql
 
-from .util import PrintError, bh2u, bfh, log_exceptions, ignore_exceptions
+from .util import bh2u, bfh, log_exceptions, ignore_exceptions
 from . import wallet
 from .storage import WalletStorage
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
@@ -152,7 +152,7 @@ class LNWatcher(AddressSynchronizer):
     @ignore_exceptions
     @log_exceptions
     async def watchtower_task(self):
-        self.print_error('watchtower task started')
+        self.logger.info('watchtower task started')
         # initial check
         for address, outpoint in self.sweepstore.list_channel_info():
             await self.watchtower_queue.put(outpoint)
@@ -167,12 +167,12 @@ class LNWatcher(AddressSynchronizer):
                 if n == 0:
                     address = self.sweepstore.get_address(outpoint)
                     self.watchtower.add_channel(outpoint, address)
-                self.print_error("sending %d transactions to watchtower"%(local_n - n))
+                self.logger.info("sending %d transactions to watchtower"%(local_n - n))
                 for index in range(n, local_n):
                     prev_txid, tx = self.sweepstore.get_tx_by_index(outpoint, index)
                     self.watchtower.add_sweep_tx(outpoint, prev_txid, tx)
             except ConnectionRefusedError:
-                self.print_error('could not reach watchtower, will retry in 5s')
+                self.logger.info('could not reach watchtower, will retry in 5s')
                 await asyncio.sleep(5)
                 await self.watchtower_queue.put(outpoint)
 
@@ -183,7 +183,7 @@ class LNWatcher(AddressSynchronizer):
                 self.sweepstore.add_channel(outpoint, address)
 
     def unwatch_channel(self, address, funding_outpoint):
-        self.print_error('unwatching', funding_outpoint)
+        self.logger.info(f'unwatching {funding_outpoint}')
         self.sweepstore.remove_sweep_tx(funding_outpoint)
         self.sweepstore.remove_channel(funding_outpoint)
         if funding_outpoint in self.tx_progress:
@@ -195,7 +195,7 @@ class LNWatcher(AddressSynchronizer):
             if args[0] != self:
                 return
         if not self.synchronizer:
-            self.print_error("synchronizer not set yet")
+            self.logger.info("synchronizer not set yet")
             return
         if not self.synchronizer.is_up_to_date():
             return
@@ -216,7 +216,7 @@ class LNWatcher(AddressSynchronizer):
         if not keep_watching:
             self.unwatch_channel(address, funding_outpoint)
         else:
-            #self.print_error('we will keep_watching', funding_outpoint)
+            #self.logger.info(f'we will keep_watching {funding_outpoint}')
             pass
 
     def inspect_tx_candidate(self, outpoint, n):
@@ -227,12 +227,12 @@ class LNWatcher(AddressSynchronizer):
         result = {outpoint:txid}
         if txid is None:
             self.channel_status[outpoint] = 'open'
-            #self.print_error('keep watching because outpoint is unspent')
+            #self.logger.info('keep watching because outpoint is unspent')
             return True, result
         keep_watching = (self.get_tx_mined_depth(txid) != TxMinedDepth.DEEP)
         if keep_watching:
             self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
-            #self.print_error('keep watching because spending tx is not deep')
+            #self.logger.info('keep watching because spending tx is not deep')
         else:
             self.channel_status[outpoint] = 'closed (deep)'
 
@@ -255,7 +255,7 @@ class LNWatcher(AddressSynchronizer):
             sweep_txns = self.sweepstore.get_sweep_tx(funding_outpoint, prev_txid)
             for tx in sweep_txns:
                 if not await self.broadcast_or_log(funding_outpoint, tx):
-                    self.print_error(tx.name, f'could not publish tx: {str(tx)}, prev_txid: {prev_txid}')
+                    self.logger.info(f'{tx.name} could not publish tx: {str(tx)}, prev_txid: {prev_txid}')
 
     async def broadcast_or_log(self, funding_outpoint, tx):
         height = self.get_tx_height(tx.txid()).height
@@ -264,9 +264,9 @@ class LNWatcher(AddressSynchronizer):
         try:
             txid = await self.network.broadcast_transaction(tx)
         except Exception as e:
-            self.print_error(f'broadcast: {tx.name}: failure: {repr(e)}')
+            self.logger.info(f'broadcast: {tx.name}: failure: {repr(e)}')
         else:
-            self.print_error(f'broadcast: {tx.name}: success. txid: {txid}')
+            self.logger.info(f'broadcast: {tx.name}: success. txid: {txid}')
             if funding_outpoint in self.tx_progress:
                 await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid

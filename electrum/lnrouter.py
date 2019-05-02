@@ -43,7 +43,8 @@ from sqlalchemy.sql import not_, or_
 from .sql_db import SqlDB, sql
 
 from . import constants
-from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
+from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits, print_msg
+from .logging import Logger
 from .storage import JsonDB
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import sha256d
@@ -231,7 +232,7 @@ class ChannelDB(SqlDB):
         self.num_channels = self.DBSession.query(ChannelInfo).count()
         self.num_policies = self.DBSession.query(Policy).count()
         self.num_nodes = self.DBSession.query(NodeInfo).count()
-        self.print_error('update counts', self.num_channels, self.num_policies)
+        self.logger.info(f'update counts {self.num_channels} {self.num_policies}')
 
     @sql
     def add_recent_peer(self, peer: LNPeerAddr):
@@ -301,12 +302,12 @@ class ChannelDB(SqlDB):
             if self.DBSession.query(ChannelInfo).filter_by(short_channel_id=short_channel_id).count():
                 continue
             if constants.net.rev_genesis_bytes() != msg['chain_hash']:
-                self.print_error("ChanAnn has unexpected chain_hash {}".format(bh2u(msg_payload['chain_hash'])))
+                self.logger.info("ChanAnn has unexpected chain_hash {}".format(bh2u(msg['chain_hash'])))
                 continue
             try:
                 channel_info = ChannelInfo.from_msg(msg)
             except UnknownEvenFeatureBits:
-                self.print_error("unknown feature bits")
+                self.logger.info("unknown feature bits")
                 continue
             channel_info.trusted = trusted
             new_channels[short_channel_id] = channel_info
@@ -315,7 +316,7 @@ class ChannelDB(SqlDB):
         for channel_info in new_channels.values():
             self.DBSession.add(channel_info)
         self.DBSession.commit()
-        #self.print_error('on_channel_announcement: %d/%d'%(len(new_channels), len(msg_payloads)))
+        #self.logger.info('on_channel_announcement: %d/%d'%(len(new_channels), len(msg_payloads)))
         self._update_counts()
         self.network.trigger_callback('ln_status')
 
@@ -351,7 +352,7 @@ class ChannelDB(SqlDB):
                 continue
             short_channel_id = channel_info.short_channel_id
             new_policy = Policy.from_msg(msg_payload, node_id, short_channel_id)
-            #self.print_error('on_channel_update', datetime.fromtimestamp(new_policy.timestamp).ctime())
+            #self.logger.info(f'on_channel_update {datetime.fromtimestamp(new_policy.timestamp).ctime()}')
             old_policy = self.DBSession.query(Policy).filter_by(short_channel_id=short_channel_id, start_node=node_id).one_or_none()
             if old_policy:
                 if old_policy.timestamp >= new_policy.timestamp:
@@ -368,8 +369,8 @@ class ChannelDB(SqlDB):
             self.DBSession.add(new_policy)
         self.DBSession.commit()
         if new_policies:
-            self.print_error('on_channel_update: %d/%d'%(len(new_policies), len(msg_payloads)))
-            self.print_error('last timestamp:', datetime.fromtimestamp(self._get_last_timestamp()).ctime())
+            self.logger.info(f'on_channel_update: {len(new_policies)}/{len(msg_payloads)}')
+            self.logger.info(f'last timestamp: {datetime.fromtimestamp(self._get_last_timestamp()).ctime()}')
             self._update_counts()
 
     @sql
@@ -390,12 +391,12 @@ class ChannelDB(SqlDB):
                 node_info, node_addresses = NodeInfo.from_msg(msg_payload)
             except UnknownEvenFeatureBits:
                 continue
-            #self.print_error('received node announcement from', datetime.fromtimestamp(node_info.timestamp).ctime())
+            #self.logger.info(f'received node announcement from {datetime.fromtimestamp(node_info.timestamp).ctime()}')
             node_id = node_info.node_id
             # Ignore node if it has no associated channel (DoS protection)
             expr = or_(ChannelInfo.node1_id==node_id, ChannelInfo.node2_id==node_id)
             if self.DBSession.query(ChannelInfo.short_channel_id).filter(expr).count() == 0:
-                #self.print_error('ignoring orphan node_announcement')
+                #self.logger.info('ignoring orphan node_announcement')
                 continue
             node = self.DBSession.query(NodeInfo).filter_by(node_id=node_id).one_or_none()
             if node and node.timestamp >= node_info.timestamp:
@@ -406,7 +407,7 @@ class ChannelDB(SqlDB):
             new_nodes[node_id] = node_info
             for addr in node_addresses:
                 new_addresses[(addr.node_id,addr.host,addr.port)] = addr
-        #self.print_error("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
+        #self.logger.info("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         for node_info in new_nodes.values():
             self.DBSession.add(node_info)
         for new_addr in new_addresses.values():
@@ -453,12 +454,13 @@ class ChannelDB(SqlDB):
                 other = channel_info.node1_id
             return other if full_ids else other[-4:]
 
-        self.print_msg('nodes')
+        print_msg('nodes')
         for node in self.DBSession.query(NodeInfo).all():
-            self.print_msg(node)
+            print_msg(node)
 
-        self.print_msg('channels')
+        print_msg('channels')
         for channel_info in self.DBSession.query(ChannelInfo).all():
+            short_channel_id = channel_info.short_channel_id
             node1 = channel_info.node1_id
             node2 = channel_info.node2_id
             direction1 = self.get_policy_for_node(channel_info, node1) is not None
@@ -471,7 +473,7 @@ class ChannelDB(SqlDB):
                 direction = 'backward'
             else:
                 direction = 'none'
-            self.print_msg('{}: {}, {}, {}'
+            print_msg('{}: {}, {}, {}'
                            .format(bh2u(short_channel_id),
                                    bh2u(node1) if full_ids else bh2u(node1[-4:]),
                                    bh2u(node2) if full_ids else bh2u(node2[-4:]),
@@ -493,7 +495,7 @@ class ChannelDB(SqlDB):
         for channel_info in self._channels.values():
             self._channels_for_node[bfh(channel_info.node1_id)].add(bfh(channel_info.short_channel_id))
             self._channels_for_node[bfh(channel_info.node2_id)].add(bfh(channel_info.short_channel_id))
-        self.print_error('load data', len(self._channels), len(self._policies), len(self._channels_for_node))
+        self.logger.info(f'load data {len(self._channels)} {len(self._policies)} {len(self._channels_for_node)}')
 
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes) -> Optional['Policy']:
         return self._policies.get((node_id, short_channel_id))
@@ -572,9 +574,10 @@ def is_route_sane_to_use(route: List[RouteEdge], invoice_amount_msat: int, min_f
     return True
 
 
-class LNPathFinder(PrintError):
+class LNPathFinder(Logger):
 
     def __init__(self, channel_db: ChannelDB):
+        Logger.__init__(self)
         self.channel_db = channel_db
         self.blacklist = set()
 

@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
 
 from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError, resource_path
+from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
 from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN
 
 if TYPE_CHECKING:

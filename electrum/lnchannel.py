@@ -31,12 +31,13 @@ from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Itera
 import time
 
 from . import ecc
-from .util import bfh, PrintError, bh2u
+from .util import bfh, bh2u
 from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .simple_config import get_config
 from .transaction import Transaction
+from .logging import Logger
 
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
@@ -111,7 +112,7 @@ def str_bytes_dict_from_save(x):
 def str_bytes_dict_to_save(x):
     return {str(k): bh2u(v) for k, v in x.items()}
 
-class Channel(PrintError):
+class Channel(Logger):
     def diagnostic_name(self):
         if self.name:
             return str(self.name)
@@ -155,6 +156,7 @@ class Channel(PrintError):
         self.hm = HTLCManager(self.config[LOCAL].ctn if log else 0, self.config[REMOTE].ctn if log else 0, log)
 
         self.name = name
+        Logger.__init__(self)
 
         self.pending_fee = None
 
@@ -254,7 +256,7 @@ class Channel(PrintError):
         self._check_can_pay(htlc.amount_msat)
         htlc = htlc._replace(htlc_id=self.config[LOCAL].next_htlc_id)
         self.hm.send_htlc(htlc)
-        self.print_error("add_htlc")
+        self.logger.info("add_htlc")
         self.config[LOCAL]=self.config[LOCAL]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc
 
@@ -275,7 +277,7 @@ class Channel(PrintError):
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
                     f' HTLC amount: {htlc.amount_msat}')
         self.hm.recv_htlc(htlc)
-        self.print_error("receive_htlc")
+        self.logger.info("receive_htlc")
         self.config[REMOTE]=self.config[REMOTE]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc
 
@@ -292,7 +294,7 @@ class Channel(PrintError):
         This docstring was adapted from LND.
         """
         next_remote_ctn = self.get_current_ctn(REMOTE) + 1
-        self.print_error("sign_next_commitment", next_remote_ctn)
+        self.logger.info(f"sign_next_commitment {next_remote_ctn}")
         self.hm.send_ctx()
         pending_remote_commitment = self.pending_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
@@ -341,7 +343,7 @@ class Channel(PrintError):
 
         This docstring is from LND.
         """
-        self.print_error("receive_new_commitment")
+        self.logger.info("receive_new_commitment")
 
         self.hm.recv_ctx()
 
@@ -405,7 +407,7 @@ class Channel(PrintError):
         return remote_htlc_sig
 
     def revoke_current_commitment(self):
-        self.print_error("revoke_current_commitment")
+        self.logger.info("revoke_current_commitment")
 
         new_feerate = self.constraints.feerate
         if self.pending_fee is not None:
@@ -462,7 +464,7 @@ class Channel(PrintError):
                 self.lnwatcher.add_sweep_tx(outpoint, prev_txid, str(tx))
 
     def receive_revocation(self, revocation: RevokeAndAck):
-        self.print_error("receive_revocation")
+        self.logger.info("receive_revocation")
 
         cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -614,7 +616,7 @@ class Channel(PrintError):
         """
         SettleHTLC attempts to settle an existing outstanding received HTLC.
         """
-        self.print_error("settle_htlc")
+        self.logger.info("settle_htlc")
         log = self.hm.log[REMOTE]
         htlc = log['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
@@ -624,7 +626,7 @@ class Channel(PrintError):
             self.lnworker.set_paid(htlc.payment_hash)
 
     def receive_htlc_settle(self, preimage, htlc_id):
-        self.print_error("receive_htlc_settle")
+        self.logger.info("receive_htlc_settle")
         log = self.hm.log[LOCAL]
         htlc = log['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
@@ -635,11 +637,11 @@ class Channel(PrintError):
             self.lnworker.set_paid(htlc.payment_hash)
 
     def fail_htlc(self, htlc_id):
-        self.print_error("fail_htlc")
+        self.logger.info("fail_htlc")
         self.hm.send_fail(htlc_id)
 
     def receive_fail_htlc(self, htlc_id):
-        self.print_error("receive_fail_htlc")
+        self.logger.info("receive_fail_htlc")
         self.hm.recv_fail(htlc_id)
 
     @property

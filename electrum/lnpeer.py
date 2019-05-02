@@ -24,8 +24,9 @@ from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
-from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
+from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
 from .transaction import Transaction, TxOutput
+from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket)
@@ -52,7 +53,7 @@ def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[b
     i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
     return i.to_bytes(32, 'big'), funding_txid_bytes
 
-class Peer(PrintError):
+class Peer(Logger):
 
     def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase):
         self.initialized = asyncio.Event()
@@ -84,10 +85,11 @@ class Peer(PrintError):
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
         self.receiving_channels = False
+        Logger.__init__(self)
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
-        self.print_error("Sending '%s'"%message_name.upper())
+        self.logger.info(f"Sending {message_name.upper()}")
         self.transport.send_bytes(encode_msg(message_name, **kwargs))
 
     async def initialize(self):
@@ -112,7 +114,7 @@ class Peer(PrintError):
         try:
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
-            #self.print_error("Received '%s'" % message_type.upper(), payload)
+            #self.logger.info("Received '%s'" % message_type.upper(), payload)
             return
         # raw message is needed to check signature
         if message_type in ['node_announcement', 'channel_update']:
@@ -123,7 +125,7 @@ class Peer(PrintError):
 
     def on_error(self, payload):
         # todo: self.channel_reestablished is not a queue
-        self.print_error("error", payload["data"].decode("ascii"))
+        self.logger.info(f"error {payload['data'].decode('ascii')}")
         chan_id = payload.get("channel_id")
         for d in [ self.channel_accepted, self.funding_signed,
                    self.funding_created,
@@ -156,7 +158,7 @@ class Peer(PrintError):
 
     def on_init(self, payload):
         if self.initialized.is_set():
-            self.print_error("ALREADY INITIALIZED BUT RECEIVED INIT")
+            self.logger.info("ALREADY INITIALIZED BUT RECEIVED INIT")
             return
         # if they required some even flag we don't have, they will close themselves
         # but if we require an even flag they don't have, we close
@@ -196,7 +198,7 @@ class Peer(PrintError):
             try:
                 return await func(self, *args, **kwargs)
             except Exception as e:
-                self.print_error("Disconnecting: {}".format(e))
+                self.logger.info("Disconnecting: {}".format(e))
             finally:
                 self.close_and_cleanup()
         return wrapper_func
@@ -215,9 +217,9 @@ class Peer(PrintError):
         await self.initialized.wait()
         timestamp = self.channel_db.get_last_timestamp()
         if timestamp == 0:
-            self.print_error('requesting whole channel graph')
+            self.logger.info('requesting whole channel graph')
         else:
-            self.print_error('requesting channel graph since', datetime.fromtimestamp(timestamp).ctime())
+            self.logger.info(f'requesting channel graph since {datetime.fromtimestamp(timestamp).ctime()}')
         self.send_message(
             'gossip_timestamp_filter',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -237,7 +239,7 @@ class Peer(PrintError):
             # todo: enable when db is fixed
             #need_to_get = sorted(self.channel_db.missing_short_chan_ids())
             #if need_to_get and not self.receiving_channels:
-            #    self.print_error('missing', len(need_to_get), 'channels')
+            #    self.logger.info(f'missing {len(need_to_get)} channels')
             #    zlibencoded = zlib.compress(bfh(''.join(need_to_get[0:100])))
             #    self.send_message(
             #        'query_short_channel_ids',
@@ -250,7 +252,7 @@ class Peer(PrintError):
         try:
             await asyncio.wait_for(self.initialize(), 10)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
-            self.print_error('initialize failed, disconnecting: {}'.format(repr(e)))
+            self.logger.info('initialize failed, disconnecting: {}'.format(repr(e)))
             return
         async for msg in self.transport.read_messages():
             self.process_message(msg)
@@ -414,7 +416,7 @@ class Peer(PrintError):
             funding_output_index=funding_index,
             signature=sig_64)
         payload = await asyncio.wait_for(self.funding_signed[channel_id].get(), 5)
-        self.print_error('received funding_signed')
+        self.logger.info('received funding_signed')
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
@@ -533,12 +535,12 @@ class Peer(PrintError):
         chan_id = payload["channel_id"]
         chan = self.channels.get(chan_id)
         if not chan:
-            self.print_error("Received unknown channel_reestablish", bh2u(chan_id), payload)
+            self.logger.info(f"Received unknown channel_reestablish {bh2u(chan_id)} {payload}")
             raise Exception('Unknown channel_reestablish')
         self.channel_reestablished[chan_id].set_result(payload)
 
     def try_to_get_remote_to_force_close_with_their_latest(self, chan_id):
-        self.print_error("trying to get remote to force close", bh2u(chan_id))
+        self.logger.info(f"trying to get remote to force close {bh2u(chan_id)}")
         self.send_message(
             "channel_reestablish",
             channel_id=chan_id,
@@ -550,7 +552,7 @@ class Peer(PrintError):
         await self.initialized.wait()
         chan_id = chan.channel_id
         if chan.get_state() != 'DISCONNECTED':
-            self.print_error('reestablish_channel was called but channel {} already in state {}'
+            self.logger.info('reestablish_channel was called but channel {} already in state {}'
                              .format(chan_id, chan.get_state()))
             return
         chan.set_state('REESTABLISHING')
@@ -558,7 +560,7 @@ class Peer(PrintError):
         current_remote_ctn = chan.config[REMOTE].ctn
         # send message
         if self.their_localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ:
-            self.print_error('peer requires data loss protect')
+            self.logger.info('peer requires data loss protect')
             if current_remote_ctn == 0:
                 last_rev_secret = 0
             else:
@@ -586,7 +588,7 @@ class Peer(PrintError):
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_next_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if their_next_local_ctn != chan.config[REMOTE].ctn + 1:
-            self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, their_next_local_ctn))
+            self.logger.info("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, their_next_local_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
             self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
             return
@@ -607,7 +609,7 @@ class Peer(PrintError):
                     per_commitment_secret=last_secret,
                     next_per_commitment_point=next_point)
             else:
-                self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, their_next_remote_ctn))
+                self.logger.info(f"expected local ctn {chan.config[LOCAL].ctn}, got {their_next_remote_ctn}")
                 # TODO iff their ctn is lower than ours, we should force close instead
                 self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
                 return
@@ -618,7 +620,7 @@ class Peer(PrintError):
             if our_pcp is None:
                 our_pcp = chan.config[REMOTE].next_per_commitment_point
             if our_pcp != their_pcp:
-                self.print_error("Remote PCP mismatch: {} {}".format(bh2u(our_pcp), bh2u(their_pcp)))
+                self.logger.info(f"Remote PCP mismatch: {bh2u(our_pcp)} {bh2u(their_pcp)}")
                 # FIXME ...what now?
                 self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
                 return
@@ -770,7 +772,7 @@ class Peer(PrintError):
         if pending_channel_update:
             self.channel_db.on_channel_update(pending_channel_update)
 
-        self.print_error("CHANNEL OPENING COMPLETED")
+        self.logger.info("CHANNEL OPENING COMPLETED")
 
     def send_announcement_signatures(self, chan: Channel):
 
@@ -816,7 +818,7 @@ class Peer(PrintError):
         except KeyError:
             # the remote might try to fail an htlc after we restarted...
             # attempted_route is not persisted, so we will get here then
-            self.print_error("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
+            self.logger.info("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
         else:
             try:
                 self._handle_error_code_from_failed_htlc(payload["reason"], route, channel_id, htlc_id)
@@ -841,8 +843,8 @@ class Peer(PrintError):
                                                      [x.node_id for x in route],
                                                      chan.onion_keys[htlc_id])
         code, data = failure_msg.code, failure_msg.data
-        self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
-        self.print_error(f"error reported by {bh2u(route[sender_idx].node_id)}")
+        self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
+        self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2,
@@ -858,12 +860,12 @@ class Peer(PrintError):
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
             try:
-                self.print_error("trying to apply channel update on our db", payload)
+                self.logger.info(f"trying to apply channel update on our db {payload}")
                 self.channel_db.on_channel_update(payload)
-                self.print_error("successfully applied channel update on our db")
+                self.logger.info("successfully applied channel update on our db")
             except NotFoundChanAnnouncementForUpdate:
                 # maybe it is a private channel (and data in invoice was outdated)
-                self.print_error("maybe channel update is for private channel?")
+                self.logger.info("maybe channel update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
         else:
@@ -873,7 +875,7 @@ class Peer(PrintError):
             try:
                 short_chan_id = route[sender_idx + 1].short_channel_id
             except IndexError:
-                self.print_error("payment destination reported error")
+                self.logger.info("payment destination reported error")
             else:
                 self.network.path_finder.blacklist.add(short_chan_id)
 
@@ -885,7 +887,7 @@ class Peer(PrintError):
                 and chan.pending_feerate(REMOTE) == chan.constraints.feerate) \
                 or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
-        self.print_error(f'send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
+        self.logger.info(f'send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         self.sent_commitment_for_ctn_last[chan] = ctn_to_sign
@@ -916,7 +918,7 @@ class Peer(PrintError):
         remote_ctn = chan.get_current_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
-        self.print_error(f"starting payment. route: {route}")
+        self.logger.info(f"starting payment. route: {route}")
         self.send_message("update_add_htlc",
                           channel_id=chan.channel_id,
                           id=htlc.htlc_id,
@@ -939,7 +941,7 @@ class Peer(PrintError):
         self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, payload):
-        self.print_error("on_commitment_signed")
+        self.logger.info("on_commitment_signed")
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
         ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
@@ -956,7 +958,7 @@ class Peer(PrintError):
         self.send_revoke_and_ack(chan)
 
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
-        self.print_error("update_fulfill")
+        self.logger.info("update_fulfill")
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
@@ -971,11 +973,11 @@ class Peer(PrintError):
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
-        self.print_error("error", payload["data"].decode("ascii"))
+        self.logger.info(f"error {payload['data'].decode('ascii')}")
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
-        self.print_error('on_update_add_htlc')
+        self.logger.info('on_update_add_htlc')
         # check if this in our list of requests
         payment_hash = payload["payment_hash"]
         channel_id = payload['channel_id']
@@ -1020,11 +1022,11 @@ class Peer(PrintError):
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
         next_peer = self.lnworker.peers[next_chan.node_id]
         if next_chan is None or next_chan.get_state() != 'OPEN':
-            self.print_error("cannot forward htlc", next_chan.get_state() if next_chan else None)
+            self.logger.info(f"cannot forward htlc {next_chan.get_state() if next_chan else None}")
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
-        self.print_error('forwarding htlc to', next_chan.node_id)
+        self.logger.info(f'forwarding htlc to {next_chan.node_id}')
         next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
         next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
@@ -1044,7 +1046,7 @@ class Peer(PrintError):
         preimage = await next_peer.payment_preimages[next_htlc.payment_hash].get()
         # fulfill the original htlc
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
-        self.print_error("htlc forwarded successfully")
+        self.logger.info("htlc forwarded successfully")
 
     @log_exceptions
     async def _maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
@@ -1098,7 +1100,7 @@ class Peer(PrintError):
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
-        self.print_error(f"failing received htlc {(bh2u(chan.channel_id), htlc_id)}. reason: {reason}")
+        self.logger.info(f"failing received htlc {(bh2u(chan.channel_id), htlc_id)}. reason: {reason}")
         chan.fail_htlc(htlc_id)
         remote_ctn = chan.get_current_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
@@ -1110,7 +1112,7 @@ class Peer(PrintError):
         await self.await_remote(chan, remote_ctn)
 
     def on_revoke_and_ack(self, payload):
-        self.print_error("on_revoke_and_ack")
+        self.logger.info("on_revoke_and_ack")
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
         chan.receive_revocation(RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"]))
@@ -1133,12 +1135,12 @@ class Peer(PrintError):
             return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
         chan_fee = chan.pending_feerate(REMOTE)
-        self.print_error("current pending feerate", chan_fee)
-        self.print_error("new feerate", feerate_per_kw)
+        self.logger.info(f"current pending feerate {chan_fee}")
+        self.logger.info(f"new feerate {feerate_per_kw}")
         if feerate_per_kw < chan_fee / 2:
-            self.print_error("FEES HAVE FALLEN")
+            self.logger.info("FEES HAVE FALLEN")
         elif feerate_per_kw > chan_fee * 2:
-            self.print_error("FEES HAVE RISEN")
+            self.logger.info("FEES HAVE RISEN")
         else:
             return
         chan.update_fee(feerate_per_kw, True)
@@ -1160,7 +1162,7 @@ class Peer(PrintError):
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
         txid = await self._shutdown(chan, payload, True)
-        self.print_error('Channel closed', txid)
+        self.logger.info(f'Channel closed {txid}')
         return txid
 
     @log_exceptions
@@ -1175,7 +1177,7 @@ class Peer(PrintError):
             chan = self.channels[chan_id]
             self.send_shutdown(chan)
             txid = await self._shutdown(chan, payload, False)
-            self.print_error('Channel closed by remote peer', txid)
+            self.logger.info(f'Channel closed by remote peer {txid}')
 
     def send_shutdown(self, chan: Channel):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
@@ -1186,7 +1188,7 @@ class Peer(PrintError):
         # set state so that we stop accepting HTLCs
         chan.set_state('CLOSING')
         while len(chan.hm.htlcs_by_direction(LOCAL, RECEIVED)) > 0:
-            self.print_error('waiting for htlcs to settle...')
+            self.logger.info('waiting for htlcs to settle...')
             await asyncio.sleep(1)
         our_fee = chan.pending_local_fee()
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))

@@ -1678,7 +1678,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         LN_NUM_PAYMENT_ATTEMPTS = 1  # TODO increase
 
         def on_success(result):
-            self.print_error('ln payment success', result)
+            self.logger.info(f'ln payment success. {result}')
             self.do_clear()
         def on_failure(exc_info):
             type_, e, traceback = exc_info

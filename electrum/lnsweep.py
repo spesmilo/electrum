@@ -4,7 +4,7 @@
 
 from typing import Optional, Dict, List, Tuple, TYPE_CHECKING
 
-from .util import bfh, bh2u, print_error
+from .util import bfh, bh2u
 from .bitcoin import TYPE_ADDRESS, redeem_script_to_address, dust_threshold
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
@@ -15,9 +15,13 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED)
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
+from .logging import get_logger
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
+
+
+_logger = get_logger(__name__)
 
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(ctx: Transaction, sweep_address: str,
@@ -159,7 +163,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
             try:
                 preimage = chan.lnworker.get_preimage(htlc.payment_hash)
             except UnknownPaymentHash as e:
-                print_error(f'trying to sweep htlc from our latest ctx but getting {repr(e)}')
+                _logger.info(f'trying to sweep htlc from our latest ctx but getting {repr(e)}')
                 return None, None
         else:
             preimage = None
@@ -262,7 +266,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
             try:
                 preimage = chan.lnworker.get_preimage(htlc.payment_hash)
             except UnknownPaymentHash as e:
-                print_error(f'trying to sweep htlc from their latest ctx but getting {repr(e)}')
+                _logger.info(f'trying to sweep htlc from their latest ctx but getting {repr(e)}')
                 return None
         else:
             preimage = None

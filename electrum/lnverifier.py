@@ -106,7 +106,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
                 continue
             self.started_verifying_channel.add(short_channel_id)
             await self.group.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
-            #self.print_error('requested short_channel_id', bh2u(short_channel_id))
+            #self.logger.info(f'requested short_channel_id {bh2u(short_channel_id)}')
 
     async def verify_channel(self, block_height: int, tx_pos: int, short_channel_id: bytes):
         # we are verifying channel announcements as they are from untrusted ln peers.
@@ -140,12 +140,12 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         except Exception:
             # either bug in client, or electrum server is evil.
             # if we connect to a diff server at some point, let's try again.
-            self.print_msg("cannot deserialize transaction, skipping", tx_hash)
+            self.logger.warning(f"cannot deserialize transaction, skipping {tx_hash}")
             return
         if tx_hash != tx.txid():
             # either bug in client, or electrum server is evil.
             # if we connect to a diff server at some point, let's try again.
-            self.print_error(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
+            self.logger.info(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
             return
         # check funding output
         msg_payload = self.unverified_channel_info[short_channel_id]
@@ -161,7 +161,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             return
         if expected_address != actual_output.address:
             # FIXME what now? best would be to ban the originating ln peer.
-            self.print_error(f"funding output script mismatch for {bh2u(short_channel_id)}")
+            self.logger.info(f"funding output script mismatch for {bh2u(short_channel_id)}")
             self._remove_channel_from_unverified_db(short_channel_id)
             return
         # put channel into channel DB
