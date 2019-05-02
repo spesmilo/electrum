@@ -341,8 +341,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # left column
         vbox_left = QVBoxLayout()
-        self.tx_desc = TxDetailLabel()
-        self.tx_desc.setWordWrap(True)
+        self.tx_desc = TxDetailLabel(word_wrap=True)
         vbox_left.addWidget(self.tx_desc)
         self.status_label = TxDetailLabel()
         vbox_left.addWidget(self.status_label)
@@ -370,7 +369,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox_right.addWidget(self.rbf_label)
         self.locktime_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_label)
-        self.block_hash_label = TxDetailLabel()
+        self.block_hash_label = TxDetailLabel(word_wrap=True)
         vbox_right.addWidget(self.block_hash_label)
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
@@ -386,6 +385,8 @@ class QTextEditWithDefaultSize(QTextEdit):
 
 
 class TxDetailLabel(QLabel):
-    def __init__(self):
+    def __init__(self, *, word_wrap=None):
         super().__init__()
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        if word_wrap is not None:
+            self.setWordWrap(word_wrap)
