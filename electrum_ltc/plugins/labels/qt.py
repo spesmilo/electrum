@@ -58,9 +58,9 @@ class Plugin(LabelsPlugin):
     def done_processing_success(self, dialog, result):
         dialog.show_message(_("Your labels have been synchronised."))
 
-    def done_processing_error(self, dialog, result):
-        traceback.print_exception(*result, file=sys.stderr)
-        dialog.show_error(_("Error synchronising labels") + ':\n' + str(result[:2]))
+    def done_processing_error(self, dialog, exc_info):
+        self.logger.error("Error synchronising labels", exc_info=exc_info)
+        dialog.show_error(_("Error synchronising labels") + f':\n{repr(exc_info[1])}')
 
     @hook
     def load_wallet(self, wallet, window):

@@ -42,6 +42,7 @@ from electrum_ltc.plugin import run_hook
 from electrum_ltc import simple_config
 from electrum_ltc.util import bfh
 from electrum_ltc.transaction import SerializationError, Transaction
+from electrum_ltc.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
@@ -51,6 +52,7 @@ SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
 SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
 
 
+_logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
@@ -58,7 +60,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     try:
         d = TxDialog(tx, parent, desc, prompt_if_unsaved)
     except SerializationError as e:
-        traceback.print_exc(file=sys.stderr)
+        _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
     else:
         dialogs.append(d)
@@ -341,8 +343,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # left column
         vbox_left = QVBoxLayout()
-        self.tx_desc = TxDetailLabel()
-        self.tx_desc.setWordWrap(True)
+        self.tx_desc = TxDetailLabel(word_wrap=True)
         vbox_left.addWidget(self.tx_desc)
         self.status_label = TxDetailLabel()
         vbox_left.addWidget(self.status_label)
@@ -370,7 +371,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox_right.addWidget(self.rbf_label)
         self.locktime_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_label)
-        self.block_hash_label = TxDetailLabel()
+        self.block_hash_label = TxDetailLabel(word_wrap=True)
         vbox_right.addWidget(self.block_hash_label)
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
@@ -386,6 +387,8 @@ class QTextEditWithDefaultSize(QTextEdit):
 
 
 class TxDetailLabel(QLabel):
-    def __init__(self):
+    def __init__(self, *, word_wrap=None):
         super().__init__()
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        if word_wrap is not None:
+            self.setWordWrap(word_wrap)

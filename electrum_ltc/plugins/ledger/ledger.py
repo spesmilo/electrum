@@ -10,11 +10,16 @@ from electrum_ltc.i18n import _
 from electrum_ltc.keystore import Hardware_KeyStore
 from electrum_ltc.transaction import Transaction
 from electrum_ltc.wallet import Standard_Wallet
-from electrum_ltc.util import print_error, bfh, bh2u, versiontuple, UserFacingException
+from electrum_ltc.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum_ltc.base_wizard import ScriptTypeNotSupported
+from electrum_ltc.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
+
+
+_logger = get_logger(__name__)
+
 
 try:
     import hid
@@ -237,7 +242,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self)
 
     def give_error(self, message, clear_client = False):
-        print_error(message)
+        _logger.info(message)
         if not self.signing:
             self.handler.show_error(message)
         else:
@@ -500,10 +505,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
             else:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 self.give_error(e, True)
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             self.give_error(e, True)
         finally:
             self.handler.finished()
@@ -534,10 +539,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     e,
                     _('Your device might not have support for this functionality.')))
             else:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 self.handler.show_error(e)
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             self.handler.show_error(e)
         finally:
             self.handler.finished()

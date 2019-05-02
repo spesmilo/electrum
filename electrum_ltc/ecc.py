@@ -33,13 +33,15 @@ from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
-from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
+from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
 from . import constants
+from .logging import get_logger
 
 
+_logger = get_logger(__name__)
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
 
 CURVE_ORDER = SECP256k1.order
@@ -332,7 +334,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, n
         public_key.verify_message_hash(sig65[1:], h)
         return True
     except Exception as e:
-        print_error(f"Verification error: {repr(e)}")
+        _logger.info(f"Verification error: {repr(e)}")
         return False
 
 

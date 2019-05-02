@@ -9,6 +9,6 @@ class Plugin(LabelsPlugin):
         self.start_wallet(wallet)
 
     def on_pulled(self, wallet):
-        self.print_error('on pulled')
+        self.logger.info('on pulled')
         self.window._trigger_update_history()
 

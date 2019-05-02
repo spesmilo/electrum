@@ -33,10 +33,11 @@ from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
 
 import aiorpcx
-from aiorpcx import RPCSession, Notification
+from aiorpcx import RPCSession, Notification, NetAddress
+from aiorpcx.curio import timeout_after, TaskTimeout
 import certifi
 
-from .util import PrintError, ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
+from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
 from . import util
 from . import x509
 from . import pem
@@ -45,6 +46,7 @@ from . import blockchain
 from .blockchain import Blockchain
 from . import constants
 from .i18n import _
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
@@ -72,10 +74,10 @@ class NotificationSession(RPCSession):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)
         self.cache = {}
-        self.in_flight_requests_semaphore = asyncio.Semaphore(100)
         self.default_timeout = NetworkTimeout.Generic.NORMAL
         self._msg_counter = 0
         self.interface = None  # type: Optional[Interface]
+        self.cost_hard_limit = 0  # disable aiorpcx resource limits
 
     def _get_and_inc_msg_counter(self):
         # runs in event loop thread, no need for lock
@@ -84,35 +86,40 @@ class NotificationSession(RPCSession):
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
-        # note: if server sends malformed request and we raise, the superclass
-        # will catch the exception, count errors, and at some point disconnect
-        if isinstance(request, Notification):
-            params, result = request.args[:-1], request.args[-1]
-            key = self.get_hashable_key_for_rpc_call(request.method, params)
-            if key in self.subscriptions:
-                self.cache[key] = result
-                for queue in self.subscriptions[key]:
-                    await queue.put(request.args)
+        try:
+            if isinstance(request, Notification):
+                params, result = request.args[:-1], request.args[-1]
+                key = self.get_hashable_key_for_rpc_call(request.method, params)
+                if key in self.subscriptions:
+                    self.cache[key] = result
+                    for queue in self.subscriptions[key]:
+                        await queue.put(request.args)
+                else:
+                    raise Exception(f'unexpected notification')
             else:
-                raise Exception('unexpected request: {}'.format(repr(request)))
+                raise Exception(f'unexpected request. not a notification')
+        except Exception as e:
+            self.interface.logger.info(f"error handling request {request}. exc: {repr(e)}")
+            await self.close()
 
     async def send_request(self, *args, timeout=None, **kwargs):
-        # note: the timeout starts after the request touches the wire!
-        if timeout is None:
-            timeout = self.default_timeout
-        # note: the semaphore implementation guarantees no starvation
-        async with self.in_flight_requests_semaphore:
-            msg_id = self._get_and_inc_msg_counter()
-            self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
-            try:
-                response = await asyncio.wait_for(
-                    super().send_request(*args, **kwargs),
-                    timeout)
-            except asyncio.TimeoutError as e:
-                raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
-            else:
-                self.maybe_log(f"--> {response} (id: {msg_id})")
-                return response
+        # note: semaphores/timeouts/backpressure etc are handled by
+        # aiorpcx. the timeout arg here in most cases should not be set
+        msg_id = self._get_and_inc_msg_counter()
+        self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
+        try:
+            response = await asyncio.wait_for(
+                super().send_request(*args, **kwargs),
+                timeout)
+        except (TaskTimeout, asyncio.TimeoutError) as e:
+            raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
+        else:
+            self.maybe_log(f"--> {response} (id: {msg_id})")
+            return response
+
+    def set_default_timeout(self, timeout):
+        self.sent_request_timeout = timeout
+        self.max_send_delay = timeout
 
     async def subscribe(self, method: str, params: List, queue: asyncio.Queue):
         # note: until the cache is written for the first time,
@@ -142,7 +149,7 @@ class NotificationSession(RPCSession):
     def maybe_log(self, msg: str) -> None:
         if not self.interface: return
         if self.interface.debug or self.interface.network.debug:
-            self.interface.print_error(msg)
+            self.interface.logger.debug(msg)
 
 
 class GracefulDisconnect(Exception): pass
@@ -174,8 +181,7 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
     return str(':'.join([host, str(port), protocol]))
 
 
-class Interface(PrintError):
-    verbosity_filter = 'i'
+class Interface(Logger):
 
     def __init__(self, network: 'Network', server: str, proxy: Optional[dict]):
         self.ready = asyncio.Future()
@@ -183,6 +189,7 @@ class Interface(PrintError):
         self.server = server
         self.host, self.port, self.protocol = deserialize_server(self.server)
         self.port = int(self.port)
+        Logger.__init__(self)
         assert network.config.path
         self.cert_path = os.path.join(network.config.path, 'certs', self.host)
         self.blockchain = None
@@ -203,7 +210,7 @@ class Interface(PrintError):
         self.group = SilentTaskGroup()
 
     def diagnostic_name(self):
-        return self.host
+        return f"{self.host}:{self.port}"
 
     def _set_proxy(self, proxy: dict):
         if proxy:
@@ -212,10 +219,11 @@ class Interface(PrintError):
                 auth = None
             else:
                 auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
+            addr = NetAddress(proxy['host'], proxy['port'])
             if proxy['mode'] == "socks4":
-                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS4a, auth)
+                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS4a, auth)
             elif proxy['mode'] == "socks5":
-                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS5, auth)
+                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS5, auth)
             else:
                 raise NotImplementedError  # http proxy not available with aiorpcx
         else:
@@ -256,18 +264,18 @@ class Interface(PrintError):
         try:
             b = pem.dePem(contents, 'CERTIFICATE')
         except SyntaxError as e:
-            self.print_error("error parsing already saved cert:", e)
+            self.logger.info(f"error parsing already saved cert: {e}")
             raise ErrorParsingSSLCert(e) from e
         try:
             x = x509.X509(b)
         except Exception as e:
-            self.print_error("error parsing already saved cert:", e)
+            self.logger.info(f"error parsing already saved cert: {e}")
             raise ErrorParsingSSLCert(e) from e
         try:
             x.check_date()
             return True
         except x509.CertificateError as e:
-            self.print_error("certificate has expired:", e)
+            self.logger.info(f"certificate has expired: {e}")
             os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
 
@@ -299,7 +307,7 @@ class Interface(PrintError):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
-                self.print_error("disconnecting gracefully. {}".format(repr(e)))
+                self.logger.info(f"disconnecting gracefully. {repr(e)}")
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
@@ -314,12 +322,12 @@ class Interface(PrintError):
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
-            self.print_error('disconnecting due to: {}'.format(repr(e)))
+            self.logger.info(f'disconnecting due to: {repr(e)}')
             return
         try:
             await self.open_session(ssl_context)
         except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSError) as e:
-            self.print_error('disconnecting due to: {}'.format(repr(e)))
+            self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
     def mark_ready(self):
@@ -336,7 +344,7 @@ class Interface(PrintError):
             self.blockchain = chain
         assert self.blockchain is not None
 
-        self.print_error("set blockchain with height", self.blockchain.height())
+        self.logger.info(f"set blockchain with height {self.blockchain.height()}")
 
         self.ready.set_result(1)
 
@@ -346,7 +354,7 @@ class Interface(PrintError):
             for _ in range(10):
                 dercert = await self.get_certificate()
                 if dercert:
-                    self.print_error("succeeded in getting cert")
+                    self.logger.info("succeeded in getting cert")
                     with open(self.cert_path, 'w') as f:
                         cert = ssl.DER_cert_to_PEM_cert(dercert)
                         # workaround android bug
@@ -373,7 +381,7 @@ class Interface(PrintError):
             return None
 
     async def get_block_header(self, height, assert_mode):
-        self.print_error('requesting block header {} in mode {}'.format(height, assert_mode))
+        self.logger.info(f'requesting block header {height} in mode {assert_mode}')
         # use lower timeout as we usually have network.bhi_lock here
         timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
@@ -383,7 +391,7 @@ class Interface(PrintError):
         index = height // 2016
         if can_return_early and index in self._requested_chunks:
             return
-        self.print_error("requesting chunk from height {}".format(height))
+        self.logger.info(f"requesting chunk from height {height}")
         size = 2016
         if tip is not None:
             size = min(size, tip - index * 2016 + 1)
@@ -408,7 +416,7 @@ class Interface(PrintError):
                                      ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
             self.session.interface = self
-            self.session.default_timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
+            self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
                 ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])
             except aiorpcx.jsonrpc.RPCError as e:
@@ -418,7 +426,7 @@ class Interface(PrintError):
             if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
                 raise GracefulDisconnect(f'too many connected servers already '
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
-            self.print_error("connection established. version: {}".format(ver))
+            self.logger.info(f"connection established. version: {ver}")
 
             async with self.group as group:
                 await group.spawn(self.ping)
@@ -465,7 +473,7 @@ class Interface(PrintError):
         async with self.network.bhi_lock:
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
-                self.print_error("skipping header", height)
+                self.logger.info(f"skipping header {height}")
                 return
             _, height = await self.step(height, header)
             # in the simple case, height == self.tip+1
@@ -511,13 +519,13 @@ class Interface(PrintError):
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
         if not can_connect:
-            self.print_error("can't connect", height)
+            self.logger.info(f"can't connect {height}")
             height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
             assert chain or can_connect
         if can_connect:
-            self.print_error("could connect", height)
+            self.logger.info(f"could connect {height}")
             height += 1
             if isinstance(can_connect, Blockchain):  # not when mocking
                 self.blockchain = can_connect
@@ -536,7 +544,7 @@ class Interface(PrintError):
         while True:
             assert good < bad, (good, bad)
             height = (good + bad) // 2
-            self.print_error("binary step. good {}, bad {}, height {}".format(good, bad, height))
+            self.logger.info(f"binary step. good {good}, bad {bad}, height {height}")
             header = await self.get_block_header(height, 'binary')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
@@ -554,7 +562,7 @@ class Interface(PrintError):
             raise Exception('unexpected bad header during binary: {}'.format(bad_header))
         _assert_header_does_not_check_against_any_chain(bad_header)
 
-        self.print_error("binary search exited. good {}, bad {}".format(good, bad))
+        self.logger.info(f"binary search exited. good {good}, bad {bad}")
         return good, bad, bad_header
 
     async def _resolve_potential_chain_fork_given_forkpoint(self, good, bad, bad_header):
@@ -568,12 +576,12 @@ class Interface(PrintError):
         assert bh >= good, (bh, good)
         if bh == good:
             height = good + 1
-            self.print_error("catching up from {}".format(height))
+            self.logger.info(f"catching up from {height}")
             return 'no_fork', height
 
         # this is a new fork we don't yet have
         height = bad + 1
-        self.print_error(f"new fork at bad height {bad}")
+        self.logger.info(f"new fork at bad height {bad}")
         forkfun = self.blockchain.fork if 'mock' not in bad_header else bad_header['mock']['fork']
         b = forkfun(bad_header)  # type: Blockchain
         self.blockchain = b
@@ -607,7 +615,7 @@ class Interface(PrintError):
             height = self.tip - 2 * delta
 
         _assert_header_does_not_check_against_any_chain(bad_header)
-        self.print_error("exiting backward mode at", height)
+        self.logger.info(f"exiting backward mode at {height}")
         return height, header, bad, bad_header
 
     @classmethod
@@ -620,9 +628,9 @@ class Interface(PrintError):
     def ip_addr(self) -> Optional[str]:
         session = self.session
         if not session: return None
-        peer_addr = session.peer_address()
+        peer_addr = session.remote_address()
         if not peer_addr: return None
-        return peer_addr[0]
+        return str(peer_addr.host)
 
     def bucket_based_on_ipaddress(self) -> str:
         def do_bucket():

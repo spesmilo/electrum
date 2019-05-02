@@ -41,11 +41,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple
 
 from .i18n import _
-from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
+from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, print_error)
+                   Fiat, bfh, bh2u, TxMinedInfo)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
@@ -64,11 +64,14 @@ from .contacts import Contacts
 from .interface import RequestTimedOut
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
+from .logging import get_logger
 
 if TYPE_CHECKING:
     from .network import Network
     from .simple_config import SimpleConfig
 
+
+_logger = get_logger(__name__)
 
 TX_STATUS = [
     _('Unconfirmed'),
@@ -200,7 +203,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
     max_change_outputs = 3
     gap_limit_for_change = 6
-    verbosity_filter = 'w'
 
     def __init__(self, storage: WalletStorage):
         if storage.requires_upgrade():
@@ -825,9 +827,9 @@ class Abstract_Wallet(AddressSynchronizer):
         # wait until we are connected, because the user
         # might have selected another server
         if self.network:
-            self.print_error("waiting for network...")
+            self.logger.info("waiting for network...")
             wait_for_network()
-            self.print_error("waiting while wallet is syncing...")
+            self.logger.info("waiting while wallet is syncing...")
             wait_for_wallet()
         else:
             self.synchronize()
@@ -940,7 +942,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(tx_hash, timeout=10))
             except RequestTimedOut as e:
-                self.print_error(f'getting input txn from network timed out for {tx_hash}')
+                self.logger.info(f'getting input txn from network timed out for {tx_hash}')
                 if not ignore_timeout:
                     raise e
             else:
@@ -1066,7 +1068,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     try:
                         baseurl = baseurl.replace(*rewrite)
                     except BaseException as e:
-                        self.print_stderr('Invalid config setting for "url_rewrite". err:', e)
+                        self.logger.info(f'Invalid config setting for "url_rewrite". err: {e}')
                 out['request_url'] = os.path.join(baseurl, 'req', key[0], key[1], key, key)
                 out['URI'] += '&r=' + out['request_url']
                 out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
@@ -1569,7 +1571,7 @@ class Deterministic_Wallet(Abstract_Wallet):
     @profiler
     def try_detecting_internal_addresses_corruption(self):
         if not is_using_fast_ecc():
-            self.print_error("internal address corruption test skipped due to missing libsecp256k1")
+            self.logger.info("internal address corruption test skipped due to missing libsecp256k1")
             return
         addresses_all = self.get_addresses()
         # sample 1: first few
@@ -1929,7 +1931,7 @@ def restore_wallet_from_text(text, *, path, network, passphrase=None, password=N
 
     if network:
         wallet.start_network(network)
-        print_error("Recovering wallet...")
+        _logger.info("Recovering wallet...")
         wallet.wait_until_synchronized()
         wallet.stop_threads()
         # note: we don't wait for SPV

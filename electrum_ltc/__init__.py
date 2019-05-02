@@ -1,5 +1,5 @@
 from .version import ELECTRUM_VERSION
-from .util import format_satoshis, print_msg, print_error, set_verbosity
+from .util import format_satoshis
 from .wallet import Wallet
 from .storage import WalletStorage
 from .coinchooser import COIN_CHOOSERS

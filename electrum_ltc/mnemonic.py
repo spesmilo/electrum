@@ -30,9 +30,11 @@ import string
 
 import ecdsa
 
-from .util import print_error, resource_path, bfh, bh2u
+from .util import resource_path, bfh, bh2u
 from .crypto import hmac_oneshot
 from . import version
+from .logging import Logger
+
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -114,16 +116,17 @@ filenames = {
 
 # FIXME every time we instantiate this class, we read the wordlist from disk
 # and store a new copy of it in memory
-class Mnemonic(object):
+class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
+        Logger.__init__(self)
         lang = lang or 'en'
-        print_error('language', lang)
+        self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
         self.wordlist = load_wordlist(filename)
-        print_error("wordlist has %d words"%len(self.wordlist))
+        self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
@@ -163,7 +166,7 @@ class Mnemonic(object):
         bpw = math.log(len(self.wordlist), 2)
         # rounding
         n = int(math.ceil(num_bits/bpw) * bpw)
-        print_error("make_seed. prefix: '%s'"%prefix, "entropy: %d bits"%n)
+        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {n} bits")
         entropy = 1
         while entropy < pow(2, n - bpw):
             # try again if seed would not contain enough words
@@ -179,7 +182,7 @@ class Mnemonic(object):
                 continue
             if is_new_seed(seed, prefix):
                 break
-        print_error('%d words'%len(seed.split()))
+        self.logger.info(f'{len(seed.split())} words')
         return seed
 
 

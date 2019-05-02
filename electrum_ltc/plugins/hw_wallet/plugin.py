@@ -111,7 +111,7 @@ class HW_PluginBase(BasePlugin):
                     _("Library version for '{}' is incompatible.").format(self.name)
                     + '\nInstalled: {}, Needed: {} <= x < {}'
                     .format(library_version, version_str(self.minimum_library), max_version_str))
-            self.print_stderr(self.libraries_available_message)
+            self.logger.warning(self.libraries_available_message)
             return False
 
         return True
