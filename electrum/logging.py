@@ -9,6 +9,7 @@ import pathlib
 import os
 import platform
 from typing import Optional
+import copy
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -20,6 +21,10 @@ class LogFormatterForFiles(logging.Formatter):
             datefmt = "%Y%m%dT%H%M%S.%fZ"
         return date.strftime(datefmt)
 
+    def format(self, record):
+        record = _shorten_name_of_logrecord(record)
+        return super().format(record)
+
 
 file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(name)s | %(message)s")
 
@@ -27,20 +32,26 @@ file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(na
 class LogFormatterForConsole(logging.Formatter):
 
     def format(self, record):
-        # strip the main module name from the logger name
-        if record.name.startswith("electrum."):
-            record.name = record.name[9:]
-        # manual map to shorten common module names
-        record.name = record.name.replace("interface.Interface", "interface", 1)
-        record.name = record.name.replace("network.Network", "network", 1)
-        record.name = record.name.replace("synchronizer.Synchronizer", "synchronizer", 1)
-        record.name = record.name.replace("verifier.SPV", "verifier", 1)
-        record.name = record.name.replace("gui.qt.main_window.ElectrumWindow", "gui.qt.main_window", 1)
+        record = _shorten_name_of_logrecord(record)
         return super().format(record)
 
 
 # try to make console log lines short... no timestamp, short levelname, no "electrum."
 console_formatter = LogFormatterForConsole(fmt="%(levelname).1s | %(name)s | %(message)s")
+
+
+def _shorten_name_of_logrecord(record: logging.LogRecord) -> logging.LogRecord:
+    record = copy.copy(record)  # avoid mutating arg
+    # strip the main module name from the logger name
+    if record.name.startswith("electrum."):
+        record.name = record.name[9:]
+    # manual map to shorten common module names
+    record.name = record.name.replace("interface.Interface", "interface", 1)
+    record.name = record.name.replace("network.Network", "network", 1)
+    record.name = record.name.replace("synchronizer.Synchronizer", "synchronizer", 1)
+    record.name = record.name.replace("verifier.SPV", "verifier", 1)
+    record.name = record.name.replace("gui.qt.main_window.ElectrumWindow", "gui.qt.main_window", 1)
+    return record
 
 
 # enable logs universally (including for other libraries)
