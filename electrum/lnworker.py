@@ -433,7 +433,7 @@ class LNWallet(LNWorker):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        self.logger.info('on_channel_closed', funding_outpoint)
+        self.logger.info(f'on_channel_closed {funding_outpoint}')
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
         self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(True)
@@ -468,14 +468,14 @@ class LNWallet(LNWorker):
                 local_height = self.network.get_local_height()
                 remaining = e_tx.cltv_expiry - local_height
                 if remaining > 0:
-                    self.logger.info(e_tx.name, 'waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
+                    self.logger.info('waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
                                      .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if e_tx.csv_delay:
                 prev_height = self.network.lnwatcher.get_tx_height(prev_txid)
                 remaining = e_tx.csv_delay - prev_height.conf
                 if remaining > 0:
-                    self.logger.info(e_tx.name, 'waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
+                    self.logger.info('waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
                                      .format(e_tx.name, prev_height.conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if broadcast:
