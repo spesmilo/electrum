@@ -33,7 +33,7 @@ from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
 
 import aiorpcx
-from aiorpcx import RPCSession, Notification
+from aiorpcx import RPCSession, Notification, NetAddress
 from aiorpcx.curio import timeout_after, TaskTimeout
 import certifi
 
@@ -218,7 +218,7 @@ class Interface(PrintError):
                 auth = None
             else:
                 auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
-            addr = "{}:{}".format(proxy['host'], proxy['port'])
+            addr = NetAddress(proxy['host'], proxy['port'])
             if proxy['mode'] == "socks4":
                 self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS4a, auth)
             elif proxy['mode'] == "socks5":
