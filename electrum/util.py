@@ -23,7 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
-from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
+from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -493,9 +493,14 @@ def is_valid_email(s):
     return re.match(regexp, s) is not None
 
 
-def is_hash256_str(text: str) -> bool:
+def is_hash256_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     if len(text) != 64: return False
+    return is_hex_str(text)
+
+
+def is_hex_str(text: Any) -> bool:
+    if not isinstance(text, str): return False
     try:
         bytes.fromhex(text)
     except:

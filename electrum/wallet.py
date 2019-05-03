@@ -1252,7 +1252,7 @@ class Abstract_Wallet(AddressSynchronizer):
         index = self.get_address_index(address)
         return self.keystore.sign_message(index, message, password)
 
-    def decrypt_message(self, pubkey, message, password):
+    def decrypt_message(self, pubkey, message, password) -> bytes:
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
@@ -1889,7 +1889,8 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path, network, passphrase=None, password=None, encrypt_file=True):
+def restore_wallet_from_text(text, *, path, network=None,
+                             passphrase=None, password=None, encrypt_file=True):
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
