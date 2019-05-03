@@ -300,9 +300,9 @@ class Network(Logger):
         from . import lnwatcher
         from . import lnworker
         from . import lnrouter
-        self.channel_db = lnrouter.ChannelDB(self)
-        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         if self.config.get('lightning'):
+            self.channel_db = lnrouter.ChannelDB(self)
+            self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lnwatcher = lnwatcher.LNWatcher(self)
             self.lngossip = lnworker.LNGossip(self)
         else:
