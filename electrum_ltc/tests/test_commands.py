@@ -1,7 +1,10 @@
 import unittest
+from unittest import mock
 from decimal import Decimal
 
 from electrum_ltc.commands import Commands, eval_bool
+from electrum_ltc import storage
+from electrum_ltc.wallet import restore_wallet_from_text
 
 from . import TestCaseForTestnet
 
@@ -61,6 +64,16 @@ class TestCommands(unittest.TestCase):
         for xkey1, xtype1 in xprvs:
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, cmds.convert_xkey(xkey1, xtype2))
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_encrypt_decrypt(self, mock_write):
+        wallet = restore_wallet_from_text('p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D',
+                                          path='if_this_exists_mocking_failed_648151893')['wallet']
+        cmds = Commands(config=None, wallet=wallet, network=None)
+        cleartext = "asdasd this is the message"
+        pubkey = "021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da"
+        ciphertext = cmds.encrypt(pubkey, cleartext)
+        self.assertEqual(cleartext, cmds.decrypt(pubkey, ciphertext))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):

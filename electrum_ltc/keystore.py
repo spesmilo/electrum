@@ -105,12 +105,12 @@ class Software_KeyStore(KeyStore):
     def may_have_password(self):
         return not self.is_watching_only()
 
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
 
-    def decrypt_message(self, sequence, message, password):
+    def decrypt_message(self, sequence, message, password) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         ec = ecc.ECPrivkey(privkey)
         decrypted = ec.decrypt_message(message)
