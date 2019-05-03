@@ -859,14 +859,14 @@ class Network(Logger):
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through
         except aiorpcx.jsonrpc.CodeMessageError as e:
-            self.logger.info(f"broadcast_transaction error: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
             raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
         except BaseException as e:  # intentional BaseException for sanity!
-            self.logger.info(f"broadcast_transaction error2: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
             send_exception_to_crash_reporter(e)
             raise TxBroadcastUnknownError() from e
         if out != tx.txid():
-            self.logger.info(f"unexpected txid for broadcast_transaction: {out} != {tx.txid()}")
+            self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
     @staticmethod
