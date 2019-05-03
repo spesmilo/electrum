@@ -16,11 +16,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "MEADS.hopto.org": {
-        "pruning": "-",
-        "s": "50002",
-        "version": "1.4"
-    },
     "VPS.hsmiths.com": {
         "pruning": "-",
         "s": "50002",
@@ -67,11 +62,6 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
-    },
-    "btc.smsys.me": {
-        "pruning": "-",
-        "s": "995",
         "version": "1.4"
     },
     "btc.xskyx.net": {
@@ -385,6 +375,61 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoin.dragon.zone": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.4"
+    },
+    "ecdsa.net" : {
+        "pruning": "-",
+        "s": "110",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "btc.usebsv.com": {
+        "pruning": "-",
+        "s": "50006",
+        "version": "1.4"
+    },
+    "e2.keff.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum3.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum5.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrumx.electricnewyear.net": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "fortress.qtornado.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "green-gold.westeurope.cloudapp.azure.com": {
+        "pruning": "-",
+        "s": "56002",
+        "t": "56001",
         "version": "1.4"
     }
 }
