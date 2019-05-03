@@ -147,12 +147,6 @@ prepare_wine() {
         info "Installing Packages from requirements-binaries ..."
         $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
 
-        info "Installing Pyinstaller ..."
-        # Install PyInstaller
-        wget https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip || fail "Could not download Pyinstaller"
-        verify_hash fix_2952.zip b5084345fa7454cf8901e32d005e68bd24ded403829e10fbc61527a92e68909a
-        $PYTHON -m pip install fix_2952.zip || fail "Failed to install Pyinstaller"
-
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         info "Installing ZBar ..."

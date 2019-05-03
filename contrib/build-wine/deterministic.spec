@@ -26,13 +26,15 @@ binaries = [("c:/tmp/libusb-1.0.dll", ".")]
 # Add secp library
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
 
+# The below is no longer necessary. PyInstaller 3.4+ picks these up properly
+# now and puts them in the Qt dirs.
 # Add Windows OpenGL and D3D implementation DLLs (see #1255 and #1253)
-binaries += [
-    ('C:/python*/libEGL.dll', '.'),
-    ('C:/python*/libGLESv2.dll', '.'),
-    ('C:/python*/d3dcompiler_*.dll', '.'),
-    ('C:/python*/opengl32sw.dll', '.'),
-]
+#binaries += [
+#    ('C:/python*/libEGL.dll', '.'),
+#    ('C:/python*/libGLESv2.dll', '.'),
+#    ('C:/python*/d3dcompiler_*.dll', '.'),
+#    ('C:/python*/opengl32sw.dll', '.'),
+#]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]

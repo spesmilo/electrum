@@ -6,3 +6,5 @@ pip
 setuptools
 pywin32-ctypes==0.1.2
 win-inet-pton==1.0.1
+pyinstaller==3.4
+
