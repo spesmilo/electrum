@@ -4,9 +4,9 @@ set -eu
 
 # alice -> bob -> carol
 
-alice="./run_electrum --regtest -D /tmp/alice"
-bob="./run_electrum --regtest -D /tmp/bob"
-carol="./run_electrum --regtest -D /tmp/carol"
+alice="./run_electrum --regtest --lightning -D /tmp/alice"
+bob="./run_electrum --regtest --lightning -D /tmp/bob"
+carol="./run_electrum --regtest --lightning -D /tmp/carol"
 
 if [[ $# -eq 0 ]]; then
     echo "syntax: init|start|open|status|pay|close|stop"

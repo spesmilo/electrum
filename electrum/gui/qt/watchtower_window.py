@@ -50,6 +50,8 @@ class WatcherList(MyTreeView):
         pass
 
     def update(self):
+        if self.parent.lnwatcher is None:
+            return
         self.model().clear()
         self.update_headers({0:_('Outpoint'), 1:_('Tx'), 2:_('Status')})
         sweepstore = self.parent.lnwatcher.sweepstore

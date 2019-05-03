@@ -166,11 +166,9 @@ class Daemon(DaemonThread):
             self.init_server(config, fd)
         # server-side watchtower
         self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
-        # client-side
         if self.network:
             self.network.start([
                 self.fx.run,
-                self.network.lnwatcher.watchtower_task,
             ])
         self.start()
 

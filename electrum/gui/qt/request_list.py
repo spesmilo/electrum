@@ -136,7 +136,8 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
-        for key, (invoice, direction, is_paid) in lnworker.invoices.items():
+        items = lnworker.invoices.items() if lnworker else []
+        for key, (invoice, direction, is_paid) in items:
             if direction == SENT:
                 continue
             status = lnworker.get_invoice_status(key)

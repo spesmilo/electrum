@@ -272,8 +272,9 @@ class HistoryModel(QAbstractItemModel, Logger):
             selected_row = selected.row()
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
-        r = self.parent.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
-        lightning_history = self.parent.wallet.lnworker.get_history()
+        wallet = self.parent.wallet
+        r = wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
+        lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
         self.set_visibility_of_columns()
         #if r['transactions'] == list(self.transactions.values()):
         #    return
@@ -433,12 +434,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def __init__(self, parent, model: HistoryModel):
         super().__init__(parent, self.create_menu, stretch_column=HistoryColumns.DESCRIPTION)
+        self.config = parent.config
         self.hm = model
         self.proxy = HistorySortModel(self)
         self.proxy.setSourceModel(model)
         self.setModel(self.proxy)
-
-        self.config = parent.config
+        if not self.config.get('lightning'):
+            self.setColumnHidden(HistoryColumns.LN_BALANCE, True)
+            self.setColumnHidden(HistoryColumns.LN_AMOUNT, True)
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
         self.start_timestamp = None

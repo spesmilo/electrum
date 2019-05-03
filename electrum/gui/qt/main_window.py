@@ -431,7 +431,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
-        wallet.lnworker.on_channels_updated()
+        if wallet.lnworker:
+            wallet.lnworker.on_channels_updated()
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus
@@ -626,7 +627,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
-        add_toggle_action(view_menu, self.channels_tab)
+        if self.config.get('lightning'):
+            add_toggle_action(view_menu, self.channels_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
@@ -635,7 +637,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # Settings / Preferences are all reserved keywords in macOS using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
-        tools_menu.addAction(_("&Watchtower"), lambda: self.gui_object.show_watchtower_dialog(self))
+        if self.config.get('lightning'):
+            tools_menu.addAction(_("&Watchtower"), lambda: self.gui_object.show_watchtower_dialog(self))
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -858,8 +861,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
-                l = self.wallet.lnworker.get_balance()
-                if l:
+                if self.wallet.lnworker:
+                    l = self.wallet.lnworker.get_balance()
                     text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())
 
                 # append fiat balance and price
@@ -967,13 +970,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.create_invoice_button = QPushButton(_('On-chain'))
         self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
-        self.create_lightning_invoice_button = QPushButton(_('Lightning'))
-        self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
-        self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.create_invoice_button)
-        buttons.addWidget(self.create_lightning_invoice_button)
+        if self.config.get('lightning'):
+            self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+            self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
+            self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
+            buttons.addWidget(self.create_lightning_invoice_button)
         grid.addLayout(buttons, 4, 3, 1, 2)
 
         self.receive_address_e = ButtonsTextEdit()

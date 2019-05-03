@@ -302,8 +302,12 @@ class Network(Logger):
         from . import lnrouter
         self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-        self.lnwatcher = lnwatcher.LNWatcher(self)
-        self.lngossip = lnworker.LNGossip(self)
+        if self.config.get('lightning'):
+            self.lnwatcher = lnwatcher.LNWatcher(self)
+            self.lngossip = lnworker.LNGossip(self)
+        else:
+            self.lnwatcher = None
+            self.lngossip = None
 
     def run_from_another_thread(self, coro):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -1146,6 +1150,11 @@ class Network(Logger):
         self._set_oneserver(self.config.get('oneserver', False))
         self._start_interface(self.default_server)
 
+        if self.lnwatcher:
+            self._jobs.append(self.lnwatcher.watchtower_task)
+        if self.lngossip:
+            self.lngossip.start_network(self)
+
         async def main():
             try:
                 await self._init_headers_file()
@@ -1160,8 +1169,6 @@ class Network(Logger):
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
         self.trigger_callback('network_updated')
-        #
-        self.lngossip.start_network(self)
 
     def start(self, jobs: List=None):
         self._jobs = jobs or []
