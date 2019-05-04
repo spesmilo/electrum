@@ -364,6 +364,9 @@ class Abstract_Wallet(AddressSynchronizer):
         can_bump = False
         label = ''
         tx_hash = tx.txid()
+        if fee is None:
+            fee = self.db.get_tx_fee(tx_hash)
+            self.logger.debug('%s transaction fee: %d sat', tx_hash, fee)
         tx_mined_status = self.get_tx_height(tx_hash)
         if tx.is_complete():
             if self.db.get_transaction(tx_hash):
@@ -375,8 +378,6 @@ class Abstract_Wallet(AddressSynchronizer):
                         status = _('Not verified')
                 elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
-                    if fee is None:
-                        fee = self.db.get_tx_fee(tx_hash)
                     if fee and self.network and self.network.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
