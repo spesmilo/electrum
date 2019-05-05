@@ -3005,6 +3005,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
         gui_widgets.append((updatecheck_cb, None))
 
+        filelogging_cb = QCheckBox(_("Write logs to file"))
+        filelogging_cb.setChecked(not self.config.get('disablefilelogging', False))
+        def on_set_filelogging(v):
+            self.config.set_key('disablefilelogging', v == Qt.Unchecked, save=True)
+        filelogging_cb.stateChanged.connect(on_set_filelogging)
+        filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
+        gui_widgets.append((filelogging_cb, None))
+
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)

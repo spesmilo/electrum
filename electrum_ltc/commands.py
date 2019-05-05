@@ -941,7 +941,7 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--disablefilelogging", action="store_true", dest="disablefilelogging", default=False, help="Do not log to file")
+    group.add_argument("--disablefilelogging", action="store_true", dest="disablefilelogging", default=None, help="Do not log to file")
 
 def get_parser():
     # create main parser
