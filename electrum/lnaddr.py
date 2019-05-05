@@ -52,7 +52,7 @@ def unshorten_amount(amount):
     # BOLT #11:
     # A reader SHOULD fail if `amount` contains a non-digit, or is followed by
     # anything except a `multiplier` in the table above.
-    if not re.fullmatch("\d+[pnum]?", str(amount)):
+    if not re.fullmatch("\\d+[pnum]?", str(amount)):
         raise ValueError("Invalid amount '{}'".format(amount))
 
     if unit in units.keys():
@@ -286,7 +286,7 @@ def lndecode(a, verbose=False, expected_hrp=None):
     addr = LnAddr()
     addr.pubkey = None
 
-    m = re.search("[^\d]+", hrp[2:])
+    m = re.search("[^\\d]+", hrp[2:])
     if m:
         addr.currency = m.group(0)
         amountstr = hrp[2+m.end():]
