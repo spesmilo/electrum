@@ -1,2 +1,2 @@
 PyQt5<5.12
-pycryptodomex
+pycryptodomex<3.8
