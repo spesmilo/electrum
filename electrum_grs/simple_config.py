@@ -10,9 +10,11 @@ from numbers import Real
 from copy import deepcopy
 
 from . import util
-from .util import (user_dir, print_error, PrintError, make_dir,
+from .util import (user_dir, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
+from .logging import get_logger, Logger
+
 
 FEE_ETA_TARGETS = [5, 4, 3, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
@@ -26,6 +28,7 @@ FEERATE_STATIC_VALUES = [1000, 2000, 3000, 5000, 8000, 10000, 30000, 50000, 8000
 
 
 config = None
+_logger = get_logger(__name__)
 
 
 def get_config():
@@ -41,7 +44,7 @@ def set_config(c):
 FINAL_CONFIG_VERSION = 3
 
 
-class SimpleConfig(PrintError):
+class SimpleConfig(Logger):
     """
     The SimpleConfig class is responsible for handling operations involving
     configuration files.
@@ -57,6 +60,8 @@ class SimpleConfig(PrintError):
 
         if options is None:
             options = {}
+
+        Logger.__init__(self)
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
@@ -118,7 +123,7 @@ class SimpleConfig(PrintError):
             path = os.path.join(path, 'simnet')
             make_dir(path, allow_symlink=False)
 
-        self.print_error("electrum-grs directory", path)
+        self.logger.info(f"electrum-grs directory {path}")
         return path
 
     def rename_config_keys(self, config, keypairs, deprecation_warning=False):
@@ -129,21 +134,21 @@ class SimpleConfig(PrintError):
                 if new_key not in config:
                     config[new_key] = config[old_key]
                     if deprecation_warning:
-                        self.print_stderr('Note that the {} variable has been deprecated. '
-                                     'You should use {} instead.'.format(old_key, new_key))
+                        self.logger.warning('Note that the {} variable has been deprecated. '
+                                            'You should use {} instead.'.format(old_key, new_key))
                 del config[old_key]
                 updated = True
         return updated
 
     def set_key(self, key, value, save=True):
         if not self.is_modifiable(key):
-            self.print_stderr("Warning: not changing config key '%s' set on the command line" % key)
+            self.logger.warning(f"not changing config key '{key}' set on the command line")
             return
         try:
             json.dumps(key)
             json.dumps(value)
         except:
-            self.print_error(f"json error: cannot save {repr(key)} ({repr(value)})")
+            self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
             return
         self._set_key_in_user_config(key, value, save)
 
@@ -168,7 +173,7 @@ class SimpleConfig(PrintError):
 
     def upgrade(self):
         with self.lock:
-            self.print_error('upgrading config')
+            self.logger.info('upgrading config')
 
             self.convert_version_2()
             self.convert_version_3()
@@ -221,8 +226,8 @@ class SimpleConfig(PrintError):
     def get_config_version(self):
         config_version = self.get('config_version', 1)
         if config_version > FINAL_CONFIG_VERSION:
-            self.print_stderr('WARNING: config version ({}) is higher than ours ({})'
-                             .format(config_version, FINAL_CONFIG_VERSION))
+            self.logger.warning('config version ({}) is higher than latest ({})'
+                                .format(config_version, FINAL_CONFIG_VERSION))
         return config_version
 
     def is_modifiable(self, key):
@@ -275,7 +280,7 @@ class SimpleConfig(PrintError):
             self.set_key('recently_open', recent)
 
     def set_session_timeout(self, seconds):
-        self.print_error("session timeout -> %d seconds" % seconds)
+        self.logger.info(f"session timeout -> {seconds} seconds")
         self.set_key('session_timeout', seconds)
 
     def get_session_timeout(self):
@@ -402,11 +407,14 @@ class SimpleConfig(PrintError):
         """Returns (text, tooltip) where
         text is what we target: static fee / num blocks to confirm in / mempool depth
         tooltip is the corresponding estimate (e.g. num blocks for a static fee)
+
+        fee_rate is in gro/kbyte
         """
         if fee_rate is None:
             rate_str = 'unknown'
         else:
-            rate_str = format_fee_satoshis(fee_rate/1000) + ' gro/byte'
+            fee_rate = fee_rate/1000
+            rate_str = format_fee_satoshis(fee_rate) + ' gro/byte'
 
         if dyn:
             if mempool:
@@ -573,7 +581,7 @@ def read_user_config(path):
             data = f.read()
         result = json.loads(data)
     except:
-        print_error("Warning: Cannot read config file.", config_path)
+        _logger.warning(f"Cannot read config file. {config_path}")
         return {}
     if not type(result) is dict:
         return {}

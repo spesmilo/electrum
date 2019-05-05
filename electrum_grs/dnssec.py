@@ -173,7 +173,10 @@ dns.dnssec.validate = dns.dnssec._validate
 
 
 
-from .util import print_error
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 # hard-coded trust anchors (root KSKs)
@@ -262,8 +265,7 @@ def query(url, rtype):
         out = get_and_validate(ns, url, rtype)
         validated = True
     except BaseException as e:
-        #traceback.print_exc(file=sys.stderr)
-        print_error("DNSSEC error:", str(e))
+        _logger.info(f"DNSSEC error: {str(e)}")
         resolver = dns.resolver.get_default_resolver()
         out = resolver.query(url, rtype)
         validated = False

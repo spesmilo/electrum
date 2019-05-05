@@ -35,11 +35,12 @@ from electrum_grs.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModal
                                   Buttons, CancelButton, TaskThread)
 
 from electrum_grs.i18n import _
-from electrum_grs.util import PrintError
+from electrum_grs.logging import Logger
+
 
 # The trickiest thing about this handler was getting windows properly
 # parented on macOS.
-class QtHandlerBase(QObject, PrintError):
+class QtHandlerBase(QObject, Logger):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.'''
 
@@ -53,7 +54,8 @@ class QtHandlerBase(QObject, PrintError):
     status_signal = pyqtSignal(object)
 
     def __init__(self, win, device):
-        super(QtHandlerBase, self).__init__()
+        QObject.__init__(self)
+        Logger.__init__(self)
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
         self.message_signal.connect(self.message_dialog)

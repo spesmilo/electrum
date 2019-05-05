@@ -36,9 +36,9 @@ try:
 except ImportError:
     sys.exit("install SimpleWebSocketServer")
 
-from .util import PrintError
 from . import bitcoin
 from .synchronizer import SynchronizerBase
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
@@ -48,20 +48,24 @@ if TYPE_CHECKING:
 request_queue = asyncio.Queue()
 
 
-class ElectrumWebSocket(WebSocket, PrintError):
+class ElectrumWebSocket(WebSocket, Logger):
+
+    def __init__(self):
+        WebSocket.__init__(self)
+        Logger.__init__(self)
 
     def handleMessage(self):
         assert self.data[0:3] == 'id:'
-        self.print_error("message received", self.data)
+        self.logger.info(f"message received {self.data}")
         request_id = self.data[3:]
         asyncio.run_coroutine_threadsafe(
             request_queue.put((self, request_id)), asyncio.get_event_loop())
 
     def handleConnected(self):
-        self.print_error("connected", self.address)
+        self.logger.info(f"connected {self.address}")
 
     def handleClose(self):
-        self.print_error("closed", self.address)
+        self.logger.info(f"closed {self.address}")
 
 
 class BalanceMonitor(SynchronizerBase):
@@ -92,13 +96,13 @@ class BalanceMonitor(SynchronizerBase):
             try:
                 addr, amount = self.make_request(request_id)
             except Exception:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 continue
             self.expected_payments[addr].append((ws, amount))
             await self._add_address(addr)
 
     async def _on_address_status(self, addr, status):
-        self.print_error('new status for addr {}'.format(addr))
+        self.logger.info(f'new status for addr {addr}')
         sh = bitcoin.address_to_scripthash(addr)
         balance = await self.network.get_balance_for_scripthash(sh)
         for ws, amount in self.expected_payments[addr]:

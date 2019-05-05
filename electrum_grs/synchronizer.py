@@ -33,6 +33,7 @@ from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash, is_address
 from .network import UntrustedServerReturnedError
+from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
@@ -131,7 +132,7 @@ class Synchronizer(SynchronizerBase):
         self.requested_histories = {}
 
     def diagnostic_name(self):
-        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+        return self.wallet.diagnostic_name()
 
     def is_up_to_date(self):
         return (not self.requested_addrs
@@ -139,7 +140,7 @@ class Synchronizer(SynchronizerBase):
                 and not self.requested_tx)
 
     async def _on_address_status(self, addr, status):
-        history = self.wallet.history.get(addr, [])
+        history = self.wallet.db.get_addr_history(addr)
         if history_status(history) == status:
             return
         if addr in self.requested_histories:
@@ -148,7 +149,7 @@ class Synchronizer(SynchronizerBase):
         self.requested_histories[addr] = status
         h = address_to_scripthash(addr)
         result = await self.network.get_history_for_scripthash(h)
-        self.print_error("receiving history", addr, len(result))
+        self.logger.info(f"receiving history {addr} {len(result)}")
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
@@ -156,10 +157,10 @@ class Synchronizer(SynchronizerBase):
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that txids are unique
         if len(hashes) != len(result):
-            self.print_error("error: server history has non-unique txids: %s"% addr)
+            self.logger.info(f"error: server history has non-unique txids: {addr}")
         # Check that the status corresponds to what was announced
         elif history_status(hist) != status:
-            self.print_error("error: status mismatch: %s" % addr)
+            self.logger.info(f"error: status mismatch: {addr}")
         else:
             # Store received history
             self.wallet.receive_history_callback(addr, hist, tx_fees)
@@ -175,7 +176,7 @@ class Synchronizer(SynchronizerBase):
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
-            if tx_hash in self.wallet.transactions:
+            if self.wallet.db.get_transaction(tx_hash):
                 continue
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
@@ -209,14 +210,15 @@ class Synchronizer(SynchronizerBase):
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
-        self.print_error(f"received tx {tx_hash} height: {tx_height} bytes: {len(tx.raw)}")
+        self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(tx.raw)}")
         # callbacks
         self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)
 
     async def main(self):
         self.wallet.set_up_to_date(False)
         # request missing txns, if any
-        for history in self.wallet.history.values():
+        for addr in self.wallet.db.get_history():
+            history = self.wallet.db.get_addr_history(addr)
             # Old electrum-grs servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
@@ -256,7 +258,7 @@ class Notifier(SynchronizerBase):
             await self._add_address(addr)
 
     async def _on_address_status(self, addr, status):
-        self.print_error('new status for addr {}'.format(addr))
+        self.logger.info(f'new status for addr {addr}')
         headers = {'content-type': 'application/json'}
         data = {'address': addr, 'status': status}
         for url in self.watched_addresses[addr]:
@@ -265,6 +267,6 @@ class Notifier(SynchronizerBase):
                     async with session.post(url, json=data, headers=headers) as resp:
                         await resp.text()
             except Exception as e:
-                self.print_error(str(e))
+                self.logger.info(str(e))
             else:
-                self.print_error('Got Response for {}'.format(addr))
+                self.logger.info(f'Got Response for {addr}')

@@ -42,7 +42,7 @@ from aiorpcx import TaskGroup
 from aiohttp import ClientResponse
 
 from . import util
-from .util import (PrintError, print_error, log_exceptions, ignore_exceptions,
+from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer)
 
@@ -52,14 +52,20 @@ from . import blockchain
 from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import (Interface, serialize_server, deserialize_server,
-                        RequestTimedOut, NetworkTimeout)
+                        RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
+from .logging import get_logger, Logger
+
+
+_logger = get_logger(__name__)
+
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
-BLOCKCHAIN_REQUEST_TIMEOUT = 60
+NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_RECENT_SERVERS = 20
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -112,9 +118,11 @@ def filter_protocol(hostmap, protocol='s'):
     return eligible
 
 
-def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap=None, protocol='s', exclude_set=None):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
+    if exclude_set is None:
+        exclude_set = set()
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -211,15 +219,16 @@ class UntrustedServerReturnedError(Exception):
 INSTANCE = None
 
 
-class Network(PrintError):
+class Network(Logger):
     """The Network class manages a set of connections to remote electrum-grs
     servers, each connected socket is handled by an Interface() object.
     """
-    verbosity_filter = 'n'
 
     def __init__(self, config: SimpleConfig=None):
         global INSTANCE
         INSTANCE = self
+
+        Logger.__init__(self)
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
@@ -229,7 +238,7 @@ class Network(PrintError):
             config = {}  # Do not use mutables as default values!
         self.config = SimpleConfig(config) if isinstance(config, dict) else config  # type: SimpleConfig
         blockchain.read_blockchains(self.config)
-        self.print_error("blockchains", list(map(lambda b: b.forkpoint, blockchain.blockchains.values())))
+        self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
         # Server for addresses and transactions
@@ -239,7 +248,7 @@ class Network(PrintError):
             try:
                 deserialize_server(self.default_server)
             except:
-                self.print_error('Warning: failed to parse server-string; falling back to random.')
+                self.logger.warning('failed to parse server-string; falling back to random.')
                 self.default_server = None
         if not self.default_server:
             self.default_server = pick_random_server()
@@ -288,7 +297,7 @@ class Network(PrintError):
         return fut.result()
 
     @staticmethod
-    def get_instance():
+    def get_instance() -> Optional["Network"]:
         return INSTANCE
 
     def with_recent_servers_lock(func):
@@ -348,12 +357,12 @@ class Network(PrintError):
     async def _server_is_lagging(self):
         sh = self.get_server_height()
         if not sh:
-            self.print_error('no height for main interface')
+            self.logger.info('no height for main interface')
             return True
         lh = self.get_local_height()
         result = (lh - sh) > 1
         if result:
-            self.print_error(f'{self.default_server} is lagging ({sh} vs {lh})')
+            self.logger.info(f'{self.default_server} is lagging ({sh} vs {lh})')
         return result
 
     def _set_status(self, status):
@@ -377,11 +386,16 @@ class Network(PrintError):
         async def get_donation_address():
             addr = await session.send_request('server.donation_address')
             if not bitcoin.is_address(addr):
-                self.print_error(f"invalid donation address from server: {addr}")
+                if addr:  # ignore empty string
+                    self.logger.info(f"invalid donation address from server: {repr(addr)}")
                 addr = ''
             self.donation_address = addr
         async def get_server_peers():
-            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
+            server_peers = await session.send_request('server.peers.subscribe')
+            random.shuffle(server_peers)
+            max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
+            server_peers = server_peers[:max_accepted_peers]
+            self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -408,7 +422,7 @@ class Network(PrintError):
             for i in FEE_ETA_TARGETS:
                 fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
         self.config.mempool_fees = histogram = histogram_task.result()
-        self.print_error(f'fee_histogram {histogram}')
+        self.logger.info(f'fee_histogram {histogram}')
         self.notify('fee_histogram')
         fee_estimates_eta = {}
         for nblock_target, task in fee_tasks:
@@ -416,7 +430,7 @@ class Network(PrintError):
             fee_estimates_eta[nblock_target] = fee
             if fee < 0: continue
             self.config.update_fee_estimates(nblock_target, fee)
-        self.print_error(f'fee_estimates {fee_estimates_eta}')
+        self.logger.info(f'fee_estimates {fee_estimates_eta}')
         self.notify('fee')
 
     def get_status_value(self, key):
@@ -482,7 +496,7 @@ class Network(PrintError):
     def _start_interface(self, server: str):
         if server not in self.interfaces and server not in self.connecting:
             if server == self.default_server:
-                self.print_error(f"connecting to {server} as new interface")
+                self.logger.info(f"connecting to {server} as new interface")
                 self._set_status('connecting')
             self.connecting.add(server)
             self.server_queue.put(server)
@@ -501,7 +515,7 @@ class Network(PrintError):
         if not hasattr(socket, "_getaddrinfo"):
             socket._getaddrinfo = socket.getaddrinfo
         if proxy:
-            self.print_error('setting proxy', proxy)
+            self.logger.info(f'setting proxy {proxy}')
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
@@ -516,31 +530,47 @@ class Network(PrintError):
 
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
-        def needs_dns_resolving(host2):
+        def needs_dns_resolving(host):
             try:
-                ipaddress.ip_address(host2)
+                ipaddress.ip_address(host)
                 return False  # already valid IP
             except ValueError:
                 pass  # not an IP
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True
-        try:
-            if needs_dns_resolving(host):
-                answers = dns.resolver.query(host)
-                addr = str(answers[0])
-            else:
-                addr = host
-        except dns.exception.DNSException as e:
-            # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
-            # this is normal. Simply report back failure:
-            raise socket.gaierror(11001, 'getaddrinfo failed') from e
-        except BaseException as e:
-            # Possibly internal error in dnspython :( see #4483
+        def resolve_with_dnspython(host):
+            addrs = []
+            # try IPv6
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                pass
+            except BaseException as e:
+                _logger.info(f'dnspython failed to resolve dns (AAAA) with error: {e}')
+            # try IPv4
+            try:
+                answers = dns.resolver.query(host, dns.rdatatype.A)
+                addrs += [str(answer) for answer in answers]
+            except dns.exception.DNSException as e:
+                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
+                # Simply report back failure; except if we already have some results.
+                if not addrs:
+                    raise socket.gaierror(11001, 'getaddrinfo failed') from e
+            except BaseException as e:
+                # Possibly internal error in dnspython :( see #4483
+                _logger.info(f'dnspython failed to resolve dns (A) with error: {e}')
+            if addrs:
+                return addrs
             # Fall back to original socket.getaddrinfo to resolve dns.
-            print_error('dnspython failed to resolve dns with error:', e)
-            addr = host
-        return socket._getaddrinfo(addr, *args, **kwargs)
+            return [host]
+        addrs = [host]
+        if needs_dns_resolving(host):
+            addrs = resolve_with_dnspython(host)
+        list_of_list_of_socketinfos = [socket._getaddrinfo(addr, *args, **kwargs) for addr in addrs]
+        list_of_socketinfos = [item for lst in list_of_list_of_socketinfos for item in lst]
+        return list_of_socketinfos
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -579,7 +609,7 @@ class Network(PrintError):
                 await self.switch_lagging_interface()
 
     def _set_oneserver(self, oneserver: bool):
-        self.num_server = 10 if not oneserver else 0
+        self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
         self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
@@ -617,24 +647,24 @@ class Network(PrintError):
             filtered = list(filter(lambda iface: iface.blockchain.check_hash(pref_height, pref_hash),
                                    interfaces))
             if filtered:
-                self.print_error("switching to preferred fork")
+                self.logger.info("switching to preferred fork")
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
                 return
             else:
-                self.print_error("tried to switch to preferred fork but no interfaces are on it")
+                self.logger.info("tried to switch to preferred fork but no interfaces are on it")
         # try to switch to best chain
         if self.blockchain().parent is None:
             return  # already on best chain
         filtered = list(filter(lambda iface: iface.blockchain.parent is None,
                                interfaces))
         if filtered:
-            self.print_error("switching to best chain")
+            self.logger.info("switching to best chain")
             chosen_iface = random.choice(filtered)
             await self.switch_to_interface(chosen_iface.server)
         else:
             # FIXME switch to best available?
-            self.print_error("tried to switch to best chain but no interfaces are on it")
+            self.logger.info("tried to switch to best chain but no interfaces are on it")
 
     async def switch_to_interface(self, server: str):
         """Switch to server as our main interface. If no connection exists,
@@ -661,7 +691,7 @@ class Network(PrintError):
 
         i = self.interfaces[server]
         if old_interface != i:
-            self.print_error("switching to", server)
+            self.logger.info(f"switching to {server}")
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
             await i.group.spawn(self._request_server_info(i))
@@ -685,7 +715,7 @@ class Network(PrintError):
         if server in self.recent_servers:
             self.recent_servers.remove(server)
         self.recent_servers.insert(0, server)
-        self.recent_servers = self.recent_servers[0:20]
+        self.recent_servers = self.recent_servers[:NUM_RECENT_SERVERS]
         self._save_recent_servers()
 
     async def connection_down(self, interface: Interface):
@@ -710,12 +740,12 @@ class Network(PrintError):
     @log_exceptions
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.proxy)
-        timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
+        # note: using longer timeouts here as DNS can sometimes be slow!
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
-            #traceback.print_exc()
-            self.print_error(f"couldn't launch iface {server} -- {repr(e)}")
+            self.logger.info(f"couldn't launch iface {server} -- {repr(e)}")
             await interface.close()
             return
         else:
@@ -731,6 +761,32 @@ class Network(PrintError):
 
         self._add_recent_server(server)
         self.trigger_callback('network_updated')
+
+    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
+        # main interface is exempt. this makes switching servers easier
+        if iface_to_check.is_main_server():
+            return True
+        if not iface_to_check.bucket_based_on_ipaddress():
+            return True
+        # bucket connected interfaces
+        with self.interfaces_lock:
+            interfaces = list(self.interfaces.values())
+        if iface_to_check in interfaces:
+            interfaces.remove(iface_to_check)
+        buckets = defaultdict(list)
+        for iface in interfaces:
+            buckets[iface.bucket_based_on_ipaddress()].append(iface)
+        # check proposed server against buckets
+        onion_servers = buckets[BUCKET_NAME_OF_ONION_SERVERS]
+        if iface_to_check.is_tor():
+            # keep number of onion servers below half of all connected servers
+            if len(onion_servers) > NUM_TARGET_CONNECTED_SERVERS // 2:
+                return False
+        else:
+            bucket = iface_to_check.bucket_based_on_ipaddress()
+            if len(buckets[bucket]) > 0:
+                return False
+        return True
 
     async def _init_headers_file(self):
         b = blockchain.get_best_chain()
@@ -803,14 +859,14 @@ class Network(PrintError):
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through
         except aiorpcx.jsonrpc.CodeMessageError as e:
-            self.print_error(f"broadcast_transaction error: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
             raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
         except BaseException as e:  # intentional BaseException for sanity!
-            self.print_error(f"broadcast_transaction error2: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
             send_exception_to_crash_reporter(e)
             raise TxBroadcastUnknownError() from e
         if out != tx.txid():
-            self.print_error(f"unexpected txid for broadcast_transaction: {out} != {tx.txid()}")
+            self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
     @staticmethod
@@ -915,10 +971,15 @@ class Network(PrintError):
         # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/rpc/rawtransaction.cpp
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
+        # https://github.com/bitcoin/bitcoin/blob/d7d7d315060620446bd363ca50f95f79d3260db7/src/util/error.cpp
         rawtransaction_error_messages = {
             r"Missing inputs",
             r"transaction already in block chain",
+            r"Transaction already in block chain",
             r"TX decode failed",
+            r"Peer-to-peer functionality missing or disabled",
+            r"Transaction rejected by AcceptToMemoryPool",
+            r"AcceptToMemoryPool failed",
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
@@ -1052,7 +1113,7 @@ class Network(PrintError):
         self.main_taskgroup = main_taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self.connecting and not self.server_queue
-        self.print_error('starting network')
+        self.logger.info('starting network')
         self.disconnected_servers = set([])
         self.protocol = deserialize_server(self.default_server)[2]
         self.server_queue = queue.Queue()
@@ -1069,7 +1130,7 @@ class Network(PrintError):
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
             except Exception as e:
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('')
                 raise e
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
@@ -1081,11 +1142,11 @@ class Network(PrintError):
 
     @log_exceptions
     async def _stop(self, full_shutdown=False):
-        self.print_error("stopping network")
+        self.logger.info("stopping network")
         try:
             await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
-            self.print_error(f"exc during main_taskgroup cancellation: {repr(e)}")
+            self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
         self.main_taskgroup = None  # type: TaskGroup
         self.interface = None  # type: Interface
         self.interfaces = {}  # type: Dict[str, Interface]
@@ -1125,11 +1186,20 @@ class Network(PrintError):
         async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+                # FIXME this should try to honour "healthy spread of connected servers"
                 self._start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
-                self.print_error('network: retrying connections')
+                self.logger.info('network: retrying connections')
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
+        async def maintain_healthy_spread_of_connected_servers():
+            with self.interfaces_lock: interfaces = list(self.interfaces.values())
+            random.shuffle(interfaces)
+            for iface in interfaces:
+                if not self.check_interface_against_healthy_spread_of_connected_servers(iface):
+                    self.logger.info(f"disconnecting from {iface.server}. too many connected "
+                                     f"servers already in bucket {iface.bucket_based_on_ipaddress()}")
+                    await self._close_interface(iface)
         async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
@@ -1140,6 +1210,7 @@ class Network(PrintError):
             try:
                 await launch_already_queued_up_new_interfaces()
                 await maybe_queue_new_interfaces_to_be_launched_later()
+                await maintain_healthy_spread_of_connected_servers()
                 await maintain_main_interface()
             except asyncio.CancelledError:
                 # suppress spurious cancellations
@@ -1148,8 +1219,10 @@ class Network(PrintError):
                     raise
             await asyncio.sleep(0.1)
 
-
-    async def _send_http_on_proxy(self, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
+    @classmethod
+    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
+                                  body: bytes = None, json: dict = None, headers=None,
+                                  on_finish=None, timeout=None):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1157,7 +1230,9 @@ class Network(PrintError):
             headers = {}
         if on_finish is None:
             on_finish = default_on_finish
-        async with make_aiohttp_session(self.proxy) as session:
+        network = cls.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy, timeout=timeout) as session:
             if method == 'get':
                 async with session.get(url, params=params, headers=headers) as resp:
                     return await on_finish(resp)
@@ -1172,14 +1247,17 @@ class Network(PrintError):
             else:
                 assert False
 
-    @staticmethod
-    def send_http_on_proxy(method, url, **kwargs):
-        network = Network.get_instance()
-        assert network._loop_thread is not threading.currentThread()
-        coro = asyncio.run_coroutine_threadsafe(network._send_http_on_proxy(method, url, **kwargs), network.asyncio_loop)
-        return coro.result(5)
-
-
+    @classmethod
+    def send_http_on_proxy(cls, method, url, **kwargs):
+        network = cls.get_instance()
+        if network:
+            assert network._loop_thread is not threading.currentThread()
+            loop = network.asyncio_loop
+        else:
+            loop = asyncio.get_event_loop()
+        coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
+        # note: _send_http_on_proxy has its own timeout, so no timeout here:
+        return coro.result()
 
     # methods used in scripts
     async def get_peers(self):
