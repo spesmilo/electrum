@@ -843,12 +843,20 @@ class Plugin(BasePlugin):
 
         extra = window.send_tab_shuffle_extra
         spend_mode = extra.spendingMode()
+        external_coin_addresses = set()  # this is only ever used if they are doing a sweep. in which case we always allow the coins involved in the sweep
+        for pubkey in window.tx_external_keypairs:
+            a = Address.from_pubkey(pubkey)
+            external_coin_addresses.add(a)
 
         if spend_mode == extra.SpendingModeShuffled:
             # in Cash-Shuffle mode + shuffled spending we can ONLY spend shuffled coins + unshuffled living on a shuffled coin address
             shuf_adrs_seen = set()
             shuf_coins_seen = set()
             for coin in coins.copy():
+                if coin['address'] in external_coin_addresses:
+                    # completely bypass this filter for external keypair dict
+                    # which is only used for sweep dialog in send tab
+                    continue
                 is_shuf_adr = CoinUtils.is_shuffled_address(window.wallet, coin['address'])
                 if is_shuf_adr:
                     shuf_adrs_seen.add(coin['address'])
@@ -868,9 +876,10 @@ class Plugin(BasePlugin):
         elif spend_mode == extra.SpendingModeUnshuffled:
             # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins (not sitting on a shuffled address)
             for coin in coins.copy():
-                if (CoinUtils.is_coin_shuffled(window.wallet, coin)
+                if ((CoinUtils.is_coin_shuffled(window.wallet, coin)
                         or is_coin_busy_shuffling(window, coin)
-                        or CoinUtils.is_shuffled_address(window.wallet, coin['address'])):
+                        or CoinUtils.is_shuffled_address(window.wallet, coin['address']))
+                        and coin not in external_coin_addresses):
                     coins.remove(coin)
 
     @hook
