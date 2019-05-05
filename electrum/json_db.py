@@ -606,6 +606,10 @@ class JsonDB(Logger):
         return list(self.transactions.keys())
 
     @locked
+    def num_transactions(self) -> int:
+        return len(self.transactions)
+
+    @locked
     def get_history(self):
         return list(self.history.keys())
 

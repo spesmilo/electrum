@@ -65,6 +65,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self.requested_addrs = set()
         self.scripthash_to_address = {}
         self._processed_some_notifications = False  # so that we don't miss them
+        self.num_subscriptions = 0
         # Queues
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
@@ -92,12 +93,16 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         """Handle the change of the status of an address."""
         raise NotImplementedError()  # implemented by subclasses
 
+    def _on_successful_subscribe(self):
+        self.num_subscriptions += 1
+
     async def send_subscriptions(self):
         async def subscribe_to_address(addr):
             h = address_to_scripthash(addr)
             self.scripthash_to_address[h] = addr
             await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
             self.requested_addrs.remove(addr)
+            self._on_successful_subscribe()
 
         while True:
             addr = await self.add_queue.get()
@@ -138,6 +143,10 @@ class Synchronizer(SynchronizerBase):
         return (not self.requested_addrs
                 and not self.requested_histories
                 and not self.requested_tx)
+
+    def _on_successful_subscribe(self):
+        super()._on_successful_subscribe()
+        self.wallet.network.trigger_callback('wallet_updated', self.wallet)
 
     async def _on_address_status(self, addr, status):
         history = self.wallet.db.get_addr_history(addr)
