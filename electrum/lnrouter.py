@@ -293,7 +293,7 @@ class ChannelDB(SqlDB):
 
     @sql
     #@profiler
-    def on_channel_announcement(self, msg_payloads, trusted=False):
+    def on_channel_announcement(self, msg_payloads, trusted=True):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
         new_channels = {}
