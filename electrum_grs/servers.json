@@ -3,440 +3,480 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum2.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum3.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum4.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum5.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum6.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum7.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum8.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum9.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum10.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum11.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum12.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum13.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum14.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum15.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum16.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum17.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum18.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum19.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum20.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum21.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum22.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum23.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum24.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum25.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum26.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum27.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum28.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum29.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum30.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum31.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum32.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum33.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum34.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum35.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum36.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum37.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum38.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum39.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "electrum40.groestlcoin.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "6brsrbiinpc32tfc.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "xkj42efxrcy6vbfw.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "j2pokkxrnqifawlo.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "fxqag2xgbttgpn5t.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "wbu6iwai7g5vsmqf.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "ozarkd36gllcq64p.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "lgafnxxckcohp3lb.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "daxevrnxtrjtatnq.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "54fufvlyfsv6mu27.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "oopkp4mazgysotus.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "imfxdu2iaxphpzoj.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "msu62n2wehlyvu73.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "4g54umgydy2efvkp.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "nxb5shpaqcppuaac.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "liciqskhe3kb56sx.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "6urwohx677tqyx4d.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "jmkqrcrthxzgijzc.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "o2i7q65crpvgkyhp.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "sakl2ebpspx4yqux.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "kahwte3yfwedilib.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "4jnj4nztibl6nzr7.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "7bh7oexd6sgaa2ui.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "6txnygqn2lo3pas7.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "vhaltx6l3qz7m6gm.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "pcorvh3z6l4qsfvh.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "4vncucq2hxqgobn4.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "ezwaifwooob3xitg.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "uqxfaectrpqqvogm.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "tewjvvb2acejbpwu.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "bmbrjepkos5brm3m.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "evkxwqlvatx2bbuk.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "ekjgl6n6jhcqfq2x.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "5seia6dn4dphcw4n.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "c7kmgs5kd4wvgyo2.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "ygovc7jlb6itiis4.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "f33ys4h3e4nbdrdm.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "csg7djvlqujxn4qt.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "yw7dotigvofzqmql.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "aal7howc56u3j5bg.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     },
     "gnuvqomyhedouwqw.onion": {
         "pruning": "-",
+        "s": "50002",
         "t": "50001",
-        "version": "1.1"
+        "version": "1.4"
     }
 }
