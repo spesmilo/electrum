@@ -971,10 +971,15 @@ class Network(Logger):
         # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/rpc/rawtransaction.cpp
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
+        # https://github.com/bitcoin/bitcoin/blob/d7d7d315060620446bd363ca50f95f79d3260db7/src/util/error.cpp
         rawtransaction_error_messages = {
             r"Missing inputs",
             r"transaction already in block chain",
+            r"Transaction already in block chain",
             r"TX decode failed",
+            r"Peer-to-peer functionality missing or disabled",
+            r"Transaction rejected by AcceptToMemoryPool",
+            r"AcceptToMemoryPool failed",
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
