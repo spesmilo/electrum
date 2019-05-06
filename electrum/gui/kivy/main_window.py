@@ -180,7 +180,8 @@ class ElectrumWindow(App):
 
     def on_history(self, d):
         Logger.info("on_history")
-        self.wallet.clear_coin_price_cache()
+        if self.wallet:
+            self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
 
     def on_fee_histogram(self, *args):
