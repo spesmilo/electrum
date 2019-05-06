@@ -309,7 +309,7 @@ class AddressSynchronizer(Logger):
                         self.db.remove_spent_outpoint(prevout_hash, prevout_n)
 
         with self.transaction_lock:
-            self.logger.info("removing tx from history", tx_hash)
+            self.logger.info(f"removing tx from history {tx_hash}")
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
