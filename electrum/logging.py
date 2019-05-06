@@ -167,9 +167,22 @@ def configure_logging(config):
 
     from . import ELECTRUM_VERSION
     _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - https://github.com/spesmilo/electrum")
-    _logger.info(f"Python version: {sys.version}. On platform: {platform.platform()}")
+    _logger.info(f"Python version: {sys.version}. On platform: {describe_os_version()}")
     _logger.info(f"Logging to file: {str(_logfile_path)}")
 
 
 def get_logfile_path() -> Optional[pathlib.Path]:
     return _logfile_path
+
+
+def describe_os_version() -> str:
+    if 'ANDROID_DATA' in os.environ:
+        from kivy import utils
+        if utils.platform is not "android":
+            return utils.platform
+        import jnius
+        bv = jnius.autoclass('android.os.Build$VERSION')
+        b = jnius.autoclass('android.os.Build')
+        return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
+    else:
+        return platform.platform()

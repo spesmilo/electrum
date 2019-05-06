@@ -156,14 +156,6 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
     def get_wallet_type(self):
         return self.main_window.wallet.wallet_type
 
-    def get_os_version(self):
-        if utils.platform is not "android":
-            return utils.platform
-        import jnius
-        bv = jnius.autoclass('android.os.Build$VERSION')
-        b = jnius.autoclass('android.os.Build')
-        return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
-
 
 class CrashReportDetails(Factory.Popup):
     def __init__(self, text):
