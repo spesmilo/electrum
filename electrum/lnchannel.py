@@ -177,9 +177,11 @@ class Channel(Logger):
         for subject in LOCAL, REMOTE:
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
-                rhash = bh2u(htlc.payment_hash)
+                if htlc_id in log.get('fails',{}):
+                    continue
                 status = 'settled' if htlc_id in log.get('settles',{}) else 'inflight'
                 direction = SENT if subject is LOCAL else RECEIVED
+                rhash = bh2u(htlc.payment_hash)
                 out[rhash] = (self.channel_id, htlc, direction, status)
         return out
 
