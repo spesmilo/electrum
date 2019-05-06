@@ -305,8 +305,8 @@ class LNWallet(LNWorker):
                 chan_id, htlc, _direction, status = plist[0]
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat= int(_direction) * htlc.amount_msat
-                label = ''
                 timestamp = htlc.timestamp
+                label = self.get_invoice_label(bfh(payment_hash))
             else:
                 # assume forwarding
                 direction = 'forwarding'
@@ -742,6 +742,14 @@ class LNWallet(LNWorker):
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
 
+    def get_invoice_label(self, payment_hash: bytes) -> str:
+        try:
+            lnaddr = self.get_invoice(payment_hash)
+            label = lnaddr.get_description()
+        except:
+            label = ''
+        return label
+
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
         self.channel_db.load_data()
@@ -800,7 +808,7 @@ class LNWallet(LNWorker):
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             for channel_id, chan in self.channels.items():
                 yield {
-                    'local_htlcs':  json.loads(encoder.encode(chan.hm.log[LOCAL ])),
+                    'local_htlcs': json.loads(encoder.encode(chan.hm.log[LOCAL])),
                     'remote_htlcs': json.loads(encoder.encode(chan.hm.log[REMOTE])),
                     'channel_id': bh2u(chan.short_channel_id) if chan.short_channel_id else None,
                     'full_channel_id': bh2u(chan.channel_id),

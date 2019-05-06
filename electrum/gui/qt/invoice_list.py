@@ -100,11 +100,7 @@ class InvoiceList(MyTreeView):
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
             amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''
-            description = ''
-            for k,v in lnaddr.tags:
-                if k == 'd':
-                    description = v
-                    break
+            description = lnaddr.get_description()
             date_str = format_time(lnaddr.date)
             labels = [date_str, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]

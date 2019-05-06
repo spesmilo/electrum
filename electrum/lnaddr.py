@@ -258,6 +258,14 @@ class LnAddr(object):
     def get_min_final_cltv_expiry(self) -> int:
         return self._min_final_cltv_expiry
 
+    def get_description(self):
+        description = ''
+        for k,v in self.tags:
+            if k == 'd':
+                description = v
+                break
+        return description
+
 
 def lndecode(a, verbose=False, expected_hrp=None):
     if expected_hrp is None:
