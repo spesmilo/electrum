@@ -346,7 +346,7 @@ class LNWallet(LNWorker):
                 'txid': closing_txid,
                 'label': _('Close channel'),
                 'type': 'channel_closure',
-                'amount_msat': -chan.balance(LOCAL),
+                'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
                 'timestamp': closing_timestamp,
             }

@@ -81,8 +81,8 @@ class HistoryColumns(IntEnum):
     STATUS = 0
     DESCRIPTION = 1
     AMOUNT = 2
-    LN_AMOUNT = 3
-    BALANCE = 4
+    BALANCE = 3
+    LN_AMOUNT = 4
     LN_BALANCE = 5
     FIAT_VALUE = 6
     FIAT_ACQ_PRICE = 7
@@ -390,9 +390,9 @@ class HistoryModel(QAbstractItemModel, Logger):
             HistoryColumns.STATUS: _('Date'),
             HistoryColumns.DESCRIPTION: _('Description'),
             HistoryColumns.AMOUNT: _('Amount'),
-            HistoryColumns.LN_AMOUNT: u'\U0001f5f2',
+            HistoryColumns.LN_AMOUNT: u'\U0001f5f2 ' + _('Amount'),
             HistoryColumns.BALANCE: _('Balance'),
-            HistoryColumns.LN_BALANCE: u'\U0001f5f2',
+            HistoryColumns.LN_BALANCE: u'\U0001f5f2 ' + _('Balance'),
             HistoryColumns.FIAT_VALUE: fiat_title,
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,

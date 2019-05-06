@@ -90,7 +90,7 @@ class ChannelsList(MyTreeView):
     @QtCore.pyqtSlot()
     def do_update_rows(self):
         self.model().clear()
-        self.update_headers([_('Node ID'), _('Balance'), _('Remote'), _('Status')])
+        self.update_headers([_('Node ID'), _('Local'), _('Remote'), _('Status')])
         for chan in self.parent.wallet.lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             items[0].setData(chan.channel_id, QtCore.Qt.UserRole)
