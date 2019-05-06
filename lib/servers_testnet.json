@@ -5,11 +5,18 @@
     "blackie.c3-soft.com": {
         "s": "60002"
     },
+    "cash-testnet.theblains.org": {
+        "s" : "50004",
+        "t" : "50003"
+    },
     "testnet.imaginary.cash": {
         "s": "50002"
     },
     "testnet.bitcoincash.network": {
         "s" : "60002"
+    },
+    "ebf56u6xk2e2fjlqyuz4zjj2gsrrnavfronrerh7qcvzllknytdgmmyd.onion": {
+        "s" : "50004",
+        "t" : "50003"
     }
-
 }
