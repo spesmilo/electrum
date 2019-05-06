@@ -98,7 +98,7 @@ See :code:`contrib/osx/README.md`.
 Windows
 -------
 
-See :code:`contrib/build-wine/docker/README.md`.
+See :code:`contrib/build-wine/README.md`.
 
 
 Android
