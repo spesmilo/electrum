@@ -45,6 +45,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate)
+from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
@@ -229,11 +230,11 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
 
-        self.lnworker = None
         # invoices and contacts
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
+        self.lnworker = LNWallet(self) if get_config().get('lightning') else None
 
     def stop_threads(self):
         super().stop_threads()
@@ -249,8 +250,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        if network.config.get('lightning'):
-            self.lnworker = LNWallet(self)
+        if self.lnworker:
             self.lnworker.start_network(network)
 
     def load_and_cleanup(self):
