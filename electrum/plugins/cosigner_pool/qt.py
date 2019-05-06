@@ -193,7 +193,7 @@ class Plugin(BasePlugin):
             WaitingDialog(window, msg, task, on_success, on_failure)
 
     def on_receive(self, keyhash, message):
-        self.logger.info("signal arrived for", keyhash)
+        self.logger.info(f"signal arrived for {keyhash}")
         for key, _hash, window in self.keys:
             if _hash == keyhash:
                 break
