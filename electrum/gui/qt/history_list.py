@@ -642,7 +642,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         menu.addAction(_("Copy Transaction ID"), lambda: self.parent.app.clipboard().setText(tx_hash))
 
-        amount_columns = [HistoryColumns.COIN_VALUE, HistoryColumns.ONCHAIN_BALANCE, HistoryColumns.CHANNELS_BALANCE,
+        amount_columns = [HistoryColumns.AMOUNT, HistoryColumns.BALANCE, HistoryColumns.LN_AMOUNT, HistoryColumns.LN_BALANCE,
                           HistoryColumns.FIAT_VALUE, HistoryColumns.FIAT_ACQ_PRICE, HistoryColumns.FIAT_CAP_GAINS]
         if column in amount_columns:
             column_data = column_data.strip()
