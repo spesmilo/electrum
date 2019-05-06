@@ -31,6 +31,7 @@ import asyncio
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
+import itertools
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
@@ -75,14 +76,11 @@ class NotificationSession(RPCSession):
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.default_timeout = NetworkTimeout.Generic.NORMAL
-        self._msg_counter = 0
+        self._msg_counter = itertools.count(start=1)
+        self._requests_sent = 0
+        self._requests_answered = 0
         self.interface = None  # type: Optional[Interface]
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
-
-    def _get_and_inc_msg_counter(self):
-        # runs in event loop thread, no need for lock
-        self._msg_counter += 1
-        return self._msg_counter
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
@@ -105,7 +103,8 @@ class NotificationSession(RPCSession):
     async def send_request(self, *args, timeout=None, **kwargs):
         # note: semaphores/timeouts/backpressure etc are handled by
         # aiorpcx. the timeout arg here in most cases should not be set
-        msg_id = self._get_and_inc_msg_counter()
+        msg_id = next(self._msg_counter)
+        self._requests_sent += 1
         self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
         try:
             response = await asyncio.wait_for(
@@ -114,6 +113,7 @@ class NotificationSession(RPCSession):
         except (TaskTimeout, asyncio.TimeoutError) as e:
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
         else:
+            self._requests_answered += 1
             self.maybe_log(f"--> {response} (id: {msg_id})")
             return response
 
@@ -150,6 +150,9 @@ class NotificationSession(RPCSession):
         if not self.interface: return
         if self.interface.debug or self.interface.network.debug:
             self.interface.logger.debug(msg)
+
+    def num_requests_sent_and_answered(self) -> Tuple[int, int]:
+        return self._requests_sent, self._requests_answered
 
 
 class GracefulDisconnect(Exception): pass
@@ -653,6 +656,12 @@ class Interface(Logger):
         if not self._ipaddr_bucket:
             self._ipaddr_bucket = do_bucket()
         return self._ipaddr_bucket
+
+    def num_requests_sent_and_answered(self) -> Tuple[int, int]:
+        session = self.session
+        if not session:
+            return 0, 0
+        return session.num_requests_sent_and_answered()
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
