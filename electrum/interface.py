@@ -179,6 +179,8 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
 
 class Interface(Logger):
 
+    LOGGING_SHORTCUT = 'i'
+
     def __init__(self, network: 'Network', server: str, proxy: Optional[dict]):
         self.ready = asyncio.Future()
         self.got_disconnected = asyncio.Future()
