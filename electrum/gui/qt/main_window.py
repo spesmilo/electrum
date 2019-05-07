@@ -157,8 +157,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.create_status_bar()
         self.need_update = threading.Event()
-        self.need_update_ln = threading.Event()
-
         self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
             decimal_point_to_base_unit_name(self.decimal_point)
@@ -224,7 +222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels', 'ln_status', 'ln_message',
+                         'on_history', 'channel', 'channels', 'ln_message',
                          'ln_payment_completed']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
@@ -374,8 +372,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
             self.update_status()
-        elif event == 'ln_status':
-            self.need_update_ln.set()
         elif event == 'ln_payment_completed':
             # FIXME it is really inefficient to force update the whole GUI
             # just for a single LN payment. individual rows in lists should be updated instead.
@@ -638,7 +634,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
         if self.config.get('lightning'):
-            tools_menu.addAction(_("&Watchtower"), lambda: self.gui_object.show_watchtower_dialog(self))
+            tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)

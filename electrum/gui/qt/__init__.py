@@ -55,6 +55,7 @@ from .util import get_default_language, read_QIcon, ColorScheme, custom_message_
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
+from .lightning_dialog import LightningDialog
 
 
 class OpenFileEventFilter(QObject):
@@ -107,8 +108,8 @@ class ElectrumGui(Logger):
         self.timer.setSingleShot(False)
         self.timer.setInterval(500)  # msec
 
-        self.nd = None
-        self.watchtower_window = None
+        self.network_dialog = None
+        self.lightning_dialog = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
@@ -148,7 +149,7 @@ class ElectrumGui(Logger):
             m = self.tray.contextMenu()
             m.clear()
         if self.config.get('lightning'):
-            m.addAction(_("Watchtower"), self.show_watchtower_dialog)
+            m.addAction(_("Lightning"), self.show_lightning_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -181,33 +182,32 @@ class ElectrumGui(Logger):
     def close(self):
         for window in self.windows:
             window.close()
-        if self.nd:
-            self.nd.close()
-        if self.watchtower_window:
-            self.watchtower_window.close()
+        if self.network_dialog:
+            self.network_dialog.close()
+        if self.lightning_dialog:
+            self.lightning_dialog.close()
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
 
-    def show_watchtower_dialog(self, parent=None):
-        from .watchtower_window import WatchTowerWindow
-        if not self.watchtower_window:
-            self.watchtower_window = WatchTowerWindow(self)
-        self.watchtower_window.bring_to_top()
+    def show_lightning_dialog(self):
+        if not self.lightning_dialog:
+            self.lightning_dialog = LightningDialog(self)
+        self.lightning_dialog.bring_to_top()
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:
             parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
             return
-        if self.nd:
-            self.nd.on_update()
-            self.nd.show()
-            self.nd.raise_()
+        if self.network_dialog:
+            self.network_dialog.on_update()
+            self.network_dialog.show()
+            self.network_dialog.raise_()
             return
-        self.nd = NetworkDialog(self.daemon.network, self.config,
+        self.network_dialog = NetworkDialog(self.daemon.network, self.config,
                                 self.network_updated_signal_obj)
-        self.nd.show()
+        self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)

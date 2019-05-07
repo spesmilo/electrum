@@ -23,7 +23,6 @@ class ChannelsList(MyTreeView):
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
-        self.status = QLabel('')
 
     def format_fields(self, chan):
         labels = {}
@@ -98,19 +97,10 @@ class ChannelsList(MyTreeView):
 
     def get_toolbar(self):
         h = QHBoxLayout()
-        h.addWidget(self.status)
         h.addStretch()
         h.addWidget(EnterButton(_('Open Channel'), self.new_channel_dialog))
         return h
 
-    def update_status(self):
-        network = self.parent.network
-        if network.lngossip is None:
-            return
-        channel_db = self.parent.network.channel_db
-        num_peers = sum([p.initialized.is_set() for p in network.lngossip.peers.values()])
-        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, channel_db.num_nodes, channel_db.num_channels)
-        self.status.setText(msg)
 
     def statistics_dialog(self):
         channel_db = self.parent.network.channel_db

@@ -62,23 +62,29 @@ class WatcherList(MyTreeView):
             self.model().insertRow(self.model().rowCount(), items)
 
 
-class WatchTowerWindow(QDialog):
+class LightningDialog(QDialog):
 
     def __init__(self, gui_object):
         QDialog.__init__(self)
         self.gui_object = gui_object
         self.config = gui_object.config
-        self.lnwatcher = gui_object.daemon.network.lnwatcher
-        self.setWindowTitle(_('Watchtower'))
+        self.network = gui_object.daemon.network
+        self.lnwatcher = self.network.lnwatcher
+        self.setWindowTitle(_('Lightning'))
         self.setMinimumSize(600, 20)
         watchtower_url = self.config.get('watchtower_url')
         self.watchtower_e = QLineEdit(watchtower_url)
-        self.channel_list = WatcherList(self)
+        self.watcher_list = WatcherList(self)
+        # channel_db
+        network_w = QWidget()
+        network_vbox = QVBoxLayout(network_w)
+        self.status = QLabel('')
+        network_vbox.addWidget(self.status)
         # local
         local_w = QWidget()
         vbox_local = QVBoxLayout(local_w)
         vbox_local.addWidget(WWLabel(help_about))
-        vbox_local.addWidget(self.channel_list)
+        vbox_local.addWidget(self.watcher_list)
         # remote
         remote_w = QWidget()
         vbox_remote = QVBoxLayout(remote_w)
@@ -90,14 +96,24 @@ class WatchTowerWindow(QDialog):
         vbox_remote.addStretch(1)
         # tabs
         tabs = QTabWidget()
-        tabs.addTab(local_w, _('Local'))
-        tabs.addTab(remote_w, _('Remote'))
+        tabs.addTab(network_w, _('Network'))
+        tabs.addTab(local_w, _('Watchtower'))
+        tabs.addTab(remote_w, _('Settings'))
         vbox = QVBoxLayout(self)
         vbox.addWidget(tabs)
         b = QPushButton(_('Close'))
         b.clicked.connect(self.on_close)
         vbox.addLayout(Buttons(b))
-        self.channel_list.update()
+        self.watcher_list.update()
+        self.gui_object.timer.timeout.connect(self.update_status)
+
+    def update_status(self):
+        if self.network.lngossip is None:
+            return
+        channel_db = self.network.channel_db
+        num_peers = sum([p.initialized.is_set() for p in self.network.lngossip.peers.values()])
+        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, channel_db.num_nodes, channel_db.num_channels)
+        self.status.setText(msg)
 
     def on_close(self):
         url = self.watchtower_e.text()
