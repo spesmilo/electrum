@@ -312,6 +312,9 @@ class ElectrumWindow(App):
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
+
+        self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
+
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -745,7 +748,9 @@ class ElectrumWindow(App):
             server_height = self.network.get_server_height()
             server_lag = self.num_blocks - server_height
             if not self.wallet.up_to_date or server_height == 0:
-                status = _("Synchronizing...")
+                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                status = ("{} [size=18dp]({}/{})[/size]"
+                          .format(_("Synchronizing..."), num_answered, num_sent))
             elif server_lag > 1:
                 status = _("Server is lagging ({} blocks)").format(server_lag)
             else:
@@ -760,6 +765,12 @@ class ElectrumWindow(App):
             text = self.format_amount(c+x+u)
             self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
             self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
+
+    def update_wallet_synchronizing_progress(self, *dt):
+        if not self.wallet:
+            return
+        if not self.wallet.up_to_date:
+            self._trigger_update_status()
 
     def get_max_amount(self):
         from electrum.transaction import TxOutput

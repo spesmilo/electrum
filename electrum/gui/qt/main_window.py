@@ -740,6 +740,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
+        elif not self.wallet.up_to_date:
+            # this updates "synchronizing" progress
+            self.update_status()
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
@@ -822,7 +825,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             if not self.wallet.up_to_date or server_height == 0:
-                text = _("Synchronizing...")
+                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                text = ("{} ({}/{})"
+                        .format(_("Synchronizing..."), num_answered, num_sent))
                 icon = read_QIcon("status_waiting.png")
             elif server_lag > 1:
                 text = _("Server is lagging ({} blocks)").format(server_lag)
