@@ -10,10 +10,11 @@ def patch(dark: bool = False, darkstyle_ver: tuple = None):
     if not dark:
         return
 
+    app = QtWidgets.QApplication.instance()
+
     if darkstyle_ver is None or darkstyle_ver < (2,6,8):
-        # only apply patch to qdarkstyle < 2.6.8.
+        # only apply this patch to qdarkstyle < 2.6.8.
         # 2.6.8 and above seem to not need it.
-        app = QtWidgets.QApplication.instance()
 
         style_sheet = app.styleSheet()
         style_sheet = style_sheet + '''
@@ -26,4 +27,18 @@ def patch(dark: bool = False, darkstyle_ver: tuple = None):
         }
         '''
         app.setStyleSheet(style_sheet)
-        print_error("[style_patcher] qdarkstyle < 2.6.8 detected; stylesheet patched")
+        print_error("[style_patcher] qdarkstyle < 2.6.8 detected; stylesheet patch #1 applied")
+    else:
+        # This patch is for qdarkstyle >= 2.6.8.
+        # The payto edit looks to squashed.  Needs more space, so we make the
+        # QAbstractScrollArea padding 0px
+
+        style_sheet = app.styleSheet()
+        style_sheet = style_sheet + '''
+        QAbstractScrollArea {
+            padding: 0px;
+        }
+        '''
+        app.setStyleSheet(style_sheet)
+        print_error("[style_patcher] qdarkstyle >= 2.6.8 detected; stylesheet patch #2 applied")
+

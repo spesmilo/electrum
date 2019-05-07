@@ -1019,7 +1019,7 @@ class Abstract_Wallet(PrintError):
         if self.txi.get(tx_hash) == {}:
             d = self.txo.get(tx_hash, {})
             labels = []
-            for addr in d.keys():
+            for addr in list(d.keys()):  # use a copy to avoid possibility of dict changing during iteration, see #1328
                 label = self.labels.get(addr.to_storage_string())
                 if label:
                     labels.append(label)
