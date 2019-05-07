@@ -31,6 +31,7 @@ import asyncio
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
+import itertools
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
@@ -75,14 +76,9 @@ class NotificationSession(RPCSession):
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.default_timeout = NetworkTimeout.Generic.NORMAL
-        self._msg_counter = 0
+        self._msg_counter = itertools.count(start=1)
         self.interface = None  # type: Optional[Interface]
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
-
-    def _get_and_inc_msg_counter(self):
-        # runs in event loop thread, no need for lock
-        self._msg_counter += 1
-        return self._msg_counter
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
@@ -105,7 +101,7 @@ class NotificationSession(RPCSession):
     async def send_request(self, *args, timeout=None, **kwargs):
         # note: semaphores/timeouts/backpressure etc are handled by
         # aiorpcx. the timeout arg here in most cases should not be set
-        msg_id = self._get_and_inc_msg_counter()
+        msg_id = next(self._msg_counter)
         self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
         try:
             response = await asyncio.wait_for(
