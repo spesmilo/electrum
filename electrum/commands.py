@@ -46,7 +46,6 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
 from .address_synchronizer import TX_HEIGHT_LOCAL
-from .import lightning
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnpeer import channel_id_from_funding_tx
