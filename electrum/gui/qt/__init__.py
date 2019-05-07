@@ -147,9 +147,8 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        if self.watchtower_window:
-            submenu = m.addMenu(_("watchtower"))
-            submenu.addAction(_("Show/Hide"), self.watchtower_window.show_or_hide)
+        if self.config.get('lightning'):
+            m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -182,6 +181,8 @@ class ElectrumGui(Logger):
     def close(self):
         for window in self.windows:
             window.close()
+        if self.nd:
+            self.nd.close()
         if self.watchtower_window:
             self.watchtower_window.close()
 
@@ -189,11 +190,10 @@ class ElectrumGui(Logger):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
 
-    def create_watchtower_window(self):
+    def show_watchtower_dialog(self, parent=None):
         from .watchtower_window import WatchTowerWindow
-        self.watchtower_window = WatchTowerWindow(self)
-
-    def show_watchtower_dialog(self, parent):
+        if not self.watchtower_window:
+            self.watchtower_window = WatchTowerWindow(self)
         self.watchtower_window.bring_to_top()
 
     def show_network_dialog(self, parent):
@@ -337,8 +337,6 @@ class ElectrumGui(Logger):
             self.logger.exception('')
             return
         self.timer.start()
-        # todo: create this only if channels need it
-        self.create_watchtower_window()
 
         self.config.open_last_wallet()
         path = self.config.get_wallet_path()
@@ -352,7 +350,9 @@ class ElectrumGui(Logger):
                 return
             # check if a wizard is in progress
             with self._num_wizards_lock:
-                if self._num_wizards_in_progress > 0 or len(self.windows) > 0 or self.watchtower_window:
+                if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                    return
+                if self.config.get('lightning'):
                     return
             self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
