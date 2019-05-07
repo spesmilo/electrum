@@ -422,7 +422,7 @@ class Console(QtWidgets.QWidget):
                 try:
                     # eval is generally considered bad practice. use it wisely!
                     result = eval(command, self.namespace, self.namespace)
-                    if result != None:
+                    if result is not None:
                         if self.is_json:
                             util.print_msg(util.json_encode(result))
                         else:
