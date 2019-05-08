@@ -1,10 +1,9 @@
 # Release 3.3.5 - (not yet released)
 
- * The logging system has been overhauled (#5296). A notable change
-   is that logs are written to disk by default. Note that these can
-   sometimes include public keys or addresses. Opt-out is possible
-   through GUI preferences or the 'disablefilelogging' CLI option.
- * fix bug in synchronizer (#5122) where client could get stuck
+ * The logging system has been overhauled (#5296).
+   Logs can now also optionally be written to disk, disabled by default.
+ * Fix a bug in synchronizer (#5122) where client could get stuck.
+   Also, show the progress of history sync in the GUI. (#5319)
  * fix Revealer in Windows and MacOS binaries (#5027)
  * fiat rate providers:
    - added CoinGecko.com and CoinCap.io
