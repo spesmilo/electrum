@@ -68,11 +68,10 @@ class SeedLayout(QVBoxLayout):
                 self.on_edit()
                 if b:
                     msg = ' '.join([
-                        '<b>' + _('Warning') + ':</b>  ',
-                        _('BIP39 seeds can be imported in Electron Cash, so that users can access funds locked in other wallets.'),
-                        _('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
-                        _('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
-                        _('We do not guarantee that BIP39 imports will always be supported in Electron Cash.'),
+                        '<b>' + _('About BIP39') + ':</b>  ',
+                        _('BIP39 seeds can be imported into Electron Cash so that users can access funds from other wallets.'),
+                        _('However, we do not generate BIP39 seeds because our seed format is better at preserving future compatibility.'),
+                        _('BIP39 seeds do not include a version number, which makes compatibility with future software more difficult.')
                     ])
                 else:
                     msg = ''
@@ -83,7 +82,12 @@ class SeedLayout(QVBoxLayout):
             vbox.addWidget(cb_bip39)
 
 
-
+        # Note: I grep'd the sources. As of May 2019, this code path cannot
+        # be reached.  I'm leaving this here in case it serves some purpose
+        # still -- but I cannot see any place in the code where this branch
+        # would be triggered.  The below warning message is needlessly
+        # FUD-ey.  It should be altered if this code path is ever reinstated.
+        # -Calin
         if 'bip39_145' in self.options:
             def f(b):
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
