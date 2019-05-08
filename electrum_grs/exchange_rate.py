@@ -24,7 +24,7 @@ from .logging import Logger
 
 DEFAULT_ENABLED = False
 DEFAULT_CURRENCY = "EUR"
-DEFAULT_EXCHANGE = "CryptoCompare"  # default exchange should ideally provide historical rates
+DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -220,6 +220,24 @@ class Binance(ExchangeBase):
     async def request_history(self, ccy):
         json = await self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
         return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
+
+class CoinGecko(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.coingecko.com',
+                                   '/api/v3/simple/price?ids=groestlcoin&vs_currencies=%s' % ccy)
+        return {ccy: Decimal(json['groestlcoin'][ccy.lower()])}
+
+    def history_ccys(self):
+        # CoinGecko seems to have historical data for all ccys it supports
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        history = await self.get_json('api.coingecko.com',
+                                      '/api/v3/coins/groestlcoin/market_chart?vs_currency=%s&days=max' % ccy)
+
+        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
+                     for h in history['prices']])
 
 def dictinvert(d):
     inv = {}
