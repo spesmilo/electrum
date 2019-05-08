@@ -104,6 +104,9 @@ class HistorySortModel(QSortFilterProxyModel):
         except:
             return False
 
+def get_item_key(tx_item):
+    return tx_item.get('txid') or tx_item['payment_hash']
+
 class HistoryModel(QAbstractItemModel, Logger):
 
     def __init__(self, parent):
@@ -253,7 +256,7 @@ class HistoryModel(QAbstractItemModel, Logger):
 
     def update_label(self, row):
         tx_item = self.transactions.value_from_pos(row)
-        tx_item['label'] = self.parent.wallet.get_label(tx_item['txid'])
+        tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(row, 2)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
 
@@ -586,7 +589,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         index = self.model().mapToSource(index)
         row, column = index.row(), index.column()
         tx_item = self.hm.transactions.value_from_pos(row)
-        key = tx_item['txid']
+        key = get_item_key(tx_item)
         if column == HistoryColumns.DESCRIPTION:
             if self.wallet.set_label(key, text): #changed
                 self.hm.update_label(row)
@@ -758,4 +761,4 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def text_txid_from_coordinate(self, row, col):
         idx = self.model().mapToSource(self.model().index(row, col))
         tx_item = self.hm.transactions.value_from_pos(idx.row())
-        return self.hm.data(idx, Qt.DisplayRole).value(), tx_item['txid']
+        return self.hm.data(idx, Qt.DisplayRole).value(), get_item_key(tx_item)

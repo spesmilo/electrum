@@ -306,7 +306,7 @@ class LNWallet(LNWorker):
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat= int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
-                label = self.get_invoice_label(bfh(payment_hash))
+                label = self.wallet.get_label(payment_hash)
             else:
                 # assume forwarding
                 direction = 'forwarding'
@@ -606,6 +606,8 @@ class LNWallet(LNWorker):
 
     async def _pay(self, invoice, amount_sat=None, same_thread=False):
         addr = self._check_invoice(invoice, amount_sat)
+        self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
+        self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
         route = await self._create_route_from_invoice(decoded_invoice=addr)
         peer = self.peers[route[0].node_id]
         if not self.get_channel_by_short_id(route[0].short_channel_id):
@@ -618,7 +620,6 @@ class LNWallet(LNWorker):
         if not chan:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[route[0].node_id]
-        self.save_invoice(addr.paymenthash, pay_req, SENT, is_paid=False)
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
 
@@ -704,6 +705,7 @@ class LNWallet(LNWorker):
                            self.node_keypair.privkey)
         self.save_invoice(payment_hash, invoice, RECEIVED, is_paid=False)
         self.save_preimage(payment_hash, payment_preimage)
+        self.wallet.set_label(bh2u(payment_hash), message)
         return invoice
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes):
@@ -741,14 +743,6 @@ class LNWallet(LNWorker):
             return lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
-
-    def get_invoice_label(self, payment_hash: bytes) -> str:
-        try:
-            lnaddr = self.get_invoice(payment_hash)
-            label = lnaddr.get_description()
-        except:
-            label = ''
-        return label
 
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

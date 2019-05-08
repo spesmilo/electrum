@@ -75,6 +75,8 @@ class MockStorage:
 
 class MockWallet:
     storage = MockStorage()
+    def set_label(self, x, y):
+        pass
 
 class MockLNWallet:
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
