@@ -147,8 +147,11 @@ RUN cd /opt \
     && git fetch --all \
     && git checkout dec1badc3bd134a9a1c69275339423a95d63413e \
        # allowBackup="false":
-    && git cherry-pick 86eeec7c19679a5886d5e095ce0a43f1da138f87 \
+    && git cherry-pick d7f722e4e5d4b3e6f5b1733c95e6a433f78ee570 \
+       # enable IPv6:
+    && git cherry-pick a607f4a446773ac0b0a5150171092b0617fbe670 \
     && git cherry-pick 523d0261944f1e5ae7cc3adb6966dea3e5958d9d \
+       # fix groestlcoin_hash recipe
     && python3 -m pip install -e .
 
 # build env vars

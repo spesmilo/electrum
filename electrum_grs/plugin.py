@@ -48,6 +48,8 @@ hooks = {}
 
 class Plugins(DaemonThread):
 
+    LOGGING_SHORTCUT = 'p'
+
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
