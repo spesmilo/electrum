@@ -233,7 +233,7 @@ def configure_logging(config):
     _configure_verbosity(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     is_android = 'ANDROID_DATA' in os.environ
-    if is_android or config.get('disablefilelogging'):
+    if is_android or not config.get('log_to_file', False):
         pass  # disable file logging
     else:
         log_directory = pathlib.Path(config.path) / "logs"
