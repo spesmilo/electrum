@@ -124,9 +124,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
     def get_wallet_type(self):
         return self.main_window.wallet.wallet_type
 
-    def get_os_version(self):
-        return platform.platform()
-
 
 def _show_window(*args):
     if not Exception_Window._active_window:

@@ -260,6 +260,8 @@ class DebugMem(ThreadJob):
 class DaemonThread(threading.Thread, Logger):
     """ daemon thread that terminates cleanly """
 
+    LOGGING_SHORTCUT = 'd'
+
     def __init__(self):
         threading.Thread.__init__(self)
         Logger.__init__(self)

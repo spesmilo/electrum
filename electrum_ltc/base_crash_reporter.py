@@ -31,6 +31,7 @@ from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session
+from .logging import describe_os_version
 
 
 class BaseCrashReporter:
@@ -95,7 +96,7 @@ class BaseCrashReporter:
         args = {
             "app_version": ELECTRUM_VERSION,
             "python_version": sys.version,
-            "os": self.get_os_version(),
+            "os": describe_os_version(),
             "wallet_type": "unknown",
             "locale": locale.getdefaultlocale()[0] or "?",
             "description": self.get_user_description()
@@ -128,7 +129,4 @@ class BaseCrashReporter:
         raise NotImplementedError
 
     def get_wallet_type(self):
-        raise NotImplementedError
-
-    def get_os_version(self):
         raise NotImplementedError
