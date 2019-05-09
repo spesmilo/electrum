@@ -1,4 +1,4 @@
-# Release 3.3.5 - (not yet released)
+# Release 3.3.5 - (May 9, 2019)
 
  * The logging system has been overhauled (#5296).
    Logs can now also optionally be written to disk, disabled by default.
