@@ -991,6 +991,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def new_payment_request(self):
         addr = self.wallet.get_unused_address()
+        if not self.wallet.is_registered(addr):
+            msg = [
+                    _('Warning: no more whitelisted addresses in wallet.'),
+                    _('Non-whitelisted addresses cannot receive funds.'),
+                    _('If you want to whitelist more addresses, send a registeraddress transaction.')
+                    _('Continue with non-whitelisted address?')
+                   ]
+                if not self.question(' '.join(msg))
+                    return
         if addr is None:
             if not self.wallet.is_deterministic():
                 msg = [
@@ -1282,22 +1291,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return r
         return (TYPE_ADDRESS, self.wallet.dummy_address())
 
-    def do_update_fee(self):
+    def do_update_fee(self, outputs=None, fee_estimator=None, amount=None, b_allow_zerospend=False):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
         freeze_feerate = True
-        amount = '!' if self.is_max else self.amount_e.get_amount()
+        if amount == None:
+            amount = '!' if self.is_max else self.amount_e.get_amount()
         if amount is None:
             if not freeze_fee:
                 self.fee_e.setAmount(None)
             self.not_enough_funds = False
             self.statusBar().showMessage('')
         else:
-            fee_estimator = self.get_send_fee_estimator()
-            outputs = self.payto_e.get_outputs(self.is_max)
+            if not fee_estimator:
+                fee_estimator = self.get_send_fee_estimator()
+            if not outputs:
+                outputs = self.payto_e.get_outputs(self.is_max)
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [TxOutput(_type, addr, amount)]
@@ -1305,7 +1317,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             make_tx = lambda fee_est: \
                 self.wallet.make_unsigned_transaction(
                     self.get_coins(), outputs, self.config,
-                    fixed_fee=fee_est, is_sweep=is_sweep)
+                    fixed_fee=fee_est, is_sweep=is_sweep, b_allow_zerospend=b_allow_zerospend)
             try:
                 tx = make_tx(fee_estimator)
                 self.not_enough_funds = False
@@ -1451,14 +1463,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_estimator = self.fee_e.get_amount()
         return fee_estimator
 
-    def get_whitelist_fee_estimator(self):
-        #amount=quantize_feerate(self.config.fee_per_byte)
-        amount=self.feerate_e.get_amount()
-        amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
-        fee_estimator = partial(
-            simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
-        return fee_estimator
-
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
             self.show_error(_('Payment request has expired'))
@@ -1502,9 +1506,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return outputs, fee_estimator, label, coins
 
     def read_pending_addresses(self, pay_from_coins, pay_from_address):
-        kyc_pubkey = bfh(self.wallet.get_kyc_pubkey())
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        kyc_pubkey = self.wallet.get_kyc_pubkey()
         if kyc_pubkey == None:
             return None
+
+        kyc_pubkey = bfh(kyc_pubkey)
+        
 
         label = 'registeraddresstx'
 
@@ -1544,8 +1555,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not outputs:
             self.show_error(_('No outputs'))
             return
-
-        fee_estimator = self.get_whitelist_fee_estimator()
+       
+        amount=self.feerate_e.get_amount()
+        amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
+        fee_estimator = partial(
+            simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
+        self.do_update_fee(outputs, fee_estimator, 0, True)
+        fee_estimator=self.fee_e.get_amount()
         return outputs, fee_estimator, label
 
     def do_preview(self):
@@ -1556,7 +1572,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         self.set_pay_from(pay_from_coins)
-        self.update_fee()
+        self.amount_e.setAmount(0)
 
         r = self.read_pending_addresses(pay_from_coins, pay_from_address)
 
@@ -1564,7 +1580,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         
         outputs, fee_estimator, tx_desc = r
-
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True, True)
 
     def do_send(self, preview = False):
@@ -2526,6 +2541,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @protected
     def register_wallet_dialog(self, password):
+        if self.wallet.get_kyc_pubkey() != None:
+            self.show_message(_("This wallet is already whitelisted"))
+            return
+
         if self.wallet.is_watching_only():
             self.show_message(_("This is a watching-only wallet"))
             return

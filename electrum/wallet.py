@@ -35,6 +35,7 @@ import json
 import copy
 import errno
 import traceback
+import binascii
 from functools import partial
 from numbers import Number
 from decimal import Decimal
@@ -604,11 +605,6 @@ class Abstract_Wallet(AddressSynchronizer):
             fee_estimator = fixed_fee
         else:
             raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
-
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
@@ -1249,13 +1245,162 @@ class Abstract_Wallet(AddressSynchronizer):
         return False
 
     def parse_policy_tx(self, tx: transaction.Transaction):
-        if self.parse_user_onboard_tx(tx):
-            return True
+        if self.parse_registeraddress_tx(tx):
+                return True
         if self.parse_whitelist_tx(tx):
             return True
         return False
 
-    def parse_user_onboard_tx(self, tx: transaction.Transaction):
+    #Get the address the transaction fee was paid from
+    def get_from_addresses(self, tx):
+        from_addresses=[]
+        input_addresses = set()
+        for txin in  tx.inputs():
+            input_addresses.add(self.get_txin_address(txin))
+        return input_addresses
+
+    def parse_registeraddress_data(self, data, tx):
+        # We must have already been assigned a kyc public key
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        if self.kyc_pubkey == None:
+            return False
+
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sor out what to do for encrypted wallets.
+                return False
+            else:
+                return False
+        else:
+            password = None
+
+        fromAddresses = self.get_from_addresses(tx)
+        if fromAddresses == None:
+            return False
+
+        fromAddress=None
+        for address in fromAddresses:
+            if self.is_mine(address):
+                fromAddress=address
+                break
+            
+        if fromAddress == None:
+            return False
+
+        try: 
+            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
+            fromKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return False
+
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
+        try:
+            plaintext=str(fromKey.decrypt_message(data, ephemeral_pubkey_bytes=bfh(self.kyc_pubkey)))
+        except Exception:
+            return False
+
+        ptbytes=bytes(plaintext.get_value(), 'utf-8')
+
+        #Add addresses to the list of registered addresses
+        #First 20 bytes == address
+        #Next 33 bytes == untweaked public key
+        i1=0
+        ptlen=len(ptbytes)
+        addrs=[]
+        while True:
+            i2==i1+20
+            i3=i2+33
+            if i3 > ptlen:
+                break
+            addrs.append(base_encode(ptbytes[i1:i2], base=58))
+
+        set_registered_state(addrs, True)
+        return True
+
+    def parse_onboard_data(self, data):
+        pubKeySize=33
+        addressSize=20
+        minPayloadSize=2
+
+        i1=0
+        i2=33
+
+        if(len(data)<2*pubKeySize+minPayloadSize):
+            return False
+        
+        kyc_pubkey=data[i1:i2]
+        #Check if this is a onboarding TX
+        try:
+            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
+        except ecc.InvalidECPointException:
+            return False
+        except ValueError:
+            return False
+        
+        i1=i2
+        i2+=33
+        userOnboardPubKey = data[i1:i2]         
+        try:
+            _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
+        except InvalidECPointException:
+            return False
+        except ValueError:
+            return False
+
+        #Check that this wallet holds the onboard user private key
+        onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
+        if not self.is_mine(onboardAddress):
+            return False
+
+
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sor out what to do for encrypted wallets.
+                return False
+            else:
+                return False
+        else:
+            password = None
+
+        try: 
+            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return False
+
+        i1=i2
+        ciphertext=data[i1:]
+        try:
+            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True)
+        except Exception:
+            return False
+        #Confirm that this was encrypted by the kyc private key owner
+        if not ephemeral == _kyc_pubkey:
+            return False
+        
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        self.set_kyc_pubkey(bh2u(kyc_pubkey))
+        
+        return True
+
+    def parse_registeraddress_tx(self, tx: transaction.Transaction):
         decoded=dict()
         data=None       
         outputs = tx.outputs()
@@ -1272,73 +1417,13 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        pubKeySize=33
-        addressSize=20
-        minPayloadSize=2
-
-        i1=0
-        i2=33
-
-        if(len(data)<2*pubKeySize+minPayloadSize):
-            return True
-        
-        kyc_pubkey=data[i1:i2]
-        #Check if this is my onboarding TX
-        try:
-            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
-        except InvalidECPointException:
-            return True
-        
-        i1=i2
-        i2+=33
-        userOnboardPubKey = data[i1:i2]         
-        try:
-            _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
-        except InvalidECPointException:
+        if self.parse_onboard_data(data):
             return True
 
-        #Check that this wallet holds the onboard user private key
-        onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
-        if not self.is_mine(onboardAddress):
+        if self.parse_registeraddress_data(data, tx):
             return True
 
-        #Check that the kyc public key is in the list of unassigned kyc public keys 
-        #(kyc private key owner is therefore the whitelisting token owner)
-        #if not self.is_unassigned_kyc_pubkey(kyc_pubkey):
-        #    return False
-        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
-            if self.storage.is_encrypted_with_hw_device():
-                #TODO - sor out what to do for encrypted wallets.
-                return True
-            else:
-                return True
-        else:
-            password = None
-
-        try: 
-            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
-            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        except Exception:
-            return True
-
-        i1=i2
-        ciphertext=data[i1:]
-        try:
-            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True)
-        except Exception:
-            return True
-
-        #Confirm that this was encrypted by the kyc private key owner
-        if not ephemeral == _kyc_pubkey:
-            return True
-        
-        self.set_kyc_pubkey(bh2u(kyc_pubkey))
-        self.save_transactions(write=True)
-
-        return True
-
-
+        return False
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -1796,9 +1881,6 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             address_pubkey_list.append(line)
             ss.write(line)
             ss.write("\n")
-
-
-        self.set_registered_state(addrs, True)
 
         #Encrypt the addresses string
         encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)

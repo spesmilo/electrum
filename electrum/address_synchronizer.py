@@ -24,6 +24,7 @@
 import threading
 import itertools
 from collections import defaultdict
+import random
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
@@ -64,11 +65,14 @@ class AddressSynchronizer(PrintError):
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
         # address -> list(txid, height)
-        self.history = storage.get('addr_history',{})
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
         self.unassigned_kyc_pubkeys = set(storage.get('unassigned_kyc_pubkeys', set()))
-
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
         self.kyc_pubkey = storage.get('kyc_pubkey', None)
+        self.history = storage.get('addr_history',{})
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
         self.verified_tx = {}
@@ -405,8 +409,6 @@ class AddressSynchronizer(PrintError):
             for prevout_n_str, spending_txid in d.items():
                 prevout_n = int(prevout_n_str)
                 self.spent_outpoints[prevout_hash][prevout_n] = spending_txid
-        self.unassigned_kyc_pubkeys = set(self.storage.get('unassigned_kyc_pubkeys', set()))
-        self.kyc_pubkey = self.storage.get('kyc_pubkey', None)
 
     @profiler
     def load_local_history(self):

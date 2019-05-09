@@ -195,11 +195,6 @@ class CoinChooserBase(PrintError):
         Note: fee_estimator expects virtual bytes
         """
 
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-
         # Deterministic randomness from coins
         utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
         self.p = PRNG(''.join(sorted(utxos)))
