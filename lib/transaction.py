@@ -29,7 +29,6 @@
 
 from .util import print_error, profiler
 
-from .schnorr import *
 from .bitcoin import *
 from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
                       UnknownAddress, OpCodes as opcodes)
@@ -756,24 +755,8 @@ class Transaction:
                     secexp = pkey.secret
                     private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
                     public_key = private_key.get_verifying_key()
-   
-                    use_Schnorr_Sigs = False
-                    Schnorr_Fail = False
-
-                    # Turn on for DEBUG:
-                    # use_Schnorr_Sigs = True
-
-                    if use_Schnorr_Sigs:
-                        schnorr_pkey=bytes.fromhex(private_key.to_string().hex())
-                        schnorr_msg = bytes.fromhex(pre_hash.hex())
-                        sig = sign_schnorr(schnorr_msg,schnorr_pkey)
-                        if len(sig) < 64:
-                            Schnorr_Fail = True
-
-                    #this if normally would always execute for ECDSA:
-                    if not use_Schnorr_Sigs or Schnorr_Fail:
-                        sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-                        assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+                    sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+                    assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
                     txin['signatures'][j] = bh2u(sig) + int_to_hex(self.nHashType() & 255, 1)
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin

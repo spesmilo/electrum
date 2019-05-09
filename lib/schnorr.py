@@ -1,101 +1,125 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -*- mode: python3 -*-
+'''
+Schnorr sign/verify bindings for libsecp256k1. Requries secp256k1.py.
+
+In the future this file perhaps can also contain bindings that use OpenSSL and
+even Python-only Schnorr sign/verify as a fallback if secp256k1 is unavailable.
+'''
 import os
 import sys
-import traceback
-import ctypes
-from ctypes.util import find_library
-from ctypes import (
-    byref, c_byte, c_int, c_uint, c_char_p, c_size_t, c_void_p, create_string_buffer, CFUNCTYPE, POINTER
-)
- 
+from ctypes import create_string_buffer, c_void_p, c_char_p, c_int, c_size_t
 
-from .util import print_stderr, print_error, print_msg
+from . import secp256k1
 
 
-SECP256K1_FLAGS_TYPE_MASK = ((1 << 8) - 1)
-SECP256K1_FLAGS_TYPE_CONTEXT = (1 << 0)
-SECP256K1_FLAGS_TYPE_COMPRESSION = (1 << 1)
-# /** The higher bits contain the actual data. Do not use directly. */
-SECP256K1_FLAGS_BIT_CONTEXT_VERIFY = (1 << 8)
-SECP256K1_FLAGS_BIT_CONTEXT_SIGN = (1 << 9)
-SECP256K1_FLAGS_BIT_COMPRESSION = (1 << 8)
+class SecpMissing(RuntimeError):
+    ''' Base class of the below two exception classes '''
 
-# /** Flags to pass to secp256k1_context_create. */
-SECP256K1_CONTEXT_VERIFY = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_VERIFY)
-SECP256K1_CONTEXT_SIGN = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_SIGN)
-SECP256K1_CONTEXT_NONE = (SECP256K1_FLAGS_TYPE_CONTEXT)
+class SecpMissingLibrary(SecpMissing):
+    ''' Raised to indicate we are missing libsecp256k1 '''
 
-SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION)
-SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
+class SecpMissingSchnorr(SecpMissing):
+    ''' Raised to indicate we are missing the requisite Schnorr functions from
+    libsecp256k1, even though we have libsecp256k1 '''
 
+def _boilerplate_secp_check(which):
+    if not secp256k1.secp256k1:
+        raise SecpMissingLibrary('Missing library libsecp256k1, or the library could not be loaded')
+    if which is None:
+        raise SecpMissingSchnorr('libsecp256k1 found, but the Schnorr module is missing and/or not compiled-in')
 
-def load_library():
-    if sys.platform == 'darwin':
-        library_paths = ('libsecp256k1.0.dylib',  # on Mac it's in the pyinstaller top level folder, which is in libpath
-                         os.path.join(os.path.dirname(__file__), 'libsecp256k1.0.dylib'))  # fall back to "running from source" mode lib/ folder
-    elif sys.platform in ('windows', 'win32'):
-        library_paths = ('libsecp256k1.dll',  # on Windows it's in the pyinstaller top level folder, which is in the path
-                         os.path.join(os.path.dirname(__file__), 'libsecp256k1.dll'))  # does running from source even make sense on Windows? Enquiring minds want to know.
-    elif 'ANDROID_DATA' in os.environ:
-        library_paths = 'libsecp256k1.so',
-    else:
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),  # on linux we install it alongside the python scripts.
-                         'libsecp256k1.so.0')  # fall back to system lib, if any
-
-    for lp in library_paths:
-        try:
-            secp256k1 = ctypes.cdll.LoadLibrary(lp)
-        except:
-            continue
-        if secp256k1:
-            break
-    if not secp256k1:
-        print_stderr('[schnorr] warning: libsecp256k1 library failed to load')
+def _setup_sign_function():
+    if not secp256k1.secp256k1:
         return None
-
     try:
-        secp256k1.secp256k1_context_create.argtypes = [c_uint]
-        secp256k1.secp256k1_context_create.restype = c_void_p 
+        # Try and find the symbol in the lib. If it's not there, it means we
+        # were likely using Core's lib which lacks schnorr.
+        secp256k1.secp256k1.secp256k1_schnorr_sign.argtypes = [ c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p ]
+        secp256k1.secp256k1.secp256k1_schnorr_sign.restype = c_int
+    except AttributeError:
+        return None
+    return secp256k1.secp256k1.secp256k1_schnorr_sign
 
-        secp256k1.secp256k1_context_randomize.argtypes = [c_void_p, c_char_p]
-        secp256k1.secp256k1_context_randomize.restype = c_int
-
-        secp256k1.secp256k1_schnorr_sign.argtypes = [ c_void_p, c_char_p, c_char_p, c_char_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_schnorr_sign.restype = c_int 
-
-        secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
-        r = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
-        if r:
-            return secp256k1
-        else:
-            print_stderr('[schnorr] warning: secp256k1_context_randomize failed')
-            return None
-    except (OSError, AttributeError):
-        #traceback.print_exc(file=sys.stderr)
-        print_stderr('[schnorr] warning: libsecp256k1 library was found and loaded but there was an error when using it')
-        return None 
-
-try:
-    _libsecp256k1 = load_library()
-except:
-    _libsecp256k1 = None
-    #traceback.print_exc(file=sys.stderr)
-
-def sign_schnorr(message,privkey):
-    
-    # Error handling in case of libsec failure:
-    wefailed= False 
+def _setup_verify_function():
+    if not secp256k1.secp256k1:
+        return None
     try:
-        _libsecp256k1 = load_library()
-    except:
-        _libsecp256k1 = None
-        wefailed= True
-    if wefailed:
-        return bytes.fromhex("00")  #Will be handled by reversion to ECDSA upon return
-   
-    # Normally, proceed...
-    secp256k1=load_library()
-    schnorr_signature = create_string_buffer(64)
-    dummyvariable = _libsecp256k1.secp256k1_schnorr_sign(secp256k1.ctx,schnorr_signature,message,privkey,None,None)
-    retval=bytes.fromhex(schnorr_signature.raw.hex())
-    return retval
+        # Try and find the symbol in the lib. If it's not there, it means we
+        # were likely using Core's lib which lacks schnorr.
+        secp256k1.secp256k1.secp256k1_schnorr_verify.argtypes = [ c_void_p, c_void_p, c_void_p, c_void_p ]
+        secp256k1.secp256k1.secp256k1_schnorr_verify.restype = c_int
+    except AttributeError:
+        return None
+    return secp256k1.secp256k1.secp256k1_schnorr_verify
 
+_secp256k1_schnorr_sign = _setup_sign_function()
+_secp256k1_schnorr_verify = _setup_verify_function()
+
+def sign(privkey, message_hash):
+    ''' May raise a SecpMissing subclass or ValueError on failure
+
+    Will return either: the 64-byte signature as a bytes object, or an empty
+    bytes object b'' on failure.  Failure can occur due to an invalid private
+    key.
+
+    `privkey` should be the 32 byte raw private key (as you would get from
+    bitcoin.deserialize_privkey, etc).
+
+    `message_hash` should be the 32 byte sha256d hash of the tx input (or
+    message) you want to sign'''
+
+    _boilerplate_secp_check(_secp256k1_schnorr_sign)
+
+    if not isinstance(privkey, bytes) or len(privkey) != 32:
+        raise ValueError('privkey must be a bytes object of length 32')
+    if not isinstance(message_hash, bytes) or len(message_hash) != 32:
+        raise ValueError('message_hash must be a bytes object of length 32')
+
+    sig = create_string_buffer(64)
+    res = _secp256k1_schnorr_sign(
+        secp256k1.secp256k1.ctx, sig, message_hash, privkey, None, None
+    )
+    if not res:
+        # 'privkey' was not a valid private key
+        return b''
+    return bytes(sig)
+
+def verify(pubkey, signature, message_hash):
+    ''' May raise a SecpMissing subclass or ValueError on failure
+
+    Will return 1 if correct signature, 0 if incorrect
+
+    `pubkey` should be the the raw public key bytes (as you would get from
+    bitcoin.pubic_key_from_private_key, after hex decoding, etc).
+
+    `signature` should be the 64 byte schnorr signature as would be returned
+    from `sign` above.
+
+    `message_hash` should be the 32 byte sha256d hash of the tx message to be
+    verified'''
+
+    _boilerplate_secp_check(_secp256k1_schnorr_verify)
+
+    if not isinstance(pubkey, bytes) or len(pubkey) not in (33, 65):
+        raise ValueError('pubkey must be a bytes object of either length 33 or 65')
+    if not isinstance(signature, bytes) or len(signature) != 64:
+        raise ValueError('signature must be a bytes object of length 64')
+    if not isinstance(message_hash, bytes) or len(message_hash) != 32:
+        raise ValueError('message_hash must be a bytes object of length 32')
+    pubkey_parsed = create_string_buffer(64)
+    res = secp256k1.secp256k1.secp256k1_ec_pubkey_parse(
+        secp256k1.secp256k1.ctx, pubkey_parsed, pubkey, c_size_t(len(pubkey))
+    )
+    if not res:
+        raise ValueError('pubkey could not be parsed by the secp256k1 library')
+    res = _secp256k1_schnorr_verify(
+        secp256k1.secp256k1.ctx, signature, message_hash, pubkey_parsed
+    )
+    return int(res)
+
+def is_available():
+    ''' Returns True iff libsecp was found and it contains the requisite
+    functions to perform Schnorr sign and verify, False otherwise. '''
+    return bool(_secp256k1_schnorr_sign and _secp256k1_schnorr_verify)
