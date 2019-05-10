@@ -2977,11 +2977,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if bip38s:
                 # For all the BIP38s detected, prompt for password
                 from .bip38_importer import Bip38Importer
-                d = Bip38Importer(bip38s.keys(), parent=self.top_level_window())
-                d.exec_()
-                d.setParent(None)
-                if d.decoded_keys:
-                    for k,tup in d.decoded_keys.items():
+                d2 = Bip38Importer(bip38s.keys(), parent=self.top_level_window())
+                d2.exec_()
+                d2.setParent(None)
+                if d2.decoded_keys:
+                    for k,tup in d2.decoded_keys.items():
                         wif, adr = tup
                         # rewrite the keys they specified with the decrypted WIF in the keys list for sweep_preparations to work below...
                         i = bip38s[k]
