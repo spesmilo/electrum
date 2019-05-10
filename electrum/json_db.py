@@ -407,9 +407,12 @@ class JsonDB(Logger):
 
         self.put('pruned_txo', None)
 
-        transactions = self.get('transactions', {})  # txid -> Transaction
+        transactions = self.get('transactions', {})  # txid -> Transaction or raw_tx
         spent_outpoints = defaultdict(dict)
         for txid, tx in transactions.items():
+            if isinstance(tx, (bytes, str)):
+                from .transaction import Transaction
+                tx = Transaction(tx)
             for txin in tx.inputs():
                 if txin['type'] == 'coinbase':
                     continue
