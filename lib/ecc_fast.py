@@ -1,106 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -*- mode: python3 -*-
+
 # taken (with minor modifications) from pycoin
 # https://github.com/richardkiss/pycoin/blob/01b1787ed902df23f99a55deb00d8cd076a906fe/pycoin/ecdsa/native/secp256k1.py
 
 import os
 import sys
 import traceback
-import ctypes
-from ctypes.util import find_library
-from ctypes import (
-    byref, c_byte, c_int, c_uint, c_char_p, c_size_t, c_void_p, create_string_buffer, CFUNCTYPE, POINTER
-)
-
 import ecdsa
+from ctypes import (byref, c_size_t, create_string_buffer)
 
-from .util import print_stderr, print_error, print_msg
-
-
-SECP256K1_FLAGS_TYPE_MASK = ((1 << 8) - 1)
-SECP256K1_FLAGS_TYPE_CONTEXT = (1 << 0)
-SECP256K1_FLAGS_TYPE_COMPRESSION = (1 << 1)
-# /** The higher bits contain the actual data. Do not use directly. */
-SECP256K1_FLAGS_BIT_CONTEXT_VERIFY = (1 << 8)
-SECP256K1_FLAGS_BIT_CONTEXT_SIGN = (1 << 9)
-SECP256K1_FLAGS_BIT_COMPRESSION = (1 << 8)
-
-# /** Flags to pass to secp256k1_context_create. */
-SECP256K1_CONTEXT_VERIFY = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_VERIFY)
-SECP256K1_CONTEXT_SIGN = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_SIGN)
-SECP256K1_CONTEXT_NONE = (SECP256K1_FLAGS_TYPE_CONTEXT)
-
-SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION)
-SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
-
-
-def load_library():
-    if sys.platform == 'darwin':
-        library_paths = ('libsecp256k1.0.dylib',  # on Mac it's in the pyinstaller top level folder, which is in libpath
-                         os.path.join(os.path.dirname(__file__), 'libsecp256k1.0.dylib'))  # fall back to "running from source" mode lib/ folder
-    elif sys.platform in ('windows', 'win32'):
-        library_paths = ('libsecp256k1.dll',  # on Windows it's in the pyinstaller top level folder, which is in the path
-                         os.path.join(os.path.dirname(__file__), 'libsecp256k1.dll'))  # does running from source even make sense on Windows? Enquiring minds want to know.
-    elif 'ANDROID_DATA' in os.environ:
-        library_paths = 'libsecp256k1.so',
-    else:
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),  # on linux we install it alongside the python scripts.
-                         'libsecp256k1.so.0')  # fall back to system lib, if any
-
-    for lp in library_paths:
-        try:
-            secp256k1 = ctypes.cdll.LoadLibrary(lp)
-        except:
-            continue
-        if secp256k1:
-            break
-    if not secp256k1:
-        print_stderr('[ecc] warning: libsecp256k1 library failed to load')
-        return None
-
-    try:
-        secp256k1.secp256k1_context_create.argtypes = [c_uint]
-        secp256k1.secp256k1_context_create.restype = c_void_p
-
-        secp256k1.secp256k1_context_randomize.argtypes = [c_void_p, c_char_p]
-        secp256k1.secp256k1_context_randomize.restype = c_int
-
-        secp256k1.secp256k1_ec_pubkey_create.argtypes = [c_void_p, c_void_p, c_char_p]
-        secp256k1.secp256k1_ec_pubkey_create.restype = c_int
-
-        secp256k1.secp256k1_ecdsa_sign.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p, c_void_p, c_void_p]
-        secp256k1.secp256k1_ecdsa_sign.restype = c_int
-
-        secp256k1.secp256k1_ecdsa_verify.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ecdsa_verify.restype = c_int
-
-        secp256k1.secp256k1_ec_pubkey_parse.argtypes = [c_void_p, c_char_p, c_char_p, c_size_t]
-        secp256k1.secp256k1_ec_pubkey_parse.restype = c_int
-
-        secp256k1.secp256k1_ec_pubkey_serialize.argtypes = [c_void_p, c_char_p, c_void_p, c_char_p, c_uint]
-        secp256k1.secp256k1_ec_pubkey_serialize.restype = c_int
-
-        secp256k1.secp256k1_ecdsa_signature_parse_compact.argtypes = [c_void_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ecdsa_signature_parse_compact.restype = c_int
-
-        secp256k1.secp256k1_ecdsa_signature_normalize.argtypes = [c_void_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ecdsa_signature_normalize.restype = c_int
-
-        secp256k1.secp256k1_ecdsa_signature_serialize_compact.argtypes = [c_void_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ecdsa_signature_serialize_compact.restype = c_int
-
-        secp256k1.secp256k1_ec_pubkey_tweak_mul.argtypes = [c_void_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ec_pubkey_tweak_mul.restype = c_int
-
-        secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
-        r = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
-        if r:
-            return secp256k1
-        else:
-            print_stderr('[ecc] warning: secp256k1_context_randomize failed')
-            return None
-    except (OSError, AttributeError):
-        #traceback.print_exc(file=sys.stderr)
-        print_stderr('[ecc] warning: libsecp256k1 library was found and loaded but there was an error when using it')
-        return None
+from .util import print_error, print_msg
+from . import secp256k1
 
 
 class _patched_functions:
@@ -109,7 +21,7 @@ class _patched_functions:
 
 
 def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
-    if not _libsecp256k1:
+    if not secp256k1.secp256k1:
         return
 
     # save original functions so that we can undo patching (needed for tests)
@@ -130,18 +42,18 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
             return point_at_infinity
         pubkey = create_string_buffer(64)
         public_pair_bytes = b'\4' + self.x().to_bytes(32, byteorder="big") + self.y().to_bytes(32, byteorder="big")
-        r = _libsecp256k1.secp256k1_ec_pubkey_parse(
-            _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
+        r = secp256k1.secp256k1.secp256k1_ec_pubkey_parse(
+            secp256k1.secp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
         if not r:
             return False
-        r = _libsecp256k1.secp256k1_ec_pubkey_tweak_mul(_libsecp256k1.ctx, pubkey, other.to_bytes(32, byteorder="big"))
+        r = secp256k1.secp256k1.secp256k1_ec_pubkey_tweak_mul(secp256k1.secp256k1.ctx, pubkey, other.to_bytes(32, byteorder="big"))
         if not r:
             return point_at_infinity
 
         pubkey_serialized = create_string_buffer(65)
         pubkey_size = c_size_t(65)
-        _libsecp256k1.secp256k1_ec_pubkey_serialize(
-            _libsecp256k1.ctx, pubkey_serialized, byref(pubkey_size), pubkey, SECP256K1_EC_UNCOMPRESSED)
+        secp256k1.secp256k1.secp256k1_ec_pubkey_serialize(
+            secp256k1.secp256k1.ctx, pubkey_serialized, byref(pubkey_size), pubkey, secp256k1.SECP256K1_EC_UNCOMPRESSED)
         x = int.from_bytes(pubkey_serialized[1:33], byteorder="big")
         y = int.from_bytes(pubkey_serialized[33:], byteorder="big")
         return ecdsa.ellipticcurve.Point(curve_secp256k1, x, y, curve_order)
@@ -155,10 +67,10 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
         nonce_function = None
         sig = create_string_buffer(64)
         sig_hash_bytes = hash.to_bytes(32, byteorder="big")
-        _libsecp256k1.secp256k1_ecdsa_sign(
-            _libsecp256k1.ctx, sig, sig_hash_bytes, secret_exponent.to_bytes(32, byteorder="big"), nonce_function, None)
+        secp256k1.secp256k1.secp256k1_ecdsa_sign(
+            secp256k1.secp256k1.ctx, sig, sig_hash_bytes, secret_exponent.to_bytes(32, byteorder="big"), nonce_function, None)
         compact_signature = create_string_buffer(64)
-        _libsecp256k1.secp256k1_ecdsa_signature_serialize_compact(_libsecp256k1.ctx, compact_signature, sig)
+        secp256k1.secp256k1.secp256k1_ecdsa_signature_serialize_compact(secp256k1.secp256k1.ctx, compact_signature, sig)
         r = int.from_bytes(compact_signature[:32], byteorder="big")
         s = int.from_bytes(compact_signature[32:], byteorder="big")
         return ecdsa.ecdsa.Signature(r, s)
@@ -169,19 +81,19 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
             return _patched_functions.orig_verify(self, hash, signature)
         sig = create_string_buffer(64)
         input64 = signature.r.to_bytes(32, byteorder="big") + signature.s.to_bytes(32, byteorder="big")
-        r = _libsecp256k1.secp256k1_ecdsa_signature_parse_compact(_libsecp256k1.ctx, sig, input64)
+        r = secp256k1.secp256k1.secp256k1_ecdsa_signature_parse_compact(secp256k1.secp256k1.ctx, sig, input64)
         if not r:
             return False
-        r = _libsecp256k1.secp256k1_ecdsa_signature_normalize(_libsecp256k1.ctx, sig, sig)
+        r = secp256k1.secp256k1.secp256k1_ecdsa_signature_normalize(secp256k1.secp256k1.ctx, sig, sig)
 
         public_pair_bytes = b'\4' + self.point.x().to_bytes(32, byteorder="big") + self.point.y().to_bytes(32, byteorder="big")
         pubkey = create_string_buffer(64)
-        r = _libsecp256k1.secp256k1_ec_pubkey_parse(
-            _libsecp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
+        r = secp256k1.secp256k1.secp256k1_ec_pubkey_parse(
+            secp256k1.secp256k1.ctx, pubkey, public_pair_bytes, len(public_pair_bytes))
         if not r:
             return False
 
-        return 1 == _libsecp256k1.secp256k1_ecdsa_verify(_libsecp256k1.ctx, sig, hash.to_bytes(32, byteorder="big"), pubkey)
+        return 1 == secp256k1.secp256k1.secp256k1_ecdsa_verify(secp256k1.secp256k1.ctx, sig, hash.to_bytes(32, byteorder="big"), pubkey)
 
     # save new functions so that we can (re-)do patching
     _patched_functions.fast_sign   = sign
@@ -192,8 +104,7 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
 
 
 def do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
-    if not _libsecp256k1:
-        # FIXME print_error will always print as 'verbosity' is not yet initialised
+    if not secp256k1.secp256k1:
         print_msg('[ecc] info: libsecp256k1 library not available, falling back to python-ecdsa. '
                   'This means signing operations will be slower. '
                   'Try running:\n\n  $  contrib/make_secp\n\n(You need to be running from the git sources for contrib/make_secp to be available)'
@@ -211,7 +122,7 @@ def do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
 
 
 def undo_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
-    if not _libsecp256k1:
+    if not secp256k1.secp256k1:
         return
     if not _patched_functions.prepared_to_patch:
         raise Exception("can't patch python-ecdsa without preparations")
@@ -225,11 +136,5 @@ def undo_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
 def is_using_fast_ecc():
     return _patched_functions.monkey_patching_active
 
-
-try:
-    _libsecp256k1 = load_library()
-except:
-    _libsecp256k1 = None
-    #traceback.print_exc(file=sys.stderr)
 
 _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
