@@ -727,7 +727,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        return format_fee_satoshis(fee_rate/1000, self.num_zeros) + ' sat/byte'
+        return format_fee_satoshis(fee_rate/1000, max(self.num_zeros, 1)) + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -1395,6 +1395,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox0.addLayout(grid)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
+
         w = QWidget()
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
