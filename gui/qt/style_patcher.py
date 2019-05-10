@@ -30,15 +30,18 @@ def patch(dark: bool = False, darkstyle_ver: tuple = None):
         print_error("[style_patcher] qdarkstyle < 2.6.8 detected; stylesheet patch #1 applied")
     else:
         # This patch is for qdarkstyle >= 2.6.8.
-        # The payto edit looks to squashed.  Needs more space, so we make the
-        # QAbstractScrollArea padding 0px
 
         style_sheet = app.styleSheet()
         style_sheet = style_sheet + '''
-        QAbstractScrollArea {
+        /* PayToEdit was being cut off on QDatkStyle >= 2.6.8. This fixes that. */
+        ButtonsTextEdit {
+            padding: 0px;
+        }
+        /* History List labels, when editing, were looking terrible in Windows and were cut off. This fixes that.*/
+        QTreeWidget QLineEdit {
+            show-decoration-selected: 1;
             padding: 0px;
         }
         '''
         app.setStyleSheet(style_sheet)
         print_error("[style_patcher] qdarkstyle >= 2.6.8 detected; stylesheet patch #2 applied")
-

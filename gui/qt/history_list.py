@@ -143,7 +143,7 @@ class HistoryList(MyTreeWidget):
                 item.setIcon(3, self.invoiceIcon)
             for i in range(len(entry)):
                 if i>3:
-                    item.setTextAlignment(i, Qt.AlignRight)
+                    item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
                     item.setFont(i, self.monospaceFont)
             if value and value < 0:
