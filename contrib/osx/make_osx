@@ -13,7 +13,7 @@ src_dir=$(dirname "$0")
 cd $src_dir/../..
 
 export PYTHONHASHSEED=22
-VERSION=3.3.4
+VERSION=3.3.5
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
