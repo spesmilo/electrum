@@ -438,10 +438,12 @@ class Abstract_Wallet(AddressSynchronizer):
         return c1-c2, u1-u2, x1-x2
 
     def balance_at_timestamp(self, domain, target_timestamp):
+        # we assume that get_history returns items ordered by block height
+        # we also assume that block timestamps are monotonic (which is false...!)
         h = self.get_history(domain)
         balance = 0
         for tx_hash, tx_mined_status, value, balance in h:
-            if tx_mined_status.timestamp > target_timestamp:
+            if tx_mined_status.timestamp is None or tx_mined_status.timestamp > target_timestamp:
                 return balance - value
         # return last balance
         return balance
