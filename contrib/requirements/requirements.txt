@@ -1,11 +1,11 @@
 pyaes>=0.1a1
-ecdsa>=0.9
+ecdsa>=0.13
 qrcode
 protobuf
 dnspython
 jsonrpclib-pelix
-qdarkstyle<2.6
-aiorpcx>=0.9,<0.11
+qdarkstyle<3.0
+aiorpcx>=0.17,<0.18
 aiohttp>=3.3.0
 aiohttp_socks
 certifi

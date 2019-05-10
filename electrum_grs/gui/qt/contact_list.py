@@ -121,4 +121,5 @@ class ContactList(MyTreeView):
         self.set_current_idx(set_current)
         # FIXME refresh loses sort order; so set "default" here:
         self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
+        self.filter()
         run_hook('update_contacts_tab', self)

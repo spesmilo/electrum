@@ -135,14 +135,16 @@ class RequestList(MyTreeView):
                 items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DESCRIPTION].setData(address, Qt.UserRole)
             self.model().insertRow(self.model().rowCount(), items)
+        self.filter()
 
     def create_menu(self, position):
         idx = self.indexAt(position)
+        item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS))
-        if not item:
+        item_addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS))
+        if not item_addr:
             return
-        addr = item.text()
+        addr = item_addr.text()
         req = self.wallet.receive_requests.get(addr)
         if req is None:
             self.update()
@@ -152,6 +154,8 @@ class RequestList(MyTreeView):
         column_data = item.text()
         menu = QMenu(self)
         if column != self.Columns.SIGNATURE:
+            if column == self.Columns.AMOUNT:
+                column_data = column_data.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))

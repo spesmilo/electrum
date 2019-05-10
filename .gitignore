@@ -4,7 +4,6 @@
 build/
 dist/
 *.egg/
-contrib/pyinstaller/
 Electrum*.egg-info/
 electrum_grs/locale/
 .devlocaltmp/
@@ -30,3 +29,9 @@ electrum_grs/gui/kivy/theming/light.atlas
 .cache/
 .coverage
 .pytest_cache
+
+# build workspaces
+contrib/build-wine/tmp/
+contrib/build-wine/fresh_clone/
+contrib/build-linux/appimage/build/
+contrib/build-linux/appimage/.cache/

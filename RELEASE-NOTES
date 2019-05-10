@@ -1,3 +1,42 @@
+# Release 3.3.5 - (May 9, 2019)
+
+ * The logging system has been overhauled (#5296).
+   Logs can now also optionally be written to disk, disabled by default.
+ * Fix a bug in synchronizer (#5122) where client could get stuck.
+   Also, show the progress of history sync in the GUI. (#5319)
+ * fix Revealer in Windows and MacOS binaries (#5027)
+ * fiat rate providers:
+   - added CoinGecko.com and CoinCap.io
+   - BitcoinAverage now only provides historical exchange rates for
+     paying customers. Changed default provider to CoinGecko.com (#5188)
+ * hardware wallets:
+   - Ledger: Nano X is now recognized (#5140)
+   - KeepKey:
+     - device was not getting detected using Windows binary (#5165)
+     - support firmware 6.0.0+ (#5205)
+   - Trezor: implemented "seedless" mode (#5118)
+ * Coin Control in Qt: implemented freezing individual UTXOs
+   in addition to freezing addresses (#5152)
+ * TrustedCoin (2FA wallets):
+   - better error messages (#5184)
+   - longer signing timeout (#5221)
+ * Kivy:
+   - fix bug with local transactions (#5156)
+   - allow selecting fiat rate providers without historical data (#5162)
+ * fix CPFP: the fees already paid by the parent were not included in
+   the calculation, so it always overestimated (#5244)
+ * Testnet: there is now a warning when the client is started in
+   testnet mode as there were a number of reports of users getting
+   scammed through social engineering (#5295)
+ * CoinChooser: performance of creating transactions has been improved
+   significantly for large wallets. (d56917f4)
+ * Importing/sweeping WIF keys: stricter checks (#4638, #5290)
+ * Electrum protocol: the client's "user agent" has been changed from
+   "3.3.5" to "electrum/3.3.5". Other libraries connecting to servers
+   can consider not "spoofing" to be Electrum. (#5246)
+ * Several other minor bugfixes and usability improvements.
+
+
 # Release 3.3.4 - (February 13, 2019)
 
  * AppImage: we now also distribute self-contained binaries for x86_64

@@ -19,7 +19,11 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib, electrum_grs/gui/qt, electrum_grs/gui/kivy/tools, electrum_grs/gui/kivy/theming/light
+source.exclude_dirs = bin, build, dist, contrib,
+    electrum_grs/tests,
+    electrum_grs/gui/qt,
+    electrum_grs/gui/kivy/tools,
+    electrum_grs/gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -28,7 +32,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-version = 3.3.4
+version = 3.3.5
 
 # (list) Application requirements
 requirements = python3, android, openssl, plyer, kivy==b47f669f44dbda4f463bcb7d2cada639f7fed3bc, libffi, libsecp256k1, groestlcoin_hash

@@ -8,4 +8,4 @@ class Plugin(LabelsPlugin):
         self.start_wallet(wallet)
 
     def on_pulled(self, wallet):
-        self.print_error('labels pulled from server')
+        self.logger.info('labels pulled from server')

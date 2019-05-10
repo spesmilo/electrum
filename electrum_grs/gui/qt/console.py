@@ -252,7 +252,7 @@ class Console(QtWidgets.QPlainTextEdit):
                 try:
                     # eval is generally considered bad practice. use it wisely!
                     result = eval(command, self.namespace, self.namespace)
-                    if result != None:
+                    if result is not None:
                         if self.is_json:
                             util.print_msg(util.json_encode(result))
                         else:
@@ -304,7 +304,8 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def completions(self):
         cmd = self.getCommand()
-        lastword = re.split(' |\(|\)',cmd)[-1]
+        # note for regex: new words start after ' ' or '(' or ')'
+        lastword = re.split(r'[ ()]', cmd)[-1]
         beginning = cmd[0:-len(lastword)]
 
         path = lastword.split('.')
