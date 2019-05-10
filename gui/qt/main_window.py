@@ -3669,7 +3669,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def is_schnorr_possible(self, reason: list = None) -> bool:
         ''' Returns True if this system can sign with Schnorr and/or this
         wallet type is compatible.
-        `reason` is an optional list where you would like an translated string
+        `reason` is an optional list where you would like a translated string
         of why Schnorr isn't possible placed (on False return). '''
         wallet_ok = bool(not self.wallet.is_multisig() and not self.wallet.is_hardware())
         available = schnorr.is_available()
@@ -3678,7 +3678,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not wallet_ok:
                 reason.insert(0, _('Schnorr signatures are disabled for this wallet type.'))
             elif not available:
-                reason.insert(0, _('Schnorr signatures are disabled because no secp256k1 library with Schnorr capabilities could be found.'))
+                reason.insert(0, _('Schnorr signatures are disabled because no secp256k1 library with Schnorr capabilities was found.'))
         return ret
 
     def is_schnorr_enabled(self) -> bool:

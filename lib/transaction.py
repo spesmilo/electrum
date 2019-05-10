@@ -497,6 +497,18 @@ class Transaction:
         # redo raw
         self.raw = self.serialize()
 
+    def is_schnorr_signed(self, input_idx):
+        ''' Return True IFF any of the signatures for a particular input
+        are Schnorr signatures (Schnorr signatures are always 64 bytes + 1) '''
+        if (isinstance(self._inputs, (list, tuple))
+                and input_idx < len(self._inputs)
+                and self._inputs[input_idx]):
+            # Schnorr sigs are always 64 bytes. However the sig has a hash byte
+            # at the end, so that's 65. Plus we are hex encoded, so 65*2=130
+            return any(isinstance(sig, (str, bytes)) and len(sig) == 130
+                       for sig in self._inputs[input_idx].get('signatures', []))
+        return False
+
     def deserialize(self):
         if self.raw is None:
             return

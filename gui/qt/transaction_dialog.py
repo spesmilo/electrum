@@ -276,21 +276,36 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
+        self.update_io(self.i_text, self.o_text)
         run_hook('transaction_dialog_update', self)
 
     def add_io(self, vbox):
         if self.tx.locktime > 0:
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
-        vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(0,0,0,0)
 
-        i_text = QTextEdit()
+        hbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
+
+        self.schnorr_label = QLabel(_('ⓢ = Schnorr signed'))
+        self.schnorr_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        f = self.schnorr_label.font()
+        f.setPointSize(f.pointSize()-1)  # make it a little smaller
+        self.schnorr_label.setFont(f)
+        hbox.addWidget(self.schnorr_label)
+        self.schnorr_label.setHidden(True)
+
+        vbox.addLayout(hbox)
+
+        self.i_text = i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
-
         vbox.addWidget(i_text)
+
+
         vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
-        o_text = QTextEdit()
+        self.o_text = o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
         vbox.addWidget(o_text)
@@ -318,7 +333,8 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         i_text.clear()
         cursor = i_text.textCursor()
-        for x in self.tx.inputs():
+        has_schnorr = False
+        for i, x in enumerate(self.tx.inputs()):
             if x['type'] == 'coinbase':
                 cursor.insertText('coinbase')
             else:
@@ -336,7 +352,14 @@ class TxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText(addr_text, text_format(addr))
                 if x.get('value'):
                     cursor.insertText(format_amount(x['value']), ext)
+                if self.tx.is_schnorr_signed(i):
+                    # Schnorr
+                    cursor.insertText(' ⓢ')
+                    has_schnorr = True
             cursor.insertBlock()
+
+
+        self.schnorr_label.setVisible(has_schnorr)
 
         o_text.clear()
         cursor = o_text.textCursor()
