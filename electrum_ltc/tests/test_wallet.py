@@ -10,7 +10,7 @@ from io import StringIO
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.json_db import FINAL_SEED_VERSION
 from electrum_ltc.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
-                                 restore_wallet_from_text)
+                                 restore_wallet_from_text, Imported_Wallet)
 from electrum_ltc.exchange_rate import ExchangeBase, FxThread
 from electrum_ltc.util import TxMinedInfo
 from electrum_ltc.bitcoin import COIN
@@ -197,16 +197,22 @@ class TestCreateRestoreWallet(WalletTestCase):
     def test_restore_wallet_from_text_addresses(self):
         text = 'ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7 ltc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu7xl7hg'
         d = restore_wallet_from_text(text, path=self.wallet_path, network=None)
-        wallet = d['wallet']  # type: Abstract_Wallet
+        wallet = d['wallet']  # type: Imported_Wallet
         self.assertEqual('ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', wallet.get_receiving_addresses()[0])
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
+        # also test addr deletion
+        wallet.delete_address('ltc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu7xl7hg')
+        self.assertEqual(1, len(wallet.get_receiving_addresses()))
 
     def test_restore_wallet_from_text_privkeys(self):
         text = 'p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3 p2wpkh:T7tYQXfHmkSmS3A2eLCrPNHG21JrEFj9NZWbS6f71Z7SLEgRqD97'
         d = restore_wallet_from_text(text, path=self.wallet_path, network=None)
-        wallet = d['wallet']  # type: Abstract_Wallet
+        wallet = d['wallet']  # type: Imported_Wallet
         addr0 = wallet.get_receiving_addresses()[0]
         self.assertEqual('ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', addr0)
         self.assertEqual('p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3',
                          wallet.export_private_key(addr0, password=None)[0])
         self.assertEqual(2, len(wallet.get_receiving_addresses()))
+        # also test addr deletion
+        wallet.delete_address('ltc1qnp78h78vp92pwdwq5xvh8eprlga5q8gu7xl7hg')
+        self.assertEqual(1, len(wallet.get_receiving_addresses()))

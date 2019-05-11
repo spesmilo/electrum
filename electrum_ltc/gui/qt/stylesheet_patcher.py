@@ -20,6 +20,7 @@ def patch_qt_stylesheet(use_dark_theme: bool) -> None:
     /* In History tab, labels while edited were being clipped (Windows) */
     QAbstractItemView QLineEdit {
         padding: 0px;
+        show-decoration-selected: 1;
     }
     '''
     app.setStyleSheet(style_sheet)
