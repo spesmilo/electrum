@@ -26,6 +26,8 @@
 import os
 import json
 
+from .util import inv_dict
+
 
 def read_json(filename, default):
     path = os.path.join(os.path.dirname(__file__), filename)
@@ -63,6 +65,7 @@ class BitcoinMainnet(AbstractNet):
         'p2wpkh':      0x04b2430c,  # zprv
         'p2wsh':       0x02aa7a99,  # Zprv
     }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
     XPUB_HEADERS = {
         'standard':    0x0488b21e,  # xpub
         'p2wpkh-p2sh': 0x049d7cb2,  # ypub
@@ -70,6 +73,7 @@ class BitcoinMainnet(AbstractNet):
         'p2wpkh':      0x04b24746,  # zpub
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 0
 
 
@@ -92,6 +96,7 @@ class BitcoinTestnet(AbstractNet):
         'p2wpkh':      0x045f18bc,  # vprv
         'p2wsh':       0x02575048,  # Vprv
     }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
     XPUB_HEADERS = {
         'standard':    0x043587cf,  # tpub
         'p2wpkh-p2sh': 0x044a5262,  # upub
@@ -99,6 +104,7 @@ class BitcoinTestnet(AbstractNet):
         'p2wpkh':      0x045f1cf6,  # vpub
         'p2wsh':       0x02575483,  # Vpub
     }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
 
 
@@ -118,23 +124,117 @@ class BitcoinSimnet(BitcoinTestnet):
     CHECKPOINTS = []
 
 
+class SyscoinMainnet(AbstractNet):
+
+    TESTNET = False
+    WIF_PREFIX = 0x80
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x05
+    SEGWIT_HRP = "sys"
+
+    GENESIS = "000009e388d0cb406b36ed70bf89d21a4f7a3b1adea23a21e7948bac2dbb9fcc"
+    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
+    DEFAULT_SERVERS = read_json('servers.json', {
+        "legion.me": {
+            "pruning": "-",
+            "t": "58881",
+            "s": "58882",
+            "version": "1.4"
+        }
+    })
+    CHECKPOINTS = read_json('checkpoints.json', [])
+
+    XPRV_HEADERS = {
+        'standard':    0x0488ade4,  # xprv XPRV_VERBYTES
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
+        'p2wsh-p2sh':  0x0295b005,  # Yprv
+        'p2wpkh':      0x04b2430c,  # zprv
+        'p2wsh':       0x02aa7a99,  # Zprv
+    }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
+    XPUB_HEADERS = {
+        'standard':    0x0488b21e,  # xpub XPUB_VERBYTES
+        'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+        'p2wsh-p2sh':  0x0295b43f,  # Ypub
+        'p2wpkh':      0x04b24746,  # zpub
+        'p2wsh':       0x02aa7ed3,  # Zpub
+    }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
+    BIP44_COIN_TYPE = 57
+
+
+class SyscoinTestnet(AbstractNet):
+
+    TESTNET = True
+    WIF_PREFIX = 0xef
+    ADDRTYPE_P2PKH = 0x41
+    ADDRTYPE_P2SH = 0xc4
+    SEGWIT_HRP = "tsys"
+    GENESIS = "000007f96fcbdbdfbc2560b63bb545648f8d9f27c15ae8f5bbc350218198704e"
+    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
+    DEFAULT_SERVERS = read_json('servers_testnet.json', {
+        "legion.me": {
+            "pruning": "-",
+            "t": "59991",
+            "s": "59992",
+            "version": "1.4"
+        }
+    })
+    CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+
+    XPRV_HEADERS = {
+        'standard':    0x04358394,  # tprv
+        'p2wpkh-p2sh': 0x044a4e28,  # uprv
+        'p2wsh-p2sh':  0x024285b5,  # Uprv
+        'p2wpkh':      0x045f18bc,  # vprv
+        'p2wsh':       0x02575048,  # Vprv
+    }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
+    XPUB_HEADERS = {
+        'standard':    0x043587cf,  # tpub
+        'p2wpkh-p2sh': 0x044a5262,  # upub
+        'p2wsh-p2sh':  0x024289ef,  # Upub
+        'p2wpkh':      0x045f1cf6,  # vpub
+        'p2wsh':       0x02575483,  # Vpub
+    }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
+    BIP44_COIN_TYPE = 1
+
+
+class SyscoinRegtest(SyscoinTestnet):
+
+    SEGWIT_HRP = "sysrt"
+    GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {
+        "legion.me": {
+            "pruning": "-",
+            "t": "58881",
+            "s": "58882",
+            "version": "1.4"
+        }
+    })
+    CHECKPOINTS = []
+
+
 # don't import net directly, import the module instead (so that net is singleton)
-net = BitcoinMainnet
+net = SyscoinMainnet
+
 
 def set_simnet():
     global net
-    net = BitcoinSimnet
+    net = SyscoinRegtest
+
 
 def set_mainnet():
     global net
-    net = BitcoinMainnet
+    net = SyscoinMainnet
 
 
 def set_testnet():
     global net
-    net = BitcoinTestnet
+    net = SyscoinTestnet
 
 
 def set_regtest():
     global net
-    net = BitcoinRegtest
+    net = SyscoinRegtest

@@ -1,19 +1,24 @@
 import traceback
 import sys
+from typing import NamedTuple, Any
 
 from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
 from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
-from electrum.bip32 import deserialize_xpub, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device
 from electrum.transaction import deserialize, Transaction
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
                                 LibraryFoundButUnusable)
+
+_logger = get_logger(__name__)
+
 
 try:
     import trezorlib
@@ -31,8 +36,7 @@ try:
 
     TREZORLIB = True
 except Exception as e:
-    import traceback
-    traceback.print_exc()
+    _logger.exception('error importing trezorlib')
     TREZORLIB = False
 
     RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(2)
@@ -86,6 +90,15 @@ class TrezorKeyStore(Hardware_KeyStore):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
+class TrezorInitSettings(NamedTuple):
+    word_count: int
+    label: str
+    pin_enabled: bool
+    passphrase_enabled: bool
+    recovery_type: Any = None
+    no_backup: bool = False
+
+
 class TrezorPlugin(HW_PluginBase):
     # Derived classes provide:
     #
@@ -135,17 +148,17 @@ class TrezorPlugin(HW_PluginBase):
 
     def create_client(self, device, handler):
         try:
-            self.print_error("connecting to device at", device.path)
+            self.logger.info(f"connecting to device at {device.path}")
             transport = trezorlib.transport.get_transport(device.path)
         except BaseException as e:
-            self.print_error("cannot connect at", device.path, str(e))
+            self.logger.info(f"cannot connect at {device.path} {e}")
             return None
 
         if not transport:
-            self.print_error("cannot connect at", device.path)
+            self.logger.info(f"cannot connect at {device.path}")
             return
 
-        self.print_error("connected to device at", device.path)
+        self.logger.info(f"connected to device at {device.path}")
         # note that this call can still raise!
         return TrezorClientBase(transport, handler, self)
 
@@ -177,12 +190,9 @@ class TrezorPlugin(HW_PluginBase):
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
             (TIM_RECOVER, _("Recover from a seed you have previously written down")),
         ]
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        model = client.get_trezor_model()
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, model)
+            settings = self.request_trezor_init_settings(wizard, method, device_id)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()
@@ -201,16 +211,14 @@ class TrezorPlugin(HW_PluginBase):
         except UserCancelled:
             exit_code = 1
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             handler.show_error(str(e))
             exit_code = 1
         finally:
             wizard.loop.exit(exit_code)
 
-    def _initialize_device(self, settings, method, device_id, wizard, handler):
-        item, label, pin_protection, passphrase_protection, recovery_type = settings
-
-        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+    def _initialize_device(self, settings: TrezorInitSettings, method, device_id, wizard, handler):
+        if method == TIM_RECOVER and settings.recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -221,33 +229,37 @@ class TrezorPlugin(HW_PluginBase):
 
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
+        if not client:
+            raise Exception(_("The device was disconnected."))
 
         if method == TIM_NEW:
+            strength_from_word_count = {12: 128, 18: 192, 24: 256}
             client.reset_device(
-                strength=64 * (item + 2),  # 128, 192 or 256
-                passphrase_protection=passphrase_protection,
-                pin_protection=pin_protection,
-                label=label)
+                strength=strength_from_word_count[settings.word_count],
+                passphrase_protection=settings.passphrase_enabled,
+                pin_protection=settings.pin_enabled,
+                label=settings.label,
+                no_backup=settings.no_backup)
         elif method == TIM_RECOVER:
             client.recover_device(
-                recovery_type=recovery_type,
-                word_count=6 * (item + 2),  # 12, 18 or 24
-                passphrase_protection=passphrase_protection,
-                pin_protection=pin_protection,
-                label=label)
-            if recovery_type == RECOVERY_TYPE_MATRIX:
+                recovery_type=settings.recovery_type,
+                word_count=settings.word_count,
+                passphrase_protection=settings.passphrase_enabled,
+                pin_protection=settings.pin_enabled,
+                label=settings.label)
+            if settings.recovery_type == RECOVERY_TYPE_MATRIX:
                 handler.close_matrix_dialog()
         else:
             raise RuntimeError("Unsupported recovery method")
 
     def _make_node_path(self, xpub, address_n):
-        _, depth, fingerprint, child_num, chain_code, key = deserialize_xpub(xpub)
+        bip32node = BIP32Node.from_xkey(xpub)
         node = HDNodeType(
-            depth=depth,
-            fingerprint=int.from_bytes(fingerprint, 'big'),
-            child_num=int.from_bytes(child_num, 'big'),
-            chain_code=chain_code,
-            public_key=key,
+            depth=bip32node.depth,
+            fingerprint=int.from_bytes(bip32node.fingerprint, 'big'),
+            child_num=int.from_bytes(bip32node.child_number, 'big'),
+            chain_code=bip32node.chaincode,
+            public_key=bip32node.eckey.get_public_key_bytes(compressed=True),
         )
         return HDNodePathType(node=node, address_n=address_n)
 

@@ -89,7 +89,6 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -104,12 +103,12 @@ class QRDialog(WindowModalDialog):
             filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()  # FIXME also grabs neutral colored padding
                 p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()
                 QApplication.clipboard().setPixmap(p)
                 self.show_message(_("QR code copied to clipboard"))
 

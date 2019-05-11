@@ -1,7 +1,10 @@
-from electrum.util import PrintError
+from electrum.logging import get_logger
 
 
-class SafeTTransport(PrintError):
+_logger = get_logger(__name__)
+
+
+class SafeTTransport:
 
     @staticmethod
     def all_transports():
@@ -16,21 +19,21 @@ class SafeTTransport(PrintError):
         except ImportError:
             # old safetlib. compat for safetlib < 0.9.2
             transports = []
-            #try:
-            #    from safetlib.transport_bridge import BridgeTransport
-            #    transports.append(BridgeTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from safetlib.transport_bridge import BridgeTransport
+               transports.append(BridgeTransport)
+            except BaseException:
+                pass
             try:
                 from safetlib.transport_hid import HidTransport
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            #try:
-            #    from safetlib.transport_udp import UdpTransport
-            #    transports.append(UdpTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from safetlib.transport_udp import UdpTransport
+               transports.append(UdpTransport)
+            except BaseException:
+               pass
             try:
                 from safetlib.transport_webusb import WebUsbTransport
                 transports.append(WebUsbTransport)
@@ -39,21 +42,21 @@ class SafeTTransport(PrintError):
         else:
             # new safetlib.
             transports = []
-            #try:
-            #    from safetlib.transport.bridge import BridgeTransport
-            #    transports.append(BridgeTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from safetlib.transport.bridge import BridgeTransport
+               transports.append(BridgeTransport)
+            except BaseException:
+               pass
             try:
                 from safetlib.transport.hid import HidTransport
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            #try:
-            #    from safetlib.transport.udp import UdpTransport
-            #    transports.append(UdpTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from safetlib.transport.udp import UdpTransport
+               transports.append(UdpTransport)
+            except BaseException:
+               pass
             try:
                 from safetlib.transport.webusb import WebUsbTransport
                 transports.append(WebUsbTransport)
@@ -71,8 +74,7 @@ class SafeTTransport(PrintError):
             try:
                 new_devices = transport.enumerate()
             except BaseException as e:
-                self.print_error('enumerate failed for {}. error {}'
-                                 .format(transport.__name__, str(e)))
+                _logger.info(f'enumerate failed for {transport.__name__}. error {e}')
             else:
                 devices.extend(new_devices)
         return devices

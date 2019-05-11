@@ -36,7 +36,7 @@ import jsonrpclib
 from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
-from .util import (json_decode, DaemonThread, print_error, to_string,
+from .util import (json_decode, DaemonThread, to_string,
                    create_and_start_event_loop, profiler, standardize_path)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -44,6 +44,10 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .plugin import run_hook
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 def get_lockfile(config: SimpleConfig):
@@ -92,7 +96,7 @@ def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
             server.ping()
             return server
         except Exception as e:
-            print_error(f"failed to connect to JSON-RPC server: {e}")
+            _logger.info(f"failed to connect to JSON-RPC server: {e}")
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
@@ -114,8 +118,7 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         config.set_key('rpcuser', rpc_user)
         config.set_key('rpcpassword', rpc_password, save=True)
     elif rpc_password == '':
-        from .util import print_stderr
-        print_stderr('WARNING: RPC authentication is disabled.')
+        _logger.warning('RPC authentication is disabled.')
     return rpc_user, rpc_password
 
 
@@ -138,6 +141,7 @@ class Daemon(DaemonThread):
         if self.network:
             self.network.start([self.fx.run])
         self.gui = None
+        # path -> wallet;   make sure path is standardized.
         self.wallets = {}  # type: Dict[str, Abstract_Wallet]
         # Setup JSONRPC server
         self.server = None
@@ -153,7 +157,7 @@ class Daemon(DaemonThread):
             server = VerifyingJSONRPCServer((host, port), logRequests=False,
                                             rpc_user=rpc_user, rpc_password=rpc_password)
         except Exception as e:
-            self.print_error('Warning: cannot initialize RPC server on host', host, e)
+            self.logger.error(f'cannot initialize RPC server on host {host}: {repr(e)}')
             self.server = None
             os.close(fd)
             return
@@ -188,6 +192,7 @@ class Daemon(DaemonThread):
             response = wallet is not None
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
+            path = standardize_path(path)
             if path in self.wallets:
                 self.stop_wallet(path)
                 response = True
@@ -249,6 +254,8 @@ class Daemon(DaemonThread):
             storage.decrypt(password)
         if storage.requires_split():
             return
+        if storage.requires_upgrade():
+            return
         if storage.get_action():
             return
         wallet = Wallet(storage)
@@ -258,9 +265,11 @@ class Daemon(DaemonThread):
 
     def add_wallet(self, wallet: Abstract_Wallet):
         path = wallet.storage.path
+        path = standardize_path(path)
         self.wallets[path] = wallet
 
     def get_wallet(self, path):
+        path = standardize_path(path)
         return self.wallets.get(path)
 
     def delete_wallet(self, path):
@@ -271,6 +280,7 @@ class Daemon(DaemonThread):
         return False
 
     def stop_wallet(self, path):
+        path = standardize_path(path)
         wallet = self.wallets.pop(path, None)
         if not wallet: return
         wallet.stop_threads()
@@ -287,6 +297,7 @@ class Daemon(DaemonThread):
         cmd = known_commands[cmdname]
         if cmd.requires_wallet:
             path = config.get_wallet_path()
+            path = standardize_path(path)
             wallet = self.wallets.get(path)
             if wallet is None:
                 return {'error': 'Wallet "%s" is not loaded. Use "electrum daemon load_wallet"'%os.path.basename(path) }
@@ -315,7 +326,7 @@ class Daemon(DaemonThread):
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         if self.network:
-            self.print_error("shutting down network")
+            self.logger.info("shutting down network")
             self.network.stop()
         # stop event loop
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
@@ -325,7 +336,7 @@ class Daemon(DaemonThread):
     def stop(self):
         if self.gui:
             self.gui.stop()
-        self.print_error("stopping, removing lockfile")
+        self.logger.info("stopping, removing lockfile")
         remove_lockfile(get_lockfile(self.config))
         DaemonThread.stop(self)
 
@@ -339,5 +350,5 @@ class Daemon(DaemonThread):
         try:
             self.gui.main()
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             # app will exit now

@@ -160,7 +160,7 @@ class ElectrumWindow(App):
         self.send_screen.set_URI(uri)
 
     def on_new_intent(self, intent):
-        if intent.getScheme() != 'bitcoin':
+        if intent.getScheme() != 'syscoin':
             return
         uri = intent.getDataString()
         self.set_URI(uri)
@@ -180,7 +180,8 @@ class ElectrumWindow(App):
 
     def on_history(self, d):
         Logger.info("on_history")
-        self.wallet.clear_coin_price_cache()
+        if self.wallet:
+            self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
 
     def on_fee_histogram(self, *args):
@@ -311,6 +312,9 @@ class ElectrumWindow(App):
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
+
+        self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
+
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
@@ -344,7 +348,7 @@ class ElectrumWindow(App):
         if is_address(data):
             self.set_URI(data)
             return
-        if data.startswith('bitcoin:'):
+        if data.startswith('syscoin:'):
             self.set_URI(data)
             return
         # try to decode transaction
@@ -530,8 +534,9 @@ class ElectrumWindow(App):
         else:
             return ''
 
-    def on_wizard_complete(self, wizard, wallet):
-        if wallet:  # wizard returned a wallet
+    def on_wizard_complete(self, wizard, storage):
+        if storage:
+            wallet = Wallet(storage)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
@@ -553,11 +558,18 @@ class ElectrumWindow(App):
                 self.load_wallet(wallet)
         else:
             def launch_wizard():
-                storage = WalletStorage(path, manual_upgrades=True)
-                wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
+                wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+                wizard.path = path
                 wizard.bind(on_wizard_complete=self.on_wizard_complete)
-                action = wizard.storage.get_action()
-                wizard.run(action)
+                storage = WalletStorage(path, manual_upgrades=True)
+                if not storage.file_exists():
+                    wizard.run('new')
+                elif storage.is_encrypted():
+                    raise Exception("Kivy GUI does not support encrypted wallet files.")
+                elif storage.requires_upgrade():
+                    wizard.upgrade_storage(storage)
+                else:
+                    raise Exception("unexpected storage file situation")
             if not ask_if_wizard:
                 launch_wizard()
             else:
@@ -736,9 +748,11 @@ class ElectrumWindow(App):
             server_height = self.network.get_server_height()
             server_lag = self.num_blocks - server_height
             if not self.wallet.up_to_date or server_height == 0:
-                status = _("Synchronizing...")
+                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                status = ("{} [size=18dp]({}/{})[/size]"
+                          .format(_("Synchronizing..."), num_answered, num_sent))
             elif server_lag > 1:
-                status = _("Server lagging")
+                status = _("Server is lagging ({} blocks)").format(server_lag)
             else:
                 status = ''
         else:
@@ -751,6 +765,12 @@ class ElectrumWindow(App):
             text = self.format_amount(c+x+u)
             self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
             self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
+
+    def update_wallet_synchronizing_progress(self, *dt):
+        if not self.wallet:
+            return
+        if not self.wallet.up_to_date:
+            self._trigger_update_status()
 
     def get_max_amount(self):
         from electrum.transaction import TxOutput

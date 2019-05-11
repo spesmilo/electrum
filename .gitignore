@@ -15,6 +15,7 @@ env/
 bin/
 /app.fil
 .idea
+venv/
 
 # icons
 electrum/gui/kivy/theming/light-0.png

@@ -118,7 +118,7 @@ class HistoryScreen(CScreen):
 
     def show_tx(self, obj):
         tx_hash = obj.tx_hash
-        tx = self.app.wallet.transactions.get(tx_hash)
+        tx = self.app.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         self.app.tx_dialog(tx)
@@ -152,7 +152,7 @@ class HistoryScreen(CScreen):
                 fx = self.app.fx
                 fiat_value = value / Decimal(bitcoin.COIN) * self.app.wallet.price_at_timestamp(tx_hash, fx.timestamp_rate)
                 fiat_value = Fiat(fiat_value, fx.ccy)
-                ri['quote_text'] = str(fiat_value)
+                ri['quote_text'] = fiat_value.to_ui_string()
         return ri
 
     def update(self, see_all=False):
@@ -363,13 +363,13 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
-        from electrum.util import create_URI
+        from electrum.util import create_bip21_uri
         amount = self.screen.amount
         if amount:
             a, u = self.screen.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_URI(self.screen.address, amount, self.screen.message)
+        return create_bip21_uri(self.screen.address, amount, self.screen.message)
 
     @profiler
     def update_qr(self):

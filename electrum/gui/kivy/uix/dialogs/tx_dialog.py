@@ -1,13 +1,21 @@
+from datetime import datetime
+from typing import NamedTuple, Callable
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from kivy.clock import Clock
 from kivy.uix.label import Label
+from kivy.uix.dropdown import DropDown
+from kivy.uix.button import Button
 
+from .question import Question
 from electrum.gui.kivy.i18n import _
-from datetime import datetime
+
 from electrum.util import InvalidPassword
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+
 
 Builder.load_string('''
 
@@ -73,15 +81,13 @@ Builder.load_string('''
             size_hint: 1, None
             height: '48dp'
             Button:
+                id: action_button
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Sign') if root.can_sign else _('Broadcast') if root.can_broadcast else _('Bump fee') if root.can_rbf else ''
-                disabled: not(root.can_sign or root.can_broadcast or root.can_rbf)
-                opacity: 0 if self.disabled else 1
-                on_release:
-                    if root.can_sign: root.do_sign()
-                    if root.can_broadcast: root.do_broadcast()
-                    if root.can_rbf: root.do_rbf()
+                text: ''
+                disabled: True
+                opacity: 0
+                on_release: root.on_action_button_clicked()
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -95,6 +101,12 @@ Builder.load_string('''
 ''')
 
 
+class ActionButtonOption(NamedTuple):
+    text: str
+    func: Callable
+    enabled: bool
+
+
 class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
@@ -102,17 +114,25 @@ class TxDialog(Factory.Popup):
         self.app = app
         self.wallet = self.app.wallet
         self.tx = tx
+        self._action_button_fn = lambda btn: None
 
     def on_open(self):
         self.update()
 
     def update(self):
         format_amount = self.app.format_amount_and_units
-        tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
-        self.tx_hash = tx_hash or ''
-        if timestamp:
+        tx_details = self.wallet.get_tx_info(self.tx)
+        tx_mined_status = tx_details.tx_mined_status
+        exp_n = tx_details.mempool_depth_bytes
+        amount, fee = tx_details.amount, tx_details.fee
+        self.status_str = tx_details.status
+        self.description = tx_details.label
+        self.can_broadcast = tx_details.can_broadcast
+        self.can_rbf = tx_details.can_bump
+        self.tx_hash = tx_details.txid or ''
+        if tx_mined_status.timestamp:
             self.date_label = _('Date')
-            self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+            self.date_str = datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
         elif exp_n:
             self.date_label = _('Mempool depth')
             self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
@@ -131,6 +151,46 @@ class TxDialog(Factory.Popup):
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
+        self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
+        self.update_action_button()
+
+    def update_action_button(self):
+        action_button = self.ids.action_button
+        options = (
+            ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
+            ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
+            ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+            ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.is_local_tx),
+        )
+        num_options = sum(map(lambda o: bool(o.enabled), options))
+        # if no options available, hide button
+        if num_options == 0:
+            action_button.disabled = True
+            action_button.opacity = 0
+            return
+        action_button.disabled = False
+        action_button.opacity = 1
+
+        if num_options == 1:
+            # only one option, button will correspond to that
+            for option in options:
+                if option.enabled:
+                    action_button.text = option.text
+                    self._action_button_fn = option.func
+        else:
+            # multiple options. button opens dropdown which has one sub-button for each
+            dropdown = DropDown()
+            action_button.text = _('Options')
+            self._action_button_fn = dropdown.open
+            for option in options:
+                if option.enabled:
+                    btn = Button(text=option.text, size_hint_y=None, height=48)
+                    btn.bind(on_release=option.func)
+                    dropdown.add_widget(btn)
+
+    def on_action_button_clicked(self):
+        action_button = self.ids.action_button
+        self._action_button_fn(action_button)
 
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
@@ -183,3 +243,22 @@ class TxDialog(Factory.Popup):
         text = bfh(raw_tx)
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=raw_tx)
+
+    def remove_local_tx(self):
+        txid = self.tx.txid()
+        to_delete = {txid}
+        to_delete |= self.wallet.get_depending_transactions(txid)
+        question = _("Are you sure you want to remove this transaction?")
+        if len(to_delete) > 1:
+            question = (_("Are you sure you want to remove this transaction and {} child transactions?")
+                        .format(len(to_delete) - 1))
+
+        def on_prompt(b):
+            if b:
+                for tx in to_delete:
+                    self.wallet.remove_transaction(tx)
+                self.wallet.storage.write()
+                self.app._trigger_update_wallet()  # FIXME private...
+                self.dismiss()
+        d = Question(question, on_prompt)
+        d.open()

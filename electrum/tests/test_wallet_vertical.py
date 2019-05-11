@@ -11,6 +11,7 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCON
 from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
 from electrum.util import bfh, bh2u
 from electrum.transaction import TxOutput
+from electrum.mnemonic import seed_type
 
 from electrum.plugins.trustedcoin import trustedcoin
 
@@ -80,7 +81,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_standard(self, mock_write):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+        self.assertEqual(seed_type(seed_words), 'standard')
 
         ks = keystore.from_seed(seed_words, '', False)
 
@@ -100,7 +101,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_segwit(self, mock_write):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
+        self.assertEqual(seed_type(seed_words), 'segwit')
 
         ks = keystore.from_seed(seed_words, '', False)
 
@@ -120,7 +121,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_segwit_passphrase(self, mock_write):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
+        self.assertEqual(seed_type(seed_words), 'segwit')
 
         ks = keystore.from_seed(seed_words, UNICODE_HORROR, False)
 
@@ -140,7 +141,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_old(self, mock_write):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'old')
+        self.assertEqual(seed_type(seed_words), 'old')
 
         ks = keystore.from_seed(seed_words, '', False)
 
@@ -159,7 +160,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_2fa_legacy(self, mock_write):
         seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
-        self.assertEqual(bitcoin.seed_type(seed_words), '2fa')
+        self.assertEqual(seed_type(seed_words), '2fa')
 
         xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
 
@@ -194,7 +195,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_2fa_segwit(self, mock_write):
         seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
-        self.assertEqual(bitcoin.seed_type(seed_words), '2fa_segwit')
+        self.assertEqual(seed_type(seed_words), '2fa_segwit')
 
         xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
 
@@ -306,7 +307,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_multisig_seed_standard(self, mock_write):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+        self.assertEqual(seed_type(seed_words), 'standard')
 
         ks1 = keystore.from_seed(seed_words, '', True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
@@ -329,7 +330,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_multisig_seed_segwit(self, mock_write):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
+        self.assertEqual(seed_type(seed_words), 'segwit')
 
         ks1 = keystore.from_seed(seed_words, '', True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
@@ -1718,7 +1719,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         w.storage.put('stored_height', 1316917 + 100)
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
-            w.transactions[tx.txid()] = tx
+            w.add_transaction(tx.txid(), tx)
         # txn A is an external incoming txn paying to addr (3) and (15)
         # txn B is an external incoming txn paying to addr (4) and (25)
         # txn C is an internal transfer txn from addr (25) -- to -- (1) and (25)

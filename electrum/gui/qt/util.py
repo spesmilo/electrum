@@ -218,7 +218,8 @@ class MessageBoxMixin(object):
                             title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, rich_text=False):
+                defaultButton=QMessageBox.NoButton, *, rich_text=False,
+                checkbox=None):
         parent = parent or self.top_level_window()
         if type(icon) is QPixmap:
             d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
@@ -233,6 +234,8 @@ class MessageBoxMixin(object):
         else:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse)
             d.setTextFormat(Qt.PlainText)
+        if checkbox is not None:
+            d.setCheckBox(checkbox)
         return d.exec_()
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
@@ -547,9 +550,10 @@ class MyTreeView(QTreeView):
             # we did not find the filter in any columns, hide the item
             self.setRowHidden(row_num, QModelIndex(), True)
 
-    def filter(self, p):
-        p = p.lower()
-        self.current_filter = p
+    def filter(self, p=None):
+        if p is not None:
+            p = p.lower()
+            self.current_filter = p
         self.hide_rows()
 
     def hide_rows(self):
@@ -558,14 +562,17 @@ class MyTreeView(QTreeView):
 
     def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
-        buttons = self.get_toolbar_buttons()
-        for b in buttons:
-            b.setVisible(False)
-            hbox.addWidget(b)
         hide_button = QPushButton('x')
         hide_button.setVisible(False)
         hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
-        self.toolbar_buttons = buttons + (hide_button,)
+        buttons = self.get_toolbar_buttons()
+        if buttons is not None:
+            for b in buttons:
+                b.setVisible(False)
+                hbox.addWidget(b)
+            self.toolbar_buttons = buttons + (hide_button,)
+        else:
+            self.toolbar_buttons = (hide_button,)
         hbox.addStretch()
         hbox.addWidget(hide_button)
         return hbox
@@ -715,6 +722,7 @@ class ColorScheme:
     YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    PURPLE = ColorSchemeItem("#8A2BE2", "#8A2BE2")
     DEFAULT = ColorSchemeItem("black", "white")
 
     @staticmethod

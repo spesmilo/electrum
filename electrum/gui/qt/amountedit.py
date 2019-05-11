@@ -110,6 +110,46 @@ class BTCAmountEdit(AmountEdit):
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
 
 
+class TokenAmountEdit(AmountEdit):
+
+    def __init__(self, token_symbol, precision=8, is_int=False, parent=None):
+        AmountEdit.__init__(self, self._base_unit, is_int, parent)
+        self.token_symbol = token_symbol
+        self.precision = precision
+
+    def set_token_symbol(self, token_symbol):
+        self.token_symbol = token_symbol
+
+    def _base_unit(self):
+        return self.token_symbol
+
+    def set_precision(self, precision):
+        self.precision = precision
+
+    def get_amount(self):
+        try:
+            x = Decimal(str(self.text()))
+        except:
+            return None
+        # scale it to max allowed precision, make it an int
+        power = pow(10, self.max_precision())
+        max_prec_amount = int(power * x)
+
+        # if the max precision is simply what unit conversion allows, just return
+        if self.max_precision() == self.decimal_point():
+            return max_prec_amount
+
+        # otherwise, scale it back to the expected unit
+        amount = Decimal(max_prec_amount) / pow(10, self.max_precision() - self.decimal_point())
+        return Decimal(amount) if not self.is_int else int(amount)
+
+    def set_amount(self, amount):
+        if amount is None:
+            self.setText(" ") # Space forces repaint in case units changed
+        else:
+            self.setText(format_satoshis_plain(amount, self.decimal_point()))
+
+
 class FeerateEdit(BTCAmountEdit):
 
     def __init__(self, decimal_point, is_int=False, parent=None):
