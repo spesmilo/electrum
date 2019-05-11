@@ -46,7 +46,6 @@ class FeeSlider(QSlider):
     def update_no_custom_fee_rate(self):
         self.fee_step = self.config.max_fee_rate() / 10
         fee_rate = self.config.fee_per_kb()
-        print("fee_rate", fee_rate)
         pos = max(min(fee_rate / self.fee_step, 10) - 1, 0)
         self.setEnabled(True)
         self.setRange(0, 9)
