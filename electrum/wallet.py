@@ -1451,7 +1451,7 @@ class Imported_Wallet(Simple_Wallet):
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
-            self.db.remove_history(address)
+            self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
                 self.db.remove_tx_fee(tx_hash)
