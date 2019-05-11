@@ -132,12 +132,12 @@ def sweep_preparations(privkeys, network, imax=100):
     return inputs, keypairs
 
 
-def sweep(privkeys, network, config, recipient, fee=None, imax=100):
+def sweep(privkeys, network, config, recipient, fee=None, imax=100, sign_schnorr=False):
     inputs, keypairs = sweep_preparations(privkeys, network, imax)
     total = sum(i.get('value') for i in inputs)
     if fee is None:
         outputs = [(TYPE_ADDRESS, recipient, total)]
-        tx = Transaction.from_io(inputs, outputs)
+        tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
         fee = config.estimate_fee(tx.estimated_size())
     if total - fee < 0:
         raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
@@ -147,7 +147,7 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     outputs = [(TYPE_ADDRESS, recipient, total - fee)]
     locktime = network.get_local_height()
 
-    tx = Transaction.from_io(inputs, outputs, locktime=locktime)
+    tx = Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
     tx.BIP_LI01_sort()
     tx.sign(keypairs)
     return tx
@@ -1066,7 +1066,7 @@ class Abstract_Wallet(PrintError):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None, sign_schnorr=False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -1123,16 +1123,16 @@ class Abstract_Wallet(PrintError):
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.CoinChooserPrivacy()
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(), sign_schnorr=sign_schnorr)
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
-            tx = Transaction.from_io(inputs, outputs)
+            tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
             fee = fee_estimator(tx.estimated_size())
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
-            tx = Transaction.from_io(inputs, outputs)
+            tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
 
         # If user tries to send too big of a fee (more than 50 sat/byte), stop them from shooting themselves in the foot
         tx_in_bytes=tx.estimated_size()
@@ -1152,9 +1152,9 @@ class Abstract_Wallet(PrintError):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
+    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None, sign_schnorr=False):
         coins = self.get_spendable_coins(domain, config)
-        tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
+        tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr, sign_schnorr=sign_schnorr)
         self.sign_transaction(tx, password)
         return tx
 
@@ -1315,7 +1315,7 @@ class Abstract_Wallet(PrintError):
                 break # ok, it's old. not need to keep looping
         return age > age_limit
 
-    def cpfp(self, tx, fee):
+    def cpfp(self, tx, fee, sign_schnorr=False):
         txid = tx.txid()
         for i, o in enumerate(tx.outputs()):
             otype, address, value = o
@@ -1332,7 +1332,7 @@ class Abstract_Wallet(PrintError):
         outputs = [(TYPE_ADDRESS, address, value - fee)]
         locktime = self.get_local_height()
         # note: no need to call tx.BIP_LI01_sort() here - single input/output
-        return Transaction.from_io(inputs, outputs, locktime=locktime)
+        return Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
 
     def add_input_info(self, txin):
         address = txin['address']
@@ -1649,6 +1649,9 @@ class Abstract_Wallet(PrintError):
     def is_multisig(self):
         # Subclass Multisig_Wallet overrides this
         return False
+
+    def is_hardware(self):
+        return any([isinstance(k, Hardware_KeyStore) for k in self.get_keystores()])
 
     def add_address(self, address):
         assert isinstance(address, Address)

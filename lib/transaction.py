@@ -32,6 +32,7 @@ from .util import print_error, profiler
 from .bitcoin import *
 from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
                       UnknownAddress, OpCodes as opcodes)
+from . import schnorr
 import struct
 
 #
@@ -424,6 +425,7 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
+        self._sign_schnorr = False
 
         # attribute used by HW wallets to tell the hw keystore about any outputs
         # in the tx that are to self (change), etc. See wallet.py add_hw_info
@@ -436,6 +438,9 @@ class Transaction:
         # is change that's too small to go to change outputs (below dust threshold) and needed
         # to go to the fee. Values in this dict are advisory only and may or may not always be there!
         self.ephemeral = dict()
+
+    def set_sign_schnorr(self, b):
+        self._sign_schnorr = b
 
     def update(self, raw):
         self.raw = raw
@@ -492,6 +497,18 @@ class Transaction:
         # redo raw
         self.raw = self.serialize()
 
+    def is_schnorr_signed(self, input_idx):
+        ''' Return True IFF any of the signatures for a particular input
+        are Schnorr signatures (Schnorr signatures are always 64 bytes + 1) '''
+        if (isinstance(self._inputs, (list, tuple))
+                and input_idx < len(self._inputs)
+                and self._inputs[input_idx]):
+            # Schnorr sigs are always 64 bytes. However the sig has a hash byte
+            # at the end, so that's 65. Plus we are hex encoded, so 65*2=130
+            return any(isinstance(sig, (str, bytes)) and len(sig) == 130
+                       for sig in self._inputs[input_idx].get('signatures', []))
+        return False
+
     def deserialize(self):
         if self.raw is None:
             return
@@ -507,13 +524,14 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0):
+    def from_io(klass, inputs, outputs, locktime=0, sign_schnorr=False):
         assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
                    for output in outputs)
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs.copy()
         self.locktime = locktime
+        self.set_sign_schnorr(sign_schnorr)
         return self
 
     @classmethod
@@ -547,15 +565,19 @@ class Transaction:
             return 0x21  # just guess it is compressed
 
     @classmethod
-    def get_siglist(self, txin, estimate_size=False):
+    def get_siglist(self, txin, estimate_size=False, sign_schnorr=False):
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
             pk_list = ["00" * pubkey_size] * len(txin.get('x_pubkeys', [None]))
-            # we assume that signature will be 0x48 bytes long
-            sig_list = [ "00" * 0x48 ] * num_sig
+            # we assume that signature will be 0x48 bytes long if ECDSA, 0x41 if Schnorr
+            if sign_schnorr:
+                siglen = 0x41
+            else:
+                siglen = 0x48
+            sig_list = [ "00" * siglen ] * num_sig
         else:
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             x_signatures = txin['signatures']
@@ -570,11 +592,11 @@ class Transaction:
         return pk_list, sig_list
 
     @classmethod
-    def input_script(self, txin, estimate_size=False):
+    def input_script(self, txin, estimate_size=False, sign_schnorr=False):
         _type = txin['type']
         if _type == 'coinbase':
             return txin['scriptSig']
-        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size, sign_schnorr)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
             pass
@@ -676,7 +698,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size), estimate_size) for txin in inputs)
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size, self._sign_schnorr), estimate_size) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         return nVersion + txins + txouts + nLocktime
 
@@ -736,6 +758,24 @@ class Transaction:
         s, r = self.signature_count()
         return r == s
 
+    @staticmethod
+    def _ecdsa_sign(sec, pre_hash):
+        pkey = regenerate_key(sec)
+        secexp = pkey.secret
+        private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
+        public_key = private_key.get_verifying_key()
+        sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+        assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+        return sig
+
+    @staticmethod
+    def _schnorr_sign(pubkey, sec, pre_hash):
+        pubkey = bytes.fromhex(pubkey)
+        sig = schnorr.sign(sec, pre_hash)
+        assert schnorr.verify(pubkey, sig, pre_hash)  # verify what we just signed
+        return sig
+
+
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
@@ -746,17 +786,15 @@ class Transaction:
                     # txin is complete
                     break
                 if x_pubkey in keypairs.keys():
-                    print_error("adding signature for", x_pubkey)
+                    print_error("adding signature for", x_pubkey, "use schnorr?", self._sign_schnorr)
                     sec, compressed = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                    pkey = regenerate_key(sec)
-                    secexp = pkey.secret
-                    private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
-                    public_key = private_key.get_verifying_key()
-                    sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-                    assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+                    if self._sign_schnorr:
+                        sig = self._schnorr_sign(pubkey, sec, pre_hash)
+                    else:
+                        sig = self._ecdsa_sign(sec, pre_hash)
                     txin['signatures'][j] = bh2u(sig) + int_to_hex(self.nHashType() & 255, 1)
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
