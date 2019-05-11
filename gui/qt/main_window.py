@@ -57,7 +57,6 @@ try:
 except:
     plot_history = None
 import electroncash.web as web
-from electroncash import schnorr  # for schnorr.is_available
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCSatsByteEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -3525,14 +3524,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Schnorr
         use_schnorr_cb = QCheckBox(_("Enable Schnorr signatures"))
-        no_schnorr_reason = []
-        use_schnorr_cb.setEnabled(self.is_schnorr_possible(no_schnorr_reason))
         use_schnorr_cb.setChecked(self.is_schnorr_enabled())
         use_schnorr_cb.stateChanged.connect(self.set_schnorr_enabled)
-        if use_schnorr_cb.isEnabled():
+        no_schnorr_reason = []
+        if self.is_schnorr_possible(no_schnorr_reason):
+            use_schnorr_cb.setEnabled(True)
             use_schnorr_cb.setToolTip(_("Sign all transactions using Schnorr signatures."))
         else:
-            use_schnorr_cb.setToolTip(_("Schnorr signatures are disabled.") if not no_schnorr_reason else no_schnorr_reason[0])
+            # not possible (wallet type not supported); show reason in tooltip
+            use_schnorr_cb.setEnabled(False)
+            use_schnorr_cb.setToolTip(no_schnorr_reason[0])
         tx_widgets.append((use_schnorr_cb, None))
 
 
@@ -3667,19 +3668,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_warning(_('Please restart Electron Cash to activate the new GUI settings'), title=_('Success'))
 
     def is_schnorr_possible(self, reason: list = None) -> bool:
-        ''' Returns True if this system can sign with Schnorr and/or this
-        wallet type is compatible.
+        ''' Returns True if this wallet type is compatible.
         `reason` is an optional list where you would like a translated string
         of why Schnorr isn't possible placed (on False return). '''
         wallet_ok = bool(not self.wallet.is_multisig() and not self.wallet.is_hardware())
-        available = schnorr.is_available()
-        ret = wallet_ok and available
-        if not ret and isinstance(reason, list):
-            if not wallet_ok:
-                reason.insert(0, _('Schnorr signatures are disabled for this wallet type.'))
-            elif not available:
-                reason.insert(0, _('Schnorr signatures are disabled because no secp256k1 library with Schnorr capabilities was found.'))
-        return ret
+        if not wallet_ok and isinstance(reason, list):
+            reason.insert(0, _('Schnorr signatures are disabled for this wallet type.'))
+        return wallet_ok
 
     def is_schnorr_enabled(self) -> bool:
         ''' Returns whether schnorr is enabled AND possible for this wallet.
