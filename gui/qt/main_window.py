@@ -2628,7 +2628,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from electroncash.transaction import tx_from_str
         try:
             txt_tx = tx_from_str(txt)
-            tx = Transaction(txt_tx)
+            tx = Transaction(txt_tx, sign_schnorr=self.is_schnorr_enabled())
             tx.deserialize()
             if self.wallet:
                 my_coins = self.wallet.get_spendable_coins(None, self.config)
@@ -2710,7 +2710,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not ok:
                 self.show_message(_("Error retrieving transaction") + ":\n" + r)
                 return
-            tx = transaction.Transaction(r)
+            tx = transaction.Transaction(r, sign_schnorr=self.is_schnorr_enabled())  # note that presumably the tx is already signed if it comes from blockchain so this sign_schnorr parameter is superfluous, but here to satisfy my OCD -Calin
             self.show_transaction(tx)
 
     @protected

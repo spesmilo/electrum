@@ -412,7 +412,7 @@ class Transaction:
             self.raw = self.serialize()
         return self.raw
 
-    def __init__(self, raw):
+    def __init__(self, raw, sign_schnorr=False):
         if raw is None:
             self.raw = None
         elif isinstance(raw, str):
@@ -425,7 +425,7 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
-        self._sign_schnorr = False
+        self._sign_schnorr = sign_schnorr
 
         # attribute used by HW wallets to tell the hw keystore about any outputs
         # in the tx that are to self (change), etc. See wallet.py add_hw_info
@@ -596,7 +596,7 @@ class Transaction:
         _type = txin['type']
         if _type == 'coinbase':
             return txin['scriptSig']
-        pubkeys, sig_list = self.get_siglist(txin, estimate_size, sign_schnorr)
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size, sign_schnorr=sign_schnorr)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
             pass
@@ -738,9 +738,9 @@ class Transaction:
                 else len(self.raw) // 2)  # ASCII hex string
 
     @classmethod
-    def estimated_input_size(self, txin):
+    def estimated_input_size(self, txin, sign_schnorr=False):
         '''Return an estimated of serialized input size in bytes.'''
-        script = self.input_script(txin, True)
+        script = self.input_script(txin, True, sign_schnorr=sign_schnorr)
         return len(self.serialize_input(txin, script, True)) // 2  # ASCII hex string
 
     def signature_count(self):
