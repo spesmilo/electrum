@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import sys
 import copy
 import datetime
 from functools import partial
@@ -41,6 +42,14 @@ from electroncash.util import bfh, Weak
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+
+if sys.platform.lower().startswith('win'):
+    # NB: on Qt for Windows the 'ⓢ' symbol looks aliased and bad. So we do this
+    # for windows.
+    SCHNORR_SIGIL = "(S)"
+else:
+    # On Linux & macOS it looks fine so we go with the more fancy unicode
+    SCHNORR_SIGIL = "ⓢ"
 
 def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     d = TxDialog(tx, parent, desc, prompt_if_unsaved)
@@ -288,7 +297,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         hbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
 
-        self.schnorr_label = QLabel(_('ⓢ = Schnorr signed'))
+        self.schnorr_label = QLabel(_('{} = Schnorr signed').format(SCHNORR_SIGIL))
         self.schnorr_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
         f = self.schnorr_label.font()
         f.setPointSize(f.pointSize()-1)  # make it a little smaller
@@ -354,7 +363,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                     cursor.insertText(format_amount(x['value']), ext)
                 if self.tx.is_schnorr_signed(i):
                     # Schnorr
-                    cursor.insertText(' ⓢ')
+                    cursor.insertText(' {}'.format(SCHNORR_SIGIL), ext)
                     has_schnorr = True
             cursor.insertBlock()
 
