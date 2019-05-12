@@ -1372,7 +1372,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             opret_color = ColorScheme.DEFAULT
             if self.op_return_toolong:
                 opret_color = ColorScheme.RED
-                text = _("OP_RETURN message too large, needs to be under 220 bytes") + (", " if text else "") + text
+                text = _("OP_RETURN message too large, needs to be no longer than 220 bytes") + (", " if text else "") + text
 
             self.statusBar().showMessage(text)
             self.amount_e.setStyleSheet(amt_color.as_stylesheet())
@@ -1434,7 +1434,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         op_return_code = "OP_RETURN "
         op_return_encoded = op_return.encode('utf-8')
         if len(op_return_encoded) > 220:
-            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be under 220 bytes"))
+            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be no longer than 220 bytes"))
         op_return_payload = op_return_encoded.hex()
         script = op_return_code + op_return_payload
         amount = 0
@@ -1451,7 +1451,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except ValueError:
             raise OPReturnError(_('OP_RETURN script expected to be hexadecimal bytes'))
         if len(op_return_script) > 223:
-            raise OPReturnTooLarge(_("OP_RETURN script too large, needs to be under 223 bytes"))
+            raise OPReturnTooLarge(_("OP_RETURN script too large, needs to be no longer than 223 bytes"))
         amount = 0
         return (TYPE_SCRIPT, ScriptOutput(op_return_script), amount)
 
