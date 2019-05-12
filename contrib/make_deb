@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "====== GET VERSION ======"
+VERSION="$(python3 -c "import electrum.version; print(electrum.version.ELECTRUM_VERSION)")"
+echo $VERSION
+
+echo "====== COPY SOURCES FILES ======"
+mkdir -p contrib/build-linux/pkg-debian/usr/share
+mkdir -p contrib/build-linux/pkg-debian/usr/share/applications/
+cp electrum.desktop contrib/build-linux/pkg-debian/usr/share/applications/
+unzip -q dist/Electrum-$VERSION.zip -d contrib/build-linux/pkg-debian/usr/share/
+mv contrib/build-linux/pkg-debian/usr/share/Electrum-$VERSION contrib/build-linux/pkg-debian/usr/share/Electrum
+
+echo "====== GENERATE CONTROL FILE ======"
+cat > $PWD/contrib/build-linux/pkg-debian/DEBIAN/control << EOF
+Package: Electrum
+Version: ${VERSION}
+Architecture: all
+Essential: no
+Section: web
+Priority: optional
+Maintainer: Thomas Voegtlin
+Description: Lightweight Bitcoin Wallet.
+EOF
+
+echo "====== CREATE DEBIAN PACKAGE ======"
+dpkg -b contrib/build-linux/pkg-debian dist/Electrum-$VERSION.deb

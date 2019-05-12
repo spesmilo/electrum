@@ -1,0 +1,3 @@
+#!/bin/sh
+
+ln -s /usr/share/Electrum/run_electrum /usr/bin/electrum
