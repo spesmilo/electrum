@@ -35,6 +35,12 @@ class InstallHardwareWalletSupportDialog(QDialog):
     UDEV_RULES_FILE='/etc/udev/rules.d/20-electron-cash-hw-wallets.rules'
     GRAPHICAL_SUDOS=['pkexec','gksudo','kdesudo']
 
+    ADDITIONAL_HARDWARE_IDS={
+        (0x534c, 0x0001), # TREZOR
+        (0x1209, 0x53c0), # TREZOR V2
+        (0x1209, 0x53c1), # TREZOR V2
+    }
+
     def __init__(self, parent: QObject = None, plugins: Plugins = None):
         super().__init__(parent)
 
@@ -108,7 +114,8 @@ class InstallHardwareWalletSupportDialog(QDialog):
 
     def generateRulesFile(self) -> str:
         line_format='SUBSYSTEMS=="usb", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", TAG+="uaccess"'
-        lines = [line_format.format(ids[0], ids[1]) for ids in self.device_manager.recognised_hardware]
+        ids_set = self.device_manager.recognised_hardware.union(self.ADDITIONAL_HARDWARE_IDS)
+        lines = [line_format.format(ids[0], ids[1]) for ids in ids_set]
         return '# Electron Cash hardware wallet rules file\n' + '\n'.join(lines) + '\n'
 
     def _runScriptAsRoot(self, script: str) -> bool:
