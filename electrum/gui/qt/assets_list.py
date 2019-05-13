@@ -89,9 +89,9 @@ class AssetsList(MyTreeWidget):
                             tokens[tokenid] = 0
 
             for myasset in ownassets:
-                rmass = str("%.6f" % (float(ownassets[myasset])*tokrat/1.0E+6))+" oz "
+                rmass = str("%.6f" % (float(ownassets[myasset])*tokrat/1.0E+8))+" oz "
                 tmass = str("%.6f" % (float(self.get_mass_assetid(myasset))))+" oz "
-                fraction = 100*(float(ownassets[myasset])*tokrat/1.0E+6)/float(self.get_mass_assetid(myasset))
+                fraction = 100*(float(ownassets[myasset])*tokrat/1.0E+8)/float(self.get_mass_assetid(myasset))
                 fraction_str = str("%.4f" % fraction)+" %"
                 asset_ref = myasset.split("-")
                 if len(asset_ref) != 3: return
