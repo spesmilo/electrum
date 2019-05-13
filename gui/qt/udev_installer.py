@@ -176,8 +176,12 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         self.updateStatus()
         if success:
             msg = _('HW wallet udev rules have been successfully installed!')
-            info = ( _('Note: You may now need to disconnect & reconnect your HW wallet.')
-                     + "\n\n" + _('(Your display resolution may also have changed as a result of this process. This is harmless; simply set it back.)'))
+            info = (
+                _('Note: You may now need to disconnect & reconnect your HW wallet.')
+                # Commented the below out as it's no longer relevant after our
+                # removal of `udevadm trigger` above.
+                #+ "\n\n" + _('(Your display resolution may also have changed as a result of this process. This is harmless; simply set it back.)')
+            )
             self.show_message(msg, informative_text=info, rich_text=True)
         else:
             msg = _('Error installing udev rules and/or user canceled.')
