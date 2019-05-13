@@ -433,11 +433,25 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     "contain more addresses than displayed.")
             self.show_message(msg)
 
-    @wizard_dialog
-    def confirm_dialog(self, title, message, run_next):
-        self.confirm(message, title)
+    def _add_extra_button_to_layout(self, extra_button, layout):
+        if (not isinstance(extra_button, (list, tuple))
+                or not len(extra_button) == 2):
+            return
+        but_title, but_action = extra_button
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(12,24,12,12)
+        but = QPushButton(but_title)
+        hbox.addStretch(1)
+        hbox.addWidget(but)
+        layout.addLayout(hbox)
+        but.clicked.connect(but_action)
 
-    def confirm(self, message, title):
+
+    @wizard_dialog
+    def confirm_dialog(self, title, message, run_next, extra_button=None):
+        self.confirm(message, title, extra_button=extra_button)
+
+    def confirm(self, message, title, extra_button=None):
         label = WWLabel(message)
 
         textInteractionFlags = (Qt.LinksAccessibleByMouse
@@ -449,6 +463,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         vbox = QVBoxLayout()
         vbox.addWidget(label)
+        if extra_button:
+            self._add_extra_button_to_layout(extra_button, vbox)
         self.exec_layout(vbox, title)
 
     @wizard_dialog
@@ -466,15 +482,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         t.join()
 
     @wizard_dialog
-    def choice_dialog(self, title, message, choices, run_next):
+    def choice_dialog(self, title, message, choices, run_next, extra_button=None):
         c_values = [x[0] for x in choices]
         c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
         vbox = QVBoxLayout()
         vbox.addLayout(clayout.layout())
+        if extra_button:
+            self._add_extra_button_to_layout(extra_button, vbox)
         self.exec_layout(vbox, title)
         action = c_values[clayout.selected_index()]
         return action
+
 
     def query_choice(self, msg, choices):
         """called by hardware wallets"""
@@ -567,3 +586,19 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         m = int(m_edit.value())
         n = int(n_edit.value())
         return (m, n)
+
+    linux_hw_wallet_support_dialog = None
+    def on_hw_wallet_support(self):
+        ''' Overrides base wizard's noop impl. '''
+        if sys.platform.startswith("linux"):
+            if self.linux_hw_wallet_support_dialog:
+                self.linux_hw_wallet_support_dialog.raise_()
+                return
+            # NB: this should only be imported from Linux
+            from . import udev_installer
+            self.linux_hw_wallet_support_dialog = udev_installer.InstallHardwareWalletSupportDialog(self.top_level_window(), self.plugins)
+            self.linux_hw_wallet_support_dialog.exec_()
+            self.linux_hw_wallet_support_dialog.setParent(None)
+            self.linux_hw_wallet_support_dialog = None
+        else:
+            self.show_error("Linux only facility. FIXME!")

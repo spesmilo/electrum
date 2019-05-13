@@ -607,7 +607,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()))
         tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog)
         tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog)
-        if sys.platform == 'linux':
+        if sys.platform in ('linux', 'linux2', 'linux3'):
             tools_menu.addSeparator()
             tools_menu.addAction(_("&Hardware wallet support..."), self.hardware_wallet_support)
         tools_menu.addSeparator()
@@ -3888,6 +3888,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = None # allow python to GC
 
     def hardware_wallet_support(self):
+        if not sys.platform.startswith('linux'):
+            self.print_error("FIXME! hardware_wallet_support is Linux only!")
+            return
         if self.hardwarewalletdialog:
             # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
             self.hardwarewalletdialog.raise_()
@@ -3896,7 +3899,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = InstallHardwareWalletSupportDialog(self.top_level_window(), self.gui_object.plugins)
         self.hardwarewalletdialog = d
         d.exec_()
-        d.setParent(None)
         self.hardwarewalletdialog = None # allow python to GC
 
     def cpfp(self, parent_tx, new_tx):

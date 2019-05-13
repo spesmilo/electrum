@@ -181,6 +181,9 @@ class BaseWizard(object):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
+    def on_hw_wallet_support(self):
+        ''' Derived class InstallWizard for Qt implements this '''
+
     def choose_hw_device(self):
         title = _('Hardware Keystore')
         # check available plugins
@@ -196,6 +199,9 @@ class BaseWizard(object):
                 devmgr.print_error("error", name)
                 continue
             devices += list(map(lambda x: (name, x), u))
+        extra_button = None
+        if sys.platform in ("linux", "linux2", "linux3"):
+            extra_button = (_("Hardware Wallet Support..."), self.on_hw_wallet_support)
         if not devices:
             msgs = [
                 _('No hardware device detected.') + '\n\n',
@@ -206,7 +212,7 @@ class BaseWizard(object):
                 msgs.append(_('Go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + '\n')
 
             if sys.platform in ('linux', 'linux2', 'linux3'):
-                msgs.append(_('You might have to add a new permission to your udev rules.') + '\n')
+                msgs.append(_('You may try the "Hardware Wallet Support" tool (below).') + '\n')
 
             support_no_libs = [s for s in support if not s[2].libraries_available]
             if len(support_no_libs) > 0:
@@ -215,12 +221,11 @@ class BaseWizard(object):
                 msgs.append(_('On most systems you can do so with this command:') + '\n')
                 msgs.append('pip3 install -r contrib/requirements/requirements-hw.txt\n')
 
-            msgs.append('\n' + _("If this problem persists (and you really do have a hardware device connected), "
-                                 "please visit:")
+            msgs.append('\n' + _("If this problem persists, please visit:")
                         + "\n\n     https://github.com/Electron-Cash/Electron-Cash/issues")
 
             msg = ''.join(msgs)
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(), extra_button=extra_button)
             return
         # select device
         self.devices = devices
@@ -233,7 +238,7 @@ class BaseWizard(object):
             descr = "%s [%s, %s, %s]" % (label, name, state, transport_str)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
+        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device, extra_button=extra_button)
 
     def on_device(self, name, device_info):
         self.plugin = self.plugins.find_plugin(name, force_load=True)
