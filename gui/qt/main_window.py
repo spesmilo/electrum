@@ -128,6 +128,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.op_return_toolong = False
         self.internalpluginsdialog = None
         self.externalpluginsdialog = None
+        self.hardwarewalletdialog = None
         self.require_fee_update = False
         self.force_use_single_change_addr = None  # this is set by the CashShuffle plugin to a single string that will go into the tool-tip explaining why this preference option is disabled (see self.settings_dialog)
         self.tl_windows = []
@@ -606,6 +607,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()))
         tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog)
         tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog)
+        if sys.platform == 'linux':
+            tools_menu.addSeparator()
+            tools_menu.addAction(_("&Hardware wallet support"), self.hardware_wallet_support)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
@@ -3882,6 +3886,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = d
         d.exec_()
         self.externalpluginsdialog = None # allow python to GC
+
+    def hardware_wallet_support(self):
+        if self.hardwarewalletdialog:
+            # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
+            self.hardwarewalletdialog.raise_()
+            return
+        from .udev_installer import InstallHardwareWalletSupportDialog
+        d = InstallHardwareWalletSupportDialog(self, self.gui_object.plugins)
+        self.hardwarewalletdialog = d
+        d.exec()
+        self.hardwarewalletdialog = None # allow python to GC
 
     def cpfp(self, parent_tx, new_tx):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
