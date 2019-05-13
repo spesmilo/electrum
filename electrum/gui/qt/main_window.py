@@ -239,13 +239,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # If the option hasn't been set yet
         if config.get('check_updates') is None:
-            choice = QMessageBox.question(self,
-                                 "Electrum - " + _("Enable update check"),
-                                 _("For security reasons we advise that you always use the latest version of Electrum.") + " " +
-                                 _("Would you like to be notified when there is a newer version of Electrum available?"),
-                                 QMessageBox.Yes,
-                                 QMessageBox.No)
-            config.set_key('check_updates', choice == QMessageBox.Yes, save=True)
+            choice = self.question(title="Electrum - " + _("Enable update check"),
+                                   msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
+                                       _("Would you like to be notified when there is a newer version of Electrum available?"))
+            config.set_key('check_updates', bool(choice), save=True)
 
         if config.get('check_updates', False):
             # The references to both the thread and the window need to be stored somewhere
@@ -1282,7 +1279,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.')  + '\n' +
                     _('Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee.'))
-            QMessageBox.information(self, 'Fee rounding', text)
+            self.show_message(title=_('Fee rounding'), msg=text)
 
         self.feerounding_icon = QPushButton(read_QIcon('info.png'), '')
         self.feerounding_icon.setFixedWidth(20)

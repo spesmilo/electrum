@@ -53,7 +53,7 @@ from electrum.logging import Logger
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 
 
-from .util import get_default_language, read_QIcon, ColorScheme
+from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -227,8 +227,10 @@ class ElectrumGui(Logger):
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
             self.logger.exception('')
-            QMessageBox.warning(None, _('Error'),
-                                _('Cannot load wallet') + ' (1):\n' + str(e))
+            custom_message_box(icon=QMessageBox.Warning,
+                               parent=None,
+                               title=_('Error'),
+                               text=_('Cannot load wallet') + ' (1):\n' + str(e))
             # if app is starting, still let wizard to appear
             if not app_is_starting:
                 return
@@ -237,8 +239,10 @@ class ElectrumGui(Logger):
                 wallet = self._start_wizard_to_select_or_create_wallet(path)
             except (WalletFileException, BitcoinException) as e:
                 self.logger.exception('')
-                QMessageBox.warning(None, _('Error'),
-                                    _('Cannot load wallet') + ' (2):\n' + str(e))
+                custom_message_box(icon=QMessageBox.Warning,
+                                   parent=None,
+                                   title=_('Error'),
+                                   text=_('Cannot load wallet') + ' (2):\n' + str(e))
         if not wallet:
             return
         # create or raise window
@@ -250,8 +254,10 @@ class ElectrumGui(Logger):
                 window = self._create_window_for_wallet(wallet)
         except BaseException as e:
             self.logger.exception('')
-            QMessageBox.warning(None, _('Error'),
-                                _('Cannot create window for wallet') + ':\n' + str(e))
+            custom_message_box(icon=QMessageBox.Warning,
+                               parent=None,
+                               title=_('Error'),
+                               text=_('Cannot create window for wallet') + ':\n' + str(e))
             if app_is_starting:
                 wallet_dir = os.path.dirname(path)
                 path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
