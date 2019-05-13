@@ -21,8 +21,13 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""
+Only import this on linux platforms, the module imports linux specific modules
+"""
+
 import os
 import tempfile
+import grp
 
 from PyQt5.QtCore import Qt, QObject
 from PyQt5.QtGui import QFont
@@ -134,7 +139,18 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         self.setStatus(_('Installed'), False)
 
     def generateRulesFile(self) -> str:
-        line_format='SUBSYSTEMS=="usb", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", TAG+="uaccess"'
+        line_format='SUBSYSTEMS=="usb", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}"'
+
+        try:
+            # Add the plugdev group if it exists
+            grp.getgrnam('plugdev')
+            line_format += ', GROUP="plugdev"'
+        except KeyError:
+            pass
+
+        # Add the uaccess tag. On most distros this is all that is needed for users to access USB devices
+        line_format += ', TAG+="uaccess"'
+
         ids_set = self.device_manager.recognised_hardware.union(self.ADDITIONAL_HARDWARE_IDS)
         lines = [line_format.format(ids[0], ids[1]) for ids in ids_set]
         return '# Electron Cash hardware wallet rules file\n' + '\n'.join(lines) + '\n'
