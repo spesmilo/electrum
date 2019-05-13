@@ -233,7 +233,12 @@ class ElectrumGui(Logger):
             if not app_is_starting:
                 return
         if not wallet:
-            wallet = self._start_wizard_to_select_or_create_wallet(path)
+            try:
+                wallet = self._start_wizard_to_select_or_create_wallet(path)
+            except (WalletFileException, BitcoinException) as e:
+                self.logger.exception('')
+                QMessageBox.warning(None, _('Error'),
+                                    _('Cannot load wallet') + ' (2):\n' + str(e))
         if not wallet:
             return
         # create or raise window
@@ -275,11 +280,6 @@ class ElectrumGui(Logger):
             return
         except WalletAlreadyOpenInMemory as e:
             return e.wallet
-        except (WalletFileException, BitcoinException) as e:
-            self.logger.exception('')
-            QMessageBox.warning(None, _('Error'),
-                                _('Cannot load wallet') + ' (2):\n' + str(e))
-            return
         finally:
             wizard.terminate()
         # return if wallet creation is not complete
