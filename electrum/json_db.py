@@ -59,11 +59,12 @@ class JsonDB(Logger):
         self.data = {}
         self._modified = False
         self.manual_upgrades = manual_upgrades
-        if raw:
+        self._called_load_transactions = False
+        if raw:  # loading existing db
             self.load_data(raw)
-        else:
+        else:  # creating new db
             self.put('seed_version', FINAL_SEED_VERSION)
-        self.load_transactions()
+            self.load_transactions()
 
     def set_modified(self, b):
         with self.lock:
@@ -145,11 +146,13 @@ class JsonDB(Logger):
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
 
-        if not self.manual_upgrades:
-            if self.requires_split():
-                raise WalletFileException("This wallet has multiple accounts and must be split")
-            if self.requires_upgrade():
-                self.upgrade()
+        if not self.manual_upgrades and self.requires_split():
+            raise WalletFileException("This wallet has multiple accounts and must be split")
+
+        self.load_transactions()
+
+        if not self.manual_upgrades and self.requires_upgrade():
+            self.upgrade()
 
     def requires_split(self):
         d = self.get('accounts', {})
@@ -201,6 +204,11 @@ class JsonDB(Logger):
     @profiler
     def upgrade(self):
         self.logger.info('upgrading wallet format')
+        if not self._called_load_transactions:
+            # note: not sure if this is how we should go about this...
+            # alternatively, we could make sure load_transactions is always called after upgrade
+            # still, we need strict ordering between the two.
+            raise Exception("'load_transactions' must be called before 'upgrade'")
         self._convert_imported()
         self._convert_wallet_type()
         self._convert_account()
@@ -738,6 +746,7 @@ class JsonDB(Logger):
 
     @profiler
     def load_transactions(self):
+        self._called_load_transactions = True
         # references in self.data
         self.txi = self.get_data_ref('txi')  # txid -> address -> list of (prev_outpoint, value)
         self.txo = self.get_data_ref('txo')  # txid -> address -> list of (output_index, value, is_coinbase)

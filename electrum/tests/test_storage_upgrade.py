@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import os
 
 from electrum.storage import WalletStorage
 from electrum.wallet import Wallet
@@ -290,14 +291,25 @@ class TestStorageUpgrade(WalletTestCase):
         shutil.rmtree(cls.electrum_path)
 
     def _upgrade_storage(self, wallet_json, accounts=1):
-        storage = self._load_storage_from_json_string(wallet_json, manual_upgrades=True)
-
         if accounts == 1:
+            # test manual upgrades
+            storage = self._load_storage_from_json_string(wallet_json=wallet_json,
+                                                          path=self.wallet_path,
+                                                          manual_upgrades=True)
             self.assertFalse(storage.requires_split())
             if storage.requires_upgrade():
                 storage.upgrade()
                 self._sanity_check_upgraded_storage(storage)
+            # test automatic upgrades
+            path2 = os.path.join(self.user_dir, "somewallet2")
+            storage2 = self._load_storage_from_json_string(wallet_json=wallet_json,
+                                                           path=path2,
+                                                           manual_upgrades=False)
+            self._sanity_check_upgraded_storage(storage2)
         else:
+            storage = self._load_storage_from_json_string(wallet_json=wallet_json,
+                                                          path=self.wallet_path,
+                                                          manual_upgrades=True)
             self.assertTrue(storage.requires_split())
             new_paths = storage.split_accounts()
             self.assertEqual(accounts, len(new_paths))
@@ -310,8 +322,9 @@ class TestStorageUpgrade(WalletTestCase):
         self.assertFalse(storage.requires_upgrade())
         w = Wallet(storage)
 
-    def _load_storage_from_json_string(self, wallet_json, manual_upgrades=True):
-        with open(self.wallet_path, "w") as f:
+    @staticmethod
+    def _load_storage_from_json_string(*, wallet_json, path, manual_upgrades):
+        with open(path, "w") as f:
             f.write(wallet_json)
-        storage = WalletStorage(self.wallet_path, manual_upgrades=manual_upgrades)
+        storage = WalletStorage(path, manual_upgrades=manual_upgrades)
         return storage
