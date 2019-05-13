@@ -158,7 +158,11 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         return False
 
     def _addUdevAdmCommands(self, script: str) -> str:
-        script = script + 'udevadm trigger\n'
+        # The below udevadm trigger line is here in case we decide we need it.
+        # It appears unnecessary on most distros, according to @EchtarAgo (Axel Gembe)
+        # If you find it is necessary, comment it back in.
+        # Also note: on Tails Linux it did cause a system shutdown as well.
+        #script = script + 'udevadm trigger\n'
         script = script + 'udevadm control --reload-rules\n'
         return script
 
