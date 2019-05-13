@@ -359,7 +359,6 @@ class ChannelDB(SqlDB):
         self.DBSession.commit()
         self._update_counts()
         self.logger.info('on_channel_announcement: %d/%d'%(len(new_channels), len(msg_payloads)))
-        self.network.trigger_callback('ln_status')
 
     @sql
     def get_last_timestamp(self):
@@ -457,7 +456,6 @@ class ChannelDB(SqlDB):
                 self.DBSession.add(new_addr)
         self.DBSession.commit()
         self._update_counts()
-        self.network.trigger_callback('ln_status')
 
     def get_routing_policy_for_channel(self, start_node_id: bytes,
                                        short_channel_id: bytes) -> Optional[bytes]:

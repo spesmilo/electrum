@@ -83,7 +83,6 @@ class Peer(Logger):
         self.recv_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
-        self.receiving_channels = False
         Logger.__init__(self)
 
     def send_message(self, message_name: str, **kwargs):
@@ -197,7 +196,7 @@ class Peer(Logger):
             try:
                 return await func(self, *args, **kwargs)
             except Exception as e:
-                self.logger.info("Disconnecting: {}".format(e))
+                self.logger.info("Disconnecting: {}".format(repr(e)))
             finally:
                 self.close_and_cleanup()
         return wrapper_func
@@ -207,8 +206,47 @@ class Peer(Logger):
     async def main_loop(self):
         async with aiorpcx.TaskGroup() as group:
             await group.spawn(self._message_loop())
-            # kill group if the peer times out
-            await group.spawn(asyncio.wait_for(self.initialized.wait(), 10))
+            await group.spawn(self._run_gossip())
+
+    @log_exceptions
+    async def _run_gossip(self):
+        await asyncio.wait_for(self.initialized.wait(), 5)
+        if self.lnworker == self.lnworker.network.lngossip:
+            ids, complete = await asyncio.wait_for(self.get_channel_range(), 10)
+            self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
+            self.lnworker.add_new_ids(ids)
+            while True:
+                todo = self.lnworker.get_ids_to_query()
+                if not todo:
+                    await asyncio.sleep(1)
+                    continue
+                await self.querying_lock.acquire()
+                self.logger.info(f'Querying {len(todo)} short_channel_ids')
+                self.query_short_channel_ids(todo)
+
+    async def get_channel_range(self):
+        req_index = self.lnworker.first_block
+        req_num = self.lnworker.network.get_local_height() - req_index
+        self.query_channel_range(req_index, req_num)
+        intervals = []
+        ids = set()
+        while True:
+            index, num, complete, _ids = await self.reply_channel_range.get()
+            ids.update(_ids)
+            intervals.append((index, index+num))
+            intervals.sort()
+            while len(intervals) > 1:
+                a,b = intervals[0]
+                c,d = intervals[1]
+                if b == c:
+                    intervals = [(a,d)] + intervals[2:]
+                else:
+                    break
+            if len(intervals) == 1:
+                a, b = intervals[0]
+                if a <= req_index and b >= req_index + req_num:
+                    break
+        return ids, complete
 
     def request_gossip(self, timestamp=0):
         if timestamp == 0:
@@ -222,7 +260,7 @@ class Peer(Logger):
             timestamp_range=b'\xff'*4)
 
     def query_channel_range(self, index, num):
-        self.logger.info(f'query channel range')
+        self.logger.info(f'query channel range {index} {num}')
         self.send_message(
             'query_channel_range',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -250,9 +288,7 @@ class Peer(Logger):
         ids = self.decode_short_ids(encoded)
         self.reply_channel_range.put_nowait((first, num, complete, ids))
 
-    async def query_short_channel_ids(self, ids, compressed=True):
-        await self.querying_lock.acquire()
-        #self.logger.info('querying {} short_channel_ids'.format(len(ids)))
+    def query_short_channel_ids(self, ids, compressed=True):
         s = b''.join(ids)
         encoded = zlib.compress(s) if compressed else s
         prefix = b'\x01' if compressed else b'\x00'
@@ -282,11 +318,7 @@ class Peer(Logger):
                 self.transport.close()
         except:
             pass
-        for chan in self.channels.values():
-            if chan.get_state() != 'FORCE_CLOSING':
-                chan.set_state('DISCONNECTED')
-            self.network.trigger_callback('channel', chan)
-        self.lnworker.peers.pop(self.pubkey)
+        self.lnworker.peer_closed(self)
 
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         # key derivation

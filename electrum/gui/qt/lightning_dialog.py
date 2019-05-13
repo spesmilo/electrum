@@ -78,8 +78,11 @@ class LightningDialog(QDialog):
         # channel_db
         network_w = QWidget()
         network_vbox = QVBoxLayout(network_w)
+        self.num_peers = QLabel('')
+        network_vbox.addWidget(self.num_peers)
         self.status = QLabel('')
         network_vbox.addWidget(self.status)
+        network_vbox.addStretch(1)
         # local
         local_w = QWidget()
         vbox_local = QVBoxLayout(local_w)
@@ -105,14 +108,17 @@ class LightningDialog(QDialog):
         b.clicked.connect(self.on_close)
         vbox.addLayout(Buttons(b))
         self.watcher_list.update()
-        self.gui_object.timer.timeout.connect(self.update_status)
+        self.network.register_callback(self.update_status, ['ln_status'])
 
-    def update_status(self):
+    def update_status(self, event):
         if self.network.lngossip is None:
             return
         channel_db = self.network.channel_db
         num_peers = sum([p.initialized.is_set() for p in self.network.lngossip.peers.values()])
-        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, channel_db.num_nodes, channel_db.num_channels)
+        self.num_peers.setText(f'{num_peers} peers, {channel_db.num_nodes} nodes')
+        known = channel_db.num_channels
+        unknown = len(self.network.lngossip.unknown_ids)
+        msg = _(f'Channels: {known} of {known + unknown}')
         self.status.setText(msg)
 
     def on_close(self):

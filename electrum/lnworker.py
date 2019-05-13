@@ -101,6 +101,7 @@ class LNWorker(Logger):
                 self.network.trigger_callback('ln_status')
             await asyncio.start_server(cb, addr, int(port))
 
+    @log_exceptions
     async def main_loop(self):
         while True:
             await asyncio.sleep(1)
@@ -165,7 +166,7 @@ class LNWorker(Logger):
                 host, port = self.choose_preferred_address(addrs)
                 peer = LNPeerAddr(host, port, bytes.fromhex(node.node_id))
                 if peer in self._last_tried_peer: continue
-                self.logger.info('taking random ln peer from our channel db')
+                #self.logger.info('taking random ln peer from our channel db')
                 return [peer]
 
         # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
@@ -237,62 +238,38 @@ class LNGossip(LNWorker):
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         super().__init__(xprv)
+        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_OPT
         self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
+        self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.gossip_task()), self.network.asyncio_loop)
 
-    async def gossip_task(self):
-        req_index = self.first_block
-        req_num = self.network.get_local_height() - req_index
-        while len(self.peers) == 0:
-            await asyncio.sleep(1)
-            continue
-        # todo: parallelize over peers
-        peer = list(self.peers.values())[0]
-        await peer.initialized.wait()
-        # send channels_range query. peer will reply with several intervals
-        peer.query_channel_range(req_index, req_num)
-        intervals = []
-        ids = set()
-        # wait until requested range is covered
-        while True:
-            index, num, complete, _ids = await peer.reply_channel_range.get()
-            ids.update(_ids)
-            intervals.append((index, index+num))
-            intervals.sort()
-            while len(intervals) > 1:
-                a,b = intervals[0]
-                c,d = intervals[1]
-                if b == c:
-                    intervals = [(a,d)] + intervals[2:]
-                else:
-                    break
-            if len(intervals) == 1:
-                a, b = intervals[0]
-                if a <= req_index and b >= req_index + req_num:
-                    break
-        self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
-        # TODO: filter results by date of last channel update, purge DB
+    def add_new_ids(self, ids):
         #if complete:
         #    self.channel_db.purge_unknown_channels(ids)
         known = self.channel_db.compare_channels(ids)
-        unknown = list(ids - set(known))
-        total = len(unknown)
-        N = 500
-        while unknown:
-            self.channel_db.process_gossip()
-            await peer.query_short_channel_ids(unknown[0:N])
-            unknown = unknown[N:]
-            self.logger.info(f'Querying channels: {total - len(unknown)}/{total}. Count: {self.channel_db.num_channels}')
+        new = ids - set(known)
+        self.unknown_ids.update(new)
 
-        # request gossip fromm current time
-        now = int(time.time())
-        peer.request_gossip(now)
+    def get_ids_to_query(self):
+        N = 250
+        l = list(self.unknown_ids)
+        self.unknown_ids = set(l[N:])
+        return l[0:N]
+
+    async def gossip_task(self):
         while True:
             await asyncio.sleep(5)
             self.channel_db.process_gossip()
+            known = self.channel_db.num_channels
+            unknown = len(self.unknown_ids)
+            self.logger.info(f'Channels: {known} of {known+unknown}')
+            self.network.trigger_callback('ln_status')
+
+    def peer_closed(self, peer):
+        self.peers.pop(peer.pubkey)
 
 
 class LNWallet(LNWorker):
@@ -342,6 +319,13 @@ class LNWallet(LNWorker):
                 self.reestablish_peers_and_channels()
         ]:
             asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
+
+    def peer_closed(self, peer):
+        for chan in self.channels_for_peer(peer.pubkey).values():
+            if chan.get_state() != 'FORCE_CLOSING':
+                chan.set_state('DISCONNECTED')
+            self.network.trigger_callback('channel', chan)
+        self.peers.pop(peer.pubkey)
 
     def payment_completed(self, chan: Channel, direction: Direction,
                           htlc: UpdateAddHtlc):
