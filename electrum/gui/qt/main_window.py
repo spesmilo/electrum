@@ -1419,81 +1419,82 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.fee_e.setAmount(None)
             self.not_enough_funds = False
             self.statusBar().showMessage('')
-        else:
-            outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
-            if not outputs:
-                _type, addr = self.get_payto_or_dummy()
-                outputs = [TxOutput(_type, addr, amount)]
-            is_sweep = bool(self.tx_external_keypairs)
-            make_tx = lambda fee_est: \
-                self.wallet.make_unsigned_transaction(
-                    coins, outputs, self.config,
-                    fixed_fee=fee_est, is_sweep=is_sweep)
-            try:
-                tx = make_tx(fee_estimator)
-                self.not_enough_funds = False
-            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
-                if not freeze_fee:
-                    self.fee_e.setAmount(None)
-                if not freeze_feerate:
-                    self.feerate_e.setAmount(None)
-                self.feerounding_icon.setVisible(False)
+            return
 
-                if isinstance(e, NotEnoughFunds):
-                    self.not_enough_funds = True
-                elif isinstance(e, NoDynamicFeeEstimates):
-                    try:
-                        tx = make_tx(0)
-                        size = tx.estimated_size()
-                        self.size_e.setAmount(size)
-                    except BaseException:
-                        pass
-                return
-            except BaseException:
-                self.logger.exception('')
-                return
+        outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
+        if not outputs:
+            _type, addr = self.get_payto_or_dummy()
+            outputs = [TxOutput(_type, addr, amount)]
+        is_sweep = bool(self.tx_external_keypairs)
+        make_tx = lambda fee_est: \
+            self.wallet.make_unsigned_transaction(
+                coins, outputs, self.config,
+                fixed_fee=fee_est, is_sweep=is_sweep)
+        try:
+            tx = make_tx(fee_estimator)
+            self.not_enough_funds = False
+        except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+            if not freeze_fee:
+                self.fee_e.setAmount(None)
+            if not freeze_feerate:
+                self.feerate_e.setAmount(None)
+            self.feerounding_icon.setVisible(False)
 
-            size = tx.estimated_size()
-            self.size_e.setAmount(size)
+            if isinstance(e, NotEnoughFunds):
+                self.not_enough_funds = True
+            elif isinstance(e, NoDynamicFeeEstimates):
+                try:
+                    tx = make_tx(0)
+                    size = tx.estimated_size()
+                    self.size_e.setAmount(size)
+                except BaseException:
+                    pass
+            return
+        except BaseException:
+            self.logger.exception('')
+            return
 
-            fee = tx.get_fee()
-            fee = None if self.not_enough_funds else fee
+        size = tx.estimated_size()
+        self.size_e.setAmount(size)
 
-            # Displayed fee/fee_rate values are set according to user input.
-            # Due to rounding or dropping dust in CoinChooser,
-            # actual fees often differ somewhat.
-            if freeze_feerate or self.fee_slider.is_active():
-                displayed_feerate = self.feerate_e.get_amount()
-                if displayed_feerate is not None:
-                    displayed_feerate = quantize_feerate(displayed_feerate)
-                else:
-                    # fallback to actual fee
-                    displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
-                    self.feerate_e.setAmount(displayed_feerate)
-                displayed_fee = round(displayed_feerate * size) if displayed_feerate is not None else None
-                self.fee_e.setAmount(displayed_fee)
+        fee = tx.get_fee()
+        fee = None if self.not_enough_funds else fee
+
+        # Displayed fee/fee_rate values are set according to user input.
+        # Due to rounding or dropping dust in CoinChooser,
+        # actual fees often differ somewhat.
+        if freeze_feerate or self.fee_slider.is_active():
+            displayed_feerate = self.feerate_e.get_amount()
+            if displayed_feerate is not None:
+                displayed_feerate = quantize_feerate(displayed_feerate)
             else:
-                if freeze_fee:
-                    displayed_fee = self.fee_e.get_amount()
-                else:
-                    # fallback to actual fee if nothing is frozen
-                    displayed_fee = fee
-                    self.fee_e.setAmount(displayed_fee)
-                displayed_fee = displayed_fee if displayed_fee else 0
-                displayed_feerate = quantize_feerate(displayed_fee / size) if displayed_fee is not None else None
+                # fallback to actual fee
+                displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
+            displayed_fee = round(displayed_feerate * size) if displayed_feerate is not None else None
+            self.fee_e.setAmount(displayed_fee)
+        else:
+            if freeze_fee:
+                displayed_fee = self.fee_e.get_amount()
+            else:
+                # fallback to actual fee if nothing is frozen
+                displayed_fee = fee
+                self.fee_e.setAmount(displayed_fee)
+            displayed_fee = displayed_fee if displayed_fee else 0
+            displayed_feerate = quantize_feerate(displayed_fee / size) if displayed_fee is not None else None
+            self.feerate_e.setAmount(displayed_feerate)
 
-            # show/hide fee rounding icon
-            feerounding = (fee - displayed_fee) if fee else 0
-            self.set_feerounding_text(int(feerounding))
-            self.feerounding_icon.setToolTip(self.feerounding_text)
-            self.feerounding_icon.setVisible(abs(feerounding) >= 1)
+        # show/hide fee rounding icon
+        feerounding = (fee - displayed_fee) if fee else 0
+        self.set_feerounding_text(int(feerounding))
+        self.feerounding_icon.setToolTip(self.feerounding_text)
+        self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
-            if self.max_button.isChecked():
-                amount = tx.output_value()
-                __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
-                amount_after_all_fees = amount - x_fee_amount
-                self.amount_e.setAmount(amount_after_all_fees)
+        if self.max_button.isChecked():
+            amount = tx.output_value()
+            __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+            amount_after_all_fees = amount - x_fee_amount
+            self.amount_e.setAmount(amount_after_all_fees)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
