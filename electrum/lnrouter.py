@@ -223,6 +223,20 @@ class ChannelDB(SqlDB):
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], dict]
         self.ca_verifier = LNChannelVerifier(network, self)
         self.update_counts()
+        self.node_anns = []
+        self.chan_anns = []
+        self.chan_upds = []
+
+    def process_gossip(self):
+        if self.node_anns:
+            self.on_node_announcement(self.node_anns)
+            self.node_anns = []
+        if self.chan_anns:
+            self.on_channel_announcement(self.chan_anns)
+            self.chan_anns = []
+        if self.chan_upds:
+            self.on_channel_update(self.chan_upds)
+            self.chan_upds = []
 
     @sql
     def update_counts(self):
@@ -232,7 +246,32 @@ class ChannelDB(SqlDB):
         self.num_channels = self.DBSession.query(ChannelInfo).count()
         self.num_policies = self.DBSession.query(Policy).count()
         self.num_nodes = self.DBSession.query(NodeInfo).count()
-        self.logger.info(f'update counts {self.num_channels} {self.num_policies}')
+
+    @sql
+    @profiler
+    def purge_unknown_channels(self, channel_ids):
+        ids = [x.hex() for x in channel_ids]
+        missing = self.DBSession \
+                      .query(ChannelInfo) \
+                      .filter(not_(ChannelInfo.short_channel_id.in_(ids))) \
+                      .all()
+        if missing:
+            self.logger.info("deleting {} channels".format(len(missing)))
+            delete_query = ChannelInfo.__table__.delete().where(not_(ChannelInfo.short_channel_id.in_(ids)))
+            self.DBSession.execute(delete_query)
+            self.DBSession.commit()
+
+    @sql
+    @profiler
+    def compare_channels(self, channel_ids):
+        ids = [x.hex() for x in channel_ids]
+        # I need to get the unknown, and also the channels that need refresh
+        known = self.DBSession \
+                 .query(ChannelInfo) \
+                 .filter(ChannelInfo.short_channel_id.in_(ids)) \
+                 .all()
+        known = [bfh(r.short_channel_id) for r in known]
+        return known
 
     @sql
     def add_recent_peer(self, peer: LNPeerAddr):
@@ -276,12 +315,14 @@ class ChannelDB(SqlDB):
         return [LNPeerAddr(x.host, x.port, bytes.fromhex(x.node_id)) for x in r]
 
     @sql
-    def missing_short_chan_ids(self) -> Set[int]:
+    def missing_channel_announcements(self) -> Set[int]:
         expr = not_(Policy.short_channel_id.in_(self.DBSession.query(ChannelInfo.short_channel_id)))
-        chan_ids_from_policy = set(x[0] for x in self.DBSession.query(Policy.short_channel_id).filter(expr).all())
-        if chan_ids_from_policy:
-            return chan_ids_from_policy
-        return set()
+        return set(x[0] for x in self.DBSession.query(Policy.short_channel_id).filter(expr).all())
+
+    @sql
+    def missing_channel_updates(self) -> Set[int]:
+        expr = not_(ChannelInfo.short_channel_id.in_(self.DBSession.query(Policy.short_channel_id)))
+        return set(x[0] for x in self.DBSession.query(ChannelInfo.short_channel_id).filter(expr).all())
 
     @sql
     def add_verified_channel_info(self, short_id, capacity):
@@ -316,8 +357,8 @@ class ChannelDB(SqlDB):
         for channel_info in new_channels.values():
             self.DBSession.add(channel_info)
         self.DBSession.commit()
-        #self.logger.info('on_channel_announcement: %d/%d'%(len(new_channels), len(msg_payloads)))
         self._update_counts()
+        self.logger.info('on_channel_announcement: %d/%d'%(len(new_channels), len(msg_payloads)))
         self.network.trigger_callback('ln_status')
 
     @sql
@@ -370,7 +411,7 @@ class ChannelDB(SqlDB):
         self.DBSession.commit()
         if new_policies:
             self.logger.info(f'on_channel_update: {len(new_policies)}/{len(msg_payloads)}')
-            self.logger.info(f'last timestamp: {datetime.fromtimestamp(self._get_last_timestamp()).ctime()}')
+            #self.logger.info(f'last timestamp: {datetime.fromtimestamp(self._get_last_timestamp()).ctime()}')
             self._update_counts()
 
     @sql

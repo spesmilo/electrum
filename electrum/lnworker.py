@@ -133,9 +133,7 @@ class LNWorker(Logger):
         self.channel_db = self.network.channel_db
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
-        # wait until we see confirmations
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
-        self.first_timestamp_requested = None
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -215,9 +213,24 @@ class LNWorker(Logger):
         self.logger.info('got {} ln peers from dns seed'.format(len(peers)))
         return peers
 
+    @staticmethod
+    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+        assert len(addr_list) >= 1
+        # choose first one that is an IP
+        for addr_in_db in addr_list:
+            host = addr_in_db.host
+            port = addr_in_db.port
+            if is_ip_address(host):
+                return host, port
+        # otherwise choose one at random
+        # TODO maybe filter out onion if not on tor?
+        choice = random.choice(addr_list)
+        return choice.host, choice.port
 
 
 class LNGossip(LNWorker):
+    # height of first channel announcements
+    first_block = 497000
 
     def __init__(self, network):
         seed = os.urandom(32)
@@ -225,6 +238,61 @@ class LNGossip(LNWorker):
         xprv = node.to_xprv()
         super().__init__(xprv)
         self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
+
+    def start_network(self, network: 'Network'):
+        super().start_network(network)
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.gossip_task()), self.network.asyncio_loop)
+
+    async def gossip_task(self):
+        req_index = self.first_block
+        req_num = self.network.get_local_height() - req_index
+        while len(self.peers) == 0:
+            await asyncio.sleep(1)
+            continue
+        # todo: parallelize over peers
+        peer = list(self.peers.values())[0]
+        await peer.initialized.wait()
+        # send channels_range query. peer will reply with several intervals
+        peer.query_channel_range(req_index, req_num)
+        intervals = []
+        ids = set()
+        # wait until requested range is covered
+        while True:
+            index, num, complete, _ids = await peer.reply_channel_range.get()
+            ids.update(_ids)
+            intervals.append((index, index+num))
+            intervals.sort()
+            while len(intervals) > 1:
+                a,b = intervals[0]
+                c,d = intervals[1]
+                if b == c:
+                    intervals = [(a,d)] + intervals[2:]
+                else:
+                    break
+            if len(intervals) == 1:
+                a, b = intervals[0]
+                if a <= req_index and b >= req_index + req_num:
+                    break
+        self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
+        # TODO: filter results by date of last channel update, purge DB
+        #if complete:
+        #    self.channel_db.purge_unknown_channels(ids)
+        known = self.channel_db.compare_channels(ids)
+        unknown = list(ids - set(known))
+        total = len(unknown)
+        N = 500
+        while unknown:
+            self.channel_db.process_gossip()
+            await peer.query_short_channel_ids(unknown[0:N])
+            unknown = unknown[N:]
+            self.logger.info(f'Querying channels: {total - len(unknown)}/{total}. Count: {self.channel_db.num_channels}')
+
+        # request gossip fromm current time
+        now = int(time.time())
+        peer.request_gossip(now)
+        while True:
+            await asyncio.sleep(5)
+            self.channel_db.process_gossip()
 
 
 class LNWallet(LNWorker):
@@ -547,20 +615,6 @@ class LNWallet(LNWorker):
 
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
-
-    @staticmethod
-    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
-        assert len(addr_list) >= 1
-        # choose first one that is an IP
-        for addr_in_db in addr_list:
-            host = addr_in_db.host
-            port = addr_in_db.port
-            if is_ip_address(host):
-                return host, port
-        # otherwise choose one at random
-        # TODO maybe filter out onion if not on tor?
-        choice = random.choice(addr_list)
-        return choice.host, choice.port
 
     def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=20):
         node_id, rest = extract_nodeid(connect_contents)
