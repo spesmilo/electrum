@@ -50,6 +50,9 @@ class GuiMixin(object):
         else:
             msg = _("Enter your current {} PIN:")
         pin = self.handler.get_pin(msg.format(self.device))
+        if len(pin) > 9:
+            self.handler.show_error(_('The PIN cannot be longer than 9 characters.'))
+            pin = ''  # to cancel below
         if not pin:
             return self.proto.Cancel()
         return self.proto.PinMatrixAck(pin=pin)
@@ -66,7 +69,13 @@ class GuiMixin(object):
         if passphrase is None:
             return self.proto.Cancel()
         passphrase = bip39_normalize_passphrase(passphrase)
-        return self.proto.PassphraseAck(passphrase=passphrase)
+
+        ack = self.proto.PassphraseAck(passphrase=passphrase)
+        length = len(ack.passphrase)
+        if length > 50:
+            self.handler.show_error(_("Too long passphrase ({} > 50 chars).").format(length))
+            return self.proto.Cancel()
+        return ack
 
     def callback_WordRequest(self, msg):
         self.step += 1
@@ -112,8 +121,8 @@ class KeepKeyClientBase(GuiMixin, PrintError):
 
     def has_usable_connection_with_device(self):
         try:
-            res = self.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            res = self.ping("electron-cash pinging device") # FIXME: Add some randomness
+            assert res == "electron-cash pinging device"
         except BaseException:
             return False
         return True
