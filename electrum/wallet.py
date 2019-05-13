@@ -255,8 +255,11 @@ class Abstract_Wallet(AddressSynchronizer):
     def test_addresses_sanity(self):
         addrs = self.get_receiving_addresses()
         if len(addrs) > 0:
-            if not bitcoin.is_address(addrs[0]):
-                raise WalletFileException('The addresses in this wallet are not bitcoin addresses.')
+            addr = str(addrs[0])
+            if not bitcoin.is_address(addr):
+                neutered_addr = addr[:5] + '..' + addr[-2:]
+                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
+                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def calc_unused_change_addresses(self):
         with self.lock:
