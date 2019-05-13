@@ -3893,9 +3893,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.hardwarewalletdialog.raise_()
             return
         from .udev_installer import InstallHardwareWalletSupportDialog
-        d = InstallHardwareWalletSupportDialog(self, self.gui_object.plugins)
+        d = InstallHardwareWalletSupportDialog(self.top_level_window(), self.gui_object.plugins)
         self.hardwarewalletdialog = d
-        d.exec()
+        d.exec_()
+        d.setParent(None)
         self.hardwarewalletdialog = None # allow python to GC
 
     def cpfp(self, parent_tx, new_tx):
