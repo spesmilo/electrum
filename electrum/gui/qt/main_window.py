@@ -1423,15 +1423,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.not_enough_funds = False
             self.statusBar().showMessage('')
         else:
-            fee_estimator = self.get_send_fee_estimator()
-            outputs = self.payto_e.get_outputs(self.max_button.isChecked())
+            outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [TxOutput(_type, addr, amount)]
             is_sweep = bool(self.tx_external_keypairs)
             make_tx = lambda fee_est: \
                 self.wallet.make_unsigned_transaction(
-                    self.get_coins(), outputs, self.config,
+                    coins, outputs, self.config,
                     fixed_fee=fee_est, is_sweep=is_sweep)
             try:
                 tx = make_tx(fee_estimator)
@@ -1580,19 +1579,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return fee_estimator
 
     def read_send_tab(self):
-        if self.payment_request and self.payment_request.has_expired():
-            self.show_error(_('Payment request has expired'))
-            return
         label = self.message_e.text()
-
         if self.payment_request:
             outputs = self.payment_request.get_outputs()
         else:
+            outputs = self.payto_e.get_outputs(self.max_button.isChecked())
+        fee_estimator = self.get_send_fee_estimator()
+        coins = self.get_coins()
+        return outputs, fee_estimator, label, coins
+
+    def check_send_tab_outputs_and_show_errors(self, outputs) -> bool:
+        """Returns whether there are errors with outputs.
+        Also shows error dialog to user if so.
+        """
+        if self.payment_request and self.payment_request.has_expired():
+            self.show_error(_('Payment request has expired'))
+            return True
+
+        if not self.payment_request:
             errors = self.payto_e.get_errors()
             if errors:
                 self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
-                return
-            outputs = self.payto_e.get_outputs(self.max_button.isChecked())
+                return True
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
                 alias = self.payto_e.toPlainText()
@@ -1600,26 +1608,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                         'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
                 msg += _('Do you wish to continue?')
                 if not self.question(msg):
-                    return
+                    return True
 
         if not outputs:
             self.show_error(_('No outputs'))
-            return
+            return True
 
         for o in outputs:
             if o.address is None:
                 self.show_error(_('Bitcoin Address is None'))
-                return
+                return True
             if o.type == TYPE_ADDRESS and not bitcoin.is_address(o.address):
                 self.show_error(_('Invalid Bitcoin Address'))
-                return
+                return True
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
-                return
+                return True
 
-        fee_estimator = self.get_send_fee_estimator()
-        coins = self.get_coins()
-        return outputs, fee_estimator, label, coins
+        return False  # no errors
 
     def do_preview(self):
         self.do_send(preview = True)
@@ -1627,10 +1633,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
             return
-        r = self.read_send_tab()
-        if not r:
+        outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
+        if self.check_send_tab_outputs_and_show_errors(outputs):
             return
-        outputs, fee_estimator, tx_desc, coins = r
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
