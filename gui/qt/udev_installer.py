@@ -50,7 +50,7 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         plugins.get_hardware_support()
         self.device_manager = plugins.device_manager
 
-        self.setWindowTitle(_('Hardware wallet support'))
+        self.setWindowTitle(_('Hardware Wallet Support'))
 
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -69,7 +69,7 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         hbox = QHBoxLayout()
         hbox.addStretch(2)
         status_title = QLabel()
-        status_title.setText(_('HW Udev Rules Status:'))
+        status_title.setText(_('udev Rules Status:'))
         status_title.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         hbox.addWidget(status_title)
         hbox.addStretch(1)
