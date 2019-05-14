@@ -25,7 +25,7 @@
 
 import sys
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
-from electroncash.util import print_error
+from ..util import print_error
 
 class MissingLib(RuntimeError):
     ''' Raised by underlying implementation if missing libs '''
