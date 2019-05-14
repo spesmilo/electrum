@@ -80,7 +80,7 @@ class OceanMainnet:
     WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
     #"76a9144ff9b5c6885f87fb5519cc45c1474f301a73224a88ac"
     #Derive using e.g. ocean-cli decodescript
-    WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
+    WHITELISTCOINSADDRESS = "1PiFqx44vg5vySwW67SAi924T6xNNsM2qx"
     #"18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
 
 # Current Testnet purposes
