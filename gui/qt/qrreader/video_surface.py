@@ -68,7 +68,7 @@ class QrReaderVideoSurface(QAbstractVideoSurface):
                 img = img.mirrored(flip_x, flip_y)
 
             # Create a copy of the image so the original frame data can be freed
-            img.copy()
+            img = img.copy()
         finally:
             frame.unmap()
 
