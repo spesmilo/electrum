@@ -306,6 +306,8 @@ class Interface(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.info(f"disconnecting gracefully. {repr(e)}")
+            except aiorpcx.jsonrpc.RPCError as e:
+                self.logger.error(f"disconnecting due to {repr(e)}")
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
