@@ -25,21 +25,28 @@
 
 import sys
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
+from electroncash.util import print_error
+
+class MissingLib(RuntimeError):
+    ''' Raised by underlying implementation if missing libs '''
+    pass
 
 def get_qr_reader() -> AbstractQrCodeReader:
     """
     Get the Qr code reader for the current platform
     """
-    if sys.platform in ('windows', 'win32'):
-        from .zbar import ZbarQrCodeReader
-        return ZbarQrCodeReader()
-    else:
-        class Fake(AbstractQrCodeReader):
-            def read_qr_code(self, buffer, buffer_size, width, height, frame_id = -1):
-                ''' fake noop to test on macos, etc'''
-                return []
-        return Fake()
-
+    try:
+        if sys.platform in ('windows', 'win32'):
+            from .zbar import ZbarQrCodeReader
+            return ZbarQrCodeReader()
+        else:
+            class Fake(AbstractQrCodeReader):
+                def read_qr_code(self, buffer, buffer_size, width, height, frame_id = -1):
+                    ''' fake noop to test on macos, etc'''
+                    return []
+            return Fake()
+    except MissingLib as e:
+        print_error("[get_qr_reader]", str(e))
     # Other systems are not supported yet
     # macOS might get an implementation using the OS native QR scanning libraries
     # Linux support is still waiting for a packaging bug in PyQt5 to be resolved

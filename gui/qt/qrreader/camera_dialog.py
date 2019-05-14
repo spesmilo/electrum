@@ -52,8 +52,8 @@ class QrReaderCameraDialog(QDialog):
     # Try to crop so we have minimum 512 dimensions
     SCAN_SIZE: int = 512
 
-    # Try to QR scan every QR_SCAN_MODULO frames
-    QR_SCAN_MODULO: int = 2
+    # Try to QR scan every X seconds
+    QR_SCAN_PERIOD: float = 0.200  # every 200ms
 
     def __init__(self, parent):
         QDialog.__init__(self, parent=parent)
@@ -66,6 +66,7 @@ class QrReaderCameraDialog(QDialog):
         self.last_stats_time: float = 0.0
         self.frame_counter: int = 0
         self.qr_frame_counter: int = 0
+        self.last_qr_scan_ts: float = 0.0
 
         self.config = get_config()
 
@@ -241,9 +242,10 @@ class QrReaderCameraDialog(QDialog):
 
         flip_x = self.flip_x.isChecked()
 
-        # Only QR scan every QR_SCAN_MODULO frames
-        qr_scanned = self.frame_id % self.QR_SCAN_MODULO == 0
+        # Only QR scan every QR_SCAN_PERIOD secs
+        qr_scanned = time.time() - self.last_qr_scan_ts >= self.QR_SCAN_PERIOD
         if qr_scanned:
+            self.last_qr_scan_ts = time.time()
             # Crop the frame so we only scan a SCAN_SIZE rect
             frame_cropped = frame.copy(self.qr_crop)
 

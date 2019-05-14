@@ -28,6 +28,7 @@ import ctypes
 from typing import List
 from enum import IntEnum
 
+from . import MissingLib
 from ..util import print_error, is_verbose, _
 
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
@@ -97,6 +98,8 @@ class ZbarQrCodeReader(AbstractQrCodeReader):
     """
 
     def __init__(self):
+        if not LIBZBAR:
+            raise MissingLib('Zbar library not found')
         # Set up zbar
         self.zbar_scanner = LIBZBAR.zbar_image_scanner_create()
         self.zbar_image = LIBZBAR.zbar_image_create()
@@ -110,8 +113,9 @@ class ZbarQrCodeReader(AbstractQrCodeReader):
                                               ZbarConfig.ENABLE, 1)
 
     def __del__(self):
-        LIBZBAR.zbar_image_scanner_destroy(self.zbar_scanner)
-        LIBZBAR.zbar_image_destroy(self.zbar_image)
+        if LIBZBAR:
+            LIBZBAR.zbar_image_scanner_destroy(self.zbar_scanner)
+            LIBZBAR.zbar_image_destroy(self.zbar_image)
 
     def read_qr_code(self, buffer: ctypes.c_void_p, buffer_size: int,
                      width: int, height: int, frame_id: int = -1) -> List[QrCodeResult]:
