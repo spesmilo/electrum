@@ -47,6 +47,7 @@ try:
     LIBZBAR.zbar_image_scanner_get_results.restype = ctypes.c_void_p
     LIBZBAR.zbar_symbol_set_first_symbol.restype = ctypes.c_void_p
     LIBZBAR.zbar_symbol_get_data.restype = ctypes.POINTER(ctypes.c_char_p)
+    LIBZBAR.zbar_image_scanner_set_config.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 
     #if is_verbose:
         #LIBZBAR.zbar_set_verbosity(100)

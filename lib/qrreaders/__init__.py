@@ -36,7 +36,7 @@ def get_qr_reader() -> AbstractQrCodeReader:
     Get the Qr code reader for the current platform
     """
     try:
-        if sys.platform in ('windows', 'win32'):
+        if sys.platform in ('windows', 'win32', 'linux'):
             from .zbar import ZbarQrCodeReader
             return ZbarQrCodeReader()
         else:
@@ -47,7 +47,5 @@ def get_qr_reader() -> AbstractQrCodeReader:
             return Fake()
     except MissingLib as e:
         print_error("[get_qr_reader]", str(e))
-    # Other systems are not supported yet
-    # macOS might get an implementation using the OS native QR scanning libraries
-    # Linux support is still waiting for a packaging bug in PyQt5 to be resolved
+
     return None
