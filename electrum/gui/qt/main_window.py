@@ -16,7 +16,6 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 # NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
 # BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
@@ -597,11 +596,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
             # Combine the transactions if there are at least three
-            num_txns = len(self.tx_notifications)
+            tx_processing=self.tx_notifications
+            self.tx_notifications=[]
+            num_txns = len(tx_processing)
             if num_txns >= 3:
                 total_amount = 0
-                for tx in self.tx_notifications:
-                    if self.wallet.parse_policy_tx(tx):
+                for tx in tx_processing:
+                    if self.wallet.parse_policy_tx(tx, self):
                         continue
                     is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                     if v > 0:
@@ -609,12 +610,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if total_amount > 0:
                     self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
                         .format(num_txns, self.format_amount_and_units(total_amount)))
-                self.tx_notifications = []
+                tx_processing = []
             else:
-                for tx in self.tx_notifications:
+                for tx in tx_processing:
                     if tx:
-                        self.tx_notifications.remove(tx)
-                        if self.wallet.parse_policy_tx(tx):
+                        tx_processing.remove(tx)
+                        if self.wallet.parse_policy_tx(tx, self):
                             continue
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
@@ -995,11 +996,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg = [
                     _('Warning: no more whitelisted addresses in wallet.'),
                     _('Non-whitelisted addresses cannot receive funds.'),
-                    _('If you want to whitelist more addresses, send a registeraddress transaction.')
+                    _('If you want to whitelist more addresses, send a registeraddress transaction.'),
                     _('Continue with non-whitelisted address?')
-                   ]
-                if not self.question(' '.join(msg))
-                    return
+                ]
+            if not self.question(' '.join(msg)):
+                return
         if addr is None:
             if not self.wallet.is_deterministic():
                 msg = [

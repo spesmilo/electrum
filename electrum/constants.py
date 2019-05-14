@@ -47,10 +47,11 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "5ab1cb43487f39b1e279683418ca6c144da720ed7340e4df85b5f6fc6148a187"
+#    GENESIS = "5ab1cb43487f39b1e279683418ca6c144da720ed7340e4df85b5f6fc6148a187"
 #    GENESIS = "c8a0dc6295a81c86d103ea677a1e6e7e5b9a11a7ee702a8543f9b6a51694d51c"
 #    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
-    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
+#    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
+    GENESIS = "618eb3df3fea8e8ff76bf0c32f34b3bd5a8250a9a99026e89bebc10bad815970"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -92,7 +93,7 @@ class OceanTestnet(OceanMainnet):
     CHECKPOINTS = []
     ADDRTYPE_P2PKH = 235
     ADDRTYPE_P2SH = 75               
-    GENESIS = "5ab1cb43487f39b1e279683418ca6c144da720ed7340e4df85b5f6fc6148a187"
+    GENESIS = "618eb3df3fea8e8ff76bf0c32f34b3bd5a8250a9a99026e89bebc10bad815970"
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv

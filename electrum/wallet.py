@@ -1244,8 +1244,8 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
-    def parse_policy_tx(self, tx: transaction.Transaction):
-        if self.parse_registeraddress_tx(tx):
+    def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
+        if self.parse_registeraddress_tx(tx, parent_window):
                 return True
         if self.parse_whitelist_tx(tx):
             return True
@@ -1259,23 +1259,25 @@ class Abstract_Wallet(AddressSynchronizer):
             input_addresses.add(self.get_txin_address(txin))
         return input_addresses
 
-    def parse_registeraddress_data(self, data, tx):
+    def parse_registeraddress_data(self, data, tx, parent_window):
         # We must have already been assigned a kyc public key
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         if self.kyc_pubkey == None:
             return False
 
+
+
+
+        password=None
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
             if self.storage.is_encrypted_with_hw_device():
-                #TODO - sor out what to do for encrypted wallets.
+                #TODO - sort out what to do for encrypted wallets.
                 return False
             else:
-                return False
-        else:
-            password = None
+                if self.has_keystore_encryption():
+                    msg = _('Received encrypted address whitelisting data.') + '\n' + _('Please enter your password')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return False
 
         fromAddresses = self.get_from_addresses(tx)
         if fromAddresses == None:
@@ -1291,9 +1293,14 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
 
         try: 
-            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password)   
+            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
             fromKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return False
+
+        try:
+            plaintext=fromKey.decrypt_message(data, ephemeral_pubkey_bytes=bfh(self.kyc_pubkey), decode=binascii.unhexlify)
         except Exception:
             return False
 
@@ -1302,30 +1309,11 @@ class Abstract_Wallet(AddressSynchronizer):
         pyqtRemoveInputHook()
         set_trace()
 
-        try:
-            plaintext=str(fromKey.decrypt_message(data, ephemeral_pubkey_bytes=bfh(self.kyc_pubkey)))
-        except Exception:
-            return False
+        self.parse_ratx_addresses(plaintext)
 
-        ptbytes=bytes(plaintext.get_value(), 'utf-8')
-
-        #Add addresses to the list of registered addresses
-        #First 20 bytes == address
-        #Next 33 bytes == untweaked public key
-        i1=0
-        ptlen=len(ptbytes)
-        addrs=[]
-        while True:
-            i2==i1+20
-            i3=i2+33
-            if i3 > ptlen:
-                break
-            addrs.append(base_encode(ptbytes[i1:i2], base=58))
-
-        set_registered_state(addrs, True)
         return True
 
-    def parse_onboard_data(self, data):
+    def parse_onboard_data(self, data, parent_window):
         pubKeySize=33
         addressSize=20
         minPayloadSize=2
@@ -1360,23 +1348,21 @@ class Abstract_Wallet(AddressSynchronizer):
         if not self.is_mine(onboardAddress):
             return False
 
-
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
+        password=None
 
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
             if self.storage.is_encrypted_with_hw_device():
-                #TODO - sor out what to do for encrypted wallets.
+                #TODO - sort out what to do for encrypted wallets.
                 return False
             else:
-                return False
-        else:
-            password = None
+                if self.has_keystore_encryption():
+                    msg = _('Received encrypted address whitelisting data.') + '\n' + _('Please enter your password')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return False
 
         try: 
-            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password)   
+            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)   
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
             _onboardUserKey=ecc.ECPrivkey(secret_bytes)
         except Exception:
@@ -1385,7 +1371,7 @@ class Abstract_Wallet(AddressSynchronizer):
         i1=i2
         ciphertext=data[i1:]
         try:
-            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True)
+            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True, decode=binascii.unhexlify)
         except Exception:
             return False
         #Confirm that this was encrypted by the kyc private key owner
@@ -1396,11 +1382,35 @@ class Abstract_Wallet(AddressSynchronizer):
         from pdb import set_trace
         pyqtRemoveInputHook()
         set_trace()
+
+        self.parse_ratx_addresses(plaintext)
+
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
         
         return True
 
-    def parse_registeraddress_tx(self, tx: transaction.Transaction):
+    def parse_ratx_addresses(self, data):
+        #Add addresses to the list of registered addresses
+        #First 20 bytes == address
+        #Next 33 bytes == untweaked public key
+        i3=0
+        ptlen=len(data)
+        addrs=[]
+        while True:
+            i1=i3
+            i2=i1+20
+            i3=i2+33
+            if i3 > ptlen:
+                break
+            addrbytes=bytes(data[i1:i2])
+            addrs.append(addrbytes.decode('utf-8'))
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        self.set_registered_state(addrs, True)
+
+    def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
         data=None       
         outputs = tx.outputs()
@@ -1417,13 +1427,14 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        if self.parse_onboard_data(data):
+        if self.parse_onboard_data(data, parent_window):
             return True
 
-        if self.parse_registeraddress_data(data, tx):
+        if self.parse_registeraddress_data(data, tx, parent_window):
             return True
 
         return False
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

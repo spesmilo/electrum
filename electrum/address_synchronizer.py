@@ -67,10 +67,6 @@ class AddressSynchronizer(PrintError):
         # address -> list(txid, height)
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
         self.unassigned_kyc_pubkeys = set(storage.get('unassigned_kyc_pubkeys', set()))
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         self.kyc_pubkey = storage.get('kyc_pubkey', None)
         self.history = storage.get('addr_history',{})
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
