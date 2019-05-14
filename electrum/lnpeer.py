@@ -306,6 +306,7 @@ class Peer(Logger):
         self.reply_channel_range.put_nowait((first, num, complete, ids))
 
     def query_short_channel_ids(self, ids, compressed=True):
+        ids = sorted(ids)
         s = b''.join(ids)
         encoded = zlib.compress(s) if compressed else s
         prefix = b'\x01' if compressed else b'\x00'
