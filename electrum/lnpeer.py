@@ -230,6 +230,20 @@ class Peer(Logger):
         self.query_channel_range(req_index, req_num)
         intervals = []
         ids = set()
+        # note: implementations behave differently...
+        # "sane implementation that follows BOLT-07" example:
+        #   query_channel_range. <<< first_block 497000, num_blocks 79038
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 39516, num_ids 4648, complete True
+        #   on_reply_channel_range. >>> first_block 536516, num_blocks 19758, num_ids 5734, complete True
+        #   on_reply_channel_range. >>> first_block 556274, num_blocks 9879, num_ids 13712, complete True
+        #   on_reply_channel_range. >>> first_block 566153, num_blocks 9885, num_ids 18114, complete True
+        # lnd example:
+        #   query_channel_range. <<< first_block 497000, num_blocks 79038
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 8000, complete False
+        #   on_reply_channel_range. >>> first_block 497000, num_blocks 79038, num_ids 5344, complete True
         while True:
             index, num, complete, _ids = await self.reply_channel_range.get()
             ids.update(_ids)
@@ -238,11 +252,13 @@ class Peer(Logger):
             while len(intervals) > 1:
                 a,b = intervals[0]
                 c,d = intervals[1]
-                if b == c:
+                if not (a <= c and a <= b and c <= d):
+                    raise Exception(f"insane reply_channel_range intervals {(a,b,c,d)}")
+                if b >= c:
                     intervals = [(a,d)] + intervals[2:]
                 else:
                     break
-            if len(intervals) == 1:
+            if len(intervals) == 1 and complete:
                 a, b = intervals[0]
                 if a <= req_index and b >= req_index + req_num:
                     break
@@ -283,9 +299,10 @@ class Peer(Logger):
     def on_reply_channel_range(self, payload):
         first = int.from_bytes(payload['first_blocknum'], 'big')
         num = int.from_bytes(payload['number_of_blocks'], 'big')
-        complete = bool(payload['complete'])
+        complete = bool(int.from_bytes(payload['complete'], 'big'))
         encoded = payload['encoded_short_ids']
         ids = self.decode_short_ids(encoded)
+        #self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, num_ids {len(ids)}, complete {repr(payload['complete'])}")
         self.reply_channel_range.put_nowait((first, num, complete, ids))
 
     def query_short_channel_ids(self, ids, compressed=True):
