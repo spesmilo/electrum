@@ -46,6 +46,7 @@ def _load_library():
         library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),  # on linux we install it alongside the python scripts.
                          'libsecp256k1.so.0')  # fall back to system lib, if any
 
+    secp256k1 = None
     for lp in library_paths:
         try:
             secp256k1 = ctypes.cdll.LoadLibrary(lp)
