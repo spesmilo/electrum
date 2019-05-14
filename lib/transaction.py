@@ -482,9 +482,8 @@ class Transaction:
         This function is used by the Trezor, KeepKey, etc to update the
         transaction with signatures form the device.
 
-        Note this function assumes ECDSA signatures and does not yet support
-        Schnorr signatures.  We will add this later as hardware wallet support
-        for Schnorr happens.
+        Note this function supports both Schnorr and ECDSA signatures, but as
+        yet no hardware wallets are signing Schnorr.
         """
         if self.is_complete():
             return
@@ -506,21 +505,9 @@ class Transaction:
             sig_bytes = bfh(sig)
             for j, pubkey in enumerate(pubkeys):
                 # see which pubkey matches this sig (in non-multisig only 1 pubkey, in multisig may be multiple pubkeys)
-                try:
-                    pubkey_point = ser_to_point(bfh(pubkey))
-                except BaseException as e:
-                    #print_error("exception 1", repr(e))
-                    # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
-                    continue
-                vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
-                try:
-                    if not vk.verify_digest(sig_bytes, pre_hash, sigdecode = ecdsa.util.sigdecode_der):
-                        continue
-                except BaseException as e:
-                    #print_error("exception 2", repr(e))
-                    continue
-                print_error("adding sig", i, j, pubkey, sig_final)
-                self._inputs[i]['signatures'][j] = sig_final
+                if self.verify_signature(bfh(pubkey), sig_bytes, pre_hash):
+                    print_error("adding sig", i, j, pubkey, sig_final)
+                    self._inputs[i]['signatures'][j] = sig_final
         # redo raw
         self.raw = self.serialize()
 
@@ -784,6 +771,35 @@ class Transaction:
     def is_complete(self):
         s, r = self.signature_count()
         return r == s
+
+    @staticmethod
+    def verify_signature(pubkey, sig, msghash):
+        ''' Given a pubkey (bytes), signature (bytes -- without sighash byte),
+        and a sha256d message digest, returns True iff the signature is good
+        for the given public key, False otherwise.  Does not raise normally
+        unless given bad or garbage arguments. '''
+        if (any(not arg or not isinstance(arg, bytes) for arg in (pubkey, sig, msghash))
+                or len(msghash) != 32):
+            raise ValueError('bad arguments to verify_signature')
+        if len(sig) == 64:
+            # Schnorr signatures are always exactly 64 bytes
+            return schnorr.verify(pubkey, sig, msghash)
+        else:
+            from ecdsa import BadSignatureError, BadDigestError
+            # ECDSA signature
+            try:
+                pubkey_point = ser_to_point(pubkey)
+                vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
+                if vk.verify_digest(sig, msghash, sigdecode = ecdsa.util.sigdecode_der):
+                   return True
+            except (AssertionError, BadSignatureError, BadDigestError, ValueError, TypeError):
+                # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
+                # verify_digest may also raise BadDigestError and BadSignatureError
+                pass
+            except BaseException as e:
+                print_error("[Transaction.verify_signature] unexpected exception", repr(e))
+            return False
+
 
     @staticmethod
     def _ecdsa_sign(sec, pre_hash):
