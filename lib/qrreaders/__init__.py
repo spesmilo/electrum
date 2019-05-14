@@ -33,6 +33,12 @@ def get_qr_reader() -> AbstractQrCodeReader:
     if sys.platform in ('windows', 'win32'):
         from .zbar import ZbarQrCodeReader
         return ZbarQrCodeReader()
+    else:
+        class Fake(AbstractQrCodeReader):
+            def read_qr_code(self, buffer, buffer_size, width, height, frame_id = -1):
+                ''' fake noop to test on macos, etc'''
+                return []
+        return Fake()
 
     # Other systems are not supported yet
     # macOS might get an implementation using the OS native QR scanning libraries
