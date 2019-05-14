@@ -1264,8 +1264,18 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.kyc_pubkey == None:
             return False
 
+        fromAddresses = self.get_from_addresses(tx)
+        if fromAddresses == None:
+            return False
 
-
+        fromAddress=None
+        for address in fromAddresses:
+            if self.is_mine(address):
+                fromAddress=address
+                break
+            
+        if fromAddress == None:
+            return False
 
         password=None
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
@@ -1279,18 +1289,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return False
 
-        fromAddresses = self.get_from_addresses(tx)
-        if fromAddresses == None:
-            return False
-
-        fromAddress=None
-        for address in fromAddresses:
-            if self.is_mine(address):
-                fromAddress=address
-                break
-            
-        if fromAddress == None:
-            return False
 
         try: 
             fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
