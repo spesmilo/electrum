@@ -1304,10 +1304,10 @@ class Abstract_Wallet(AddressSynchronizer):
         except Exception:
             return False
 
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #from pdb import set_trace
+        #pyqtRemoveInputHook()
+        #set_trace()
 
         self.parse_ratx_addresses(plaintext)
 
@@ -1378,10 +1378,10 @@ class Abstract_Wallet(AddressSynchronizer):
         if not ephemeral == _kyc_pubkey:
             return False
         
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #from pdb import set_trace
+        #pyqtRemoveInputHook()
+        #set_trace()
 
         self.parse_ratx_addresses(plaintext)
 
@@ -1403,12 +1403,12 @@ class Abstract_Wallet(AddressSynchronizer):
             if i3 > ptlen:
                 break
             addrbytes=bytes(data[i1:i2])
-            addrs.append(addrbytes.decode('utf-8'))
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
-        self.set_registered_state(addrs, True)
+            #addrs.append(unhexlify(addrbytes))
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #from pdb import set_trace
+        #pyqtRemoveInputHook()
+        #set_trace()
+        #self.set_registered_state(addrs, True)
 
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
