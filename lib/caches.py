@@ -117,15 +117,18 @@ class _ExpiringCacheMgr(PrintError):
         thread2join = None
         with cls._lock:
             slf = cls._instance
-            assert slf.thread.is_alive()
             slf.livect -= 1 # we need to keep this counter because the weak set doesn't have the correct length at this point yet.
             if cls.debug:
                 slf.print_error("Cache '{}' has been gc'd, {} still alive".format(name, slf.livect))
             if not slf.livect:  # all caches have been gc'd, kill the thread
                 if cls.debug:
                     slf.print_error("No more caches, stopping manager thread and removing singleton")
+                need2join = slf.thread.is_alive()
                 slf.q.put(None)  # signal thread to stop
-                thread2join = slf.thread
+                if need2join:
+                    thread2join = slf.thread
+                elif cls.debug:
+                    slf.print_error("Warning: Cache thread was stoppped before we had a chance to kill it")
                 cls._instance = None  # kill self.
         if thread2join:
             # we do this here as defensive programming to avoid deadlocks in case
