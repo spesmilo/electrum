@@ -183,9 +183,11 @@ class InstallHardwareWalletSupportDialog(PrintError, WindowModalDialog):
         return script
 
     def installClicked(self):
-        script = 'cat << EOF > "{}"\n'.format(self.UDEV_RULES_FILE)
-        script = script + self.generateRulesFile()
-        script = script + 'EOF\n'
+        script = 'set +e\n'
+        script += 'umask 022\n'
+        script += 'cat << EOF > "{}"\n'.format(self.UDEV_RULES_FILE)
+        script += self.generateRulesFile()
+        script += 'EOF\n'
         script = self._addUdevAdmCommands(script)
         self.print_error(script)
         success = self._runScriptAsRoot(script)
