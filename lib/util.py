@@ -645,7 +645,7 @@ class TxHashMismatch(ServerError):
     signed tx id that we requested to broadcast. The txid returned is
     stored in self.server_msg. It's advised not to display
     the txid response as there is also potential for phishing exploits if
-    one does. Instead, the exception string contians a suitable translated
+    one does. Instead, the exception string contains a suitable translated
     GUI-friendly error message. '''
     pass
 

@@ -153,7 +153,7 @@ class WalletsVC(WalletsVCBase):
             self.statusLabel.text = _("Offline")
 
         s = self.statusLabel.attributedText.size()
-        self.statusLabelWidthCS.constant = s.width + self.statusLabel.layer.cornerRadius*2.0 # this magic forces the status label 'pill' to be properly padded on either side no matter what text it contians
+        self.statusLabelWidthCS.constant = s.width + self.statusLabel.layer.cornerRadius*2.0 # this magic forces the status label 'pill' to be properly padded on either side no matter what text it contains
 
         self.statusBlurb.sizeToFit()
 
