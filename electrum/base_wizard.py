@@ -560,11 +560,13 @@ class BaseWizard(Logger):
         self.terminate()
 
     def create_storage(self, path):
+        if os.path.exists(path):
+            raise Exception('file already exists at path')
         if not self.pw_args:
             return
         password, encrypt_storage, storage_enc_version = self.pw_args
         storage = WalletStorage(path)
-        storage.set_keystore_encryption(bool(password))  # and encrypt_keystore)
+        storage.set_keystore_encryption(bool(password))
         if encrypt_storage:
             storage.set_password(password, enc_version=storage_enc_version)
         for key, value in self.data.items():
