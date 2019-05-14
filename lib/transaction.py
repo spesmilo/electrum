@@ -469,31 +469,58 @@ class Transaction:
             txin['x_pubkeys'] = x_pubkeys = list(x_pubkeys)
         return pubkeys, x_pubkeys
 
-    def update_signatures(self, raw):
-        """Add new signatures to a transaction"""
-        d = deserialize(raw)
+    def update_signatures(self, signatures):
+        """Add new signatures to a transaction
+        `signatures` is expected to be a list of hex encoded sig strings with
+        *no* sighash byte at the end (it will be added by this function).
+
+        signatures[i] is intended for self._inputs[i].
+
+        The signature will be matched with the appropriate pubkey automatically
+        in the case of multisignature wallets.
+
+        This function is used by the Trezor, KeepKey, etc to update the
+        transaction with signatures form the device.
+
+        Note this function assumes ECDSA signatures and does not yet support
+        Schnorr signatures.  We will add this later as hardware wallet support
+        for Schnorr happens.
+        """
+        if self.is_complete():
+            return
+        if not isinstance(signatures, (tuple, list)):
+            raise Exception('API changed: update_signatures expects a list.')
+        if len(self.inputs()) != len(signatures):
+            raise Exception('expected {} signatures; got {}'.format(len(self.inputs()), len(signatures)))
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-            sigs1 = txin.get('signatures')
-            sigs2 = d['inputs'][i].get('signatures')
-            for sig in sigs2:
-                if sig in sigs1:
+            sig = signatures[i]
+            if not isinstance(sig, str):
+                raise ValueError("sig was bytes, expected string")
+            # sig_final is the signature with the nHashType forkid byte at the end (0x41)
+            sig_final = sig + bh2u(bytes((self.nHashType(),)))
+            if sig_final in txin.get('signatures'):
+                # skip if we already have this signature
+                continue
+            pre_hash = Hash(bfh(self.serialize_preimage(i)))
+            sig_bytes = bfh(sig)
+            for j, pubkey in enumerate(pubkeys):
+                # see which pubkey matches this sig (in non-multisig only 1 pubkey, in multisig may be multiple pubkeys)
+                try:
+                    pubkey_point = ser_to_point(bfh(pubkey))
+                except BaseException as e:
+                    #print_error("exception 1", repr(e))
+                    # ser_to_point will fail if pubkey is off-curve, infinity, or garbage.
                     continue
-                pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                # der to string
-                order = ecdsa.ecdsa.generator_secp256k1.order()
-                r, s = ecdsa.util.sigdecode_der(bfh(sig[:-2]), order)
-                sig_string = ecdsa.util.sigencode_string(r, s, order)
-                compressed = True
-                for recid in range(4):
-                    public_key = MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
-                    pubkey = bh2u(point_to_ser(public_key.pubkey.point, compressed))
-                    if pubkey in pubkeys:
-                        public_key.verify_digest(sig_string, pre_hash, sigdecode = ecdsa.util.sigdecode_string)
-                        j = pubkeys.index(pubkey)
-                        print_error("adding sig", i, j, pubkey, sig)
-                        self._inputs[i]['signatures'][j] = sig
-                        break
+                vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
+                try:
+                    if not vk.verify_digest(sig_bytes, pre_hash, sigdecode = ecdsa.util.sigdecode_der):
+                        continue
+                except BaseException as e:
+                    #print_error("exception 2", repr(e))
+                    continue
+                print_error("adding sig", i, j, pubkey, sig_final)
+                self._inputs[i]['signatures'][j] = sig_final
         # redo raw
         self.raw = self.serialize()
 

@@ -92,7 +92,7 @@ class TestTransaction(unittest.TestCase):
 
         self.assertEqual(tx.serialize(), unsigned_blob)
 
-        tx.update_signatures(signed_blob)
+        tx.update_signatures(['3044022025bdc804c6fe30966f6822dc25086bc6bb0366016e68e880cf6efd2468921f3202200e665db0404f6d6d9f86f73838306ac55bb0d0f6040ac6047d4e820f24f46885'])
         self.assertEqual(tx.raw, signed_blob)
 
         tx.update(unsigned_blob)
@@ -127,7 +127,7 @@ class TestTransaction(unittest.TestCase):
 
         self.assertEqual(tx.serialize(), signed_blob)
 
-        tx.update_signatures(signed_blob)
+        tx.update_signatures([expected['inputs'][0]['signatures'][0][:-2]])
 
         self.assertEqual(tx.estimated_size(), 191)
 
