@@ -244,7 +244,7 @@ class LNGossip(LNWorker):
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
-        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.gossip_task()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.process_gossip()), self.network.asyncio_loop)
 
     def add_new_ids(self, ids):
         #if complete:
@@ -259,10 +259,29 @@ class LNGossip(LNWorker):
         self.unknown_ids = set(l[N:])
         return l[0:N]
 
-    async def gossip_task(self):
+    @log_exceptions
+    async def process_gossip(self):
         while True:
             await asyncio.sleep(5)
-            self.channel_db.process_gossip()
+            chan_anns = []
+            chan_upds = []
+            node_anns = []
+            while True:
+                name, payload = await self.channel_db.gossip_queue.get()
+                if name == 'channel_announcement':
+                    chan_anns.append(payload)
+                elif name == 'channel_update':
+                    chan_upds.append(payload)
+                elif name == 'node_announcement':
+                    node_anns.append(payload)
+                else:
+                    raise Exception('unknown message')
+                if self.channel_db.gossip_queue.empty():
+                    break
+            self.channel_db.on_channel_announcement(chan_anns)
+            self.channel_db.on_channel_update(chan_upds)
+            self.channel_db.on_node_announcement(node_anns)
+            # refresh gui
             known = self.channel_db.num_channels
             unknown = len(self.unknown_ids)
             self.logger.info(f'Channels: {known} of {known+unknown}')

@@ -69,10 +69,8 @@ class Peer(Logger):
         self.channel_db = lnworker.network.channel_db
         self.ping_time = 0
         self.reply_channel_range = asyncio.Queue()
-        # gossip message queues
-        self.channel_announcements = asyncio.Queue()
-        self.channel_updates = asyncio.Queue()
-        self.node_announcements = asyncio.Queue()
+        # gossip uses a single queue to preserve message order
+        self.gossip_queue = asyncio.Queue()
         # channel messsage queues
         self.shutdown_received = defaultdict(asyncio.Future)
         self.channel_accepted = defaultdict(asyncio.Queue)
@@ -181,13 +179,13 @@ class Peer(Logger):
         self.initialized.set()
 
     def on_node_announcement(self, payload):
-        self.node_announcements.put_nowait(payload)
+        self.gossip_queue.put_nowait(('node_announcement', payload))
 
     def on_channel_announcement(self, payload):
-        self.channel_announcements.put_nowait(payload)
+        self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
-        self.channel_updates.put_nowait(payload)
+        self.gossip_queue.put_nowait(('channel_update', payload))
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -212,39 +210,42 @@ class Peer(Logger):
     async def main_loop(self):
         async with aiorpcx.TaskGroup() as group:
             await group.spawn(self._message_loop())
-            await group.spawn(self._run_gossip())
-            await group.spawn(self.verify_node_announcements())
-            await group.spawn(self.verify_channel_announcements())
-            await group.spawn(self.verify_channel_updates())
-
-    async def verify_node_announcements(self):
-        while True:
-            payload = await self.node_announcements.get()
-            pubkey = payload['node_id']
-            signature = payload['signature']
-            h = sha256d(payload['raw'][66:])
-            if not ecc.verify_signature(pubkey, signature, h):
-                raise Exception('signature failed')
-            self.channel_db.node_anns.append(payload)
-
-    async def verify_channel_announcements(self):
-        while True:
-            payload = await self.channel_announcements.get()
-            h = sha256d(payload['raw'][2+256:])
-            pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
-            sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
-            for pubkey, sig in zip(pubkeys, sigs):
-                if not ecc.verify_signature(pubkey, sig, h):
-                    raise Exception('signature failed')
-            self.channel_db.chan_anns.append(payload)
-
-    async def verify_channel_updates(self):
-        while True:
-            payload = await self.channel_updates.get()
-            self.channel_db.chan_upds.append(payload)
+            await group.spawn(self.query_gossip())
+            await group.spawn(self.process_gossip())
 
     @log_exceptions
-    async def _run_gossip(self):
+    async def process_gossip(self):
+        # verify in peer's TaskGroup so that we fail the connection
+        # forward to channel_db.gossip_queue
+        while True:
+            name, payload = await self.gossip_queue.get()
+            if name == 'node_announcement':
+                self.verify_node_announcement(payload)
+            elif name == 'channel_announcement':
+                self.verify_channel_announcement(payload)
+            elif name == 'channel_update':
+                pass
+            else:
+                raise Exception('unknown message')
+            self.channel_db.gossip_queue.put_nowait((name, payload))
+
+    def verify_node_announcement(self, payload):
+        pubkey = payload['node_id']
+        signature = payload['signature']
+        h = sha256d(payload['raw'][66:])
+        if not ecc.verify_signature(pubkey, signature, h):
+            raise Exception('signature failed')
+
+    def verify_channel_announcement(self, payload):
+        h = sha256d(payload['raw'][2+256:])
+        pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
+        sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
+        for pubkey, sig in zip(pubkeys, sigs):
+            if not ecc.verify_signature(pubkey, sig, h):
+                raise Exception('signature failed')
+
+    @log_exceptions
+    async def query_gossip(self):
         await asyncio.wait_for(self.initialized.wait(), 10)
         if self.lnworker == self.lnworker.network.lngossip:
             ids, complete = await asyncio.wait_for(self.get_channel_range(), 10)

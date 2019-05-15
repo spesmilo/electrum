@@ -35,6 +35,7 @@ from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
 import binascii
 import base64
+import asyncio
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Boolean
 from sqlalchemy.orm.query import Query
@@ -223,20 +224,7 @@ class ChannelDB(SqlDB):
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], dict]
         self.ca_verifier = LNChannelVerifier(network, self)
         self.update_counts()
-        self.node_anns = []
-        self.chan_anns = []
-        self.chan_upds = []
-
-    def process_gossip(self):
-        if self.chan_anns:
-            self.on_channel_announcement(self.chan_anns)
-            self.chan_anns = []
-        if self.chan_upds:
-            self.on_channel_update(self.chan_upds)
-            self.chan_upds = []
-        if self.node_anns:
-            self.on_node_announcement(self.node_anns)
-            self.node_anns = []
+        self.gossip_queue = asyncio.Queue()
 
     @sql
     def update_counts(self):
