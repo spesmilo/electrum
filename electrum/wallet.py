@@ -1391,6 +1391,10 @@ class Abstract_Wallet(AddressSynchronizer):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #from pdb import set_trace
+        #pyqtRemoveInputHook()
+        #set_trace()
         i3=0
         ptlen=len(data)
         addrs=[]
@@ -1401,12 +1405,9 @@ class Abstract_Wallet(AddressSynchronizer):
             if i3 > ptlen:
                 break
             addrbytes=bytes(data[i1:i2])
-            #addrs.append(unhexlify(addrbytes))
-        #from PyQt5.QtCore import pyqtRemoveInputHook
-        #from pdb import set_trace
-        #pyqtRemoveInputHook()
-        #set_trace()
-        #self.set_registered_state(addrs, True)
+            addrs.append(bitcoin.bin_to_b58check(addrbytes, 235))
+        
+        self.set_registered_state(addrs, True)
 
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
