@@ -150,6 +150,10 @@ info "finalizing AppDir."
     mv usr/include.tmp usr/include
 )
 
+# copy libusb here because it is on the AppImage excludelist and it can cause problems if we use system libusb
+info "Copying libusb"
+cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
+
 
 info "stripping binaries from debug symbols."
 # "-R .note.gnu.build-id" also strips the build id
