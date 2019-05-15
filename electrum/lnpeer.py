@@ -42,6 +42,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving)
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
+from .lnverifier import verify_sig_for_channel_update
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker
@@ -216,33 +217,66 @@ class Peer(Logger):
     @log_exceptions
     async def process_gossip(self):
         # verify in peer's TaskGroup so that we fail the connection
-        # forward to channel_db.gossip_queue
         while True:
-            name, payload = await self.gossip_queue.get()
-            if name == 'node_announcement':
-                self.verify_node_announcement(payload)
-            elif name == 'channel_announcement':
-                self.verify_channel_announcement(payload)
-            elif name == 'channel_update':
-                pass
-            else:
-                raise Exception('unknown message')
-            self.channel_db.gossip_queue.put_nowait((name, payload))
+            await asyncio.sleep(5)
+            chan_anns = []
+            chan_upds = []
+            node_anns = []
+            while True:
+                name, payload = await self.gossip_queue.get()
+                if name == 'channel_announcement':
+                    chan_anns.append(payload)
+                elif name == 'channel_update':
+                    chan_upds.append(payload)
+                elif name == 'node_announcement':
+                    node_anns.append(payload)
+                else:
+                    raise Exception('unknown message')
+                if self.gossip_queue.empty():
+                    break
+            # channel announcements
+            self.verify_channel_announcements(chan_anns)
+            self.channel_db.on_channel_announcement(chan_anns)
+            # node announcements
+            self.verify_node_announcements(node_anns)
+            self.channel_db.on_node_announcement(node_anns)
+            # channel updates
+            good, bad = self.channel_db.filter_channel_updates(chan_upds)
+            if bad:
+                self.logger.info(f'adding {len(bad)} unknown channel ids')
+                self.network.lngossip.add_new_ids(bad)
+            self.verify_channel_updates(good)
+            self.channel_db.on_channel_update(good)
+            # refresh gui
+            known = self.channel_db.num_channels
+            unknown = len(self.network.lngossip.unknown_ids)
+            self.logger.info(f'Channels: {known} of {known+unknown}')
+            self.network.trigger_callback('ln_status')
 
-    def verify_node_announcement(self, payload):
-        pubkey = payload['node_id']
-        signature = payload['signature']
-        h = sha256d(payload['raw'][66:])
-        if not ecc.verify_signature(pubkey, signature, h):
-            raise Exception('signature failed')
+    def verify_channel_announcements(self, chan_anns):
+        for payload in chan_anns:
+            h = sha256d(payload['raw'][2+256:])
+            pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
+            sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
+            for pubkey, sig in zip(pubkeys, sigs):
+                if not ecc.verify_signature(pubkey, sig, h):
+                    raise Exception('signature failed')
 
-    def verify_channel_announcement(self, payload):
-        h = sha256d(payload['raw'][2+256:])
-        pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
-        sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
-        for pubkey, sig in zip(pubkeys, sigs):
-            if not ecc.verify_signature(pubkey, sig, h):
+    def verify_node_announcements(self, node_anns):
+        for payload in node_anns:
+            pubkey = payload['node_id']
+            signature = payload['signature']
+            h = sha256d(payload['raw'][66:])
+            if not ecc.verify_signature(pubkey, signature, h):
                 raise Exception('signature failed')
+
+    def verify_channel_updates(self, chan_upds):
+        for payload in chan_upds:
+            short_channel_id = payload['short_channel_id']
+            if constants.net.rev_genesis_bytes() != payload['chain_hash']:
+                raise Exception('wrong chain hash')
+            if not verify_sig_for_channel_update(payload, payload['node_id']):
+                raise BaseException('verify error')
 
     @log_exceptions
     async def query_gossip(self):
@@ -851,7 +885,7 @@ class Peer(Logger):
         # only inject outgoing direction:
         channel_flags = b'\x00' if node_ids[0] == privkey_to_pubkey(self.privkey) else b'\x01'
         now = int(time.time())
-        self.channel_db.on_channel_update(
+        self.channel_db.add_channel_update(
             {
                 "short_channel_id": chan.short_channel_id,
                 'channel_flags': channel_flags,
@@ -861,8 +895,7 @@ class Peer(Logger):
                 'fee_proportional_millionths': b'\x01',
                 'chain_hash': constants.net.rev_genesis_bytes(),
                 'timestamp': now.to_bytes(4, byteorder="big")
-            },
-            trusted=True)
+            })
         # peer may have sent us a channel update for the incoming direction previously
         # note: if we were offline when the 3rd conf happened, lnd will never send us this channel_update
         # see https://github.com/lightningnetwork/lnd/issues/1347
