@@ -40,6 +40,7 @@ from functools import partial
 from numbers import Number
 from decimal import Decimal
 from io import StringIO, BytesIO
+from bitcoin import bin_to_b58check
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -1391,10 +1392,6 @@ class Abstract_Wallet(AddressSynchronizer):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
-        #from PyQt5.QtCore import pyqtRemoveInputHook
-        #from pdb import set_trace
-        #pyqtRemoveInputHook()
-        #set_trace()
         i3=0
         ptlen=len(data)
         addrs=[]
@@ -1405,7 +1402,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if i3 > ptlen:
                 break
             addrbytes=bytes(data[i1:i2])
-            addrs.append(bitcoin.bin_to_b58check(addrbytes, 235))
+            addrs.append(bin_to_b58check(addrbytes, 235))
         
         self.set_registered_state(addrs, True)
 
