@@ -1284,7 +1284,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 return False
             else:
                 if self.has_keystore_encryption():
-                    msg = _('Received encrypted address whitelisting data.') + '\n' + _('Please enter your password')
+                    msg = _('Received encrypted address whitelist registration transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
                     password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
                     if not password:
                         return False
@@ -1354,7 +1354,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 return False
             else:
                 if self.has_keystore_encryption():
-                    msg = _('Received encrypted address whitelisting data.') + '\n' + _('Please enter your password')
+                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
                     password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
                     if not password:
                         return False
