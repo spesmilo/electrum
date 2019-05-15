@@ -678,7 +678,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 self.registered_addresses |= set(addrs)
             else:
                 self.registered_addresses -= set(addrs)
-            self.storage.put('registered_addresses', list(self.frozen_addresses))
+            self.storage.put('registered_addresses', list(self.registered_addresses))
             return True
         return False
         
@@ -1402,7 +1402,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if i3 > ptlen:
                 break
             addrbytes=bytes(data[i1:i2])
-            addrs.append(bin_to_b58check(addrbytes, 235))
+            addrs.append(bin_to_b58check(addrbytes, constants.net.ADDRTYPE_P2PKH))
         
         self.set_registered_state(addrs, True)
 
