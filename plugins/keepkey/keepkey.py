@@ -174,7 +174,8 @@ class KeepKeyPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if networks.net.TESTNET else "BitcoinCash"
+        # Doesn't support testnet addresses
+        return "BitcoinCash"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -433,11 +434,7 @@ class KeepKeyPlugin(HW_PluginBase):
                 txoutputtype.op_return_data = validate_op_return_output_and_get_data(o)
             elif _type == TYPE_ADDRESS:
                 txoutputtype.script_type = self.types.PAYTOADDRESS
-                if networks.net.TESTNET:
-                    # Always use legacy address format on testnet
-                    txoutputtype.address = address.to_string(Address.FMT_LEGACY, net=networks.TestNet)
-                else:
-                    txoutputtype.address = address.to_full_ui_string()
+                txoutputtype.address = address.to_full_string(Address.FMT_CASHADDR, net=networks.MainNet)
             return txoutputtype
 
         outputs = []
