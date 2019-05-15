@@ -546,7 +546,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     self.give_error(_("Only address outputs are supported by {}").format(self.name))
                 info = tx.output_info.get(address)
                 if info is not None:
-                    index, xpubs, m = info
+                    index, xpubs, m, script_type = info
                     changePath = self.get_derivation() + "/%d/%d" % index
                     changePubkey = self.derive_pubkey(index[0], index[1])
                     pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}

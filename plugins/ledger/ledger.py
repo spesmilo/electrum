@@ -405,7 +405,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 info = tx.output_info.get(address)
                 if (info is not None) and len(tx.outputs()) > 1 \
                         and not has_change:
-                    index, xpubs, m = info
+                    index, xpubs, m, script_type = info
                     on_change_branch = index[0] == 1
                     # prioritise hiding outputs on the 'change' branch from user
                     # because no more than one change address allowed

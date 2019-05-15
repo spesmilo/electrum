@@ -477,7 +477,7 @@ class TrezorPlugin(HW_PluginBase):
             use_create_by_derivation = False
             info = tx.output_info.get(address)
             if info is not None and not has_change:
-                index, xpubs, m = info
+                index, xpubs, m, script_type = info
                 on_change_branch = index[0] == 1
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
