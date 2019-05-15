@@ -8,6 +8,7 @@ from electroncash import networks
 from electroncash.i18n import _
 from electroncash.transaction import deserialize, Transaction
 from electroncash.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electroncash.address import Address
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output_and_get_data
@@ -432,7 +433,11 @@ class KeepKeyPlugin(HW_PluginBase):
                 txoutputtype.op_return_data = validate_op_return_output_and_get_data(o)
             elif _type == TYPE_ADDRESS:
                 txoutputtype.script_type = self.types.PAYTOADDRESS
-                txoutputtype.address = address.to_full_ui_string()
+                if networks.net.TESTNET:
+                    # Always use legacy address format on testnet
+                    txoutputtype.address = address.to_string(Address.FMT_LEGACY, net=networks.TestNet)
+                else:
+                    txoutputtype.address = address.to_full_ui_string()
             return txoutputtype
 
         outputs = []
