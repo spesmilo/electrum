@@ -863,26 +863,27 @@ class Abstract_Wallet(AddressSynchronizer):
             self.synchronize()
 
     def synchronize_assets(self, addresses, callback=None):
-        if self.network and self.network.is_connected() and len(addresses) > 0:
-            try:
-                result_ = self.network.run_from_another_thread_unsafe(
-                    self.network.get_assets_for_addresses(addresses)
-                )
-                for asset in result_:
-                    asset['balance'] = int(float(asset['balance']) * 100000)
-                    asset_updated = False
-                    for x in range(len(self.asset_list)):
-                        if asset['guid'] == self.asset_list[x]['guid'] \
-                                and asset['address'] == self.asset_list[x]['address']:
-                            self.asset_list[x] = asset
-                            asset_updated = True
-                    if not asset_updated:
-                        self.asset_list.append(asset)
-                if callback is not None:
-                    callback(result_)
-            except RequestTimedOut as e:
-                raise e
-            return result_
+        return []
+        # if self.network and self.network.is_connected() and len(addresses) > 0:
+        #     try:
+        #         result_ = self.network.run_from_another_thread_unsafe(
+        #             self.network.get_assets_for_addresses(addresses)
+        #         )
+        #         for asset in result_:
+        #             asset['balance'] = int(float(asset['balance']) * 100000)
+        #             asset_updated = False
+        #             for x in range(len(self.asset_list)):
+        #                 if asset['guid'] == self.asset_list[x]['guid'] \
+        #                         and asset['address'] == self.asset_list[x]['address']:
+        #                     self.asset_list[x] = asset
+        #                     asset_updated = True
+        #             if not asset_updated:
+        #                 self.asset_list.append(asset)
+        #         if callback is not None:
+        #             callback(result_)
+        #     except RequestTimedOut as e:
+        #         raise e
+        #     return result_
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')

@@ -171,12 +171,12 @@ class SyscoinTestnet(AbstractNet):
     ADDRTYPE_P2SH = 0xc4
     SEGWIT_HRP = "tsys"
     GENESIS = "000007f96fcbdbdfbc2560b63bb545648f8d9f27c15ae8f5bbc350218198704e"
-    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
+    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
         "legion.me": {
             "pruning": "-",
-            "t": "59991",
-            "s": "59992",
+            "t": "58881",
+            "s": "58882",
             "version": "1.4"
         }
     })
@@ -186,7 +186,7 @@ class SyscoinTestnet(AbstractNet):
         'standard':    0x04358394,  # tprv
         'p2wpkh-p2sh': 0x044a4e28,  # uprv
         'p2wsh-p2sh':  0x024285b5,  # Uprv
-        'p2wpkh':      0x045f18bc,  # vprv
+        'p2wpkh':      0x04358394,  # vprv
         'p2wsh':       0x02575048,  # Vprv
     }
     XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
@@ -194,11 +194,11 @@ class SyscoinTestnet(AbstractNet):
         'standard':    0x043587cf,  # tpub
         'p2wpkh-p2sh': 0x044a5262,  # upub
         'p2wsh-p2sh':  0x024289ef,  # Upub
-        'p2wpkh':      0x045f1cf6,  # vpub
+        'p2wpkh':      0x043587cf,  # vpub
         'p2wsh':       0x02575483,  # Vpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 1
+    BIP44_COIN_TYPE = 57
 
 
 class SyscoinRegtest(SyscoinTestnet):
