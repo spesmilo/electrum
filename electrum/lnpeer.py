@@ -69,6 +69,11 @@ class Peer(Logger):
         self.channel_db = lnworker.network.channel_db
         self.ping_time = 0
         self.reply_channel_range = asyncio.Queue()
+        # gossip message queues
+        self.channel_announcements = asyncio.Queue()
+        self.channel_updates = asyncio.Queue()
+        self.node_announcements = asyncio.Queue()
+        # channel messsage queues
         self.shutdown_received = defaultdict(asyncio.Future)
         self.channel_accepted = defaultdict(asyncio.Queue)
         self.channel_reestablished = defaultdict(asyncio.Future)
@@ -77,6 +82,7 @@ class Peer(Logger):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
         self.payment_preimages = defaultdict(asyncio.Queue)
+        #
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
         self.sent_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
@@ -115,7 +121,7 @@ class Peer(Logger):
             #self.logger.info("Received '%s'" % message_type.upper(), payload)
             return
         # raw message is needed to check signature
-        if message_type in ['node_announcement', 'channel_update']:
+        if message_type in ['node_announcement', 'channel_announcement', 'channel_update']:
             payload['raw'] = message
         execution_result = f(payload)
         if asyncio.iscoroutinefunction(f):
@@ -175,13 +181,13 @@ class Peer(Logger):
         self.initialized.set()
 
     def on_node_announcement(self, payload):
-        self.channel_db.node_anns.append(payload)
-
-    def on_channel_update(self, payload):
-        self.channel_db.chan_upds.append(payload)
+        self.node_announcements.put_nowait(payload)
 
     def on_channel_announcement(self, payload):
-        self.channel_db.chan_anns.append(payload)
+        self.channel_announcements.put_nowait(payload)
+
+    def on_channel_update(self, payload):
+        self.channel_updates.put_nowait(payload)
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -207,10 +213,39 @@ class Peer(Logger):
         async with aiorpcx.TaskGroup() as group:
             await group.spawn(self._message_loop())
             await group.spawn(self._run_gossip())
+            await group.spawn(self.verify_node_announcements())
+            await group.spawn(self.verify_channel_announcements())
+            await group.spawn(self.verify_channel_updates())
+
+    async def verify_node_announcements(self):
+        while True:
+            payload = await self.node_announcements.get()
+            pubkey = payload['node_id']
+            signature = payload['signature']
+            h = sha256d(payload['raw'][66:])
+            if not ecc.verify_signature(pubkey, signature, h):
+                raise Exception('signature failed')
+            self.channel_db.node_anns.append(payload)
+
+    async def verify_channel_announcements(self):
+        while True:
+            payload = await self.channel_announcements.get()
+            h = sha256d(payload['raw'][2+256:])
+            pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
+            sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
+            for pubkey, sig in zip(pubkeys, sigs):
+                if not ecc.verify_signature(pubkey, sig, h):
+                    raise Exception('signature failed')
+            self.channel_db.chan_anns.append(payload)
+
+    async def verify_channel_updates(self):
+        while True:
+            payload = await self.channel_updates.get()
+            self.channel_db.chan_upds.append(payload)
 
     @log_exceptions
     async def _run_gossip(self):
-        await asyncio.wait_for(self.initialized.wait(), 5)
+        await asyncio.wait_for(self.initialized.wait(), 10)
         if self.lnworker == self.lnworker.network.lngossip:
             ids, complete = await asyncio.wait_for(self.get_channel_range(), 10)
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))

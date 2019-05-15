@@ -228,15 +228,15 @@ class ChannelDB(SqlDB):
         self.chan_upds = []
 
     def process_gossip(self):
-        if self.node_anns:
-            self.on_node_announcement(self.node_anns)
-            self.node_anns = []
         if self.chan_anns:
             self.on_channel_announcement(self.chan_anns)
             self.chan_anns = []
         if self.chan_upds:
             self.on_channel_update(self.chan_upds)
             self.chan_upds = []
+        if self.node_anns:
+            self.on_node_announcement(self.node_anns)
+            self.node_anns = []
 
     @sql
     def update_counts(self):
@@ -333,7 +333,7 @@ class ChannelDB(SqlDB):
         self.DBSession.commit()
 
     @sql
-    #@profiler
+    @profiler
     def on_channel_announcement(self, msg_payloads, trusted=True):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
@@ -370,7 +370,7 @@ class ChannelDB(SqlDB):
         return r.max_timestamp or 0
 
     @sql
-    #@profiler
+    @profiler
     def on_channel_update(self, msg_payloads, trusted=False):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
@@ -414,7 +414,7 @@ class ChannelDB(SqlDB):
             self._update_counts()
 
     @sql
-    #@profiler
+    @profiler
     def on_node_announcement(self, msg_payloads):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
@@ -422,16 +422,10 @@ class ChannelDB(SqlDB):
         new_nodes = {}
         new_addresses = {}
         for msg_payload in msg_payloads:
-            pubkey = msg_payload['node_id']
-            signature = msg_payload['signature']
-            h = sha256d(msg_payload['raw'][66:])
-            if not ecc.verify_signature(pubkey, signature, h):
-                continue
             try:
                 node_info, node_addresses = NodeInfo.from_msg(msg_payload)
             except UnknownEvenFeatureBits:
                 continue
-            #self.logger.info(f'received node announcement from {datetime.fromtimestamp(node_info.timestamp).ctime()}')
             node_id = node_info.node_id
             # Ignore node if it has no associated channel (DoS protection)
             expr = or_(ChannelInfo.node1_id==node_id, ChannelInfo.node2_id==node_id)
@@ -447,7 +441,7 @@ class ChannelDB(SqlDB):
             new_nodes[node_id] = node_info
             for addr in node_addresses:
                 new_addresses[(addr.node_id,addr.host,addr.port)] = addr
-        #self.logger.info("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
+        self.logger.info("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         for node_info in new_nodes.values():
             self.DBSession.add(node_info)
         for new_addr in new_addresses.values():

@@ -71,8 +71,6 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             return
         if short_channel_id in self.blacklist:
             return
-        if not verify_sigs_for_channel_announcement(msg_payload):
-            return
         with self.lock:
             self.unverified_channel_info[short_channel_id] = msg_payload
 
@@ -178,19 +176,6 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         self.blacklist.add(short_channel_id)
         with self.lock:
             self.unverified_channel_info.pop(short_channel_id, None)
-
-
-def verify_sigs_for_channel_announcement(msg_bytes: bytes) -> bool:
-    msg_type, chan_ann = decode_msg(msg_bytes)
-    assert msg_type == 'channel_announcement'
-    pre_hash = msg_bytes[2+256:]
-    h = sha256d(pre_hash)
-    pubkeys = [chan_ann['node_id_1'], chan_ann['node_id_2'], chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2']]
-    sigs = [chan_ann['node_signature_1'], chan_ann['node_signature_2'], chan_ann['bitcoin_signature_1'], chan_ann['bitcoin_signature_2']]
-    for pubkey, sig in zip(pubkeys, sigs):
-        if not ecc.verify_signature(pubkey, sig, h):
-            return False
-    return True
 
 
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
