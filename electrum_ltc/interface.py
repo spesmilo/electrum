@@ -32,10 +32,12 @@ from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
 import itertools
+import logging
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
 from aiorpcx.curio import timeout_after, TaskTimeout
+from aiorpcx.jsonrpc import JSONRPC
 import certifi
 
 from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
@@ -148,7 +150,13 @@ class NotificationSession(RPCSession):
             self.interface.logger.debug(msg)
 
 
-class GracefulDisconnect(Exception): pass
+class GracefulDisconnect(Exception):
+    log_level = logging.INFO
+
+    def __init__(self, *args, log_level=None, **kwargs):
+        Exception.__init__(self, *args, **kwargs)
+        if log_level is not None:
+            self.log_level = log_level
 
 
 class RequestTimedOut(GracefulDisconnect):
@@ -305,7 +313,7 @@ class Interface(Logger):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
-                self.logger.info(f"disconnecting gracefully. {repr(e)}")
+                self.logger.log(e.log_level, f"disconnecting due to {repr(e)}")
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
@@ -426,17 +434,21 @@ class Interface(Logger):
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
             self.logger.info(f"connection established. version: {ver}")
 
-            async with self.group as group:
-                await group.spawn(self.ping)
-                await group.spawn(self.run_fetch_blocks)
-                await group.spawn(self.monitor_connection)
-                # NOTE: group.__aexit__ will be called here; this is needed to notice exceptions in the group!
+            try:
+                async with self.group as group:
+                    await group.spawn(self.ping)
+                    await group.spawn(self.run_fetch_blocks)
+                    await group.spawn(self.monitor_connection)
+            except aiorpcx.jsonrpc.RPCError as e:
+                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE, JSONRPC.SERVER_BUSY):
+                    raise GracefulDisconnect(e, log_level=logging.ERROR) from e
+                raise
 
     async def monitor_connection(self):
         while True:
             await asyncio.sleep(1)
             if not self.session or self.session.is_closing():
-                raise GracefulDisconnect('server closed session')
+                raise GracefulDisconnect('session was closed')
 
     async def ping(self):
         while True:

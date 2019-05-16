@@ -296,7 +296,7 @@ class ElectrumGui(Logger):
         self.daemon.add_wallet(wallet)
         return wallet
 
-    def close_window(self, window):
+    def close_window(self, window: ElectrumWindow):
         if window in self.windows:
            self.windows.remove(window)
         self.build_tray_menu()
