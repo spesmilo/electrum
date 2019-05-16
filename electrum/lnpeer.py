@@ -901,7 +901,7 @@ class Peer(Logger):
         #                          len=9, encoded_short_ids=b'\x00'+chan.short_channel_id)
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            self.channel_db.on_channel_update(pending_channel_update)
+            self.channel_db.add_channel_update(pending_channel_update)
 
         self.logger.info("CHANNEL OPENING COMPLETED")
 
@@ -992,7 +992,7 @@ class Peer(Logger):
             payload['raw'] = channel_update
             try:
                 self.logger.info(f"trying to apply channel update on our db {payload}")
-                self.channel_db.on_channel_update(payload)
+                self.channel_db.add_channel_update(payload)
                 self.logger.info("successfully applied channel update on our db")
             except NotFoundChanAnnouncementForUpdate:
                 # maybe it is a private channel (and data in invoice was outdated)
