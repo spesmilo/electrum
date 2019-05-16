@@ -134,7 +134,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 6)
+        self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -753,7 +753,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
 
                 tokrat = token_ratio(int(self.network.get_local_height()))
-                finemass = c*tokrat/1.0E+6
+                finemass = c*tokrat/1.0E+8
                 text+=" ("+str("%.6f" % finemass)+" oz)  1 DGLD = "+str("%.6f" % tokrat)+" oz"
 
                 # append fiat balance and price
@@ -1128,7 +1128,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         class SendMassLabel(QLabel):
             def setAmount(self, value,tokrat):
                 if value == None: value = 0.0
-                rmass = str("%.6f" % (value*tokrat/1.0E+6))
+                rmass = str("%.6f" % (value*tokrat/1.0E+8))
                 self.setText((' = %s oz' % rmass))
 
         self.mass_e = SendMassLabel()
