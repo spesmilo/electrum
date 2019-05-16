@@ -241,12 +241,14 @@ class Peer(Logger):
             self.verify_node_announcements(node_anns)
             self.channel_db.on_node_announcement(node_anns)
             # channel updates
-            good, bad = self.channel_db.filter_channel_updates(chan_upds)
-            if bad:
-                self.logger.info(f'adding {len(bad)} unknown channel ids')
-                self.network.lngossip.add_new_ids(bad)
-            self.verify_channel_updates(good)
-            self.channel_db.on_channel_update(good)
+            orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates(chan_upds, max_age=self.network.lngossip.max_age)
+            if orphaned:
+                self.logger.info(f'adding {len(orphaned)} unknown channel ids')
+                self.network.lngossip.add_new_ids(orphaned)
+            if good:
+                self.logger.debug(f'on_channel_update: {len(good)}/{len(chan_upds)}')
+                self.verify_channel_updates(good)
+                self.channel_db.update_policies(good, to_delete)
             # refresh gui
             if chan_anns or node_anns or chan_upds:
                 self.network.lngossip.refresh_gui()
@@ -273,7 +275,7 @@ class Peer(Logger):
             short_channel_id = payload['short_channel_id']
             if constants.net.rev_genesis_bytes() != payload['chain_hash']:
                 raise Exception('wrong chain hash')
-            if not verify_sig_for_channel_update(payload, payload['node_id']):
+            if not verify_sig_for_channel_update(payload, payload['start_node']):
                 raise BaseException('verify error')
 
     @log_exceptions
@@ -990,21 +992,29 @@ class Peer(Logger):
             OnionFailureCode.EXPIRY_TOO_SOON: 2,
             OnionFailureCode.CHANNEL_DISABLED: 4,
         }
-        offset = failure_codes.get(code)
-        if offset:
+        if code in failure_codes:
+            offset = failure_codes[code]
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
-            try:
-                self.logger.info(f"trying to apply channel update on our db {payload}")
-                self.channel_db.add_channel_update(payload)
-                self.logger.info("successfully applied channel update on our db")
-            except NotFoundChanAnnouncementForUpdate:
+            orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates([payload])
+            if good:
+                self.verify_channel_updates(good)
+                self.channel_db.update_policies(good, to_delete)
+                self.logger.info("applied channel update on our db")
+            elif orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info("maybe channel update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+            elif expired:
+                blacklist = True
+            elif deprecated:
+                self.logger.info(f'channel update is not more recent. blacklisting channel')
+                blacklist = True
         else:
+            blacklist = True
+        if blacklist:
             # blacklist channel after reporter node
             # TODO this should depend on the error (even more granularity)
             # also, we need finer blacklisting (directed edges; nodes)
