@@ -150,6 +150,10 @@ info "finalizing AppDir."
     mv usr/include.tmp usr/include
 )
 
+# copy libusb here because it is on the AppImage excludelist and it can cause problems if we use system libusb
+info "Copying libusb"
+cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
+
 
 info "stripping binaries from debug symbols."
 # "-R .note.gnu.build-id" also strips the build id
@@ -176,13 +180,12 @@ rm -rf "$APPDIR"/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/translations/qtwebengine_locales
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/resources/qtwebengine_*
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/qml
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Web*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Designer*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Qml*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Quick*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Location*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Test*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Xml*
+for component in Web Designer Qml Quick Location Test Xml ; do
+    rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5${component}*
+    rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt${component}*
+done
+rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt.so
+
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete

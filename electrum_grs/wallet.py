@@ -255,8 +255,11 @@ class Abstract_Wallet(AddressSynchronizer):
     def test_addresses_sanity(self):
         addrs = self.get_receiving_addresses()
         if len(addrs) > 0:
-            if not bitcoin.is_address(addrs[0]):
-                raise WalletFileException('The addresses in this wallet are not groestlcoin addresses.')
+            addr = str(addrs[0])
+            if not bitcoin.is_address(addr):
+                neutered_addr = addr[:5] + '..' + addr[-2:]
+                raise WalletFileException(f'The addresses in this wallet are not groestlcoin addresses.\n'
+                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def calc_unused_change_addresses(self):
         with self.lock:
@@ -438,10 +441,12 @@ class Abstract_Wallet(AddressSynchronizer):
         return c1-c2, u1-u2, x1-x2
 
     def balance_at_timestamp(self, domain, target_timestamp):
+        # we assume that get_history returns items ordered by block height
+        # we also assume that block timestamps are monotonic (which is false...!)
         h = self.get_history(domain)
         balance = 0
         for tx_hash, tx_mined_status, value, balance in h:
-            if tx_mined_status.timestamp > target_timestamp:
+            if tx_mined_status.timestamp is None or tx_mined_status.timestamp > target_timestamp:
                 return balance - value
         # return last balance
         return balance
@@ -1449,7 +1454,7 @@ class Imported_Wallet(Simple_Wallet):
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
-            self.db.remove_history(address)
+            self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
                 self.db.remove_tx_fee(tx_hash)

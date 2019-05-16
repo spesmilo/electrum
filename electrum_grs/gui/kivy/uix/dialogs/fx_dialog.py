@@ -95,15 +95,20 @@ class FxDialog(Factory.Popup):
         self.add_currencies()
 
     def add_exchanges(self):
+        ex = self.ids.exchanges
         if self.fx.is_enabled():
             exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), self.has_history_rates))
             mx = self.fx.exchange.name()
+            if mx in exchanges:
+                ex.text = mx
+            elif exchanges:
+                ex.text = exchanges[0]
+            else:
+                ex.text = ''
         else:
             exchanges = []
-            mx = ''
-        ex = self.ids.exchanges
+            ex.text = ''
         ex.values = exchanges
-        ex.text = (mx if mx in exchanges else exchanges[0]) if self.fx.is_enabled() else ''
 
     def on_exchange(self, text):
         if not text:

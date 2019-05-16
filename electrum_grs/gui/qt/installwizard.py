@@ -87,20 +87,20 @@ class CosignWidget(QWidget):
 def wizard_dialog(func):
     def func_wrapper(*args, **kwargs):
         run_next = kwargs['run_next']
-        wizard = args[0]
+        wizard = args[0]  # type: InstallWizard
         wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
         try:
             out = func(*args, **kwargs)
+            if type(out) is not tuple:
+                out = (out,)
+            run_next(*out)
         except GoBack:
-            wizard.go_back() if wizard.can_go_back() else wizard.close()
-            return
-        except UserCancelled:
-            return
-        #if out is None:
-        #    out = ()
-        if type(out) is not tuple:
-            out = (out,)
-        run_next(*out)
+            if wizard.can_go_back():
+                wizard.go_back()
+                return
+            else:
+                wizard.close()
+                raise
     return func_wrapper
 
 
@@ -263,25 +263,24 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         self.temp_storage.decrypt(password)
                         break
                     except InvalidPassword as e:
-                        QMessageBox.information(None, _('Error'), str(e))
+                        self.show_message(title=_('Error'), msg=str(e))
                         continue
                     except BaseException as e:
                         self.logger.exception('')
-                        QMessageBox.information(None, _('Error'), str(e))
+                        self.show_message(title=_('Error'), msg=str(e))
                         raise UserCancelled()
                 elif self.temp_storage.is_encrypted_with_hw_device():
                     try:
                         self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=self.temp_storage)
                     except InvalidPassword as e:
-                        QMessageBox.information(
-                            None, _('Error'),
-                            _('Failed to decrypt using this hardware device.') + '\n' +
-                            _('If you use a passphrase, make sure it is correct.'))
+                        self.show_message(title=_('Error'),
+                                          msg=_('Failed to decrypt using this hardware device.') + '\n' +
+                                              _('If you use a passphrase, make sure it is correct.'))
                         self.reset_stack()
                         return self.select_storage(path, get_wallet_from_daemon)
                     except BaseException as e:
                         self.logger.exception('')
-                        QMessageBox.information(None, _('Error'), str(e))
+                        self.show_message(title=_('Error'), msg=str(e))
                         raise UserCancelled()
                     if self.temp_storage.is_past_initial_decryption():
                         break
@@ -290,7 +289,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 else:
                     raise Exception('Unexpected encryption version')
 
-        return self.temp_storage.path, (self.temp_storage if self.temp_storage.file_exists() else None)
+        return self.temp_storage.path, (self.temp_storage if self.temp_storage.file_exists() else None)  #
 
     def run_upgrades(self, storage):
         path = storage.path
