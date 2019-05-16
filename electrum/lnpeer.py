@@ -248,10 +248,8 @@ class Peer(Logger):
             self.verify_channel_updates(good)
             self.channel_db.on_channel_update(good)
             # refresh gui
-            known = self.channel_db.num_channels
-            unknown = len(self.network.lngossip.unknown_ids)
-            self.logger.info(f'Channels: {known} of {known+unknown}')
-            self.network.trigger_callback('ln_status')
+            if chan_anns or node_anns or chan_upds:
+                self.network.lngossip.refresh_gui()
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:

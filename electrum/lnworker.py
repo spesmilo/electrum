@@ -232,6 +232,7 @@ class LNWorker(Logger):
 class LNGossip(LNWorker):
     # height of first channel announcements
     first_block = 497000
+    max_age = 14*24*3600
 
     def __init__(self, network):
         seed = os.urandom(32)
@@ -244,16 +245,36 @@ class LNGossip(LNWorker):
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
+
+    def refresh_gui(self):
+        # refresh gui
+        known = self.channel_db.num_channels
+        unknown = len(self.unknown_ids)
+        self.logger.info(f'Channels: {known} of {known+unknown}')
+        self.network.trigger_callback('ln_status')
+
+    async def maintain_db(self):
+        n = self.channel_db.get_orphaned_channels()
+        if n:
+            self.logger.info(f'Deleting {n} orphaned channels')
+            self.channel_db.prune_orphaned_channels()
+            self.refresh_gui()
+        while True:
+            n = self.channel_db.get_old_policies(self.max_age)
+            if n:
+                self.logger.info(f'Deleting {n} old channels')
+                self.channel_db.prune_old_policies(self.max_age)
+                self.refresh_gui()
+            await asyncio.sleep(5)
 
     def add_new_ids(self, ids):
-        #if complete:
-        #    self.channel_db.purge_unknown_channels(ids)
         known = self.channel_db.compare_channels(ids)
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
 
     def get_ids_to_query(self):
-        N = 250
+        N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
         return l[0:N]
