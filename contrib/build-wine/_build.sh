@@ -38,8 +38,10 @@ build_secp256k1() {
             ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
             echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
             echo "LDFLAGS = -no-undefined" >> Makefile.am
+            # Note: always set --host along with --build.
             LDFLAGS="-Wl,--no-insert-timestamp -Wl,-no-undefined -Wl,--no-undefined" ./configure \
                 --host=$1 \
+                --build=x86_64-pc-linux-gnu \
                 --enable-module-recovery \
                 --enable-experimental \
                 --enable-module-ecdh \
@@ -78,8 +80,13 @@ build_zbar() {
             autoreconf -vfi || fail "Could not run autoreconf for zbar"
             echo "zbar_libzbar_la_LDFLAGS += -Wc,-static" >> Makefile.am
             echo "LDFLAGS += -Wc,-static" >> Makefile.am
+            # Note: It's really important that you set --build and --host when running configure
+            # Otherwise weird voodoo magic happens with Docker and Wine. Also for correctness GNU
+            # autoconf docs say you should.
+            # https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Hosts-and-Cross_002dCompilation.html
             LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
                 --host=$1 \
+                --build=x86_64-pc-linux-gnu \
                 --with-x=no \
                 --enable-pthread=no \
                 --enable-doc=no \
