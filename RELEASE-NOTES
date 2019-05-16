@@ -406,3 +406,38 @@ and there is no warning message.
 * Fixed Tx Dialog breaking on esoteric scriptsigs (#1263) (Mark Lundeberg)
 * Strip whitespace when copying various right-click -> "Copy Amount" to the
   clipboard. (cculianu)
+
+# Release 4.0.3
+
+* Added Schnorr signatures to UI and backend (fyookball, cculianu,
+  Mark Lundeberg)
+* After much trial and tribulation: fixed broken KeepKey support: KeepKey
+  webusb now works, too. Latest devices should work again. Thanks Axel!
+  (Axel Gembe)
+* Fixed multisig not working on Trezor (& KeepKey) (cculianu, Axel Gembe)
+* Fix #1349 -- Assertion Error on daemon stop (cculianu)
+* Added "Hardware Wallet Support..." tool in menu and in Install Wizard for
+  Linux only to install udev rules for HW wallets. (Axel Gembe, cculianu)
+* OP_RETURN-too-large message in UI was wrong, off by 1 (Axel Gembe)
+* Fix #1338 - Crash on BIP38 private key sweep (cculianu, im_uname)
+* Qt windows build fixups, various (Axel Gembe)
+* Added/removed some servers from servers.json (cculianu, dagurval, im_uname)
+* Address list: remove double space in balance column (Axel Gembe)
+* Console: Make insert key toggle overwrite mode (Axel Gembe)
+* x509 certs: Print better error messages when certs are expired; affects
+  bitpay BIP70 (cculianu, SomberNight)
+* Windows build, removed unneeded binaries (Axel Gembe, cculianu)
+* Layout and Qt effects fixups for various (Axel Gembe)
+* Fix #1306 - Dark theme glitches (Axel Gembe)
+* Fixups to keyboard navigation for console tab (Axel Gembe)
+* Fix console font being reset when moving between monitors on Windows
+  (Axel Gembe)
+* Qt accelerator key fixups (Axel Gembe)
+* Fix #1261 - Mojave Dark mode looked bad (cculianu)
+* Added fancy warning box on top of Console tab to prevent social engineering
+  attacks (Axel Gembe)
+* Added -R/--relax-warnings CLI option to disable Secp & other warnings
+  (Axel Gembe)
+* Better Qt error messages when importing bad WIF p2sh 'private keys' (cculianu)
+* Ledger Nano-X USB device support (Axel Gembe)
+* Various small other nits & bugfixes [see commit log] (cculianu, Axel Gembe)
