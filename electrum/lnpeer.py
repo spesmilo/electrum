@@ -58,7 +58,7 @@ class Peer(Logger):
 
     def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase):
         self.initialized = asyncio.Event()
-        self.querying_lock = asyncio.Lock()
+        self.querying = asyncio.Event()
         self.transport = transport
         self.pubkey = pubkey
         self.lnworker = lnworker
@@ -288,9 +288,7 @@ class Peer(Logger):
                 if not todo:
                     await asyncio.sleep(1)
                     continue
-                await self.querying_lock.acquire()
-                self.logger.info(f'Querying {len(todo)} short_channel_ids')
-                self.query_short_channel_ids(todo)
+                await self.get_short_channel_ids(todo)
 
     async def get_channel_range(self):
         req_index = self.lnworker.first_block
@@ -373,6 +371,13 @@ class Peer(Logger):
         #self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, num_ids {len(ids)}, complete {repr(payload['complete'])}")
         self.reply_channel_range.put_nowait((first, num, complete, ids))
 
+    async def get_short_channel_ids(self, ids):
+        self.logger.info(f'Querying {len(ids)} short_channel_ids')
+        assert not self.querying.is_set()
+        self.query_short_channel_ids(ids)
+        await self.querying.wait()
+        self.querying.clear()
+
     def query_short_channel_ids(self, ids, compressed=True):
         ids = sorted(ids)
         s = b''.join(ids)
@@ -396,7 +401,7 @@ class Peer(Logger):
             self.ping_if_required()
 
     def on_reply_short_channel_ids_end(self, payload):
-        self.querying_lock.release()
+        self.querying.set()
 
     def close_and_cleanup(self):
         try:
