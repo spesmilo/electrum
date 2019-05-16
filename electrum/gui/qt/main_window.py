@@ -479,7 +479,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum Testnet" if constants.net.TESTNET else "Electrum"
+        name = "Electrum Testnet" if constants.net.TESTNET else "Electrum Regtest" if constants.net.REGTEST else "Electrum"
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                   self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
@@ -502,7 +502,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_warning(msg, title=_('Watch-only wallet'))
 
     def warn_if_testnet(self):
-        if not constants.net.TESTNET:
+        if not constants.net.TESTNET and not constants.net.REGTEST:
             return
         # user might have opted out already
         if self.config.get('dont_show_testnet_warning', False):

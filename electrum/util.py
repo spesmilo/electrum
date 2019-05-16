@@ -693,7 +693,7 @@ testnet_block_explorers = {
 
 def block_explorer_info():
     from . import constants
-    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
+    return mainnet_block_explorers if not constants.net.TESTNET and not constants.net.REGTEST else testnet_block_explorers
 
 def block_explorer(config: 'SimpleConfig') -> str:
     from . import constants

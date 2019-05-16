@@ -129,7 +129,7 @@ class LedgerAuthDialog(QDialog):
             if len(s) < len(self.idxs):
                 i = self.idxs[len(s)]
                 addr = self.txdata['address']
-                if not constants.net.TESTNET:
+                if not constants.net.TESTNET and not constants.net.REGTEST:
                     text = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
                 else:
                     # pin needs to be created from mainnet address

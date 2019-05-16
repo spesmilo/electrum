@@ -52,7 +52,7 @@ from electrum.logging import Logger
 
 
 def get_signing_xpub(xtype):
-    if not constants.net.TESTNET:
+    if not constants.net.TESTNET and not constants.net.REGTEST:
         xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
     else:
         xpub = "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
@@ -64,7 +64,7 @@ def get_signing_xpub(xtype):
     return node._replace(xtype=xtype).to_xpub()
 
 def get_billing_xpub():
-    if constants.net.TESTNET:
+    if constants.net.TESTNET or constants.net.REGTEST:
         return "tpubD6NzVbkrYhZ4X11EJFTJujsYbUmVASAYY7gXsEt4sL97AMBdypiH1E9ZVTpdXXEy3Kj9Eqd1UkxdGtvDt5z23DKsh6211CfNJo8bLLyem5r"
     else:
         return "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"

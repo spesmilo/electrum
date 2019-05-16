@@ -127,6 +127,7 @@ class BitcoinSimnet(BitcoinTestnet):
 class SyscoinMainnet(AbstractNet):
 
     TESTNET = False
+    REGTEST = False
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x05
@@ -166,6 +167,7 @@ class SyscoinMainnet(AbstractNet):
 class SyscoinTestnet(AbstractNet):
 
     TESTNET = True
+    REGTEST = False
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 0x41
     ADDRTYPE_P2SH = 0xc4
@@ -203,6 +205,8 @@ class SyscoinTestnet(AbstractNet):
 
 class SyscoinRegtest(SyscoinTestnet):
 
+    TESTNET = False
+    REGTEST = True
     SEGWIT_HRP = "sysrt"
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {
