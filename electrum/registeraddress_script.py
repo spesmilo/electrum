@@ -1,9 +1,10 @@
 from . import bitcoin
 from electrum import ecc
-from .util import bh2u
+from .util import bh2u, bfh
 from .transaction import opcodes
 import base64
 import binascii
+from bitcoin import b58check_to_bin
                       
 class RegisterAddressScript():
 	def __init__(self, wallet):
@@ -16,8 +17,8 @@ class RegisterAddressScript():
 
 	def append(self, addrs):
 		for addr in addrs:
-			self.payload.extend(bytes(addr, 'utf-8'))
-			pubkeybytes=self.wallet.get_public_key(addr, tweaked=False).encode('utf-8')
+			self.payload.extend(b58check_to_bin(addr))
+			pubkeybytes=bfh(self.wallet.get_public_key(addr, tweaked=False))
 			self.payload.extend(pubkeybytes)
 
 	def clear(self):

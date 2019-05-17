@@ -1507,10 +1507,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return outputs, fee_estimator, label, coins
 
     def read_pending_addresses(self, pay_from_coins, pay_from_address):
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         kyc_pubkey = self.wallet.get_kyc_pubkey()
         if kyc_pubkey == None:
             return None

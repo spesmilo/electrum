@@ -573,7 +573,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if change_addr:
             change_addrs = [change_addr]
         else:
-            addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+            addrs = self.get_change_addresses(whitelistedOnly=True)[-self.gap_limit_for_change:]
             if self.use_change and addrs:
                 # New change addresses are created only after a few
                 # confirmations.  Select the unused addresses within the
@@ -1278,6 +1278,8 @@ class Abstract_Wallet(AddressSynchronizer):
         if fromAddress == None:
             return False
 
+        
+
         password=None
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
             if self.storage.is_encrypted_with_hw_device():
@@ -1396,6 +1398,7 @@ class Abstract_Wallet(AddressSynchronizer):
             addrbytes=bytes(data[i1:i2])
             addrs.append(bin_to_b58check(addrbytes, constants.net.ADDRTYPE_P2PKH))
         
+        self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
 
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
@@ -1651,7 +1654,9 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_encryption_addresses(self):
         return self.encryption_addresses
 
-    def get_change_addresses(self):
+    def get_change_addresses(self, whitelistedOnly=False):
+        if whitelistedOnly:
+            return [addr for addr in self.change_addresses if self.is_registered(addr)]
         return self.change_addresses
 
     def get_seed(self, password):
