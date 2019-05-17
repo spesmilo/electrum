@@ -1303,10 +1303,6 @@ class Abstract_Wallet(AddressSynchronizer):
         except Exception:
             return False
 
-        #from PyQt5.QtCore import pyqtRemoveInputHook
-        #from pdb import set_trace
-        #pyqtRemoveInputHook()
-        #set_trace()
 
         self.parse_ratx_addresses(plaintext)
 
@@ -1377,10 +1373,6 @@ class Abstract_Wallet(AddressSynchronizer):
         if not ephemeral == _kyc_pubkey:
             return False
         
-        #from PyQt5.QtCore import pyqtRemoveInputHook
-        #from pdb import set_trace
-        #pyqtRemoveInputHook()
-        #set_trace()
 
         self.parse_ratx_addresses(plaintext)
 
