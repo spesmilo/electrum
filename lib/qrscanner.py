@@ -42,7 +42,7 @@ except OSError:
     libzbar = None
 
 
-def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False, try_again=True):
+def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False):
     if libzbar is None:
         raise RuntimeError("Cannot start QR scanner; zbar not available.")
     libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
@@ -54,10 +54,6 @@ def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False, try
     proc = libzbar.zbar_processor_create(threaded)
     libzbar.zbar_processor_request_size(proc, 640, 480)
     if libzbar.zbar_processor_init(proc, device.encode('utf-8'), display) != 0:
-        if try_again:
-            # workaround for a bug in "ZBar for Windows"
-            # libzbar.zbar_processor_init always seem to fail the first time around
-            return scan_barcode(device, timeout, display, threaded, try_again=False)
         raise RuntimeError("Can not start QR scanner; initialization failed.")
     libzbar.zbar_processor_set_visible(proc)
     if libzbar.zbar_process_one(proc, timeout):
