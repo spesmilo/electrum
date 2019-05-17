@@ -35,9 +35,9 @@ build_secp256k1() {
         build_dll() {
             #sudo apt-get install -y mingw-w64
             export SOURCE_DATE_EPOCH=1530212462
-            ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
             echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
             echo "LDFLAGS = -no-undefined" >> Makefile.am
+            ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
             # Note: always set --host along with --build.
             LDFLAGS="-Wl,--no-insert-timestamp -Wl,-no-undefined -Wl,--no-undefined" ./configure \
                 --host=$1 \
@@ -77,9 +77,9 @@ build_zbar() {
         set -e
         build_dll() {
             export SOURCE_DATE_EPOCH=1530212462
-            autoreconf -vfi || fail "Could not run autoreconf for zbar"
             echo "zbar_libzbar_la_LDFLAGS += -Wc,-static" >> Makefile.am
             echo "LDFLAGS += -Wc,-static" >> Makefile.am
+            autoreconf -vfi || fail "Could not run autoreconf for zbar"
             # Note: It's really important that you set --build and --host when running configure
             # Otherwise weird voodoo magic happens with Docker and Wine. Also for correctness GNU
             # autoconf docs say you should.
