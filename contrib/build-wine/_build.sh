@@ -35,11 +35,13 @@ build_secp256k1() {
         build_dll() {
             #sudo apt-get install -y mingw-w64
             export SOURCE_DATE_EPOCH=1530212462
-            ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
             echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
             echo "LDFLAGS = -no-undefined" >> Makefile.am
+            ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
+            # Note: always set --host along with --build.
             LDFLAGS="-Wl,--no-insert-timestamp -Wl,-no-undefined -Wl,--no-undefined" ./configure \
                 --host=$1 \
+                --build=x86_64-pc-linux-gnu \
                 --enable-module-recovery \
                 --enable-experimental \
                 --enable-module-ecdh \
@@ -69,6 +71,57 @@ build_secp256k1() {
 }
 build_secp256k1
 
+build_zbar() {
+    info "Building libzbar..."
+    (
+        set -e
+        build_dll() {
+            export SOURCE_DATE_EPOCH=1530212462
+            echo "zbar_libzbar_la_LDFLAGS += -Wc,-static" >> Makefile.am
+            echo "LDFLAGS += -Wc,-static" >> Makefile.am
+            autoreconf -vfi || fail "Could not run autoreconf for zbar"
+            # Note: It's really important that you set --build and --host when running configure
+            # Otherwise weird voodoo magic happens with Docker and Wine. Also for correctness GNU
+            # autoconf docs say you should.
+            # https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Hosts-and-Cross_002dCompilation.html
+            LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
+                --host=$1 \
+                --build=x86_64-pc-linux-gnu \
+                --with-x=no \
+                --enable-pthread=no \
+                --enable-doc=no \
+                --enable-video=yes \
+                --with-jpeg=no \
+                --with-python2=no \
+                --with-gtk=no \
+                --with-qt=no \
+                --with-java=no \
+                --with-imagemagick=no \
+                --with-dbus=no \
+                --enable-codes=qrcode \
+                --disable-dependency-tracking \
+                --disable-static \
+                --enable-shared || fail "Could not run ./configure for zbar"
+            make -j4 || fail "Could not build zbar"
+            ${1}-strip zbar/.libs/libzbar-0.dll
+        }
+
+        pushd "$here"/../zbar || fail "Could not chdir to zbar"
+        LIBZBAR_VERSION="4b357528f6781374923edca7c070226caff67b49" # zbar 0.22.2
+        git checkout $LIBZBAR_VERSION || fail "Could not check out zbar $LIBZBAR_VERSION"
+        git clean -f -x -q
+
+        build_dll i686-w64-mingw32 # 64-bit would be: x86_64-w64-mingw32
+        mv zbar/.libs/libzbar-0.dll libzbar-0.dll || fail "Could not find generated DLL"
+
+        find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+
+        popd
+    ) || fail "Could not build libzbar"
+    info "Build of libzbar finished"
+}
+build_zbar
+
 prepare_wine() {
     info "Preparing Wine..."
     (
@@ -78,9 +131,6 @@ prepare_wine() {
         # Please update these carefully, some versions won't work under Wine
         NSIS_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/nsis-3.02.1-setup.exe'
         NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
-
-        ZBAR_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/zbarw-20121031-setup.exe'
-        ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
 
         LIBUSB_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libusb-1.0.21.7z'
         LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
@@ -149,14 +199,6 @@ prepare_wine() {
 
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
-        info "Installing ZBar ..."
-        # Install ZBar
-        wget -O zbar.exe "$ZBAR_URL"
-        verify_hash zbar.exe $ZBAR_SHA256
-        wine zbar.exe /S || fail "Could not install zbar"
-        info "Removing unneeded ZBar files ..."
-        rm -vf $WINEPREFIX/drive_c/'Program Files (x86)'/ZBar/bin/zbarcam.*
-
         #The below has been commented-out as our requirements-wine-build.txt already handles this
         #info "Upgrading setuptools ..."
         # Upgrade setuptools (so Electron-Cash can be installed later)
@@ -180,9 +222,10 @@ prepare_wine() {
         #unzip -o upx.zip
         #cp upx*/upx.exe .
 
-        # libsecp256k1
+        # libsecp256k1 & libzbar
         mkdir -p $WINEPREFIX/drive_c/tmp
         cp "$here"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
+        cp "$here"/../zbar/libzbar-0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
 
         info "Copying DLLs needed by Pyinstaller ..."

@@ -7,3 +7,6 @@
 [submodule "contrib/electrum-locale"]
 	path = contrib/electrum-locale
 	url = https://github.com/Electron-Cash/electrum-locale
+[submodule "contrib/zbar"]
+	path = contrib/zbar
+	url = https://github.com/mchehab/zbar

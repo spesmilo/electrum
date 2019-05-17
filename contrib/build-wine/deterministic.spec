@@ -26,6 +26,9 @@ binaries = [("c:/tmp/libusb-1.0.dll", ".")]
 # Add secp library
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
 
+# Add zbar libraries
+binaries += [('C:/tmp/libzbar-0.dll', '.')]
+
 # The below is no longer necessary. PyInstaller 3.4+ picks these up properly
 # now and puts them in the Qt dirs.
 # Add Windows OpenGL and D3D implementation DLLs (see #1255 and #1253)
@@ -46,7 +49,6 @@ datas = [
     (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'lib/locale', 'electroncash/locale'),
     (home+'plugins', 'electroncash_plugins'),
-    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
