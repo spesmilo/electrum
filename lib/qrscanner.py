@@ -27,6 +27,8 @@ import os
 import sys
 import ctypes
 
+from .util import is_verbose
+
 if sys.platform == 'darwin':
     name = 'libzbar.dylib'
 elif sys.platform in ('windows', 'win32'):
@@ -47,6 +49,8 @@ def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False, try
     libzbar.zbar_processor_create.restype = ctypes.POINTER(ctypes.c_int)
     libzbar.zbar_processor_get_results.restype = ctypes.POINTER(ctypes.c_int)
     libzbar.zbar_symbol_set_first_symbol.restype = ctypes.POINTER(ctypes.c_int)
+    if is_verbose:
+        libzbar.zbar_set_verbosity(100)
     proc = libzbar.zbar_processor_create(threaded)
     libzbar.zbar_processor_request_size(proc, 640, 480)
     if libzbar.zbar_processor_init(proc, device.encode('utf-8'), display) != 0:
