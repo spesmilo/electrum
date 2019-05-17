@@ -65,6 +65,17 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     popd
 )
 
+#info "Building libzbar"  # make_zbar below already prints this
+(
+    pushd "$PROJECT_ROOT"
+
+    "$CONTRIB"/make_zbar || fail "Could not build libzbar"
+
+    find lib -type f -name libzbar\* -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+
+    popd
+)
+
 
 appdir_python() {
   env \
@@ -104,16 +115,6 @@ mkdir -p "$CACHEDIR/pip_cache"
 "$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 "$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
 
-
-info "Copying zbar"
-if [ -e /usr/lib/x86_64-linux-gnu/libzbar.so.0 ]; then
-    # Ubuntu 18.04 dockerfile image puts it in x86_64-linux-gnu
-    mkdir -p "$APPDIR/usr/lib/x86_64-linux-gnu"
-    cp /usr/lib/x86_64-linux-gnu/libzbar.so.0 "$APPDIR/usr/lib/x86_64-linux-gnu/libzbar.so.0" || fail "Could not copy zbar"
-else
-    # Earlier Ubuntu image puts it in plain old /usr/lib
-    cp /usr/lib/libzbar.so.0 "$APPDIR/usr/lib/libzbar.so.0" || fail "Could not copy zbar"
-fi
 
 info "Copying desktop integration"
 cp "$PROJECT_ROOT/electron-cash.desktop" "$APPDIR/electron-cash.desktop"
