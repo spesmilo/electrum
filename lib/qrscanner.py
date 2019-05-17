@@ -27,7 +27,7 @@ import os
 import sys
 import ctypes
 
-from .util import is_verbose
+from .util import is_verbose, print_error, _
 
 if sys.platform == 'darwin':
     name = 'libzbar.dylib'
@@ -36,11 +36,12 @@ elif sys.platform in ('windows', 'win32'):
 else:
     name = 'libzbar.so.0'
 
+libzbar = None
+
 try:
     libzbar = ctypes.cdll.LoadLibrary(name)
-except OSError:
-    libzbar = None
-
+except OSError as e:
+    print_error(_('Failed to load zbar: {}').format(e))
 
 def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False):
     if libzbar is None:
