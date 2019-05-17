@@ -832,9 +832,9 @@ def token_ratio(blockheight):
 #calculate the token ratio iteratively based on intermediate rounding to 8 deciaml places
     ratio = 1.0
     for it in range(hours):
-        ratio += round(ratio*hrate - ratio,8)
+        ratio += round(ratio*hrate - ratio,12)
     tr = zeroratio/ratio
-    return round(tr,8)
+    return round(tr,13)
 
 if __name__ == "__main__":
     app = QApplication([])

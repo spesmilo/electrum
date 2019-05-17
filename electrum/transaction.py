@@ -280,7 +280,7 @@ opcodes = Enumeration("Opcodes", [
     "OP_CHECKMULTISIGVERIFY",
     ("OP_NOP1", 0xB0),
     ("OP_CHECKLOCKTIMEVERIFY", 0xB1), ("OP_CHECKSEQUENCEVERIFY", 0xB2),
-    "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_NOP7", "OP_NOP8", "OP_NOP9", "OP_NOP10",
+    "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_NOP7", "OP_NOP8", "OP_REGISTERADDRESS", "OP_NOP10",
     ("OP_INVALIDOPCODE", 0xFF),
 ])
 
@@ -440,6 +440,12 @@ def parse_scriptSig(d, _bytes):
         d['signatures'] = [None]
         return
 
+    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='registeraddress'
+        d['data']=decoded[1][1]
+        return
+
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
                 bh2u(_bytes))
 
@@ -472,7 +478,7 @@ def get_data_from_policy_output_script(_bytes, *, net=None):
     if match_decoded(decoded, match):
         return TYPE_DATA, decoded[2][1]
 
-    return TYPE_SCRIPT, bh2u(_bytes)
+    return None, None
 
 
 def get_address_from_output_script(_bytes, *, net=None):
@@ -502,7 +508,6 @@ def get_address_from_output_script(_bytes, *, net=None):
             return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1], witver=witver, net=net)
 
     return TYPE_SCRIPT, bh2u(_bytes)
-
 
 def parse_input(vds, full_parse: bool):
     d = {}

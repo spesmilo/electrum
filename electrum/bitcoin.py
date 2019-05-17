@@ -25,6 +25,7 @@
 
 import hashlib
 import hmac
+import base64
 
 from .util import bfh, bh2u, BitcoinException, print_error, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -128,7 +129,16 @@ def push_script(data: str) -> str:
 
     ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
-    data = bfh(data)
+    return push_script_bytes(bfh(data))
+
+
+def push_script_bytes(data: bytes) -> str:
+    """Returns pushed data to the script, automatically
+    choosing canonical opcodes depending on the length of the data.
+    bytes -> hex
+
+    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    """
     from .transaction import opcodes
 
     data_len = len(data)
@@ -142,6 +152,27 @@ def push_script(data: str) -> str:
         return bh2u(bytes([opcodes.OP_1NEGATE]))
 
     return op_push(data_len) + bh2u(data)
+
+def push_script_bytes_encoded(data: bytes) -> str:
+    """Returns pushed data to the script, automatically
+    choosing canonical opcodes depending on the length of the data.
+    bytes -> str(bytes)
+
+    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    """
+    from .transaction import opcodes
+
+    data_len = len(data)
+
+    # "small integer" opcodes
+    if data_len == 0 or data_len == 1 and data[0] == 0:
+        return bh2u(bytes([opcodes.OP_0]))
+    elif data_len == 1 and data[0] <= 16:
+        return bh2u(bytes([opcodes.OP_1 - 1 + data[0]]))
+    elif data_len == 1 and data[0] == 0x81:
+        return bh2u(bytes([opcodes.OP_1NEGATE]))
+
+    return op_push(data_len) + str(data)
 
 
 def add_number_to_script(i: int) -> bytes:
