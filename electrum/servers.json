@@ -197,12 +197,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrumx.nmdps.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrumx.soon.it": {
         "pruning": "-",
         "s": "50002",
@@ -331,12 +325,6 @@
         "version": "1.4"
     },
     "ulrichard.ch": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "us.electrum.be": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
