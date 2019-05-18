@@ -373,7 +373,7 @@ class ChannelDB(SqlDB):
         orphaned = []      # no channel announcement for channel update
         expired = []       # update older than two weeks
         deprecated = []    # update older than database entry
-        good = []          # good updates
+        good = {}          # good updates
         to_delete = []     # database entries to delete
         # filter orphaned and expired first
         known = []
@@ -398,17 +398,19 @@ class ChannelDB(SqlDB):
         old_policies = self.get_policies_for_updates(known)
         for payload in known:
             timestamp = int.from_bytes(payload['timestamp'], "big")
-            start_node = payload['start_node'].hex()
-            short_channel_id = payload['short_channel_id'].hex()
-            old_policy = old_policies.get(short_channel_id+start_node)
+            start_node = payload['start_node']
+            short_channel_id = payload['short_channel_id']
+            key = (short_channel_id+start_node).hex()
+            old_policy = old_policies.get(key)
             if old_policy:
                 if timestamp <= old_policy.timestamp:
                     deprecated.append(short_channel_id)
                 else:
-                    good.append(payload)
+                    good[key] = payload
                     to_delete.append(old_policy)
             else:
-                good.append(payload)
+                good[key] = payload
+        good = list(good.values())
         return orphaned, expired, deprecated, good, to_delete
 
     def add_channel_update(self, payload):
