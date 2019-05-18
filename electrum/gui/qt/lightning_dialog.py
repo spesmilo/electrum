@@ -80,6 +80,10 @@ class LightningDialog(QDialog):
         network_vbox = QVBoxLayout(network_w)
         self.num_peers = QLabel('')
         network_vbox.addWidget(self.num_peers)
+        self.num_nodes = QLabel('')
+        network_vbox.addWidget(self.num_nodes)
+        self.num_channels = QLabel('')
+        network_vbox.addWidget(self.num_channels)
         self.status = QLabel('')
         network_vbox.addWidget(self.status)
         network_vbox.addStretch(1)
@@ -110,16 +114,11 @@ class LightningDialog(QDialog):
         self.watcher_list.update()
         self.network.register_callback(self.update_status, ['ln_status'])
 
-    def update_status(self, event):
-        if self.network.lngossip is None:
-            return
-        channel_db = self.network.channel_db
-        num_peers = sum([p.initialized.is_set() for p in self.network.lngossip.peers.values()])
-        self.num_peers.setText(f'{num_peers} peers, {channel_db.num_nodes} nodes')
-        known = channel_db.num_channels
-        unknown = len(self.network.lngossip.unknown_ids)
-        msg = _(f'Channels: {known} of {known + unknown}')
-        self.status.setText(msg)
+    def update_status(self, event, num_peers, num_nodes, known, unknown):
+        self.num_peers.setText(_(f'Connected to {num_peers} peers'))
+        self.num_nodes.setText(_(f'{num_nodes} nodes'))
+        self.num_channels.setText(_(f'{known} channels'))
+        self.status.setText(_(f'Requesting {unknown} channels...') if unknown else '')
 
     def on_close(self):
         url = self.watchtower_e.text()

@@ -98,7 +98,6 @@ class LNWorker(Logger):
                 peer = Peer(self, node_id, transport)
                 self.peers[node_id] = peer
                 await self.network.main_taskgroup.spawn(peer.main_loop())
-                self.network.trigger_callback('ln_status')
             await asyncio.start_server(cb, addr, int(port))
 
     @log_exceptions
@@ -125,7 +124,7 @@ class LNWorker(Logger):
         peer = Peer(self, node_id, transport)
         await self.network.main_taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
-        self.network.trigger_callback('ln_status')
+        self.network.lngossip.refresh_gui()
         return peer
 
     def start_network(self, network: 'Network'):
@@ -251,8 +250,10 @@ class LNGossip(LNWorker):
         # refresh gui
         known = self.channel_db.num_channels
         unknown = len(self.unknown_ids)
-        self.logger.info(f'Channels: {known} of {known+unknown}')
-        self.network.trigger_callback('ln_status')
+        num_nodes = self.channel_db.num_nodes
+        num_peers = sum([p.initialized.is_set() for p in self.peers.values()])
+        self.logger.info(f'Channels: {known}. Missing: {unknown}')
+        self.network.trigger_callback('ln_status', num_peers, num_nodes, known, unknown)
 
     async def maintain_db(self):
         n = self.channel_db.get_orphaned_channels()
