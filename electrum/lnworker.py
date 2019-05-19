@@ -443,16 +443,20 @@ class LNWallet(LNWorker):
         with self.lock:
             return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
-    def save_channel(self, openchannel):
-        assert type(openchannel) is Channel
-        if openchannel.config[REMOTE].next_per_commitment_point == openchannel.config[REMOTE].current_per_commitment_point:
+    def save_channel(self, chan):
+        assert type(chan) is Channel
+        if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         with self.lock:
-            self.channels[openchannel.channel_id] = openchannel
+            self.channels[chan.channel_id] = chan
+            self.save_channels()
+        self.network.trigger_callback('channel', chan)
+
+    def save_channels(self):
+        with self.lock:
             dumped = [x.serialize() for x in self.channels.values()]
         self.storage.put("channels", dumped)
         self.storage.write()
-        self.network.trigger_callback('channel', openchannel)
 
     def save_short_chan_id(self, chan):
         """
@@ -874,6 +878,15 @@ class LNWallet(LNWorker):
         self.on_channels_updated()
         await self.network.broadcast_transaction(tx)
         return tx.txid()
+
+    def remove_channel(self, chan_id):
+        # TODO: assert that closing tx is deep-mined and htlcs are swept
+        chan = self.channels[chan_id]
+        assert chan.is_closed()
+        self.channels.pop(chan_id)
+        self.save_channel(chan)
+        self.network.trigger_callback('channels')
+        self.network.trigger_callback('wallet_updated')
 
     async def reestablish_peers_and_channels(self):
         async def reestablish_peer_for_given_channel():

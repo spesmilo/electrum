@@ -23,6 +23,8 @@ class ChannelsList(MyTreeView):
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
+        self.network = self.parent.network
+        self.lnworker = self.parent.wallet.lnworker
 
     def format_fields(self, chan):
         labels = {}
@@ -42,36 +44,46 @@ class ChannelsList(MyTreeView):
             chan.get_state()
         ]
 
+    def on_success(txid):
+        self.main_window.show_error('Channel closed' + '\n' + txid)
+
+    def on_failure(exc_info):
+        type_, e, tb = exc_info
+        traceback.print_tb(tb)
+        self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
+
+    def close(self, channel_id):
+        def task():
+            coro = self.lnworker.close_channel(channel_id)
+            return self.network.run_from_another_thread(coro)
+        WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+
+    def force_close(self, channel_id):
+        def task():
+            coro = self.lnworker.force_close_channel(channel_id)
+            return self.network.run_from_another_thread(coro)
+        if self.parent.question('Force-close channel?\nReclaimed funds will not be immediately available.'):
+            WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+
+    def remove_channel(self, channel_id):
+        if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
+            self.lnworker.remove_channel(channel_id)
+
     def create_menu(self, position):
         from .util import WaitingDialog
-        network = self.parent.network
-        lnworker = self.parent.wallet.lnworker
         menu = QMenu()
         idx = self.selectionModel().currentIndex()
         item = self.model().itemFromIndex(idx)
         if not item:
             return
         channel_id = idx.sibling(idx.row(), 0).data(QtCore.Qt.UserRole)
-        def on_success(txid):
-            self.main_window.show_error('Channel closed' + '\n' + txid)
-        def on_failure(exc_info):
-            type_, e, tb = exc_info
-            traceback.print_tb(tb)
-            self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
-        def close():
-            def task():
-                coro = lnworker.close_channel(channel_id)
-                return network.run_from_another_thread(coro)
-            WaitingDialog(self, 'please wait..', task, on_success, on_failure)
-        def force_close():
-            def task():
-                coro = lnworker.force_close_channel(channel_id)
-                return network.run_from_another_thread(coro)
-            if self.parent.question('Force-close channel?\nClaiming funds will not be immediately available.'):
-                WaitingDialog(self, 'please wait..', task, on_success, on_failure)
+        chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
-        menu.addAction(_("Close channel"), close)
-        menu.addAction(_("Force-close channel"), force_close)
+        if not chan.is_closed():
+            menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
+            menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
+        else:
+            menu.addAction(_("Remove"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def details(self, channel_id):
