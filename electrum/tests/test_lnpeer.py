@@ -262,7 +262,7 @@ class TestPeer(SequentialTestCase):
         # route finding should fail when channel is closed
         async def f():
             await asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._message_loop(), p2._message_loop())
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(PaymentFailure):
             run(f())
 
 def run(coro):

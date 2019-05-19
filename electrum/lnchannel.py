@@ -145,6 +145,7 @@ class Channel(Logger):
         self.short_channel_id = bfh(state["short_channel_id"]) if type(state["short_channel_id"]) not in (bytes, type(None)) else state["short_channel_id"]
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
+        self.force_closed = state.get('force_closed')
 
         # FIXME this is a tx serialised in the custom electrum partial tx format.
         # we should not persist txns in this format. we should persist htlcs, and be able to derive
@@ -162,11 +163,7 @@ class Channel(Logger):
 
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
-        if state.get('force_closed', False):
-            self.set_state('FORCE_CLOSING')
-        else:
-            self.set_state('DISCONNECTED')
-
+        self.set_state('DISCONNECTED')
         self.lnwatcher = None
 
         self.local_commitment = None
@@ -203,18 +200,21 @@ class Channel(Logger):
         self.config[LOCAL] = self.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.set_state('OPENING')
 
+    def set_force_closed(self):
+        self.force_closed = True
+
     def set_state(self, state: str):
-        if self._state == 'FORCE_CLOSING':
-            assert state == 'FORCE_CLOSING', 'new state was not FORCE_CLOSING: ' + state
         self._state = state
 
     def get_state(self):
         return self._state
 
     def is_closed(self):
-        return self.get_state() in ['CLOSED', 'FORCE_CLOSING']
+        return self.force_closed or self.get_state() in ['CLOSED', 'CLOSING']
 
     def _check_can_pay(self, amount_msat: int) -> None:
+        if self.is_closed():
+            raise PaymentFailure('Channel closed')
         if self.get_state() != 'OPEN':
             raise PaymentFailure('Channel not open')
         if self.available_to_spend(LOCAL) < amount_msat:
@@ -672,7 +672,7 @@ class Channel(Logger):
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
                 "log": self.hm.to_save(),
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
-                "force_closed": self.get_state() == 'FORCE_CLOSING',
+                "force_closed": self.force_closed,
         }
         return to_save
 
