@@ -82,10 +82,10 @@
         "t": "50001",
         "version": "1.4"
     },
-    "dedi.jochen-hoenicke.de": {
+    "electrum.jochen-hoenicke.de": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
+        "s": "50005",
+        "t": "50003",
         "version": "1.4"
     },
     "dragon085.startdedicated.de": {
