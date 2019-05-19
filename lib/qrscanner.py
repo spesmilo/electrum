@@ -39,9 +39,12 @@ else:
 libzbar = None
 
 try:
-    libzbar = ctypes.cdll.LoadLibrary(name)
+    libzbar = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), name))
 except OSError as e:
-    print_error(_('Failed to load zbar: {}').format(e))
+    try:
+        libzbar = ctypes.cdll.LoadLibrary(name)
+    except OSError as e:
+        print_error(_('Failed to load zbar: {}').format(e))
 
 def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False):
     if libzbar is None:

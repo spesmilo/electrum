@@ -77,7 +77,7 @@ build_zbar() {
         set -e
         build_dll() {
             export SOURCE_DATE_EPOCH=1530212462
-            echo "zbar_libzbar_la_LDFLAGS += -Wc,-static" >> Makefile.am
+            echo "libzbar_la_LDFLAGS += -Wc,-static" >> zbar/Makefile.am
             echo "LDFLAGS += -Wc,-static" >> Makefile.am
             autoreconf -vfi || fail "Could not run autoreconf for zbar"
             # Note: It's really important that you set --build and --host when running configure
@@ -91,8 +91,9 @@ build_zbar() {
                 --enable-pthread=no \
                 --enable-doc=no \
                 --enable-video=yes \
+                --with-directshow=yes \
                 --with-jpeg=no \
-                --with-python2=no \
+                --with-python=no \
                 --with-gtk=no \
                 --with-qt=no \
                 --with-java=no \
@@ -107,7 +108,7 @@ build_zbar() {
         }
 
         pushd "$here"/../zbar || fail "Could not chdir to zbar"
-        LIBZBAR_VERSION="4b357528f6781374923edca7c070226caff67b49" # zbar 0.22.2
+        LIBZBAR_VERSION="11e819815be2de88b64b985605a3386a95079245" # mchehab master as of 2019-05-19
         git checkout $LIBZBAR_VERSION || fail "Could not check out zbar $LIBZBAR_VERSION"
         git clean -f -x -q
 

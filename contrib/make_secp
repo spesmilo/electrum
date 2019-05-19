@@ -19,7 +19,7 @@ LIBSECP_VERSION="9896f7062e67e05f9a1aa7163099fb2e052db9e8"  # According to Mark 
 
 pushd "$contrib"/secp256k1 || fail "Could not chdir to ${contrib}/secp256k1"
 git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
-git clean -f -x -q
+git clean -dfxq
 ./autogen.sh || fail "Could not run autogen for secp256k1. Please make sure you have automake and libtool installed, and try again."
 ./configure \
     --enable-module-recovery \
@@ -42,8 +42,7 @@ else
 fi
 cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
 git checkout master  # Undo the previous explicit checkout to this hash
-git clean -f -x -q
-rm -fr .libs/
+git clean -dfxq
 popd
 
 info "$libsec_lib has been placed in the electroncash 'lib' folder."
