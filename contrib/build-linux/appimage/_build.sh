@@ -190,6 +190,7 @@ rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt.so
 find "$APPDIR" -path '*/__pycache__*' -delete
 rm "$APPDIR"/usr/lib/python3.6/site-packages/pyblake2-*.dist-info/RECORD
 rm "$APPDIR"/usr/lib/python3.6/site-packages/hidapi-*.dist-info/RECORD
+rm "$APPDIR"/usr/lib/python3.6/site-packages/psutil-*.dist-info/RECORD
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
