@@ -51,6 +51,12 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       -q
     TZ=UTC faketime -f '2019-01-01 01:01:01' make -j 4 -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Failed to install Python"
+    # When building in docker on macOS, python builds with .exe extension because the
+    # case insensitive file system of macOS leaks into docker. This causes the build
+    # to result in a different output on macOS compared to Linux. We simply patch
+    # sysconfigdata to remove the extension.
+    # Some more info: https://bugs.python.org/issue27631
+    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.6/_sysconfigdata*
 )
 
 
