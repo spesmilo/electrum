@@ -76,8 +76,9 @@ class AssetsList(MyTreeWidget):
                 else:
                     tokens[asset] = amount
 
+
             for tokenid in tokens:
-                if "assets" in self.amap["assets"].items():
+                if "assets" in self.amap:
                     for i,j in self.amap["assets"].items():
                         if j["tokenid"] == tokenid:
                             if j["ref"] in ownassets:
