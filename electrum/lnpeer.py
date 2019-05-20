@@ -998,6 +998,7 @@ class Peer(Logger):
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
             orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates([payload])
+            blacklist = False
             if good:
                 self.verify_channel_updates(good)
                 self.channel_db.update_policies(good, to_delete)
@@ -1010,7 +1011,7 @@ class Peer(Logger):
             elif expired:
                 blacklist = True
             elif deprecated:
-                self.logger.info(f'channel update is not more recent. blacklisting channel')
+                self.logger.info(f'channel update is not more recent.')
                 blacklist = True
         else:
             blacklist = True
@@ -1023,6 +1024,7 @@ class Peer(Logger):
             except IndexError:
                 self.logger.info("payment destination reported error")
             else:
+                self.logger.info(f'blacklisting channel {bh2u(short_chan_id)}')
                 self.network.path_finder.blacklist.add(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
