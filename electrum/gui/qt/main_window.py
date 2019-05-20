@@ -387,7 +387,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum Testnet" if constants.net.TESTNET else "CB Electrum"
+        name = "CB Electrum Testnet" if constants.net.TESTNET else "CB Electrum"
         title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
@@ -2353,7 +2353,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         addr = self.wallet.get_unused_address()
         out_type = TYPE_ADDRESS
         outputs = []
-        lock_output = TxOutput(out_type,'1111111111111111111114oLvT2',0,1,coin_vals[0]['asset'],1)
+        if constants.net.TESTNET:
+            zero_addr = '2dZRkPX3hrPtuBrmMkbGtxTxsuYYgAaFrXZ'
+        else:
+            zero_addr = '1111111111111111111114oLvT2'
+        lock_output = TxOutput(out_type,zero_addr,0,1,coin_vals[0]['asset'],1)
         outputs.append(lock_output)
 
         for coin in coin_vals:
