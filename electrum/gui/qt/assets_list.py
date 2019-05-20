@@ -77,16 +77,17 @@ class AssetsList(MyTreeWidget):
                     tokens[asset] = amount
 
             for tokenid in tokens:
-                for i,j in self.amap["assets"].items():
-                    if j["tokenid"] == tokenid:
-                        if j["ref"] in ownassets:
-                            ownassets[j["ref"]] += tokens[tokenid]
-                        else:
-                            ownassets[j["ref"]] = tokens[tokenid]
-                        if j["mass"] < tokens[tokenid]*tokrat/1.0E+8:
-                            tokens[tokenid] -= j["mass"]*1.0E+8/tokrat
-                        else:
-                            tokens[tokenid] = 0
+                if "assets" in self.amap["assets"].items():
+                    for i,j in self.amap["assets"].items():
+                        if j["tokenid"] == tokenid:
+                            if j["ref"] in ownassets:
+                                ownassets[j["ref"]] += tokens[tokenid]
+                            else:
+                                ownassets[j["ref"]] = tokens[tokenid]
+                            if j["mass"] < tokens[tokenid]*tokrat/1.0E+8:
+                                tokens[tokenid] -= j["mass"]*1.0E+8/tokrat
+                            else:
+                                tokens[tokenid] = 0
 
             for myasset in ownassets:
                 rmass = str("%.6f" % (float(ownassets[myasset])*tokrat/1.0E+8))+" oz "
