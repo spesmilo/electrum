@@ -277,7 +277,7 @@ class ECPubkey(object):
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
         verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1', ephemeral= None):
+    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1', ephemeral= None, encode=base64.b64encode):
         """
         ECIES encryption/decryption methods; AES-256-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
@@ -297,7 +297,7 @@ class ECPubkey(object):
         encrypted = magic + ephemeral_pubkey + ciphertext
         mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
-        return base64.b64encode(encrypted + mac)
+        return encode(encrypted + mac)
 
 
     def ecdh(self, scalar: int):
@@ -423,12 +423,13 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig_string)
         return sig65
 
-    def decrypt_message(self, encrypted, magic=b'BIE1'):
-        encrypted = base64.b64decode(encrypted)
+    def decrypt_message(self, encrypted, magic=b'BIE1', get_ephemeral=False, decode=base64.b64decode, ephemeral_pubkey_bytes:bytes=None):
+        encrypted = decode(encrypted)
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
         magic_found = encrypted[:4]
-        ephemeral_pubkey_bytes = encrypted[4:37]
+        if ephemeral_pubkey_bytes == None:
+            ephemeral_pubkey_bytes = encrypted[4:37]
         ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
         if magic_found != magic:
@@ -446,7 +447,10 @@ class ECPrivkey(ECPubkey):
         key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()
-        return aes_decrypt_with_iv(key_e, iv, ciphertext)
+        plaintext = aes_decrypt_with_iv(key_e, iv, ciphertext) 
+        if get_ephemeral is True:
+            return plaintext, ephemeral_pubkey
+        return plaintext
 
 
 def construct_sig65(sig_string, recid, is_compressed):

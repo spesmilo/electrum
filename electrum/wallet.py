@@ -35,10 +35,12 @@ import json
 import copy
 import errno
 import traceback
+import binascii
 from functools import partial
 from numbers import Number
 from decimal import Decimal
 from io import StringIO, BytesIO
+from bitcoin import bin_to_b58check
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -176,7 +178,8 @@ class Abstract_Wallet(AddressSynchronizer):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
-        self.registered_addresses  = set(storage.get('registered_addresses',[]))
+        self.registered_addresses  = set(storage.get('registered_addresses', []))
+        self.pending_addresses     = set(storage.get('pending_addresses', []))
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
@@ -214,13 +217,14 @@ class Abstract_Wallet(AddressSynchronizer):
         return os.path.basename(self.storage.path)
 
     def save_addresses(self):
-        self.storage.put('addresses', {'receiving':self.receiving_addresses, 'change':self.change_addresses})
+        self.storage.put('addresses', {'receiving':self.receiving_addresses, 'change':self.change_addresses, 'encryption':self.encryption_addresses})
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
         if type(d) != dict: d={}
         self.receiving_addresses = d.get('receiving', [])
         self.change_addresses = d.get('change', [])
+        self.encryption_addresses = d.get('encryption', [])
 
     def test_addresses_sanity(self):
         addrs = self.get_receiving_addresses()
@@ -541,8 +545,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
+
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+                                  change_addr=None, is_sweep=False, b_allow_zerospend: bool = False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -568,7 +573,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if change_addr:
             change_addrs = [change_addr]
         else:
-            addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+            addrs = self.get_change_addresses(whitelistedOnly=True)[-self.gap_limit_for_change:]
             if self.use_change and addrs:
                 # New change addresses are created only after a few
                 # confirmations.  Select the unused addresses within the
@@ -580,6 +585,17 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 # coin_chooser will set change address
                 change_addrs = []
+
+              # Fee estimator
+        if fixed_fee is None:
+            fee_estimator = config.estimate_fee
+        elif isinstance(fixed_fee, Number):
+            fee_estimator = lambda size: fixed_fee
+        elif callable(fixed_fee):
+            fee_estimator = fixed_fee
+        else:
+            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
+
 
         # Fee estimator
         if fixed_fee is None:
@@ -596,7 +612,7 @@ class Abstract_Wallet(AddressSynchronizer):
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(), b_allow_zerospend)
         else:
             # FIXME?? this might spend inputs with negative effective value...
             sendable = sum(map(lambda x:x['value'], inputs))
@@ -635,8 +651,14 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
+    def is_pending(self, addr):
+        return addr in self.pending_addresses
+
     def is_registered(self, addr):
         return addr in self.registered_addresses
+        
+    def get_pending_addresses(self):
+        return self.pending_addresses
 
     def set_frozen_state(self, addrs, freeze):
         '''Set frozen state of the addresses to FREEZE, True or False'''
@@ -649,14 +671,25 @@ class Abstract_Wallet(AddressSynchronizer):
             return True
         return False
 
-    def set_registered_state(self, addrs, freeze):
-        '''Set frozen state of the addresses to REGISTERED, True or False'''
+    def set_registered_state(self, addrs,  reg: bool):
+        '''Set registered state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
-            if freeze:
+            if reg:
                 self.registered_addresses |= set(addrs)
             else:
                 self.registered_addresses -= set(addrs)
             self.storage.put('registered_addresses', list(self.registered_addresses))
+            return True
+        return False
+        
+    def set_pending_state(self, addrs, pend: bool):
+        '''Set pending state of the addresses to STATE, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if pend:
+                self.pending_addresses |= set(addrs)
+            else:
+                self.pending_addresses -= set(addrs)
+            self.storage.put('pending_addresses', list(self.pending_addresses))
             return True
         return False
 
@@ -869,6 +902,17 @@ class Abstract_Wallet(AddressSynchronizer):
                 else:
                     choice = addr
         return choice
+
+    def get_unused_encryption_address(self):
+        addrs = self.get_unused_encryption_addresses()
+        if addrs:
+            return addrs[0]
+        
+
+    def get_unused_encryption_addresses(self):
+        domain = self.get_encryption_addresses()
+        return [addr for addr in domain if not self.history.get(addr)
+                and addr not in self.receive_requests.keys()]
 
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
@@ -1201,6 +1245,187 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
+    def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
+        if self.parse_registeraddress_tx(tx, parent_window):
+                return True
+        if self.parse_whitelist_tx(tx):
+            return True
+        return False
+
+    #Get the address the transaction fee was paid from
+    def get_from_addresses(self, tx):
+        from_addresses=[]
+        input_addresses = set()
+        for txin in  tx.inputs():
+            input_addresses.add(self.get_txin_address(txin))
+        return input_addresses
+
+    def parse_registeraddress_data(self, data, tx, parent_window):
+        # We must have already been assigned a kyc public key
+        if self.kyc_pubkey == None:
+            return False
+
+        fromAddresses = self.get_from_addresses(tx)
+        if fromAddresses == None:
+            return False
+
+        fromAddress=None
+        for address in fromAddresses:
+            if self.is_mine(address):
+                fromAddress=address
+                break
+            
+        if fromAddress == None:
+            return False
+
+        
+
+        password=None
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sort out what to do for encrypted wallets.
+                return False
+            else:
+                if self.has_keystore_encryption():
+                    msg = _('Received encrypted address whitelist registration transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return False
+
+
+        try: 
+            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
+            fromKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return False
+
+        try:
+            plaintext=fromKey.decrypt_message(data, ephemeral_pubkey_bytes=bfh(self.kyc_pubkey), decode=binascii.unhexlify)
+        except Exception:
+            return False
+
+
+        self.parse_ratx_addresses(plaintext)
+
+        return True
+
+    def parse_onboard_data(self, data, parent_window):
+        pubKeySize=33
+        addressSize=20
+        minPayloadSize=2
+
+        i1=0
+        i2=33
+
+        if(len(data)<2*pubKeySize+minPayloadSize):
+            return False
+        
+        kyc_pubkey=data[i1:i2]
+        #Check if this is a onboarding TX
+        try:
+            _kyc_pubkey=ecc.ECPubkey(kyc_pubkey)
+        except ecc.InvalidECPointException:
+            return False
+        except ValueError:
+            return False
+        
+        i1=i2
+        i2+=33
+        userOnboardPubKey = data[i1:i2]         
+        try:
+            _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
+        except InvalidECPointException:
+            return False
+        except ValueError:
+            return False
+
+        #Check that this wallet holds the onboard user private key
+        onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
+        if not self.is_mine(onboardAddress):
+            return False
+
+        password=None
+
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sort out what to do for encrypted wallets.
+                return False
+            else:
+                if self.has_keystore_encryption():
+                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return False
+
+        try: 
+            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+        except Exception:
+            return False
+
+        i1=i2
+        ciphertext=data[i1:]
+        try:
+            plaintext, ephemeral=_onboardUserKey.decrypt_message(ciphertext, get_ephemeral=True, decode=binascii.unhexlify)
+        except Exception:
+            return False
+        #Confirm that this was encrypted by the kyc private key owner
+        if not ephemeral == _kyc_pubkey:
+            return False
+        
+
+        self.parse_ratx_addresses(plaintext)
+
+        self.set_kyc_pubkey(bh2u(kyc_pubkey))
+        
+        return True
+
+    def parse_ratx_addresses(self, data):
+        #Add addresses to the list of registered addresses
+        #First 20 bytes == address
+        #Next 33 bytes == untweaked public key
+        i3=0
+        ptlen=len(data)
+        addrs=[]
+        while True:
+            i1=i3
+            i2=i1+20
+            i3=i2+33
+            if i3 > ptlen:
+                break
+            addrbytes=bytes(data[i1:i2])
+            addrs.append(bin_to_b58check(addrbytes, constants.net.ADDRTYPE_P2PKH))
+        
+        self.set_pending_state(addrs, False)
+        self.set_registered_state(addrs, True)
+
+    def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
+        decoded=dict()
+        data=None       
+        outputs = tx.outputs()
+        for output in outputs:
+            transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
+            if len(decoded) is not 0:
+                txtype=decoded['type']
+                if txtype == 'registeraddress':
+                    data=decoded['data']
+                    break
+                else:
+                    decoded=[]
+
+        if data is None:
+            return False
+
+        if self.parse_onboard_data(data, parent_window):
+            return True
+
+        if self.parse_registeraddress_data(data, tx, parent_window):
+            return True
+
+        return False
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -1410,7 +1635,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
-        self.gap_limit = storage.get('gap_limit', 20)
+        self.gap_limit = storage.get('gap_limit', 100)
 
     def has_seed(self):
         return self.keystore.has_seed()
@@ -1426,7 +1651,12 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_receiving_addresses(self):
         return self.receiving_addresses
 
-    def get_change_addresses(self):
+    def get_encryption_addresses(self):
+        return self.encryption_addresses
+
+    def get_change_addresses(self, whitelistedOnly=False):
+        if whitelistedOnly:
+            return [addr for addr in self.change_addresses if self.is_registered(addr)]
         return self.change_addresses
 
     def get_seed(self, password):
@@ -1481,42 +1711,71 @@ class Deterministic_Wallet(Abstract_Wallet):
             self._addr_to_addr_index[addr] = (False, i)
         for i, addr in enumerate(self.change_addresses):
             self._addr_to_addr_index[addr] = (True, i)
+        for i, addr in enumerate(self.encryption_addresses):
+            self._addr_to_addr_index[addr] = (True, False, i)
 
-    def create_new_address(self, for_change=False):
-        assert type(for_change) is bool
+    def create_new_address(self, for_change:bool=False, for_encryption:bool=False):
         with self.lock:
-            addr_list = self.change_addresses if for_change else self.receiving_addresses
+            if for_encryption:
+                for_change=False
+            if for_change:
+                addr_list=self.change_addresses
+            elif for_encryption:
+                addr_list=self.encryption_addresses
+            else:
+                addr_list=self.receiving_addresses
             n = len(addr_list)
-            x = self.derive_pubkeys(for_change, n)
+            x = self.derive_pubkeys(for_change, n, for_encryption)
             if self.contracts:
                 x = self.tweak_pubkeys(x, self.contracts[-1])
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
-            self._addr_to_addr_index[address] = (for_change, n)
+            if for_encryption:
+                self._addr_to_addr_index[address] = (for_encryption, for_change, n)
+            else:
+                self._addr_to_addr_index[address] = (for_change, n)
             self.save_addresses()
             self.add_address(address)
             return address
 
-    def synchronize_sequence(self, for_change):
+    def synchronize_sequence(self, for_change, for_encryption=False):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
-            addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
+            if for_encryption:
+                addresses=self.get_encryption_addresses()
+            elif for_change:
+                addresses = self.get_change_addresses() 
+            else:
+                addresses = self.get_receiving_addresses()
+
             if len(addresses) < limit:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, for_encryption)
                 continue
             if list(map(lambda a: self.address_is_old(a), addresses[-limit:] )) == limit*[False]:
                 break
             else:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, for_encryption)
 
     def synchronize(self):
         with self.lock:
             self.synchronize_sequence(False)
             self.synchronize_sequence(True)
+            self.synchronize_sequence(False, True)
 
     def is_beyond_limit(self, address):
-        is_change, i = self.get_address_index(address)
-        addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
+        is_encryption=False
+        r = self.get_address_index(address)
+        if len(r) == 2:
+            is_change, i = r
+        else:
+            is_encryption, is_change, i = r
+        if is_encryption:
+            is_change=False
+            addr_list = self.get_encryption_addresses()
+        elif is_change:
+            addr_list = self.get_change_addresses() 
+        else:
+            addr_list = self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False
@@ -1546,12 +1805,19 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
 
-    def get_pubkey(self, c, i):
-        return self.derive_pubkeys(c, i)
+    def get_pubkey(self, c, i, for_encryption=False):
+        return self.derive_pubkeys(c, i, for_encryption)
 
     def get_public_key(self, address, tweaked=True):
-        sequence = self.get_address_index(address)
-        pubkey = self.get_pubkey(*sequence)
+        r = self.get_address_index(address)
+        if len(r) == 3:
+            e, c, i = self.get_address_index(address)
+        else:
+            c, i = self.get_address_index(address)
+            e = False
+
+        pubkey = self.get_pubkey(c, i, e)
+
         if tweaked:
             return self.get_tweaked_public_key(address, pubkey)
         return pubkey
@@ -1577,8 +1843,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def get_master_public_key(self):
         return self.keystore.get_master_public_key()
 
-    def derive_pubkeys(self, c, i):
-        return self.keystore.derive_pubkey(c, i)
+    def derive_pubkeys(self, c, i, e=False):
+        return self.keystore.derive_pubkey(c, i, e)
 
     def tweak_pubkeys(self, c, t):
         return self.keystore.tweak_pubkey(c, t)
@@ -1594,9 +1860,11 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
     def get_kyc_string(self, password=None):
-        address=self.create_new_address()
+        address=self.get_unused_encryption_address()
+        if address == None:
+            return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
-         
+
         onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
         txin_type = self.get_txin_type(address)
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
@@ -1617,9 +1885,6 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             address_pubkey_list.append(line)
             ss.write(line)
             ss.write("\n")
-
-
-        self.set_registered_state(addrs, True)
 
         #Encrypt the addresses string
         encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
@@ -1655,7 +1920,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
-    gap_limit = 20
+    gap_limit = 100
 
     def __init__(self, storage):
         self.wallet_type = storage.get('wallet_type')

@@ -47,9 +47,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "618eb3df3fea8e8ff76bf0c32f34b3bd5a8250a9a99026e89bebc10bad815970"
-#    GENESIS = "c8a0dc6295a81c86d103ea677a1e6e7e5b9a11a7ee702a8543f9b6a51694d51c"
-#    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
+    GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -73,15 +71,13 @@ class OceanMainnet:
     }
     BIP44_COIN_TYPE = 0
 
-    CONTROLER1 = "0435c3948e09eca97ed55f22383991e6bc3aa8a8eb54c4d28f069380ec5f0d33d6321137f3ed13ebdfea8cb057fac5532b8773a344632ab83c0effd935f36b60c4"
+    CONTROLER1 = "048249c166d63d2b76c958bab0ad13bf7009121acfe1c2727701df8a4fc3f3d045744cf6894db9df71ce9ef64d2bb5c6d80a1318b74dfee4ad69137469defa9d2a"
     CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
-    CONTROLER3 = "0424405f3350d375edb7b0fb5846a4c794ff0cb76d01e94098a56dd5a6008a8dc13980e5ca463d3ea864f17690d049a197dce0e766dae1806412e45105d3761d73"
+    CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
-    WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
-    #"76a9144ff9b5c6885f87fb5519cc45c1474f301a73224a88ac"
-    #Derive using e.g. ocean-cli decodescript
-    WHITELISTCOINSADDRESS = "1PiFqx44vg5vySwW67SAi924T6xNNsM2qx"
-    #"18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
+    WHITELISTCOINSDESTINATION = "76a914402c656d1e33f8c4ba209c767eea7616785ee29288ac"
+    WHITELISTCOINSADDRESS = "16rKRynAChcFwfzXxUF4bdLDVxBXvJUDJZ"
+    WHITELISTASSET="06ac64b25aa03694714f4c6ab47e6216600d39878b660714d7e553ed4d465307"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
@@ -90,7 +86,7 @@ class OceanTestnet(OceanMainnet):
     CHECKPOINTS = []
     ADDRTYPE_P2PKH = 235
     ADDRTYPE_P2SH = 75               
-    GENESIS = "618eb3df3fea8e8ff76bf0c32f34b3bd5a8250a9a99026e89bebc10bad815970"
+    GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv
@@ -109,9 +105,9 @@ class OceanTestnet(OceanMainnet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
 
-    CONTROLER1 = "0435c3948e09eca97ed55f22383991e6bc3aa8a8eb54c4d28f069380ec5f0d33d6321137f3ed13ebdfea8cb057fac5532b8773a344632ab83c0effd935f36b60c4"
+    CONTROLER1 = "048249c166d63d2b76c958bab0ad13bf7009121acfe1c2727701df8a4fc3f3d045744cf6894db9df71ce9ef64d2bb5c6d80a1318b74dfee4ad69137469defa9d2a"
     CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
-    CONTROLER3 = "0424405f3350d375edb7b0fb5846a4c794ff0cb76d01e94098a56dd5a6008a8dc13980e5ca463d3ea864f17690d049a197dce0e766dae1806412e45105d3761d73"
+    CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
  
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
 
