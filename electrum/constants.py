@@ -85,7 +85,9 @@ class OceanTestnet(OceanMainnet):
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = []
     ADDRTYPE_P2PKH = 235
-    ADDRTYPE_P2SH = 75               
+    ADDRTYPE_P2SH = 75  
+    WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
+    WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
     GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
 
     XPRV_HEADERS = {
