@@ -47,10 +47,6 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-#    GENESIS = "5ab1cb43487f39b1e279683418ca6c144da720ed7340e4df85b5f6fc6148a187"
-#    GENESIS = "c8a0dc6295a81c86d103ea677a1e6e7e5b9a11a7ee702a8543f9b6a51694d51c"
-#    GENESIS = "9c279ca34ead7ca687cd84cae9c02f274ac1faacdb4ff2fa3179f21d73872d22"
-#    GENESIS = "10f8615e5cd17909a859b5b0aafc3fcf1db31b5cd31243e57d4dd9afa5754539"
     GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
@@ -79,11 +75,8 @@ class OceanMainnet:
     CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
     CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
-    WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
-    #"76a9144ff9b5c6885f87fb5519cc45c1474f301a73224a88ac"
-    #Derive using e.g. ocean-cli decodescript
-    WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
-    #"18HsXKCZxZ4Cc6W1oHK4noAvf1k5HaEme2"
+    WHITELISTCOINSDESTINATION = "76a914402c656d1e33f8c4ba209c767eea7616785ee29288ac"
+    WHITELISTCOINSADDRESS = "16rKRynAChcFwfzXxUF4bdLDVxBXvJUDJZ"
     WHITELISTASSET="06ac64b25aa03694714f4c6ab47e6216600d39878b660714d7e553ed4d465307"
 
 # Current Testnet purposes
