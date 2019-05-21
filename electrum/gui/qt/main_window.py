@@ -3017,6 +3017,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         filelogging_cb.setChecked(bool(self.config.get('log_to_file', False)))
         def on_set_filelogging(v):
             self.config.set_key('log_to_file', v == Qt.Checked, save=True)
+            self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
         gui_widgets.append((filelogging_cb, None))
