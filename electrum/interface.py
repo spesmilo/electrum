@@ -28,6 +28,7 @@ import ssl
 import sys
 import traceback
 import asyncio
+import socket
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
@@ -332,7 +333,8 @@ class Interface(Logger):
             return
         try:
             await self.open_session(ssl_context)
-        except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSError) as e:
+        except (asyncio.CancelledError, ConnectionError, socket.gaierror, aiorpcx.socks.SOCKSError) as e:
+            # note: catching OSError would be too broad here... don't want to catch file system exceptions
             self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 

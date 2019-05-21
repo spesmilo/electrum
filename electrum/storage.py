@@ -58,6 +58,7 @@ class WalletStorage(Logger):
         DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
+        # TODO we should test r/w permissions here (whether file exists or not)
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
