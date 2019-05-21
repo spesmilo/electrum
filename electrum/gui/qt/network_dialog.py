@@ -240,19 +240,24 @@ class NetworkChoiceLayout(object):
         self.getmapping = QCheckBox(_('Retrieve asset mapping data'))
         self.getmapping.setEnabled(self.config.is_modifiable('get_map'))
 
+        self.defaultmappingurl = QPushButton(_('Default'))
+
         self.map_host.editingFinished.connect(self.set_mapping)
         self.getmapping.clicked.connect(self.set_mapping)
         self.getmapping.clicked.connect(self.update)
+        self.defaultmappingurl.clicked.connect(self.default_mapping_url)
 
         msg = ' '.join([
             _("If asset mapping is enabled, the wallet will retrieve the asset mapping object from the remote server and authenticate it. "),
             _("Asset information is then displayed in the Assets tab.")
         ])
         grid.addWidget(self.getmapping, 0, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(HelpButton(msg), 0, 6)
 
         grid.addWidget(QLabel(_('Asset map URL') + ':'), 1, 0)
         grid.addWidget(self.map_host, 1, 1, 1, 4)
+        grid.addWidget(self.defaultmappingurl,1,5,1,1)
+
         grid.setRowStretch(7, 1)
 
         # Proxy tab
@@ -489,6 +494,14 @@ class NetworkChoiceLayout(object):
         host = str(self.map_host.text())
         get_map = self.getmapping.isChecked()
         self.network.set_mapping(get_map, host)
+
+    def default_mapping_url(self):
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        mapping_url=self.network.default_mapping()
+        self.map_host.setText(mapping_url)
 
     def set_proxy(self):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
