@@ -415,6 +415,9 @@ and there is no warning message.
   webusb now works, too. Latest devices should work again. Thanks Axel!
   (Axel Gembe)
 * Fixed multisig not working on Trezor (& KeepKey) (cculianu, Axel Gembe)
+* Updated QR reading accuracy and detection for Linux AppImage & Windows by
+  updating the version of ZBar we ship; it's custom-compiled by us from
+  official repo to include only what's needed. (Axel Gembe)
 * Fix #1349 -- Assertion Error on daemon stop (cculianu)
 * Added "Hardware Wallet Support..." tool in menu and in Install Wizard for
   Linux only to install udev rules for HW wallets. (Axel Gembe, cculianu)
