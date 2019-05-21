@@ -30,6 +30,7 @@
 import os
 import threading
 import sys
+import asyncio
 import random
 import time
 import json
@@ -278,11 +279,11 @@ class Abstract_Wallet(AddressSynchronizer):
     def on_addresses_added(self, addresses):
         pass
         # with self.asset_lock:
-        # asset_addresses_ = self.synchronize_assets(addresses)
-        # print("ADDRESSES ADDED {} {}".format(addresses, asset_addresses_))
-        # self.asset_list = asset_addresses_
-        # if self.network:
-        #     self.network.trigger_callback('wallet_updated', self)
+        #     asset_addresses_ = self.synchronize_assets(addresses)
+        #     print("ADDRESSES ADDED {} {}".format(addresses, asset_addresses_))
+        #     self.asset_list = asset_addresses_
+        #     if self.network:
+        #         self.network.trigger_callback('wallet_updated', self)
 
     def is_deterministic(self):
         return self.keystore.is_deterministic()
@@ -778,9 +779,10 @@ class Abstract_Wallet(AddressSynchronizer):
     def make_unsigned_assetsend_transaction(self, config, from_address, to_address, asset_guid, amount, memo):
         if self.network:
             try:
-                raw_tx = self.network.run_from_another_thread(
-                    self.network.create_assetallocation_send(from_address, to_address, asset_guid, amount, memo)
-                )
+                raw_tx = asyncio.run_coroutine_threadsafe(
+                    self.network.create_assetallocation_send(from_address, to_address, asset_guid, amount, memo),
+                    self.network.asyncio_loop
+                ).result()
             except RequestTimedOut as e:
                 raise e
         run_hook('make_unsigned_assetsend_transaction', self, raw_tx)
@@ -863,27 +865,28 @@ class Abstract_Wallet(AddressSynchronizer):
             self.synchronize()
 
     def synchronize_assets(self, addresses, callback=None):
-        return []
-        # if self.network and self.network.is_connected() and len(addresses) > 0:
-        #     try:
-        #         result_ = self.network.run_from_another_thread_unsafe(
-        #             self.network.get_assets_for_addresses(addresses)
-        #         )
-        #         for asset in result_:
-        #             asset['balance'] = int(float(asset['balance']) * 100000)
-        #             asset_updated = False
-        #             for x in range(len(self.asset_list)):
-        #                 if asset['guid'] == self.asset_list[x]['guid'] \
-        #                         and asset['address'] == self.asset_list[x]['address']:
-        #                     self.asset_list[x] = asset
-        #                     asset_updated = True
-        #             if not asset_updated:
-        #                 self.asset_list.append(asset)
-        #         if callback is not None:
-        #             callback(result_)
-        #     except RequestTimedOut as e:
-        #         raise e
-        #     return result_
+        if self.network and self.network.is_connected() and len(addresses) > 0:
+            try:
+                result_ = asyncio.run_coroutine_threadsafe(
+                    self.network.get_assets_for_addresses(addresses),
+                    asyncio.get_event_loop()
+                ).result()
+
+                for asset in result_:
+                    asset_updated = False
+                    for x in range(len(self.asset_list)):
+                        if asset['guid'] == self.asset_list[x]['guid'] \
+                                and asset['address'] == self.asset_list[x]['address']:
+                            self.asset_list[x] = asset
+                            asset_updated = True
+                    if not asset_updated:
+                        self.asset_list.append(asset)
+                if callback is not None:
+                    callback(result_)
+                return result_
+            except RequestTimedOut as e:
+                if e is not TimeoutError:
+                    raise e
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
@@ -1024,7 +1027,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
-        tx.add_inputs_info(self)
+        tx.add_inputs_info(self, True)
         # hardware wallets require extra info
         if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
             self.add_hw_info(tx)

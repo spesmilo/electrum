@@ -136,7 +136,7 @@ class SyscoinMainnet(AbstractNet):
     GENESIS = "000009e388d0cb406b36ed70bf89d21a4f7a3b1adea23a21e7948bac2dbb9fcc"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "legion.me": {
+        "legion.local": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",
@@ -175,7 +175,7 @@ class SyscoinTestnet(AbstractNet):
     GENESIS = "000007f96fcbdbdfbc2560b63bb545648f8d9f27c15ae8f5bbc350218198704e"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "legion.me": {
+        "legion.local": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",
@@ -210,7 +210,7 @@ class SyscoinRegtest(SyscoinTestnet):
     SEGWIT_HRP = "sysrt"
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {
-        "legion.me": {
+        "legion.local": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",

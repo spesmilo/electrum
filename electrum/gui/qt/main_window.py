@@ -376,10 +376,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.need_update.set()
         elif event == 'network_updated':
             # TODO: hella stupid move to the right place when I find it
-            # if self.wallet.network and self.wallet.network.is_connected() \
-            #         and len(self.wallet.get_addresses()) > 0 and self.assets_inited is None:
-            #     self.assets_inited = True
-            #     self.wallet.synchronize_assets(self.wallet.get_addresses())
+            if self.wallet.network and self.wallet.network.is_connected() \
+                    and len(self.wallet.get_addresses()) > 0 and self.assets_inited is None:
+                self.assets_inited = True
+                self.wallet.synchronize_assets(self.wallet.get_addresses())
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
             self.network_signal.emit('status', None)
@@ -1592,8 +1592,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.asset_e.clear()
         idx = 0
         for t in self.wallet.get_assets():
-            self.asset_e.addItem("{} {} ({}) {} {}".format(t['name'], t['address'], t['symbol'],
-                                                           t['balance'] / 100000, t['symbol']))
+            self.asset_e.addItem("{} {} ({}) {}".format(t['name'], t['address'], t['symbol'],
+                                                           t['balance'] / (10**self.get_asset_decimal_point())))
             if t['guid'] == guid and t['address'] == address:
                 self.selected_asset_idx = idx
                 self.selected_asset_guid = guid
@@ -1771,8 +1771,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             tx_raw = self.wallet.make_unsigned_assetsend_transaction(self.config, from_address, to_address,
                                                                      asset_guid, amount_units, memo)
-            tx = Transaction(tx_raw[0])
-            tx.deserialize(True, self.wallet)
+            tx = Transaction(tx_raw['hex'])
+            tx.deserialize(True, self.wallet, unsigned_segwit=True)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             self.show_message(str(e))
             return
@@ -2128,8 +2128,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if len(asset_list) > 0:
             # populate drop down list items
             for t in asset_list:
-                self.asset_e.addItem("{} {} ({}) {} {}".format(t['name'], t['address'], t['symbol'],
-                                                               t['balance'] / 100000, t['symbol']))
+                self.asset_e.addItem("{} {} ({}) {}".format(t['name'], t['address'], t['symbol'],
+                                                               t['balance'] / (10**self.get_asset_decimal_point())))
             #set the previously selected item if there was one.. first find its new indexc
             if current_symbol is not None:
                 for idx in range(len(asset_list)):

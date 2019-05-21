@@ -625,6 +625,7 @@ class Transaction:
         # this value will get properly set when deserializing
         self.is_partial_originally = True
         self._segwit_ser = None  # None means "don't know"
+        self._unsigned_segwit = None # set to true when an unsigned segwit tx is created externally and deserialized
         self.output_info = None  # type: Optional[Dict[str, TxOutputHwInfo]]
         self.expect_trailing_data = expect_trailing_data
         self.expect_trailing_bytes = expect_trailing_bytes
@@ -653,7 +654,8 @@ class Transaction:
             return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
-        if pubkeys is None:
+        if pubkeys is None or len(pubkeys) == 0:
+        #if pubkeys is None:
             pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
             pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys)))
             txin['pubkeys'] = pubkeys = list(pubkeys)
@@ -725,7 +727,7 @@ class Transaction:
 
     # If expect_trailing_data == True, also returns start position of trailing
     # data.
-    def deserialize(self, force_full_parse=False, wallet=None):
+    def deserialize(self, force_full_parse=False, wallet=None, unsigned_segwit=False):
         if self.raw is None and self.raw_bytes is None:
             return
             #self.raw = self.serialize()
@@ -747,6 +749,7 @@ class Transaction:
         self.version = d['version']
         self.is_partial_originally = d['partial']
         self._segwit_ser = d['segwit_ser']
+        self._unsigned_segwit = unsigned_segwit
 
         if wallet is not None:
             self.add_inputs_info(wallet, True)
@@ -1043,6 +1046,8 @@ class Transaction:
         return preimage
 
     def is_segwit(self, guess_for_address=False):
+        if self._unsigned_segwit:
+            return True
         if not self.is_partial_originally:
             return self._segwit_ser
         return any(self.is_segwit_input(x, guess_for_address=guess_for_address) for x in self.inputs())

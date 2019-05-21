@@ -298,11 +298,6 @@ class Network(Logger):
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result()
 
-    def run_from_another_thread_unsafe(self, coro):
-	#todo: remove this method
-        fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
-        return fut.result()
-
     @staticmethod
     def get_instance() -> Optional["Network"]:
         return INSTANCE
@@ -480,8 +475,7 @@ class Network(Logger):
             return list(self.interfaces)
 
     async def get_assets_for_addresses(self, addresses: List[str]) -> List[dict]:
-        if not self.is_connected():
-            return
+
         session = self.interface.session
         assets_result_ = []
 
@@ -492,25 +486,31 @@ class Network(Logger):
                 result = ""
             return result
 
+        owning_addresses = []
         for addr in addresses:
-            for as_addr in await session.send_request('blockchain.address.list_assets', {'address': addr}):
-                assets_result_ += [{
-                    'symbol': get_value_or_blank(as_addr, 'symbol'),
-                    'name': get_value_or_blank(as_addr, 'symbol'),
-                    'guid': get_value_or_blank(as_addr, 'asset'),
-                    'balance': get_value_or_blank(as_addr, 'balance'),
-                    'address': addr}]
+            a = {}
+            a['address'] = addr
+            owning_addresses.append(a)
+
+        request_data = {}
+        request_data['addresses'] = owning_addresses
+        server_result = await session.send_request('blockchain.address.list_assets', request_data)
+        for as_addr in server_result:
+            assets_result_ += [{
+                'symbol': str(get_value_or_blank(as_addr, 'asset_guid')),
+                'name': str(get_value_or_blank(as_addr, 'asset_guid')),
+                'guid': str(get_value_or_blank(as_addr, 'asset_guid')),
+                'balance': int(float(as_addr['balance']) * 100000000),
+                'address': get_value_or_blank(as_addr, 'address')
+            }]
+
         return assets_result_
 
     async def create_assetallocation_send(self, from_address, to_address, asset_guid, amount, memo) -> List[dict]:
         if not self.is_connected():
             return
         session = self.interface.session
-        asset_to = [{
-            'ownerto': to_address,
-            'amount': amount
-        }]
-        return await session.send_request('asset.allocation.send', [asset_guid, from_address, asset_to, memo])
+        return await session.send_request('asset.allocation.send', [asset_guid, from_address, to_address, amount])
 
     @with_recent_servers_lock
     def get_servers(self):
