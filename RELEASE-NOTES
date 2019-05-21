@@ -1,3 +1,14 @@
+# Release 3.3.6 - (May 16, 2019)
+
+ * qt: fix crash during 2FA wallet creation (#5334)
+ * fix synchronizer not to keep resubscribing to addresses of
+   already closed wallets (e415c0d9)
+ * fix removing addresses/keys from imported wallets (#4481)
+ * kivy: fix crash when aborting 2FA wallet creation (#5333)
+ * kivy: fix rare crash when changing exchange rate settings (#5329)
+ * A few other minor bugfixes and usability improvements.
+
+
 # Release 3.3.5 - (May 9, 2019)
 
  * The logging system has been overhauled (#5296).

@@ -32,7 +32,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-version = 3.3.5
+version = 3.3.6
 
 # (list) Application requirements
 requirements = python3, android, openssl, plyer, kivy==b47f669f44dbda4f463bcb7d2cada639f7fed3bc, libffi, libsecp256k1, groestlcoin_hash

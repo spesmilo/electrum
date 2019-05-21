@@ -618,8 +618,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if len(to_delete) > 1:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
                         .format(len(to_delete) - 1))
-        answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
-        if answer == QMessageBox.No:
+        if not self.parent.question(msg=question,
+                                    title=_("Please confirm")):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
