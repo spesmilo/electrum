@@ -167,6 +167,15 @@ class RequestTimedOut(GracefulDisconnect):
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ConnectError(Exception): pass
+
+
+class _Connector(aiorpcx.Connector):
+    async def create_connection(self):
+        try:
+            return await super().create_connection()
+        except OSError as e:
+            raise ConnectError(e)
 
 
 def deserialize_server(server_str: str) -> Tuple[str, str, str]:
@@ -333,8 +342,7 @@ class Interface(Logger):
             return
         try:
             await self.open_session(ssl_context)
-        except (asyncio.CancelledError, ConnectionError, socket.gaierror, aiorpcx.socks.SOCKSError) as e:
-            # note: catching OSError would be too broad here... don't want to catch file system exceptions
+        except (asyncio.CancelledError, ConnectError, aiorpcx.socks.SOCKSError) as e:
             self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
@@ -419,9 +427,9 @@ class Interface(Logger):
         return self.network.default_server == self.server
 
     async def open_session(self, sslc, exit_early=False):
-        async with aiorpcx.Connector(NotificationSession,
-                                     host=self.host, port=self.port,
-                                     ssl=sslc, proxy=self.proxy) as session:
+        async with _Connector(NotificationSession,
+                              host=self.host, port=self.port,
+                              ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
             self.session.interface = self
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
