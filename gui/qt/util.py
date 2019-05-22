@@ -612,11 +612,11 @@ class MyTreeWidget(QTreeWidget):
 
 class OverlayControlMixin:
     STYLE_SHEET_COMMON = '''
-    QWidget { border: 1px solid transparent; }
     QPushButton { border-width: 1px; padding: 0px; margin: 0px; }
     '''
 
     STYLE_SHEET_LIGHT = '''
+    QPushButton { border: 1px solid transparent; }
     QPushButton:hover { border: 1px solid #3daee9; }
     '''
 
