@@ -279,7 +279,13 @@ class Xpub:
         return bh2u(cK)
 
     def get_xpubkey(self, c, i):
-        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
+        def encode_path_int(path_int) -> str:
+            if path_int < 0xffff:
+                hexstr = bitcoin.int_to_hex(path_int, 2)
+            else:
+                hexstr = 'ffff' + bitcoin.int_to_hex(path_int, 4)
+            return hexstr
+        s = ''.join(map(encode_path_int, (c, i)))
         return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
 
     @classmethod
@@ -291,8 +297,13 @@ class Xpub:
         dd = pk[78:]
         s = []
         while dd:
-            n = int(bitcoin.rev_hex(bh2u(dd[0:2])), 16)
+            # 2 bytes for derivation path index
+            n = int.from_bytes(dd[0:2], byteorder="little")
             dd = dd[2:]
+            # in case of overflow, drop these 2 bytes; and use next 4 bytes instead
+            if n == 0xffff:
+                n = int.from_bytes(dd[0:4], byteorder="little")
+                dd = dd[4:]
             s.append(n)
         assert len(s) == 2
         return xkey, s
