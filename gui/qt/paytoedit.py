@@ -186,6 +186,9 @@ class PayToEdit(ScanQRTextEdit):
 
     def update_size(self):
         docLineCount = self.document().size().height()
+        if self.cursorRect().right() + 1 >= self.overlay_widget.pos().x():
+            # Add a line if we are under the overlay widget
+            docLineCount += 1
         docHeight = docLineCount * self.fontSpacing
 
         h = docHeight + self.verticalMargins

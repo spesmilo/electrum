@@ -630,9 +630,13 @@ class OverlayControlMixin:
         self.overlay_layout = QHBoxLayout(self.overlay_widget)
         self.overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.overlay_layout.setSpacing(1)
+        self._updateOverlayPos()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._updateOverlayPos()
+
+    def _updateOverlayPos(self):
         frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         overlay_size = self.overlay_widget.sizeHint()
         x = self.rect().right() - frame_width - overlay_size.width()
