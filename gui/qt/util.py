@@ -638,6 +638,9 @@ class OverlayControlMixin:
         x = self.rect().right() - frame_width - overlay_size.width()
         y = self.rect().bottom() - overlay_size.height()
         y = y / 2 if self.middle else y - frame_width
+        if hasattr(self, 'verticalScrollBar') and self.verticalScrollBar().isVisible():
+            scrollbar_width = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
+            x -= scrollbar_width
         self.overlay_widget.move(x, y)
 
     def addWidget(self, widget: QWidget):
