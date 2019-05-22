@@ -647,7 +647,7 @@ class OverlayControlMixin:
             line_spacing = QFontMetrics(self.document().defaultFont()).lineSpacing()
             if self.rect().height() < (line_spacing * 2):
                 middle = True
-        y = y / 2 if middle else y - frame_width
+        y = (y / 2) + frame_width if middle else y - frame_width
         if hasattr(self, 'verticalScrollBar') and self.verticalScrollBar().isVisible():
             scrollbar_width = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
             x -= scrollbar_width
