@@ -647,6 +647,7 @@ class OverlayControlMixin:
     def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
         button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.setIcon(QIcon(icon_name))
         button.clicked.connect(on_click)
         self.addWidget(button)
