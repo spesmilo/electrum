@@ -310,14 +310,14 @@ class Xpub:
 
     def get_pubkey_derivation_based_on_wallet_advice(self, x_pubkey):
         _, addr = xpubkey_to_address(x_pubkey)
+        retval = None
         try:
-            if addr in self.wallet_advice and self.wallet_advice[addr] is not None:
-                return self.wallet_advice[addr]
-        except NameError:
+            retval = self.wallet_advice.get(addr)
+        except AttributeError:
             # future-proofing the code: self.wallet_advice wasn't defined, which can happen
             # if this class is inherited in the future by non-KeyStore children
             pass
-        return
+        return retval  # None or the derivation based on wallet advice..
 
     def get_pubkey_derivation(self, x_pubkey):
         if x_pubkey[0:2] == 'fd':
