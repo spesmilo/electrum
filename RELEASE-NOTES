@@ -443,3 +443,8 @@ and there is no warning message.
 * Better Qt error messages when importing bad WIF p2sh 'private keys' (cculianu)
 * Ledger Nano-X USB device support (Axel Gembe)
 * Various small other nits & bugfixes [see commit log] (cculianu, Axel Gembe)
+
+# Release 4.0.4
+
+* Fixed QR icon appearing black/invisible on some Linux systems (Axel Gembe)
+* Various bugfixes (Axel Gembe, cculianu)
