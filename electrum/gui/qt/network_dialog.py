@@ -252,11 +252,11 @@ class NetworkChoiceLayout(object):
             _("Asset information is then displayed in the Assets tab.")
         ])
         grid.addWidget(self.getmapping, 0, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 6)
+        grid.addWidget(HelpButton(msg), 0, 3)
 
         grid.addWidget(QLabel(_('Asset map URL') + ':'), 1, 0)
         grid.addWidget(self.map_host, 1, 1, 1, 4)
-        grid.addWidget(self.defaultmappingurl,1,5,1,1)
+        grid.addWidget(self.defaultmappingurl,2,0,1,1)
 
         grid.setRowStretch(7, 1)
 
