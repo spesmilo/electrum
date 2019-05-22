@@ -641,7 +641,13 @@ class OverlayControlMixin:
         overlay_size = self.overlay_widget.sizeHint()
         x = self.rect().right() - frame_width - overlay_size.width()
         y = self.rect().bottom() - overlay_size.height()
-        y = y / 2 if self.middle else y - frame_width
+        middle = self.middle
+        if hasattr(self, 'document'):
+            # Keep the buttons centered if we have less than 2 lines in the editor
+            line_spacing = QFontMetrics(self.document().defaultFont()).lineSpacing()
+            if self.rect().height() < (line_spacing * 2):
+                middle = True
+        y = y / 2 if middle else y - frame_width
         if hasattr(self, 'verticalScrollBar') and self.verticalScrollBar().isVisible():
             scrollbar_width = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
             x -= scrollbar_width
