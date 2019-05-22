@@ -199,6 +199,9 @@ class PayToEdit(ScanQRTextEdit):
 
         self.verticalScrollBar().setHidden(docHeight + self.verticalMargins < self.heightMax)
 
+        # The scrollbar visibility can have changed so we update the overlay position here
+        self._updateOverlayPos()
+
 
     def setCompleter(self, completer):
         self.c = completer
