@@ -305,7 +305,7 @@ class Interface(Logger):
         if not self._is_saved_ssl_cert_available():
             try:
                 await self._try_saving_ssl_cert_for_first_time(ca_sslc)
-            except (OSError, aiorpcx.socks.SOCKSError) as e:
+            except (OSError, ConnectError, aiorpcx.socks.SOCKSError) as e:
                 raise ErrorGettingSSLCertFromServer(e) from e
         # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
@@ -389,9 +389,9 @@ class Interface(Logger):
     async def get_certificate(self):
         sslc = ssl.SSLContext()
         try:
-            async with aiorpcx.Connector(RPCSession,
-                                         host=self.host, port=self.port,
-                                         ssl=sslc, proxy=self.proxy) as session:
+            async with _Connector(RPCSession,
+                                  host=self.host, port=self.port,
+                                  ssl=sslc, proxy=self.proxy) as session:
                 return session.transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
         except ValueError:
             return None
