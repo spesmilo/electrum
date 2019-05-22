@@ -143,7 +143,10 @@ class LNWatcher(AddressSynchronizer):
 
     def set_remote_watchtower(self):
         watchtower_url = self.config.get('watchtower_url')
-        self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
+        try:
+            self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
+        except:
+            self.watchtower = None
         self.watchtower_queue = asyncio.Queue()
 
     def get_num_tx(self, outpoint):
