@@ -612,12 +612,11 @@ class MyTreeWidget(QTreeWidget):
 
 class OverlayControlMixin:
     STYLE_SHEET_COMMON = '''
-    QWidget { background-color: transparent; }
-    QToolButton { border-width: 1px; padding: 0px; margin: 0px; }
+    QPushButton { border-width: 1px; padding: 0px; margin: 0px; }
     '''
 
     STYLE_SHEET_LIGHT = '''
-    QToolButton:hover { border: 1px solid #3daee9; }
+    QPushButton:hover { border: 1px solid #3daee9; }
     '''
 
     def __init__(self, middle: bool = False):
@@ -646,7 +645,7 @@ class OverlayControlMixin:
         self.overlay_layout.insertWidget(0, widget)
 
     def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
-        button = QToolButton(self.overlay_widget)
+        button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
         button.setIcon(QIcon(icon_name))
         button.clicked.connect(on_click)
