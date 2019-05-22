@@ -612,12 +612,12 @@ class MyTreeWidget(QTreeWidget):
 
 class OverlayControlMixin:
     STYLE_SHEET_COMMON = '''
-    QWidget { background-color: transparent; }
-    QToolButton { border-width: 1px; padding: 0px; margin: 0px; }
+    QPushButton { border-width: 1px; padding: 0px; margin: 0px; }
     '''
 
     STYLE_SHEET_LIGHT = '''
-    QToolButton:hover { border: 1px solid #3daee9; }
+    QPushButton { border: 1px solid transparent; }
+    QPushButton:hover { border: 1px solid #3daee9; }
     '''
 
     def __init__(self, middle: bool = False):
@@ -631,14 +631,27 @@ class OverlayControlMixin:
         self.overlay_layout = QHBoxLayout(self.overlay_widget)
         self.overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.overlay_layout.setSpacing(1)
+        self._updateOverlayPos()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._updateOverlayPos()
+
+    def _updateOverlayPos(self):
         frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         overlay_size = self.overlay_widget.sizeHint()
         x = self.rect().right() - frame_width - overlay_size.width()
         y = self.rect().bottom() - overlay_size.height()
-        y = y / 2 if self.middle else y - frame_width
+        middle = self.middle
+        if hasattr(self, 'document'):
+            # Keep the buttons centered if we have less than 2 lines in the editor
+            line_spacing = QFontMetrics(self.document().defaultFont()).lineSpacing()
+            if self.rect().height() < (line_spacing * 2):
+                middle = True
+        y = (y / 2) + frame_width if middle else y - frame_width
+        if hasattr(self, 'verticalScrollBar') and self.verticalScrollBar().isVisible():
+            scrollbar_width = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
+            x -= scrollbar_width
         self.overlay_widget.move(x, y)
 
     def addWidget(self, widget: QWidget):
@@ -646,8 +659,9 @@ class OverlayControlMixin:
         self.overlay_layout.insertWidget(0, widget)
 
     def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
-        button = QToolButton(self.overlay_widget)
+        button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.setIcon(QIcon(icon_name))
         button.clicked.connect(on_click)
         self.addWidget(button)
