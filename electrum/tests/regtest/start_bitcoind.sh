@@ -17,7 +17,7 @@ rpcport=18554
 EOF
 rm -rf ~/.bitcoin/regtest
 screen -S bitcoind -X quit || true
-screen -S bitcoind -m -d bitcoind -regtest -deprecatedrpc=generate
+screen -S bitcoind -m -d bitcoind -regtest
 sleep 6
 addr=$(bitcoin-cli getnewaddress)
 bitcoin-cli generatetoaddress 150 $addr > /dev/null
