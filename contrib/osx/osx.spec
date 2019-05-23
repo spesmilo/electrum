@@ -38,7 +38,7 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # Add the QR Scanner helper app
-datas += [(home + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
+datas += [(home + "contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib", "./contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib")]
 
 # Add libusb so Trezor will work
 binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]

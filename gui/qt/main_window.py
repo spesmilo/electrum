@@ -2650,12 +2650,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
     def read_tx_from_qrcode(self):
-        from electroncash import qrscanner
+        from electroncash import get_config
+        from .qrreader import QrReaderCameraDialog
+        data = ''
         try:
-            data = qrscanner.scan_barcode(self.config.get_video_device())
+            dialog = QrReaderCameraDialog(parent=self)
+            data = dialog.scan(get_config().get_video_device())
         except BaseException as e:
+            if util.is_verbose:
+                import traceback
+                traceback.print_exc()
             self.show_error(str(e))
-            return
         if not data:
             return
         # if the user scanned a bitcoincash URI

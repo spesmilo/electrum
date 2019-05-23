@@ -1,6 +1,7 @@
 
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
+from electroncash import util
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QFileDialog
@@ -62,8 +63,9 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             dialog = QrReaderCameraDialog(parent=self)
             data = dialog.scan(get_config().get_video_device())
         except BaseException as e:
-            import traceback
-            traceback.print_exc()
+            if util.is_verbose:
+                import traceback
+                traceback.print_exc()
             self.show_error(str(e))
             data = ''
         if not data:

@@ -151,13 +151,13 @@ git checkout master  # Undo the previous explicit checkout to this hash
 popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
 
-info "Building CalinsQRReader..."
-d=contrib/osx/CalinsQRReader
+info "Building the OSX QR Detect dylib..."
+d=contrib/osx/OSXQRDetect
 pushd $d
 rm -fr build
-xcodebuild || fail "Could not build CalinsQRReader"
+xcodebuild || fail "Could not build OSX QR Detect dylib"
 popd
-DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe "libosxqrdetect.dylib" "${d}/build/Release/libosxqrdetect.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \

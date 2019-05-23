@@ -71,7 +71,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
         # Try to get the QR reader for this system
         self.qrreader = get_qr_reader()
         if not self.qrreader:
-            raise RuntimeError(_("Cannot start QR scanner, not available."))
+            raise RuntimeError(_("The platform QR detection library is not available."))
 
         # Set up the window, add the maximize button
         flags = self.windowFlags()
