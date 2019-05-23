@@ -2,7 +2,8 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-from typing import Optional, Dict, List, Tuple, TYPE_CHECKING
+from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple
+from enum import Enum, auto
 
 from .util import bfh, bh2u
 from .bitcoin import TYPE_ADDRESS, redeem_script_to_address, dust_threshold
@@ -59,7 +60,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                sweep_address: str) -> Dict[str,Transaction]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
-    Sweep 'lo_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
+    Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
     """
     # prep
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -126,6 +127,81 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
         if secondstage_sweep_tx:
             txs[htlc_tx.txid()] = secondstage_sweep_tx
     return txs
+
+
+class ChannelClosedBy(Enum):
+    US = auto()
+    THEM = auto()
+    UNKNOWN = auto()
+
+
+class ChannelCloseSituationReport(NamedTuple):
+    closed_by: ChannelClosedBy
+    is_breach: Optional[bool]
+
+
+def detect_how_channel_was_closed(chan: 'Channel', ctx: Transaction) -> ChannelCloseSituationReport:
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
+    our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
+
+    def get_to_local_and_to_remote_addresses_for_our_ctx():
+        is_breach = ctn < our_conf.ctn
+        # to_local
+        our_per_commitment_secret = get_per_commitment_secret_from_seed(
+            our_conf.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+        our_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
+        our_delayed_bp_privkey = ecc.ECPrivkey(our_conf.delayed_basepoint.privkey)
+        our_localdelayed_privkey = derive_privkey(our_delayed_bp_privkey.secret_scalar, our_pcp)
+        our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
+        their_revocation_pubkey = derive_blinded_pubkey(their_conf.revocation_basepoint.pubkey, our_pcp)
+        our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
+        to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
+            their_revocation_pubkey, their_conf.to_self_delay, our_localdelayed_pubkey))
+        to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
+        # to_remote
+        their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+        to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
+        return to_local_address, to_remote_address, is_breach
+
+    def get_to_local_and_to_remote_addresses_for_their_ctx():
+        is_breach = False
+        if ctn == their_conf.ctn:
+            their_pcp = their_conf.current_per_commitment_point
+        elif ctn == their_conf.ctn + 1:
+            their_pcp = their_conf.next_per_commitment_point
+        elif ctn < their_conf.ctn:  # breach
+            is_breach = True
+            try:
+                per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+            except UnableToDeriveSecret:
+                return None, None, is_breach
+            their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
+        else:
+            return None, None, None
+        # to_local
+        our_revocation_pubkey = derive_blinded_pubkey(our_conf.revocation_basepoint.pubkey, their_pcp)
+        their_delayed_pubkey = derive_pubkey(their_conf.delayed_basepoint.pubkey, their_pcp)
+        witness_script = bh2u(make_commitment_output_to_local_witness_script(
+            our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey))
+        to_local_address = redeem_script_to_address('p2wsh', witness_script)
+        # to_remote
+        our_payment_pubkey = derive_pubkey(our_conf.payment_basepoint.pubkey, their_pcp)
+        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+        return to_local_address, to_remote_address, is_breach
+
+    # our ctx?
+    to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_our_ctx()
+    if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
+            or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
+        return ChannelCloseSituationReport(closed_by=ChannelClosedBy.US, is_breach=is_breach)
+
+    # their ctx?
+    to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_their_ctx()
+    if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
+            or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
+        return ChannelCloseSituationReport(closed_by=ChannelClosedBy.THEM, is_breach=is_breach)
+
+    return ChannelCloseSituationReport(closed_by=ChannelClosedBy.UNKNOWN, is_breach=None)
 
 
 def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,

@@ -44,6 +44,8 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from . import lnsweep
+from .lnsweep import ChannelClosedBy
 
 if TYPE_CHECKING:
     from .network import Network
@@ -495,7 +497,7 @@ class LNWallet(LNWorker):
         self.network.trigger_callback('channel', chan)
 
     @log_exceptions
-    async def on_channel_closed(self, event, funding_outpoint, spenders, funding_txid, funding_height, closing_txid, closing_height):
+    async def on_channel_closed(self, event, funding_outpoint, spenders, funding_txid, funding_height, closing_txid, closing_height, closing_tx):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
@@ -510,14 +512,16 @@ class LNWallet(LNWorker):
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed
-        if closing_txid == chan.local_commitment.txid():
-            self.logger.info(f'we force closed {funding_outpoint}')
+        assert closing_tx, f"no closing tx... {repr(closing_tx)}"
+        sitrep = lnsweep.detect_how_channel_was_closed(chan, closing_tx)
+        if sitrep.closed_by == ChannelClosedBy.US:
+            self.logger.info(f'we force closed {funding_outpoint}. sitrep: {repr(sitrep)}')
             encumbered_sweeptxs = chan.local_sweeptxs
-        elif closing_txid == chan.remote_commitment.txid():
-            self.logger.info(f'they force closed {funding_outpoint}')
+        elif sitrep.closed_by == ChannelClosedBy.THEM and sitrep.is_breach is False:
+            self.logger.info(f'they force closed {funding_outpoint}. sitrep: {repr(sitrep)}')
             encumbered_sweeptxs = chan.remote_sweeptxs
         else:
-            self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}')
+            self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}. sitrep: {repr(sitrep)}')
             return
         # sweep
         for prevout, spender in spenders.items():

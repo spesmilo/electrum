@@ -214,7 +214,13 @@ class LNWatcher(AddressSynchronizer):
             self.network.trigger_callback('channel_open', funding_outpoint, funding_txid, funding_height)
         else:
             closing_height = self.get_tx_height(closing_txid)
-            self.network.trigger_callback('channel_closed', funding_outpoint, spenders, funding_txid, funding_height, closing_txid, closing_height)
+            closing_tx = self.db.get_transaction(closing_txid)
+            if not closing_tx:
+                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
+                return
+            self.network.trigger_callback('channel_closed', funding_outpoint, spenders,
+                                          funding_txid, funding_height, closing_txid,
+                                          closing_height, closing_tx)  # FIXME sooo many args..
             await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
             self.unwatch_channel(address, funding_outpoint)
