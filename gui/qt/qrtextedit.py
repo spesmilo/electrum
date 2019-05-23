@@ -59,6 +59,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
     def qr_input(self):
         from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
+        dialog = None
         try:
             dialog = QrReaderCameraDialog(parent=self)
             data = dialog.scan(get_config().get_video_device())
@@ -68,6 +69,9 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
                 traceback.print_exc()
             self.show_error(str(e))
             data = ''
+        if dialog:
+            dialog.setParent(None)  # python GC
+            dialog = None
         if not data:
             data = ''
         if self.allow_multi:
