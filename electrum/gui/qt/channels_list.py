@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.lnchannel import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
@@ -44,15 +44,15 @@ class ChannelsList(MyTreeView):
             chan.get_state()
         ]
 
-    def on_success(txid):
+    def on_success(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
 
-    def on_failure(exc_info):
+    def on_failure(self, exc_info):
         type_, e, tb = exc_info
         traceback.print_tb(tb)
         self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
 
-    def close(self, channel_id):
+    def close_channel(self, channel_id):
         def task():
             coro = self.lnworker.close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
@@ -70,7 +70,6 @@ class ChannelsList(MyTreeView):
             self.lnworker.remove_channel(channel_id)
 
     def create_menu(self, position):
-        from .util import WaitingDialog
         menu = QMenu()
         idx = self.selectionModel().currentIndex()
         item = self.model().itemFromIndex(idx)
