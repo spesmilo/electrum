@@ -108,7 +108,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
         controls_layout.addWidget(self.flip_x)
 
         close_but = QPushButton(_("Close"))
-        close_but.clicked.connect(self.close)
+        close_but.clicked.connect(self.reject)
         controls_layout.addWidget(close_but)
 
         # Create the video surface and receive events when new frames arrive
