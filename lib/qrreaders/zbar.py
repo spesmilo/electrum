@@ -119,6 +119,7 @@ class ZbarQrCodeReader(AbstractQrCodeReader):
             LIBZBAR.zbar_image_destroy(self.zbar_image)
 
     def read_qr_code(self, buffer: ctypes.c_void_p, buffer_size: int,
+                     rowlen_bytes: int,  # this param is ignored in this implementation
                      width: int, height: int, frame_id: int = -1) -> List[QrCodeResult]:
         LIBZBAR.zbar_image_set_sequence(self.zbar_image, frame_id)
         LIBZBAR.zbar_image_set_size(self.zbar_image, width, height)

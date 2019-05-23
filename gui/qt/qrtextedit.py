@@ -62,6 +62,8 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             dialog = QrReaderCameraDialog(parent=self)
             data = dialog.scan(get_config().get_video_device())
         except BaseException as e:
+            import traceback
+            traceback.print_exc()
             self.show_error(str(e))
             data = ''
         if not data:

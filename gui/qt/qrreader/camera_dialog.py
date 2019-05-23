@@ -24,16 +24,17 @@
 # SOFTWARE.
 
 import time
+import math
 from typing import List
 
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QSize, QRect, Qt
 
 from electroncash import get_config
 from electroncash.i18n import _
-from electroncash.util import print_error
+from electroncash.util import print_error, PrintError
 from electroncash.qrreaders import get_qr_reader, QrCodeResult
 
 from electroncash_gui.qt.utils import FixedAspectRatioLayout, ImageGraphicsEffect
@@ -44,16 +45,13 @@ from .video_surface import QrReaderVideoSurface
 from .crop_blur_effect import QrReaderCropBlurEffect
 from .validator import AbstractQrReaderValidator, QrReaderValidatorCounted, QrReaderValidatorResult
 
-class QrReaderCameraDialog(QDialog):
+class QrReaderCameraDialog(PrintError, QDialog):
     """
     Dialog for reading QR codes from a camera
     """
 
     # Try to crop so we have minimum 512 dimensions
     SCAN_SIZE: int = 512
-
-    # Try to QR scan every X seconds
-    QR_SCAN_PERIOD: float = 0.200  # every 200ms
 
     def __init__(self, parent):
         QDialog.__init__(self, parent=parent)
@@ -80,6 +78,7 @@ class QrReaderCameraDialog(QDialog):
         flags = flags | Qt.WindowMaximizeButtonHint
         self.setWindowFlags(flags)
         self.setWindowTitle(_("Scan QR Code"))
+        self.setWindowModality(Qt.WindowModal if parent else Qt.ApplicationModal)
 
         # Create video widget and fixed aspect ratio layout to contain it
         self.video_widget = QrReaderVideoWidget()
@@ -96,15 +95,21 @@ class QrReaderCameraDialog(QDialog):
 
         # Create a layout for the controls
         controls_layout = QHBoxLayout()
+        controls_layout.addStretch(2)
         controls_layout.setContentsMargins(10, 10, 10, 10)
+        controls_layout.setSpacing(10)
         vbox.addLayout(controls_layout)
 
         # Flip horizontally checkbox with default coming from global config
         self.flip_x = QCheckBox()
         self.flip_x.setText(_("&Flip horizontally"))
-        self.flip_x.setChecked(self.config.get('qrreader_flip_x', False))
+        self.flip_x.setChecked(bool(self.config.get('qrreader_flip_x', True)))
         self.flip_x.stateChanged.connect(self._on_flip_x_changed)
         controls_layout.addWidget(self.flip_x)
+
+        close_but = QPushButton(_("Close"))
+        close_but.clicked.connect(self.close)
+        controls_layout.addWidget(close_but)
 
         # Create the video surface and receive events when new frames arrive
         self.video_surface = QrReaderVideoSurface(self)
@@ -163,8 +168,7 @@ class QrReaderCameraDialog(QDialog):
 
     def scan(
             self,
-            device: str = '',
-            validator: AbstractQrReaderValidator = QrReaderValidatorCounted()
+            device: str = ''
         ) -> List[QrCodeResult]:
         """
         Scans a QR code from the given camera device.
@@ -172,7 +176,8 @@ class QrReaderCameraDialog(QDialog):
         If the camera is not found or can't be opened a RuntimeError will be raised.
         """
 
-        self.validator = validator
+        self.validator = QrReaderValidatorCounted()
+        self.validator.strong_count = 5  # FIXME: make this time based rather than framect based
 
         device_info = None
 
@@ -182,7 +187,7 @@ class QrReaderCameraDialog(QDialog):
                 break
 
         if not device_info:
-            print_error(_('Failed to open selected camera, trying to use default camera'))
+            self.print_error(_('Failed to open selected camera, trying to use default camera'))
             device_info = QCameraInfo.defaultCamera()
 
         if not device_info or device_info.isNull():
@@ -207,7 +212,8 @@ class QrReaderCameraDialog(QDialog):
         self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
 
         # Initialize the video widget
-        self.video_widget.setMinimumSize(resolution)
+        #self.video_widget.setMinimumSize(resolution)  # <-- on macOS this makes it fixed size for some reason.
+        self.resize(720, 540)
         self.video_overlay.set_crop(self.qr_crop)
         self.video_overlay.set_resolution(resolution)
         self.video_layout.set_aspect_ratio(resolution.width() / resolution.height())
@@ -231,11 +237,15 @@ class QrReaderCameraDialog(QDialog):
         camera.stop()
         camera.unload()
 
+        res = ( (self.validator_res and self.validator_res.accepted
+                    and self.validator_res.simple_result)
+                or '' )
+
         self.validator = None
 
-        print_error(_('QR code scanner closed'))
+        self.print_error('closed', res)
 
-        return ''
+        return res
 
     def _on_frame_available(self, frame: QImage):
         self.frame_id += 1
@@ -243,7 +253,7 @@ class QrReaderCameraDialog(QDialog):
         flip_x = self.flip_x.isChecked()
 
         # Only QR scan every QR_SCAN_PERIOD secs
-        qr_scanned = time.time() - self.last_qr_scan_ts >= self.QR_SCAN_PERIOD
+        qr_scanned = time.time() - self.last_qr_scan_ts >= self.qrreader.interval()
         if qr_scanned:
             self.last_qr_scan_ts = time.time()
             # Crop the frame so we only scan a SCAN_SIZE rect
@@ -255,7 +265,9 @@ class QrReaderCameraDialog(QDialog):
 
             # Read the QR codes from the frame
             self.qrreader_res = self.qrreader.read_qr_code(
-                frame_y800.constBits().__int__(), frame_y800.byteCount(), frame_y800.width(),
+                frame_y800.constBits().__int__(), frame_y800.byteCount(),
+                frame_y800.bytesPerLine(),
+                frame_y800.width(),
                 frame_y800.height(), self.frame_id
                 )
 
@@ -293,11 +305,13 @@ class QrReaderCameraDialog(QDialog):
             self.qr_frame_counter += 1
         now = time.perf_counter()
         last_stats_delta = now - self.last_stats_time
-        if last_stats_delta > 5.0:
+        if last_stats_delta > 1.0:  # stats every 1.0 seconds
             fps = self.frame_counter / last_stats_delta
             qr_fps = self.qr_frame_counter / last_stats_delta
-            stats_format = _('QR code display running at {} FPS, scanner at {} FPS')
-            print_error(stats_format.format(fps, qr_fps))
+            if self.validator is not None:
+                self.validator.strong_count = math.ceil(qr_fps / 3)  # 1/3 of a second's worth of qr frames determines strong_count
+            stats_format = _('running at {} FPS, scanner at {} FPS')
+            self.print_error(stats_format.format(fps, qr_fps))
             self.frame_counter = 0
             self.qr_frame_counter = 0
             self.last_stats_time = now

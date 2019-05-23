@@ -39,10 +39,13 @@ def get_qr_reader() -> AbstractQrCodeReader:
         if sys.platform in ('windows', 'win32', 'linux'):
             from .zbar import ZbarQrCodeReader
             return ZbarQrCodeReader()
+        elif sys.platform == 'darwin':
+            from .osxqrdetect import OSXQRDetect
+            return OSXQRDetect()
         else:
             class Fake(AbstractQrCodeReader):
-                def read_qr_code(self, buffer, buffer_size, width, height, frame_id = -1):
-                    ''' fake noop to test on macos, etc'''
+                def read_qr_code(self, buffer, buffer_size, dummy, width, height, frame_id = -1):
+                    ''' fake noop to test '''
                     return []
             return Fake()
     except MissingLib as e:

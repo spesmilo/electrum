@@ -10,3 +10,6 @@
 [submodule "contrib/zbar"]
 	path = contrib/zbar
 	url = https://github.com/mchehab/zbar
+[submodule "contrib/osx/OSXQRDetect"]
+	path = contrib/osx/OSXQRDetect
+	url = https://github.com/cculianu/OSXQRDetect

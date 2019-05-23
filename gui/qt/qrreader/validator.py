@@ -46,6 +46,8 @@ class QrReaderValidatorResult():
         self.message: str = None
         self.message_color: QColor = None
 
+        self.simple_result : str = None
+
         self.result_usable: Dict[QrCodeResult, bool] = {}
         self.result_colors: Dict[QrCodeResult, QColor] = {}
         self.result_messages: Dict[QrCodeResult, str] = {}
@@ -159,5 +161,6 @@ class QrReaderValidatorCounted(QrReaderValidatorStrong):
             res.message_color = ColorScheme.RED.as_color()
         else:
             res.accepted = True
+            res.simple_result = (results and results[0].data) or ''  # hack added by calin just to take the first one
 
         return res

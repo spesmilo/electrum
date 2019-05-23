@@ -55,8 +55,20 @@ class AbstractQrCodeReader(ABC):
     """
     Abstract base class for QR code readers.
     """
+
+    def interval(self) -> float:
+        ''' Reimplement to specify a time (in seconds) that the implementation
+        recommends elapse between subsequent calls to read_qr_code.
+        Implementations that have very expensive and/or slow detection code
+        may want to rate-limit read_qr_code calls by overriding this function.
+        e.g.: to make detection happen every 200ms, you would return 0.2 here.
+        Defaults to 0.0'''
+        return 0.0
+
     @abstractmethod
-    def read_qr_code(self, buffer: ctypes.c_void_p, buffer_size: int,
+    def read_qr_code(self, buffer: ctypes.c_void_p,
+                     buffer_size: int,  # overall image size in bytes
+                     rowlen_bytes: int, # the scan line length in bytes. (many libs, such as OSX, expect this value to properly grok image data)
                      width: int, height: int, frame_id: int = -1) -> List[QrCodeResult]:
         """
         Reads a QR code from an image buffer in Y800 / GREY format.
