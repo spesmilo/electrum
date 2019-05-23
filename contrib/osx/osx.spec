@@ -38,7 +38,7 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # Add the QR Scanner helper app
-datas += [(home + "contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib", "./contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib")]
+datas += [(home + "contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib", "./contrib/osx/OSXQRDetect/build/Release")]
 
 # Add libusb so Trezor will work
 binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]
@@ -50,6 +50,7 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+MAIN_SCRIPT,
               home+'gui/qt/main_window.py',
+              home+'gui/qt/qrreader/camera_dialog.py',
               home+'gui/text.py',
               home+'lib/util.py',
               home+'lib/wallet.py',
@@ -79,9 +80,9 @@ for d in a.datas:
 # This is a hack of sorts that works to keep the binary file size reasonable.
 bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation',
              'qttest', 'qtxml', 'qtqml', 'qtsql', 'qtserialport', 'qtsensors',
-             'qtpositioning', 'qtnfc', 'qthelp', 'qtbluetooth', 'qtmultimedia',
+             'qtpositioning', 'qtnfc', 'qthelp', 'qtbluetooth', 
              'pyqt5/qt/qml', 'pyqt5/qt/plugins/position',
-             'pyqt5/qt/plugins/mediaservice', 'pyqt5/qt/plugins/audio',
+             'pyqt5/qt/plugins/audio',
              'pyqt5/qt/plugins/sqldrivers', )
 files2remove=('libqsqlmysql.dylib', 'libdeclarative_multimedia.dylib',
               'libqtquickscene2dplugin.dylib', 'libqtquickscene3dplugin.dylib',
