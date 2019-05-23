@@ -887,9 +887,9 @@ class LNWallet(LNWorker):
         chan = self.channels[chan_id]
         assert chan.is_closed()
         self.channels.pop(chan_id)
-        self.save_channel(chan)
-        self.network.trigger_callback('channels')
-        self.network.trigger_callback('wallet_updated')
+        self.save_channels()
+        self.network.trigger_callback('channels', self.wallet)
+        self.network.trigger_callback('wallet_updated', self.wallet)
 
     async def reestablish_peers_and_channels(self):
         async def reestablish_peer_for_given_channel():

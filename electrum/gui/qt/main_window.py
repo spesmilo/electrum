@@ -368,7 +368,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'on_history':
             self.new_fx_history_signal.emit()
         elif event == 'channels':
-            self.channels_list.update_rows.emit(*args)
+            self.channels_list.update_rows.emit()
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
             self.update_status()
