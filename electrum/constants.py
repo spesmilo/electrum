@@ -136,7 +136,7 @@ class SyscoinMainnet(AbstractNet):
     GENESIS = "000009e388d0cb406b36ed70bf89d21a4f7a3b1adea23a21e7948bac2dbb9fcc"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",
@@ -172,13 +172,13 @@ class SyscoinTestnet(AbstractNet):
     ADDRTYPE_P2PKH = 0x41
     ADDRTYPE_P2SH = 0xc4
     SEGWIT_HRP = "tsys"
-    GENESIS = "000007f96fcbdbdfbc2560b63bb545648f8d9f27c15ae8f5bbc350218198704e"
-    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
+    GENESIS = "00000fcf12e4746e1e13ebcbd156dce74a48d6a3e0148250bf47a172a2d26d6a"
+    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
-            "t": "58881",
-            "s": "58882",
+            "t": "59991",
+            "s": "59992",
             "version": "1.4"
         }
     })
@@ -210,10 +210,10 @@ class SyscoinRegtest(SyscoinTestnet):
     SEGWIT_HRP = "sysrt"
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
-            "t": "58881",
-            "s": "58882",
+            "t": "59991",
+            "s": "59992",
             "version": "1.4"
         }
     })
