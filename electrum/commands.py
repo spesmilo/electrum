@@ -781,8 +781,7 @@ class Commands:
 
     @command('wn')
     def lnpay(self, invoice):
-        addr, peer, f = self.lnworker.pay(invoice)
-        return f.result()
+        return self.lnworker.pay(invoice, timeout=10)
 
     @command('wn')
     def addinvoice(self, requested_amount, message):

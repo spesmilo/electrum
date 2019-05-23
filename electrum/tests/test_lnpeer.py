@@ -90,6 +90,7 @@ class MockLNWallet:
         self.inflight = {}
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
+        self.pending_payments = defaultdict(asyncio.Future)
 
     @property
     def lock(self):
@@ -216,25 +217,12 @@ class TestPeer(SequentialTestCase):
         w2.invoices[bh2u(RHASH)] = (pay_req, True, False)
         return pay_req
 
-    @staticmethod
-    def prepare_ln_message_future(w2 # receiver
-            ):
-        fut = asyncio.Future()
-        def evt_set(event, _lnwallet, msg, _htlc_id):
-            fut.set_result(msg)
-        w2.network.register_callback(evt_set, ['ln_message'])
-        return fut
-
     def test_payment(self):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
         pay_req = self.prepare_invoice(w2)
-        fut = self.prepare_ln_message_future(w2)
-
         async def pay():
-            addr, peer, coro = await LNWallet._pay(w1, pay_req, same_thread=True)
-            await coro
-            print("HTLC ADDED")
-            self.assertEqual(await fut, 'Payment received')
+            result = await LNWallet._pay(w1, pay_req)
+            self.assertEqual(result, True)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
         async def f():

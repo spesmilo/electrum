@@ -314,6 +314,7 @@ class LNWallet(LNWorker):
             c.set_local_commitment(c.current_commitment(LOCAL))
         # timestamps of opening and closing transactions
         self.channel_timestamps = self.storage.get('lightning_channel_timestamps', {})
+        self.pending_payments = defaultdict(asyncio.Future)
 
     def start_network(self, network: 'Network'):
         self.network = network
@@ -641,14 +642,15 @@ class LNWallet(LNWorker):
         chan = f.result(timeout)
         return chan.funding_outpoint.to_str()
 
-    def pay(self, invoice, amount_sat=None):
+    def pay(self, invoice, amount_sat=None, timeout=10):
         """
-        This is not merged with _pay so that we can run the test with
-        one thread only.
+        Can be called from other threads
+        Raises timeout exception if htlc is not fulfilled
         """
-        addr, peer, coro = self.network.run_from_another_thread(self._pay(invoice, amount_sat))
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        return addr, peer, fut
+        fut = asyncio.run_coroutine_threadsafe(
+            self._pay(invoice, amount_sat),
+            self.network.asyncio_loop)
+        return fut.result(timeout=timeout)
 
     def get_channel_by_short_id(self, short_channel_id):
         with self.lock:
@@ -656,15 +658,14 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
-    async def _pay(self, invoice, amount_sat=None, same_thread=False):
+    async def _pay(self, invoice, amount_sat=None):
         addr = self._check_invoice(invoice, amount_sat)
         self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
         self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
         route = await self._create_route_from_invoice(decoded_invoice=addr)
-        peer = self.peers[route[0].node_id]
         if not self.get_channel_by_short_id(route[0].short_channel_id):
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
-        return addr, peer, self._pay_to_route(route, addr, invoice)
+        return await self._pay_to_route(route, addr, invoice)
 
     async def _pay_to_route(self, route, addr, pay_req):
         short_channel_id = route[0].short_channel_id
@@ -674,6 +675,8 @@ class LNWallet(LNWorker):
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
+        success = await self.pending_payments[(short_channel_id, htlc.htlc_id)]
+        return success
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):

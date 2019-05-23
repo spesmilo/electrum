@@ -101,7 +101,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     sleep 10
     # alice pays bob
     invoice=$($bob addinvoice 0.05 "test")
-    $alice lnpay $invoice
+    $alice lnpay $invoice || true
     sleep 1
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then

@@ -973,7 +973,7 @@ class Peer(Logger):
     @log_exceptions
     async def _on_update_fail_htlc(self, chan, htlc_id, local_ctn):
         await self.await_local(chan, local_ctn)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed', htlc_id)
+        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(False)
 
     def _handle_error_code_from_failed_htlc(self, error_reason, route: List['RouteEdge'], channel_id, htlc_id):
         chan = self.channels[channel_id]
@@ -1117,7 +1117,7 @@ class Peer(Logger):
     @log_exceptions
     async def _on_update_fulfill_htlc(self, chan, htlc_id, preimage, local_ctn):
         await self.await_local(chan, local_ctn)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent', htlc_id)
+        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(True)
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
