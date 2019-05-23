@@ -64,12 +64,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrumx.nmdps.net": {
-        "pruning": "-",
-        "s": "9434",
-        "t": "9433",
-        "version": "1.4"
-    },
     "gttvzmfh23pxqiw4.onion": {
         "pruning": "-",
         "s": "50004",

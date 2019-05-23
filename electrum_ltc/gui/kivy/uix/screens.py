@@ -25,6 +25,7 @@ from electrum_ltc.util import send_exception_to_crash_reporter
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.wallet import InternalAddressCorruption
+from electrum_ltc import simple_config
 
 from .context_menu import ContextMenu
 
@@ -293,8 +294,9 @@ class SendScreen(CScreen):
             x_fee_address, x_fee_amount = x_fee
             msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
 
-        if fee >= config.get('confirm_fee', 1000000):
-            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+        feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
+        if fee > feerate_warning * tx.estimated_size() / 1000:
+            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
         self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
