@@ -288,7 +288,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/{:d}/{:d}".format(*sequence)
-        self.handler.show_message(_('Signing message ...\r\nMessage hash: {}').format(message_hash))
+        self.handler.show_message(_('Signing message...') + '\n' +
+                                  _('Message hash: {}').format(message_hash))
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
             pin = ""
