@@ -26,8 +26,9 @@
 from typing import List
 
 from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QPaintEvent, QPen, QPainterPath, QColor, QTransform, QImage
+from PyQt5.QtGui import QPainter, QPaintEvent, QPen, QPainterPath, QColor, QTransform
 from PyQt5.QtCore import QPoint, QSize, QRect, QRectF, Qt
+from PyQt5.QtSvg import QSvgRenderer
 
 from electroncash.qrreaders import QrCodeResult
 
@@ -67,7 +68,7 @@ class QrReaderVideoOverlay(QWidget):
         self.bg_rect_pen.setStyle(Qt.DotLine)
         self.bg_rect_fill = QColor(255, 255, 255, 255 * self.BG_RECT_OPACITY)
 
-        self.qr_finder = QImage(":icons/qr_finder.png")
+        self.qr_finder = QSvgRenderer(":icons/qr_finder.svg")
 
     def set_results(self, results: List[QrCodeResult], flip_x: bool,
                     validator_results: QrReaderValidatorResult):
@@ -115,7 +116,7 @@ class QrReaderVideoOverlay(QWidget):
         tmp = (self.crop.size() - qr_finder_size) / 2
         qr_finder_pos = QPoint(tmp.width(), tmp.height()) + self.crop.topLeft()
         qr_finder_rect = QRect(qr_finder_pos, qr_finder_size)
-        painter.drawImage(QRectF(qr_finder_rect), self.qr_finder)
+        self.qr_finder.render(painter, QRectF(qr_finder_rect))
         painter.setOpacity(1.0)
 
         # Draw all the QR code results
