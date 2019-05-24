@@ -236,7 +236,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.camera.setCaptureMode(QCamera.CaptureViewfinder)
 
         # Camera needs to be loaded to query resolutions, this tries to open the camera
-        self.camera.statusChanged.connect(self._on_camera_status_changed)
+        self.camera_sc_conn = self.camera.statusChanged.connect(self._on_camera_status_changed)
         self.camera.load()
 
     _camera_status_names = {
@@ -316,7 +316,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             try: self.camera.statusChanged.disconnect(self._on_camera_status_changed)
             except TypeError: pass  # meh. PyQt api shouldn't be raising here but it does on connection-not-found
             self.camera.setViewfinder(None)
-            self.camera.stop()
+            self.camera.statusChanged.disconnect(self.camera_sc_conn)
             self.camera.unload()
             self.camera = None
 
