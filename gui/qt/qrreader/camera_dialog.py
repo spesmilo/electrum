@@ -137,7 +137,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
         # Note these should stay as queued connections becasue we use the idiom
         # self.reject() and self.accept() in this class to kill the scan --
-        # an we do it from within callback functions. If you don't use
+        # and we do it from within callback functions. If you don't use
         # queued connections here, bad things can happen.
         self.finished.connect(self._boilerplate_cleanup, Qt.QueuedConnection)
         self.finished.connect(self._on_finished, Qt.QueuedConnection)
@@ -167,7 +167,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         candidate_resolutions = []
         ideal_resolutions = [r for r in resolutions if check_res(r)]
         less_than_ideal_resolutions = [r for r in resolutions if r not in ideal_resolutions]
-        format_str = 'ideal resolutions: {}, less-than-ideal resoutions: {}'
+        format_str = 'ideal resolutions: {}, less-than-ideal resolutions: {}'
         self.print_error(format_str.format(res_list_to_str(ideal_resolutions), res_list_to_str(less_than_ideal_resolutions)))
 
         # Raise an error if we have no usable resolutions
@@ -238,6 +238,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
         # Camera needs to be loaded to query resolutions, this tries to open the camera
         self.camera_sc_conn = self.camera.statusChanged.connect(self._on_camera_status_changed)
+        self.camera.error.connect(self._on_camera_error)  # print_error the errors we get, if any, for debugging
         self.camera.load()
 
     _camera_status_names = {
@@ -298,6 +299,17 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             self.reject()
         elif status == QCamera.ActiveStatus:
             self.open()
+
+    CameraErrorStrings = {
+        QCamera.NoError : "No Error",
+        QCamera.CameraError : "Camera Error",
+        QCamera.InvalidRequestError : "Invalid Request Error",
+        QCamera.ServiceMissingError : "Service Missing Error",
+        QCamera.NotSupportedFeatureError : "Unsupported Feature Error"
+    }
+    def _on_camera_error(self, errorCode):
+        errStr = self.CameraErrorStrings.get(errorCode, "Unknown Error")
+        self.print_error("QCamera error:", errStr)
 
     def accept(self):
         self._ok_done = True  # immediately blocks further processing
