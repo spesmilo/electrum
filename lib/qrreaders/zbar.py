@@ -62,6 +62,8 @@ try:
     LIBZBAR.zbar_symbol_get_loc_x.argtypes = [ctypes.c_void_p, ctypes.c_int]
     LIBZBAR.zbar_symbol_get_loc_y.argtypes = [ctypes.c_void_p, ctypes.c_int]
     LIBZBAR.zbar_symbol_next.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_image_scanner_destroy.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_image_destroy.argtypes = [ctypes.c_void_p]
 
     #if is_verbose:
         #LIBZBAR.zbar_set_verbosity(100)
