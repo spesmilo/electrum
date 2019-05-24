@@ -24,6 +24,8 @@ RUN apt-get update -q && \
         faketime \
         python3 \
         python3-pip \
+        pkg-config \
+        libjpeg-dev \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

@@ -35,6 +35,7 @@ from functools import partial
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtMultimedia import QCameraInfo
 
 from electroncash import keystore, get_config
 from electroncash.address import Address, ScriptOutput
@@ -2648,25 +2649,58 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to parse your transaction"))
             return
 
+    # Due to the asynchronous nature of the qr reader we need to keep the
+    # dialog instance as member variable to prevent reentrancy/multiple ones
+    # from being presented at once.
+    _qr_dialog = None
+
     def read_tx_from_qrcode(self):
-        from electroncash import qrscanner
+        if self._qr_dialog:
+            # Re-entrancy prevention -- there is some lag between when the user
+            # taps the QR button and the modal dialog appears.  We want to
+            # prevent multiple instances of the dialog from appearing, so we
+            # must do this.
+            self.print_error("Warning: QR dialog is already presented, ignoring.")
+            return
+        from electroncash import get_config
+        from .qrreader import QrReaderCameraDialog
+        data = ''
+        self._qr_dialog = None
         try:
-            data = qrscanner.scan_barcode(self.config.get_video_device())
+            self._qr_dialog = QrReaderCameraDialog(parent=self.top_level_window())
+
+            def _on_qr_reader_finished(success: bool, error: str, result):
+                if self._qr_dialog:
+                    self._qr_dialog.deleteLater(); self._qr_dialog = None
+                if not success:
+                    if error:
+                        self.show_error(error)
+                    return
+                if not result:
+                    return
+                # if the user scanned a bitcoincash URI
+                if result.lower().startswith(networks.net.CASHADDR_PREFIX + ':'):
+                    self.pay_to_URI(result)
+                    return
+                # else if the user scanned an offline signed tx
+                try:
+                    result = bh2u(bitcoin.base_decode(result, length=None, base=43))
+                    tx = self.tx_from_text(result)  # will show an error dialog on error
+                    if not tx:
+                        return
+                except BaseException as e:
+                    self.show_error(str(e))
+                    return
+                self.show_transaction(tx)
+
+            self._qr_dialog.qr_finished.connect(_on_qr_reader_finished)
+            self._qr_dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
+            if util.is_verbose:
+                import traceback
+                traceback.print_exc()
+            self._qr_dialog = None
             self.show_error(str(e))
-            return
-        if not data:
-            return
-        # if the user scanned a bitcoincash URI
-        if data.lower().startswith(networks.net.CASHADDR_PREFIX + ':'):
-            self.pay_to_URI(data)
-            return
-        # else if the user scanned an offline signed tx
-        data = bh2u(bitcoin.base_decode(data, length=None, base=43))
-        tx = self.tx_from_text(data)
-        if not tx:
-            return
-        self.show_transaction(tx)
 
     def read_tx_from_file(self):
         fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
@@ -3396,18 +3430,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         block_ex_combo.currentIndexChanged.connect(on_be)
         gui_widgets.append((block_ex_label, block_ex_combo))
 
-        from electroncash import qrscanner
-        system_cameras = qrscanner._find_system_cameras()
+        system_cameras = QCameraInfo.availableCameras()
         qr_combo = QComboBox()
         qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
+        for cam in system_cameras:
+            qr_combo.addItem(cam.description(), cam.deviceName())
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.libzbar is not None)
+        qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))

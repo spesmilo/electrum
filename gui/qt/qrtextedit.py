@@ -1,6 +1,7 @@
 
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
+from electroncash import util
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QFileDialog
@@ -55,21 +56,49 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             return
         self.setText(data)
 
-    def qr_input(self):
-        from electroncash import qrscanner, get_config
+    # Due to the asynchronous nature of the qr reader we need to keep the
+    # dialog instance as member variable to prevent reentrancy/multiple ones
+    # from being presented at once.
+    qr_dialog = None
+
+    def qr_input(self, callback = None):
+        if self.qr_dialog:
+            # Re-entrancy prevention -- there is some lag between when the user
+            # taps the QR button and the modal dialog appears.  We want to
+            # prevent multiple instances of the dialog from appearing, so we
+            # must do this.
+            util.print_error("[ScanQRTextEdit] Warning: QR dialog is already presented, ignoring.")
+            return
+        from electroncash import get_config
+        from .qrreader import QrReaderCameraDialog
         try:
-            data = qrscanner.scan_barcode(get_config().get_video_device())
+            self.qr_dialog = QrReaderCameraDialog(parent=self.top_level_window())
+
+            def _on_qr_reader_finished(success: bool, error: str, result):
+                if self.qr_dialog:
+                    self.qr_dialog.deleteLater(); self.qr_dialog = None
+                if not success:
+                    if error:
+                        self.show_error(error)
+                    return
+                if not result:
+                    result = ''
+                if self.allow_multi:
+                    new_text = self.text() + result + '\n'
+                else:
+                    new_text = result
+                self.setText(new_text)
+                if callback and success:
+                    callback(result)
+
+            self.qr_dialog.qr_finished.connect(_on_qr_reader_finished)
+            self.qr_dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
+            if util.is_verbose:
+                import traceback
+                traceback.print_exc()
+            self.qr_dialog = None
             self.show_error(str(e))
-            data = ''
-        if not data:
-            data = ''
-        if self.allow_multi:
-            new_text = self.text() + data + '\n'
-        else:
-            new_text = data
-        self.setText(new_text)
-        return data
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
