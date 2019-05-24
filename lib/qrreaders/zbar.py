@@ -25,6 +25,7 @@
 
 import sys
 import ctypes
+import os
 from typing import List
 from enum import IntEnum
 
@@ -41,7 +42,11 @@ else:
     LIBNAME = 'libzbar.so.0'
 
 try:
-    LIBZBAR = ctypes.cdll.LoadLibrary(LIBNAME)
+    try:
+        LIBZBAR = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), '..', LIBNAME))
+    except OSError as e:
+        LIBZBAR = ctypes.cdll.LoadLibrary(LIBNAME)
+
     LIBZBAR.zbar_image_create.restype = ctypes.c_void_p
     LIBZBAR.zbar_image_scanner_create.restype = ctypes.c_void_p
     LIBZBAR.zbar_image_scanner_get_results.restype = ctypes.c_void_p
