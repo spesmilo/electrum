@@ -2649,18 +2649,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to parse your transaction"))
             return
 
+    # Due to the asynchronous nature of the qr reader we need to keep the
+    # dialog instance as member variable to prevent reentrancy/multiple ones
+    # from being presented at once.
+    _qr_dialog = None
+
     def read_tx_from_qrcode(self):
+        if self._qr_dialog:
+            # Re-entrancy prevention -- there is some lag between when the user
+            # taps the QR button and the modal dialog appears.  We want to
+            # prevent multiple instances of the dialog from appearing, so we
+            # must do this.
+            self.print_error("Warning: QR dialog is already presented, ignoring.")
+            return
         from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
         data = ''
-        dialog = None
+        self._qr_dialog = None
         try:
-            dialog = QrReaderCameraDialog(parent=self.top_level_window())
+            self._qr_dialog = QrReaderCameraDialog(parent=self.top_level_window())
 
             def _on_qr_reader_finished(success: bool, error: str, result):
-                nonlocal dialog
-                if dialog:
-                    dialog.deleteLater(); dialog = None
+                if self._qr_dialog:
+                    self._qr_dialog.deleteLater(); self._qr_dialog = None
                 if not success:
                     if error:
                         self.show_error(error)
@@ -2682,12 +2693,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
                 self.show_transaction(tx)
 
-            dialog.qr_finished.connect(_on_qr_reader_finished)
-            dialog.start_scan(get_config().get_video_device())
+            self._qr_dialog.qr_finished.connect(_on_qr_reader_finished)
+            self._qr_dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
                 import traceback
                 traceback.print_exc()
+            self._qr_dialog = None
             self.show_error(str(e))
 
     def read_tx_from_file(self):

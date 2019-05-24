@@ -56,17 +56,27 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             return
         self.setText(data)
 
+    # Due to the asynchronous nature of the qr reader we need to keep the
+    # dialog instance as member variable to prevent reentrancy/multiple ones
+    # from being presented at once.
+    qr_dialog = None
+
     def qr_input(self, callback = None):
+        if self.qr_dialog:
+            # Re-entrancy prevention -- there is some lag between when the user
+            # taps the QR button and the modal dialog appears.  We want to
+            # prevent multiple instances of the dialog from appearing, so we
+            # must do this.
+            util.print_error("[ScanQRTextEdit] Warning: QR dialog is already presented, ignoring.")
+            return
         from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
-        dialog = None
         try:
-            dialog = QrReaderCameraDialog(parent=self.top_level_window())
+            self.qr_dialog = QrReaderCameraDialog(parent=self.top_level_window())
 
             def _on_qr_reader_finished(success: bool, error: str, result):
-                nonlocal dialog
-                if dialog:
-                    dialog.deleteLater(); dialog = None
+                if self.qr_dialog:
+                    self.qr_dialog.deleteLater(); self.qr_dialog = None
                 if not success:
                     if error:
                         self.show_error(error)
@@ -81,12 +91,13 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
                 if callback and success:
                     callback(result)
 
-            dialog.qr_finished.connect(_on_qr_reader_finished)
-            dialog.start_scan(get_config().get_video_device())
+            self.qr_dialog.qr_finished.connect(_on_qr_reader_finished)
+            self.qr_dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
                 import traceback
                 traceback.print_exc()
+            self.qr_dialog = None
             self.show_error(str(e))
 
     def contextMenuEvent(self, e):

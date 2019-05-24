@@ -36,18 +36,23 @@ def get_qr_reader() -> AbstractQrCodeReader:
     Get the Qr code reader for the current platform
     """
     try:
-        if sys.platform in ('windows', 'win32', 'linux'):
-            from .zbar import ZbarQrCodeReader
-            return ZbarQrCodeReader()
-        elif sys.platform == 'darwin':
+        if sys.platform == 'darwin':
             from .osxqrdetect import OSXQRDetect
             return OSXQRDetect()
         else:
-            class Fake(AbstractQrCodeReader):
-                def read_qr_code(self, buffer, buffer_size, dummy, width, height, frame_id = -1):
-                    ''' fake noop to test '''
-                    return []
-            return Fake()
+            # Everything else is zbar. Windows has zbar, linux has zbar. Hopefully some freebsd power users install zbar.
+            from .zbar import ZbarQrCodeReader
+            return ZbarQrCodeReader()
+        """
+        # DEBUG CODE BELOW
+        # If you want to test this code on a platform that doesn't yet work or have
+        # zbar, use the below...
+        class Fake(AbstractQrCodeReader):
+            def read_qr_code(self, buffer, buffer_size, dummy, width, height, frame_id = -1):
+                ''' fake noop to test '''
+                return []
+        return Fake()
+        """
     except MissingLib as e:
         print_error("[get_qr_reader]", str(e))
 
