@@ -236,9 +236,10 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.camera.setViewfinder(self.video_surface)
         self.camera.setCaptureMode(QCamera.CaptureViewfinder)
 
-        # Camera needs to be loaded to query resolutions, this tries to open the camera
-        self.camera_sc_conn = self.camera.statusChanged.connect(self._on_camera_status_changed)
+        # this operates on camera from within the signal handler, so should be a queued connection
+        self.camera_sc_conn = self.camera.statusChanged.connect(self._on_camera_status_changed, Qt.QueuedConnection)
         self.camera.error.connect(self._on_camera_error)  # print_error the errors we get, if any, for debugging
+        # Camera needs to be loaded to query resolutions, this tries to open the camera
         self.camera.load()
 
     _camera_status_names = {
