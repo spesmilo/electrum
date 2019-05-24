@@ -54,8 +54,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
     # Try to crop so we have minimum 512 dimensions
     SCAN_SIZE: int = 512
 
-    finished = pyqtSignal(bool, str, object)
-    _accepted = pyqtSignal()
+    qr_finished = pyqtSignal(bool, str, object)
 
     def __init__(self, parent):
         ''' Note: make sure parent is a "top_level_window()" as per
@@ -72,6 +71,8 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.qr_frame_counter: int = 0
         self.last_qr_scan_ts: float = 0.0
         self.camera: QCamera = None
+        self._error_message: str = None
+        self._ok_done: bool = False
 
         self.config = get_config()
 
@@ -120,7 +121,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.flip_x.stateChanged.connect(self._on_flip_x_changed)
         controls_layout.addWidget(self.flip_x)
 
-        close_but = QPushButton(_("Close"))
+        close_but = QPushButton(_("&Close"))
         close_but.clicked.connect(self.reject)
         controls_layout.addWidget(close_but)
 
@@ -132,13 +133,18 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.crop_blur_effect = QrReaderCropBlurEffect(self)
         self.image_effect = ImageGraphicsEffect(self, self.crop_blur_effect)
 
-        self._accepted.connect(self._on_accepted)
+
+        # Note these should stay as queued connections becasue we use the idiom
+        # self.reject() and self.accept() in this class to kill the scan --
+        # an we do it from within callback functions. If you don't use
+        # queued connections here, bad things can happen.
+        self.finished.connect(self._boilerplate_cleanup, Qt.QueuedConnection)
+        self.finished.connect(self._on_finished, Qt.QueuedConnection)
 
     def _on_flip_x_changed(self, _state: int):
         self.config.set_key('qrreader_flip_x', self.flip_x.isChecked())
 
-    @staticmethod
-    def _get_resolution(resolutions: List[QSize], min_size: int) -> QSize:
+    def _get_resolution(self, resolutions: List[QSize], min_size: int) -> QSize:
         """
         Given a list of resolutions that the camera supports this function picks the
         lowest resolution that is at least min_size in both width and height.
@@ -150,25 +156,25 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         def check_res(res: QSize):
             return res.width() >= min_size and res.height() >= min_size
 
-        print_error(_('QR code scanner searching for at least {0}x{0}').format(min_size))
+        self.print_error('searching for at least {0}x{0}'.format(min_size))
 
         # Query and display all resolutions the camera supports
-        format_str = _('QR code scanner camera resolutions: {}')
-        print_error(format_str.format(res_list_to_str(resolutions)))
+        format_str = 'camera resolutions: {}'
+        self.print_error(format_str.format(res_list_to_str(resolutions)))
 
         # Filter to those that are at least min_size in both width and height
         candidate_resolutions = []
         ideal_resolutions = [r for r in resolutions if check_res(r)]
         less_than_ideal_resolutions = [r for r in resolutions if r not in ideal_resolutions]
-        format_str = _('QR code scanner ideal resolutions: {}, less-than-ideal resoutions: {}')
-        print_error(format_str.format(res_list_to_str(ideal_resolutions), res_list_to_str(less_than_ideal_resolutions)))
+        format_str = 'ideal resolutions: {}, less-than-ideal resoutions: {}'
+        self.print_error(format_str.format(res_list_to_str(ideal_resolutions), res_list_to_str(less_than_ideal_resolutions)))
 
         # Raise an error if we have no usable resolutions
         if not ideal_resolutions and not less_than_ideal_resolutions:
             raise RuntimeError(_("Cannot start QR scanner, no usable camera resolution found."))
 
         if not ideal_resolutions:
-            print_error(_('QR code scanner warning: No ideal resolutions found, falling back to less-than-ideal resolutions -- QR recognition may fail!'))
+            self.print_error('Warning: No ideal resolutions found, falling back to less-than-ideal resolutions -- QR recognition may fail!')
             candidate_resolutions = less_than_ideal_resolutions
             is_ideal = False
         else:
@@ -178,8 +184,8 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
         # Sort the usable resolutions, least number of pixels first, get the first element
         resolution = sorted(candidate_resolutions, key=lambda r: r.width() * r.height())[0]
-        format_str = _('QR code scanner chosen resolution is {}x{}')
-        print_error(format_str.format(resolution.width(), resolution.height()))
+        format_str = 'chosen resolution is {}x{}'
+        self.print_error(format_str.format(resolution.width(), resolution.height()))
 
         return resolution, is_ideal
 
@@ -210,7 +216,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
                 break
 
         if not device_info:
-            self.print_error(_('Failed to open selected camera, trying to use default camera'))
+            self.print_error('Failed to open selected camera, trying to use default camera')
             device_info = QCameraInfo.defaultCamera()
 
         if not device_info or device_info.isNull():
@@ -219,6 +225,11 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self._init_stats()
         self.qrreader_res = []
         self.validator_res = None
+        self._ok_done = False
+        self._error_message = None
+
+        if self.camera:
+            self.print_error("Warning: start_scan already called for this instance.")
 
         self.camera = QCamera(device_info)
         self.camera.setViewfinder(self.video_surface)
@@ -244,12 +255,21 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         return self._camera_status_names.get(status, _('unknown'))
 
     def _on_camera_status_changed(self, status: QCamera.Status):
-        self.print_error(_('camera status changed to {}').format(self._get_camera_status_name(status)))
+        if self._ok_done:
+            # camera/scan is quitting, abort.
+            return
+
+        self.print_error('camera status changed to {}'.format(self._get_camera_status_name(status)))
 
         if status == QCamera.LoadedStatus:
             # Determine the optimal resolution and compute the crop rect
             camera_resolutions = self.camera.supportedViewfinderResolutions()
-            resolution, was_ideal = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
+            try:
+                resolution, was_ideal = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
+            except RuntimeError as e:
+                self._error_message = str(e)
+                self.reject()
+                return
             self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
 
             # Initialize the video widget
@@ -273,22 +293,36 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             self.camera.start()
             self.lowres_label.setVisible(not was_ideal)  # if they have a low res camera, show the warning label.
         elif status == QCamera.UnloadedStatus or status == QCamera.UnavailableStatus:
-            self._close_camera()
-            self.close()
-            self.finished.emit(False, _("Cannot start QR scanner, camera is unavailable."), None)
+            self._error_message = _("Cannot start QR scanner, camera is unavailable.")
+            self.reject()
         elif status == QCamera.ActiveStatus:
             self.open()
 
-    def _close_camera(self):
-        self.camera.setViewfinder(None)
-        self.camera.stop()
-        self.camera = None
+    def accept(self):
+        self._ok_done = True  # immediately blocks further processing
+        super().accept()
 
-    def _on_accepted(self):
+    def reject(self):
+        self._ok_done = True  # immediately blocks further processing
+        super().reject()
+
+    def _boilerplate_cleanup(self):
         self._close_camera()
-        self.close()
+        if self.isVisible():
+            self.close()
 
-        res = ( (self.validator_res and self.validator_res.accepted
+    def _close_camera(self):
+        if self.camera:
+            try: self.camera.statusChanged.disconnect(self._on_camera_status_changed)
+            except TypeError: pass  # meh. PyQt api shouldn't be raising here but it does on connection-not-found
+            self.camera.setViewfinder(None)
+            self.camera.stop()
+            self.camera.unload()
+            self.camera = None
+
+    def _on_finished(self, code):
+        res = ( (code == QDialog.Accepted
+                    and self.validator_res and self.validator_res.accepted
                     and self.validator_res.simple_result)
                 or '' )
 
@@ -296,9 +330,12 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
         self.print_error('closed', res)
 
-        self.finished.emit(True, None, res)
+        self.qr_finished.emit(code == QDialog.Accepted, self._error_message, res)
 
     def _on_frame_available(self, frame: QImage):
+        if self._ok_done:
+            return
+
         self.frame_id += 1
 
         flip_x = self.flip_x.isChecked()
@@ -330,7 +367,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
             # Close the dialog if the validator accepted the result
             if self.validator_res.accepted:
-                self._accepted.emit()
+                self.accept()
                 return
 
         # Apply the crop blur effect
@@ -362,7 +399,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             qr_fps = self.qr_frame_counter / last_stats_delta
             if self.validator is not None:
                 self.validator.strong_count = math.ceil(qr_fps / 3)  # 1/3 of a second's worth of qr frames determines strong_count
-            stats_format = _('running at {} FPS, scanner at {} FPS')
+            stats_format = 'running at {} FPS, scanner at {} FPS'
             self.print_error(stats_format.format(fps, qr_fps))
             self.frame_counter = 0
             self.qr_frame_counter = 0

@@ -2660,10 +2660,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             def _on_qr_reader_finished(success: bool, error: str, result):
                 nonlocal dialog
                 if dialog:
-                    dialog.setParent(None)  # Python GC
-                    dialog = None
+                    dialog.deleteLater(); dialog = None
                 if not success:
-                    self.show_error(error)
+                    if error:
+                        self.show_error(error)
                     return
                 if not result:
                     return
@@ -2672,13 +2672,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.pay_to_URI(result)
                     return
                 # else if the user scanned an offline signed tx
-                result = bh2u(bitcoin.base_decode(result, length=None, base=43))
-                tx = self.tx_from_text(result)
-                if not tx:
+                try:
+                    result = bh2u(bitcoin.base_decode(result, length=None, base=43))
+                    tx = self.tx_from_text(result)  # will show an error dialog on error
+                    if not tx:
+                        return
+                except BaseException as e:
+                    self.show_error(str(e))
                     return
                 self.show_transaction(tx)
 
-            dialog.finished.connect(_on_qr_reader_finished)
+            dialog.qr_finished.connect(_on_qr_reader_finished)
             dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:

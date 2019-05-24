@@ -66,10 +66,10 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             def _on_qr_reader_finished(success: bool, error: str, result):
                 nonlocal dialog
                 if dialog:
-                    dialog.setParent(None)  # python GC
-                    dialog = None
+                    dialog.deleteLater(); dialog = None
                 if not success:
-                    self.show_error(error)
+                    if error:
+                        self.show_error(error)
                     return
                 if not result:
                     result = ''
@@ -81,7 +81,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
                 if callback and success:
                     callback(result)
 
-            dialog.finished.connect(_on_qr_reader_finished)
+            dialog.qr_finished.connect(_on_qr_reader_finished)
             dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
