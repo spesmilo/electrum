@@ -1648,6 +1648,8 @@ class Network(util.DaemonThread):
             msg = str(e).lower().strip()
             if 'should be a transaction hash' in msg:
                 msg = _("Input data is not a transaction hash.")
+            elif 'still in the process of being indexed' in msg:
+                msg = _("This server is still indexing transactions. You should switch to another server for now.")
             elif 'no such' in msg:
                 msg = _("No such mempool or blockchain transaction exists.")
             elif 'did not answer' in msg:
