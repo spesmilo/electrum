@@ -2656,27 +2656,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         dialog = None
         try:
             dialog = QrReaderCameraDialog(parent=self)
-            data = dialog.scan(get_config().get_video_device())
+
+            def _on_qr_reader_finished(success: bool, error: str, result):
+                nonlocal dialog
+                if dialog:
+                    dialog.setParent(None)  # Python GC
+                    dialog = None
+                if not success:
+                    self.show_error(error)
+                    return
+                if not result:
+                    return
+                # if the user scanned a bitcoincash URI
+                if result.lower().startswith(networks.net.CASHADDR_PREFIX + ':'):
+                    self.pay_to_URI(result)
+                    return
+                # else if the user scanned an offline signed tx
+                result = bh2u(bitcoin.base_decode(result, length=None, base=43))
+                tx = self.tx_from_text(result)
+                if not tx:
+                    return
+                self.show_transaction(tx)
+
+            dialog.finished.connect(_on_qr_reader_finished)
+            dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
                 import traceback
                 traceback.print_exc()
             self.show_error(str(e))
-        if dialog:
-            dialog.setParent(None)  # Python GC
-            dialog = None
-        if not data:
-            return
-        # if the user scanned a bitcoincash URI
-        if data.lower().startswith(networks.net.CASHADDR_PREFIX + ':'):
-            self.pay_to_URI(data)
-            return
-        # else if the user scanned an offline signed tx
-        data = bh2u(bitcoin.base_decode(data, length=None, base=43))
-        tx = self.tx_from_text(data)
-        if not tx:
-            return
-        self.show_transaction(tx)
 
     def read_tx_from_file(self):
         fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")

@@ -267,10 +267,11 @@ class PayToEdit(ScanQRTextEdit):
         self.c.complete(cr)
 
     def qr_input(self):
-        data = super(PayToEdit,self).qr_input()
-        if data and data.startswith(networks.net.CASHADDR_PREFIX + ":"):
-            self.scan_f(data)
-            # TODO: update fee
+        def _on_qr_success(result):
+            if result and result.startswith(networks.net.CASHADDR_PREFIX + ":"):
+                self.scan_f(result)
+                # TODO: update fee
+        super(PayToEdit,self).qr_input(_on_qr_success)
 
     def resolve(self):
         self.is_alias = False

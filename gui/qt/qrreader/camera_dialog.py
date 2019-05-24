@@ -30,7 +30,7 @@ from typing import List
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import QSize, QRect, Qt
+from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal
 
 from electroncash import get_config
 from electroncash.i18n import _
@@ -53,6 +53,9 @@ class QrReaderCameraDialog(PrintError, QDialog):
     # Try to crop so we have minimum 512 dimensions
     SCAN_SIZE: int = 512
 
+    finished = pyqtSignal(bool, str, object)
+    _accepted = pyqtSignal()
+
     def __init__(self, parent):
         QDialog.__init__(self, parent=parent)
 
@@ -65,6 +68,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
         self.frame_counter: int = 0
         self.qr_frame_counter: int = 0
         self.last_qr_scan_ts: float = 0.0
+        self.camera: QCamera = None
 
         self.config = get_config()
 
@@ -119,6 +123,8 @@ class QrReaderCameraDialog(PrintError, QDialog):
         self.crop_blur_effect = QrReaderCropBlurEffect(self)
         self.image_effect = ImageGraphicsEffect(self, self.crop_blur_effect)
 
+        self._accepted.connect(self._on_accepted)
+
     def _on_flip_x_changed(self, _state: int):
         self.config.set_key('qrreader_flip_x', self.flip_x.isChecked())
 
@@ -166,10 +172,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
         scan_pos_y = (resolution.height() - scan_size) / 2
         return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
-    def scan(
-            self,
-            device: str = ''
-        ) -> List[QrCodeResult]:
+    def start_scan(self, device: str = ''):
         """
         Scans a QR code from the given camera device.
         If no QR code is found the returned string will be empty.
@@ -197,45 +200,72 @@ class QrReaderCameraDialog(PrintError, QDialog):
         self.qrreader_res = []
         self.validator_res = None
 
-        camera = QCamera(device_info)
-        camera.setViewfinder(self.video_surface)
-        camera.setCaptureMode(QCamera.CaptureViewfinder)
+        self.camera = QCamera(device_info)
+        self.camera.setViewfinder(self.video_surface)
+        self.camera.setCaptureMode(QCamera.CaptureViewfinder)
 
         # Camera needs to be loaded to query resolutions, this tries to open the camera
-        camera.load()
-        if camera.status() != QCamera.LoadedStatus:
-            raise RuntimeError(_("Cannot start QR scanner, camera is unavailable."))
+        self.camera.statusChanged.connect(self._on_camera_status_changed)
+        self.camera.load()
 
-        # Determine the optimal resolution and compute the crop rect
-        camera_resolutions = camera.supportedViewfinderResolutions()
-        resolution = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
-        self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
+    _camera_status_names = {
+        QCamera.UnavailableStatus: _('unavailable'),
+        QCamera.UnloadedStatus: _('unloaded'),
+        QCamera.UnloadingStatus: _('unloading'),
+        QCamera.LoadingStatus: _('loading'),
+        QCamera.LoadedStatus: _('loaded'),
+        QCamera.StandbyStatus: _('standby'),
+        QCamera.StartingStatus: _('starting'),
+        QCamera.StoppingStatus: _('stopping'),
+        QCamera.ActiveStatus: _('active')
+    }
 
-        # Initialize the video widget
-        #self.video_widget.setMinimumSize(resolution)  # <-- on macOS this makes it fixed size for some reason.
-        self.resize(720, 540)
-        self.video_overlay.set_crop(self.qr_crop)
-        self.video_overlay.set_resolution(resolution)
-        self.video_layout.set_aspect_ratio(resolution.width() / resolution.height())
+    def _get_camera_status_name(self, status: QCamera.Status):
+        return self._camera_status_names.get(status, _('unknown'))
 
-        # Set up the crop blur effect
-        self.crop_blur_effect.setCrop(self.qr_crop)
+    def _on_camera_status_changed(self, status: QCamera.Status):
+        self.print_error(_('camera status changed to {}').format(self._get_camera_status_name(status)))
 
-        # Set the camera resolution
-        viewfinder_settings = QCameraViewfinderSettings()
-        viewfinder_settings.setResolution(resolution)
-        camera.setViewfinderSettings(viewfinder_settings)
+        if status == QCamera.LoadedStatus:
+            # Determine the optimal resolution and compute the crop rect
+            camera_resolutions = self.camera.supportedViewfinderResolutions()
+            resolution = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
+            self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
 
-        # Counter for the QR scanner frame number
-        self.frame_id = 0
+            # Initialize the video widget
+            #self.video_widget.setMinimumSize(resolution)  # <-- on macOS this makes it fixed size for some reason.
+            self.resize(720, 540)
+            self.video_overlay.set_crop(self.qr_crop)
+            self.video_overlay.set_resolution(resolution)
+            self.video_layout.set_aspect_ratio(resolution.width() / resolution.height())
 
-        camera.start()
+            # Set up the crop blur effect
+            self.crop_blur_effect.setCrop(self.qr_crop)
 
-        self.exec()
+            # Set the camera resolution
+            viewfinder_settings = QCameraViewfinderSettings()
+            viewfinder_settings.setResolution(resolution)
+            self.camera.setViewfinderSettings(viewfinder_settings)
 
-        camera.setViewfinder(None)
-        camera.stop()
-        camera.unload()
+            # Counter for the QR scanner frame number
+            self.frame_id = 0
+
+            self.camera.start()
+        elif status == QCamera.UnloadedStatus or status == QCamera.UnavailableStatus:
+            self._close_camera()
+            self.close()
+            self.finished.emit(False, _("Cannot start QR scanner, camera is unavailable."), None)
+        elif status == QCamera.ActiveStatus:
+            self.open()
+
+    def _close_camera(self):
+        self.camera.setViewfinder(None)
+        self.camera.stop()
+        self.camera = None
+
+    def _on_accepted(self):
+        self._close_camera()
+        self.close()
 
         res = ( (self.validator_res and self.validator_res.accepted
                     and self.validator_res.simple_result)
@@ -245,7 +275,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
 
         self.print_error('closed', res)
 
-        return res
+        self.finished.emit(True, None, res)
 
     def _on_frame_available(self, frame: QImage):
         self.frame_id += 1
@@ -279,7 +309,8 @@ class QrReaderCameraDialog(PrintError, QDialog):
 
             # Close the dialog if the validator accepted the result
             if self.validator_res.accepted:
-                self.close()
+                self._accepted.emit()
+                return
 
         # Apply the crop blur effect
         if self.image_effect:

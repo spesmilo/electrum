@@ -56,30 +56,38 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             return
         self.setText(data)
 
-    def qr_input(self):
+    def qr_input(self, callback = None):
         from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
         dialog = None
         try:
             dialog = QrReaderCameraDialog(parent=self)
-            data = dialog.scan(get_config().get_video_device())
+
+            def _on_qr_reader_finished(success: bool, error: str, result):
+                nonlocal dialog
+                if dialog:
+                    dialog.setParent(None)  # python GC
+                    dialog = None
+                if not success:
+                    self.show_error(error)
+                    return
+                if not result:
+                    result = ''
+                if self.allow_multi:
+                    new_text = self.text() + result + '\n'
+                else:
+                    new_text = result
+                self.setText(new_text)
+                if callback and success:
+                    callback(result)
+
+            dialog.finished.connect(_on_qr_reader_finished)
+            dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
                 import traceback
                 traceback.print_exc()
             self.show_error(str(e))
-            data = ''
-        if dialog:
-            dialog.setParent(None)  # python GC
-            dialog = None
-        if not data:
-            data = ''
-        if self.allow_multi:
-            new_text = self.text() + data + '\n'
-        else:
-            new_text = data
-        self.setText(new_text)
-        return data
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
