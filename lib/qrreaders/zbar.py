@@ -48,6 +48,20 @@ try:
     LIBZBAR.zbar_symbol_set_first_symbol.restype = ctypes.c_void_p
     LIBZBAR.zbar_symbol_get_data.restype = ctypes.POINTER(ctypes.c_char_p)
     LIBZBAR.zbar_image_scanner_set_config.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    LIBZBAR.zbar_image_set_sequence.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    LIBZBAR.zbar_image_set_size.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+    LIBZBAR.zbar_image_set_format.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    LIBZBAR.zbar_image_set_data.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    LIBZBAR.zbar_image_scanner_recycle_image.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    LIBZBAR.zbar_scan_image.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    LIBZBAR.zbar_image_scanner_get_results.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_symbol_set_first_symbol.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_symbol_get_data_length.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_symbol_get_data.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_symbol_get_loc_size.argtypes = [ctypes.c_void_p]
+    LIBZBAR.zbar_symbol_get_loc_x.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    LIBZBAR.zbar_symbol_get_loc_y.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    LIBZBAR.zbar_symbol_next.argtypes = [ctypes.c_void_p]
 
     #if is_verbose:
         #LIBZBAR.zbar_set_verbosity(100)
