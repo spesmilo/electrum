@@ -28,7 +28,6 @@
 
 
 import os
-import threading
 import sys
 import asyncio
 import random
@@ -72,7 +71,6 @@ if TYPE_CHECKING:
     from .network import Network
     from .simple_config import SimpleConfig
 
-from PyQt5.QtCore import pyqtSignal
 
 _logger = get_logger(__name__)
 
@@ -225,8 +223,6 @@ class Abstract_Wallet(AddressSynchronizer):
         self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
-
-        self.asset_lock = threading.RLock()
 
         self.calc_unused_change_addresses()
 
@@ -1085,22 +1081,21 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_assets_summary(self):
         assets_by_asset = {}
-        with self.lock:
-            for asset_address in self.get_assets():
-                asset_guid = asset_address['guid']
-                asset_summary = None
-                try:
-                    asset_summary = assets_by_asset[asset_guid]
-                except KeyError:
-                    pass
-                if not asset_summary:
-                    asset_summary = {
-                        'name': asset_address['name'],
-                        'guid': asset_guid,
-                        'symbol': asset_address['symbol'],
-                        'balance': 0
-                    }
-                    assets_by_asset[asset_guid] = asset_summary
+        for asset_address in self.get_assets():
+            asset_guid = asset_address['guid']
+            asset_summary = None
+            try:
+                asset_summary = assets_by_asset[asset_guid]
+            except KeyError:
+                pass
+            if not asset_summary:
+                asset_summary = {
+                    'name': asset_address['name'],
+                    'guid': asset_guid,
+                    'symbol': asset_address['symbol'],
+                    'balance': 0
+                }
+                assets_by_asset[asset_guid] = asset_summary
                 asset_summary['balance'] += int(asset_address['balance'])
                 assets_by_asset[asset_guid] = asset_summary
         return list(assets_by_asset.values())

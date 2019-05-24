@@ -139,7 +139,6 @@ class SyscoinMainnet(AbstractNet):
         "legion108.selfip.com": {
             "pruning": "-",
             "t": "58881",
-            "s": "58882",
             "version": "1.4"
         }
     })
@@ -179,7 +178,6 @@ class SyscoinTestnet(AbstractNet):
         "legion108.selfip.com": {
             "pruning": "-",
             "t": "59991",
-            "s": "59992",
             "version": "1.4"
         }
     })
@@ -215,7 +213,6 @@ class SyscoinRegtest(SyscoinTestnet):
         "legion108.selfip.com": {
             "pruning": "-",
             "t": "59991",
-            "s": "59992",
             "version": "1.4"
         }
     })

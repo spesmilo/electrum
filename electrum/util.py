@@ -231,6 +231,7 @@ class ThreadJob(Logger):
         """Called periodically from the thread"""
         pass
 
+
 class DebugMem(ThreadJob):
     '''A handy class for debugging GC memory leaks'''
     def __init__(self, classes, interval=30):
@@ -256,6 +257,7 @@ class DebugMem(ThreadJob):
         if time.time() > self.next_time:
             self.mem_stats()
             self.next_time = time.time() + self.interval
+
 
 class DaemonThread(threading.Thread, Logger):
     """ daemon thread that terminates cleanly """
