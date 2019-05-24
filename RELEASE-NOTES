@@ -446,5 +446,8 @@ and there is no warning message.
 
 # Release 4.0.4
 
-* Fixed QR icon appearing black/invisible on some Linux systems (Axel Gembe)
+* Added a brand new, cross platform and awesome QR Code scanner #1376
+  (Axel Gembe, cculianu)
+* Fixed QR icon appearing black/invisible on some Linux systems
+  (Axel Gembe, cculianu)
 * Various bugfixes (Axel Gembe, cculianu)
