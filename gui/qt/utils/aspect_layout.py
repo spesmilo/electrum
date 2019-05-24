@@ -64,7 +64,10 @@ class FixedAspectRatioLayout(QLayout):
             return
 
         contents = self.contentsRect()
-        c_aratio = contents.width() / contents.height()
+        if contents.height() > 0:
+            c_aratio = contents.width() / contents.height()
+        else:
+            c_aratio = 1
         s_aratio = self.aspect_ratio
         item_rect = QRect(QPoint(0, 0), QSize(
             contents.width() if c_aratio < s_aratio else contents.height() * s_aratio,
