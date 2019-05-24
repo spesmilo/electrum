@@ -35,8 +35,8 @@ verify_hash "$CACHEDIR/appimagetool" "c13026b9ebaa20a17e7e0a4c818a901f0faba75980
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
-download_if_not_exist "$CACHEDIR/libqt5multimediagsttools5.deb" "http://deb.debian.org/debian/pool/main/q/qtmultimedia-opensource-src/libqt5multimediagsttools5_5.11.3-2_amd64.deb"
-verify_hash "$CACHEDIR/libqt5multimediagsttools5.deb" "ce1c20b219e2b22b49061fc646396fa0b8ea3383d42038c90684587c382e8c8e"
+download_if_not_exist "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz" "https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libQt5MultimediaGstTools.so.5.11.3.xz"
+verify_hash "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz" "12fbf50f7f5f3fd6b49a8e757846253ae658e96f132956fdcd7107c81b55d819"
 
 
 
@@ -128,9 +128,8 @@ mkdir -p "$CACHEDIR/pip_cache"
 info "Installing missing libQt5MultimediaGstTools for PyQt5 5.11.3"
 # Packaging bug in PyQt5 5.11.3, fixed in 5.12.2, see:
 # https://www.riverbankcomputing.com/pipermail/pyqt/2019-April/041670.html
-mkdir /tmp/qtlibs
-( cd /tmp/qtlibs && ar x "$CACHEDIR/libqt5multimediagsttools5.deb" && tar xJf data.tar.xz )
-cp /tmp/qtlibs/usr/lib/x86_64-linux-gnu/libQt5MultimediaGstTools.so.5.11.3 \
+xz -k -d "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz"
+mv "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3" \
   "$APPDIR/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5MultimediaGstTools.so.5"
 
 
