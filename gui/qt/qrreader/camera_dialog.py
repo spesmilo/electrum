@@ -73,6 +73,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self.camera: QCamera = None
         self._error_message: str = None
         self._ok_done: bool = False
+        self.camera_sc_conn = None
 
         self.config = get_config()
 
@@ -313,10 +314,10 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
     def _close_camera(self):
         if self.camera:
-            try: self.camera.statusChanged.disconnect(self._on_camera_status_changed)
-            except TypeError: pass  # meh. PyQt api shouldn't be raising here but it does on connection-not-found
             self.camera.setViewfinder(None)
-            self.camera.statusChanged.disconnect(self.camera_sc_conn)
+            if self.camera_sc_conn:
+                self.camera.statusChanged.disconnect(self.camera_sc_conn)
+                self.camera_sc_conn = None
             self.camera.unload()
             self.camera = None
 
