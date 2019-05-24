@@ -61,7 +61,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         from .qrreader import QrReaderCameraDialog
         dialog = None
         try:
-            dialog = QrReaderCameraDialog(parent=self)
+            dialog = QrReaderCameraDialog(parent=self.top_level_window())
 
             def _on_qr_reader_finished(success: bool, error: str, result):
                 nonlocal dialog

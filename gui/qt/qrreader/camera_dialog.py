@@ -28,7 +28,7 @@ import math
 from typing import List
 
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal
 
@@ -44,8 +44,9 @@ from .video_overlay import QrReaderVideoOverlay
 from .video_surface import QrReaderVideoSurface
 from .crop_blur_effect import QrReaderCropBlurEffect
 from .validator import AbstractQrReaderValidator, QrReaderValidatorCounted, QrReaderValidatorResult
+from ..util import MessageBoxMixin
 
-class QrReaderCameraDialog(PrintError, QDialog):
+class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
     """
     Dialog for reading QR codes from a camera
     """
@@ -57,6 +58,8 @@ class QrReaderCameraDialog(PrintError, QDialog):
     _accepted = pyqtSignal()
 
     def __init__(self, parent):
+        ''' Note: make sure parent is a "top_level_window()" as per
+        MessageBoxMixin API else bad things can happen on macOS. '''
         QDialog.__init__(self, parent=parent)
 
         self.validator: AbstractQrReaderValidator = None
@@ -96,6 +99,12 @@ class QrReaderCameraDialog(PrintError, QDialog):
         self.setLayout(vbox)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addLayout(self.video_layout)
+
+        self.lowres_label = QLabel(_("Note: This camera generates frames of relatively low resolution; QR scanning accuracy may be affected"))
+        self.lowres_label.setWordWrap(True)
+        self.lowres_label.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
+        vbox.addWidget(self.lowres_label)
+        self.lowres_label.setHidden(True)
 
         # Create a layout for the controls
         controls_layout = QHBoxLayout()
@@ -148,20 +157,31 @@ class QrReaderCameraDialog(PrintError, QDialog):
         print_error(format_str.format(res_list_to_str(resolutions)))
 
         # Filter to those that are at least min_size in both width and height
-        usable_resolutions = [r for r in resolutions if check_res(r)]
-        format_str = _('QR code scanner usable resolutions: {}')
-        print_error(format_str.format(res_list_to_str(usable_resolutions)))
+        candidate_resolutions = []
+        ideal_resolutions = [r for r in resolutions if check_res(r)]
+        less_than_ideal_resolutions = [r for r in resolutions if r not in ideal_resolutions]
+        format_str = _('QR code scanner ideal resolutions: {}, less-than-ideal resoutions: {}')
+        print_error(format_str.format(res_list_to_str(ideal_resolutions), res_list_to_str(less_than_ideal_resolutions)))
 
         # Raise an error if we have no usable resolutions
-        if not usable_resolutions:
+        if not ideal_resolutions and not less_than_ideal_resolutions:
             raise RuntimeError(_("Cannot start QR scanner, no usable camera resolution found."))
 
+        if not ideal_resolutions:
+            print_error(_('QR code scanner warning: No ideal resolutions found, falling back to less-than-ideal resolutions -- QR recognition may fail!'))
+            candidate_resolutions = less_than_ideal_resolutions
+            is_ideal = False
+        else:
+            candidate_resolutions = ideal_resolutions
+            is_ideal = True
+
+
         # Sort the usable resolutions, least number of pixels first, get the first element
-        resolution = sorted(usable_resolutions, key=lambda r: r.width() * r.height())[0]
+        resolution = sorted(candidate_resolutions, key=lambda r: r.width() * r.height())[0]
         format_str = _('QR code scanner chosen resolution is {}x{}')
         print_error(format_str.format(resolution.width(), resolution.height()))
 
-        return resolution
+        return resolution, is_ideal
 
     @staticmethod
     def _get_crop(resolution: QSize, scan_size: int) -> QRect:
@@ -229,7 +249,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
         if status == QCamera.LoadedStatus:
             # Determine the optimal resolution and compute the crop rect
             camera_resolutions = self.camera.supportedViewfinderResolutions()
-            resolution = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
+            resolution, was_ideal = self._get_resolution(camera_resolutions, self.SCAN_SIZE)
             self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
 
             # Initialize the video widget
@@ -251,6 +271,7 @@ class QrReaderCameraDialog(PrintError, QDialog):
             self.frame_id = 0
 
             self.camera.start()
+            self.lowres_label.setVisible(not was_ideal)  # if they have a low res camera, show the warning label.
         elif status == QCamera.UnloadedStatus or status == QCamera.UnavailableStatus:
             self._close_camera()
             self.close()
