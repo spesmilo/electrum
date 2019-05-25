@@ -454,6 +454,8 @@ class ElectrumWindow(App):
                     String = autoclass("java.lang.String")
                     contents = intent.getStringExtra(String("text"))
                     on_complete(contents)
+            except Exception as e:  # exc would otherwise get lost
+                send_exception_to_crash_reporter(e)
             finally:
                 activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)

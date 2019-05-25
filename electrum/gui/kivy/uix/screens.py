@@ -21,7 +21,7 @@ from kivy.utils import platform
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum import bitcoin
 from electrum.transaction import TxOutput
-from electrum.util import send_exception_to_crash_reporter
+from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
@@ -174,11 +174,10 @@ class SendScreen(CScreen):
         if not self.app.wallet:
             self.payment_request_queued = text
             return
-        import electrum
         try:
-            uri = electrum.util.parse_URI(text, self.app.on_pr)
-        except:
-            self.app.show_info(_("Not a Bitcoin URI"))
+            uri = parse_URI(text, self.app.on_pr)
+        except InvalidBitcoinURI as e:
+            self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
