@@ -1421,7 +1421,6 @@ class Abstract_Wallet(PrintError):
                 continue
 
     def get_unused_addresses(self, *, for_change=False, frozen_ok=True):
-        for_change = bool(for_change)  # coerce to bool
         # fixme: use slots from expired requests
         with self.lock, self.transaction_lock:
             domain = self.get_receiving_addresses() if not for_change else (self.get_change_addresses() or self.get_receiving_addresses())
@@ -1431,14 +1430,16 @@ class Abstract_Wallet(PrintError):
                     and (frozen_ok or addr not in self.frozen_addresses)]
 
     def get_unused_address(self, *, for_change=False, frozen_ok=True):
-        for_change = bool(for_change)  # coerce to bool
         addrs = self.get_unused_addresses(for_change=for_change, frozen_ok=frozen_ok)
         if addrs:
             return addrs[0]
 
-    def get_receiving_address(self):
+    def get_receiving_address(self, *, frozen_ok=True):
         '''Returns a receiving address or None.'''
-        domain = self.get_unused_addresses() or self.get_receiving_addresses()
+        domain = self.get_unused_addresses(frozen_ok=frozen_ok)
+        if not domain:
+                domain = [a for a in self.get_receiving_addresses()
+                          if frozen_ok or a not in self.frozen_addresses]
         if domain:
             return domain[0]
 

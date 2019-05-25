@@ -1107,7 +1107,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.saved = True
 
     def new_payment_request(self):
-        addr = self.wallet.get_unused_address()
+        addr = self.wallet.get_unused_address(frozen_ok=False)
         if addr is None:
             if not self.wallet.is_deterministic():
                 msg = [
@@ -1171,7 +1171,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.expires_label.hide()
         self.expires_combo.show()
         self.request_list.setCurrentItem(None)
-        self.set_receive_address(self.wallet.get_receiving_address())
+        self.set_receive_address(self.wallet.get_receiving_address(frozen_ok=False))
 
     def show_qr_window(self):
         from . import qrwindow
