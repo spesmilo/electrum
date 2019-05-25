@@ -84,7 +84,7 @@ def dust_threshold(network):
     return 546 # hard-coded Bitcoin Cash dust threshold. Was changed to this as of Sept. 2018
 
 
-def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
+def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax, sign_schnorr):
     if txin_type == 'p2pkh':
         address = Address.from_pubkey(pubkey)
     else:
@@ -102,17 +102,18 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         item['x_pubkeys'] = [pubkey]
         item['signatures'] = [None]
         item['num_sig'] = 1
+        item['sign_schnorr'] = sign_schnorr
         inputs.append(item)
 
-def sweep_preparations(privkeys, network, imax=100):
+def sweep_preparations(privkeys, network, imax=100, sign_schnorr=False):
+    inputs = []
+    keypairs = {}
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-        append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+        append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax, sign_schnorr)
         keypairs[pubkey] = privkey, compressed
 
-    inputs = []
-    keypairs = {}
     for sec in privkeys:
         txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
         find_utxos_for_privkey(txin_type, privkey, compressed)
@@ -133,11 +134,11 @@ def sweep_preparations(privkeys, network, imax=100):
 
 
 def sweep(privkeys, network, config, recipient, fee=None, imax=100, sign_schnorr=False):
-    inputs, keypairs = sweep_preparations(privkeys, network, imax)
+    inputs, keypairs = sweep_preparations(privkeys, network, imax, sign_schnorr=sign_schnorr)
     total = sum(i.get('value') for i in inputs)
     if fee is None:
         outputs = [(TYPE_ADDRESS, recipient, total)]
-        tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
+        tx = Transaction.from_io(inputs, outputs)
         fee = config.estimate_fee(tx.estimated_size())
     if total - fee < 0:
         raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
@@ -147,7 +148,7 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100, sign_schnorr
     outputs = [(TYPE_ADDRESS, recipient, total - fee)]
     locktime = network.get_local_height()
 
-    tx = Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
+    tx = Transaction.from_io(inputs, outputs, locktime=locktime)
     tx.BIP_LI01_sort()
     tx.sign(keypairs)
     return tx
@@ -1084,7 +1085,7 @@ class Abstract_Wallet(PrintError):
             raise BaseException('Dynamic fee estimates not available')
 
         for item in inputs:
-            self.add_input_info(item)
+            self.add_input_info(item, sign_schnorr=sign_schnorr)
 
         # change address
         if change_addr:
@@ -1123,16 +1124,16 @@ class Abstract_Wallet(PrintError):
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.CoinChooserPrivacy()
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold(), sign_schnorr=sign_schnorr)
+                                      fee_estimator, self.dust_threshold())
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
-            tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
+            tx = Transaction.from_io(inputs, outputs)
             fee = fee_estimator(tx.estimated_size())
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
-            tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
+            tx = Transaction.from_io(inputs, outputs)
 
         # If user tries to send too big of a fee (more than 50 sat/byte), stop them from shooting themselves in the foot
         tx_in_bytes=tx.estimated_size()
@@ -1327,14 +1328,14 @@ class Abstract_Wallet(PrintError):
         item = coins.get(txid+':%d'%i)
         if not item:
             return
-        self.add_input_info(item)
+        self.add_input_info(item, sign_schnorr=sign_schnorr)
         inputs = [item]
         outputs = [(TYPE_ADDRESS, address, value - fee)]
         locktime = self.get_local_height()
         # note: no need to call tx.BIP_LI01_sort() here - single input/output
-        return Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
+        return Transaction.from_io(inputs, outputs, locktime=locktime)
 
-    def add_input_info(self, txin):
+    def add_input_info(self, txin, sign_schnorr=False):
         address = txin['address']
         if self.is_mine(address):
             txin['type'] = self.get_txin_type(address)
@@ -1343,6 +1344,7 @@ class Abstract_Wallet(PrintError):
             item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
             tx_height, value, is_cb = item
             txin['value'] = value
+            txin['sign_schnorr'] = sign_schnorr
             self.add_input_sig_info(txin, address)
 
     def can_sign(self, tx):
