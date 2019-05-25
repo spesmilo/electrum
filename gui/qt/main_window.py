@@ -50,7 +50,7 @@ from electroncash.util import (format_time, format_satoshis, PrintError,
                                print_error)
 import electroncash.web as web
 from electroncash import Transaction
-from electroncash import util, bitcoin, commands
+from electroncash import util, bitcoin, commands, schnorr, ecc_fast
 from electroncash import paymentrequest
 from electroncash.wallet import Multisig_Wallet, sweep_preparations
 try:
@@ -3730,7 +3730,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def is_schnorr_enabled(self) -> bool:
         ''' Returns whether schnorr is enabled AND possible for this wallet.
         Schnorr is enabled per-wallet. '''
-        return bool(self.is_schnorr_possible() and self.wallet.storage.get('sign_schnorr', 0))
+        if not self.is_schnorr_possible():
+            # Short-circuit out of here -- it's not even possible with this
+            # wallet type.
+            return False
+        ss_cfg = self.wallet.storage.get('sign_schnorr', None)
+        if ss_cfg is None:
+            # Schnorr was not set in config; figure out intelligent defaults,
+            # preferring Schnorr if it's at least as fast as ECDSA (based on
+            # which libs user has installed).
+            if schnorr.has_fast_sign() or not ecc_fast.is_using_fast_ecc():
+                # Prefer Schnorr, all things being equal.
+                # - Either Schnorr is fast sign (native, ABC's secp256k1),
+                #   so use it by default
+                # - Or both ECDSA & Schnorr are slow (non-native);
+                #   so use Schnorr in that case as well
+                ss_cfg = 2
+            else:
+                # This branch is reached if Schnorr is slow but ECDSA is fast
+                # (core's secp256k1 lib was found which lacks Schnorr)
+                ss_cfg = 0
+        return bool(ss_cfg)
 
     def set_schnorr_enabled(self, b: bool):
         ''' Enable schnorr for this wallet. Note that if Schnorr is not possible,

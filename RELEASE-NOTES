@@ -454,4 +454,6 @@ and there is no warning message.
   style dialogs: Pay-to in Send tab, Private Key Sweep, etc. (Axel Gembe)
 * Fix #1375 - Ensure 'Receive' tab does not ever give you a frozen address.
   (cculianu)
+* Schnorr signing has been enabled by default if previously unspecified if the
+  libsecp256k1[ABC] is present (non-HW, non-multisig wallets only) (cculianu)
 * Various bugfixes (Axel Gembe, cculianu)
