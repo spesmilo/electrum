@@ -46,7 +46,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName, __ = QFileDialog.getOpenFileName(self, _('Load a text file or scan an image for QR codes.'))
+        fileName, __ = QFileDialog.getOpenFileName(self, _('Load a text file or scan an image for QR codes'))
         if not fileName:
             return
 
