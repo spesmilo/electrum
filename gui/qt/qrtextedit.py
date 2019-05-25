@@ -48,11 +48,39 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
+
+        image = QImage()
+        if image.load(fileName):
+            from electroncash.qrreaders import get_qr_reader
+            qr_reader = get_qr_reader()
+            if not qr_reader:
+                self.show_error(_("Unable to scan image file.") + "\n" +
+                                _("The platform QR detection library is not available."))
+                return
+
+            image_y800 = image.convertToFormat(QImage.Format_Grayscale8)
+            res = qr_reader.read_qr_code(
+                image_y800.constBits().__int__(), image_y800.byteCount(),
+                image_y800.bytesPerLine(),
+                image_y800.width(),
+                image_y800.height()
+            )
+
+            if not len(res):
+                self.show_error(_("No QR code was found in the selected image file."), title=_("No QR code found"))
+                return
+            elif len(res) > 1:
+                self.show_error(_("More than one QR code was found in the selected image file."), title=_("More than one QR code found"))
+                return
+
+            self.setText(res[0].data)
+            return
+
         try:
             with open(fileName, "r", encoding='utf-8') as f:
                 data = f.read()
         except UnicodeDecodeError as reason:
-            self.show_critical(_("The selected file appears to be a binary file.") +"\n"+ _("Please ensure you only import text files."), title=_("Not a text file"))
+            self.show_error(_("The selected file appears to be a binary file.") +"\n"+ _("Please ensure you only import text files."), title=_("Not a text file"))
             return
         self.setText(data)
 
