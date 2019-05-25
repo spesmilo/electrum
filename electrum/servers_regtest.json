@@ -1,8 +1,8 @@
 {
-    "legion.me": {
+    "legion.local": {
         "pruning": "-",
-        "s": "59992",
         "t": "59991",
+        "s": "59992",
         "version": "1.2"
     }
 }

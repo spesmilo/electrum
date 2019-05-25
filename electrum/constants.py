@@ -134,13 +134,13 @@ class SyscoinMainnet(AbstractNet):
     SEGWIT_HRP = "sys"
 
     GENESIS = "000007e0aeb37995d0c0ae8ad49fb7ae17eba65167501f85d40d736d67e754c3"
-    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
+    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "legion108.selfip.com": {
+        "legion.local": {
             "pruning": "-",
-            "t": "58881",
-            "s": "58882",
-            "version": "1.4"
+            "t": "59991",
+            "s": "59992",
+            "version": "1.2"
         }
     })
     CHECKPOINTS = read_json('checkpoints.json', [])
@@ -176,11 +176,11 @@ class SyscoinTestnet(AbstractNet):
     GENESIS = "00000fcf12e4746e1e13ebcbd156dce74a48d6a3e0148250bf47a172a2d26d6a"
     DEFAULT_PORTS = {'t': '59991', 's': '59992'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "legion108.selfip.com": {
+        "legion.local": {
             "pruning": "-",
             "t": "59991",
             "s": "59992",
-            "version": "1.4"
+            "version": "1.2"
         }
     })
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
@@ -212,11 +212,11 @@ class SyscoinRegtest(SyscoinTestnet):
 
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {
-        "legion108.selfip.com": {
+        "legion.local": {
             "pruning": "-",
             "t": "59991",
             "s": "59992",
-            "version": "1.4"
+            "version": "1.2"
         }
     })
     CHECKPOINTS = []
