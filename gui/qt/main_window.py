@@ -1153,9 +1153,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # ok, they care about anonymity, so make sure the receive address
         # is always an unused address.
         if (not self.receive_address  # this should always be defined but check anyway
+            or self.receive_address in self.wallet.frozen_addresses  # make sure it's not frozen
             or (self.wallet.get_address_history(self.receive_address)   # make a new address if it has a history
                 and not self.wallet.get_payment_request(self.receive_address, self.config))):  # and if they aren't actively editing one in the request_list widget
-            addr = self.wallet.get_unused_address()  # try unused
+            addr = self.wallet.get_unused_address(frozen_ok=False)  # try unused, not frozen
             if addr is None:
                 if self.wallet.is_deterministic():
                     # creae a new one if deterministic
