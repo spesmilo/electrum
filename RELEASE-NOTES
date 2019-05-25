@@ -450,4 +450,8 @@ and there is no warning message.
   (Axel Gembe, cculianu)
 * Fixed QR icon appearing black/invisible on some Linux systems
   (Axel Gembe, cculianu)
+* Allow user to load any image containing a QR code in the various QR-scan
+  style dialogs: Pay-to in Send tab, Private Key Sweep, etc. (Axel Gembe)
+* Fix #1375 - Ensure 'Receive' tab does not ever give you a frozen address.
+  (cculianu)
 * Various bugfixes (Axel Gembe, cculianu)
