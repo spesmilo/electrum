@@ -133,7 +133,8 @@ class HelpButton(QPushButton):
         custom_message_box(icon=QMessageBox.Information,
                            parent=self,
                            title=_('Help'),
-                           text=self.help_text)
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class InfoButton(QPushButton):
@@ -148,7 +149,8 @@ class InfoButton(QPushButton):
         custom_message_box(icon=QMessageBox.Information,
                            parent=self,
                            title=_('Info'),
-                           text=self.help_text)
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class Buttons(QHBoxLayout):
