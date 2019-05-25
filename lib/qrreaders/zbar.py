@@ -35,7 +35,7 @@ from ..util import print_error, is_verbose, _
 from .abstract_base import AbstractQrCodeReader, QrCodeResult
 
 if sys.platform == 'darwin':
-    LIBNAME = 'libzbar.dylib'
+    LIBNAME = 'libzbar.0.dylib'
 elif sys.platform in ('windows', 'win32'):
     LIBNAME = 'libzbar-0.dll'
 else:

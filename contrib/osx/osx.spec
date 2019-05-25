@@ -37,12 +37,13 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
-# Add the QR Scanner helper app
-datas += [(home + "contrib/osx/OSXQRDetect/build/Release/libosxqrdetect.dylib", "./contrib/osx/OSXQRDetect/build/Release")]
 
 # Add libusb so Trezor will work
 binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]
+# LibSecp for fast ECDSA and Schnorr
 binaries += [(home + "contrib/osx/libsecp256k1.0.dylib", ".")]
+# LibZBar for QR code scanning
+binaries += [(home + "lib/libzbar.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
@@ -80,7 +81,7 @@ for d in a.datas:
 # This is a hack of sorts that works to keep the binary file size reasonable.
 bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation',
              'qttest', 'qtxml', 'qtqml', 'qtsql', 'qtserialport', 'qtsensors',
-             'qtpositioning', 'qtnfc', 'qthelp', 'qtbluetooth', 
+             'qtpositioning', 'qtnfc', 'qthelp', 'qtbluetooth',
              'pyqt5/qt/qml', 'pyqt5/qt/plugins/position',
              'pyqt5/qt/plugins/audio',
              'pyqt5/qt/plugins/sqldrivers', )

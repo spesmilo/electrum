@@ -36,11 +36,14 @@ def get_qr_reader() -> AbstractQrCodeReader:
     Get the Qr code reader for the current platform
     """
     try:
-        if sys.platform == 'darwin':
+        if sys.platform == 'darwin' and False:
+            # This has been disabled for now as it has trouble reading BitPay
+            # QR Codes and instead we also use ZBar on macOS now.
             from .osxqrdetect import OSXQRDetect
             return OSXQRDetect()
         else:
-            # Everything else is zbar. Windows has zbar, linux has zbar. Hopefully some freebsd power users install zbar.
+            # New! macOS also uses ZBar.
+            # Windows has zbar, Linux has zbar. Hopefully some FreeBSD power users install zbar.
             from .zbar import ZbarQrCodeReader
             return ZbarQrCodeReader()
         """
