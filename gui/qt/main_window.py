@@ -1225,7 +1225,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter a Bitcoin Cash address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin Cash address)')
-        payto_label = HelpLabel(_('Pay to'), msg)
+        payto_label = HelpLabel(_('Pay &to'), msg)
+        payto_label.setBuddy(self.payto_e)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
 
@@ -1236,20 +1237,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         msg = _('Description of the transaction (not mandatory).') + '\n\n'\
               + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
-        description_label = HelpLabel(_('Description'), msg)
+        description_label = HelpLabel(_('&Description'), msg)
         grid.addWidget(description_label, 2, 0)
         self.message_e = MyLineEdit()
+        description_label.setBuddy(self.message_e)
         grid.addWidget(self.message_e, 2, 1, 1, -1)
 
         msg_opreturn = ( _('OP_RETURN data (optional).') + '\n\n'
                         + _('Posts a PERMANENT note to the BCH blockchain as part of this transaction.')
                         + '\n\n' + _('If you specify OP_RETURN text, you may leave the \'Pay to\' field blank.') )
-        self.opreturn_label = HelpLabel(_('OP_RETURN'), msg_opreturn)
+        self.opreturn_label = HelpLabel(_('&OP_RETURN'), msg_opreturn)
         grid.addWidget(self.opreturn_label,  3, 0)
         self.message_opreturn_e = MyLineEdit()
+        self.opreturn_label.setBuddy(self.message_opreturn_e)
         hbox = QHBoxLayout()
         hbox.addWidget(self.message_opreturn_e)
-        self.opreturn_rawhex_cb = QCheckBox(_('Raw hex script'))
+        self.opreturn_rawhex_cb = QCheckBox(_('&Raw hex script'))
         self.opreturn_rawhex_cb.setToolTip(_('If unchecked, the textbox contents are UTF8-encoded into a single-push script: <tt>OP_RETURN PUSH &lt;text&gt;</tt>. If checked, the text contents will be interpreted as a raw hexadecimal script to be appended after the OP_RETURN opcode: <tt>OP_RETURN &lt;script&gt;</tt>.'))
         hbox.addWidget(self.opreturn_rawhex_cb)
         grid.addLayout(hbox,  3 , 1, 1, -1)
@@ -1262,9 +1265,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
 
-        self.from_label = QLabel(_('From'))
+        self.from_label = QLabel(_('&From'))
         grid.addWidget(self.from_label, 4, 0)
         self.from_list = MyTreeWidget(self, self.from_list_menu, ['',''])
+        self.from_label.setBuddy(self.from_list)
         self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
         grid.addWidget(self.from_list, 4, 1, 1, -1)
@@ -1274,7 +1278,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
               + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
               + _('Keyboard shortcut: type "!" to send all your coins.')
-        amount_label = HelpLabel(_('Amount'), msg)
+        amount_label = HelpLabel(_('&Amount'), msg)
+        amount_label.setBuddy(self.amount_e)
         grid.addWidget(amount_label, 5, 0)
         grid.addWidget(self.amount_e, 5, 1)
 
@@ -1285,7 +1290,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
-        self.max_button = EnterButton(_("Max"), self.spend_max)
+        self.max_button = EnterButton(_("&Max"), self.spend_max)
         self.max_button.setFixedWidth(140)
         self.max_button.setCheckable(True)
         grid.addWidget(self.max_button, 5, 3)
@@ -1296,7 +1301,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = _('Bitcoin Cash transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
-        self.fee_e_label = HelpLabel(_('Fee'), msg)
+        self.fee_e_label = HelpLabel(_('F&ee'), msg)
 
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
@@ -1306,6 +1311,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.spend_max() if self.max_button.isChecked() else self.update_fee()
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
+        self.fee_e_label.setBuddy(self.fee_slider)
         self.fee_slider.setFixedWidth(140)
 
         self.fee_custom_lbl = HelpLabel(self.get_custom_fee_text(),
@@ -1330,10 +1336,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.fee_custom_lbl, 6, 1)
         grid.addWidget(self.fee_e, 6, 2)
 
-        self.preview_button = EnterButton(_("Preview"), self.do_preview)
+        self.preview_button = EnterButton(_("&Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
-        self.send_button = EnterButton(_("Send"), self.do_send)
-        self.clear_button = EnterButton(_("Clear"), self.do_clear)
+        self.send_button = EnterButton(_("&Send"), self.do_send)
+        self.clear_button = EnterButton(_("&Clear"), self.do_clear)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_button)
@@ -2022,24 +2028,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         source_address.textChanged.connect(convert_address)
 
-        label = WWLabel(_(
-            "This tool helps convert between address formats for Bitcoin "
-            "Cash addresses.\nYou are encouraged to use the 'Cash address' "
-            "format."
-        ))
-
         w = QWidget()
         grid = QGridLayout()
         grid.setSpacing(15)
         grid.setColumnStretch(1, 2)
         grid.setColumnStretch(2, 1)
-        grid.addWidget(QLabel(_('Address to convert')), 0, 0)
+
+        label = QLabel(_('&Address to convert'))
+        label.setBuddy(source_address)
+        grid.addWidget(label, 0, 0)
         grid.addWidget(source_address, 0, 1)
-        grid.addWidget(QLabel(_('Cash address')), 1, 0)
+
+        label = QLabel(_('&Cash address'))
+        label.setBuddy(cash_address)
+        grid.addWidget(label, 1, 0)
         grid.addWidget(cash_address, 1, 1)
-        grid.addWidget(QLabel(_('Legacy address')), 2, 0)
+
+        label = QLabel(_('&Legacy address'))
+        label.setBuddy(legacy_address)
+        grid.addWidget(label, 2, 0)
         grid.addWidget(legacy_address, 2, 1)
+
         w.setLayout(grid)
+
+        label = WWLabel(_(
+            "This tool helps convert between address formats for Bitcoin "
+            "Cash addresses.\nYou are encouraged to use the 'Cash address' "
+            "format."
+        ))
 
         vbox = QVBoxLayout()
         vbox.addWidget(label)
