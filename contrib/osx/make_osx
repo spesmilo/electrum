@@ -126,10 +126,15 @@ info "Making locale..."
 python3 ./contrib/make_locale || fail "Failed to make locale..."
 
 info "Downloading libusb..."
-curl -L https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
+curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libusb-1.0.21.el_capitan.bottle.tar.gz | \
     tar xz --directory $BUILDDIR || fail "Could not download libusb"
 verify_hash $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib d147e7382dfa676d93e8b17d160d50f68e4b01f58f3647c90a8899a7a0519ca3  # this exits on failure
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx || fail "Could not copy libusb"
+
+info "Downloading ZBar dylib..."
+curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libzbar.0.dylib.xz | \
+    xz -d -c > contrib/osx/libzbar.0.dylib || fail "Could not download libzbar"
+verify_hash contrib/osx/libzbar.0.dylib 60970c28db13731657eaf6b1c527082b463779737da4aeecfc07645684812753
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
@@ -150,9 +155,6 @@ make -j4 || fail "Could not build secp256k1"
 git checkout master  # Undo the previous explicit checkout to this hash
 popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
-
-info "Building ZBar dylib..."
-contrib/make_zbar || fail "Could not build ZBar dylib"
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \

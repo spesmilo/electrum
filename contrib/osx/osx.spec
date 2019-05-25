@@ -43,7 +43,7 @@ binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]
 # LibSecp for fast ECDSA and Schnorr
 binaries += [(home + "contrib/osx/libsecp256k1.0.dylib", ".")]
 # LibZBar for QR code scanning
-binaries += [(home + "lib/libzbar.0.dylib", ".")]
+binaries += [(home + "contrib/osx/libzbar.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
