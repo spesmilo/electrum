@@ -63,16 +63,18 @@ def multisig_type(wallet_type):
 
 class WalletStorage(PrintError):
 
-    def __init__(self, path, manual_upgrades=False):
+    def __init__(self, path, manual_upgrades=False, *, in_memory_only=False):
         self.path = path = standardize_path(path)
         self.print_error("wallet path", path)
         self.manual_upgrades = manual_upgrades
         self.lock = threading.RLock()
         self.data = {}
-        self._file_exists = self.path and os.path.exists(self.path)
+        self._file_exists = in_memory_only or (self.path and os.path.exists(self.path))
         self.modified = False
         self.pubkey = None
-        if self.file_exists():
+        self.raw = None
+        self._in_memory_only=in_memory_only
+        if self.file_exists() and not self._in_memory_only:
             try:
                 with open(self.path, "r", encoding='utf-8') as f:
                     self.raw = f.read()
@@ -173,6 +175,8 @@ class WalletStorage(PrintError):
 
     @profiler
     def write(self):
+        if self._in_memory_only:
+            return
         with self.lock:
             self._write()
 
