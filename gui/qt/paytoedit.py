@@ -38,8 +38,8 @@ from . import util
 
 RE_ALIAS = '^(.*?)\s*\<([0-9A-Za-z:]{26,})\>$'
 
-frozen_style = "QWidget { background-color:none; border:none;}"
-normal_style = "QPlainTextEdit { }"
+frozen_style = "PayToEdit { border:none;}"
+normal_style = "PayToEdit { }"
 
 class PayToEdit(ScanQRTextEdit):
 
