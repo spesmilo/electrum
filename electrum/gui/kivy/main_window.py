@@ -6,6 +6,7 @@ import datetime
 import traceback
 from decimal import Decimal
 import threading
+import asyncio
 
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
@@ -280,6 +281,7 @@ class ElectrumWindow(App):
         self.is_exit = False
         self.wallet = None
         self.pause_time = 0
+        self.asyncio_loop = asyncio.get_event_loop()
 
         App.__init__(self)#, **kwargs)
 

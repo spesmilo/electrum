@@ -175,7 +175,7 @@ class SendScreen(CScreen):
             self.payment_request_queued = text
             return
         try:
-            uri = parse_URI(text, self.app.on_pr)
+            uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
         except InvalidBitcoinURI as e:
             self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return
