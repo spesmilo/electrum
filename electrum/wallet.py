@@ -66,6 +66,7 @@ from .interface import RequestTimedOut
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
+from asgiref.sync import async_to_sync
 
 if TYPE_CHECKING:
     from .network import Network
@@ -775,10 +776,16 @@ class Abstract_Wallet(AddressSynchronizer):
     def make_unsigned_assetsend_transaction(self, config, from_address, to_address, asset_guid, amount, memo):
         if self.network:
             try:
-                raw_tx = asyncio.run_coroutine_threadsafe(
-                    self.network.create_assetallocation_send(from_address, to_address, asset_guid, amount, memo),
-                    self.network.asyncio_loop
-                ).result()
+                # raw_tx = asyncio.run_coroutine_threadsafe(
+                #     self.network.create_assetallocation_send(from_address, to_address, asset_guid, amount, memo),
+                #     self.network.asyncio_loop
+                # ).result()
+                raw_tx = self.network.run_from_another_thread(self.network.create_assetallocation_send(
+                    from_address,
+                    to_address,
+                    asset_guid,
+                    amount,
+                    memo))
             except RequestTimedOut as e:
                 raise e
         run_hook('make_unsigned_assetsend_transaction', self, raw_tx)
@@ -860,18 +867,24 @@ class Abstract_Wallet(AddressSynchronizer):
         else:
             self.synchronize()
 
-    def synchronize_assets(self, addresses, callback=None):
+    async def synchronize_assets(self, addresses, callback=None):
         if self.network and self.network.is_connected() and len(addresses) > 0:
             try:
-                result_ = asyncio.run_coroutine_threadsafe(
-                    self.network.get_assets_for_addresses(addresses),
-                    asyncio.get_event_loop()
-                ).result()
+                self.logger.info("synchronizing asset info for {}".format(addresses))
+                # result_ = asyncio.run_coroutine_threadsafe(
+                #     self.network.get_assets_for_addresses(addresses),
+                #     asyncio.get_event_loop()
+                # ).result()
+                # result_ = self.network.run_from_another_thread(
+                #     self.network.get_assets_for_addresses(addresses)
+                # )
+                result_ = await self.network.get_assets_for_addresses(addresses)
+                self.logger.info("asset info synchronized: {}".format(result_))
 
                 for asset in result_:
                     asset_updated = False
                     for x in range(len(self.asset_list)):
-                        if asset['guid'] == self.asset_list[x]['guid'] \
+                        if asset['asset_guid'] == self.asset_list[x]['asset_guid'] \
                                 and asset['address'] == self.asset_list[x]['address']:
                             self.asset_list[x] = asset
                             asset_updated = True
@@ -1082,7 +1095,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_assets_summary(self):
         assets_by_asset = {}
         for asset_address in self.get_assets():
-            asset_guid = asset_address['guid']
+            asset_guid = asset_address['asset_guid']
             asset_summary = None
             try:
                 asset_summary = assets_by_asset[asset_guid]
@@ -1091,7 +1104,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if not asset_summary:
                 asset_summary = {
                     'name': asset_address['name'],
-                    'guid': asset_guid,
+                    'asset_guid': asset_guid,
                     'symbol': asset_address['symbol'],
                     'balance': 0
                 }

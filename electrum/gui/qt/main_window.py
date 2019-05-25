@@ -1592,9 +1592,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.asset_e.clear()
         idx = 0
         for t in self.wallet.get_assets():
-            self.asset_e.addItem("{} {} ({}) {}".format(t['name'], t['address'], t['symbol'],
+            self.asset_e.addItem("{} {} ({}:{}) {}".format(t['address'], t['symbol'], t['asset_guid'],
                                                            t['balance'] / (10**self.get_asset_decimal_point())))
-            if t['guid'] == guid and t['address'] == address:
+            if t['asset_guid'] == guid and t['address'] == address:
                 self.selected_asset_idx = idx
                 self.selected_asset_guid = guid
                 self.selected_asset_symbol = t['symbol']
@@ -1702,9 +1702,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # TODO: Clean up so that we are not assuming multiple inputs
         while asset_send_balance < amount and idx < len(asset_addresses):
-            if asset_addresses[idx]['guid'] == self.selected_asset_guid:
+            if asset_addresses[idx]['asset_guid'] == self.selected_asset_guid:
                 from_address = asset_addresses[idx]['address']
-                asset_guid = asset_addresses[idx]['guid']
+                asset_guid = asset_addresses[idx]['asset_guid']
                 asset_send_balance += asset_addresses[idx]['balance']
                 break
             idx = idx + 1
@@ -2129,19 +2129,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if len(asset_list) > 0:
             # populate drop down list items
             for t in asset_list:
-                self.asset_e.addItem("{} {} ({}) {}".format(t['name'], t['address'], t['symbol'],
-                                                               t['balance'] / (10**self.get_asset_decimal_point())))
-            #set the previously selected item if there was one.. first find its new indexc
+                self.asset_e.addItem("{} ({}:{}) {}".format( t['address'], t['asset_guid'],
+                                                          t['symbol'], t['balance'] / (10**self.get_asset_decimal_point())))
+            # set the previously selected item if there was one.. first find its new indexc
             if current_symbol is not None:
                 for idx in range(len(asset_list)):
-                    if asset_list[idx]['guid'] == current_symbol_guid \
+                    if asset_list[idx]['asset_guid'] == current_symbol_guid \
                        and asset_list[idx]['address'] == current_symbol_address:
                         current_symbol_index = idx
                         break
             else:
                 current_symbol_index = 0
                 self.selected_asset_symbol = asset_list[0]['symbol']
-                self.selected_asset_guid = asset_list[0]['guid']
+                self.selected_asset_guid = asset_list[0]['asset_guid']
                 self.selected_asset_address = asset_list[0]['address']
                 self.selected_asset_idx = 0
 
@@ -2173,7 +2173,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.selected_asset_address = None
                 self.asset_amount_e.set_token_symbol('')
             else:
-                self.selected_asset_guid = asset_list[state]['guid']
+                self.selected_asset_guid = asset_list[state]['asset_guid']
                 self.selected_asset_symbol = asset_list[state]['symbol']
                 self.selected_asset_address = asset_list[state]['address']
                 self.asset_amount_e.set_token_symbol(self.selected_asset_symbol)

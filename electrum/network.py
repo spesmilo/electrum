@@ -294,7 +294,7 @@ class Network(Logger):
         self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
-        assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
+        # assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result()
 
@@ -497,9 +497,9 @@ class Network(Logger):
         server_result = await session.send_request('blockchain.address.list_assets', request_data)
         for as_addr in server_result:
             assets_result_ += [{
-                'symbol': str(get_value_or_blank(as_addr, 'asset_guid')),
-                'name': str(get_value_or_blank(as_addr, 'asset_guid')),
-                'guid': str(get_value_or_blank(as_addr, 'asset_guid')),
+                'symbol': str(get_value_or_blank(as_addr, 'symbol')),
+                'name': str(get_value_or_blank(as_addr, 'symbol')),
+                'asset_guid': str(get_value_or_blank(as_addr, 'asset_guid')),
                 'balance': int(float(as_addr['balance']) * 100000000),
                 'address': get_value_or_blank(as_addr, 'address')
             }]

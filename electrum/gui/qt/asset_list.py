@@ -61,7 +61,7 @@ class AssetList(MyTreeView):
         config.set_key('show_toolbar_assets', state)
 
     def refresh_headers(self):
-        headers = [_('Symbol'), _('Name'), _('GUID'), _('Address'),  _('Balance')]
+        headers = [_('Symbol'), _('Address'), _('Balance')]
         self.update_headers(headers)
 
     def update(self):
@@ -74,14 +74,13 @@ class AssetList(MyTreeView):
         set_asset = None
         for asset in asset_list:
             asset_symbol = asset['symbol']
-            asset_name = asset['name']
-            asset_guid = asset['guid']
+            asset_guid = asset['asset_guid']
             asset_address = asset['address']
             balance = asset['balance']
             balance_text = self.parent.format_amount(balance, whitespaces=True)
 
             # create item
-            labels = [asset_symbol, asset_name, asset_guid, asset_address, balance_text]
+            labels = [asset_symbol, asset_guid, asset_address, balance_text]
             asset_item = [QStandardItem(e) for e in labels]
 
             # align text and set fonts
