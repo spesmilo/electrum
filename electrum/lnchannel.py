@@ -46,8 +46,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script)
-from .lnsweep import create_sweeptxs_for_their_just_revoked_ctx
-from .lnsweep import create_sweeptxs_for_our_latest_ctx, create_sweeptxs_for_their_latest_ctx
+from .lnsweep import create_sweeptxs_for_their_revoked_ctx
 from .lnhtlc import HTLCManager
 
 
@@ -168,6 +167,7 @@ class Channel(Logger):
 
         self.local_commitment = None
         self.remote_commitment = None
+        self.sweep_info = None
 
     def get_payments(self):
         out = {}
@@ -186,13 +186,9 @@ class Channel(Logger):
         ctn = extract_ctn_from_tx_and_chan(ctx, self)
         assert self.signature_fits(ctx), (self.hm.log[LOCAL])
         self.local_commitment = ctx
-        if self.sweep_address is not None:
-            self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
 
     def set_remote_commitment(self):
         self.remote_commitment = self.current_commitment(REMOTE)
-        if self.sweep_address is not None:
-            self.remote_sweeptxs = create_sweeptxs_for_their_latest_ctx(self, self.remote_commitment, self.sweep_address)
 
     def open_with_first_pcp(self, remote_pcp, remote_sig):
         self.remote_commitment_to_be_revoked = self.pending_commitment(REMOTE)
@@ -460,7 +456,7 @@ class Channel(Logger):
             return
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
-        sweeptxs = create_sweeptxs_for_their_just_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
+        sweeptxs = create_sweeptxs_for_their_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
         for prev_txid, tx in sweeptxs.items():
             if tx is not None:
                 self.lnwatcher.add_sweep_tx(outpoint, prev_txid, str(tx))

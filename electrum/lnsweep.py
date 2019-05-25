@@ -56,8 +56,8 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
     return sweep_tx
 
 
-def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
-                                               sweep_address: str) -> Dict[str,Transaction]:
+def create_sweeptxs_for_their_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
+                                          sweep_address: str) -> Dict[str,Transaction]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
     Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
@@ -135,12 +135,8 @@ class ChannelClosedBy(Enum):
     UNKNOWN = auto()
 
 
-class ChannelCloseSituationReport(NamedTuple):
-    closed_by: ChannelClosedBy
-    is_breach: Optional[bool]
 
-
-def detect_how_channel_was_closed(chan: 'Channel', ctx: Transaction) -> ChannelCloseSituationReport:
+def detect_who_closed(chan: 'Channel', ctx: Transaction) -> ChannelClosedBy:
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
 
@@ -193,19 +189,19 @@ def detect_how_channel_was_closed(chan: 'Channel', ctx: Transaction) -> ChannelC
     to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_our_ctx()
     if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
             or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
-        return ChannelCloseSituationReport(closed_by=ChannelClosedBy.US, is_breach=is_breach)
+        return ChannelClosedBy.US
 
     # their ctx?
     to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_their_ctx()
     if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
             or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
-        return ChannelCloseSituationReport(closed_by=ChannelClosedBy.THEM, is_breach=is_breach)
+        return ChannelClosedBy.THEM
 
-    return ChannelCloseSituationReport(closed_by=ChannelClosedBy.UNKNOWN, is_breach=None)
+    return ChannelClosedBy.UNKNOWN
 
 
-def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                       sweep_address: str) -> Dict[str,Transaction]:
+def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction,
+                                sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
     'to_local' can be swept even if this is a breach (by us),
@@ -277,8 +273,8 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
     return txs
 
 
-def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                         sweep_address: str) -> Dict[str,Transaction]:
+def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
+                                  sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case when the remote force-closes with their ctx.
     Regardless of it is a breach or not, construct sweep tx for 'to_remote'.
     If it is a breach, also construct sweep tx for 'to_local'.
@@ -313,18 +309,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
     other_payment_privkey = ecc.ECPrivkey.from_secret_scalar(other_payment_privkey)
 
     txs = {}
-    if per_commitment_secret:  # breach
-        # to_local
-        other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey,
-                                                          per_commitment_secret)
-        this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, their_pcp)
-        sweep_tx = maybe_create_sweeptx_for_their_ctx_to_local(ctx=ctx,
-                                                               revocation_privkey=other_revocation_privkey,
-                                                               to_self_delay=other_conf.to_self_delay,
-                                                               delayed_pubkey=this_delayed_pubkey,
-                                                               sweep_address=sweep_address)
-        if sweep_tx:
-            txs[sweep_tx.prevout(0)] = sweep_tx
+    # to_local is handled by lnwatcher
     # to_remote
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_remote(ctx=ctx,
                                                             sweep_address=sweep_address,

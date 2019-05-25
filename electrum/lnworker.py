@@ -46,6 +46,7 @@ from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnsweep import ChannelClosedBy
+from .lnsweep import create_sweeptxs_for_their_ctx, create_sweeptxs_for_our_ctx
 
 if TYPE_CHECKING:
     from .network import Network
@@ -511,24 +512,24 @@ class LNWallet(LNWorker):
         # remove from channel_db
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
-        # detect who closed
-        assert closing_tx, f"no closing tx... {repr(closing_tx)}"
-        sitrep = lnsweep.detect_how_channel_was_closed(chan, closing_tx)
-        if sitrep.closed_by == ChannelClosedBy.US:
-            self.logger.info(f'we force closed {funding_outpoint}. sitrep: {repr(sitrep)}')
-            encumbered_sweeptxs = chan.local_sweeptxs
-        elif sitrep.closed_by == ChannelClosedBy.THEM and sitrep.is_breach is False:
-            self.logger.info(f'they force closed {funding_outpoint}. sitrep: {repr(sitrep)}')
-            encumbered_sweeptxs = chan.remote_sweeptxs
-        else:
-            self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}. sitrep: {repr(sitrep)}')
-            return
-        # sweep
-        for prevout, spender in spenders.items():
-            e_tx = encumbered_sweeptxs.get(prevout)
-            if e_tx is None:
-                continue
-            if spender is not None:
+
+        # detect who closed and set sweep_info
+        if chan.sweep_info is None:
+            closed_by = lnsweep.detect_who_closed(chan, closing_tx)
+            if closed_by == ChannelClosedBy.US:
+                self.logger.info(f'we force closed {funding_outpoint}.')
+                chan.sweep_info = create_sweeptxs_for_our_ctx(chan, closing_tx, chan.sweep_address)
+            elif closed_by == ChannelClosedBy.THEM:
+                self.logger.info(f'they force closed {funding_outpoint}.')
+                chan.sweep_info = create_sweeptxs_for_their_ctx(chan, closing_tx, chan.sweep_address)
+            else:
+                self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}.')
+                chan.sweep_info = {}
+            self.logger.info(f'{repr(chan.sweep_info)}')
+
+        # create and broadcast transaction
+        for prevout, e_tx in chan.sweep_info.items():
+            if spenders.get(prevout) is not None:
                 self.logger.info(f'outpoint already spent {prevout}')
                 continue
             prev_txid, prev_index = prevout.split(':')
