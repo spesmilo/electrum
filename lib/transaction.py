@@ -34,6 +34,7 @@ from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
                       UnknownAddress, OpCodes as opcodes)
 from . import schnorr
 import struct
+import warnings
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
@@ -724,7 +725,7 @@ class Transaction:
         return nVersion + txins + txouts + nLocktime
 
     def hash(self):
-        print("warning: deprecated tx.hash()")
+        warnings.warn("warning: deprecated tx.hash()", FutureWarning, stacklevel=2)
         return self.txid()
 
     def txid(self):
