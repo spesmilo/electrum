@@ -601,7 +601,7 @@ class Interface(Logger):
             if chain or can_connect:
                 return False
             if checkp:
-                raise GracefulDisconnect("server chain conflicts with checkpoints")
+                raise GracefulDisconnect("server chain conflicts with checkpoints at height {}".format(height))
             return True
 
         bad, bad_header = height, header
