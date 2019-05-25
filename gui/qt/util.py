@@ -193,9 +193,9 @@ class MessageBoxMixin:
         return self.msg_box(QMessageBox.Warning, parent,
                             title or _('Warning'), msg, **kwargs)
 
-    def show_error(self, msg, parent=None, **kwargs):
+    def show_error(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
-                            _('Error'), msg, **kwargs)
+                            title or _('Error'), msg, **kwargs)
 
     def show_critical(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Critical, parent,
