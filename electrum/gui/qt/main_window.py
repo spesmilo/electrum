@@ -1936,7 +1936,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 return False, _("Payment request has expired")
             status = False
             try:
-                self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+                self.network.broadcast_transaction(tx)
+                # self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 msg = e.get_message_for_gui()
             except BestEffortRequestFailed as e:
