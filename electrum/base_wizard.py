@@ -42,7 +42,7 @@ from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
-from .plugin import Plugins
+from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
 
 if TYPE_CHECKING:
@@ -255,7 +255,8 @@ class BaseWizard(Logger):
 
         def failed_getting_device_infos(name, e):
             nonlocal debug_msg
-            self.logger.info(f'error getting device infos for {name}: {e}')
+            err_str_oneline = ' // '.join(str(e).splitlines())
+            self.logger.warning(f'error getting device infos for {name}: {err_str_oneline}')
             indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
             debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
 
@@ -281,6 +282,9 @@ class BaseWizard(Logger):
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     device_infos = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices,
                                                                 include_failing_clients=True)
+                except HardwarePluginLibraryUnavailable as e:
+                    failed_getting_device_infos(name, e)
+                    continue
                 except BaseException as e:
                     self.logger.exception('')
                     failed_getting_device_infos(name, e)
