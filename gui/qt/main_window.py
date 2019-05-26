@@ -2124,6 +2124,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def spend_coins(self, coins):
         self.set_pay_from(coins)
         self.show_send_tab()
+        run_hook('on_spend_coins', self, coins)  # CashShuffle: will set the mode of send tab to coins[0]'s shuffled/unshuffled state
         self.update_fee()
 
     def paytomany(self):

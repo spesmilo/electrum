@@ -837,6 +837,23 @@ class Plugin(BasePlugin):
             window.background_process.set_password(new)
 
     @hook
+    def on_spend_coins(self, window, coins):
+        if not coins or window not in self.windows:
+            return
+
+        extra = window.send_tab_shuffle_extra
+        spend_mode = extra.spendingMode()
+        is_shuffled = CoinUtils.is_coin_shuffled(window.wallet, coins[0])  # check coins[0]
+        if spend_mode == extra.SpendingModeShuffled and not is_shuffled:
+            # Coin is not shuffled, spend mode is Shuffled, force send tab to
+            # coin's mode
+            extra.setSpendingMode(extra.SpendingModeUnshuffled)
+        elif spend_mode == extra.SpendingModeUnshuffled and is_shuffled:
+            # Coin is shuffled, spend mode is UnShuffled, force send tab to
+            # coin's mode
+            extra.setSpendingMode(extra.SpendingModeShuffled)
+
+    @hook
     def spendable_coin_filter(self, window, coins):
         if not coins or window not in self.windows:
             return
@@ -879,7 +896,7 @@ class Plugin(BasePlugin):
                 if ((CoinUtils.is_coin_shuffled(window.wallet, coin)
                         or is_coin_busy_shuffling(window, coin)
                         or CoinUtils.is_shuffled_address(window.wallet, coin['address']))
-                        and coin not in external_coin_addresses):
+                        and coin['address'] not in external_coin_addresses):
                     coins.remove(coin)
 
     @hook
@@ -1417,6 +1434,16 @@ class SendTabExtra(QFrame, PrintError):
             if which is self.spendShuffled: return self.SpendingModeShuffled
             elif which is self.spendUnshuffled: return self.SpendingModeUnshuffled
         return self.SpendingModeUnknown
+
+    def setSpendingMode(self, spendMode):
+        but2Check = None
+        if spendMode == self.SpendingModeUnshuffled and not self.spendUnshuffled.isChecked():
+            but2Check = self.spendUnshuffled
+        elif spendMode == self.SpendingModeShuffled and not self.spendShuffled.isChecked():
+            but2Check = self.spendShuffled
+        if but2Check:
+            but2Check.setChecked(True)
+            self.onSpendRadio()  # slot won't get called from setting radio buttons programmaticallys, so we force-call the slot
 
 
 class NetworkCheckerDelegateMixin:
