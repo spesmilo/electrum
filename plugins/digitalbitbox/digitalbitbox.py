@@ -558,7 +558,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             if p2pkhTransaction:
                 class CustomTXSerialization(Transaction):
                     @classmethod
-                    def input_script(self, txin, estimate_size=False, sign_schnorr=False):
+                    def input_script(self, txin, estimate_size=False):
                         if txin['type'] == 'p2pkh':
                             return Transaction.get_preimage_script(txin)
                         if txin['type'] == 'p2sh':
