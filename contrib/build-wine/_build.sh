@@ -90,8 +90,8 @@ build_zbar() {
                 --with-x=no \
                 --enable-pthread=no \
                 --enable-doc=no \
-                --enable-video=yes \
-                --with-directshow=yes \
+                --enable-video=no \
+                --with-directshow=no \
                 --with-jpeg=no \
                 --with-python=no \
                 --with-gtk=no \
