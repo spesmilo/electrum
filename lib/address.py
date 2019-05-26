@@ -320,7 +320,7 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
-        return self.pubkey.hex()
+        return 'P2PK(%s)'%(self.pubkey.hex())
 
     def to_storage_string(self):
         '''Convert to a hexadecimal string for storage.'''
