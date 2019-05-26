@@ -457,6 +457,8 @@ class Transaction:
     @classmethod
     def get_sorted_pubkeys(self, txin):
         # sort pubkeys and x_pubkeys, using the order of pubkeys
+        # Note: this function is CRITICAL to get the correct order of pubkeys in
+        # multisignatures; avoid changing.
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
         if pubkeys is None:
