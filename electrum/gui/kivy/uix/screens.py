@@ -20,7 +20,7 @@ from kivy.utils import platform
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum import bitcoin
-from electrum.transaction import TxOutput
+from electrum.transaction import TxOutput, Transaction, tx_from_str
 from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
@@ -233,11 +233,22 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        contents = self.app._clipboard.paste()
-        if not contents:
+        data = self.app._clipboard.paste()
+        if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.set_URI(contents)
+        # try to decode as transaction
+        try:
+            raw_tx = tx_from_str(data)
+            tx = Transaction(raw_tx)
+            tx.deserialize()
+        except:
+            tx = None
+        if tx:
+            self.app.tx_dialog(tx)
+            return
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def do_send(self):
         if self.screen.is_pr:
