@@ -653,7 +653,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
-                    txin['signatures'][ii] = to_hexstr(sig) + int_to_hex(Transaction.nHashType() & 255, 1)
+                    txin['signatures'][ii] = to_hexstr(sig) + '41'
                     tx._inputs[i] = txin
         except UserCancelled:
             raise

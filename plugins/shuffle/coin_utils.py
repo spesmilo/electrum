@@ -157,7 +157,7 @@ class CoinUtils(PrintError):
                                                             hashfunc=hashlib.sha256,
                                                             sigencode=ecdsa.util.sigencode_der)
                 assert public_key.verify_digest(sig, pre_hash, sigdecode=ecdsa.util.sigdecode_der)
-                signatures[txin['tx_hash'] + ":" + str(txin['tx_pos'])] = (bh2u(sig) + int_to_hex(transaction.nHashType() & 255, 1)).encode('utf-8')
+                signatures[txin['tx_hash'] + ":" + str(txin['tx_pos'])] = (bh2u(sig) + '41').encode('utf-8')
         return signatures
 
     @staticmethod

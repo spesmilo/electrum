@@ -405,8 +405,8 @@ def multisig_script(public_keys, m):
 
 class Transaction:
 
-    SIGHASH_FORKID = 0x40
-    FORKID = 0x000000
+    SIGHASH_FORKID = 0x40  # do not use this; deprecated
+    FORKID = 0x000000  # do not use this; deprecated
 
     def __str__(self):
         if self.raw is None:
@@ -473,7 +473,8 @@ class Transaction:
     def update_signatures(self, signatures):
         """Add new signatures to a transaction
         `signatures` is expected to be a list of hex encoded sig strings with
-        *no* sighash byte at the end (it will be added by this function).
+        *no* sighash byte at the end (implicitly always 0x41 (SIGHASH_FORKID|SIGHASH_ALL);
+        will be added by this function).
 
         signatures[i] is intended for self._inputs[i].
 
@@ -497,8 +498,8 @@ class Transaction:
             sig = signatures[i]
             if not isinstance(sig, str):
                 raise ValueError("sig was bytes, expected string")
-            # sig_final is the signature with the nHashType forkid byte at the end (0x41)
-            sig_final = sig + bh2u(bytes((self.nHashType(),)))
+            # sig_final is the signature with the sighashbyte at the end (0x41)
+            sig_final = sig + '41'
             if sig_final in txin.get('signatures'):
                 # skip if we already have this signature
                 continue
@@ -691,11 +692,15 @@ class Transaction:
     @classmethod
     def nHashType(cls):
         '''Hash type in hex.'''
+        warnings.warn("warning: deprecated tx.nHashType()", FutureWarning, stacklevel=2)
         return 0x01 | (cls.SIGHASH_FORKID + (cls.FORKID << 8))
 
-    def serialize_preimage(self, i):
+    def serialize_preimage(self, i, nHashType=0x00000041):
+        if (nHashType & 0xff) != 0x41:
+            raise ValueError("other hashtypes not supported; submit a PR to fix this!")
+
         nVersion = int_to_hex(self.version, 4)
-        nHashType = int_to_hex(self.nHashType(), 4)
+        nHashType = int_to_hex(nHashType, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
@@ -849,12 +854,13 @@ class Transaction:
                     sec, compressed = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
-                    pre_hash = Hash(bfh(self.serialize_preimage(i)))
+                    nHashType = 0x00000041 # hardcoded, perhaps should be taken from unsigned input dict
+                    pre_hash = Hash(bfh(self.serialize_preimage(i, nHashType)))
                     if self._sign_schnorr:
                         sig = self._schnorr_sign(pubkey, sec, pre_hash)
                     else:
                         sig = self._ecdsa_sign(sec, pre_hash)
-                    txin['signatures'][j] = bh2u(sig) + int_to_hex(self.nHashType() & 255, 1)
+                    txin['signatures'][j] = bh2u(sig + bytes((nHashType & 0xff,)))
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
