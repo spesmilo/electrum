@@ -24,7 +24,7 @@ from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
-from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
+from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions, chunks
 from .transaction import Transaction, TxOutput
 from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
@@ -234,21 +234,26 @@ class Peer(Logger):
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
                     break
+            # note: data processed in chunks to avoid taking sql lock for too long
             # channel announcements
-            self.verify_channel_announcements(chan_anns)
-            self.channel_db.on_channel_announcement(chan_anns)
+            for chan_anns_chunk in chunks(chan_anns, 300):
+                self.verify_channel_announcements(chan_anns_chunk)
+                self.channel_db.on_channel_announcement(chan_anns_chunk)
             # node announcements
-            self.verify_node_announcements(node_anns)
-            self.channel_db.on_node_announcement(node_anns)
+            for node_anns_chunk in chunks(node_anns, 100):
+                self.verify_node_announcements(node_anns_chunk)
+                self.channel_db.on_node_announcement(node_anns_chunk)
             # channel updates
-            orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates(chan_upds, max_age=self.network.lngossip.max_age)
-            if orphaned:
-                self.logger.info(f'adding {len(orphaned)} unknown channel ids')
-                self.network.lngossip.add_new_ids(orphaned)
-            if good:
-                self.logger.debug(f'on_channel_update: {len(good)}/{len(chan_upds)}')
-                self.verify_channel_updates(good)
-                self.channel_db.update_policies(good, to_delete)
+            for chan_upds_chunk in chunks(chan_upds, 1000):
+                orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates(chan_upds_chunk,
+                                                                                                        max_age=self.network.lngossip.max_age)
+                if orphaned:
+                    self.logger.info(f'adding {len(orphaned)} unknown channel ids')
+                    self.network.lngossip.add_new_ids(orphaned)
+                if good:
+                    self.logger.debug(f'on_channel_update: {len(good)}/{len(chan_upds_chunk)}')
+                    self.verify_channel_updates(good)
+                    self.channel_db.update_policies(good, to_delete)
             # refresh gui
             if chan_anns or node_anns or chan_upds:
                 self.network.lngossip.refresh_gui()
