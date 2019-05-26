@@ -22,12 +22,6 @@ RUN apt-get update -q && \
         gettext=0.18.3.1-1ubuntu3.1 \
         faketime=0.9.5-2 \
         pkg-config=0.26-1ubuntu4 \
-        libx11-dev=2:1.6.2-1ubuntu2 \
-        libx11-6=2:1.6.2-1ubuntu2 \
-        libv4l-dev=1.0.1-1 \
-        libxv-dev=2:1.0.10-1 \
-        libxext-dev=2:1.3.2-1ubuntu0.0.14.04.1 \
-        libjpeg-dev=8c-2ubuntu8 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
