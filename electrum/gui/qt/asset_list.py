@@ -36,13 +36,12 @@ from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
 
 class AssetList(MyTreeView):
     class Columns(IntEnum):
-        SYMBOL = 0
-        NAME = 1
-        GUID = 2
-        ADDRESS = 3
-        BALANCE = 4
+        GUID = 0
+        SYMBOL = 1
+        ADDRESS = 2
+        BALANCE = 3
 
-    filter_columns = [0, 1, 2, 3, 4]  # Symbol, Address, Label, Balance
+    filter_columns = [0, 1, 2, 3]  # Guid, Symbol, Address, Balance
 
     def __init__(self, parent=None):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.ADDRESS)
@@ -61,7 +60,7 @@ class AssetList(MyTreeView):
         config.set_key('show_toolbar_assets', state)
 
     def refresh_headers(self):
-        headers = [_('Symbol'), _('Address'), _('Balance')]
+        headers = [_('Asset Guid'),_('Symbol'), _('Address'), _('Balance')]
         self.update_headers(headers)
 
     def update(self):
@@ -80,7 +79,7 @@ class AssetList(MyTreeView):
             balance_text = self.parent.format_amount(balance, whitespaces=True)
 
             # create item
-            labels = [asset_symbol, asset_guid, asset_address, balance_text]
+            labels = [asset_guid, asset_symbol, asset_address, balance_text]
             asset_item = [QStandardItem(e) for e in labels]
 
             # align text and set fonts

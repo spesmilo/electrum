@@ -294,9 +294,17 @@ class Network(Logger):
         self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
-        # assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
+        assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result()
+
+    def run_from_a_thread(self, coro):
+        if self._loop_thread != threading.current_thread():
+            fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
+            return fut.result()
+        else:
+            fut = asyncio.get_running_loop().run_until_complete(coro)
+            return fut.result()
 
     @staticmethod
     def get_instance() -> Optional["Network"]:
