@@ -107,6 +107,8 @@ class NotificationSession(RPCSession):
         msg_id = next(self._msg_counter)
         self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
         try:
+            # note: RPCSession.send_request raises TaskTimeout in case of a timeout.
+            # TaskTimeout is a subclass of CancelledError, which is *suppressed* in TaskGroups
             response = await asyncio.wait_for(
                 super().send_request(*args, **kwargs),
                 timeout)

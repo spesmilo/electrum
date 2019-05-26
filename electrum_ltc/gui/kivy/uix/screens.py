@@ -20,8 +20,8 @@ from kivy.utils import platform
 
 from electrum_ltc.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum_ltc import bitcoin
-from electrum_ltc.transaction import TxOutput
-from electrum_ltc.util import send_exception_to_crash_reporter
+from electrum_ltc.transaction import TxOutput, Transaction, tx_from_str
+from electrum_ltc.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.wallet import InternalAddressCorruption
@@ -174,11 +174,10 @@ class SendScreen(CScreen):
         if not self.app.wallet:
             self.payment_request_queued = text
             return
-        import electrum_ltc as electrum
         try:
-            uri = electrum.util.parse_URI(text, self.app.on_pr)
-        except:
-            self.app.show_info(_("Not a Litecoin URI"))
+            uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
+        except InvalidBitcoinURI as e:
+            self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
@@ -234,11 +233,22 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        contents = self.app._clipboard.paste()
-        if not contents:
+        data = self.app._clipboard.paste()
+        if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.set_URI(contents)
+        # try to decode as transaction
+        try:
+            raw_tx = tx_from_str(data)
+            tx = Transaction(raw_tx)
+            tx.deserialize()
+        except:
+            tx = None
+        if tx:
+            self.app.tx_dialog(tx)
+            return
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def do_send(self):
         if self.screen.is_pr:

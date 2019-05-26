@@ -6,6 +6,7 @@ import datetime
 import traceback
 from decimal import Decimal
 import threading
+import asyncio
 
 from electrum_ltc.bitcoin import TYPE_ADDRESS
 from electrum_ltc.storage import WalletStorage
@@ -280,6 +281,7 @@ class ElectrumWindow(App):
         self.is_exit = False
         self.wallet = None
         self.pause_time = 0
+        self.asyncio_loop = asyncio.get_event_loop()
 
         App.__init__(self)#, **kwargs)
 
@@ -454,6 +456,8 @@ class ElectrumWindow(App):
                     String = autoclass("java.lang.String")
                     contents = intent.getStringExtra(String("text"))
                     on_complete(contents)
+            except Exception as e:  # exc would otherwise get lost
+                send_exception_to_crash_reporter(e)
             finally:
                 activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)

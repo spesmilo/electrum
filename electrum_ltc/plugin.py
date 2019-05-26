@@ -283,6 +283,7 @@ class BasePlugin(Logger):
 
 class DeviceNotFoundError(Exception): pass
 class DeviceUnpairableError(Exception): pass
+class HardwarePluginLibraryUnavailable(Exception): pass
 
 
 class Device(NamedTuple):
@@ -502,7 +503,7 @@ class DeviceMgr(ThreadJob):
         unpaired device accepted by the plugin.'''
         if not plugin.libraries_available:
             message = plugin.get_library_not_available_message()
-            raise Exception(message)
+            raise HardwarePluginLibraryUnavailable(message)
         if devices is None:
             devices = self.scan_devices()
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
