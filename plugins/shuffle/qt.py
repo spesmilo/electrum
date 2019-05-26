@@ -838,7 +838,12 @@ class Plugin(BasePlugin):
 
     @hook
     def on_spend_coins(self, window, coins):
-        if not coins or window not in self.windows:
+        if (not coins or window not in self.windows
+                # the coin may not be "mine" if doing private key -> sweep
+                # in that case, just abort this as it doesn't matter what
+                # mode the send tab is in
+                or (window.tx_external_keypairs
+                        and not window.wallet.is_mine(coins[0]['address']))):
             return
 
         extra = window.send_tab_shuffle_extra
