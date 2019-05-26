@@ -40,10 +40,10 @@ from sqlalchemy import Column, ForeignKey, Integer, String, Boolean
 from sqlalchemy.orm.query import Query
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import not_, or_
-from .sql_db import SqlDB, sql
 
+from .sql_db import SqlDB, sql, SQLITE_LIMIT_VARIABLE_NUMBER
 from . import constants
-from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits, print_msg
+from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits, print_msg, chunks
 from .logging import Logger
 from .storage import JsonDB
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
@@ -231,12 +231,14 @@ class ChannelDB(SqlDB):
     @profiler
     def compare_channels(self, channel_ids):
         ids = [x.hex() for x in channel_ids]
+        known = set()
         # I need to get the unknown, and also the channels that need refresh
-        known = self.DBSession \
-                 .query(ChannelInfo) \
-                 .filter(ChannelInfo.short_channel_id.in_(ids)) \
-                 .all()
-        known = [bfh(r.short_channel_id) for r in known]
+        for ids_chunk in chunks(ids, SQLITE_LIMIT_VARIABLE_NUMBER):
+            known_part = self.DBSession \
+                     .query(ChannelInfo) \
+                     .filter(ChannelInfo.short_channel_id.in_(ids_chunk)) \
+                     .all()
+            known |= set(bfh(r.short_channel_id) for r in known_part)
         return known
 
     @sql

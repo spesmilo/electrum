@@ -10,6 +10,10 @@ from sqlalchemy.orm import sessionmaker
 from .logging import Logger
 
 
+# https://stackoverflow.com/questions/26971050/sqlalchemy-sqlite-too-many-sql-variables
+SQLITE_LIMIT_VARIABLE_NUMBER = 999
+
+
 def sql(func):
     """wrapper for sql methods"""
     def wrapper(self, *args, **kwargs):
