@@ -233,7 +233,7 @@ class Network(Logger):
         Logger.__init__(self)
 
         self.asyncio_loop = asyncio.get_event_loop()
-        assert self.asyncio_loop.is_running(), "event loop not running"
+        #assert self.asyncio_loop.is_running(), "event loop not running"
         self._loop_thread = None  # type: threading.Thread  # set by caller; only used for sanity checks
 
         if config is None:
@@ -302,9 +302,9 @@ class Network(Logger):
         if self._loop_thread != threading.current_thread():
             fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
             return fut.result()
-        else:
-            fut = asyncio.get_running_loop().run_until_complete(coro)
-            return fut.result()
+        # else:
+        #     fut = asyncio.get_running_loop().run_until_complete(coro)
+        #     return fut.result()
 
     @staticmethod
     def get_instance() -> Optional["Network"]:

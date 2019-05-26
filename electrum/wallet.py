@@ -870,7 +870,7 @@ class Abstract_Wallet(AddressSynchronizer):
         else:
             self.synchronize()
 
-    async def synchronize_assets(self, addresses, callback=None):
+    async def synchronize_assets(self, addresses, callback=None, notify_flag=True):
         if self.network and self.network.is_connected() and len(addresses) > 0:
             try:
                 self.logger.info("synchronizing asset info for {}".format(addresses))
@@ -894,7 +894,7 @@ class Abstract_Wallet(AddressSynchronizer):
                         self.asset_list.append(asset)
                         changed_assets.append(asset)
                 if callback is not None:
-                    callback(changed_assets)
+                    callback(changed_assets, notify_flag)
                 return changed_assets
             except RequestTimedOut as e:
                 if e is not TimeoutError:

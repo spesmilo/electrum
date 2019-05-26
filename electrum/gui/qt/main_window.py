@@ -272,11 +272,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
-    def on_assets_updated(self, assets):
+    def on_assets_updated(self, assets, notify_flag=True):
         self.populate_asset_picklist()
-        for asset in assets:
-            self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
-                        .format(asset.symbol, asset.asset_guid, self.format_amount(asset.balance)))
+        if notify_flag is True:
+            for asset in assets:
+                self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
+                            .format(asset['symbol'], asset['asset_guid'], self.format_amount(asset['balance'])))
 
     def on_history(self, b):
         self.wallet.clear_coin_price_cache()
@@ -475,7 +476,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
         self.network.run_from_another_thread(
-            wallet.synchronize_assets(wallet.get_addresses())
+            wallet.synchronize_assets(wallet.get_addresses(), self.on_assets_updated, notify_flag=False)
         )
 
     def init_geometry(self):
@@ -1602,6 +1603,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.asset_e.clear()
         idx = 0
         for t in self.wallet.get_assets():
+            self.logger.info(f"Asset {t}")
             self.asset_e.addItem("{} {} ({}:{}) {}".format(t['address'], t['symbol'], t['asset_guid'],
                                                            t['balance'] / (10**self.get_asset_decimal_point())))
             if t['asset_guid'] == guid and t['address'] == address:
