@@ -119,7 +119,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
-        funding_tx = self.window.wallet.transactions[self.chan.funding_outpoint.txid]
+        funding_tx = self.window.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
         self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
 
     def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
