@@ -520,6 +520,14 @@ def is_non_negative_integer(val) -> bool:
     return False
 
 
+def chunks(items, size: int):
+    """Break up items, an iterable, into chunks of length size."""
+    if size < 1:
+        raise ValueError(f"size must be positive, not {repr(size)}")
+    for i in range(0, len(items), size):
+        yield items[i: i + size]
+
+
 def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
