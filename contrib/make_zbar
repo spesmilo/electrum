@@ -17,26 +17,16 @@ git submodule update
 info "Building libzbar..."
 LIBZBAR_VERSION="11e819815be2de88b64b985605a3386a95079245" # mchehab master as of 2019-05-19
 
-video="yes"
-withx="yes"
-jpeg="yes"
-if [ $(uname) == "Darwin" ]; then
-    # Darwin (macOS) options are more conservative
-    video="no"
-    withx="no"
-    jpeg="no"
-fi
-
 pushd "$contrib"/zbar || fail "Could not chdir to ${contrib}/zbar"
 git checkout $LIBZBAR_VERSION || fail "Could not check out zbar $LIBZBAR_VERSION"
 git clean -dfxq
 autoreconf -vfi || fail "Could not run autoreconf for zbar. Please make sure you have automake and libtool installed, and try again."
 ./configure \
-    --with-x=${withx} \
+    --with-x=no \
     --enable-pthread=no \
     --enable-doc=no \
-    --enable-video=${video} \
-    --with-jpeg=${jpeg} \
+    --enable-video=no \
+    --with-jpeg=no \
     --with-python=no \
     --with-gtk=no \
     --with-qt=no \
