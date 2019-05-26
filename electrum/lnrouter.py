@@ -447,8 +447,9 @@ class ChannelDB(SqlDB):
                 continue
             node_id = node_info.node_id
             # Ignore node if it has no associated channel (DoS protection)
+            # FIXME this is slow
             expr = or_(ChannelInfo.node1_id==node_id, ChannelInfo.node2_id==node_id)
-            if self.DBSession.query(ChannelInfo.short_channel_id).filter(expr).count() == 0:
+            if len(self.DBSession.query(ChannelInfo.short_channel_id).filter(expr).limit(1).all()) == 0:
                 #self.logger.info('ignoring orphan node_announcement')
                 continue
             node = self.DBSession.query(NodeInfo).filter_by(node_id=node_id).one_or_none()
