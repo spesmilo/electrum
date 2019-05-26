@@ -456,4 +456,6 @@ and there is no warning message.
   (cculianu)
 * Schnorr signing has been enabled by default if previously unspecified if the
   libsecp256k1[ABC] is present (non-HW, non-multisig wallets only) (cculianu)
+* Fix #1385 - Auto-switch send tab mode Shuffled/Unshuffled depending on the
+  selected coins when doing Coins -> right click -> Spend. (cculianu)
 * Various bugfixes (Axel Gembe, cculianu)
