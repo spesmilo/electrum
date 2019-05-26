@@ -298,9 +298,9 @@ class Peer(Logger):
                 await self.get_short_channel_ids(todo)
 
     async def get_channel_range(self):
-        req_index = self.lnworker.first_block
-        req_num = self.lnworker.network.get_local_height() - req_index
-        self.query_channel_range(req_index, req_num)
+        first_block = constants.net.BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS
+        num_blocks = self.lnworker.network.get_local_height() - first_block
+        self.query_channel_range(first_block, num_blocks)
         intervals = []
         ids = set()
         # note: implementations behave differently...
@@ -333,7 +333,7 @@ class Peer(Logger):
                     break
             if len(intervals) == 1 and complete:
                 a, b = intervals[0]
-                if a <= req_index and b >= req_index + req_num:
+                if a <= first_block and b >= first_block + num_blocks:
                     break
         return ids, complete
 
@@ -348,13 +348,13 @@ class Peer(Logger):
             first_timestamp=timestamp,
             timestamp_range=b'\xff'*4)
 
-    def query_channel_range(self, index, num):
-        self.logger.info(f'query channel range {index} {num}')
+    def query_channel_range(self, first_block, num_blocks):
+        self.logger.info(f'query channel range {first_block} {num_blocks}')
         self.send_message(
             'query_channel_range',
             chain_hash=constants.net.rev_genesis_bytes(),
-            first_blocknum=index,
-            number_of_blocks=num)
+            first_blocknum=first_block,
+            number_of_blocks=num_blocks)
 
     def encode_short_ids(self, ids):
         return chr(1) + zlib.compress(bfh(''.join(ids)))

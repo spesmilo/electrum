@@ -229,8 +229,6 @@ class LNWorker(Logger):
 
 
 class LNGossip(LNWorker):
-    # height of first channel announcements
-    first_block = 497000
     max_age = 14*24*3600
 
     def __init__(self, network):

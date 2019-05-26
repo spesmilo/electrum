@@ -46,6 +46,8 @@ GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
 
 class AbstractNet:
 
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+
     @classmethod
     def max_checkpoint(cls) -> int:
         return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
@@ -66,6 +68,7 @@ class BitcoinMainnet(AbstractNet):
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
