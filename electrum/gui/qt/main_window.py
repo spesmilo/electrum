@@ -272,8 +272,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
-    def on_assets_updated(self, assets):
+    def on_assets_updated(self, assets, notify_flag=True):
         self.populate_asset_picklist()
+        if notify_flag is True:
+            for asset in assets:
+                self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
+                            .format(asset['symbol'], asset['asset_guid'], self.format_amount(asset['balance'])))
 
     def on_history(self, b):
         self.wallet.clear_coin_price_cache()
@@ -379,14 +383,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.wallet.network and self.wallet.network.is_connected() \
                     and len(self.wallet.get_addresses()) > 0 and self.assets_inited is None:
                 self.assets_inited = True
-                self.wallet.synchronize_assets(self.wallet.get_addresses())
+                self.network.run_from_a_thread(
+                    self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
+                )
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
             self.network_signal.emit('status', None)
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self.need_update.set()
-            self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
+            self.network.run_from_a_thread(
+                self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
+            )
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -418,7 +426,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.history_model.on_fee_histogram()
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
-            self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
+            self.network.run_from_a_thread(
+                self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
+            )
         else:
             self.logger.info(f"unexpected network_qt signal: {event} {args}")
 
@@ -465,8 +475,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
-
-        wallet.synchronize_assets(wallet.get_addresses(), self.on_assets_updated)
+        self.network.run_from_another_thread(
+            wallet.synchronize_assets(wallet.get_addresses(), self.on_assets_updated, notify_flag=False)
+        )
 
     def init_geometry(self):
         winpos = self.wallet.storage.get("winpos-qt")
@@ -1592,6 +1603,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.asset_e.clear()
         idx = 0
         for t in self.wallet.get_assets():
+            self.logger.info(f"Asset {t}")
             self.asset_e.addItem("{} {} ({}:{}) {}".format(t['address'], t['symbol'], t['asset_guid'],
                                                            t['balance'] / (10**self.get_asset_decimal_point())))
             if t['asset_guid'] == guid and t['address'] == address:
@@ -1936,8 +1948,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 return False, _("Payment request has expired")
             status = False
             try:
-                self.network.broadcast_transaction(tx)
-                # self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+                # self.network.broadcast_transaction(tx)
+                self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 msg = e.get_message_for_gui()
             except BestEffortRequestFailed as e:
