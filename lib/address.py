@@ -296,9 +296,6 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
     @classmethod
     def from_string(cls, string):
         '''Create from a hex string.'''
-        if string.startswith('P2PK(') and string.endswith(')'):
-            # was a ui string, grab just the hex
-            string = string.split('(')[-1].split(')')[0]
         return cls.from_pubkey(hex_to_bytes(string))
 
     @classmethod
@@ -323,7 +320,7 @@ class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
 
     def to_ui_string(self):
         '''Convert to a hexadecimal string.'''
-        return 'P2PK({})'.format(self.pubkey.hex())
+        return 'P2PK(%s)'%(self.pubkey.hex())
 
     def to_storage_string(self):
         '''Convert to a hexadecimal string for storage.'''
