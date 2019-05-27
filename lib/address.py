@@ -442,7 +442,7 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     def __new__(cls, hash160, kind):
         assert kind in (cls.ADDR_P2PKH, cls.ADDR_P2SH)
         hash160 = to_bytes(hash160)
-        assert len(hash160) == 20
+        assert len(hash160) == 20, "hash must be 20 bytes"
         ret = super().__new__(cls, hash160, kind)
         ret._addr2str_cache = [None] * cls._NUM_FMTS
         return ret

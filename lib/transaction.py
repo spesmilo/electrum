@@ -303,24 +303,28 @@ def parse_redeemScript(s):
     return m, n, x_pubkeys, pubkeys, redeemScript
 
 def get_address_from_output_script(_bytes):
-    decoded = [x for x in script_GetOp(_bytes)]
+    try:
+        decoded = [x for x in script_GetOp(_bytes)]
 
-    # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
-    # 65 BYTES:... CHECKSIG
-    match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
-    if match_decoded(decoded, match):
-        return TYPE_PUBKEY, PublicKey.from_pubkey(decoded[0][1])
+        # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
+        # 65 BYTES:... CHECKSIG
+        match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
+        if match_decoded(decoded, match):
+            return TYPE_PUBKEY, PublicKey.from_pubkey(decoded[0][1])
 
-    # Pay-by-Bitcoin-address TxOuts look like:
-    # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
-    match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
-    if match_decoded(decoded, match):
-        return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[2][1])
+        # Pay-by-Bitcoin-address TxOuts look like:
+        # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
+        match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
+        if match_decoded(decoded, match):
+            return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[2][1])
 
-    # p2sh
-    match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
-    if match_decoded(decoded, match):
-        return TYPE_ADDRESS, Address.from_P2SH_hash(decoded[1][1])
+        # p2sh
+        match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
+        if match_decoded(decoded, match):
+            return TYPE_ADDRESS, Address.from_P2SH_hash(decoded[1][1])
+    except Exception as e:
+        print_error('{}: Failed to parse tx ouptut {}. Exception was: {}'.format(__name__, _bytes.hex(), repr(e)))
+        pass
 
     return TYPE_SCRIPT, ScriptOutput(bytes(_bytes))
 
@@ -348,7 +352,7 @@ def parse_input(vds):
         d['scriptSig'] = bh2u(scriptSig)
         try:
             parse_scriptSig(d, scriptSig)
-        except BaseException as e:
+        except Exception as e:
             print_error('{}: Failed to parse tx input {}:{}, probably a p2sh (non multisig?). Exception was: {}'.format(__name__, prevout_hash, prevout_n, repr(e)))
             # that whole heuristic codepath is fragile; just ignore it when it dies.
             # failing tx examples:
