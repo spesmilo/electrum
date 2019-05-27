@@ -462,6 +462,9 @@ and there is no warning message.
 
 # Release 4.0.5
 
+* Bugfix -- Imported Private Key wallets as well as some HW wallets (keepkey)
+  could not sign or save a tx in 4.0.4 due to a subtle bug introduced as part
+  of a refactor. Fixed. (cculianu)
+* Fixed QR scanner looking off-center on some platforms. (Axel Gembe)
 * Fixed QR scanner quirks on some platforms when failure to configure camera
   resolution confused the QR scanner a little bit. (Axel Gembe)
-
