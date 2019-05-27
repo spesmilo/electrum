@@ -3451,16 +3451,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         qr_combo = QComboBox()
         qr_combo.addItem("Default","default")
-        qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
         system_cameras = []
         try:
             from PyQt5.QtMultimedia import QCameraInfo
             system_cameras = QCameraInfo.availableCameras()
+            qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
         except (ModuleNotFoundError, ImportError) as e:
             # Older Qt or missing libs -- disable GUI control and inform user why
             qr_combo.setEnabled(False)
-            qr_label.setEnabled(False)
             qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
+            qr_label = HelpLabel(_('Video Device') + ' ' + _('(disabled)') + ':', qr_combo.toolTip() + "\n\n" + str(e))
             qr_label.setToolTip(qr_combo.toolTip())
         for cam in system_cameras:
             qr_combo.addItem(cam.description(), cam.deviceName())
