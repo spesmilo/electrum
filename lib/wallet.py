@@ -56,6 +56,8 @@ from . import bitcoin
 from . import coinchooser
 from .synchronizer import Synchronizer
 from .verifier import SPV
+from . import schnorr
+from . import ecc_fast
 
 from . import paymentrequest
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -1706,6 +1708,48 @@ class Abstract_Wallet(PrintError):
         self.storage.write()
         self.start_threads(network)
         self.network.trigger_callback('wallet_updated', self)
+
+    def is_schnorr_possible(self, reason: list = None) -> bool:
+        ''' Returns True if this wallet type is compatible.
+        `reason` is an optional list where you would like a translated string
+        of why Schnorr isn't possible placed (on False return). '''
+        ok = bool(not self.is_multisig() and not self.is_hardware())
+        if not ok and isinstance(reason, list):
+            reason.insert(0, _('Schnorr signatures are disabled for this wallet type.'))
+        return ok
+
+    def is_schnorr_enabled(self) -> bool:
+        ''' Returns whether schnorr is enabled AND possible for this wallet.
+        Schnorr is enabled per-wallet. '''
+        if not self.is_schnorr_possible():
+            # Short-circuit out of here -- it's not even possible with this
+            # wallet type.
+            return False
+        ss_cfg = self.storage.get('sign_schnorr', None)
+        if ss_cfg is None:
+            # Schnorr was not set in config; figure out intelligent defaults,
+            # preferring Schnorr if it's at least as fast as ECDSA (based on
+            # which libs user has installed).
+            if schnorr.has_fast_sign() or not ecc_fast.is_using_fast_ecc():
+                # Prefer Schnorr, all things being equal.
+                # - Either Schnorr is fast sign (native, ABC's secp256k1),
+                #   so use it by default
+                # - Or both ECDSA & Schnorr are slow (non-native);
+                #   so use Schnorr in that case as well
+                ss_cfg = 2
+            else:
+                # This branch is reached if Schnorr is slow but ECDSA is fast
+                # (core's secp256k1 lib was found which lacks Schnorr)
+                ss_cfg = 0
+        return bool(ss_cfg)
+
+    def set_schnorr_enabled(self, b: bool):
+        ''' Enable schnorr for this wallet. Note that if Schnorr is not possible,
+        (due to missing libs or invalid wallet type) is_schnorr_enabled() will
+        still return False after calling this function with a True argument. '''
+        # Note: we will have '1' at some point in the future which will mean:
+        # 'ask me per tx', so for now True -> 2.
+        self.storage.put('sign_schnorr', 2 if b else 0)
 
 
 class Simple_Wallet(Abstract_Wallet):

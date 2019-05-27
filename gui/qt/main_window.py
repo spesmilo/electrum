@@ -49,7 +49,7 @@ from electroncash.util import (format_time, format_satoshis, PrintError,
                                print_error)
 import electroncash.web as web
 from electroncash import Transaction
-from electroncash import util, bitcoin, commands, schnorr, ecc_fast
+from electroncash import util, bitcoin, commands
 from electroncash import paymentrequest
 from electroncash.wallet import Multisig_Wallet, sweep_preparations
 try:
@@ -1492,7 +1492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         outputs.append(self.output_for_opreturn_rawhex(opreturn_message))
                     else:
                         outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee, sign_schnorr=self.is_schnorr_enabled())
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
                 self.not_enough_funds = False
                 self.op_return_toolong = False
             except NotEnoughFunds:
@@ -1709,7 +1709,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, sign_schnorr=self.is_schnorr_enabled())
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
@@ -3047,7 +3047,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     self.show_message(_("User cancelled"))
                     return
-            coins, keypairs = sweep_preparations(keys, self.network, sign_schnorr = self.is_schnorr_enabled())
+            coins, keypairs = sweep_preparations(keys, self.network, sign_schnorr = self.wallet.is_schnorr_enabled())
             self.tx_external_keypairs = keypairs
             self.payto_e.setText(get_address_text())
             self.spend_coins(coins)
@@ -3586,10 +3586,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # Schnorr
         use_schnorr_cb = QCheckBox(_("Enable Schnorr signatures"))
-        use_schnorr_cb.setChecked(self.is_schnorr_enabled())
-        use_schnorr_cb.stateChanged.connect(self.set_schnorr_enabled)
+        use_schnorr_cb.setChecked(self.wallet.is_schnorr_enabled())
+        use_schnorr_cb.stateChanged.connect(self.wallet.set_schnorr_enabled)
         no_schnorr_reason = []
-        if self.is_schnorr_possible(no_schnorr_reason):
+        if self.wallet.is_schnorr_possible(no_schnorr_reason):
             use_schnorr_cb.setEnabled(True)
             use_schnorr_cb.setToolTip(_("Sign all transactions using Schnorr signatures."))
         else:
@@ -3728,48 +3728,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('close_settings_dialog')
         if self.need_restart:
             self.show_warning(_('Please restart Electron Cash to activate the new GUI settings'), title=_('Success'))
-
-    def is_schnorr_possible(self, reason: list = None) -> bool:
-        ''' Returns True if this wallet type is compatible.
-        `reason` is an optional list where you would like a translated string
-        of why Schnorr isn't possible placed (on False return). '''
-        wallet_ok = bool(not self.wallet.is_multisig() and not self.wallet.is_hardware())
-        if not wallet_ok and isinstance(reason, list):
-            reason.insert(0, _('Schnorr signatures are disabled for this wallet type.'))
-        return wallet_ok
-
-    def is_schnorr_enabled(self) -> bool:
-        ''' Returns whether schnorr is enabled AND possible for this wallet.
-        Schnorr is enabled per-wallet. '''
-        if not self.is_schnorr_possible():
-            # Short-circuit out of here -- it's not even possible with this
-            # wallet type.
-            return False
-        ss_cfg = self.wallet.storage.get('sign_schnorr', None)
-        if ss_cfg is None:
-            # Schnorr was not set in config; figure out intelligent defaults,
-            # preferring Schnorr if it's at least as fast as ECDSA (based on
-            # which libs user has installed).
-            if schnorr.has_fast_sign() or not ecc_fast.is_using_fast_ecc():
-                # Prefer Schnorr, all things being equal.
-                # - Either Schnorr is fast sign (native, ABC's secp256k1),
-                #   so use it by default
-                # - Or both ECDSA & Schnorr are slow (non-native);
-                #   so use Schnorr in that case as well
-                ss_cfg = 2
-            else:
-                # This branch is reached if Schnorr is slow but ECDSA is fast
-                # (core's secp256k1 lib was found which lacks Schnorr)
-                ss_cfg = 0
-        return bool(ss_cfg)
-
-    def set_schnorr_enabled(self, b: bool):
-        ''' Enable schnorr for this wallet. Note that if Schnorr is not possible,
-        (due to missing libs or invalid wallet type) is_schnorr_enabled() will
-        still return False after calling this function with a True argument. '''
-        # Note: we will have '1' at some point in the future which will mean:
-        # 'ask me per tx', so for now True -> 2.
-        self.wallet.storage.put('sign_schnorr', 2 if b else 0)
 
     def closeEvent(self, event):
         # It seems in some rare cases this closeEvent() is called twice
@@ -4029,7 +3987,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return
-        new_tx = self.wallet.cpfp(parent_tx, fee, sign_schnorr=self.is_schnorr_enabled())
+        new_tx = self.wallet.cpfp(parent_tx, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
         if new_tx is None:
             self.show_error(_('CPFP no longer valid'))
             return
