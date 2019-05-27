@@ -413,7 +413,7 @@ class Transaction:
             self.raw = self.serialize()
         return self.raw
 
-    def __init__(self, raw):
+    def __init__(self, raw, sign_schnorr=False):
         if raw is None:
             self.raw = None
         elif isinstance(raw, str):
@@ -426,6 +426,7 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
+        self._sign_schnorr = sign_schnorr
 
         # attribute used by HW wallets to tell the hw keystore about any outputs
         # in the tx that are to self (change), etc. See wallet.py add_hw_info
@@ -438,6 +439,9 @@ class Transaction:
         # is change that's too small to go to change outputs (below dust threshold) and needed
         # to go to the fee. Values in this dict are advisory only and may or may not always be there!
         self.ephemeral = dict()
+
+    def set_sign_schnorr(self, b):
+        self._sign_schnorr = b
 
     def update(self, raw):
         self.raw = raw
@@ -545,13 +549,14 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0):
+    def from_io(klass, inputs, outputs, locktime=0, sign_schnorr=False):
         assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
                    for output in outputs)
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs.copy()
         self.locktime = locktime
+        self.set_sign_schnorr(sign_schnorr)
         return self
 
     @classmethod
@@ -585,11 +590,10 @@ class Transaction:
             return 0x21  # just guess it is compressed
 
     @classmethod
-    def get_siglist(self, txin, estimate_size=False):
+    def get_siglist(self, txin, estimate_size=False, sign_schnorr=False):
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
         num_sig = txin.get('num_sig', 1)
-        sign_schnorr = txin.get('sign_schnorr', False)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
             pk_list = ["00" * pubkey_size] * len(txin.get('x_pubkeys', [None]))
@@ -613,11 +617,11 @@ class Transaction:
         return pk_list, sig_list
 
     @classmethod
-    def input_script(self, txin, estimate_size=False):
+    def input_script(self, txin, estimate_size=False, sign_schnorr=False):
         _type = txin['type']
         if _type == 'coinbase':
             return txin['scriptSig']
-        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        pubkeys, sig_list = self.get_siglist(txin, estimate_size, sign_schnorr=sign_schnorr)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
             pass
@@ -723,7 +727,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size), estimate_size) for txin in inputs)
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size, self._sign_schnorr), estimate_size) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         return nVersion + txins + txouts + nLocktime
 
@@ -763,9 +767,9 @@ class Transaction:
                 else len(self.raw) // 2)  # ASCII hex string
 
     @classmethod
-    def estimated_input_size(self, txin):
+    def estimated_input_size(self, txin, sign_schnorr=False):
         '''Return an estimated of serialized input size in bytes.'''
-        script = self.input_script(txin, True)
+        script = self.input_script(txin, True, sign_schnorr=sign_schnorr)
         return len(self.serialize_input(txin, script, True)) // 2  # ASCII hex string
 
     def signature_count(self):
@@ -841,7 +845,6 @@ class Transaction:
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
-            sign_schnorr = txin.get('sign_schnorr', False)
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             for j, x_pubkey in enumerate(x_pubkeys):
                 signatures = list(filter(None, txin['signatures']))
@@ -849,13 +852,13 @@ class Transaction:
                     # txin is complete
                     break
                 if x_pubkey in keypairs.keys():
-                    print_error("adding signature for", x_pubkey, "use schnorr?", sign_schnorr)
+                    print_error("adding signature for", x_pubkey, "use schnorr?", self._sign_schnorr)
                     sec, compressed = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     nHashType = 0x00000041 # hardcoded, perhaps should be taken from unsigned input dict
                     pre_hash = Hash(bfh(self.serialize_preimage(i, nHashType)))
-                    if sign_schnorr:
+                    if self._sign_schnorr:
                         sig = self._schnorr_sign(pubkey, sec, pre_hash)
                     else:
                         sig = self._ecdsa_sign(sec, pre_hash)
