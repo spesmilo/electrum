@@ -177,7 +177,8 @@ class _Connector(aiorpcx.Connector):
         try:
             return await super().create_connection()
         except OSError as e:
-            raise ConnectError(e)
+            # note: using "from e" here will set __cause__ of ConnectError
+            raise ConnectError(e) from e
 
 
 def deserialize_server(server_str: str) -> Tuple[str, str, str]:
@@ -254,11 +255,11 @@ class Interface(Logger):
         """
         try:
             await self.open_session(ca_ssl_context, exit_early=True)
-        except ssl.SSLError as e:
-            if e.reason == 'CERTIFICATE_VERIFY_FAILED':
+        except ConnectError as e:
+            cause = e.__cause__
+            if isinstance(cause, ssl.SSLError) and cause.reason == 'CERTIFICATE_VERIFY_FAILED':
                 # failures due to self-signed certs are normal
                 return False
-            # e.g. too weak crypto
             raise
         return True
 
