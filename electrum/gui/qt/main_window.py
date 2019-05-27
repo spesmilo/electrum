@@ -2130,7 +2130,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # populate drop down list items
             for t in asset_list:
                 self.asset_e.addItem("{} ({}:{}) {}".format( t['address'], t['asset_guid'],
-                                                          t['symbol'], t['balance'] / (10**self.get_asset_decimal_point())))
+                                                          t['symbol'], self.format_amount(t['balance'],
+                                                                                          whitespaces=True)))
             # set the previously selected item if there was one.. first find its new indexc
             if current_symbol is not None:
                 for idx in range(len(asset_list)):
