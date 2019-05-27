@@ -2679,10 +2679,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # must do this.
             self.print_error("Warning: QR dialog is already presented, ignoring.")
             return
-        from electroncash import get_config
-        from .qrreaderutil import warn_unless_can_import_qrreader
-        if not warn_unless_can_import_qrreader(self):
+        if self.gui_object.warn_if_cant_import_qrreader(self):
             return
+        from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
         data = ''
         self._qr_dialog = None
@@ -3452,18 +3451,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         qr_combo = QComboBox()
         qr_combo.addItem("Default","default")
+        qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
+        system_cameras = []
         try:
             from PyQt5.QtMultimedia import QCameraInfo
             system_cameras = QCameraInfo.availableCameras()
-            qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
-        except ModuleNotFoundError as e:
-            qr_combo.setDisabled(True)
-            err = "Unable to probe for cameras on this system. This may be "
-            err += "due to old version of Qt5.<br><br>Detailed error: " + str(e)
-            qr_combo.setToolTip(err)
-            qr_label = HelpLabel(_('Video Device') + ' (disabled):', err);
-            system_cameras = [ ]
-
+        except (ModuleNotFoundError, ImportError) as e:
+            # Older Qt or missing libs -- disable GUI control and inform user why
+            qr_combo.setEnabled(False)
+            qr_label.setEnabled(False)
+            qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
+            qr_label.setToolTip(qr_combo.toolTip())
         for cam in system_cameras:
             qr_combo.addItem(cam.description(), cam.deviceName())
         index = qr_combo.findData(self.config.get("video_device"))

@@ -98,10 +98,10 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             # must do this.
             util.print_error("[ScanQRTextEdit] Warning: QR dialog is already presented, ignoring.")
             return
-        from electroncash import get_config
-        from .qrreaderutil import warn_unless_can_import_qrreader
-        if not warn_unless_can_import_qrreader(self):
+        from . import ElectrumGui
+        if ElectrumGui.instance.warn_if_cant_import_qrreader(self):
             return
+        from electroncash import get_config
         from .qrreader import QrReaderCameraDialog
         try:
             self.qr_dialog = QrReaderCameraDialog(parent=self.top_level_window())

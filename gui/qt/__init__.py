@@ -442,6 +442,24 @@ class ElectrumGui(QObject, PrintError):
         self.update_checker_timer.stop()
         self.print_error("Auto update check: disabled")
 
+    def warn_if_cant_import_qrreader(self, parent, show_warning=True):
+        ''' Checks it QR reading from camera is possible.  It can fail on a
+        system lacking QtMultimedia.  This can be removed in the future when
+        we are unlikely to encounter Qt5 installations that are missing
+        QtMultimedia '''
+        try:
+            from .qrreader import QrReaderCameraDialog
+        except (ImportError, ModuleNotFoundError) as e:
+            if show_warning:
+                self.warning(parent=parent,
+                             title=_("QR Reader Error"),
+                             message=_("QR reader failed to load. This may "
+                                       "happen if you are using an older version "
+                                       "of PyQt5.<br><br>Detailed error: ") + str(e),
+                             rich_text=True)
+            return True
+        return False
+
     def warn_if_no_network(self, parent):
         if not self.daemon.network:
             self.warning(message=_('You are using Electron Cash in offline mode; restart Electron Cash if you want to get connected'), title=_('Offline'), parent=parent, rich_text=True)
