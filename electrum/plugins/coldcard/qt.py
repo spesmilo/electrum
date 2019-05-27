@@ -9,7 +9,7 @@ from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet
 from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window
 
-from .coldcard import ColdcardPlugin
+from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 
@@ -183,7 +183,7 @@ class CKCCSettingsDialog(WindowModalDialog):
     def show_values(self, client):
         dev = client.dev
 
-        self.xfp.setText('<tt>0x%08x' % dev.master_fingerprint)
+        self.xfp.setText('<tt>%s' % xfp2str(dev.master_fingerprint))
         self.serial.setText('<tt>%s' % dev.serial)
 
         # ask device for versions: allow extras for future

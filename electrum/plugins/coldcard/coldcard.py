@@ -79,6 +79,12 @@ def xfp_from_xpub(xpub):
     xfp, = unpack('<I', hash_160(kk)[0:4])
     return xfp
 
+def xfp2str(xfp):
+    # Standardized way to show an xpub's fingerprint... it's a 4-byte string
+    # and not really an integer. Used to show as '0x%08x' but that's wrong endian.
+    from binascii import b2a_hex
+
+    return b2a_hex(pack('>I', xfp)).decode('ascii').upper()
 
 class CKCCClient:
     # Challenge: I haven't found anywhere that defines a base class for this 'client',
@@ -105,7 +111,7 @@ class CKCCClient:
         # should expect. It's also kinda slow.
 
     def __repr__(self):
-        return '<CKCCClient: xfp=%08x label=%r>' % (self.dev.master_fingerprint,
+        return '<CKCCClient: xfp=%s label=%r>' % (xfp2str(self.dev.master_fingerprint),
                                                         self.label())
 
     def verify_connection(self, expected_xfp, expected_xpub):
@@ -121,8 +127,8 @@ class CKCCClient:
             # probably indicating programing error, not hacking
             _logger.info(f"xpubs. reported by device: {self.dev.master_xpub}. "
                          f"stored in file: {expected_xpub}")
-            raise RuntimeError("Expecting 0x%08x but that's not what's connected?!" %
-                               expected_xfp)
+            raise RuntimeError("Expecting %s but that's not what's connected?!" %
+                               xfp2str(expected_xfp))
 
         # check signature over session key
         # - mitm might have lied about xfp and xpub up to here
@@ -135,7 +141,7 @@ class CKCCClient:
         _logger.info("Successfully verified against MiTM")
 
     def is_pairable(self):
-        # can't do anything w/ devices that aren't setup (but not normally reachable)
+        # can't do anything w/ devices that aren't setup (this code not normally reachable)
         return bool(self.dev.master_xpub)
 
     def timeout(self, cutoff):
@@ -155,12 +161,12 @@ class CKCCClient:
         # not be encrypted, so better for privacy if based on xpub/fingerprint rather than
         # USB serial number.
         if self.dev.is_simulator:
-            lab = 'Coldcard Simulator 0x%08x' % self.dev.master_fingerprint
+            lab = 'Coldcard Simulator ' + xfp2str(self.dev.master_fingerprint)
         elif not self.dev.master_fingerprint:
             # failback; not expected
             lab = 'Coldcard #' + self.dev.serial
         else:
-            lab = 'Coldcard 0x%08x' % self.dev.master_fingerprint
+            lab = 'Coldcard ' + xfp2str(self.dev.master_fingerprint)
 
         # Hack zone: during initial setup I need the xfp and master xpub but 
         # very few objects are passed between the various steps of base_wizard.
@@ -267,7 +273,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # xpub to verify against MiTM, and also so we can put the right value into the subkey paths
         # of PSBT files that might be generated offline. 
         # - save the fingerprint of the master xpub, as "xfp"
-        # - it's a LE32 int, but hex more natural way to see it
+        # - it's a LE32 int, but hex BE32 is more natural way to view it
         # - device reports these value during encryption setup process
         lab = d['label']
         if hasattr(lab, 'xfp'):
