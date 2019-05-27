@@ -459,3 +459,9 @@ and there is no warning message.
 * Fix #1385 - Auto-switch send tab mode Shuffled/Unshuffled depending on the
   selected coins when doing Coins -> right click -> Spend. (cculianu)
 * Various bugfixes (Axel Gembe, cculianu)
+
+# Release 4.0.5
+
+* Fixed QR scanner quirks on some platforms when failure to configure camera
+  resolution confused the QR scanner a little bit. (Axel Gembe)
+
