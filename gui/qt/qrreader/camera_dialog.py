@@ -74,6 +74,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         self._error_message: str = None
         self._ok_done: bool = False
         self.camera_sc_conn = None
+        self.resolution: QSize = None
 
         self.config = get_config()
 
@@ -257,6 +258,20 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
     def _get_camera_status_name(self, status: QCamera.Status):
         return self._camera_status_names.get(status, _('unknown'))
 
+    def _set_resolution(self, resolution: QSize):
+        self.resolution = resolution
+        self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
+
+        # Initialize the video widget
+        #self.video_widget.setMinimumSize(resolution)  # <-- on macOS this makes it fixed size for some reason.
+        self.resize(720, 540)
+        self.video_overlay.set_crop(self.qr_crop)
+        self.video_overlay.set_resolution(resolution)
+        self.video_layout.set_aspect_ratio(resolution.width() / resolution.height())
+
+        # Set up the crop blur effect
+        self.crop_blur_effect.setCrop(self.qr_crop)
+
     def _on_camera_status_changed(self, status: QCamera.Status):
         if self._ok_done:
             # camera/scan is quitting, abort.
@@ -273,17 +288,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
                 self._error_message = str(e)
                 self.reject()
                 return
-            self.qr_crop = self._get_crop(resolution, self.SCAN_SIZE)
-
-            # Initialize the video widget
-            #self.video_widget.setMinimumSize(resolution)  # <-- on macOS this makes it fixed size for some reason.
-            self.resize(720, 540)
-            self.video_overlay.set_crop(self.qr_crop)
-            self.video_overlay.set_resolution(resolution)
-            self.video_layout.set_aspect_ratio(resolution.width() / resolution.height())
-
-            # Set up the crop blur effect
-            self.crop_blur_effect.setCrop(self.qr_crop)
+            self._set_resolution(resolution)
 
             # Set the camera resolution
             viewfinder_settings = QCameraViewfinderSettings()
@@ -351,6 +356,13 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             return
 
         self.frame_id += 1
+
+        if frame.size() != self.resolution:
+            self.print_error('Getting video data at {}x{} instead of the requested {}x{}, switching resolution.'.format(
+                frame.size().width(), frame.size().height(),
+                self.resolution.width(), self.resolution.height()
+                ))
+            self._set_resolution(frame.size())
 
         flip_x = self.flip_x.isChecked()
 
