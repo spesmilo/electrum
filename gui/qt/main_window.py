@@ -35,7 +35,6 @@ from functools import partial
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtMultimedia import QCameraInfo
 
 from electroncash import keystore, get_config
 from electroncash.address import Address, ScriptOutput
@@ -2681,6 +2680,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.print_error("Warning: QR dialog is already presented, ignoring.")
             return
         from electroncash import get_config
+        from .qrreaderutil import warn_unless_can_import_qrreader
+        if not warn_unless_can_import_qrreader(self):
+            return
         from .qrreader import QrReaderCameraDialog
         data = ''
         self._qr_dialog = None
@@ -3448,14 +3450,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         block_ex_combo.currentIndexChanged.connect(on_be)
         gui_widgets.append((block_ex_label, block_ex_combo))
 
-        system_cameras = QCameraInfo.availableCameras()
         qr_combo = QComboBox()
         qr_combo.addItem("Default","default")
+        try:
+            from PyQt5.QtMultimedia import QCameraInfo
+            system_cameras = QCameraInfo.availableCameras()
+            qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
+        except ModuleNotFoundError as e:
+            qr_combo.setDisabled(True)
+            err = "Unable to probe for cameras on this system. This may be "
+            err += "due to old version of Qt5.<br><br>Detailed error: " + str(e)
+            qr_combo.setToolTip(err)
+            qr_label = HelpLabel(_('Video Device') + ' (disabled):', err);
+            system_cameras = [ ]
+
         for cam in system_cameras:
             qr_combo.addItem(cam.description(), cam.deviceName())
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
