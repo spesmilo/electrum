@@ -69,7 +69,10 @@ base_units = {'SYS':8, 'mSYS':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
 base_units_list = ['SYS', 'mSYS', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+base_asset_units = {'-': 8, 'millis': 5, 'bits': 2, 'toshi': 0}
+base_asset_units_inverse = inv_dict(base_asset_units)
+
+DECIMAL_POINT_DEFAULT = 8  # mBTC
 
 
 class UnknownBaseUnit(Exception): pass
@@ -90,6 +93,25 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+
+def decimal_point_to_base_asset_unit_name(au: str, dp: int) -> str:
+    # e.g. 8 -> "BTC"
+    try:
+        bau = base_units_inverse[dp]
+        bau = "" if bau == "-" else bau
+        return "{}{}".format(au, bau)
+    except KeyError:
+        raise UnknownBaseUnit(dp) from None
+
+
+def base_asset_unit_name_to_decimal_point(au: str, unit_name: str) -> int:
+    # e.g. "BTC" -> 8
+    try:
+        unit_name = unit_name.replace(au, "")
+        unit_name = "-" if unit_name == "" else unit_name
+        return base_units[unit_name]
+    except KeyError:
+        raise UnknownBaseUnit(unit_name) from None
 
 class NotEnoughFunds(Exception):
     def __str__(self):

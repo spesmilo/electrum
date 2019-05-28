@@ -59,6 +59,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate,
+                           decimal_point_to_base_asset_unit_name,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter)
 from electrum.transaction import Transaction, TxOutput
@@ -792,7 +793,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_asset_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, self.num_zeros, self.selected_asset_decimal_point, is_diff=is_diff, whitespaces=whitespaces)
+        return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount):
         text = self.format_amount(amount) + ' '+ self.base_unit()
@@ -812,13 +813,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.decimal_point
 
     def get_asset_decimal_point(self):
-        return self.selected_asset_decimal_point
+        return self.get_decimal_point()
 
     def base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point)
 
     def base_asset_unit(self):
-        return self.selected_asset_symbol
+        return decimal_point_to_base_asset_unit_name(self.decimal_point)
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
 
@@ -902,6 +903,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             else:
                 text = _("Not connected")
             icon = read_QIcon("status_disconnected.png")
+
+        self.populate_asset_picklist()
+        self.do_update_asset_amount()
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
@@ -1460,10 +1464,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_update_asset_amount()
 
     def do_update_asset_amount(self):
+        if self.selected_asset_idx < 0:
+            return
+
         asset_summary = self.wallet.get_assets()
         if len(asset_summary) > self.selected_asset_idx:
             asset_el = asset_summary[self.selected_asset_idx]
-            self.asset_amount_e.setAmount(asset_el['balance']/100000)
+            self.asset_amount_e.setAmount(float(self.format_amount(asset_el['balance'],
+                               whitespaces=True)))
 
     def spend_max(self):
         if run_hook('abort_send', self):
@@ -1603,9 +1611,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.asset_e.clear()
         idx = 0
         for t in self.wallet.get_assets():
-            self.logger.info(f"Asset {t}")
-            self.asset_e.addItem("{} {} ({}:{}) {}".format(t['address'], t['symbol'], t['asset_guid'],
-                                                           t['balance'] / (10**self.get_asset_decimal_point())))
+            self.asset_e.addItem("{} ({}:{}) {}".format( t['address'], t['asset_guid'],
+                                                         t['symbol'], self.format_amount(t['balance'],
+                                                                                         whitespaces=True)))
             if t['asset_guid'] == guid and t['address'] == address:
                 self.selected_asset_idx = idx
                 self.selected_asset_guid = guid
@@ -1779,7 +1787,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not r:
             return
         from_address, to_address, asset_guid, amount, memo = r
-        amount_units = amount / 100000000
+        amount = float(amount) / 100000000
+        self.logger.info("amount: {}".format(amount))
+        amount_units = float(amount) / pow(10, 8 - self.decimal_point)
+        self.logger.info("adjusted amount units: {}".format(amount_units))
+
         try:
             tx_raw = self.wallet.make_unsigned_assetsend_transaction(self.config, from_address, to_address,
                                                                      asset_guid, amount_units, memo)
