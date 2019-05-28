@@ -593,9 +593,9 @@ class ChannelDB(SqlDB):
     def get_channel_info(self, channel_id: bytes):
         return self._channels.get(channel_id)
 
-    def get_channels_for_node(self, node_id):
+    def get_channels_for_node(self, node_id) -> Set[bytes]:
         """Returns the set of channels that have node_id as one of the endpoints."""
-        return self._channels_for_node.get(node_id)
+        return self._channels_for_node.get(node_id) or set()
 
 
 
