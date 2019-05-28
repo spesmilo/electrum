@@ -328,6 +328,9 @@ class Interface(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.log(e.log_level, f"disconnecting due to {repr(e)}")
+            except aiorpcx.jsonrpc.RPCError as e:
+                self.logger.warning(f"disconnecting due to {repr(e)}")
+                self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
@@ -454,8 +457,10 @@ class Interface(Logger):
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
             except aiorpcx.jsonrpc.RPCError as e:
-                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE, JSONRPC.SERVER_BUSY):
-                    raise GracefulDisconnect(e, log_level=logging.ERROR) from e
+                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE,
+                              JSONRPC.SERVER_BUSY,
+                              JSONRPC.METHOD_NOT_FOUND):
+                    raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
 
     async def monitor_connection(self):
