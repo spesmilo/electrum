@@ -76,21 +76,28 @@ if [[ $1 == "close" ]]; then
    new_blocks 1
 fi
 
+# alice sends two payments, then broadcast ctx after first payment.
+# thus, bob needs to redeem both to_local and to_remote
+
 if [[ $1 == "breach" ]]; then
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
-    sleep 3
-    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     new_blocks 6
     sleep 10
     request=$($bob addinvoice 0.01 "blah")
     echo "alice pays"
     $alice lnpay $request
+    sleep 2
+    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    request=$($bob addinvoice 0.01 "blah2")
+    echo "alice pays"
+    $alice lnpay $request
+    sleep 2
     echo "alice broadcasts old ctx"
     $bitcoin_cli sendrawtransaction $ctx
-    sleep 12
+    sleep 10
     new_blocks 2
-    sleep 12
+    sleep 10
     balance=$($bob getbalance | jq '.confirmed | tonumber')
     echo "balance of bob after breach: $balance"
     if (( $(echo "$balance < 0.14" | bc -l) )); then
