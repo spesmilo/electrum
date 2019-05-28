@@ -619,10 +619,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-        raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
-        raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
-        raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
-        raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
+        raw_transaction_menu.addAction(_("From &file"), self.do_process_from_file)
+        raw_transaction_menu.addAction(_("From &text"), self.do_process_from_text)
+        raw_transaction_menu.addAction(_("From the &blockchain"), self.do_process_from_txid)
+        raw_transaction_menu.addAction(_("From &QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
         run_hook('init_menubar_tools', self, tools_menu)
 
