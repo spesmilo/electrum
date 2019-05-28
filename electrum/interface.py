@@ -396,7 +396,7 @@ class Interface(Logger):
             async with _RSClient(session_factory=RPCSession,
                                  host=self.host, port=self.port,
                                  ssl=sslc, proxy=self.proxy) as session:
-                return session.transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
+                return session.transport._asyncio_transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
         except ValueError:
             return None
 
