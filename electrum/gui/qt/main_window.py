@@ -158,6 +158,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.selected_asset_address = None
         self.selected_asset_symbol = None
         self.selected_asset_guid = None
+        self.selected_asset_balance = None
+        self.selected_asset_idx = None
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -225,6 +227,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
+        self.assets_updated_signal.connect(self.update_assets)
+
         self.history_list.setFocus(True)
 
         # network callbacks
@@ -345,7 +349,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.top_level_window_recurse(override, test_func)
 
     def diagnostic_name(self):
-        #return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
         return self.wallet.diagnostic_name()
 
     def is_hidden(self):
@@ -384,18 +387,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.wallet.network and self.wallet.network.is_connected() \
                     and len(self.wallet.get_addresses()) > 0 and self.assets_inited is None:
                 self.assets_inited = True
-                self.network.run_from_a_thread(
-                    self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
-                )
-            self.gui_object.network_updated_signal_obj.network_updated_signal \
-                .emit(event, args)
+                self.update_assets()
+            self.gui_object.network_updated_signal_obj.network_updated_signal.emit(event, args)
             self.network_signal.emit('status', None)
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self.need_update.set()
-            self.network.run_from_a_thread(
-                self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
-            )
+            self.assets_updated_signal.emit()
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -427,9 +425,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.history_model.on_fee_histogram()
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
-            self.network.run_from_a_thread(
-                self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated)
-            )
+            self.update_assets()
         else:
             self.logger.info(f"unexpected network_qt signal: {event} {args}")
 
@@ -476,9 +472,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
-        self.network.run_from_another_thread(
-            wallet.synchronize_assets(wallet.get_addresses(), self.on_assets_updated, notify_flag=False)
-        )
+        self.update_assets()
 
     def init_geometry(self):
         winpos = self.wallet.storage.get("winpos-qt")
@@ -819,7 +813,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return decimal_point_to_base_unit_name(self.decimal_point)
 
     def base_asset_unit(self):
-        return decimal_point_to_base_asset_unit_name(self.decimal_point)
+        return decimal_point_to_base_asset_unit_name(self.selected_asset_symbol, self.decimal_point)
 
     def connect_fields(self, window, btc_e, fiat_e, fee_e):
 
@@ -1467,6 +1461,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.selected_asset_idx < 0:
             return
 
+        self.asset_amount_e.set_token_symbol(self.base_asset_unit())
+
         asset_summary = self.wallet.get_assets()
         if len(asset_summary) > self.selected_asset_idx:
             asset_el = asset_summary[self.selected_asset_idx]
@@ -1619,7 +1615,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.selected_asset_guid = guid
                 self.selected_asset_symbol = t['symbol']
                 self.selected_asset_address = t['address']
-                self.asset_amount_e.set_token_symbol(self.selected_asset_symbol)
+                self.selected_asset_balance = t['balance']
+                self.asset_amount_e.set_token_symbol(self.base_asset_unit())
+                self.asset_amount_e.setAmount(float(self.format_amount(self.selected_asset_balance,
+                                                                       whitespaces=True)))
                 self.asset_e.setCurrentIndex(self.selected_asset_idx)
                 break
             idx = idx + 1
@@ -1999,6 +1998,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
+    def update_assets(self):
+        self.logger.info("ASSET_UPDATE")
+        self.network.run_from_another_thread(
+            self.wallet.synchronize_assets(self.wallet.get_addresses(), self.on_assets_updated, notify_flag=True)
+        )
+
     def query_choice(self, msg, choices):
         # Needed by QtHandler for hardware wallets
         dialog = WindowModalDialog(self.top_level_window())
@@ -2156,6 +2161,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.asset_e.addItem("{} ({}:{}) {}".format( t['address'], t['asset_guid'],
                                                           t['symbol'], self.format_amount(t['balance'],
                                                                                           whitespaces=True)))
+            current_symbol_index = -1
             # set the previously selected item if there was one.. first find its new indexc
             if current_symbol is not None:
                 for idx in range(len(asset_list)):
@@ -2168,15 +2174,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.selected_asset_symbol = asset_list[0]['symbol']
                 self.selected_asset_guid = asset_list[0]['asset_guid']
                 self.selected_asset_address = asset_list[0]['address']
+                self.selected_asset_balance = asset_list[0]['balance']
                 self.selected_asset_idx = 0
 
             if current_symbol_index is not -1:
                 self.asset_e.setCurrentIndex(current_symbol_index)
+                self.asset_amount_e.set_token_symbol(
+                    self.base_asset_unit()
+                )
+                self.asset_amount_e.setAmount(float(self.format_amount(self.selected_asset_balance,
+                                                                       whitespaces=True)))
 
         else:
             self.selected_asset_symbol = None
             self.selected_asset_guid = None
             self.selected_asset_address = None
+            self.selected_asset_balance = 0
             self.selected_asset_idx = -1
 
     def create_send_asset_tab(self):
@@ -2196,13 +2209,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.selected_asset_guid =None
                 self.selected_asset_symbol = None
                 self.selected_asset_address = None
+                self.selected_asset_balance = 0
                 self.asset_amount_e.set_token_symbol('')
-            else:
+            elif state < len(asset_list):
                 self.selected_asset_guid = asset_list[state]['asset_guid']
                 self.selected_asset_symbol = asset_list[state]['symbol']
                 self.selected_asset_address = asset_list[state]['address']
-                self.asset_amount_e.set_token_symbol(self.selected_asset_symbol)
-
+                self.selected_asset_balance = asset_list[state]['balance']
+                self.asset_amount_e.set_token_symbol(self.base_asset_unit())
+                self.asset_amount_e.setAmount(float(self.format_amount(self.selected_asset_balance,
+                                                                       whitespaces=True)))
         self.asset_e = QComboBox(self)
         self.asset_e.currentIndexChanged.connect(toggle_asset_change)
         self.populate_asset_picklist()

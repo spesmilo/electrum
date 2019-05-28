@@ -887,12 +887,16 @@ class Abstract_Wallet(AddressSynchronizer):
                     for x in range(len(self.asset_list)):
                         if asset['asset_guid'] == self.asset_list[x]['asset_guid'] \
                                 and asset['address'] == self.asset_list[x]['address']:
-                            self.asset_list[x] = asset
-                            changed_assets.append(asset)
+                            if asset['balance'] != self.asset_list[x]['balance']:
+                                self.asset_list[x] = asset
+                                changed_assets.append(asset)
                             asset_updated = True
+                            break
+
                     if not asset_updated:
                         self.asset_list.append(asset)
                         changed_assets.append(asset)
+
                 if callback is not None:
                     callback(changed_assets, notify_flag)
                 return changed_assets

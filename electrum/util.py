@@ -97,7 +97,7 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
 def decimal_point_to_base_asset_unit_name(au: str, dp: int) -> str:
     # e.g. 8 -> "BTC"
     try:
-        bau = base_units_inverse[dp]
+        bau = base_asset_units_inverse[dp]
         bau = "" if bau == "-" else bau
         return "{}{}".format(au, bau)
     except KeyError:
