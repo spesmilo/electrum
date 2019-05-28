@@ -39,7 +39,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
-                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving)
+                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY)
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .lnverifier import verify_sig_for_channel_update
@@ -432,7 +432,7 @@ class Peer(Logger):
             htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
             delayed_basepoint=keypair_generator(LnKeyFamily.DELAY_BASE),
             revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
-            to_self_delay=9,
+            to_self_delay=DEFAULT_TO_SELF_DELAY,
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,

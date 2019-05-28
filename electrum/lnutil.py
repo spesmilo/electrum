@@ -100,6 +100,7 @@ class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 
 # TODO make configurable?
+DEFAULT_TO_SELF_DELAY = 144
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
 MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 1
 
