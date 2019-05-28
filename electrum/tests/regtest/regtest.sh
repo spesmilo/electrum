@@ -10,6 +10,11 @@ carol="./run_electrum --regtest --lightning -D /tmp/carol"
 
 bitcoin_cli="bitcoin-cli -rpcuser=doggman -rpcpassword=donkey -rpcport=18554 -regtest"
 
+function new_blocks()
+{
+    $bitcoin_cli generatetoaddress $1 $($bitcoin_cli getnewaddress) > /dev/null
+}
+
 if [[ $# -eq 0 ]]; then
     echo "syntax: init|start|open|status|pay|close|stop"
     exit 1
@@ -23,7 +28,7 @@ if [[ $1 == "init" ]]; then
     $bob setconfig lightning_listen localhost:9735
     $bitcoin_cli sendtoaddress $($alice getunusedaddress) 1
     $bitcoin_cli sendtoaddress $($carol getunusedaddress) 1
-    $bitcoin_cli generatetoaddress 1 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 1
 fi
 
 # start daemons. Bob is started first because he is listening
@@ -48,7 +53,7 @@ if [[ $1 == "open" ]]; then
     channel_id1=$($alice open_channel $bob_node 0.001 --channel_push 0.001)
     channel_id2=$($carol open_channel $bob_node 0.001 --channel_push 0.001)
     echo "mining 3 blocks"
-    $bitcoin_cli generatetoaddress 3 $($bitcoin_cli getnewaddress)
+    new_blocks 3
     sleep 10 # time for channelDB
 fi
 
@@ -68,7 +73,7 @@ if [[ $1 == "close" ]]; then
    $alice close_channel $chan1
    $carol close_channel $chan2
    echo "mining 1 block"
-   $bitcoin_cli generatetoaddress 1 $($bitcoin_cli getnewaddress)
+   new_blocks 1
 fi
 
 if [[ $1 == "breach" ]]; then
@@ -76,13 +81,15 @@ if [[ $1 == "breach" ]]; then
     channel=$($alice open_channel $bob_node 0.15)
     sleep 3
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
-    $bitcoin_cli generatetoaddress 6 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 6
     sleep 10
     request=$($bob addinvoice 0.01 "blah")
+    echo "alice pays"
     $alice lnpay $request
+    echo "alice broadcasts old ctx"
     $bitcoin_cli sendrawtransaction $ctx
     sleep 12
-    $bitcoin_cli generatetoaddress 2 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 2
     sleep 12
     balance=$($bob getbalance | jq '.confirmed | tonumber')
     echo "balance of bob after breach: $balance"
@@ -99,7 +106,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     # alice opens channel
     bob_node=$($bob nodeid)
     $alice open_channel $bob_node 0.15
-    $bitcoin_cli generatetoaddress 6 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 6
     sleep 10
     # alice pays bob
     invoice=$($bob addinvoice 0.05 "test")
@@ -117,12 +124,12 @@ if [[ $1 == "redeem_htlcs" ]]; then
     # alice force closes the channel
     chan_id=$($alice list_channels | jq -r ".[0].channel_point")
     $alice close_channel $chan_id --force
-    $bitcoin_cli generatetoaddress 1 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 1
     sleep 5
     echo "alice balance after closing channel:" $($alice getbalance)
-    $bitcoin_cli generatetoaddress 144 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 144
     sleep 10
-    $bitcoin_cli generatetoaddress 1 $($bitcoin_cli getnewaddress) > /dev/null
+    new_blocks 1
     sleep 10
     echo "alice balance after 144 blocks:" $($alice getbalance)
     balance_after=$($alice getbalance |  jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
