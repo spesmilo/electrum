@@ -239,4 +239,4 @@ class QtPluginBase(object):
         def show_address():
             addr = receive_address_e.text()
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
-        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(plugin.device))
+        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(keystore.label))
