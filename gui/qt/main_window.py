@@ -3804,6 +3804,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for d in list(self._tx_dialogs):
             # clean up all extant tx dialogs we opened as they hold references
             # to us that will be invalidated
+            d.prompt_if_unsaved = False  # make sure to unconditionally close
             d.close()
         self._close_wallet()
 

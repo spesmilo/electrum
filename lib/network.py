@@ -395,11 +395,19 @@ class Network(util.DaemonThread):
         ''' If you want to queue a request on any interface it must go through
         this function so message ids are properly tracked.
         Returns the monotonically increasing message id for this request.
-        May return None if queue is too full (max_qlen).
-        (max_qlen is only considered if callback is not None.)'''
+        May return None if queue is too full (max_qlen). (max_qlen is only
+        considered if callback is not None.)
+
+        Note that the special argument interface='random' will queue the request
+        on a random, currently active (connected) interface.
+
+        Otherwise `interface` should be None or a valid Interface instance.
+        '''
         if interface is None:
             interface = self.interface
-        assert interface, "queue_request: No interface! (request={} params={})".format(method, params)
+        if interface == 'random':
+            interface = random.choice(self.get_interfaces(interfaces=True))
+        assert isinstance(interface, Interface), "queue_request: No interface! (request={} params={})".format(method, params)
         message_id = self.message_id
         self.message_id += 1
         if callback:
@@ -493,10 +501,13 @@ class Network(util.DaemonThread):
         if self.is_connected():
             return self.donation_address
 
-    def get_interfaces(self):
-        '''The interfaces that are in connected state'''
+    def get_interfaces(self, *, interfaces=False):
+        '''Returns the servers that are in connected state. Despite its name,
+        this method does not return the actual interfaces unless interfaces=True,
+        but rather returns the server:50002:s style string. '''
         with self.interface_lock:
-            return list(self.interfaces.keys())
+            return list(self.interfaces.values() if interfaces
+                        else self.interfaces.keys())
 
     def get_servers(self):
         out = networks.net.DEFAULT_SERVERS.copy()
@@ -774,9 +785,7 @@ class Network(util.DaemonThread):
                 client_req = self.unanswered_requests.pop(message_id, None)
                 if client_req:
                     if interface != self.interface:
-                        self.print_error(("Got a 'client' response from an interface '{}' that is not self.interface '{}'"
-                                          + " (Probably the default server has been switched).")
-                                         .format(interface, self.interface))
+                        self.print_error("advisory: response from non-primary {}".format(interface))
                     callbacks = [client_req[2]]
                 else:
                     # fixme: will only work for subscriptions
@@ -1622,7 +1631,7 @@ class Network(util.DaemonThread):
         try:
             r = q.get(True, timeout)
         except queue.Empty:
-            raise BaseException('Server did not answer')
+            raise util.TimeoutException('Server did not answer')
         if r.get('error'):
             raise util.ServerError(r.get('error'))
         return r.get('result')

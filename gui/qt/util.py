@@ -822,9 +822,20 @@ class RateLimiter(PrintError):
     def kill_timer(self):
         if self.timer:
             #self.print_error("deleting timer")
-            self.timer.stop()
-            self.timer.deleteLater()
-            self.timer = None
+            try:
+                self.timer.stop()
+                self.timer.deleteLater()
+            except RuntimeError as e:
+                if 'c++ object' in str(e).lower():
+                    # This can happen if the attached object which actually owns
+                    # QTimer is deleted by Qt before this call path executes.
+                    # This call path may be executed from a queued connection in
+                    # some circumstances, hence the crazyness (I think).
+                    self.print_error("advisory: QTimer was already deleted by Qt, ignoring...")
+                else:
+                    raise
+            finally:
+                self.timer = None
 
     @classmethod
     def attr_name(cls, func): return "__{}__{}".format(func.__name__, cls.__name__)

@@ -26,7 +26,6 @@
 import sys
 import copy
 import datetime
-from functools import partial
 import json
 
 from PyQt5.QtCore import *
@@ -38,7 +37,7 @@ from electroncash.bitcoin import base_encode
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
 
-from electroncash.util import bfh, Weak
+from electroncash.util import bfh, Weak, PrintError
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
@@ -57,7 +56,10 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
     d.show()
     return d
 
-class TxDialog(QDialog, MessageBoxMixin):
+class TxDialog(QDialog, MessageBoxMixin, PrintError):
+
+    throttled_update_sig = pyqtSignal()  # connected to self.throttled_update -- emit from thread to do update in main thread
+    dl_done_sig = pyqtSignal()  # connected to an inner function to get a callback in main thread upon dl completion
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -76,6 +78,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
         self.cashaddr_signal_slots = []
+        self._dl_pct = None
+        self._closed = False
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -138,12 +142,56 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
+
+        self.throttled_update_sig.connect(self.throttled_update, Qt.QueuedConnection)
+        self.initiate_fetch_input_data(True)
+
         self.update()
 
         # connect slots so we update in realtime as blocks come in, etc
         parent.history_updated_signal.connect(self.update_tx_if_in_wallet)
         parent.labels_updated_signal.connect(self.update_tx_if_in_wallet)
         parent.network_signal.connect(self.got_verified_tx)
+
+    def initiate_fetch_input_data(self, force):
+        weakSelfRef = Weak.ref(self)
+        def dl_prog(pct):
+            slf = weakSelfRef()
+            if slf:
+                slf._dl_pct = pct
+                slf.throttled_update_sig.emit()
+        def dl_done():
+            slf = weakSelfRef()
+            if slf:
+                slf._dl_pct = None
+                slf.throttled_update_sig.emit()
+                slf.dl_done_sig.emit()
+        dl_retries = 0
+        def dl_done_mainthread():
+            nonlocal dl_retries
+            slf = weakSelfRef()
+            if slf:
+                if slf._closed:
+                    return
+                dl_retries += 1
+                fee = slf.try_calculate_fee()
+                if fee is None and dl_retries < 2:
+                    if not self.is_fetch_input_data():
+                        slf.print_error("input fetch incomplete; network use is disabled in GUI")
+                        return
+                    # retry at most once -- in case a slow server scrwed us up
+                    slf.print_error("input fetch appears incomplete; retrying download once ...")
+                    slf.tx.fetch_input_data(self.wallet, done_callback=dl_done, prog_callback=dl_prog, force=True, use_network=self.is_fetch_input_data())  # in this case we reallly do force
+                elif fee is not None:
+                    slf.print_error("input fetch success")
+                else:
+                    slf.print_error("input fetch failed")
+        try: self.dl_done_sig.disconnect()  # disconnect previous
+        except TypeError: pass
+        self.dl_done_sig.connect(dl_done_mainthread, Qt.QueuedConnection)
+        self.tx.fetch_input_data(self.wallet, done_callback=dl_done, prog_callback=dl_prog, force=force, use_network=self.is_fetch_input_data())
+
+
 
     def got_verified_tx(self, event, args):
         if event == 'verified' and args[0] == self.tx.txid():
@@ -168,6 +216,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             event.ignore()
         else:
             event.accept()
+            self._closed = True
+            self.tx.fetch_cancel()
             parent = self.main_window
             if parent:
                 # clean up connections so window gets gc'd
@@ -181,6 +231,11 @@ class TxDialog(QDialog, MessageBoxMixin):
                     try: parent.cashaddr_toggled_signal.disconnect(slot)
                     except TypeError: pass
                 self.cashaddr_signal_slots = []
+
+            __class__._pyqt_bug_gc_workaround = self  # <--- keep this object alive in PyQt until at least after this event handler completes. This is because on some platforms Python deletes the C++ object right away inside this event handler (QObject with no parent) -- which crashes Qt!
+            def clr_workaround():
+                __class__._pyqt_bug_gc_workaround = None
+            QTimer.singleShot(0, clr_workaround)
 
             try:
                 dialogs.remove(self)
@@ -235,6 +290,23 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_message(_("Transaction saved successfully"))
             self.saved = True
 
+    @rate_limited(0.5, ts_after=True)
+    def throttled_update(self):
+        if not self._closed:
+            self.update()
+
+    def try_calculate_fee(self):
+        ''' Try and compute fee by summing all the input values and subtracting
+        the output values. We don't always have 'value' in all the inputs,
+        so in that case None will be returned. '''
+        fee = None
+        try:
+            fee = self.tx.get_fee()
+        except (KeyError, TypeError, ValueError):
+            # 'value' key missing or bad from an input
+            pass
+        return fee
+
     def update(self):
         desc = self.desc
         base_unit = self.main_window.base_unit()
@@ -248,10 +320,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.sign_button.setEnabled(can_sign)
         self.tx_hash_e.setText(tx_hash or _('Unknown'))
         if fee is None:
-            try:
-                fee = self.tx.get_fee() # Try and compute fee. We don't always have 'value' in all the inputs though. :/
-            except KeyError: # Value key missing from an input
-                pass
+            fee = self.try_calculate_fee()
         if desc is None:
             self.tx_desc.hide()
         else:
@@ -276,17 +345,34 @@ class TxDialog(QDialog, MessageBoxMixin):
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         size_str = _("Size:") + ' %d bytes'% size
-        fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
-        dusty_fee = self.tx.ephemeral.get('dust_to_fee', 0)
+        fee_str = _("Fee") + ": "
         if fee is not None:
+            fee_str += format_amount(fee) + ' ' + base_unit
             fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
+            dusty_fee = self.tx.ephemeral.get('dust_to_fee', 0)
             if dusty_fee:
                 fee_str += ' <font color=#999999>' + (_("( %s in dust was added to fee )") % format_amount(dusty_fee)) + '</font>'
+        elif self._dl_pct is not None:
+            fee_str = _('Downloading input data, please wait...') + ' {:.0f}%'.format(self._dl_pct)
+        else:
+            fee_str += _("unknown")
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
-        self.update_io(self.i_text, self.o_text)
+        self.update_io()
         run_hook('transaction_dialog_update', self)
+
+    def is_fetch_input_data(self):
+        return bool(self.wallet.network and self.main_window.config.get('fetch_input_data', False))
+
+    def set_fetch_input_data(self, b):
+        self.main_window.config.set_key('fetch_input_data', bool(b))
+        if self.is_fetch_input_data():
+            self.initiate_fetch_input_data(bool(self.try_calculate_fee() is None))
+        else:
+            self.tx.fetch_cancel()
+            self._dl_pct = None  # makes the "download progress" thing clear
+            self.update()
 
     def add_io(self, vbox):
         if self.tx.locktime > 0:
@@ -296,6 +382,17 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox.setContentsMargins(0,0,0,0)
 
         hbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
+
+
+        hbox.addSpacerItem(QSpacerItem(20, 0))  # 20 px padding
+        self.dl_input_chk = chk = QCheckBox(_("Download input data"))
+        chk.setChecked(self.is_fetch_input_data())
+        chk.clicked.connect(self.set_fetch_input_data)
+        hbox.addWidget(chk)
+        hbox.addStretch(1)
+        if not self.wallet.network:
+            # it makes no sense to enable this checkbox if the network is offline
+            chk.setHidden(True)
 
         self.schnorr_label = QLabel(_('{} = Schnorr signed').format(SCHNORR_SIGIL))
         self.schnorr_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
@@ -312,18 +409,18 @@ class TxDialog(QDialog, MessageBoxMixin):
         i_text.setReadOnly(True)
         vbox.addWidget(i_text)
 
-
         vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
         self.o_text = o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
         vbox.addWidget(o_text)
-        slot = partial(self.update_io, i_text, o_text)
-        self.cashaddr_signal_slots.append(slot)
-        self.main_window.cashaddr_toggled_signal.connect(slot)
-        self.update_io(i_text, o_text)
+        self.cashaddr_signal_slots.append(self.update_io)
+        self.main_window.cashaddr_toggled_signal.connect(self.update_io)
+        self.update_io()
 
-    def update_io(self, i_text, o_text):
+    def update_io(self):
+        i_text = self.i_text
+        o_text = self.o_text
         ext = QTextCharFormat()
         rec = QTextCharFormat()
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
@@ -343,7 +440,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         i_text.clear()
         cursor = i_text.textCursor()
         has_schnorr = False
-        for i, x in enumerate(self.tx.inputs()):
+        for i, x in enumerate(self.tx.fetched_inputs() or self.tx.inputs()):
             if x['type'] == 'coinbase':
                 cursor.insertText('coinbase')
             else:
@@ -351,9 +448,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 prevout_n = x.get('prevout_n')
                 cursor.insertText(prevout_hash[0:8] + '...', ext)
                 cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
-                addr = x['address']
-                if isinstance(addr, PublicKey):
-                    addr = addr.toAddress()
+                addr = x.get('address')
                 if addr is None:
                     addr_text = _('unknown')
                 else:
@@ -366,7 +461,6 @@ class TxDialog(QDialog, MessageBoxMixin):
                     cursor.insertText(' {}'.format(SCHNORR_SIGIL), ext)
                     has_schnorr = True
             cursor.insertBlock()
-
 
         self.schnorr_label.setVisible(has_schnorr)
 

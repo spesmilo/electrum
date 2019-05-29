@@ -28,11 +28,13 @@
 # Note: The deserialization code originally comes from ABE.
 
 from .util import print_error, profiler
+from .caches import ExpiringCache
 
 from .bitcoin import *
 from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
                       UnknownAddress, OpCodes as opcodes)
 from . import schnorr
+from . import util
 import struct
 import warnings
 
@@ -438,10 +440,17 @@ class Transaction:
         # read this dict.
         self.output_info = dict()
 
-        # Ephemeral meta-data used internally to keep track of interesting things.
-        # This is currently written-to by coinchooser to tell UI code about 'dust_to_fee', which
-        # is change that's too small to go to change outputs (below dust threshold) and needed
-        # to go to the fee. Values in this dict are advisory only and may or may not always be there!
+        # Ephemeral meta-data used internally to keep track of interesting
+        # things. This is currently written-to by coinchooser to tell UI code
+        # about 'dust_to_fee', which is change that's too small to go to change
+        # outputs (below dust threshold) and needed to go to the fee.
+        #
+        # It is also used to store the 'fetched_inputs' which are asynchronously
+        # retrieved inputs (by retrieving prevout_hash tx's), see
+        #`fetch_input_data`.
+        #
+        # Values in this dict are advisory only and may or may not always be
+        # there!
         self.ephemeral = dict()
 
     def set_sign_schnorr(self, b):
@@ -756,7 +765,7 @@ class Transaction:
         self.raw = None
 
     def input_value(self):
-        return sum(x['value'] for x in self.inputs())
+        return sum(x['value'] for x in (self.fetched_inputs() or self.inputs()))
 
     def output_value(self):
         return sum(val for tp, addr, val in self.outputs())
@@ -901,6 +910,261 @@ class Transaction:
             'final': self.is_final(),
         }
         return out
+
+    # This cache stores foreign (non-wallet) tx's we fetched from the network
+    # for the purposes of the "fetch_input_data" mechanism. Its max size has
+    # been thoughtfully calibrated to provide a decent tradeoff between
+    # memory consumption and UX.
+    #
+    # In even aggressive/pathological cases this cache won't ever exceed
+    # 100MB even when full. [see ExpiringCache.size_bytes() to test it].
+    # This is acceptable considering this is Python + Qt and it eats memory
+    # anyway.. and also this is 2019 ;). Note that all tx's in this cache
+    # are in the non-deserialized state (hex encoded bytes only) as a memory
+    # savings optimization.  Please maintain that invariant if you modify this
+    # code, otherwise the cache may grow to 10x memory consumption if you
+    # put deserialized tx's in here.
+    _fetched_tx_cache = ExpiringCache(maxlen=1000, name="TransactionFetchCache")
+
+    def fetch_input_data(self, wallet, done_callback=None, done_args=tuple(),
+                         prog_callback=None, *, force=False, use_network=True):
+        '''
+        Fetch all input data and put it in the 'ephemeral' dictionary, under
+        'fetched_inputs'. This call potentially initiates fetching of
+        prevout_hash transactions from the network for all inputs to this tx.
+
+        The fetched data is basically used for the Transaction dialog to be able
+        to display fee, actual address, and amount (value) for tx inputs.
+
+        `wallet` should ideally have a network object, but this function still
+        will work and is still useful if it does not.
+
+        `done_callback` is called with `done_args` (only if True was returned),
+        upon completion. Note that done_callback won't be called if this function
+        returns False. Also note that done_callback runs in a non-main thread
+        context and as such, if you want to do GUI work from within it, use
+        the appropriate Qt signal/slot mechanism to dispatch work to the GUI.
+
+        `prog_callback`, if specified, is called periodically to indicate
+        progress after inputs are retrieved, and it is passed a single arg,
+        "percent" (eg: 5.1, 10.3, 26.3, 76.1, etc) to indicate percent progress.
+
+        Note 1: Results (fetched transactions) are cached, so subsequent
+        calls to this function for the same transaction are cheap.
+
+        Note 2: Multiple, rapid calls to this function will cause the previous
+        asynchronous fetch operation (if active) to be canceled and only the
+        latest call will result in the invocation of the done_callback if/when
+        it completes.
+        '''
+        if not self._inputs:
+            return False
+        if force:
+            # forced-run -- start with empty list
+            inps = []
+        else:
+            # may be a new list or list that was already in dict
+            inps = self.fetched_inputs(require_complete = True)
+        if len(self._inputs) == len(inps):
+            # we already have results, don't do anything.
+            return False
+        eph = self.ephemeral
+        eph['fetched_inputs'] = inps = inps.copy()  # paranoia: in case another thread is running on this list
+        # Lazy imports to keep this functionality very self-contained
+        # These modules are always available so no need to globally import them.
+        import threading
+        import queue
+        import time
+        from copy import deepcopy
+        from collections import defaultdict
+        t0 = time.time()
+        t = None
+        tx_cache = __class__._fetched_tx_cache
+        def doIt():
+            '''
+            This function is seemingly complex, but it's really conceptually
+            simple:
+            1. Fetch all prevouts either from cache (wallet or global tx_cache)
+            2. Or, if they aren't in either cache, then we will asynchronously
+               queue the raw tx gets to the network in parallel, across *all*
+               our connected servers. This is very fast, and spreads the load
+               around.
+
+            Tested with a huge tx of 600+ inputs all coming from different
+            prevout_hashes on mainnet, and it's super fast:
+            cd8fcc8ad75267ff9ad314e770a66a9e871be7882b7c05a7e5271c46bfca98bc '''
+            last_prog = -9999.0
+            need_dl_txids = defaultdict(list)  # the dict of txids we will need to download (wasn't in cache)
+            def prog(i, prog_total=100):
+                ''' notify interested code about progress '''
+                nonlocal last_prog
+                if prog_callback:
+                    prog = ((i+1)*100.0)/prog_total
+                    if prog - last_prog > 5.0:
+                        prog_callback(prog)
+                        last_prog = prog
+            while eph.get('_fetch') == t and len(inps) < len(self._inputs):
+                i = len(inps)
+                inp = deepcopy(self._inputs[i])
+                typ, prevout_hash, n, addr, value = inp.get('type'), inp.get('prevout_hash'), inp.get('prevout_n'), inp.get('address'), inp.get('value')
+                if not prevout_hash or n is None:
+                    raise RuntimeError('Missing prevout_hash and/or prevout_n')
+                if typ != 'coinbase' and (not isinstance(addr, Address) or value is None):
+                    tx = tx_cache.get(prevout_hash) or wallet.transactions.get(prevout_hash)
+                    if tx:
+                        # Tx was in cache or wallet.transactions, proceed
+                        # note that the tx here should be in the "not
+                        # deserialized" state
+                        if tx.raw:
+                            # Note we deserialize a *copy* of the tx so as to
+                            # save memory.  We do not want to deserialize the
+                            # cached tx because if we do so, the cache will
+                            # contain a deserialized tx which will take up
+                            # several times the memory when deserialized due to
+                            # Python's memory use being less efficient than the
+                            # binary-only raw bytes.  So if you modify this code
+                            # do bear that in mind.
+                            tx = Transaction(tx.raw)
+                            try:
+                                tx.deserialize()
+                                # The below txid check eats up CPU. We'll forego the
+                                # paranoia in favor of performance, hence why it's
+                                # commented-out.
+                                #txid = tx.txid()
+                                #if txid != prevout_hash: # sanity check
+                                #    print_error("fetch_input_data: cached prevout_hash {} != tx.txid() {}, ignoring.".format(prevout_hash, txid))
+                            except Exception as e:
+                                print_error("fetch_input_data: WARNING failed to deserialize {}: {}".format(prevout_hash, repr(e)))
+                                tx = None
+                        else:
+                            tx = None
+                            print_error("fetch_input_data: WARNING cached tx lacked any 'raw' bytes for {}".format(prevout_hash))
+                    # now, examine the deserialized tx, if it's still good
+                    if tx:
+                        if n < len(tx.outputs()):
+                            outp = tx.outputs()[n]
+                            addr, value = outp[1], outp[2]
+                            inp['value'] = value
+                            inp['address'] = addr
+                            print_error("fetch_input_data: fetched cached", i, addr, value)
+                        else:
+                            print_error("fetch_input_data: ** FIXME ** should never happen -- n={} >= len(tx.outputs())={} for prevout {}".format(n, len(tx.outputs()), prevout_hash))
+                    else:
+                        # tx was not in cache or wallet.transactions, mark
+                        # it for download below (this branch can also execute
+                        # in the unlikely case where there was an error above)
+                        need_dl_txids[prevout_hash].append((i, n))  # remember the input# as well as the prevout_n
+
+                inps.append(inp) # append either cached result or as-yet-incomplete copy of _inputs[i]
+            # Now, download the tx's we didn't find above if network is available
+            # and caller said it's ok to go out ot network.. otherwise just return
+            # what we have
+            if use_network and eph.get('_fetch') == t and wallet.network and need_dl_txids:
+                try:  # the whole point of this try block is the `finally` way below...
+                    prog(-1)  # tell interested code that progress is now 0%
+                    # Next, queue the transaction.get requests, spreading them
+                    # out randomly over the connected interfaces
+                    q = queue.Queue()
+                    q_ct = 0
+                    def put_in_queue_and_cache(r):
+                        ''' we cache the results directly in the network callback
+                        as even if the user cancels the operation, we would like
+                        to save the returned tx in our cache, since we did the
+                        work to retrieve it anyway. '''
+                        q.put(r)  # put the result in the queue no matter what it is
+                        try:
+                            # Below will raise if response was 'error' or
+                            # otherwise invalid. Note: for performance reasons
+                            # we don't validate the tx here or deserialize it as
+                            # this function runs in the network thread and we
+                            # don't want to eat up that thread's CPU time
+                            # needlessly. Also note the cache doesn't store
+                            # deserializd tx's so as to save memory. We
+                            # always deserialize a copy when reading the cache.
+                            tx = Transaction(r['result'])
+                            txid = r['params'][0]
+                            tx_cache.put(txid, tx)  # save tx to cache here
+                        except:
+                            # response was not valid, ignore (don't cache)
+                            pass
+                    for txid, l in need_dl_txids.items():
+                        wallet.network.queue_request('blockchain.transaction.get', [txid],
+                                                     interface='random',
+                                                     callback=put_in_queue_and_cache)
+                        q_ct += 1
+                    class ErrorResp(Exception):
+                        pass
+                    for i in range(q_ct):
+                        # now, read the q back, with a 10 second timeout, and
+                        # populate the inputs
+                        try:
+                            r = q.get(timeout=10)
+                            if eph.get('_fetch') != t:
+                                # early abort from func, canceled
+                                break
+                            if r.get('error'):
+                                raise ErrorResp(r.get('error').get('message'))
+                            rawhex = r['result']
+                            txid = r['params'][0]
+                            tx = Transaction(rawhex); tx.deserialize()
+                            assert tx and txid == tx.txid()  # protection against phony responses
+                            for item in need_dl_txids[txid]:
+                                ii, n = item
+                                assert n < len(tx.outputs())
+                                outp = tx.outputs()[n]
+                                addr, value = outp[1], outp[2]
+                                inps[ii]['value'] = value
+                                inps[ii]['address'] = addr
+                                print_error("fetch_input_data: fetched from network", ii, addr, value)
+                            prog(i, q_ct)  # tell interested code of progress
+                        except queue.Empty:
+                            print_error("fetch_input_data: timed out after 10.0s fetching from network, giving up.")
+                            break
+                        except (AssertionError, ValueError, TypeError, KeyError, IndexError, ErrorResp) as e:
+                            print_error("fetch_input_data:", repr(e))
+                finally:
+                    # force-cancel any extant requests -- this is especially
+                    # crucial on error/timeout/failure.
+                    wallet.network.cancel_requests(put_in_queue_and_cache)
+            if len(inps) == len(self._inputs) and eph.get('_fetch') == t:  # sanity check
+                eph.pop('_fetch', None)  # potential race condition here, popping wrong t -- but in practice w/ CPython threading it won't matter
+                print_error("fetch_input_data: elapsed {} sec".format(time.time()-t0))
+                if done_callback:
+                    done_callback(*done_args)
+        # /doIt
+        t = threading.Thread(target=doIt, daemon=True)
+        eph['_fetch'] = t
+        t.start()
+        return True
+
+    def fetched_inputs(self, *, require_complete=False):
+        ''' Returns the complete list of asynchronously fetched inputs for
+        this tx, if they exist. If the list is not yet fully retrieved, and
+        require_complete == False, returns what it has so far
+        (the returned list will always be exactly equal to len(self._inputs),
+        with not-yet downloaded inputs coming from self._inputs and not
+        necessarily containing a good 'address' or 'value').
+
+        If the download failed completely or was never started, will return the
+        empty list [].
+
+        Note that some inputs may still lack key: 'value' if there was a network
+        error in retrieving them or if the download is still in progress.'''
+        if self._inputs:
+            ret = self.ephemeral.get('fetched_inputs') or []
+            diff = len(self._inputs) - len(ret)
+            if diff > 0 and self.ephemeral.get('_fetch') and not require_complete:
+                # in progress.. so return what we have so far
+                return ret + self._inputs[len(ret):]
+            elif diff == 0 and (not require_complete or not self.ephemeral.get('_fetch')):
+                # finished *or* in-progress and require_complete==False
+                return ret
+        return []
+
+    def fetch_cancel(self) -> bool:
+        ''' Cancels the currently-active running fetch operation, if any '''
+        return bool(self.ephemeral.pop('_fetch', None))
+
 
 
 def tx_from_str(txt):
