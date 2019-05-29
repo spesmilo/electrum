@@ -577,6 +577,8 @@ class LNWallet(LNWorker):
             if args[0] != lnwatcher:
                 return
         for chan in channels:
+            if chan.is_closed():
+                continue
             if chan.get_state() in ["OPEN", "DISCONNECTED"] and self.is_dangerous(chan):
                 await self.force_close_channel(chan.channel_id)
                 continue
