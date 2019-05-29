@@ -457,9 +457,8 @@ class Channel(Logger):
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
         sweeptxs = create_sweeptxs_for_their_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
-        for prev_txid, tx in sweeptxs.items():
-            if tx is not None:
-                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, str(tx))
+        for tx in sweeptxs:
+            self.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")

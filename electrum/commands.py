@@ -780,8 +780,8 @@ class Commands:
         self.lnworker.reestablish_channel()
 
     @command('wn')
-    def lnpay(self, invoice):
-        return self.lnworker.pay(invoice, timeout=10)
+    def lnpay(self, invoice, timeout=10):
+        return self.lnworker.pay(invoice, timeout=timeout)
 
     @command('wn')
     def addinvoice(self, requested_amount, message):

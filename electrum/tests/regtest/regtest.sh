@@ -107,7 +107,7 @@ fi
 
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob daemon stop
-    ELECTRUM_DEBUG_LIGHTNING_DO_NOT_SETTLE=1 $bob daemon -s 127.0.0.1:51001:t start
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
     sleep 1
     # alice opens channel
@@ -117,11 +117,11 @@ if [[ $1 == "redeem_htlcs" ]]; then
     sleep 10
     # alice pays bob
     invoice=$($bob addinvoice 0.05 "test")
-    $alice lnpay $invoice || true
+    $alice lnpay $invoice --timeout=1 || true
     sleep 1
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
-	echo 'DO_NOT_SETTLE did not work'
+	echo 'SETTLE_DELAY did not work'
         exit 1
     fi
     # bob goes away
@@ -141,6 +141,49 @@ if [[ $1 == "redeem_htlcs" ]]; then
     echo "alice balance after 144 blocks:" $($alice getbalance)
     balance_after=$($alice getbalance |  jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     if (( $(echo "$balance_before - $balance_after > 0.02" | bc -l) )); then
+	echo "htlc not redeemed."
+	exit 1
+    fi
+fi
+
+
+if [[ $1 == "breach_with_htlc" ]]; then
+    $bob daemon stop
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    $bob daemon load_wallet
+    sleep 1
+    # alice opens channel
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15)
+    new_blocks 6
+    sleep 5
+    # alice pays bob
+    invoice=$($bob addinvoice 0.05 "test")
+    echo "alice pays bob"
+    $alice lnpay $invoice --timeout=1 || true
+    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
+    if [[ "$settled" != "0" ]]; then
+	echo 'SETTLE_DELAY did not work'
+        exit 1
+    fi
+    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    sleep 3
+    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
+    if [[ "$settled" != "1" ]]; then
+	echo 'SETTLE_DELAY did not work'
+        exit 1
+    fi
+    echo $($bob getbalance)
+    echo "alice breaches with old ctx"
+    echo $ctx
+    $bitcoin_cli sendrawtransaction $ctx
+    new_blocks 1
+    sleep 10
+    new_blocks 1
+    sleep 1
+    echo $($bob getbalance)
+    balance_after=$($bob getbalance | jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
+    if (( $(echo "$balance_after < 0.14" | bc -l) )); then
 	echo "htlc not redeemed."
 	exit 1
     fi
