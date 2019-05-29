@@ -83,6 +83,13 @@ class Ledger_Client():
     def has_usable_connection_with_device(self):
         try:
             self.dongleObject.getFirmwareVersion()
+        except BTChipException as e:
+            if e.sw == 0x6700:
+                # When Ledger is in the app selection menu, getting the firmware version results
+                # in 0x6700 being returned. Getting an error code back means we can actually
+                # communicate with the device, so we return True here.
+                return True
+            return False
         except BaseException:
             return False
         return True
