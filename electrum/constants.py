@@ -133,7 +133,7 @@ class SyscoinMainnet(AbstractNet):
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
 
-    GENESIS = "00000448444b0b3ddf48863024870d158bf48ce7f02a1d3093b01a84c1c1da42"
+    GENESIS = "000001cab6418dbdbdc0255b5216938d0b1d93e9c4fbce43a1a8886eb2b4356f"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
         "legion.local": {
