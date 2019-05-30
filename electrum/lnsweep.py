@@ -264,11 +264,11 @@ def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
             return {}
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
+        other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey, per_commitment_secret)
     else:
         return {}
     # prep
     other_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, their_pcp)
-    other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey, per_commitment_secret)
     other_htlc_privkey = derive_privkey(secret=int.from_bytes(other_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
     other_htlc_privkey = ecc.ECPrivkey.from_secret_scalar(other_htlc_privkey)
     this_htlc_pubkey = derive_pubkey(this_conf.htlc_basepoint.pubkey, their_pcp)
