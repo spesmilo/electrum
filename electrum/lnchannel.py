@@ -806,18 +806,3 @@ class Channel(Logger):
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
         return tx
-
-    def included_htlcs_in_their_latest_ctxs(self, htlc_initiator) -> Dict[int, List[UpdateAddHtlc]]:
-        """ A map from commitment number to list of HTLCs in
-            their latest two commitment transactions.
-            The oldest might have been revoked.  """
-        assert type(htlc_initiator) is HTLCOwner
-        direction = RECEIVED if htlc_initiator == LOCAL else SENT
-        old_ctn = self.config[REMOTE].ctn
-        old_htlcs  = self.included_htlcs(REMOTE, direction, ctn=old_ctn)
-
-        new_ctn = self.config[REMOTE].ctn+1
-        new_htlcs  = self.included_htlcs(REMOTE, direction, ctn=new_ctn)
-
-        return {old_ctn: old_htlcs,
-                new_ctn: new_htlcs, }
