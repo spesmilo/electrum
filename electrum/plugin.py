@@ -423,6 +423,7 @@ class DeviceMgr(ThreadJob, PrintError):
             self._close_client(id_)
 
     def _close_client(self, id_):
+        print_error("[DeviceMgr] _close_client: id:"+str(id_))
         client = self.client_lookup(id_)
         self.clients.pop(client, None)
         if client:
@@ -433,6 +434,7 @@ class DeviceMgr(ThreadJob, PrintError):
             self.xpub_ids[xpub] = id_
 
     def client_lookup(self, id_):
+        print_error("[DeviceMgr] client_lookup: id:"+str(id_))#debugSatochip
         with self.lock:
             for client, (path, client_id) in self.clients.items():
                 if client_id == id_:
@@ -508,7 +510,7 @@ class DeviceMgr(ThreadJob, PrintError):
                               include_failing_clients=False):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
-        print_error("[plugins] DeviceMgr: unpaired_device_infos(): plugin:"+plugin.name+" nb_devices:"+str(len(devices)))#debugSatochip
+        #print_error("[plugins] DeviceMgr: unpaired_device_infos(): plugin:"+plugin.name+" nb_devices:"+str(len(devices)))#debugSatochip
         if not plugin.libraries_available:
             message = plugin.get_library_not_available_message()
             raise Exception(message)
@@ -604,7 +606,7 @@ class DeviceMgr(ThreadJob, PrintError):
 
     def scan_devices(self):
         self.print_error("scanning devices...")
-
+        
         # First see what's connected that we know about
         devices = self._scan_devices_with_hid()
 

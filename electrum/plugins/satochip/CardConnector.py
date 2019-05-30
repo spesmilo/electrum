@@ -1,6 +1,8 @@
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
-from smartcard.CardConnectionObserver import ConsoleCardConnectionObserver
+#from smartcard.CardConnectionObserver import ConsoleCardConnectionObserver
+from smartcard.CardConnectionObserver import CardConnectionObserver
+from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.Exceptions import CardConnectionException, CardRequestTimeoutException
 from smartcard.util import toHexString, toBytes
 from smartcard.sw.SWExceptions import SWException
@@ -12,11 +14,52 @@ from electrum.util import print_error
 from electrum.ecc import ECPubkey, msg_magic
 from electrum.i18n import _
 
+import base64
+
+# simple observer that will print on the console the card connection events.
+class LogCardConnectionObserver( CardConnectionObserver ):
+    def update( self, cardconnection, ccevent ):    
+        if 'connect'==ccevent.type:
+            print_error( 'connecting to ' + cardconnection.getReader())
+        elif 'disconnect'==ccevent.type:
+            print_error( 'disconnecting from ' + cardconnection.getReader())
+        elif 'command'==ccevent.type:
+            print_error( '> ', toHexString( ccevent.args[0] ))
+        elif 'response'==ccevent.type:
+            if []==ccevent.args[0]:
+                print_error( '< [] ', "%-2X %-2X" % tuple(ccevent.args[-2:]))
+            else:
+                print_error('< ', toHexString(ccevent.args[0]), "%-2X %-2X" % tuple(ccevent.args[-2:]))
+
+# a simple card observer that detects inserted/removed cards
+class RemovalObserver(CardObserver):
+    """A simple card observer that is notified
+    when cards are inserted/removed from the system and
+    prints the list of cards
+    """
+    def __init__(self, parent):
+        self.parent=parent
+    
+    def update(self, observable, actions):
+        (addedcards, removedcards) = actions
+        for card in addedcards:
+            print_error("+Inserted: ", toHexString(card.atr))     
+            self.parent.client.handler.update_status(True)            
+        for card in removedcards:
+            print_error("-Removed: ", toHexString(card.atr))
+            self.parent.pin= None #reset PIN
+            self.parent.pin_nbr= None
+            self.parent.client.handler.update_status(False)
+
 class CardConnector:
     
     # Satochip supported version tuple
+    # v0.4: getBIP32ExtendedKey also returns chaincode
+    # v0.5: Support for Segwit transaction
+    # v0.6: bip32 optimization: speed up computation during derivation of non-hardened child 
+    # v0.7: add 2-Factor-Authentication (2FA) support
     SATOCHIP_PROTOCOL_MAJOR_VERSION=0
-    SATOCHIP_PROTOCOL_MINOR_VERSION=6
+    SATOCHIP_PROTOCOL_MINOR_VERSION=7
     
     # define the apdus used in this script
     BYTE_AID= [0x53,0x61,0x74,0x6f,0x43,0x68,0x69,0x70] #SatoChip
@@ -31,8 +74,12 @@ class CardConnector:
             self.cardrequest = CardRequest(timeout=10, cardType=self.cardtype)
             self.cardservice = self.cardrequest.waitforcard()
             # attach the console tracer
-            self.observer = ConsoleCardConnectionObserver()
+            self.observer = LogCardConnectionObserver() #ConsoleCardConnectionObserver()
             self.cardservice.connection.addObserver(self.observer)
+            # attach the card removal observer
+            self.cardmonitor = CardMonitor()
+            self.cardobserver = RemovalObserver(self)
+            self.cardmonitor.addObserver(self.cardobserver)
             # connect to the card and perform a few transmits
             self.cardservice.connection.connect()
             # cache PIN
@@ -42,7 +89,7 @@ class CardConnector:
             print_error('time-out: no card inserted during last 10s')
         except Exception as exc:
             print_error("Error during connection:", exc)
-    
+        
     def card_transmit(self, apdu):
         try:
             (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
@@ -56,7 +103,7 @@ class CardConnector:
                 self.cardrequest = CardRequest(timeout=10, cardType=self.cardtype)
                 self.cardservice = self.cardrequest.waitforcard()
                 # attach the console tracer
-                self.observer = ConsoleCardConnectionObserver()
+                self.observer = LogCardConnectionObserver()#ConsoleCardConnectionObserver()
                 self.cardservice.connection.addObserver(self.observer)
                 # connect to the card and perform a few transmits
                 self.cardservice.connection.connect()
@@ -77,6 +124,7 @@ class CardConnector:
     def card_select(self):        
         SELECT = [0x00, 0xA4, 0x04, 0x00, 0x08]
         apdu = SELECT + CardConnector.BYTE_AID
+        print_error("[CardConnector] card_select:"+str(apdu)+" obj_type:"+str(type(self)))#debug
         (response, sw1, sw2) = self.card_transmit(apdu)
         return (response, sw1, sw2)
         
@@ -138,7 +186,7 @@ class CardConnector:
         if option_flags!=0:
             apdu+=[option_flags>>8, option_flags&0x00ff]
             apdu+= hmacsha160_key
-            for i in reverse(range(8)):
+            for i in reversed(range(8)):
                 apdu+=[(amount_limit>>(8*i))&0xff]
 
         # send apdu (contains sensitive data!)
@@ -355,6 +403,8 @@ class CardConnector:
         return (response, sw1, sw2)      
 
     def card_sign_transaction(self, keynbr, txhash, chalresponse):
+        #if (type(chalresponse)==str):
+        #    chalresponse = list(bytes.fromhex(chalresponse))
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_SIGN_TRANSACTION
         p1= keynbr
@@ -367,13 +417,99 @@ class CardConnector:
         else:
             if len(chalresponse)!=20:
                 raise ValueError("Wrong Challenge response length:"+ str(len(chalresponse)) + "(should be 20)")
-            data= txhash + chalresponse
+            data= txhash + list(bytes.fromhex("8000")) + chalresponse  # 2 middle bytes for 2FA flag
         lc= len(data)
         apdu=[cla, ins, p1, p2, lc]+data
         
         # send apdu
         response, sw1, sw2 = self.card_transmit(apdu)
         return (response, sw1, sw2)      
+            
+    def card_crypt_transaction_2FA(self, msg, is_encrypt=True):
+        if (type(msg)==str):
+            msg = msg.encode('utf8')
+        msg=list(msg)
+        msg_out=[]
+        
+        # CIPHER_INIT - no data processed
+        cla= JCconstants.CardEdge_CLA
+        ins= 0x76
+        p2= JCconstants.OP_INIT
+        blocksize=16
+        if is_encrypt:
+            p1= 0x02 
+            lc= 0x00  
+            apdu=[cla, ins, p1, p2, lc]
+            # for encryption, the data is padded with PKCS#7
+            size=len(msg)
+            padsize= blocksize - (size%blocksize)
+            msg= msg+ [padsize]*padsize
+            # send apdu
+            (response, sw1, sw2) = self.card_transmit(apdu)
+            # extract IV & id_2FA
+            IV= response[0:16]
+            id_2FA= response[16:36]
+            msg_out=IV
+            # id_2FA is 20 bytes, should be 32 => use sha256
+            from hashlib import sha256
+            id_2FA= sha256(bytes(id_2FA)).hexdigest()
+        else:
+            p1= 0x01
+            lc= 0x10 
+            apdu=[cla, ins, p1, p2, lc]
+            # for decryption, the IV must be provided as part of the msg
+            IV= msg[0:16]
+            print_error("satochip iv hex"+ bytes(IV).hex())
+            msg=msg[16:]
+            apdu= apdu+IV
+            if len(msg)%blocksize!=0:
+                print_error('Padding error!')
+            # send apdu
+            (response, sw1, sw2) = self.card_transmit(apdu)
+            
+        chunk= 192 # max APDU data=256 => chunk<=255-(4+2)
+        buffer_offset=0
+        buffer_left=len(msg)    
+        # CIPHER PROCESS/UPDATE (optionnal)
+        while buffer_left>chunk:
+            p2= JCconstants.OP_PROCESS
+            le= 2+chunk
+            apdu=[cla, ins, p1, p2, le]
+            apdu+=[((chunk>>8) & 0xFF), (chunk & 0xFF)]
+            apdu+= msg[buffer_offset:(buffer_offset+chunk)]
+            buffer_offset+=chunk
+            buffer_left-=chunk
+            # send apdu
+            response, sw1, sw2 = self.card_transmit(apdu)
+            # extract msg
+            out_size= (response[0]<<8) + response[1]
+            msg_out+= response[2:2+out_size]
+            
+        # CIPHER FINAL/SIGN (last chunk)
+        chunk= buffer_left #following while condition, buffer_left<=chunk
+        p2= JCconstants.OP_FINALIZE
+        le= 2+chunk
+        apdu=[cla, ins, p1, p2, le]
+        apdu+=[((chunk>>8) & 0xFF), (chunk & 0xFF)]
+        apdu+= msg[buffer_offset:(buffer_offset+chunk)]
+        buffer_offset+=chunk
+        buffer_left-=chunk
+        # send apdu
+        response, sw1, sw2 = self.card_transmit(apdu)
+        # extract msg
+        out_size= (response[0]<<8) + response[1]
+        msg_out+= response[2:2+out_size]
+        
+        if is_encrypt:
+            #convert from list to string
+            msg_out= base64.b64encode(bytes(msg_out)).decode('ascii')
+            return (id_2FA, msg_out)
+        else:
+            #remove padding
+            pad= msg_out[-1]
+            msg_out=msg_out[0:-pad]
+            msg_out= bytes(msg_out).decode('latin-1')#''.join(chr(i) for i in msg_out) #bytes(msg_out).decode('latin-1')
+            return (msg_out)
     
     def card_create_PIN(self, pin_nbr, pin_tries, pin, ublk):
         cla= JCconstants.CardEdge_CLA
