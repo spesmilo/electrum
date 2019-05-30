@@ -304,7 +304,7 @@ class ElectrumWindow(App):
         self.fx = self.daemon.fx
 
         self.use_rbf = config.get('use_rbf', True)
-        self.use_change = config.get('use_change', True)
+        self.use_change = config.get('use_change', False)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updating a max of 2 times a sec
