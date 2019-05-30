@@ -44,6 +44,14 @@ def set_config(c):
     global config
     config = c
 
+def estimate_fee(tx_size_bytes):
+    global config
+    if config:
+        fee = config.estimate_fee(tx_size_bytes)
+    else:
+        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+        fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
+    return fee
 
 FINAL_CONFIG_VERSION = 3
 

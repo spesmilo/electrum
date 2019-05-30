@@ -132,13 +132,18 @@ if [[ $1 == "redeem_htlcs" ]]; then
     chan_id=$($alice list_channels | jq -r ".[0].channel_point")
     $alice close_channel $chan_id --force
     new_blocks 1
-    sleep 5
+    sleep 3
     echo "alice balance after closing channel:" $($alice getbalance)
     new_blocks 144
     sleep 10
     new_blocks 1
+    sleep 3
+    echo "alice balance after CLTV" $($alice getbalance)
+    new_blocks 144
     sleep 10
-    echo "alice balance after 144 blocks:" $($alice getbalance)
+    new_blocks 1
+    sleep 3
+    echo "alice balance after CSV" $($alice getbalance)
     balance_after=$($alice getbalance |  jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     if (( $(echo "$balance_before - $balance_after > 0.02" | bc -l) )); then
 	echo "htlc not redeemed."

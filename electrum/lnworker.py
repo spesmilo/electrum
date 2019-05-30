@@ -529,30 +529,35 @@ class LNWallet(LNWorker):
 
         # create and broadcast transaction
         for prevout, e_tx in chan.sweep_info.items():
+            name, csv_delay, cltv_expiry, gen_tx = e_tx
             if spenders.get(prevout) is not None:
                 self.logger.info(f'outpoint already spent {prevout}')
                 continue
             prev_txid, prev_index = prevout.split(':')
             broadcast = True
-            if e_tx.cltv_expiry:
+            if cltv_expiry:
                 local_height = self.network.get_local_height()
-                remaining = e_tx.cltv_expiry - local_height
+                remaining = cltv_expiry - local_height
                 if remaining > 0:
                     self.logger.info('waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
-                                     .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
+                                     .format(name, local_height, cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
-            if e_tx.csv_delay:
+            if csv_delay:
                 prev_height = self.network.lnwatcher.get_tx_height(prev_txid)
-                remaining = e_tx.csv_delay - prev_height.conf
+                remaining = csv_delay - prev_height.conf
                 if remaining > 0:
                     self.logger.info('waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
-                                     .format(e_tx.name, prev_height.conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
+                                     .format(name, prev_height.conf, csv_delay, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
+            tx = gen_tx()
+            if tx is None:
+                self.logger.info(f'{name} could not claim output: {prevout}, dust')
             if broadcast:
-                if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, e_tx):
-                    self.logger.info(f'{e_tx.name} could not publish encumbered tx: {str(e_tx)}, prevout: {prevout}')
+                if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, tx):
+                    self.logger.info(f'{name} could not publish encumbered tx: {str(tx)}, prevout: {prevout}')
             else:
-                self.wallet.add_future_tx(e_tx, remaining)
+                # it's OK to add local transaction, the fee will be recomputed
+                self.wallet.add_future_tx(tx, remaining)
 
     def is_dangerous(self, chan):
         for x in chan.get_unfulfilled_htlcs():
