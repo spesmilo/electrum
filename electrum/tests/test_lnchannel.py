@@ -248,11 +248,18 @@ class TestChannel(unittest.TestCase):
         self.assertTrue(alice_channel.signature_fits(com()))
 
         self.assertNotEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
-        self.assertEqual({0: [], 1: [htlc]}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 0), [])
         self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [])
-        self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({0: [], 1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 0), [])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 1), [])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
 
         from electrum.lnutil import extract_ctn_from_tx_and_chan
         tx0 = str(alice_channel.force_close_tx())
@@ -284,10 +291,17 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(bob_channel.config[REMOTE].ctn, 0)
         self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [htlc])
 
-        self.assertEqual({0: [],     1: [htlc]}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
-        self.assertEqual({0: [], 1: [htlc]}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({0: [],     1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({0: [],     1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 0), [])
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [htlc])
+
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 0), [])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 1), [])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
 
         # Bob revokes his prior commitment given to him by Alice, since he now
         # has a valid signature for a newer commitment.
@@ -406,10 +420,18 @@ class TestChannel(unittest.TestCase):
 
         self.assertEqual(alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED), [htlc])
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, alice_channel.config[REMOTE].ctn), [htlc])
-        self.assertEqual({1: [htlc], 2: [htlc]}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
-        self.assertEqual({1: [htlc], 2: []}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({1: [],     2: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
-        self.assertEqual({1: [],     2: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 2), [htlc])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [htlc])
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 2), [])
+
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 1), [])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 2), [])
+
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
+        self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 2), [])
 
         alice_ctx_bob_version = bob_channel.pending_commitment(REMOTE).outputs()
         alice_ctx_alice_version = alice_channel.pending_commitment(LOCAL).outputs()
