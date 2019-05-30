@@ -409,7 +409,24 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         i_text.setReadOnly(True)
         vbox.addWidget(i_text)
 
-        vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
+
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(0,0,0,0)
+        vbox.addLayout(hbox)
+        hbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
+
+        box_char = "█"
+        self.recv_legend = QLabel("<font color=" + ColorScheme.GREEN.as_color(background=True).name() + ">" + box_char + "</font> = " + _("Receiving Address"))
+        self.change_legend = QLabel("<font color=" + ColorScheme.YELLOW.as_color(background=True).name() + ">" + box_char + "</font> = " + _("Change Address"))
+        f = self.recv_legend.font(); f.setPointSize(f.pointSize()-1)
+        self.recv_legend.setFont(f)
+        self.change_legend.setFont(f)
+        hbox.addStretch(2)
+        hbox.addWidget(self.recv_legend)
+        hbox.addWidget(self.change_legend)
+        self.recv_legend.setHidden(True)
+        self.change_legend.setHidden(True)
+
         self.o_text = o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
@@ -428,10 +445,17 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         chg = QTextCharFormat()
         chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(True)))
         chg.setToolTip(_("Wallet change address"))
+        rec_ct, chg_ct = 0, 0
 
         def text_format(addr):
+            nonlocal rec_ct, chg_ct
             if isinstance(addr, Address) and self.wallet.is_mine(addr):
-                return chg if self.wallet.is_change(addr) else rec
+                if self.wallet.is_change(addr):
+                    chg_ct += 1
+                    return chg
+                else:
+                    rec_ct += 1
+                    return rec
             return ext
 
         def format_amount(amt):
@@ -478,3 +502,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                 cursor.insertText(' '*(43 - len(addrstr)), ext)
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
+
+        # make the change & receive legends appear only if we used that color
+        self.recv_legend.setVisible(bool(rec_ct))
+        self.change_legend.setVisible(bool(chg_ct))
