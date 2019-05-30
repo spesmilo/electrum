@@ -113,9 +113,16 @@ def base_asset_unit_name_to_decimal_point(au: str, unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+
 class NotEnoughFunds(Exception):
     def __str__(self):
         return _("Insufficient funds")
+
+
+class NotEnoughAssetBalanceOnAddress(Exception):
+    def __str__(self):
+        return _("You don't have enough balance of the asset you're trying to send on the serding address. Please"
+                 " fund your sending address and then try again.")
 
 
 class NoDynamicFeeEstimates(Exception):

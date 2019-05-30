@@ -37,6 +37,8 @@ import base64
 from functools import partial
 import queue
 import asyncio
+import aiorpcx
+from aiorpcx.jsonrpc import RPCError
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -54,7 +56,7 @@ from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
-                           format_satoshis_plain, NotEnoughFunds,
+                           format_satoshis_plain, NotEnoughFunds, NotEnoughAssetBalanceOnAddress,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
@@ -1719,20 +1721,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.question(msg):
                 return
 
-        # TODO: Clean up so that we are not assuming multiple inputs
         while asset_send_balance < amount and idx < len(asset_addresses):
             if asset_addresses[idx]['asset_guid'] == self.selected_asset_guid:
                 from_address = asset_addresses[idx]['address']
-                asset_guid = asset_addresses[idx]['asset_guid']
-                asset_send_balance += asset_addresses[idx]['balance']
+                asset_send_balance = asset_addresses[idx]['balance']
                 break
             idx = idx + 1
 
-        # if asset_send_balance < amount:
-        #     self.show_error(_('Insufficient asset balance'))
-        #     return
-
-        return from_address, to_address, asset_guid, amount, memo
+        return from_address, to_address, self.selected_asset_guid, amount, memo, asset_send_balance
 
     def read_send_tab(self):
         if self.payment_request and self.payment_request.has_expired():
@@ -1785,13 +1781,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         r = self.read_asset_send_tab()
         if not r:
             return
-        from_address, to_address, asset_guid, amount, memo = r
+        from_address, to_address, asset_guid, amount, memo, address_balance = r
         amount = float(amount) / 100000000
         self.logger.info("amount: {}".format(amount))
         amount_units = float(amount) / pow(10, 8 - self.decimal_point)
         self.logger.info("adjusted amount units: {}".format(amount_units))
 
         try:
+            if amount > address_balance:
+                raise NotEnoughAssetBalanceOnAddress(self.errmsg, self)
+
             tx_raw = self.wallet.make_unsigned_assetsend_transaction(self.config, from_address, to_address,
                                                                      asset_guid, amount_units, memo)
             tx = Transaction(tx_raw['hex'])
@@ -1800,6 +1799,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_message(str(e))
             return
         except InternalAddressCorruption as e:
+            self.show_error(str(e))
+            raise
+        except RPCError as e:
+            if isinstance(e, aiorpcx.jsonrpc.RPCError) and "Not enough outputs" in e.message:
+                self.show_error(_("in order to send assets you must first fund your asset address with" 
+                                  " Syscoin to pay for gas fees. Please send at least 1 SYS to this address"))
+                return
             self.show_error(str(e))
             raise
         except BaseException as e:
