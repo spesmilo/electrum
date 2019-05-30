@@ -1678,6 +1678,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         LN_NUM_PAYMENT_ATTEMPTS = 3
         def on_success(result):
             self.logger.info(f'ln payment success. {result}')
+            self.show_error(_('Payment succeeded'))
             self.do_clear()
         def on_failure(exc_info):
             type_, e, traceback = exc_info
@@ -1686,14 +1687,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             elif isinstance(e, InvoiceError):
                 self.show_error(_('InvoiceError: {}').format(e))
             else:
+                self.show_error(_('Error: {}').format(e))
                 raise e
         def task():
-            for i in range(LN_NUM_PAYMENT_ATTEMPTS):
-                success = self.wallet.lnworker.pay(invoice, amount_sat=amount, timeout=30)
-                if success:
-                    break
-            else:
-                raise PaymentFailure('Failed after {i} attempts')
+            success = self.wallet.lnworker.pay(invoice, attempts=LN_NUM_PAYMENT_ATTEMPTS, amount_sat=amount, timeout=30)
+            if not success:
+                raise PaymentFailure('Failed after {LN_NUM_PAYMENT_ATTEMPTS} attempts')
 
         msg = _('Sending lightning payment...')
         WaitingDialog(self, msg, task, on_success, on_failure)

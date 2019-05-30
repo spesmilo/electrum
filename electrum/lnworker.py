@@ -652,13 +652,13 @@ class LNWallet(LNWorker):
         chan = f.result(timeout)
         return chan.funding_outpoint.to_str()
 
-    def pay(self, invoice, amount_sat=None, timeout=10):
+    def pay(self, invoice, attempts=1, amount_sat=None, timeout=10):
         """
         Can be called from other threads
         Raises timeout exception if htlc is not fulfilled
         """
         fut = asyncio.run_coroutine_threadsafe(
-            self._pay(invoice, amount_sat),
+            self._pay(invoice, attempts, amount_sat),
             self.network.asyncio_loop)
         return fut.result(timeout=timeout)
 
@@ -668,14 +668,17 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
-    async def _pay(self, invoice, amount_sat=None):
+    async def _pay(self, invoice, attempts=1, amount_sat=None):
         addr = self._check_invoice(invoice, amount_sat)
         self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
         self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
-        route = await self._create_route_from_invoice(decoded_invoice=addr)
-        if not self.get_channel_by_short_id(route[0].short_channel_id):
-            assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
-        return await self._pay_to_route(route, addr, invoice)
+        for i in range(attempts):
+            route = await self._create_route_from_invoice(decoded_invoice=addr)
+            if not self.get_channel_by_short_id(route[0].short_channel_id):
+                assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
+            if await self._pay_to_route(route, addr, invoice):
+                return True
+        return False
 
     async def _pay_to_route(self, route, addr, pay_req):
         short_channel_id = route[0].short_channel_id
