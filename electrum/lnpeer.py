@@ -1071,7 +1071,7 @@ class Peer(Logger):
         remote_ctn = chan.get_current_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
-        self.logger.info(f"starting payment. route: {route}")
+        self.logger.info(f"starting payment. route: {route}. htlc: {htlc}")
         self.send_message("update_add_htlc",
                           channel_id=chan.channel_id,
                           id=htlc.htlc_id,
@@ -1271,6 +1271,7 @@ class Peer(Logger):
         self._remote_changed_events[chan.channel_id].set()
         self._remote_changed_events[chan.channel_id].clear()
         self.lnworker.save_channel(chan)
+        self.maybe_send_commitment(chan)
 
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]

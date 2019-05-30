@@ -1,6 +1,6 @@
 from pprint import pprint
 import unittest
-from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner
+from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
 from electrum.lnhtlc import HTLCManager
 from typing import NamedTuple
 
@@ -135,3 +135,22 @@ class TestHTLCManager(unittest.TestCase):
 
         htlc_lifecycle(htlc_success=True)
         htlc_lifecycle(htlc_success=False)
+
+    def test_adding_htlc_between_send_ctx_and_recv_rev(self):
+        A = HTLCManager()
+        B = HTLCManager()
+        A.send_ctx()
+        B.recv_ctx()
+        B.send_rev()
+        ah0 = H('A', 0)
+        B.recv_htlc(A.send_htlc(ah0))
+        self.assertEqual([], A.current_htlcs(LOCAL))
+        self.assertEqual([], A.current_htlcs(REMOTE))
+        self.assertEqual([], A.pending_htlcs(LOCAL))
+        self.assertEqual([], A.pending_htlcs(REMOTE))
+        A.recv_rev()
+        self.assertEqual([], A.current_htlcs(LOCAL))
+        self.assertEqual([], A.current_htlcs(REMOTE))
+        self.assertEqual([(Direction.SENT, ah0)], A.pending_htlcs(LOCAL))
+        self.assertEqual([(Direction.RECEIVED, ah0)], A.pending_htlcs(REMOTE))
+

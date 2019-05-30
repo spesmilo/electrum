@@ -164,6 +164,8 @@ def create_test_channels(feerate=6000, local=None, remote=None):
 
     alice.config[REMOTE] = alice.config[REMOTE]._replace(ctn=0)
     bob.config[REMOTE] = bob.config[REMOTE]._replace(ctn=0)
+    alice.hm.channel_open_finished()
+    bob.hm.channel_open_finished()
 
     return alice, bob
 

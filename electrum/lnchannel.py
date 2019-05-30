@@ -153,7 +153,7 @@ class Channel(Logger):
         self.remote_commitment_to_be_revoked.deserialize(True)
 
         log = state.get('log')
-        self.hm = HTLCManager(self.config[LOCAL].ctn if log else 0, self.config[REMOTE].ctn if log else 0, log)
+        self.hm = HTLCManager(self.config[LOCAL].ctn, self.config[REMOTE].ctn, log)
 
         self.name = name
         Logger.__init__(self)
@@ -194,6 +194,7 @@ class Channel(Logger):
         self.remote_commitment_to_be_revoked = self.pending_commitment(REMOTE)
         self.config[REMOTE] = self.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_pcp, next_per_commitment_point=None)
         self.config[LOCAL] = self.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
+        self.hm.channel_open_finished()
         self.set_state('OPENING')
 
     def set_force_closed(self):
