@@ -14,6 +14,7 @@ import json
 from datetime import datetime, timezone
 from functools import partial
 from collections import defaultdict
+import concurrent
 
 import dns.resolver
 import dns.exception
@@ -660,7 +661,11 @@ class LNWallet(LNWorker):
         fut = asyncio.run_coroutine_threadsafe(
             self._pay(invoice, attempts, amount_sat),
             self.network.asyncio_loop)
-        return fut.result(timeout=timeout)
+        try:
+            return fut.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise PaymentFailure(_("Payment timed out"))
+
 
     def get_channel_by_short_id(self, short_channel_id):
         with self.lock:

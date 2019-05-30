@@ -1687,7 +1687,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             elif isinstance(e, InvoiceError):
                 self.show_error(_('InvoiceError: {}').format(e))
             else:
-                self.show_error(_('Error: {}').format(e))
                 raise e
         def task():
             success = self.wallet.lnworker.pay(invoice, attempts=LN_NUM_PAYMENT_ATTEMPTS, amount_sat=amount, timeout=30)
