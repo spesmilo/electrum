@@ -206,11 +206,15 @@ class MessageBoxMixin(object):
     def top_level_window(self, test_func=None):
         return self.top_level_window_recurse(test_func)
 
-    def question(self, msg, parent=None, title=None, icon=None):
+    def question(self, msg, parent=None, title=None, icon=None, **kwargs) -> bool:
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return self.msg_box(icon or QMessageBox.Question,
-                            parent, title or '',
-                            msg, buttons=Yes|No, defaultButton=No) == Yes
+        return Yes == self.msg_box(icon=icon or QMessageBox.Question,
+                                   parent=parent,
+                                   title=title or '',
+                                   text=msg,
+                                   buttons=Yes|No,
+                                   defaultButton=No,
+                                   **kwargs)
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,

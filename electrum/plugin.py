@@ -403,7 +403,7 @@ class DeviceMgr(ThreadJob):
 
     def unpair_xpub(self, xpub):
         with self.lock:
-            if not xpub in self.xpub_ids:
+            if xpub not in self.xpub_ids:
                 return
             _id = self.xpub_ids.pop(xpub)
             self._close_client(_id)

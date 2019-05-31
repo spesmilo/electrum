@@ -15,7 +15,7 @@ from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable)
+                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
 
 _logger = get_logger(__name__)
 
@@ -275,7 +275,7 @@ class TrezorPlugin(HW_PluginBase):
             msg = (_('Outdated {} firmware for device labelled {}. Please '
                      'download the updated firmware from {}')
                    .format(self.device, client.label(), self.firmware_URL))
-            raise UserFacingException(msg)
+            raise OutdatedHwFirmwareException(msg)
 
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
