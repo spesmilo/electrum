@@ -468,3 +468,15 @@ and there is no warning message.
 * Fixed QR scanner looking off-center on some platforms. (Axel Gembe)
 * Fixed QR scanner quirks on some platforms when failure to configure camera
   resolution confused the QR scanner a little bit. (Axel Gembe)
+
+# Release 4.0.6
+
+* Added CoinText support. Just enter 'cointext:ANY_PHONE_NUMBER' in the send tab
+  to use it! (cculianu, Jonald Fyookball)
+* Added a brand-new Transaction Dialog feature "Download input data" which
+  allows you to get 100% accurate fees, input addresses, and input amounts for
+  ANY tx in your wallet or even NOT in your wallet. (cculianu)
+* Various fixups to script parser code and misc. transaction refactorings
+  (Mark Lundeberg)
+* Bugfixes to Ledger support (Axel Gembe)
+* Misc tiny UI nits and other fixups (cculianu, Axel Gembe)
