@@ -1703,12 +1703,57 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coins = self.get_coins(isInvoice)
         return outputs, fee, label, coins
 
+    def read_send_tab_for_cointext(self):
+        ''' A bit of a hack. This is called in do_send and if it returns True,
+        it means there was a valid Cointext and the send tab processing code
+        should immediately do nothing.
+
+        If False, if means no cointext in payto, so proceed with do_send callpath
+        as always. '''
+        if self.payto_e.cointext and not self.payment_request and self.wallet.network:
+            phone = self.payto_e.cointext
+            sats = self.amount_e.get_amount()
+            if sats:
+                url = "https://pay.cointext.io/p/{}/{}".format(phone, sats)
+                def get_cointext_pr():
+                    # Runs in thread
+                    self.print_error("CoinText URL", url)
+                    pr = paymentrequest.get_payment_request(url)  # raises on error
+                    return pr
+                def on_success(pr):
+                    # Runs in main thread
+                    if pr:
+                        if pr.error:
+                            self.print_error("CoinText ERROR", pr.error)
+                            self.show_error(_("There was an error processing the CoinText. Please check the phone number and try again."))
+                            return
+                        self.print_error("CoinText RESULT", repr(pr))
+                        self.prepare_for_payment_request()
+                        self.on_pr(pr)
+                def on_error(exc):
+                    self.print_error("CoinText EXCEPTION", repr(exc))
+                    self.on_error(exc)
+                WaitingDialog(self.top_level_window(),
+                              _("Retrieving CoinText info, please wait ..."),
+                              get_cointext_pr, on_success, on_error)
+            else:
+                self.show_error(_('CoinText: Please specify an amount'))
+            return True
+        return False
+
     def do_preview(self):
         self.do_send(preview = True)
 
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
             return
+
+        if self.read_send_tab_for_cointext():
+            # Send tab had cointext URL -- try and parse it and make it into
+            # a payment request which will complete sometime later.  Abort for
+            # now.
+            return
+
         r = self.read_send_tab()
         if not r:
             return
@@ -1909,8 +1954,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
-        self.show_message(self.payment_request.error)
+        request_error = self.payment_request and self.payment_request.error
         self.payment_request = None
+        self.print_error("PaymentRequest error:", request_error)
+        self.show_error(_("There was an error processing the payment request"), rich_text=False, detail_text=str(request_error))
         self.do_clear()
 
     def on_pr(self, request):
