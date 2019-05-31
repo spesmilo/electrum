@@ -10,11 +10,9 @@ class HTLCManager:
     def __init__(self, local_ctn=0, remote_ctn=0, log=None):
         # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
         self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
-        # self.ctn_latest[sub] is the ctn for the latest (newest that has a valid sig) ctx of sub
-        self.ctn_latest = {LOCAL:local_ctn, REMOTE: remote_ctn}  # FIXME does this need to be persisted?
-        # after sending commitment_signed but before receiving revoke_and_ack,
-        # self.ctn_latest[REMOTE] == self.ctn[REMOTE] + 1
-        # otherwise they are equal
+        # ctx_pending[sub] is True iff sub has sent commitment_signed but did not receive revoke_and_ack
+        self.ctx_pending = {LOCAL:False, REMOTE: False} # FIXME does this need to be persisted?
+        # expect_sig[SENT/RECEIVED] is True iff HTLCs have been sent/received but the corresponding commitment_signed has not been received/sent
         self.expect_sig = {SENT: False, RECEIVED: False}
         if log is None:
             initial = {'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}}
@@ -31,6 +29,10 @@ class HTLCManager:
                 log[sub]['fails'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['fails'].items()}
         self.log = log
 
+    def ctn_latest(self, sub):
+        """Return the ctn for the latest (newest that has a valid sig) ctx of sub"""
+        return self.ctn[sub] + int(self.ctx_pending[sub])
+
     def to_save(self):
         x = deepcopy(self.log)
         for sub in (LOCAL, REMOTE):
@@ -42,56 +44,58 @@ class HTLCManager:
 
     def channel_open_finished(self):
         self.ctn = {LOCAL: 0, REMOTE: 0}
-        self.ctn_latest = {LOCAL: 0, REMOTE: 0}
+        self.ctx_pending = {LOCAL:False, REMOTE: False}
 
     def send_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
         htlc_id = htlc.htlc_id
         adds = self.log[LOCAL]['adds']
         assert type(adds) is not str
         adds[htlc_id] = htlc
-        self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest[REMOTE]+1}
+        self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE)+1}
         self.expect_sig[SENT] = True
         return htlc
 
     def recv_htlc(self, htlc: UpdateAddHtlc) -> None:
         htlc_id = htlc.htlc_id
         self.log[REMOTE]['adds'][htlc_id] = htlc
-        l = self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.ctn_latest[LOCAL]+1, REMOTE: None}
+        l = self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL)+1, REMOTE: None}
         self.expect_sig[RECEIVED] = True
 
     def send_ctx(self) -> None:
-        assert self.ctn_latest[REMOTE] == self.ctn[REMOTE], (self.ctn_latest[REMOTE], self.ctn[REMOTE])
-        self.ctn_latest[REMOTE] = self.ctn[REMOTE] + 1
+        assert self.ctn_latest(REMOTE) == self.ctn[REMOTE], (self.ctn_latest(REMOTE), self.ctn[REMOTE])
+        self.ctx_pending[REMOTE] = True
         for locked_in in self.log[REMOTE]['locked_in'].values():
             if locked_in[REMOTE] is None:
-                locked_in[REMOTE] = self.ctn_latest[REMOTE]
+                locked_in[REMOTE] = self.ctn_latest(REMOTE)
         self.expect_sig[SENT] = False
 
     def recv_ctx(self) -> None:
-        assert self.ctn_latest[LOCAL] == self.ctn[LOCAL], (self.ctn_latest[LOCAL], self.ctn[LOCAL])
-        self.ctn_latest[LOCAL] = self.ctn[LOCAL] + 1
+        assert self.ctn_latest(LOCAL) == self.ctn[LOCAL], (self.ctn_latest(LOCAL), self.ctn[LOCAL])
+        self.ctx_pending[LOCAL] = True
         for locked_in in self.log[LOCAL]['locked_in'].values():
             if locked_in[LOCAL] is None:
-                locked_in[LOCAL] = self.ctn_latest[LOCAL]
+                locked_in[LOCAL] = self.ctn_latest(LOCAL)
         self.expect_sig[RECEIVED] = False
 
     def send_rev(self) -> None:
         self.ctn[LOCAL] += 1
+        self.ctx_pending[LOCAL] = False
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in self.log[LOCAL][log_action].items():
                 if ctns[REMOTE] is None:
-                    ctns[REMOTE] = self.ctn_latest[REMOTE] + 1
+                    ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
 
     def recv_rev(self) -> None:
         self.ctn[REMOTE] += 1
+        self.ctx_pending[REMOTE] = False
         for htlc_id, ctns in self.log[LOCAL]['locked_in'].items():
             if ctns[LOCAL] is None:
                 #assert ctns[REMOTE] == self.ctn[REMOTE]  # FIXME I don't think this assert is correct
-                ctns[LOCAL] = self.ctn_latest[LOCAL] + 1
+                ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in self.log[REMOTE][log_action].items():
                 if ctns[LOCAL] is None:
-                    ctns[LOCAL] = self.ctn_latest[LOCAL] + 1
+                    ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
 
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
@@ -147,10 +151,10 @@ class HTLCManager:
         return self.htlcs(subject, ctn)
 
     def send_settle(self, htlc_id: int) -> None:
-        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest[REMOTE] + 1}
+        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}
 
     def recv_settle(self, htlc_id: int) -> None:
-        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.ctn_latest[LOCAL] + 1, REMOTE: None}
+        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None}
 
     def all_settled_htlcs_ever_by_direction(self, subject: HTLCOwner, direction: Direction,
                                             ctn: int = None) -> Sequence[UpdateAddHtlc]:
@@ -192,7 +196,7 @@ class HTLCManager:
                 if ctns[LOCAL] == ctn]
 
     def send_fail(self, htlc_id: int) -> None:
-        self.log[REMOTE]['fails'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest[REMOTE] + 1}
+        self.log[REMOTE]['fails'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}
 
     def recv_fail(self, htlc_id: int) -> None:
-        self.log[LOCAL]['fails'][htlc_id] = {LOCAL: self.ctn_latest[LOCAL] + 1, REMOTE: None}
+        self.log[LOCAL]['fails'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None}
