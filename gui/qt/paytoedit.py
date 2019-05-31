@@ -96,14 +96,16 @@ class PayToEdit(ScanQRTextEdit):
         amount = self.parse_amount(y)
         return out_type, out, amount
 
-    def parse_output(self, x):
+    @classmethod
+    def parse_output(cls, x):
         try:
-            address = self.parse_address(x)
+            address = cls.parse_address(x)
             return bitcoin.TYPE_ADDRESS, address
         except:
             return bitcoin.TYPE_SCRIPT, ScriptOutput.from_string(x)
 
-    def parse_cointext(self, txt):
+    @staticmethod
+    def parse_cointext(txt):
         ''' Returns a non-empty string which is the phone number in a cointext:
         style pseudo-url, if x matches the cointext re (eg: cointext:NUMBERS),
         otherwise returns None. '''
@@ -111,7 +113,8 @@ class PayToEdit(ScanQRTextEdit):
         if m: return ''.join(x for x in m[1].strip() if x.isdigit()) or None
         return None
 
-    def parse_address(self, line):
+    @staticmethod
+    def parse_address(line):
         r = line.strip()
         m = RX_ALIAS.match(r)
         address = m.group(2) if m else r
