@@ -37,7 +37,7 @@ from electroncash import networks
 from . import util
 
 RE_ALIAS = '^(.*?)\s*\<([0-9A-Za-z:]{26,})\>$'
-RE_COINTEXT = r'^\s*cointext:([-+ 0-9]+)\s*$'
+RE_COINTEXT = r'^\s*cointext:([-+() 0-9]+)\s*$'
 
 RX_ALIAS = re.compile(RE_ALIAS)
 RX_COINTEXT = re.compile(RE_COINTEXT, re.I)
