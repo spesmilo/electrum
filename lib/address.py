@@ -379,19 +379,15 @@ class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
             ops = Script.get_ops(self.script)
         except ScriptError:
             # Truncated script -- so just default to hex string.
-            return self.script.hex()
+            return 'Invalid script: ' + self.script.hex()
         def lookup(x):
             try:
                 return OpCodes(x).name
             except ValueError:
                 return '('+str(x)+')'
         parts = []
-        for op in ops:
-            if isinstance(op, tuple):
-                op, data = op
-                if data is None:
-                    data = b''
-
+        for op, data in ops:
+            if data is not None:
                 # Attempt to make a friendly string, or fail to hex
                 try:
                     astext = data.decode('utf8')
@@ -719,24 +715,29 @@ class Script:
                 n += 1
 
                 if op <= OpCodes.OP_PUSHDATA4:
-                    # Raw bytes follow
                     if op < OpCodes.OP_PUSHDATA1:
+                        # Raw bytes follow
                         dlen = op
                     elif op == OpCodes.OP_PUSHDATA1:
+                        # One-byte length, then data
                         dlen = script[n]
                         n += 1
                     elif op == OpCodes.OP_PUSHDATA2:
+                        # Two-byte length, then data
                         dlen, = struct.unpack('<H', script[n: n + 2])
                         n += 2
-                    else:
+                    else: # op == OpCodes.OP_PUSHDATA4
+                        # Four-byte length, then data
                         dlen, = struct.unpack('<I', script[n: n + 4])
                         n += 4
                     if n + dlen > len(script):
                         raise IndexError
-                    op = (op, script[n:n + dlen])
+                    data = script[n:n + dlen]
                     n += dlen
+                else:
+                    data = None
 
-                ops.append(op)
+                ops.append((op, data))
         except Exception:
             # Truncated script; e.g. tx_hash
             # ebc9fa1196a59e192352d76c0f6e73167046b9d37b8302b6bb6968dfd279b767

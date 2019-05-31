@@ -168,47 +168,6 @@ def short_hex(bytes):
     return t[0:4]+"..."+t[-4:]
 
 
-def script_GetOp(_bytes):
-    i = 0
-    blen = len(_bytes)
-    while i < blen:
-        vch = None
-        opcode = _bytes[i]
-        i += 1
-
-        if opcode <= opcodes.OP_PUSHDATA4:
-            nSize = opcode
-            if opcode == opcodes.OP_PUSHDATA1:
-                nSize = _bytes[i] if i < blen else 0
-                i += 1
-            elif opcode == opcodes.OP_PUSHDATA2:
-                (nSize,) = struct.unpack_from('<H', _bytes, i) if i+2 <= blen else (0,) # tolerate truncated script
-                i += 2
-            elif opcode == opcodes.OP_PUSHDATA4:
-                (nSize,) = struct.unpack_from('<I', _bytes, i) if i+4 <= blen else (0,)
-                i += 4
-            vch = _bytes[i:i + nSize] # array slicing here never throws exception even if truncated script
-            i += nSize
-
-        yield opcode, vch, i
-
-
-def script_GetOpName(opcode):
-    return (opcodes.whatis(opcode)).replace("OP_", "")
-
-
-def decode_script(bytes):
-    result = ''
-    for (opcode, vch, i) in script_GetOp(bytes):
-        if len(result) > 0: result += " "
-        if opcode <= opcodes.OP_PUSHDATA4:
-            result += "%d:"%(opcode,)
-            result += short_hex(vch)
-        else:
-            result += script_GetOpName(opcode)
-    return result
-
-
 def match_decoded(decoded, to_match):
     if len(decoded) != len(to_match):
         return False;
@@ -231,7 +190,7 @@ def safe_parse_pubkey(x):
 
 def parse_scriptSig(d, _bytes):
     try:
-        decoded = list(script_GetOp(_bytes))
+        decoded = Script.get_ops(_bytes)
     except Exception as e:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bh2u(_bytes))
@@ -287,7 +246,7 @@ def parse_scriptSig(d, _bytes):
 
 
 def parse_redeemScript(s):
-    dec2 = [ x for x in script_GetOp(s) ]
+    dec2 = Script.get_ops(s)
     # the following throw exception when redeemscript has one or zero opcodes
     m = dec2[0][0] - opcodes.OP_1 + 1
     n = dec2[-2][0] - opcodes.OP_1 + 1
@@ -306,7 +265,7 @@ def parse_redeemScript(s):
 
 def get_address_from_output_script(_bytes):
     try:
-        decoded = [x for x in script_GetOp(_bytes)]
+        decoded = Script.get_ops(_bytes)
 
         # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
         # 65 BYTES:... CHECKSIG

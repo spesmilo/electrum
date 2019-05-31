@@ -86,11 +86,11 @@ def validate_op_return_output_and_get_data(output, max_size=220) -> bytes:
 
     ops = Script.get_ops(address.script)
 
-    if not ops[0] == OpCodes.OP_RETURN:
+    if len(ops) < 1 or ops[0][0] != OpCodes.OP_RETURN:
         raise RuntimeError(_("Only OP_RETURN scripts are supported."))
 
-    if len(ops) > 2 or ops[1][0] not in [OpCodes.OP_PUSHDATA1, OpCodes.OP_PUSHDATA2, OpCodes.OP_PUSHDATA4]:
-        raise RuntimeError(_("OP_RETURN is limited to a single constant push."))
+    if len(ops) != 2 or ops[1][1] is None:
+        raise RuntimeError(_("OP_RETURN is limited to a single data push."))
 
     if len(ops[1][1]) > max_size:
         raise RuntimeError(_("OP_RETURN data size exceeds the maximum of {} bytes.".format(max_size)))
