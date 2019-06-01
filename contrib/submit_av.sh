@@ -1,9 +1,38 @@
 #!/bin/sh
 
+# Note:
+# We would love to set -e but we can't as curl sometimes returns nonzero
+# on non-critical-error results (such as rate limiting HTTP)
+
 VIRUSTOTAL_API_URL="https://www.virustotal.com/vtapi"
 METADEFENDER_API_URL="https://api.metadefender.com"
 FORCE_RESCAN=${FORCE_RESCAN:-0}
 ENABLED_APIS=0
+
+require_command() {
+    cmd="$1"
+    msg="$2"
+    if [ -z "$msg" ]; then
+        msg="The '${cmd}' utility was not found. It is required by this script. Please install '${cmd}' using your package manager to proceed."
+    fi
+    if ! which $cmd > /dev/null; then
+        echo "$msg"
+        exit 1
+    fi
+}
+
+# Make sure user has sha256sum, jq, curl on their system
+require_command jq  # Make sure user has jq installed
+if which gsha256sum > /dev/null; then
+    # sometimes macOS has gsha256sum instead
+    SHA256SUM="gsha256sum"
+else
+    # otherwise default to the linux one and hope for the best
+    SHA256SUM="sha256sum"
+fi
+require_command $SHA256SUM
+require_command curl
+
 
 if [ -z "$VIRUSTOTAL_API_KEY" ] ; then
     echo "[VirusTotal] API key is not set, disabling. To enable set VIRUSTOTAL_API_KEY"
@@ -191,7 +220,7 @@ metadefender()
 }
 
 for file in "$@" ; do
-    sha256sum=$(sha256sum "$file" | awk '{print $1}')
+    sha256sum=$($SHA256SUM "$file" | awk '{print $1}')
     filesize=$(stat $STAT_FSIZE "$file")
 
     echo "Processing $file ($filesize bytes / SHA256: $sha256sum)"
