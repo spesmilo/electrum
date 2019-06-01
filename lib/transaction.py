@@ -711,7 +711,11 @@ class Transaction:
         if not self.is_complete():
             return None
         ser = self.serialize()
-        return bh2u(Hash(bfh(ser))[::-1])
+        return self._txid(ser)
+
+    @staticmethod
+    def _txid(raw_hex : str) -> str:
+        return bh2u(Hash(bfh(raw_hex))[::-1])
 
     def add_inputs(self, inputs):
         self._inputs.extend(inputs)
@@ -938,7 +942,7 @@ class Transaction:
         from collections import defaultdict
         t0 = time.time()
         t = None
-        tx_cache = __class__._fetched_tx_cache
+        cls = __class__
         def doIt():
             '''
             This function is seemingly complex, but it's really conceptually
@@ -969,7 +973,7 @@ class Transaction:
                 if not prevout_hash or n is None:
                     raise RuntimeError('Missing prevout_hash and/or prevout_n')
                 if typ != 'coinbase' and (not isinstance(addr, Address) or value is None):
-                    tx = tx_cache.get(prevout_hash) or wallet.transactions.get(prevout_hash)
+                    tx = cls.tx_cache_get(prevout_hash) or wallet.transactions.get(prevout_hash)
                     if tx:
                         # Tx was in cache or wallet.transactions, proceed
                         # note that the tx here should be in the "not
@@ -986,10 +990,11 @@ class Transaction:
                             tx = Transaction(tx.raw)
                             try:
                                 tx.deserialize()
-                                # The below txid check eats up CPU. We'll forego the
-                                # paranoia in favor of performance, hence why it's
-                                # commented-out.
-                                #txid = tx.txid()
+                                # The below txid check is commented-out as
+                                # we trust wallet tx's and the network
+                                # tx's that fail this check are never
+                                # put in cache anyway.
+                                #txid = tx._txid(tx.raw)
                                 #if txid != prevout_hash: # sanity check
                                 #    print_error("fetch_input_data: cached prevout_hash {} != tx.txid() {}, ignoring.".format(prevout_hash, txid))
                             except Exception as e:
@@ -1025,6 +1030,7 @@ class Transaction:
                     # out randomly over the connected interfaces
                     q = queue.Queue()
                     q_ct = 0
+                    bad_txids = set()
                     def put_in_queue_and_cache(r):
                         ''' we cache the results directly in the network callback
                         as even if the user cancels the operation, we would like
@@ -1042,10 +1048,12 @@ class Transaction:
                             # always deserialize a copy when reading the cache.
                             tx = Transaction(r['result'])
                             txid = r['params'][0]
-                            tx_cache.put(txid, tx)  # save tx to cache here
-                        except:
+                            assert txid == cls._txid(tx.raw), "txid-is-sane-check"  # protection against phony responses
+                            cls.tx_cache_put(tx=tx, txid=txid)  # save tx to cache here
+                        except Exception as e:
                             # response was not valid, ignore (don't cache)
-                            pass
+                            bad_txids.add(txid)
+                            print_error("fetch_input_data: put_in_queue_and_cache fail for txid:", txid, repr(e))
                     for txid, l in need_dl_txids.items():
                         wallet.network.queue_request('blockchain.transaction.get', [txid],
                                                      interface='random',
@@ -1065,8 +1073,8 @@ class Transaction:
                                 raise ErrorResp(r.get('error').get('message'))
                             rawhex = r['result']
                             txid = r['params'][0]
+                            assert txid not in bad_txids, "txid marked bad"  # skip if was marked bad by our callback code
                             tx = Transaction(rawhex); tx.deserialize()
-                            assert tx and txid == tx.txid()  # protection against phony responses
                             for item in need_dl_txids[txid]:
                                 ii, n = item
                                 assert n < len(tx.outputs())
@@ -1124,6 +1132,27 @@ class Transaction:
         ''' Cancels the currently-active running fetch operation, if any '''
         return bool(self.ephemeral.pop('_fetch', None))
 
+    @classmethod
+    def tx_cache_get(cls, txid : str) -> object:
+        ''' Attempts to retrieve txid from the tx cache that this class
+        keeps in-memory.  Returns None on failure. The returned tx is
+        not deserialized, and is a copy of the one in the cache. '''
+        tx = cls._fetched_tx_cache.get(txid)
+        if tx is not None and tx.raw:
+            # make sure to return a copy of the transaction from the cache
+            # so that if caller does .deserialize(), *his* instance will
+            # use up 10x memory consumption, and not the cached instance which
+            # should just be an undeserialized raw tx.
+            return Transaction(tx.raw)
+        return None
+
+    @classmethod
+    def tx_cache_put(cls, tx : object, txid : str = None):
+        ''' Puts a non-deserialized copy of tx into the tx_cache. '''
+        if not tx or not tx.raw:
+            raise ValueError('Please pass a tx which has a valid .raw attribute!')
+        txid = txid or cls._txid(tx.raw)  # optionally, caller can pass-in txid to save CPU time for hashing
+        cls._fetched_tx_cache.put(txid, Transaction(tx.raw))
 
 
 def tx_from_str(txt):
