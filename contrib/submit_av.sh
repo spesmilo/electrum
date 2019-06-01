@@ -1,8 +1,6 @@
 #!/bin/sh
 
-# Note:
-# We would love to set -e but we can't as curl sometimes returns nonzero
-# on non-critical-error results (such as rate limiting HTTP)
+set -e
 
 VIRUSTOTAL_API_URL="https://www.virustotal.com/vtapi"
 METADEFENDER_API_URL="https://api.metadefender.com"
@@ -15,7 +13,7 @@ require_command() {
     if [ -z "$msg" ]; then
         msg="The '${cmd}' utility was not found. It is required by this script. Please install '${cmd}' using your package manager to proceed."
     fi
-    if ! which $cmd > /dev/null; then
+    if ! which $cmd > /dev/null 2>&1 ; then
         echo "$msg"
         exit 1
     fi
@@ -23,7 +21,7 @@ require_command() {
 
 # Make sure user has sha256sum, jq, curl on their system
 require_command jq  # Make sure user has jq installed
-if which gsha256sum > /dev/null; then
+if which gsha256sum > /dev/null 2>&1 ; then
     # sometimes macOS has gsha256sum instead
     SHA256SUM="gsha256sum"
 else
@@ -84,9 +82,9 @@ curl_vt()
 {
     # This calls curl and retries after a delay on HTTP code 204
     while true ; do
-        curl_httpret "$@"
-        if [ $? -ne 204 ] ; then
-            return $?
+        curl_httpret "$@" && RC=$? || RC=$?
+        if [ $RC -ne 204 ] ; then
+            return $RC
         fi
         sleep 15s
     done
@@ -148,9 +146,9 @@ curl_md()
 {
     # This calls curl and retries after a delay on HTTP code 429
     while true ; do
-        curl_httpret "$@"
-        if [ $? -ne 429 ] ; then
-            return $?
+        curl_httpret "$@" && RC=$? || RC=$?
+        if [ $RC -ne 429 ] ; then
+            return $RC
         fi
         sleep 15s
     done
