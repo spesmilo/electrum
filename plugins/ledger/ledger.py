@@ -12,7 +12,7 @@ from electroncash.plugins import BasePlugin
 from electroncash.keystore import Hardware_KeyStore
 from electroncash.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output_and_get_data
 from electroncash.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
@@ -402,15 +402,22 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error(_('Transaction with more than 2 outputs not supported by {}').format(self.device))
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
-            for _type, address, amount in tx.outputs():
+            for output in tx.outputs():
+                _type, address, amount = output
                 if self.get_client_electrum().is_hw1():
                     if not _type == TYPE_ADDRESS:
                         self.give_error(_('Only address outputs are supported by {}').format(self.device))
                 else:
                     if not _type in [TYPE_ADDRESS, TYPE_SCRIPT]:
                         self.give_error(_('Only address and script outputs are supported by {}').format(self.device))
-                    if _type == TYPE_SCRIPT and not address.script[0] == OpCodes.OP_RETURN:
-                        self.give_error(_('Only OP_RETURN script outputs are supported by {}').format(self.device))
+                    if _type == TYPE_SCRIPT:
+                        try:
+                            # Ledger has a maximum output size of 200 bytes:
+                            # https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
+                            # which gives us a maximum OP_RETURN payload size of 187 bytes.
+                            validate_op_return_output_and_get_data(output, max_size=187)
+                        except RuntimeError as e:
+                            self.give_error('{}: {}'.format(self.device, str(e)))
                 info = tx.output_info.get(address)
                 if (info is not None) and len(tx.outputs()) > 1 \
                         and not has_change:
