@@ -33,10 +33,6 @@ import os, sys
 # implementation which does more intelligent things with protobuf namespaces
 os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 
-#uncomment this line when running on linux to debug kivy.
-#Should have 3D acceleration turn on, on VM.  Also guest additions CD image.
-#os.environ['KIVY_GL_BACKEND']='sdl2'
-
 if sys.version_info < (3, 5, 2):
     sys.exit("Error: Must be using Python 3.5.2 or higher")
 
@@ -63,9 +59,6 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electron-cash.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
-
-# move this back to gui/kivy/__init.py once plugins are moved
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui/kivy/data/'
 
 if is_local:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
@@ -374,8 +367,7 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electron_cash_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electron_cash_data')
 
-    # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
+    set_verbosity(config_options.get('verbose'))
 
     if config_options.get('testnet'):
         networks.set_testnet()
