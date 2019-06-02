@@ -74,6 +74,15 @@ class ElectrumGui(QObject, PrintError):
         QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
         if hasattr(Qt, "AA_ShareOpenGLContexts"):
             QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+        if hasattr(Qt, "AA_EnableHighDpiScaling"):
+            # On platforms that do not support high DPI scaling attribute, like macOS,
+            # qt_disable_highdpi will be set to None. We only enable scaling if it is set to
+            # False.
+            disable_scaling = config.get('qt_disable_highdpi')
+            if disable_scaling is False:
+                QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+        if hasattr(Qt, "AA_UseHighDpiPixmaps"):
+            QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electron-cash.desktop')
         self.config = config
