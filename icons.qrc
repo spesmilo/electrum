@@ -6,7 +6,7 @@
     <file>icons/clock3.png</file>
     <file>icons/clock4.png</file>
     <file>icons/clock5.png</file>
-    <file>icons/confirmed.png</file>
+    <file>icons/confirmed.svg</file>
     <file>icons/copy.png</file>
     <file>icons/digitalbitbox.png</file>
     <file>icons/digitalbitbox_unpaired.png</file>
@@ -19,21 +19,21 @@
     <file>icons/key.png</file>
     <file>icons/ledger.png</file>
     <file>icons/ledger_unpaired.png</file>
-    <file>icons/lock.png</file>
+    <file>icons/lock.svg</file>
     <file>icons/microphone.png</file>
     <file>icons/network.png</file>
-    <file>icons/qrcode.png</file>
-    <file>icons/qrcode_white.png</file>
+    <file>icons/qrcode.svg</file>
+    <file>icons/qrcode_white.svg</file>
     <file>icons/qr_finder.svg</file>
-    <file>icons/preferences.png</file>
+    <file>icons/preferences.svg</file>
     <file>icons/seed.png</file>
-    <file>icons/status_connected.png</file>
+    <file>icons/status_connected.svg</file>
     <file>icons/status_connected_fork.png</file>
-    <file>icons/status_connected_proxy.png</file>
+    <file>icons/status_connected_proxy.svg</file>
     <file>icons/status_connected_proxy_fork.png</file>
     <file>icons/status_disconnected.png</file>
-    <file>icons/status_waiting.png</file>
-    <file>icons/status_lagging.png</file>
+    <file>icons/status_waiting.svg</file>
+    <file>icons/status_lagging.svg</file>
     <file>icons/status_lagging_fork.png</file>
     <file>icons/seal.png</file>
     <file>icons/tab_addresses.png</file>
@@ -51,13 +51,13 @@
     <file>icons/tab_history.png</file>
     <file>icons/tab_receive.png</file>
     <file>icons/tab_send.png</file>
-    <file>icons/tor_logo.png</file>
+    <file>icons/tor_logo.svg</file>
     <file>icons/speaker.png</file>
     <file>icons/trezor_unpaired.png</file>
     <file>icons/trezor.png</file>
-    <file>icons/unconfirmed.png</file>
+    <file>icons/unconfirmed.svg</file>
     <file>icons/unpaid.png</file>
-    <file>icons/unlock.png</file>
+    <file>icons/unlock.svg</file>
     <file>icons/warning.png</file>
     <file>icons/zoom.png</file>
   </qresource>

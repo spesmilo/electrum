@@ -28,7 +28,7 @@ from electroncash.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
-    PR_PAID:":icons/confirmed.png",
+    PR_PAID:":icons/confirmed.svg",
     PR_EXPIRED:":icons/expired.png"
 }
 

@@ -400,8 +400,8 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.proxy_password.textEdited.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
-        self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
-        self.tor_cb.hide()
+        self.tor_cb.setIcon(QIcon(":icons/tor_logo.svg"))
+        self.tor_cb.setEnabled(False)
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
@@ -635,7 +635,7 @@ class NetworkChoiceLayout(QObject, PrintError):
 
     def suggest_proxy(self, found_proxy):
         if not found_proxy:
-            self.tor_cb.hide()
+            self.tor_cb.setEnabled(False)
             self.tor_cb.setChecked(False) # It's not clear to me that if the tor service goes away and comes back later, and in the meantime they unchecked proxy_cb, that this should remain checked. I can see it being confusing for that to be the case. Better to uncheck. It gets auto-re-checked anyway if it comes back and it's the same due to code below. -Calin
             return
         self.tor_proxy = found_proxy
@@ -645,7 +645,7 @@ class NetworkChoiceLayout(QObject, PrintError):
             and self.proxy_port.text() == str(found_proxy[1])
             and self.proxy_cb.isChecked()):
             self.tor_cb.setChecked(True)
-        self.tor_cb.show()
+        self.tor_cb.setEnabled(True)
 
     def use_tor_proxy(self, use_it):
         if not use_it:

@@ -35,14 +35,14 @@ from electroncash.plugins import run_hook
 TX_ICONS = [
     "warning.png",
     "warning.png",
-    "unconfirmed.png",
-    "unconfirmed.png",
+    "unconfirmed.svg",
+    "unconfirmed.svg",
     "clock1.png",
     "clock2.png",
     "clock3.png",
     "clock4.png",
     "clock5.png",
-    "confirmed.png",
+    "confirmed.svg",
 ]
 
 

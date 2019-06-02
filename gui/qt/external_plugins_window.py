@@ -203,10 +203,10 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         available_for = self.plugin_metadata.get("available_for", [])
         if "qt" in available_for:
             self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
-            self.qtInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
+            self.qtInterfaceLabel.setPixmap(QIcon(":icons/confirmed.svg").pixmap(15))
         if "cmdline" in available_for:
             self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
-            self.cmdLineInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
+            self.cmdLineInterfaceLabel.setPixmap(QIcon(":icons/confirmed.svg").pixmap(15))
 
     def refresh_ui(self):
         are_widgets_enabled = self.is_plugin_valid()

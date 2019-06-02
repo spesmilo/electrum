@@ -1,0 +1,13 @@
+confirmed.svg / confirmed.png
+    Author: GregorDS (https://commons.wikimedia.org/wiki/User:GregorDS)
+    License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+    from: https://commons.wikimedia.org/wiki/File:CrystalClearActionApply.svg
+    
+tor_logo.svg / tor_logo.png
+    Author: The Tor Project, Inc. (CC BY-SA 4.0)
+    License: CC BY 3.0 US (https://creativecommons.org/licenses/by/3.0/us/)
+    from https://media.torproject.org/image/Onion%20Icon/Onion_Color.svg
+    see https://media.torproject.org/image/Tor%20Style%20Guide%20v1.3.pdf
+    adjusted size
+
+

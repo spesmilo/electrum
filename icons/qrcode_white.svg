@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="background: #000000;">
+    <!-- Generator: Sketch 48.2 (47327) - http://www.bohemiancoding.com/sketch -->
+    <title>Untitled 2</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="qr-code" fill="#FFFFFF" fill-rule="nonzero">
+            <path d="M6,0 L0,0 L0,6 L6,6 L6,0 Z M5,5 L1,5 L1,1 L5,1 L5,5 Z" id="Shape"></path>
+            <polygon id="Shape" points="2 2 4 2 4 4 2 4"></polygon>
+            <path d="M0,16 L6,16 L6,10 L0,10 L0,16 Z M1,11 L5,11 L5,15 L1,15 L1,11 Z" id="Shape"></path>
+            <polygon id="Shape" points="2 12 4 12 4 14 2 14"></polygon>
+            <path d="M10,0 L10,6 L16,6 L16,0 L10,0 Z M15,5 L11,5 L11,1 L15,1 L15,5 Z" id="Shape"></path>
+            <polygon id="Shape" points="12 2 14 2 14 4 12 4"></polygon>
+            <polygon id="Shape" points="2 7 0 7 0 9 3 9 3 8 2 8"></polygon>
+            <polygon id="Shape" points="7 9 9 9 9 11 7 11"></polygon>
+            <polygon id="Shape" points="3 7 5 7 5 8 3 8"></polygon>
+            <polygon id="Shape" points="9 12 7 12 7 13 8 13 8 14 9 14 9 13"></polygon>
+            <polygon id="Shape" points="6 7 6 8 5 8 5 9 7 9 7 7"></polygon>
+            <polygon id="Shape" points="8 4 9 4 9 6 8 6"></polygon>
+            <polygon id="Shape" points="9 8 9 9 11 9 11 7 8 7 8 8"></polygon>
+            <polygon id="Shape" points="7 6 8 6 8 7 7 7"></polygon>
+            <polygon id="Shape" points="9 14 11 14 11 16 9 16"></polygon>
+            <polygon id="Shape" points="7 14 8 14 8 16 7 16"></polygon>
+            <polygon id="Shape" points="9 11 10 11 10 12 9 12"></polygon>
+            <polygon id="Shape" points="9 3 9 1 8 1 8 0 7 0 7 4 8 4 8 3"></polygon>
+            <polygon id="Shape" points="12 14 13 14 13 16 12 16"></polygon>
+            <polygon id="Shape" points="12 12 14 12 14 13 12 13"></polygon>
+            <polygon id="Shape" points="11 13 12 13 12 14 11 14"></polygon>
+            <polygon id="Shape" points="10 12 11 12 11 13 10 13"></polygon>
+            <polygon id="Shape" points="14 10 14 11 15 11 15 12 16 12 16 10 15 10"></polygon>
+            <polygon id="Shape" points="15 13 14 13 14 16 16 16 16 14 15 14"></polygon>
+            <polygon id="Shape" points="10 10 10 11 13 11 13 9 11 9 11 10"></polygon>
+            <polygon id="Shape" points="12 7 12 8 14 8 14 9 16 9 16 7 14 7"></polygon>
+        </g>
+    </g>
+</svg>

@@ -23,15 +23,18 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from electroncash.i18n import _
-from .util import *
 import re
 import math
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QLineEdit, QVBoxLayout, QLabel, QGridLayout, QCheckBox
+
+from electroncash.i18n import _
+
 from electroncash.plugins import run_hook
+
+from .util import WindowModalDialog, OkButton, Buttons, CancelButton
 
 def check_password_strength(password):
 
@@ -100,10 +103,10 @@ class PasswordLayout(object):
             if wallet and wallet.has_password():
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
                 grid.addWidget(self.pw, 0, 1)
-                lockfile = ":icons/lock.png"
+                lockfile = ":icons/lock.svg"
             else:
-                lockfile = ":icons/unlock.png"
-            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+                lockfile = ":icons/unlock.svg"
+            logo.setPixmap(QIcon(lockfile).pixmap(36))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
