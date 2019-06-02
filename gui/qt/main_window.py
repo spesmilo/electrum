@@ -3212,7 +3212,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def cashshuffle_icon(self):
         if self.is_cashshuffle_enabled():
             if self._cash_shuffle_flag == 1:
-                return QIcon(":icons/cashshuffle_on_error.png")
+                return QIcon(":icons/cashshuffle_on_error.svg")
             else:
                 return QIcon(":icons/cashshuffle_on.svg")
         else:
