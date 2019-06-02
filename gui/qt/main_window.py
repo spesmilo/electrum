@@ -791,7 +791,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not icon_dict:
             # cache the icons to save on CPU overhead per update_status call
             icon_dict.update({
-                "status_disconnected" : QIcon(":icons/status_disconnected.png"),
+                "status_disconnected" : QIcon(":icons/status_disconnected.svg"),
                 "status_waiting" : QIcon(":icons/status_waiting.svg"),
                 "status_lagging" : QIcon(":icons/status_lagging.svg"),
                 "status_lagging_fork" : QIcon(":icons/status_lagging_fork.png"),
@@ -2370,7 +2370,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(self.seed_button)
         weakSelf = Weak.ref(self)
         gui_object = self.gui_object
-        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), lambda: gui_object.show_network_dialog(weakSelf()))
+        self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.svg"), _("Network"), lambda: gui_object.show_network_dialog(weakSelf()))
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
@@ -3214,10 +3214,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self._cash_shuffle_flag == 1:
                 return QIcon(":icons/cashshuffle_on_error.png")
             else:
-                return QIcon(":icons/cashshuffle_on.png")
+                return QIcon(":icons/cashshuffle_on.svg")
         else:
             self._cash_shuffle_flag = 0
-            return QIcon(":icons/cashshuffle_off.png")
+            return QIcon(":icons/cashshuffle_off.svg")
 
     def update_cashshuffle_icon(self):
         self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
@@ -4077,7 +4077,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if nagger_answer is None:  # nagger_answer is None if they've never said "Never ask"
                 if __class__._cs_reminder_pixmap is None:
                     # lazy init. Cache it to class level.
-                    __class__._cs_reminder_pixmap = QPixmap(":icons/cash_shuffle5.png").scaledToWidth(150, Qt.SmoothTransformation)
+                    size = QSize(150, int(150/1.4419)) # Important to preserve aspect ratio in .svg file here
+                    # NB: doing it this way, with a QIcon, will take into account devicePixelRatio and end up possibly producing a very hi quality image from the SVG, larger than size
+                    __class__._cs_reminder_pixmap = QIcon(":icons/CashShuffleLogos/logo-vertical.svg").pixmap(size)
                 icon = __class__._cs_reminder_pixmap
                 message = '''
                 <big>{}</big></b>

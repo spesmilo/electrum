@@ -1173,7 +1173,7 @@ class Plugin(BasePlugin):
 class SendTabExtraDisabled(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user CashShuffle was disabled for this wallet '''
 
-    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5_grayed.png scaled to 75px width
+    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the icons/CashShuffleLogos/logo-vertical_grayed.svg scaled to 75px width
 
     def __init__(self, window):
         self.send_tab = window.send_tab
@@ -1206,7 +1206,9 @@ class SendTabExtraDisabled(QFrame, PrintError):
 
         icon = QLabel(self)
         if not SendTabExtraDisabled.pixmap_cached:
-            SendTabExtraDisabled.pixmap_cached = QPixmap(":/icons/cash_shuffle5_grayed.png").scaledToWidth(75,Qt.SmoothTransformation)
+            size = QSize(75, int(75/1.524))  # NB: important to specify exact size, preserving aspect ratio in SVG file
+            # NB: doing it this way, with a QIcon, will take into account devicePixelRatio and end up possibly producing a very hi quality image from the SVG, larger than size
+            SendTabExtraDisabled.pixmap_cached = QIcon(":icons/CashShuffleLogos/logo-vertical_grayed.svg").pixmap(size)
         icon.setPixmap(SendTabExtraDisabled.pixmap_cached)
         icon.setToolTip(_("CashShuffle Disabled"))
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
@@ -1302,7 +1304,9 @@ class SendTabExtra(QFrame, PrintError):
         icon = QLabel(self)
         if not SendTabExtra.pixmap_cached:
             # cache it and keep it around, since scaling this pixmap wastes CPU cycles each time
-            SendTabExtra.pixmap_cached = QPixmap(":/icons/cash_shuffle5.png").scaledToWidth(125,Qt.SmoothTransformation)
+            size = QSize(125, int(125/1.4419))
+            # NB: doing it this way, with a QIcon, will take into account devicePixelRatio and end up possibly producing a very hi res image from the SVG, larger than size
+            SendTabExtra.pixmap_cached = QIcon(":icons/CashShuffleLogos/logo-vertical.svg").pixmap(size)
         icon.setPixmap(SendTabExtra.pixmap_cached)
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
