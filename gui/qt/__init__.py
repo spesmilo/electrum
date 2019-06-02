@@ -81,6 +81,8 @@ class ElectrumGui(QObject, PrintError):
             disable_scaling = config.get('qt_disable_highdpi')
             if disable_scaling is False:
                 QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+        if hasattr(Qt, "AA_UseHighDpiPixmaps"):
+            QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electron-cash.desktop')
         self.config = config
