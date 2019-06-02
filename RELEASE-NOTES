@@ -478,5 +478,11 @@ and there is no warning message.
   ANY tx in your wallet or even NOT in your wallet. (cculianu)
 * Various fixups to script parser code and misc. transaction refactorings
   (Mark Lundeberg)
-* Bugfixes to Ledger support (Axel Gembe)
+* Qt: Enable automatic high DPI scaling on Windows and Linux (Axel Gembe)
+* Redid some of the icons and graphics to support high DPI (Axel Gembe,
+  cculianu)
+* Added command-line option `--qt_disable_highdpi` to force-disable high DPI
+  mode (Axel Gembe)
+* Bugfixes to Ledger support + allow up to 187 byte OP_RETURN (Axel Gembe)
 * Misc tiny UI nits and other fixups (cculianu, Axel Gembe)
+* Updated libsecp256k1 to latest from Bitcoin-ABC (cculianu)
