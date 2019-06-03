@@ -44,6 +44,7 @@ from electroncash_gui.qt.util import EnterButton, CancelButton, Buttons, CloseBu
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.amountedit import BTCAmountEdit
+from electroncash_gui.qt.utils import FixedAspectRatioSvgWidget
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 from electroncash_plugins.shuffle.conf_keys import ConfKeys  # config keys per wallet and global
@@ -1173,8 +1174,6 @@ class Plugin(BasePlugin):
 class SendTabExtraDisabled(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user CashShuffle was disabled for this wallet '''
 
-    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the icons/CashShuffleLogos/logo-vertical_grayed.svg scaled to 75px width
-
     def __init__(self, window):
         self.send_tab = window.send_tab
         self.send_grid = window.send_grid
@@ -1204,12 +1203,8 @@ class SendTabExtraDisabled(QFrame, PrintError):
         l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 5)
 
 
-        icon = QLabel(self)
-        if not SendTabExtraDisabled.pixmap_cached:
-            size = QSize(75, int(75/1.524))  # NB: important to specify exact size, preserving aspect ratio in SVG file
-            # NB: doing it this way, with a QIcon, will take into account devicePixelRatio and end up possibly producing a very hi quality image from the SVG, larger than size
-            SendTabExtraDisabled.pixmap_cached = QIcon(":icons/CashShuffleLogos/logo-vertical_grayed.svg").pixmap(size)
-        icon.setPixmap(SendTabExtraDisabled.pixmap_cached)
+        icon = FixedAspectRatioSvgWidget(75, ":icons/CashShuffleLogos/logo-vertical_grayed.svg")
+        icon.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         icon.setToolTip(_("CashShuffle Disabled"))
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
@@ -1301,13 +1296,8 @@ class SendTabExtra(QFrame, PrintError):
         l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 5)
 
 
-        icon = QLabel(self)
-        if not SendTabExtra.pixmap_cached:
-            # cache it and keep it around, since scaling this pixmap wastes CPU cycles each time
-            size = QSize(125, int(125/1.4419))
-            # NB: doing it this way, with a QIcon, will take into account devicePixelRatio and end up possibly producing a very hi res image from the SVG, larger than size
-            SendTabExtra.pixmap_cached = QIcon(":icons/CashShuffleLogos/logo-vertical.svg").pixmap(size)
-        icon.setPixmap(SendTabExtra.pixmap_cached)
+        icon = FixedAspectRatioSvgWidget(75, ":icons/CashShuffleLogos/logo-vertical.svg")
+        icon.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
         l.setSizeConstraint(QLayout.SetNoConstraint)
