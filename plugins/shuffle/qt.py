@@ -1296,7 +1296,7 @@ class SendTabExtra(QFrame, PrintError):
         l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 5)
 
 
-        icon = FixedAspectRatioSvgWidget(75, ":icons/CashShuffleLogos/logo-vertical.svg")
+        icon = FixedAspectRatioSvgWidget(125, ":icons/CashShuffleLogos/logo-vertical.svg")
         icon.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
