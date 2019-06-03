@@ -516,16 +516,13 @@ class LNWallet(LNWorker):
 
         # detect who closed and set sweep_info
         if chan.sweep_info is None:
-            closed_by = lnsweep.detect_who_closed(chan, closing_tx)
+            closed_by, chan.sweep_info = lnsweep.detect_who_closed(chan, closing_tx)
             if closed_by == ChannelClosedBy.US:
                 self.logger.info(f'we force closed {funding_outpoint}.')
-                chan.sweep_info = create_sweeptxs_for_our_ctx(chan, closing_tx, chan.sweep_address)
             elif closed_by == ChannelClosedBy.THEM:
                 self.logger.info(f'they force closed {funding_outpoint}.')
-                chan.sweep_info = create_sweeptxs_for_their_ctx(chan, closing_tx, chan.sweep_address)
             else:
                 self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}.')
-                chan.sweep_info = {}
             self.logger.info(f'{repr(chan.sweep_info)}')
 
         # create and broadcast transaction

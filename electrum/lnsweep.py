@@ -100,94 +100,47 @@ class ChannelClosedBy(Enum):
 
 def detect_who_closed(chan: 'Channel', ctx: Transaction) -> ChannelClosedBy:
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
-
-    def get_to_local_and_to_remote_addresses_for_our_ctx():
-        is_breach = ctn < our_conf.ctn
-        # to_local
-        our_per_commitment_secret = get_per_commitment_secret_from_seed(
-            our_conf.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
-        our_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-        our_delayed_bp_privkey = ecc.ECPrivkey(our_conf.delayed_basepoint.privkey)
-        our_localdelayed_privkey = derive_privkey(our_delayed_bp_privkey.secret_scalar, our_pcp)
-        our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
-        their_revocation_pubkey = derive_blinded_pubkey(their_conf.revocation_basepoint.pubkey, our_pcp)
-        our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
-        to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
-            their_revocation_pubkey, their_conf.to_self_delay, our_localdelayed_pubkey))
-        to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
-        # to_remote
-        their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
-        to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
-        return to_local_address, to_remote_address, is_breach
-
-    def get_to_local_and_to_remote_addresses_for_their_ctx():
-        is_breach = False
-        if ctn == their_conf.ctn:
-            their_pcp = their_conf.current_per_commitment_point
-        elif ctn == their_conf.ctn + 1:
-            their_pcp = their_conf.next_per_commitment_point
-        elif ctn < their_conf.ctn:  # breach
-            is_breach = True
-            try:
-                per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
-            except UnableToDeriveSecret:
-                return None, None, is_breach
-            their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-        else:
-            return None, None, None
-        # to_local
-        our_revocation_pubkey = derive_blinded_pubkey(our_conf.revocation_basepoint.pubkey, their_pcp)
-        their_delayed_pubkey = derive_pubkey(their_conf.delayed_basepoint.pubkey, their_pcp)
-        witness_script = bh2u(make_commitment_output_to_local_witness_script(
-            our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey))
-        to_local_address = redeem_script_to_address('p2wsh', witness_script)
-        # to_remote
-        our_payment_pubkey = derive_pubkey(our_conf.payment_basepoint.pubkey, their_pcp)
-        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
-        return to_local_address, to_remote_address, is_breach
-
-    # our ctx?
-    to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_our_ctx()
-    if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
-            or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
-        return ChannelClosedBy.US
-
-    # their ctx?
-    to_local_address, to_remote_address, is_breach = get_to_local_and_to_remote_addresses_for_their_ctx()
-    if (to_local_address and ctx.get_output_idx_from_address(to_local_address) is not None
-            or to_remote_address and ctx.get_output_idx_from_address(to_remote_address) is not None):
-        return ChannelClosedBy.THEM
-
-    return ChannelClosedBy.UNKNOWN
+    sweep_info = create_sweeptxs_for_our_ctx(chan, ctx, ctn, chan.sweep_address)
+    if sweep_info:
+        return ChannelClosedBy.US, sweep_info
+    sweep_info = create_sweeptxs_for_their_ctx(chan, ctx, ctn, chan.sweep_address)
+    if sweep_info:
+        return ChannelClosedBy.THEM, sweep_info
+    return ChannelClosedBy.UNKNOWN, {}
 
 
-def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction,
+def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
                                 sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
     'to_local' can be swept even if this is a breach (by us),
     but HTLCs cannot (old HTLCs are no longer stored).
     """
-    this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=True)
-    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
+    our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
     our_per_commitment_secret = get_per_commitment_secret_from_seed(
-        this_conf.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+        our_conf.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
     our_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-    # prep
-    this_delayed_bp_privkey = ecc.ECPrivkey(this_conf.delayed_basepoint.privkey)
-    our_localdelayed_privkey = derive_privkey(this_delayed_bp_privkey.secret_scalar, our_pcp)
+    our_delayed_bp_privkey = ecc.ECPrivkey(our_conf.delayed_basepoint.privkey)
+    our_localdelayed_privkey = derive_privkey(our_delayed_bp_privkey.secret_scalar, our_pcp)
     our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
-    remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, our_pcp)
-    to_self_delay = chan.config[REMOTE].to_self_delay
-    this_htlc_privkey = derive_privkey(secret=int.from_bytes(this_conf.htlc_basepoint.privkey, 'big'),
+    their_revocation_pubkey = derive_blinded_pubkey(their_conf.revocation_basepoint.pubkey, our_pcp)
+    to_self_delay = their_conf.to_self_delay
+    our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'),
                                        per_commitment_point=our_pcp).to_bytes(32, 'big')
-    txs = {}
-    # to_local
     our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
-        remote_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
+        their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
+    their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+    to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
+
+    # test ctx
+    if ctx.get_output_idx_from_address(to_local_address) is None\
+       and ctx.get_output_idx_from_address(to_remote_address) is None:
+        return
+
+    txs = {}
+    # to_local
     output_idx = ctx.get_output_idx_from_address(to_local_address)
     if output_idx is not None:
         sweep_tx = lambda: create_sweeptx_ctx_to_local(
@@ -215,7 +168,7 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction,
             our_pcp=our_pcp,
             ctx=ctx,
             htlc=htlc,
-            local_htlc_privkey=this_htlc_privkey,
+            local_htlc_privkey=our_htlc_privkey,
             preimage=preimage,
             is_received_htlc=is_received_htlc)
         sweep_tx = lambda: create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
@@ -240,47 +193,56 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction,
     return txs
 
 
-def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
+def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
                                   sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case when the remote force-closes with their ctx.
     Sweep outputs that do not have a CSV delay ('to_remote' and first-stage HTLCs).
     Outputs with CSV delay ('to_local' and second-stage HTLCs) are redeemed by LNWatcher.
     """
-    this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
+    our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     # note: the remote sometimes has two valid non-revoked commitment transactions,
-    # either of which could be broadcast (this_conf.ctn, this_conf.ctn+1)
+    # either of which could be broadcast (their_conf.ctn, their_conf.ctn+1)
     per_commitment_secret = None
-    if ctn == this_conf.ctn:
-        their_pcp = this_conf.current_per_commitment_point
+    if ctn == their_conf.ctn:
+        their_pcp = their_conf.current_per_commitment_point
         is_revocation = False
-    elif ctn == this_conf.ctn + 1:
-        their_pcp = this_conf.next_per_commitment_point
+    elif ctn == their_conf.ctn + 1:
+        their_pcp = their_conf.next_per_commitment_point
         is_revocation = False
-    elif ctn < this_conf.ctn:  # breach
+    elif ctn < their_conf.ctn:  # breach
         try:
-            per_commitment_secret = this_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+            per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:
-            return {}
+            return
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
-        other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey, per_commitment_secret)
+        our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
     else:
-        return {}
+        return
+    # to_local and to_remote addresses
+    our_revocation_pubkey = derive_blinded_pubkey(our_conf.revocation_basepoint.pubkey, their_pcp)
+    their_delayed_pubkey = derive_pubkey(their_conf.delayed_basepoint.pubkey, their_pcp)
+    witness_script = bh2u(make_commitment_output_to_local_witness_script(
+        our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey))
+    to_local_address = redeem_script_to_address('p2wsh', witness_script)
+    our_payment_pubkey = derive_pubkey(our_conf.payment_basepoint.pubkey, their_pcp)
+    to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+    # test ctx
+    if ctx.get_output_idx_from_address(to_local_address) is None \
+       and ctx.get_output_idx_from_address(to_remote_address) is None:
+        return
     # prep
-    other_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, their_pcp)
-    other_htlc_privkey = derive_privkey(secret=int.from_bytes(other_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
-    other_htlc_privkey = ecc.ECPrivkey.from_secret_scalar(other_htlc_privkey)
-    this_htlc_pubkey = derive_pubkey(this_conf.htlc_basepoint.pubkey, their_pcp)
-    other_payment_bp_privkey = ecc.ECPrivkey(other_conf.payment_basepoint.privkey)
-    other_payment_privkey = derive_privkey(other_payment_bp_privkey.secret_scalar, their_pcp)
-    other_payment_privkey = ecc.ECPrivkey.from_secret_scalar(other_payment_privkey)
-
+    our_htlc_privkey = derive_privkey(secret=int.from_bytes(our_conf.htlc_basepoint.privkey, 'big'), per_commitment_point=their_pcp)
+    our_htlc_privkey = ecc.ECPrivkey.from_secret_scalar(our_htlc_privkey)
+    their_htlc_pubkey = derive_pubkey(their_conf.htlc_basepoint.pubkey, their_pcp)
+    our_payment_bp_privkey = ecc.ECPrivkey(our_conf.payment_basepoint.privkey)
+    our_payment_privkey = derive_privkey(our_payment_bp_privkey.secret_scalar, their_pcp)
+    our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
+    assert our_payment_pubkey == our_payment_privkey.get_public_key_bytes(compressed=True)
     txs = {}
     # to_local is handled by lnwatcher
     # to_remote
-    our_payment_pubkey = other_payment_privkey.get_public_key_bytes(compressed=True)
-    to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
     output_idx = ctx.get_output_idx_from_address(to_remote_address)
     if output_idx is not None:
         prevout = ctx.txid() + ':%d'%output_idx
@@ -288,7 +250,7 @@ def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
             sweep_address=sweep_address,
             ctx=ctx,
             output_idx=output_idx,
-            our_payment_privkey=other_payment_privkey)
+            our_payment_privkey=our_payment_privkey)
         txs[prevout] = ('their_ctx_to_remote', 0, 0, sweep_tx)
     # HTLCs
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Optional[Transaction]:
@@ -302,9 +264,9 @@ def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
             preimage = None
         htlc_output_witness_script = make_htlc_output_witness_script(
             is_received_htlc=is_received_htlc,
-            remote_revocation_pubkey=other_revocation_pubkey,
-            remote_htlc_pubkey=other_htlc_privkey.get_public_key_bytes(compressed=True),
-            local_htlc_pubkey=this_htlc_pubkey,
+            remote_revocation_pubkey=our_revocation_pubkey,
+            remote_htlc_pubkey=our_htlc_privkey.get_public_key_bytes(compressed=True),
+            local_htlc_pubkey=their_htlc_pubkey,
             payment_hash=htlc.payment_hash,
             cltv_expiry=htlc.cltv_expiry)
         htlc_address = redeem_script_to_address('p2wsh', bh2u(htlc_output_witness_script))
@@ -320,7 +282,7 @@ def create_sweeptxs_for_their_ctx(chan: 'Channel', ctx: Transaction,
                 sweep_address=sweep_address,
                 preimage=preimage,
                 output_idx=output_idx,
-                privkey=other_revocation_privkey if is_revocation else other_htlc_privkey.get_secret_bytes(),
+                privkey=our_revocation_privkey if is_revocation else our_htlc_privkey.get_secret_bytes(),
                 is_revocation=is_revocation,
                 cltv_expiry=cltv_expiry)
             name = f'their_ctx_sweep_htlc_{ctx.txid()[:8]}_{output_idx}'
