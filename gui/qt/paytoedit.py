@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
 from .qrtextedit import ScanQRTextEdit
 
 import re
+import sys
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from electroncash import bitcoin
 from electroncash.address import Address, ScriptOutput
@@ -78,6 +79,16 @@ class PayToEdit(ScanQRTextEdit):
         self.cointext = None
 
         self.previous_payto = ''
+
+        if sys.platform in ('darwin',):
+            # See issue #1411 -- on *some* macOS systems, clearing the
+            # payto field with setText('') ends up leaving "ghost" pixels
+            # in the field, which look like the text that was just there.
+            # This situation corrects itself eventually if another repaint
+            # is issued to the widget. I couldn't figure out why it is happening
+            # and the workaround is simply to force a repaint using this trick
+            # for all textChanged events. -Calin
+            self.textChanged.connect(self.repaint)
 
     def setFrozen(self, b):
         self.setReadOnly(b)
