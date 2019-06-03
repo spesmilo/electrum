@@ -3565,11 +3565,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if sys.platform not in ('darwin',):
             # Enable/Disable HighDPI -- this option makes no sense for macOS
             # and thus does not appear on that platform
-            hidpi_chk = QCheckBox(_('Enable high DPI scaling'))
+            hidpi_chk = QCheckBox(_('Automatic high DPI scaling'))
             hidpi_chk.setToolTip(_("Enable/disable this option if you experience visual glitches such as icons appearing comically large"))
             hidpi_chk.setChecked(bool(self.config.get('qt_enable_highdpi', True)))
             if self.config.get('qt_disable_highdpi'):
-                hidpi_chk.setToolTip(_('High DPI scaling was disabled from the command-line'))
+                hidpi_chk.setToolTip(_('Automatic high DPI scaling was disabled from the command-line'))
                 hidpi_chk.setChecked(False)
                 hidpi_chk.setDisabled(True)
             def on_hi_dpi_toggle():

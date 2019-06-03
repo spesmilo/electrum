@@ -547,9 +547,9 @@ class ElectrumGui(QObject, PrintError):
             self.config.set_key('qt_enable_highdpi', True)  # write to the config key to immediately suppress this warning in the future -- it only appears on first-run if None
             parent.show_message(
                 title = _('High DPI Enabled'),
-                msg = (_("High DPI mode has been enabled for Electron Cash, which should result in improved graphics quality.")
+                msg = (_("Automatic high DPI scaling has been enabled for Electron Cash, which should result in improved graphics quality.")
                        + "\n\n" + _("However, on some esoteric Linux systems, this mode may cause disproportionately large status bar icons.")
-                       + "\n\n" + _("If that is the case for you, then disable high DPI mode in the preferences, under 'General'.")),
+                       + "\n\n" + _("If that is the case for you, then disable automatic DPI scaling in the preferences, under 'General'.")),
             )
 
     def has_auto_update_check(self):
