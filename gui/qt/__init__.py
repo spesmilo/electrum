@@ -74,12 +74,23 @@ class ElectrumGui(QObject, PrintError):
         QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
         if hasattr(Qt, "AA_ShareOpenGLContexts"):
             QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-        if hasattr(Qt, "AA_EnableHighDpiScaling"):
-            # On platforms that do not support high DPI scaling attribute, like macOS,
-            # qt_disable_highdpi will be set to None. We only enable scaling if it is set to
-            # False.
-            disable_scaling = config.get('qt_disable_highdpi')
-            if disable_scaling is False:
+        if sys.platform not in ('darwin',) and hasattr(Qt, "AA_EnableHighDpiScaling"):
+            # The below only applies to non-macOS. On macOS this setting is
+            # never used (because it is implicitly auto-negotiated by the OS
+            # in a differernt way).
+            #
+            # qt_disable_highdpi will be set to None by default, or True if
+            # specified on command-line.  The command-line override is intended
+            # to supporess high-dpi mode just for this run for testing.
+            #
+            # The more permanent setting is qt_enable_highdpi which is the GUI
+            # preferences option, so we don't enable highdpi if it's explicitly
+            # set to False in the GUI.
+            #
+            # The default on Linux, Windows, etc is to enable high dpi
+            disable_scaling = config.get('qt_disable_highdpi', False)
+            enable_scaling = config.get('qt_enable_highdpi', True)
+            if not disable_scaling and enable_scaling:
                 QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
         if hasattr(Qt, "AA_UseHighDpiPixmaps"):
             QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
@@ -523,6 +534,23 @@ class ElectrumGui(QObject, PrintError):
             d.setWindowModality(Qt.WindowModal if parent else Qt.ApplicationModal)
             d.exec_()
             d.setParent(None)
+
+    def linux_maybe_show_highdpi_caveat_msg(self, parent):
+        ''' Called from main_window.py -- tells user once and only once about
+        the high DPI mode and its caveats on Linux only.  Is a no-op otherwise. '''
+        if sys.platform not in ('linux',):
+            return
+        if (hasattr(Qt, "AA_EnableHighDpiScaling")
+                and self.app.testAttribute(Qt.AA_EnableHighDpiScaling)
+                # first run check:
+                and self.config.get('qt_enable_highdpi', None) is None):
+            self.config.set_key('qt_enable_highdpi', True)  # write to the config key to immediately suppress this warning in the future -- it only appears on first-run if None
+            parent.show_message(
+                title = _('High DPI Enabled'),
+                msg = (_("High DPI mode has been enabled for Electron Cash, which should result in improved graphics quality.")
+                       + "\n\n" + _("However, on some esoteric Linux systems, this mode may cause disproportionately large status bar icons.")
+                       + "\n\n" + _("If that is the case for you, then disable high DPI mode in the preferences, under 'General'.")),
+            )
 
     def has_auto_update_check(self):
         return bool(self.config.get('auto_update_check', True))

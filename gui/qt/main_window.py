@@ -222,14 +222,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
 
-        #try:
-        #    # Amaury's recommendation -- only remind a subset of users to enable it.
-        #    self.remind_cashshuffle_enabled = bool(int.from_bytes(bytes.fromhex(self.wallet.get_public_key(self.wallet.get_addresses()[0])), byteorder='big') & 0x3)
-        #except (AttributeError, ValueError, TypeError):
-        #    # wallet lacks the get_public_key method
-        #    self.remind_cashshuffle_enabled = False
-        self.remind_cashshuffle_enabled = False  # For now globally disabled
-        #QTimer.singleShot(300, self.do_cash_shuffle_reminder)
+    _first_shown = True
+    def showEvent(self, event):
+        super().showEvent(event)
+        if event.isAccepted() and self._first_shown:
+            self._first_shown = False
+            weakSelf = Weak.ref(self)
+
+            #
+            #try:
+            #    # Amaury's recommendation -- only remind a subset of users to enable it.
+            #    self.remind_cashshuffle_enabled = bool(int.from_bytes(bytes.fromhex(self.wallet.get_public_key(self.wallet.get_addresses()[0])), byteorder='big') & 0x3)
+            #except (AttributeError, ValueError, TypeError):
+            #    # wallet lacks the get_public_key method
+            #    self.remind_cashshuffle_enabled = False
+            self.remind_cashshuffle_enabled = False  # For now globally disabled
+            #QTimer.singleShot(300, lambda: weakSelf() and weakSelf().do_cash_shuffle_reminder())
+            #
+
+            # do this immediately after this event handler finishes -- noop on everything but linux
+            QTimer.singleShot(0, lambda: weakSelf() and weakSelf().gui_object.linux_maybe_show_highdpi_caveat_msg(weakSelf()))
 
     def on_history(self, event, *args):
         # NB: event should always be 'on_history'
@@ -3549,6 +3561,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
         gui_widgets.append((colortheme_label, colortheme_combo))
+
+        if sys.platform not in ('darwin',):
+            # Enable/Disable HighDPI -- this option makes no sense for macOS
+            # and thus does not appear on that platform
+            hidpi_chk = QCheckBox(_('Enable high DPI scaling'))
+            hidpi_chk.setToolTip(_("Enable/disable this option if you experience visual glitches such as icons appearing comically large"))
+            hidpi_chk.setChecked(bool(self.config.get('qt_enable_highdpi', True)))
+            if self.config.get('qt_disable_highdpi'):
+                hidpi_chk.setToolTip(_('High DPI scaling was disabled from the command-line'))
+                hidpi_chk.setChecked(False)
+                hidpi_chk.setDisabled(True)
+            def on_hi_dpi_toggle():
+                self.config.set_key('qt_enable_highdpi', hidpi_chk.isChecked())
+                self.need_restart = True
+            hidpi_chk.stateChanged.connect(on_hi_dpi_toggle)
+            gui_widgets.append((hidpi_chk, None))
 
         gui_widgets.append((None, None)) # spacer
         updatecheck_cb = QCheckBox(_("Automatically check for updates"))
