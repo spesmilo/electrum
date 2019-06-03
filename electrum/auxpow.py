@@ -53,6 +53,7 @@ from .crypto import sha256d
 from . import transaction
 from .transaction import BCDataStream, Transaction, TYPE_SCRIPT
 from .util import bfh, bh2u
+from . import constants
 
 BLOCK_VERSION_AUXPOW_BIT = 0x100
 MIN_AUXPOW_HEIGHT = 1
@@ -141,6 +142,7 @@ def deserialize_merkle_branch(s, start_position=0):
     index = vds.read_int32()
     return hashes, index, vds.read_cursor
 
+
 # TODO: This is dead code that will probably be removed.
 def strip_auxpow_headers(index, chunk):
     result = bytearray()
@@ -148,7 +150,11 @@ def strip_auxpow_headers(index, chunk):
 
     i = 0
     while len(trailing_data) > 0:
-        header, trailing_data = electrum.blockchain.deserialize_header(trailing_data, index*2016 + i, expect_trailing_data=True)
+        header, trailing_data = electrum.blockchain.deserialize_header(
+            trailing_data,
+            index * constants.net.POW_BLOCK_ADJUST + i,
+            expect_trailing_data=True
+        )
         result.extend(bfh(electrum.blockchain.serialize_header(header)))
         i = i + 1
 

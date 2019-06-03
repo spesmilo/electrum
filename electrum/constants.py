@@ -41,9 +41,13 @@ def read_json(filename, default):
 
 class AbstractNet:
 
+    POW_TARGET_TIMESPAN = 60 * 60 * 24 * 14
+    POW_TARGET_SPACING = 60 * 10
+    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
+
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+        return max(0, len(cls.CHECKPOINTS) * cls.POW_BLOCK_ADJUST - 1)
 
 
 class BitcoinMainnet(AbstractNet):
@@ -132,6 +136,9 @@ class SyscoinMainnet(AbstractNet):
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
+    POW_TARGET_TIMESPAN = 60 * 60 * 6  # 21600 seconds, aka 6 hours
+    POW_TARGET_SPACING = 60  # 60 seconds
+    POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
 
     GENESIS = "000001cab6418dbdbdc0255b5216938d0b1d93e9c4fbce43a1a8886eb2b4356f"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}

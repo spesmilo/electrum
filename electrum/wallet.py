@@ -66,7 +66,6 @@ from .interface import RequestTimedOut
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
-from asgiref.sync import async_to_sync
 
 if TYPE_CHECKING:
     from .network import Network

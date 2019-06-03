@@ -839,7 +839,7 @@ class Network(Logger):
     async def _init_headers_file(self):
         b = blockchain.get_best_chain()
         filename = b.path()
-        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
+        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * constants.net.POW_BLOCK_ADJUST
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
                 if length > 0:
