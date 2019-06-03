@@ -23,7 +23,19 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .aspect_layout import FixedAspectRatioLayout
-from .aspect_svg_widget import FixedAspectRatioSvgWidget
-from .image_effect import ImageGraphicsEffect
-from .color_utils import QColorLerp
+from PyQt5.QtCore import QObject, QSize
+from PyQt5.QtSvg import QSvgWidget
+
+class FixedAspectRatioSvgWidget(QSvgWidget):
+    def __init__(self, width: int, file: str = None, parent: QObject = None):
+        if file:
+            super().__init__(file, parent)
+        else:
+            super().__init__(parent)
+        self._width = width
+
+    def sizeHint(self) -> QSize:
+        svg_size = super().sizeHint()
+        aspect_ratio = svg_size.width() / svg_size.height()
+        size_hint = QSize(self._width, self._width / aspect_ratio)
+        return size_hint
