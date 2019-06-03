@@ -197,26 +197,19 @@ class ElectrumGui(QObject, PrintError):
         timer.setSingleShot(True); timer.timeout.connect(timeout); timer.start(10000)  # 10 sec
 
     def _set_icon(self):
-        # if running from source, give the app an icon
-        set_icon = None
-        icns_file = 'electron.icns'
-        ico_file = 'icons' + os.sep + 'electron.ico'
-        if sys.platform == 'darwin' and os.path.exists(icns_file):
-            set_icon = icns_file
-        elif (sys.platform in ('linux', 'win32', 'win64', 'windows')
-                and os.path.exists(ico_file) ):
-            set_icon = ico_file
-        if set_icon:
-            icon = QIcon(set_icon)
-            sizes = icon.availableSizes()
-            if sizes:
-                self.print_error(("Running from source, set app icon to: "
-                                  + "{} (available sizes: {})")
-                                 .format(set_icon,
-                                         ', '.join(["{}x{}".format(s.width(),
-                                                                   s.height())
-                                                    for s in sizes])))
-                self.app.setWindowIcon(icon)
+        if sys.platform == 'darwin':
+            # on macOS, in "running from source" mode, we want to set the app
+            # icon, otherwise we get the generic Python icon.
+            # In non-running-from-source mode, macOS will get the icon from
+            # the .app bundle Info.plist spec (which ends up being
+            # electron.icns anyway).
+            icon = QIcon("electron.icns") if os.path.exists("electron.icns") else None
+        else:
+            # Unconditionally set this on all other platforms as it can only
+            # help and never harm, and is always available.
+            icon = QIcon(":icons/electron.ico")
+        if icon:
+            self.app.setWindowIcon(icon)
 
     def eventFilter(self, obj, event):
         ''' This event filter allows us to open bitcoincash: URIs on macOS '''
