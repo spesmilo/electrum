@@ -41,9 +41,9 @@ def read_json(filename, default):
 
 class AbstractNet:
 
-    POW_TARGET_TIMESPAN = 60 * 60 * 24 * 14
-    POW_TARGET_SPACING = 60 * 10
-    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
+    POW_TARGET_TIMESPAN = 1209600  # 60 * 60 * 24 * 14 minutes / 2 weeks
+    POW_TARGET_SPACING = 600  # 600 seconds / 10 minutes
+    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)  # 2016
 
     @classmethod
     def max_checkpoint(cls) -> int:
@@ -136,7 +136,7 @@ class SyscoinMainnet(AbstractNet):
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
-    POW_TARGET_TIMESPAN = 60 * 60 * 6  # 21600 seconds, aka 6 hours
+    POW_TARGET_TIMESPAN = 21600  # 60 * 60 * 6 seconds / 6 hours
     POW_TARGET_SPACING = 60  # 60 seconds
     POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
 

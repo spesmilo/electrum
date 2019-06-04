@@ -545,12 +545,12 @@ class Blockchain(Logger):
             return t
         # new target
 
-        pow_block_adjust = constants.net.POW_BLOCK_ADJUST   # int(constants.net.POW_TARGET_TIMESPAN / constants.net.POW_TARGET_SPACING)
+        pow_block_adjust = constants.net.POW_BLOCK_ADJUST
 
-        first = self.read_header(index * pow_block_adjust - 1 if index > 0 else 0)
+        first = self.read_header(index * pow_block_adjust)
         last = self.read_header(index * pow_block_adjust + (pow_block_adjust - 1))
         if not first or not last:
-            self.logger.info("first {} {}".format(index * pow_block_adjust - 1 if index > 0 else 0, first if first else "NONE"))
+            self.logger.info("first {} {}".format(index * pow_block_adjust, first if first else "NONE"))
             self.logger.info("last {} {}".format(index * pow_block_adjust + (pow_block_adjust - 1), last if last else "NONE"))
             raise MissingHeader()
         bits = last.get('bits')
@@ -576,7 +576,7 @@ class Blockchain(Logger):
 
     @classmethod
     def target_to_bits(cls, target: int) -> int:
-        c = ("%064x" % target)[2:]
+        c = ("%064x" % target)
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
         bitsN, bitsBase = len(c) // 2, int.from_bytes(bfh(c[:6]), byteorder='big')
@@ -587,7 +587,7 @@ class Blockchain(Logger):
 
     def chainwork_of_header_at_height(self, height: int) -> int:
         """work done by single header at given height"""
-        chunk_idx = height // constants.net.POW_BLOCK_ADJUST - 1
+        chunk_idx = height // constants.net.POW_BLOCK_ADJUST - 1 # TODO diff
         target = self.get_target(chunk_idx)
         work = ((2 ** 256 - target - 1) // (target + 1)) + 1
         return work
