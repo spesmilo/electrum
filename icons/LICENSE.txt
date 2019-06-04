@@ -1,13 +1,24 @@
-confirmed.svg / confirmed.png
+confirmed.svg
     Author: GregorDS (https://commons.wikimedia.org/wiki/User:GregorDS)
     License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
     from: https://commons.wikimedia.org/wiki/File:CrystalClearActionApply.svg
+
+expired.svg
+    Author: The Oxygen Team, KDE
+    License: LGPLv3 (https://www.gnu.org/licenses/lgpl-3.0.html)
+    from https://commons.wikimedia.org/wiki/File:Oxygen480-emblems-emblem-important.svg
     
-tor_logo.svg / tor_logo.png
+tor_logo.svg
     Author: The Tor Project, Inc. (CC BY-SA 4.0)
     License: CC BY 3.0 US (https://creativecommons.org/licenses/by/3.0/us/)
     from https://media.torproject.org/image/Onion%20Icon/Onion_Color.svg
     see https://media.torproject.org/image/Tor%20Style%20Guide%20v1.3.pdf
-    adjusted size
 
+unpaid.svg
+    Author: Composition by Tkgd2007
+    License: LGPLv2.1 or later (https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
+    from https://commons.wikimedia.org/wiki/File:Out_of_date_clock_icon_2.svg
 
+seal.svg
+    Author: Axel Gembe
+    License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
