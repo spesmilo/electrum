@@ -2,7 +2,8 @@
 
 set -e
 
-RASTERIZE="clock1 clock2 clock3 clock4 clock5"
+#RASTERIZE="clock1 clock2 clock3 clock4 clock5"
+RASTERIZE=""
 RESOLUTIONS="16 24 32 48 64"
 
 require_command() {
@@ -17,7 +18,7 @@ require_command() {
     fi
 }
 
-require_command convert # Make sure user has imagemagick installed
+#require_command convert # Make sure user has imagemagick installed
 require_command pyrcc5
 
 for icon in $RASTERIZE ; do
