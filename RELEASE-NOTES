@@ -488,3 +488,4 @@ and there is no warning message.
 * Updated libsecp256k1 to latest from Bitcoin-ABC (cculianu)
 * Reduced .dmg, .exe, & .AppImage binary sizes by optimizing images (Axel Gembe)
 * Updated servers.json (imaginaryusername)
+* CashShuffle: Raised default shuffle limit to 99.9999 BCH (cculianu)

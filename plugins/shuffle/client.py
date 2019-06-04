@@ -280,7 +280,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
     SCALE_0 = SORTED_SCALES[0]
     SCALE_N = SORTED_SCALES[-1]
 
-    DEFAULT_UPPER_BOUND = 5000000000    # (default) 50 BCH limit to max shuffle coin
+    DEFAULT_UPPER_BOUND = 9999990000    # (default) 99.99 BCH limit to max shuffle coin
     DEFAULT_LOWER_BOUND = SCALE_0 + FEE # (default) 0.0001 BCH + FEE minimum coin. Note config can never make minimum go below this.
 
     # The below two get overwritten on the class level from ConfKeys.Global.MIN_COIN_VALUE and MAX_COIN_VALUE in class c'tor
