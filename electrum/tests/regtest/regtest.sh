@@ -21,11 +21,16 @@ if [[ $# -eq 0 ]]; then
 fi
 
 if [[ $1 == "init" ]]; then
+    echo "initializing alice, bob and carol"
     rm -rf /tmp/alice/ /tmp/bob/ /tmp/carol/
     $alice create > /dev/null
     $bob create > /dev/null
     $carol create > /dev/null
+    $alice setconfig log_to_file True
+    $bob setconfig log_to_file True
+    $carol setconfig log_to_file True
     $bob setconfig lightning_listen localhost:9735
+    echo "funding alice and carol"
     $bitcoin_cli sendtoaddress $($alice getunusedaddress) 1
     $bitcoin_cli sendtoaddress $($carol getunusedaddress) 1
     new_blocks 1
@@ -156,36 +161,56 @@ if [[ $1 == "breach_with_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
-    sleep 1
-    # alice opens channel
+    while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
+	echo "waiting for alice balance"
+	sleep 1
+    done
+    echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
-    new_blocks 6
-    sleep 5
-    # alice pays bob
-    invoice=$($bob addinvoice 0.05 "test")
+    new_blocks 3
+    channel_state=""
+    while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
+	echo "waiting for channel open"
+	sleep 1
+    done
     echo "alice pays bob"
+    invoice=$($bob addinvoice 0.05 "test")
     $alice lnpay $invoice --timeout=1 || true
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
-	echo 'SETTLE_DELAY did not work'
+	echo "SETTLE_DELAY did not work, $settled != 0"
         exit 1
     fi
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
-    sleep 3
+    sleep 5
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "1" ]]; then
-	echo 'SETTLE_DELAY did not work'
+	echo "SETTLE_DELAY did not work, $settled != 1"
         exit 1
     fi
     echo $($bob getbalance)
     echo "alice breaches with old ctx"
     echo $ctx
+    height1=$($bob daemon status | jq '.blockchain_height')
     $bitcoin_cli sendrawtransaction $ctx
     new_blocks 1
-    sleep 10
+    # wait until breach is confirmed
+    while height2=$($bob daemon status | jq '.blockchain_height') && [ $(($height2 - $height1)) -ne 1 ]; do
+	echo "waiting for block"
+	sleep 1
+    done
     new_blocks 1
-    sleep 1
+    # wait until next block is confirmed, so that htlc tx and redeem tx are confirmed too
+    while height3=$($bob daemon status | jq '.blockchain_height') && [ $(($height3 - $height2)) -ne 1 ]; do
+	echo "waiting for block"
+	sleep 1
+    done
+    # wait until wallet is synchronized
+    while b=$($bob daemon status | jq '.wallets | ."/tmp/bob/regtest/wallets/default_wallet"') && [ "$b" != "true" ]; do
+	echo "waiting for wallet sync $b"
+	sleep 1
+    done
     echo $($bob getbalance)
     balance_after=$($bob getbalance | jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     if (( $(echo "$balance_after < 0.14" | bc -l) )); then
