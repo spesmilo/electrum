@@ -46,7 +46,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script)
-from .lnsweep import create_sweeptxs_for_their_revoked_ctx
+from .lnsweep import create_sweeptxs_for_their_revoked_ctx, create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnhtlc import HTLCManager
 
 
@@ -807,3 +807,20 @@ class Channel(Logger):
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
         return tx
+
+    def get_sweep_info(self, ctx: Transaction):
+        if self.sweep_info is None:
+            ctn = extract_ctn_from_tx_and_chan(ctx, self)
+            our_sweep_info = create_sweeptxs_for_our_ctx(self, ctx, ctn, self.sweep_address)
+            their_sweep_info = create_sweeptxs_for_their_ctx(self, ctx, ctn, self.sweep_address)
+            if our_sweep_info:
+                self.sweep_info = our_sweep_info
+                self.logger.info(f'we force closed.')
+            elif their_sweep_info:
+                self.sweep_info = their_sweep_info
+                self.logger.info(f'they force closed.')
+            else:
+                self.sweep_info = {}
+                self.logger.info(f'not sure who closed {ctx}.')
+            self.logger.info(f'{repr(self.sweep_info)}')
+        return self.sweep_info

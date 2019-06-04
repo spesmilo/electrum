@@ -46,7 +46,6 @@ from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnsweep import ChannelClosedBy
 from .lnsweep import create_sweeptxs_for_their_ctx, create_sweeptxs_for_our_ctx
 
 if TYPE_CHECKING:
@@ -515,18 +514,10 @@ class LNWallet(LNWorker):
             self.channel_db.remove_channel(chan.short_channel_id)
 
         # detect who closed and set sweep_info
-        if chan.sweep_info is None:
-            closed_by, chan.sweep_info = lnsweep.detect_who_closed(chan, closing_tx)
-            if closed_by == ChannelClosedBy.US:
-                self.logger.info(f'we force closed {funding_outpoint}.')
-            elif closed_by == ChannelClosedBy.THEM:
-                self.logger.info(f'they force closed {funding_outpoint}.')
-            else:
-                self.logger.info(f'not sure who closed {funding_outpoint} {closing_txid}.')
-            self.logger.info(f'{repr(chan.sweep_info)}')
+        sweep_info = chan.get_sweep_info(closing_tx)
 
         # create and broadcast transaction
-        for prevout, e_tx in chan.sweep_info.items():
+        for prevout, e_tx in sweep_info.items():
             name, csv_delay, cltv_expiry, gen_tx = e_tx
             if spenders.get(prevout) is not None:
                 self.logger.info(f'outpoint already spent {prevout}')

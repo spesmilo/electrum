@@ -91,24 +91,6 @@ def create_sweeptxs_for_their_revoked_ctx(chan: 'Channel', ctx: Transaction, per
     return txs
 
 
-class ChannelClosedBy(Enum):
-    US = auto()
-    THEM = auto()
-    UNKNOWN = auto()
-
-
-
-def detect_who_closed(chan: 'Channel', ctx: Transaction) -> ChannelClosedBy:
-    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    sweep_info = create_sweeptxs_for_our_ctx(chan, ctx, ctn, chan.sweep_address)
-    if sweep_info:
-        return ChannelClosedBy.US, sweep_info
-    sweep_info = create_sweeptxs_for_their_ctx(chan, ctx, ctn, chan.sweep_address)
-    if sweep_info:
-        return ChannelClosedBy.THEM, sweep_info
-    return ChannelClosedBy.UNKNOWN, {}
-
-
 def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
                                 sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
