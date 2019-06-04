@@ -550,6 +550,8 @@ class Blockchain(Logger):
         first = self.read_header(index * pow_block_adjust - 1 if index > 0 else 0)
         last = self.read_header(index * pow_block_adjust + (pow_block_adjust - 1))
         if not first or not last:
+            self.logger.info("first {} {}".format(index * pow_block_adjust - 1 if index > 0 else 0, first if first else "NONE"))
+            self.logger.info("last {} {}".format(index * pow_block_adjust + (pow_block_adjust - 1), last if last else "NONE"))
             raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
