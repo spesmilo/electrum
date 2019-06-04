@@ -1,11 +1,11 @@
 <RCC>
   <qresource prefix="/" >
     <file>icons/electron.ico</file>
-    <file>icons/clock1.png</file>
-    <file>icons/clock2.png</file>
-    <file>icons/clock3.png</file>
-    <file>icons/clock4.png</file>
-    <file>icons/clock5.png</file>
+    <file>icons/clock1.ico</file>
+    <file>icons/clock2.ico</file>
+    <file>icons/clock3.ico</file>
+    <file>icons/clock4.ico</file>
+    <file>icons/clock5.ico</file>
     <file>icons/confirmed.svg</file>
     <file>icons/copy.png</file>
     <file>icons/digitalbitbox.png</file>

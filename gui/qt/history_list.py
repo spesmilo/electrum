@@ -37,11 +37,11 @@ TX_ICONS = [
     "warning.png",
     "unconfirmed.svg",
     "unconfirmed.svg",
-    "clock1.png",
-    "clock2.png",
-    "clock3.png",
-    "clock4.png",
-    "clock5.png",
+    "clock1.ico",
+    "clock2.ico",
+    "clock3.ico",
+    "clock4.ico",
+    "clock5.ico",
     "confirmed.svg",
 ]
 
