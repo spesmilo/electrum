@@ -486,3 +486,5 @@ and there is no warning message.
 * Bugfixes to Ledger support + allow up to 187 byte OP_RETURN (Axel Gembe)
 * Misc tiny UI nits and other fixups (cculianu, Axel Gembe)
 * Updated libsecp256k1 to latest from Bitcoin-ABC (cculianu)
+* Reduced .dmg, .exe, & .AppImage binary sizes by optimizing images (Axel Gembe)
+* Updated servers.json (imaginaryusername)
