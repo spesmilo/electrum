@@ -555,7 +555,11 @@ class LNWallet(LNWorker):
                     self.logger.info(f'{name} could not publish encumbered tx: {str(tx)}, prevout: {prevout}')
             else:
                 # it's OK to add local transaction, the fee will be recomputed
-                self.wallet.add_future_tx(tx, remaining)
+                try:
+                    self.wallet.add_future_tx(tx, remaining)
+                    self.logger.info(f'adding future tx: {name}. prevout: {prevout}')
+                except Exception as e:
+                    self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
 
     def is_dangerous(self, chan):
         for x in chan.get_unfulfilled_htlcs():
