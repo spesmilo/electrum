@@ -43,7 +43,9 @@ class AbstractNet:
 
     POW_TARGET_TIMESPAN = 1209600  # 60 * 60 * 24 * 14 minutes / 2 weeks
     POW_TARGET_SPACING = 600  # 600 seconds / 10 minutes
-    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)  # 2016
+    POW_BLOCK_ADJUST = 2016  # 2016
+
+    CHECKPOINTS = []
 
     @classmethod
     def max_checkpoint(cls) -> int:
@@ -132,10 +134,13 @@ class SyscoinMainnet(AbstractNet):
 
     TESTNET = False
     REGTEST = False
+
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x05
+
     SEGWIT_HRP = "sys"
+
     POW_TARGET_TIMESPAN = 21600  # 60 * 60 * 6 seconds / 6 hours
     POW_TARGET_SPACING = 60  # 60 seconds
     POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
@@ -171,13 +176,15 @@ class SyscoinMainnet(AbstractNet):
     BIP44_COIN_TYPE = 57
 
 
-class SyscoinTestnet(AbstractNet):
+class SyscoinTestnet(SyscoinMainnet):
 
     TESTNET = True
     REGTEST = False
+
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 0x41
     ADDRTYPE_P2SH = 0xc4
+
     SEGWIT_HRP = "tsys"
 
     GENESIS = "0000042618cc06df22407caf369c444a2f6165a3264afdc28b3a388c8f6e1771"
