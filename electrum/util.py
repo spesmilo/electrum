@@ -800,6 +800,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     sig = out.get('sig')
     name = out.get('name')
     if on_pr and (r or (name and sig)):
+        @log_exceptions
         async def get_payment_request():
             from . import paymentrequest as pr
             if name and sig:

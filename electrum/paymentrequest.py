@@ -93,9 +93,19 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                     data_len = len(data) if data is not None else None
                     _logger.info(f'fetched payment request {url} {data_len}')
         except aiohttp.ClientError as e:
-            error = f"Error while contacting payment URL:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Error while contacting payment URL: {url}.\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             data = None
     elif u.scheme == 'file':
         try:
@@ -305,9 +315,19 @@ class PaymentRequest:
                     print(f"PaymentACK message received: {paymntack.memo}")
                     return True, paymntack.memo
         except aiohttp.ClientError as e:
-            error = f"Payment Message/PaymentACK Failed:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Payment Message/PaymentACK Failed:\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             return False, error
 
 
