@@ -58,6 +58,5 @@
     <file>icons/unpaid.svg</file>
     <file>icons/unlock.svg</file>
     <file>icons/warning.png</file>
-    <file>icons/zoom.png</file>
   </qresource>
 </RCC>
