@@ -27,6 +27,7 @@ import sys
 import time
 import traceback
 import json
+from typing import Optional
 
 import certifi
 import urllib.parse
@@ -106,15 +107,15 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
     else:
         data = None
         error = f"Unknown scheme for payment request. URL: {url}"
-    pr = PaymentRequest(data, error)
+    pr = PaymentRequest(data, error=error)
     return pr
 
 
 class PaymentRequest:
 
-    def __init__(self, data, error=None):
+    def __init__(self, data, *, error=None):
         self.raw = data
-        self.error = error
+        self.error = error  # FIXME overloaded and also used when 'verify' succeeds
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
@@ -235,7 +236,9 @@ class PaymentRequest:
             self.error = "unknown algo"
             return False
 
-    def has_expired(self):
+    def has_expired(self) -> Optional[bool]:
+        if not hasattr(self, 'details'):
+            return None
         return self.details.expires and self.details.expires < int(time.time())
 
     def get_expiration_date(self):

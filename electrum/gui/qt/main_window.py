@@ -37,6 +37,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
+from typing import Optional
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -71,6 +72,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
+from electrum.paymentrequest import PR_PAID
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -109,9 +111,6 @@ class StatusBarButton(QPushButton):
             self.func()
 
 
-from electrum.paymentrequest import PR_PAID
-
-
 class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
@@ -141,7 +140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
-        self.payment_request = None
+        self.payment_request = None  # type: Optional[paymentrequest.PaymentRequest]
         self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
@@ -1604,8 +1603,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """
         pr = self.payment_request
         if pr:
-            if pr.error:
-                return True
             if pr.has_expired():
                 self.show_error(_('Payment request has expired'))
                 return True
