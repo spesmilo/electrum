@@ -1357,15 +1357,17 @@ class Network(util.DaemonThread):
             self.print_error("wait_on_sockets: {} raised by select() call.. trying to recover...".format(err))
             self.find_bad_fds_and_kill()
 
-        # Python docs say Windows doesn't like empty selects.
-        # Sleep to prevent busy looping
-        if not self.interfaces:
-            time.sleep(0.1)
-            return
         with self.interface_lock:
             interfaces = list(self.interfaces.values())
             rin = [i for i in interfaces if i.fileno() > -1]
             win = [i for i in interfaces if i.num_requests() and i.fileno() > -1]
+
+        # Python docs say Windows doesn't like empty selects.
+        # Sleep to prevent busy looping
+        if not win and not rin:
+            time.sleep(0.1)
+            return
+
         try:
             rout, wout, xout = select.select(rin, win, [], 0.1)
         except socket.error as e:
