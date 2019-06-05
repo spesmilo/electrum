@@ -114,9 +114,9 @@ class LNWorker(Logger):
             for peer in peers:
                 last_tried = self._last_tried_peer.get(peer, 0)
                 if last_tried + PEER_RETRY_INTERVAL < now:
-                    await self.add_peer(peer.host, peer.port, peer.pubkey)
+                    await self._add_peer(peer.host, peer.port, peer.pubkey)
 
-    async def add_peer(self, host, port, node_id):
+    async def _add_peer(self, host, port, node_id):
         if node_id in self.peers:
             return self.peers[node_id]
         port = int(port)
@@ -142,7 +142,7 @@ class LNWorker(Logger):
         peer_list = self.config.get('lightning_peers', [])
         for host, port, pubkey in peer_list:
             asyncio.run_coroutine_threadsafe(
-                self.add_peer(host, int(port), bfh(pubkey)),
+                self._add_peer(host, int(port), bfh(pubkey)),
                 self.network.asyncio_loop)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
@@ -302,7 +302,7 @@ class LNWallet(LNWorker):
         super().__init__(xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
@@ -618,15 +618,14 @@ class LNWallet(LNWorker):
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
 
-    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=20):
-        node_id, rest = extract_nodeid(connect_contents)
+    def add_peer(self, connect_str, timeout=20):
+        node_id, rest = extract_nodeid(connect_str)
         peer = self.peers.get(node_id)
         if not peer:
-            nodes_get = self.network.channel_db.nodes_get
-            node_info = nodes_get(node_id)
             if rest is not None:
                 host, port = split_host_port(rest)
             else:
+                node_info = self.network.channel_db.nodes_get(node_id)
                 if not node_info:
                     raise ConnStringFormatError(_('Unknown node:') + ' ' + bh2u(node_id))
                 addrs = self.channel_db.get_node_addresses(node_info)
@@ -637,12 +636,23 @@ class LNWallet(LNWorker):
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
-            peer_future = asyncio.run_coroutine_threadsafe(self.add_peer(host, port, node_id),
-                                                           self.network.asyncio_loop)
-            peer = peer_future.result(timeout)
+            peer_future = asyncio.run_coroutine_threadsafe(
+                self._add_peer(host, port, node_id),
+                self.network.asyncio_loop)
+            try:
+                peer = peer_future.result(timeout)
+            except concurrent.futures.TimeoutError:
+                raise Exception(_("add_peer timed out"))
+        return peer
+
+    def open_channel(self, connect_str, local_amt_sat, push_amt_sat, password=None, timeout=20):
+        peer = self.add_peer(connect_str, timeout)
         coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, password)
-        f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        chan = f.result(timeout)
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        try:
+            chan = fut.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise Exception(_("open_channel timed out"))
         return chan.funding_outpoint.to_str()
 
     def pay(self, invoice, attempts=1, amount_sat=None, timeout=10):
@@ -908,7 +918,7 @@ class LNWallet(LNWorker):
             if peer:
                 last_tried = self._last_tried_peer.get(peer, 0)
                 if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-                    await self.add_peer(peer.host, peer.port, peer.pubkey)
+                    await self._add_peer(peer.host, peer.port, peer.pubkey)
                     return
             # try random address for node_id
             node_info = self.channel_db.nodes_get(chan.node_id)
@@ -920,7 +930,7 @@ class LNWallet(LNWorker):
             peer = LNPeerAddr(host, port, chan.node_id)
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-                await self.add_peer(host, port, chan.node_id)
+                await self._add_peer(host, port, chan.node_id)
 
         while True:
             await asyncio.sleep(1)

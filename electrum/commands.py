@@ -771,13 +771,13 @@ class Commands:
         return sorted(known_commands.keys())
 
     # lightning network commands
+    @command('wn')
+    def add_peer(self, connection_string, timeout=20):
+        return self.lnworker.add_peer(connection_string)
+
     @command('wpn')
     def open_channel(self, connection_string, amount, channel_push=0, password=None):
         return self.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
-
-    @command('wn')
-    def reestablish_channel(self):
-        self.lnworker.reestablish_channel()
 
     @command('wn')
     def lnpay(self, invoice, attempts=1, timeout=10):

@@ -1860,7 +1860,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 _('Remote peer ID') + ':' + node_id,
                 _('This channel will be usable after 3 confirmations')
             ]))
-        WaitingDialog(self, _('Opening channel...'), task, on_success, self.on_error)
+        def on_failure(exc_info):
+            type_, e, traceback = exc_info
+            self.show_error(_('Could not open channel: {}').format(e))
+        WaitingDialog(self, _('Opening channel...'), task, on_success, on_failure)
 
     def query_choice(self, msg, choices):
         # Needed by QtHandler for hardware wallets
