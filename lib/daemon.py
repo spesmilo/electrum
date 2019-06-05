@@ -206,9 +206,9 @@ class Daemon(DaemonThread):
         config = SimpleConfig(config_options)
         if self.gui:
             if hasattr(self.gui, 'new_window'):
-                config.open_last_wallet()
-                path = config.get_wallet_path()
-                self.gui.new_window(path, config.get('url'))
+                # This tells the gui to open the current wallet if any,
+                # or the last wallet if no wallets are currently open.
+                self.gui.new_window(None, config.get('url'))
                 response = "ok"
             else:
                 response = "error: current GUI does not support multiple windows"

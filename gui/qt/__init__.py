@@ -319,10 +319,20 @@ class ElectrumGui(QObject, PrintError):
 
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open.  Otherwise
-        opens the wallet and creates a new window for it.'''
-        path = standardize_path(path)  # just make sure some plugin didn't give us a symlink
+        opens the wallet and creates a new window for it.
+
+        If path=None will raise whatever window is open or open last wallet if
+        no windows are open.'''
+        if not path and not self.windows:
+            # This branch is taken if nothing is currently open but path=None,
+            # in which case set path=last wallet
+            self.config.open_last_wallet()
+            path = self.config.get_wallet_path()
+
+        path = path and standardize_path(path) # just make sure some plugin didn't give us a symlink
         for w in self.windows:
-            if w.wallet.storage.path == path:
+            if not path or w.wallet.storage.path == path:
+                path = w.wallet.storage.path  # remember path in case it was None
                 w.bring_to_top()
                 break
         else:
