@@ -145,17 +145,19 @@ class SyscoinMainnet(AbstractNet):
     POW_TARGET_SPACING = 60  # 60 seconds
     POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
 
-    GENESIS = "000001cab6418dbdbdc0255b5216938d0b1d93e9c4fbce43a1a8886eb2b4356f"
+    GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",
             "version": "1.2"
         }
     })
-    CHECKPOINTS = read_json('checkpoints.json', [])
+    CHECKPOINTS = read_json('checkpoints.json', [
+
+    ])
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv XPRV_VERBYTES
@@ -187,10 +189,10 @@ class SyscoinTestnet(SyscoinMainnet):
 
     SEGWIT_HRP = "tsys"
 
-    GENESIS = "0000042618cc06df22407caf369c444a2f6165a3264afdc28b3a388c8f6e1771"
+    GENESIS = "0000064430008f1fe74ba0bf54080f1cf6e73da3372df7617e33648529940fc3"
     DEFAULT_PORTS = {'t': '59991', 's': '59992'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
             "t": "59991",
             "s": "59992",
