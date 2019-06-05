@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   width="256"
+   height="256"
+   id="svg7854"
+   version="1.0">
+  <defs
+     id="defs7856">
+    <linearGradient
+       id="linearGradient2799">
+      <stop
+         id="stop2795"
+         offset="0"
+         style="stop-color:#000000;stop-opacity:1" />
+      <stop
+         id="stop2797"
+         offset="1"
+         style="stop-color:#4d4d4d;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient7577">
+      <stop
+         style="stop-color:#000000;stop-opacity:0.3137255;"
+         offset="0"
+         id="stop7579" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1"
+         offset="1"
+         id="stop7581" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5167">
+      <stop
+         id="stop5169"
+         offset="0"
+         style="stop-color:#76d717;stop-opacity:1;" />
+      <stop
+         id="stop5171"
+         offset="1"
+         style="stop-color:#509e07;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5184">
+      <stop
+         id="stop5186"
+         offset="0"
+         style="stop-color:white;stop-opacity:1;" />
+      <stop
+         id="stop5188"
+         offset="1"
+         style="stop-color:white;stop-opacity:0;" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5172">
+      <stop
+         id="stop5174"
+         offset="0"
+         style="stop-color:white;stop-opacity:1;" />
+      <stop
+         id="stop5176"
+         offset="1"
+         style="stop-color:white;stop-opacity:0;" />
+    </linearGradient>
+    <linearGradient
+       xlink:href="#linearGradient7577"
+       id="linearGradient8317"
+       gradientUnits="userSpaceOnUse"
+       x1="15.011773"
+       y1="10.883683"
+       x2="16.657505"
+       y2="17.024479" />
+    <radialGradient
+       xlink:href="#linearGradient5167"
+       id="radialGradient8319"
+       gradientUnits="userSpaceOnUse"
+       cx="15.865708"
+       cy="20.410854"
+       fx="15.865708"
+       fy="20.410854"
+       r="7.5896134" />
+    <radialGradient
+       xlink:href="#linearGradient5184"
+       id="radialGradient8321"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(-4.2002315,0.5953403,0.2958442,2.0989386,-274.68882,-18.732928)"
+       cx="14.05685"
+       cy="11.308558"
+       fx="14.05685"
+       fy="11.308558"
+       r="5.96875" />
+    <linearGradient
+       xlink:href="#linearGradient5172"
+       id="linearGradient8323"
+       gradientUnits="userSpaceOnUse"
+       x1="8.9317284"
+       y1="2.0178134"
+       x2="13.458839"
+       y2="26.431587" />
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="4.0292358"
+       x2="50.875668"
+       y1="96.59903"
+       x1="51.268742"
+       id="linearGradient2805"
+       xlink:href="#linearGradient2799" />
+  </defs>
+  <metadata
+     id="metadata7859">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Lapo Calamandrei</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:source />
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/GPL/2.0/" />
+        <dc:title></dc:title>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>record</rdf:li>
+            <rdf:li>media</rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+        <dc:contributor>
+          <cc:Agent>
+            <dc:title>Jakub Steiner</dc:title>
+          </cc:Agent>
+        </dc:contributor>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/GPL/2.0/">
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/Reproduction" />
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/Distribution" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/Notice" />
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/ShareAlike" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/SourceCode" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <g
+     id="layer1"
+     transform="translate(103.99916,103.99797)">
+    <g
+       id="g7170"
+       transform="matrix(8.5360982,0,0,8.5344876,2806.7615,-180.84299)">
+      <circle
+         style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.4;fill:url(#linearGradient8317);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.52702755;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+         id="path7691"
+         transform="matrix(2.1074616,0,0,2.1078593,-359.43551,-10.006786)"
+         cx="15.865708"
+         cy="16.134291"
+         r="7.115262" />
+      <g
+         id="g7564">
+        <circle
+           style="color:#000000;display:inline;overflow:visible;visibility:visible;fill:url(#radialGradient8319);fill-opacity:1;fill-rule:nonzero;stroke:#336402;stroke-width:0.52702755;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+           id="path7968"
+           transform="matrix(1.897257,0,0,1.897615,-356.10046,-6.6146433)"
+           cx="15.865708"
+           cy="16.134291"
+           r="7.115262" />
+        <path
+           style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.64044949;fill:url(#radialGradient8321);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.09465754;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+           d="m -324.6139,13.485003 c -5.06631,-0.760077 -9.93427,2.372845 -11.3861,7.279513 1.18871,3.18039 3.90811,5.70993 7.46677,6.47724 5.29459,1.141602 10.50115,-2.027543 12.01505,-7.143895 -1.18869,-3.180413 -3.90812,-5.709952 -7.46675,-6.477239 -0.217,-0.04678 -0.41248,-0.103152 -0.62897,-0.135619 z"
+           id="path7970" />
+        <circle
+           transform="matrix(1.7591324,0,0,1.7580929,-353.90899,-4.3562887)"
+           id="path7972"
+           style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.54494413;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:url(#linearGradient8323);stroke-width:0.56863129;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+           cx="15.865708"
+           cy="16.134291"
+           r="7.115262" />
+      </g>
+    </g>
+  </g>
+  <g
+     style="fill-opacity:1;fill:url(#linearGradient2805)"
+     transform="matrix(1.6522577,0,0,1.6522577,42.530808,45.139276)"
+     id="g2769">
+    <path
+       style="fill-opacity:1;fill:url(#linearGradient2805)"
+       id="path2765"
+       d="M 56.2,62.5 C 56.2,51 50.4,44.6 44.8,38.3 40.5,33.5 36.3,28.9 34.3,21.7 l 5.8,5.1 c 0.9,0.8 2,1.2 3.1,1.2 1.3,0 2.6,-0.5 3.6,-1.6 1.7,-2 1.6,-5 -0.4,-6.7 L 29.8,5.2 C 28.9,4.4 27.8,4 26.7,4 26.4,4 26.2,4 25.9,4.1 24.5,4.3 23.3,5.2 22.5,6.4 L 12.5,24 c -1.3,2.3 -0.5,5.2 1.8,6.5 0.7,0.4 1.5,0.6 2.3,0.6 1.7,0 3.3,-0.9 4.1,-2.4 l 3.7,-6.5 c 2.5,10.7 8.3,17.1 13.2,22.5 5,5.5 9,9.9 9,17.8 v 29 c 0,2.6 2.1,4.8 4.8,4.8 2.6,0 4.8,-2.1 4.8,-4.8 z" />
+    <path
+       style="fill-opacity:1;fill:url(#linearGradient2805)"
+       id="path2767"
+       d="M 90.6,35.6 78,19.2 c -0.9,-1.1 -2.2,-1.8 -3.6,-1.9 -1.4,0 -2.8,0.5 -3.7,1.6 L 56.9,34.6 c -1.7,2 -1.5,5 0.4,6.7 2,1.7 5,1.5 6.7,-0.4 l 5.5,-6.3 c -1.4,9.2 -5.8,14.6 -10.5,19.8 0.6,2.4 1,5.1 1,8 V 68 c 1.5,-2.1 3.2,-4.1 5.2,-6.3 C 70.5,55.9 77,48.7 78.9,36 l 4.1,5.4 c 0.9,1.2 2.3,1.9 3.8,1.9 1,0 2,-0.3 2.9,-1 2.1,-1.7 2.5,-4.6 0.9,-6.7 z" />
+  </g>
+</svg>

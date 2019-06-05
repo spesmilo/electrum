@@ -8,6 +8,12 @@ expired.svg
     License: LGPLv3 (https://www.gnu.org/licenses/lgpl-3.0.html)
     from https://commons.wikimedia.org/wiki/File:Oxygen480-emblems-emblem-important.svg
     
+preferences.svg
+    Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
+    License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
+    from https://commons.wikimedia.org/wiki/File:Gnome-preferences-system.svg
+    edited to put the screwdriver in front of the wrench
+
 tor_logo.svg
     Author: The Tor Project, Inc. (CC BY-SA 4.0)
     License: CC BY 3.0 US (https://creativecommons.org/licenses/by/3.0/us/)
@@ -22,3 +28,30 @@ unpaid.svg
 seal.svg
     Author: Axel Gembe
     License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+
+split.svg
+    Author: Nick Bluth from the Noun Project
+    License: CC BY 3.0 US (https://creativecommons.org/licenses/by/3.0/us/)
+    from https://thenounproject.com/term/split/659084/
+
+status_disconnected.svg:
+    Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
+    License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
+    from https://commons.wikimedia.org/wiki/File:Gnome-media-record.svg
+    modified size and converted to plain SVG
+
+status_connected.svg, status_connected_proxy.svg, status_lagging.svg:
+    Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
+    License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
+    color swap of status_disconnected.svg
+
+status_connected_fork.svg, status_connected_proxy_fork.svg, status_lagging_fork.svg:
+    Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
+    License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
+    color swap of status_disconnected.svg combined with split.svg
+
+status_waiting.svg:
+    Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
+    License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
+    from: https://commons.wikimedia.org/wiki/File:Gnome-view-refresh.svg
+    modified size and converted to plain SVG

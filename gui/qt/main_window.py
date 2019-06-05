@@ -805,11 +805,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 "status_disconnected" : QIcon(":icons/status_disconnected.svg"),
                 "status_waiting" : QIcon(":icons/status_waiting.svg"),
                 "status_lagging" : QIcon(":icons/status_lagging.svg"),
-                "status_lagging_fork" : QIcon(":icons/status_lagging_fork.png"),
+                "status_lagging_fork" : QIcon(":icons/status_lagging_fork.svg"),
                 "status_connected" : QIcon(":icons/status_connected.svg"),
-                "status_connected_fork" : QIcon(":icons/status_connected_fork.png"),
+                "status_connected_fork" : QIcon(":icons/status_connected_fork.svg"),
                 "status_connected_proxy" : QIcon(":icons/status_connected_proxy.svg"),
-                "status_connected_proxy_fork" : QIcon(":icons/status_connected_proxy_fork.png"),
+                "status_connected_proxy_fork" : QIcon(":icons/status_connected_proxy_fork.svg"),
             })
 
         if self.network is None or not self.network.is_running():
