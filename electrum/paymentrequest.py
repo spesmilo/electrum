@@ -123,6 +123,7 @@ class PaymentRequest:
         return str(self.raw)
 
     def parse(self, r):
+        self.outputs = []
         if self.error:
             return
         self.id = bh2u(sha256(r)[0:16])
@@ -134,7 +135,6 @@ class PaymentRequest:
             return
         self.details = pb2.PaymentDetails()
         self.details.ParseFromString(self.data.serialized_payment_details)
-        self.outputs = []
         for o in self.details.outputs:
             type_, addr = transaction.get_address_from_output_script(o.script)
             if type_ != TYPE_ADDRESS:

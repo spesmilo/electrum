@@ -1602,11 +1602,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
-        if self.payment_request and self.payment_request.has_expired():
-            self.show_error(_('Payment request has expired'))
-            return True
+        pr = self.payment_request
+        if pr:
+            if pr.error:
+                return True
+            if pr.has_expired():
+                self.show_error(_('Payment request has expired'))
+                return True
 
-        if not self.payment_request:
+        if not pr:
             errors = self.payto_e.get_errors()
             if errors:
                 self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
@@ -1820,6 +1824,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def payment_request_ok(self):
         pr = self.payment_request
+        if not pr:
+            return
         key = self.invoices.add(pr)
         status = self.invoices.get_status(key)
         self.invoice_list.update()
@@ -1840,7 +1846,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
-        self.show_message(self.payment_request.error)
+        pr = self.payment_request
+        if not pr:
+            return
+        self.show_message(pr.error)
         self.payment_request = None
         self.do_clear()
 
