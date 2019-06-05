@@ -228,7 +228,7 @@ class SyscoinRegtest(SyscoinTestnet):
 
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {
-        "legion.local": {
+        "legion108.selfip.com": {
             "pruning": "-",
             "t": "59991",
             "s": "59992",
