@@ -1967,7 +1967,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         request_error = self.payment_request and self.payment_request.error
         self.payment_request = None
         self.print_error("PaymentRequest error:", request_error)
-        self.show_error(_("There was an error processing the payment request"), rich_text=False, detail_text=str(request_error))
+        self.show_error(_("There was an error processing the payment request"), rich_text=False)
         self.do_clear()
 
     def on_pr(self, request):
