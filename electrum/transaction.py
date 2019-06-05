@@ -34,7 +34,7 @@ from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
                     Callable, List, Dict)
 
 from . import ecc, bitcoin, constants, segwit_addr
-from .util import print_error, profiler, to_bytes, bh2u, bfh
+from .util import profiler, to_bytes, bh2u, bfh
 from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
@@ -42,10 +42,16 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 NO_SIGNATURE = 'ff'
 PARTIAL_TXN_HEADER_MAGIC = b'EPTF\xff'
+
+SYSCOIN_VERSION = 0x7400
 
 
 class SerializationError(Exception):
@@ -269,8 +275,7 @@ def parse_scriptSig(d, _bytes):
         decoded = [ x for x in script_GetOp(_bytes) ]
     except Exception as e:
         # coinbase transactions raise an exception
-        print_error("parse_scriptSig: cannot find address in input script (coinbase?)",
-                    bh2u(_bytes))
+        _logger.info(f"parse_scriptSig: cannot find address in input script (coinbase?) {bh2u(_bytes)}")
         return
 
     match = [OPPushDataGeneric]
@@ -285,7 +290,7 @@ def parse_scriptSig(d, _bytes):
             elif len(item) == 34:
                 d['type'] = 'p2wsh-p2sh'
             else:
-                print_error("unrecognized txin type", bh2u(item))
+                _logger.info(f"unrecognized txin type {bh2u(item)}")
         elif opcodes.OP_1 <= item[0] <= opcodes.OP_16:
             # segwit embedded into p2sh
             # witness version 1-16
@@ -312,8 +317,7 @@ def parse_scriptSig(d, _bytes):
             signatures = parse_sig([sig])
             pubkey, address = xpubkey_to_address(x_pubkey)
         except:
-            print_error("parse_scriptSig: cannot find address in input script (p2pkh?)",
-                        bh2u(_bytes))
+            _logger.info(f"parse_scriptSig: cannot find address in input script (p2pkh?) {bh2u(_bytes)}")
             return
         d['type'] = 'p2pkh'
         d['signatures'] = signatures
@@ -331,8 +335,8 @@ def parse_scriptSig(d, _bytes):
         try:
             m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(redeem_script_unsanitized)
         except NotRecognizedRedeemScript:
-            print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
-                        bh2u(_bytes))
+            _logger.info(f"parse_scriptSig: cannot find address in input script (p2sh?) {bh2u(_bytes)}")
+
             # we could still guess:
             # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
             return
@@ -359,8 +363,7 @@ def parse_scriptSig(d, _bytes):
         d['signatures'] = [None]
         return
 
-    print_error("parse_scriptSig: cannot find address in input script (unknown)",
-                bh2u(_bytes))
+    _logger.info(f"parse_scriptSig: cannot find address in input script (unknown) {bh2u(_bytes)}")
 
 
 def parse_redeemScript_multisig(redeem_script: bytes):
@@ -445,8 +448,7 @@ def parse_input(vds, full_parse: bool):
         try:
             parse_scriptSig(d, scriptSig)
         except BaseException:
-            traceback.print_exc(file=sys.stderr)
-            print_error('failed to parse scriptSig', bh2u(scriptSig))
+            _logger.exception(f'failed to parse scriptSig {bh2u(scriptSig)}')
     return d
 
 
@@ -512,8 +514,7 @@ def parse_witness(vds, txin, full_parse: bool):
         txin['type'] = 'unknown'
     except BaseException:
         txin['type'] = 'unknown'
-        traceback.print_exc(file=sys.stderr)
-        print_error('failed to parse witness', txin.get('witness'))
+        _logger.exception(f"failed to parse witness {txin.get('witness')}")
 
 
 def parse_output(vds, i):
@@ -530,8 +531,12 @@ def parse_output(vds, i):
     return d
 
 
-def deserialize(raw: str, force_full_parse=False) -> dict:
-    raw_bytes = bfh(raw)
+# if expect_trailing_data, returns (deserialized transaction, start position of
+# trailing data)
+def deserialize(raw: str, force_full_parse=False, expect_trailing_data=False, raw_bytes=None,
+                expect_trailing_bytes=False, copy_input=True, start_position=0) -> dict:
+    if raw_bytes is None:
+        raw_bytes = bfh(raw)
     d = {}
     if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
         d['partial'] = is_partial = True
@@ -544,7 +549,11 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
         d['partial'] = is_partial = False
     full_parse = force_full_parse or is_partial
     vds = BCDataStream()
-    vds.write(raw_bytes)
+    if copy_input:
+        vds.write(raw_bytes)
+    else:
+        vds.input = raw_bytes
+    vds.read_cursor = start_position
     d['version'] = vds.read_int32()
     n_vin = vds.read_compact_size()
     is_segwit = (n_vin == 0)
@@ -562,9 +571,17 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
             txin = d['inputs'][i]
             parse_witness(vds, txin, full_parse=full_parse)
     d['lockTime'] = vds.read_uint32()
-    if vds.can_read_more():
+    if vds.can_read_more() and not expect_trailing_data:
         raise SerializationError('extra junk at the end')
-    return d
+    if not expect_trailing_data:
+        return d
+    # The caller is expecting trailing data to be present; return starting
+    # position of trailing data in bytes format
+    if expect_trailing_bytes:
+        return d, vds.read_cursor
+    # The caller is expecting trailing data to be present; return starting
+    # position of trailing data in hex format
+    raise Exception("Unimplemented: starting position for trailing data in hex format")
 
 
 # pay & redeem scripts
@@ -587,13 +604,17 @@ class Transaction:
             self.raw = self.serialize()
         return self.raw
 
-    def __init__(self, raw):
+    def __init__(self, raw, expect_trailing_data=False, raw_bytes=None,
+                 expect_trailing_bytes=False, copy_input=True, start_position=0):
         if raw is None:
             self.raw = None
+            self.raw_bytes = raw_bytes
         elif isinstance(raw, str):
             self.raw = raw.strip() if raw else None
+            self.raw_bytes = raw_bytes
         elif isinstance(raw, dict):
             self.raw = raw['hex']
+            self.raw_bytes = raw_bytes
         else:
             raise Exception("cannot initialize transaction", raw)
         self._inputs = None
@@ -604,7 +625,12 @@ class Transaction:
         # this value will get properly set when deserializing
         self.is_partial_originally = True
         self._segwit_ser = None  # None means "don't know"
+        self._unsigned_segwit = None # set to true when an unsigned segwit tx is created externally and deserialized
         self.output_info = None  # type: Optional[Dict[str, TxOutputHwInfo]]
+        self.expect_trailing_data = expect_trailing_data
+        self.expect_trailing_bytes = expect_trailing_bytes
+        self.copy_input = copy_input
+        self.start_position = start_position
 
     def update(self, raw):
         self.raw = raw
@@ -628,7 +654,8 @@ class Transaction:
             return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
-        if pubkeys is None:
+        if pubkeys is None or len(pubkeys) == 0:
+        #if pubkeys is None:
             pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
             pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys)))
             txin['pubkeys'] = pubkeys = list(pubkeys)
@@ -664,10 +691,10 @@ class Transaction:
                     try:
                         public_key.verify_message_hash(sig_string, pre_hash)
                     except Exception:
-                        traceback.print_exc(file=sys.stderr)
+                        _logger.exception('')
                         continue
                     j = pubkeys.index(pubkey_hex)
-                    print_error("adding sig", i, j, pubkey_hex, sig)
+                    _logger.info(f"adding sig {i} {j} {pubkey_hex} {sig}")
                     self.add_signature_to_txin(i, j, sig)
                     break
         # redo raw
@@ -680,10 +707,17 @@ class Transaction:
         txin['witness'] = None    # force re-serialization
         self.raw = None
 
-    def add_inputs_info(self, wallet):
-        if self.is_complete():
+    def add_inputs_info(self, wallet, force=False):
+        if self.is_complete() and force is False:
             return
         for txin in self.inputs():
+            if force is True:
+                addr = txin.get('address')
+                if addr is None:
+                    # set address from input scripts
+                    _bytes = txin.get('scriptSig')
+                    _bytes = bfh(_bytes)
+                    txin['type'], txin['address'] = get_address_from_output_script(_bytes)
             wallet.add_input_info(txin)
 
     def remove_signatures(self):
@@ -691,20 +725,51 @@ class Transaction:
             txin['signatures'] = [None] * len(txin['signatures'])
         assert not self.is_complete()
 
-    def deserialize(self, force_full_parse=False):
-        if self.raw is None:
+    # If expect_trailing_data == True, also returns start position of trailing
+    # data.
+    def deserialize(self, force_full_parse=False, wallet=None, unsigned_segwit=False):
+        if self.raw is None and self.raw_bytes is None:
             return
             #self.raw = self.serialize()
         if self._inputs is not None:
             return
-        d = deserialize(self.raw, force_full_parse)
+        if self.expect_trailing_data:
+            d, start_position = deserialize(self.raw,
+                                            force_full_parse,
+                                            expect_trailing_data=self.expect_trailing_data,
+                                            raw_bytes=self.raw_bytes,
+                                            expect_trailing_bytes=self.expect_trailing_bytes,
+                                            copy_input=self.copy_input,
+                                            start_position=self.start_position)
+        else:
+            d = deserialize(self.raw, force_full_parse, raw_bytes=self.raw_bytes, start_position=self.start_position)
         self._inputs = d['inputs']
         self._outputs = [TxOutput(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
         self.is_partial_originally = d['partial']
         self._segwit_ser = d['segwit_ser']
-        return d
+        self._unsigned_segwit = unsigned_segwit
+
+        if wallet is not None:
+            self.add_inputs_info(wallet, True)
+
+        if self.expect_trailing_data:
+            if self.expect_trailing_bytes:
+                if self.raw is not None:
+                    self.raw = self.raw[(2*self.start_position):(2*start_position)]
+                if self.raw_bytes is not None:
+                    self.raw_bytes = self.raw_bytes[self.start_position:start_position]
+            else:
+                if self.raw is not None:
+                    self.raw = self.raw[self.start_position:start_position]
+                if self.raw_bytes is not None:
+                    self.raw_bytes = self.raw_bytes[(self.start_position//2):(start_position//2)]
+            self.expect_trailing_data = False
+            self.start_position = 0
+            return d, start_position
+        else:
+            return d
 
     @classmethod
     def from_io(klass, inputs, outputs, locktime=0, version=None):
@@ -981,6 +1046,8 @@ class Transaction:
         return preimage
 
     def is_segwit(self, guess_for_address=False):
+        if self._unsigned_segwit:
+            return True
         if not self.is_partial_originally:
             return self._segwit_ser
         return any(self.is_segwit_input(x, guess_for_address=guess_for_address) for x in self.inputs())
@@ -1138,12 +1205,12 @@ class Transaction:
                     _pubkey = x_pubkey
                 else:
                     continue
-                print_error("adding signature for", _pubkey)
+                _logger.info(f"adding signature for {_pubkey}")
                 sec, compressed = keypairs.get(_pubkey)
                 sig = self.sign_txin(i, sec)
                 self.add_signature_to_txin(i, j, sig)
 
-        print_error("is_complete", self.is_complete())
+        _logger.info(f"is_complete {self.is_complete()}")
         self.raw = self.serialize()
 
     def sign_txin(self, txin_index, privkey_bytes) -> str:

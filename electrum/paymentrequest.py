@@ -39,15 +39,19 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
 from .network import Network
+from .logging import get_logger, Logger
 
 
-REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
+_logger = get_logger(__name__)
+
+
+REQUEST_HEADERS = {'Accept': 'application/syscoin4-paymentrequest', 'User-Agent': 'Electrum-SYS4'}
+ACK_HEADERS = {'Content-Type':'application/syscoin4-payment','Accept':'application/syscoin4-paymentack','User-Agent':'Electrum-SYS4'}
 
 ca_path = certifi.where()
 ca_list = None
@@ -86,7 +90,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                     else:
                         data = resp_content
                     data_len = len(data) if data is not None else None
-                    print_error('fetched payment request', url, data_len)
+                    _logger.info(f'fetched payment request {url} {data_len}')
         except aiohttp.ClientError as e:
             error = f"Error while contacting payment URL:\n{repr(e)}"
             if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
@@ -180,7 +184,7 @@ class PaymentRequest:
         try:
             x, ca = verify_cert_chain(cert.certificate)
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            _logger.exception('')
             self.error = str(e)
             return False
         # get requestor name
@@ -216,7 +220,7 @@ class PaymentRequest:
         if info.get('validated') is not True:
             self.error = "Alias verification failed (DNSSEC)"
             return False
-        if pr.pki_type == "dnssec+btc":
+        if pr.pki_type == "dnssec+sys":
             self.requestor = alias
             address = info.get('address')
             pr.signature = b''
@@ -332,7 +336,7 @@ def make_unsigned_request(req):
 
 
 def sign_request_with_alias(pr, alias, alias_privkey):
-    pr.pki_type = 'dnssec+btc'
+    pr.pki_type = 'dnssec+sys'
     pr.pki_data = str(alias)
     message = pr.SerializeToString()
     ec_key = ecc.ECPrivkey(alias_privkey)
@@ -439,7 +443,7 @@ def serialize_request(req):
     requestor = req.get('name')
     if requestor and signature:
         pr.signature = bfh(signature)
-        pr.pki_type = 'dnssec+btc'
+        pr.pki_type = 'dnssec+sys'
         pr.pki_data = str(requestor)
     return pr
 
@@ -454,9 +458,10 @@ def make_request(config, req):
 
 
 
-class InvoiceStore(object):
+class InvoiceStore(Logger):
 
     def __init__(self, storage):
+        Logger.__init__(self)
         self.storage = storage
         self.invoices = {}
         self.paid = {}
@@ -511,7 +516,7 @@ class InvoiceStore(object):
     def get_status(self, key):
         pr = self.get(key)
         if pr is None:
-            print_error("[InvoiceStore] get_status() can't find pr for", key)
+            self.logger.info(f"get_status() can't find pr for {key}")
             return
         if pr.tx is not None:
             return PR_PAID

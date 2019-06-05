@@ -33,13 +33,15 @@ from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
-from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
+from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
 from . import constants
+from .logging import get_logger
 
 
+_logger = get_logger(__name__)
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
 
 CURVE_ORDER = SECP256k1.order
@@ -272,7 +274,7 @@ class ECPubkey(object):
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
         verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1'):
+    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1') -> bytes:
         """
         ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
@@ -310,7 +312,7 @@ class ECPubkey(object):
 def msg_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
     length = bfh(var_int(len(message)))
-    return b"\x18Bitcoin Signed Message:\n" + length + message
+    return b"\x18Syscoin Signed Message:\n" + length + message
 
 
 def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, net=None):
@@ -332,7 +334,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, n
         public_key.verify_message_hash(sig65[1:], h)
         return True
     except Exception as e:
-        print_error(f"Verification error: {repr(e)}")
+        _logger.info(f"Verification error: {repr(e)}")
         return False
 
 

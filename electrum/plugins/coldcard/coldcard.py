@@ -13,11 +13,16 @@ from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.crypto import hash_160
-from electrum.util import print_error, bfh, bh2u, versiontuple, UserFacingException
+from electrum.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
+from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable
+
+
+_logger = get_logger(__name__)
+
 
 try:
     import hid
@@ -114,10 +119,10 @@ class CKCCClient:
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
             # probably indicating programing error, not hacking
-            print_error("[coldcard]", f"xpubs. reported by device: {self.dev.master_xpub}. "
-                                      f"stored in file: {expected_xpub}")
-            raise RuntimeError("Expecting 0x%08x but that's not whats connected?!" %
-                                    expected_xfp)
+            _logger.info(f"xpubs. reported by device: {self.dev.master_xpub}. "
+                         f"stored in file: {expected_xpub}")
+            raise RuntimeError("Expecting 0x%08x but that's not what's connected?!" %
+                               expected_xfp)
 
         # check signature over session key
         # - mitm might have lied about xfp and xpub up to here
@@ -127,7 +132,7 @@ class CKCCClient:
 
         self._expected_device = ex
 
-        print_error("[coldcard]", "Successfully verified against MiTM")
+        _logger.info("Successfully verified against MiTM")
 
     def is_pairable(self):
         # can't do anything w/ devices that aren't setup (but not normally reachable)
@@ -181,7 +186,7 @@ class CKCCClient:
 
     def get_xpub(self, bip32_path, xtype):
         assert xtype in ColdcardPlugin.SUPPORTED_XTYPES
-        print_error('[coldcard]', 'Derive xtype = %r' % xtype)
+        _logger.info('Derive xtype = %r' % xtype)
         xpub = self.dev.send_recv(CCProtocolPacker.get_xpub(bip32_path), timeout=5000)
         # TODO handle timeout?
         # change type of xpub to the requested type
@@ -296,7 +301,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         return rv
 
     def give_error(self, message, clear_client=False):
-        print_error(message)
+        self.logger.info(message)
         if not self.ux_busy:
             self.handler.show_error(message)
         else:
@@ -363,7 +368,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         except (CCUserRefused, CCBusyError) as exc:
             self.handler.show_error(str(exc))
         except CCProtoError as exc:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('Error showing address')
             self.handler.show_error('{}\n\n{}'.format(
                 _('Error showing address') + ':', str(exc)))
         except Exception as e:
@@ -546,11 +551,11 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 self.handler.finished()
 
         except (CCUserRefused, CCBusyError) as exc:
-            print_error('[coldcard]', 'Did not sign:', str(exc))
+            self.logger.info(f'Did not sign: {exc}')
             self.handler.show_error(str(exc))
             return
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             self.give_error(e, True)
             return
 
@@ -581,11 +586,11 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             finally:
                 self.handler.finished()
         except CCProtoError as exc:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('Error showing address')
             self.handler.show_error('{}\n\n{}'.format(
                 _('Error showing address') + ':', str(exc)))
         except BaseException as exc:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             self.handler.show_error(exc)
 
 
@@ -651,7 +656,7 @@ class ColdcardPlugin(HW_PluginBase):
                     is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
         except:
-            self.print_error('late failure connecting to device?')
+            self.logger.info('late failure connecting to device?')
             return None
 
     def setup_device(self, device_info, wizard, purpose):

@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional
+
 
 
 try:
@@ -45,9 +45,10 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, PrintError, profiler,
+from electrum.util import (UserCancelled, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
+from electrum.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 
@@ -55,6 +56,7 @@ from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import get_default_language, read_QIcon, ColorScheme
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
+from .stylesheet_patcher import patch_qt_stylesheet
 
 
 class OpenFileEventFilter(QObject):
@@ -78,11 +80,12 @@ class QNetworkUpdatedSignalObject(QObject):
     network_updated_signal = pyqtSignal(str, object)
 
 
-class ElectrumGui(PrintError):
+class ElectrumGui(Logger):
 
     @profiler
     def __init__(self, config, daemon, plugins):
         set_language(config.get('language', get_default_language()))
+        Logger.__init__(self)
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
@@ -129,7 +132,9 @@ class ElectrumGui(PrintError):
                 self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
             except BaseException as e:
                 use_dark_theme = False
-                self.print_error('Error setting dark theme: {}'.format(repr(e)))
+                self.logger.warning(f'Error setting dark theme: {repr(e)}')
+        # Apply any necessary stylesheet patches
+        patch_qt_stylesheet(use_dark_theme=use_dark_theme)
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
@@ -221,7 +226,7 @@ class ElectrumGui(PrintError):
         try:
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             QMessageBox.warning(None, _('Error'),
                                 _('Cannot load wallet') + ' (1):\n' + str(e))
             # if app is starting, still let wizard to appear
@@ -239,7 +244,7 @@ class ElectrumGui(PrintError):
             else:
                 window = self._create_window_for_wallet(wallet)
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             QMessageBox.warning(None, _('Error'),
                                 _('Cannot create window for wallet') + ':\n' + str(e))
             if app_is_starting:
@@ -271,7 +276,7 @@ class ElectrumGui(PrintError):
         except WalletAlreadyOpenInMemory as e:
             return e.wallet
         except (WalletFileException, BitcoinException) as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             QMessageBox.warning(None, _('Error'),
                                 _('Cannot load wallet') + ' (2):\n' + str(e))
             return
@@ -311,7 +316,7 @@ class ElectrumGui(PrintError):
         except GoBack:
             return
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            self.logger.exception('')
             return
         self.timer.start()
         self.config.open_last_wallet()
@@ -346,5 +351,5 @@ class ElectrumGui(PrintError):
         # on some platforms the exec_ call may not return, so use clean_up()
 
     def stop(self):
-        self.print_error('closing GUI')
+        self.logger.info('closing GUI')
         self.app.quit()

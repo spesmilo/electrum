@@ -41,9 +41,15 @@ def read_json(filename, default):
 
 class AbstractNet:
 
+    POW_TARGET_TIMESPAN = 1209600  # 60 * 60 * 24 * 14 minutes / 2 weeks
+    POW_TARGET_SPACING = 600  # 600 seconds / 10 minutes
+    POW_BLOCK_ADJUST = 2016  # 2016
+
+    CHECKPOINTS = []
+
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+        return max(0, len(cls.CHECKPOINTS) * cls.POW_BLOCK_ADJUST - 1)
 
 
 class BitcoinMainnet(AbstractNet):
@@ -124,23 +130,133 @@ class BitcoinSimnet(BitcoinTestnet):
     CHECKPOINTS = []
 
 
+class SyscoinMainnet(AbstractNet):
+
+    TESTNET = False
+    REGTEST = False
+
+    WIF_PREFIX = 0x80
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x05
+
+    SEGWIT_HRP = "sys"
+
+    POW_TARGET_TIMESPAN = 21600  # 60 * 60 * 6 seconds / 6 hours
+    POW_TARGET_SPACING = 60  # 60 seconds
+    POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
+
+    GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
+    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
+    DEFAULT_SERVERS = read_json('servers.json', {
+        "legion108.selfip.com": {
+            "pruning": "-",
+            "t": "58881",
+            "s": "58882",
+            "version": "1.2"
+        }
+    })
+    CHECKPOINTS = read_json('checkpoints.json', [
+
+    ])
+
+    XPRV_HEADERS = {
+        'standard':    0x0488ade4,  # xprv XPRV_VERBYTES
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
+        'p2wsh-p2sh':  0x0295b005,  # Yprv
+        'p2wpkh':      0x04b2430c,  # zprv
+        'p2wsh':       0x02aa7a99,  # Zprv
+    }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
+    XPUB_HEADERS = {
+        'standard':    0x0488b21e,  # xpub XPUB_VERBYTES
+        'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+        'p2wsh-p2sh':  0x0295b43f,  # Ypub
+        'p2wpkh':      0x04b24746,  # zpub
+        'p2wsh':       0x02aa7ed3,  # Zpub
+    }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
+    BIP44_COIN_TYPE = 57
+
+
+class SyscoinTestnet(SyscoinMainnet):
+
+    TESTNET = True
+    REGTEST = False
+
+    WIF_PREFIX = 0xef
+    ADDRTYPE_P2PKH = 0x41
+    ADDRTYPE_P2SH = 0xc4
+
+    SEGWIT_HRP = "tsys"
+
+    GENESIS = "0000064430008f1fe74ba0bf54080f1cf6e73da3372df7617e33648529940fc3"
+    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
+    DEFAULT_SERVERS = read_json('servers_testnet.json', {
+        "legion108.selfip.com": {
+            "pruning": "-",
+            "t": "59991",
+            "s": "59992",
+            "version": "1.2"
+        }
+    })
+    CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+
+    XPRV_HEADERS = {
+        'standard':    0x04358394,  # tprv
+        'p2wpkh-p2sh': 0x044a4e28,  # uprv
+        'p2wsh-p2sh':  0x024285b5,  # Uprv
+        'p2wpkh':      0x04358394,  # vprv
+        'p2wsh':       0x02575048,  # Vprv
+    }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
+    XPUB_HEADERS = {
+        'standard':    0x043587cf,  # tpub
+        'p2wpkh-p2sh': 0x044a5262,  # upub
+        'p2wsh-p2sh':  0x024289ef,  # Upub
+        'p2wpkh':      0x043587cf,  # vpub
+        'p2wsh':       0x02575483,  # Vpub
+    }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
+    BIP44_COIN_TYPE = 57
+
+
+class SyscoinRegtest(SyscoinTestnet):
+
+    TESTNET = False
+    REGTEST = True
+    SEGWIT_HRP = "sysrt"
+
+    GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {
+        "legion108.selfip.com": {
+            "pruning": "-",
+            "t": "59991",
+            "s": "59992",
+            "version": "1.2"
+        }
+    })
+    CHECKPOINTS = []
+
+
 # don't import net directly, import the module instead (so that net is singleton)
-net = BitcoinMainnet
+net = SyscoinMainnet
+
 
 def set_simnet():
     global net
-    net = BitcoinSimnet
+    net = SyscoinRegtest
+
 
 def set_mainnet():
     global net
-    net = BitcoinMainnet
+    net = SyscoinMainnet
 
 
 def set_testnet():
     global net
-    net = BitcoinTestnet
+    net = SyscoinTestnet
 
 
 def set_regtest():
     global net
-    net = BitcoinRegtest
+    net = SyscoinRegtest

@@ -13,10 +13,13 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from btchip.btchip import BTChipException
 
-from electrum.i18n import _
-from electrum.util import print_msg
-from electrum import constants, bitcoin
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
+from electrum.i18n import _
+from electrum import constants, bitcoin
+from electrum.logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 DEBUG = False
@@ -126,7 +129,7 @@ class LedgerAuthDialog(QDialog):
             if len(s) < len(self.idxs):
                 i = self.idxs[len(s)]
                 addr = self.txdata['address']
-                if not constants.net.TESTNET:
+                if not constants.net.TESTNET and not constants.net.REGTEST:
                     text = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
                 else:
                     # pin needs to be created from mainnet address
@@ -354,4 +357,5 @@ class LedgerWebSocket(QThread):
 
 def debug_msg(*args):
     if DEBUG:
-        print_msg(*args)        
+        str_ = " ".join([str(item) for item in args])
+        _logger.debug(str_)

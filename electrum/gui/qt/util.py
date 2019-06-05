@@ -562,14 +562,17 @@ class MyTreeView(QTreeView):
 
     def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
-        buttons = self.get_toolbar_buttons()
-        for b in buttons:
-            b.setVisible(False)
-            hbox.addWidget(b)
         hide_button = QPushButton('x')
         hide_button.setVisible(False)
         hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
-        self.toolbar_buttons = buttons + (hide_button,)
+        buttons = self.get_toolbar_buttons()
+        if buttons is not None:
+            for b in buttons:
+                b.setVisible(False)
+                hbox.addWidget(b)
+            self.toolbar_buttons = buttons + (hide_button,)
+        else:
+            self.toolbar_buttons = (hide_button,)
         hbox.addStretch()
         hbox.addWidget(hide_button)
         return hbox

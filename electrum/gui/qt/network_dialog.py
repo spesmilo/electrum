@@ -34,11 +34,14 @@ from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, Q
 
 from electrum.i18n import _
 from electrum import constants, blockchain
-from electrum.util import print_error
 from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
+from electrum.logging import get_logger
 
 from .util import Buttons, CloseButton, HelpButton, read_QIcon
+
+
+_logger = get_logger(__name__)
 
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
@@ -478,9 +481,10 @@ class NetworkChoiceLayout(object):
             return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
-        if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
-            and self.proxy_host.text() == "127.0.0.1" \
-                and self.proxy_port.text() == str(found_proxy[1]):
+        if (self.proxy_cb.isChecked()
+                and self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
+                and self.proxy_host.text() == "127.0.0.1"
+                and self.proxy_port.text() == str(found_proxy[1])):
             self.tor_cb.setChecked(True)
         self.tor_cb.show()
 
@@ -490,7 +494,7 @@ class NetworkChoiceLayout(object):
         else:
             socks5_mode_index = self.proxy_mode.findText('SOCKS5')
             if socks5_mode_index == -1:
-                print_error("[network_dialog] can't find proxy_mode 'SOCKS5'")
+                _logger.info("can't find proxy_mode 'SOCKS5'")
                 return
             self.proxy_mode.setCurrentIndex(socks5_mode_index)
             self.proxy_host.setText("127.0.0.1")

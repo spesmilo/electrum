@@ -108,7 +108,7 @@ class KeepKeyPlugin(HW_PluginBase):
         return WebUsbTransport(device)
 
     def _try_hid(self, device):
-        self.print_error("Trying to connect over USB...")
+        self.logger.info("Trying to connect over USB...")
         if device.interface_number == 1:
             pair = [None, device.path]
         else:
@@ -119,7 +119,15 @@ class KeepKeyPlugin(HW_PluginBase):
         except BaseException as e:
             # see fdb810ba622dc7dbe1259cbafb5b28e19d2ab114
             # raise
-            self.print_error("cannot connect at", device.path, str(e))
+            self.logger.info(f"cannot connect at {device.path} {e}")
+            return None
+
+    def _try_webusb(self, device):
+        self.logger.info("Trying to connect over WebUSB...")
+        try:
+            return self.webusb_transport(device)
+        except BaseException as e:
+            self.logger.info(f"cannot connect at {device.path} {e}")
             return None
 
     def _try_webusb(self, device):
@@ -137,10 +145,10 @@ class KeepKeyPlugin(HW_PluginBase):
             transport = self._try_hid(device)
 
         if not transport:
-            self.print_error("cannot connect to device")
+            self.logger.info("cannot connect to device")
             return
 
-        self.print_error("connected to device at", device.path)
+        self.logger.info(f"connected to device at {device.path}")
 
         client = self.client_class(transport, handler, self)
 
@@ -148,14 +156,14 @@ class KeepKeyPlugin(HW_PluginBase):
         try:
             client.ping('t')
         except BaseException as e:
-            self.print_error("ping failed", str(e))
+            self.logger.info(f"ping failed {e}")
             return None
 
         if not client.atleast_version(*self.minimum_firmware):
             msg = (_('Outdated {} firmware for device labelled {}. Please '
                      'download the updated firmware from {}')
                    .format(self.device, client.label(), self.firmware_URL))
-            self.print_error(msg)
+            self.logger.info(msg)
             if handler:
                 handler.show_error(msg)
             else:
@@ -175,7 +183,7 @@ class KeepKeyPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if constants.net.TESTNET else "Bitcoin"
+        return "Testnet" if constants.net.TESTNET else "Regtest" if constants.net.REGTEST else "Syscoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -215,7 +223,7 @@ class KeepKeyPlugin(HW_PluginBase):
         except UserCancelled:
             exit_code = 1
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            self.logger.exception('')
             handler.show_error(str(e))
             exit_code = 1
         finally:
