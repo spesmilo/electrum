@@ -206,8 +206,8 @@ class Abstract_Wallet(AddressSynchronizer):
     gap_limit_for_change = 6
 
     def __init__(self, storage: WalletStorage):
-        if storage.requires_upgrade():
-            raise Exception("storage must be upgraded before constructing wallet")
+        if not storage.is_ready_to_be_used_by_wallet():
+            raise Exception("storage not ready to be used by Abstract_Wallet")
 
         # load addresses needs to be called before constructor for sanity checks
         storage.db.load_addresses(self.wallet_type)
