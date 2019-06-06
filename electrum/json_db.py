@@ -422,7 +422,7 @@ class JsonDB(Logger):
                     continue
                 prevout_hash = txin['prevout_hash']
                 prevout_n = txin['prevout_n']
-                spent_outpoints[prevout_hash][prevout_n] = txid
+                spent_outpoints[prevout_hash][str(prevout_n)] = txid
         self.put('spent_outpoints', spent_outpoints)
 
         self.put('seed_version', 17)
