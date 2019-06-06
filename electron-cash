@@ -33,12 +33,9 @@ import os, sys
 # implementation which does more intelligent things with protobuf namespaces
 os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 
-if sys.version_info < (3, 5, 2):
-    sys.exit("Error: Must be using Python 3.5.2 or higher")
-
 if sys.version_info < (3, 6):
-    print("*** Electron Cash support for Python 3.5 is being discontinued and may stop working in the future.\n"
-          "*** Please consider upgrading soon!")
+    sys.exit("*** Electron Cash support for Python 3.5 has been discontinued.\n"
+             "*** Please run Electron Cash with Python 3.6 or above.")
 
 # from https://gist.github.com/tito/09c42fb4767721dc323d
 import threading
