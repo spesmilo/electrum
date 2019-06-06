@@ -241,7 +241,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             #
 
             # do this immediately after this event handler finishes -- noop on everything but linux
-            QTimer.singleShot(0, lambda: weakSelf() and weakSelf().gui_object.linux_maybe_show_highdpi_caveat_msg(weakSelf()))
+            QTimer.singleShot(0, lambda: weakSelf() and weakSelf().gui_object.lin_win_maybe_show_highdpi_caveat_msg(weakSelf()))
 
     def on_history(self, event, *args):
         # NB: event should always be 'on_history'
@@ -3566,7 +3566,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # Enable/Disable HighDPI -- this option makes no sense for macOS
             # and thus does not appear on that platform
             hidpi_chk = QCheckBox(_('Automatic high DPI scaling'))
-            hidpi_chk.setToolTip(_("Enable/disable this option if you experience visual glitches such as icons appearing comically large"))
+            if sys.platform in ('linux',):
+                hidpi_chk.setToolTip(_("Enable/disable this option if you experience graphical glitches (such as overly large status bar icons)"))
+            else: # windows
+                hidpi_chk.setToolTip(_("Enable/disable this option if you experience graphical glitches (such as dialog box text being cut off"))
             hidpi_chk.setChecked(bool(self.config.get('qt_enable_highdpi', True)))
             if self.config.get('qt_disable_highdpi'):
                 hidpi_chk.setToolTip(_('Automatic high DPI scaling was disabled from the command-line'))

@@ -545,22 +545,37 @@ class ElectrumGui(QObject, PrintError):
             d.exec_()
             d.setParent(None)
 
-    def linux_maybe_show_highdpi_caveat_msg(self, parent):
+    def lin_win_maybe_show_highdpi_caveat_msg(self, parent):
         ''' Called from main_window.py -- tells user once and only once about
         the high DPI mode and its caveats on Linux only.  Is a no-op otherwise. '''
-        if sys.platform not in ('linux',):
+        is_win = sys.platform[:3] in ('win', 'cyg')
+        is_lin = sys.platform in ('linux',)
+        if not is_win and not is_lin:
             return
         if (hasattr(Qt, "AA_EnableHighDpiScaling")
                 and self.app.testAttribute(Qt.AA_EnableHighDpiScaling)
                 # first run check:
-                and self.config.get('qt_enable_highdpi', None) is None):
-            self.config.set_key('qt_enable_highdpi', True)  # write to the config key to immediately suppress this warning in the future -- it only appears on first-run if None
-            parent.show_message(
-                title = _('High DPI Enabled'),
+                and self.config.get('qt_enable_highdpi', None) is None
+                and (is_lin # we can't check pixel ratio on linux as apparently it's unreliable, so always show this message on linux
+                     # on some windows systems running in highdpi causes
+                     # glitches to the QMessageBox windows, so we need
+                     # to also warn Windows users that they can turn this off,
+                     # but only if they actually are using a high dpi display
+                     or (is_win and hasattr(QScreen, 'devicePixelRatio')
+                         and any(s.devicePixelRatio() > 1.0  # do they have any screens that are high dpi?
+                                 for s in self.app.screens()) ))):
+            # write to the config key to immediately suppress this warning in
+            # the future -- it only appears on first-run if key was None
+            self.config.set_key('qt_enable_highdpi', True)
+            if is_lin:
                 msg = (_("Automatic high DPI scaling has been enabled for Electron Cash, which should result in improved graphics quality.")
                        + "\n\n" + _("However, on some esoteric Linux systems, this mode may cause disproportionately large status bar icons.")
-                       + "\n\n" + _("If that is the case for you, then disable automatic DPI scaling in the preferences, under 'General'.")),
-            )
+                       + "\n\n" + _("If that is the case for you, then you may disable automatic DPI scaling in the preferences, under 'General'."))
+            else: # is_win
+                msg = (_("Automatic high DPI scaling has been enabled for Electron Cash, which should result in improved graphics quality.")
+                       + "\n\n" + _("However, on some Windows systems, bugs in Qt may result in minor graphics glitches in system 'message box' dialogs.")
+                       + "\n\n" + _("If that is the case for you, then you may disable automatic DPI scaling in the preferences, under 'General'."))
+            parent.show_message( title = _('Automatic High DPI'), msg = msg)
 
     def has_auto_update_check(self):
         return bool(self.config.get('auto_update_check', True))
