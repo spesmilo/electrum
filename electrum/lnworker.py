@@ -781,7 +781,7 @@ class LNWallet(LNWorker):
         self.save_invoice(payment_hash, invoice, RECEIVED, is_paid=False)
         self.save_preimage(payment_hash, payment_preimage)
         self.wallet.set_label(bh2u(payment_hash), message)
-        return invoice
+        return payment_hash
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes):
         assert sha256(preimage) == payment_hash

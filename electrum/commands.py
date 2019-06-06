@@ -786,7 +786,9 @@ class Commands:
     @command('wn')
     def addinvoice(self, requested_amount, message):
         # using requested_amount because it is documented in param_descriptions
-        return self.lnworker.add_invoice(satoshis(requested_amount), message)
+        payment_hash = self.lnworker.add_invoice(satoshis(requested_amount), message)
+        invoice, direction, is_paid = self.lnworker.invoices[bh2u(payment_hash)]
+        return invoice
 
     @command('w')
     def nodeid(self):

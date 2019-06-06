@@ -963,11 +963,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_label.hide()
         grid.addWidget(self.expires_label, 2, 1)
 
+        self.clear_invoice_button = QPushButton(_('Clear'))
+        self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
         self.create_invoice_button = QPushButton(_('On-chain'))
         self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
+        buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
         if self.config.get('lightning'):
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
@@ -1076,11 +1079,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
         if is_lightning:
-            key = self.wallet.lnworker.add_invoice(amount, message)
+            payment_hash = self.wallet.lnworker.add_invoice(amount, message)
+            key = bh2u(payment_hash)
         else:
             key = self.create_bitcoin_request(amount, message, expiration)
             self.address_list.update()
-        self.clear_receive_tab()
         self.request_list.update()
         self.request_list.select_key(key)
 
@@ -1130,12 +1133,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        try:
-            addr = self.wallet.get_receiving_address() or ''
-        except InternalAddressCorruption as e:
-            self.show_error(str(e))
-            addr = ''
-        self.receive_address_e.setText(addr)
+        self.receive_address_e.setText('')
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
