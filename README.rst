@@ -20,8 +20,10 @@ Electron Cash - Lightweight Bitcoin Cash client
 Getting started
 ===============
 
-Electron Cash is a pure python application forked from Electrum. If you want to use the
-Qt interface, install the Qt dependencies::
+*Note: If running from source, Python 3.6 or above is required to run Electron Cash. If your system lacks Python 3.6, 
+you have other options, such as the* `binary releases <https://github.com/Electron-Cash/Electron-Cash/releases/>`_.
+
+Electron Cash is a pure python application forked from Electrum. If you want to use the Qt interface, install the Qt dependencies::
 
     sudo apt-get install python3-pyqt5
 
@@ -53,7 +55,7 @@ you need an additional dependency, namely btchip. To install it run this command
     sudo pip3 install btchip-python
 
 If you still have problems connecting to your Nano S please have a look at this
-`troubleshooting <https://support.ledger.com/hc/en-us/articles/115005165269-Fix-connection-issues>` section on Ledger website.
+`troubleshooting <https://support.ledger.com/hc/en-us/articles/115005165269-Fix-connection-issues>`_ section on Ledger website.
 
 
 Development version
