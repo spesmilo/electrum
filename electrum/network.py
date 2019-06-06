@@ -525,6 +525,11 @@ class Network(util.DaemonThread):
         self.get_mapping = get_map
         self.mapping_server = mapping_url
 
+    def default_mapping(self):
+        self.config.set_key('mapping_url', constants.net.MAPPING_URL, False)
+        self.mapping_server=constants.net.MAPPING_URL
+        return constants.net.MAPPING_URL
+
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
         server = serialize_server(host, port, protocol)
