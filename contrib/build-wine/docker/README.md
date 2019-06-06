@@ -14,28 +14,24 @@ folder.
     $ sudo apt-get install -y docker-ce
     ```
 
-2. Build image
+2. Build image and binaries
 
     ```
-    $ sudo docker build --no-cache -t electrum-wine-builder-img contrib/build-wine/docker
+    $ sudo docker build -f contrib/build-wine/docker/Dockerfile .
     ```
 
     Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
 
-3. Build Windows binaries
+3. The generated binaries are in `./contrib/build-wine/dist` inside the container.
 
-    ```
-    $ git checkout $REV
-    $ sudo docker run \
-        --name electrum-wine-builder-cont \
-        -v $PWD:/opt/wine64/drive_c/electrum \
-        --rm \
-        --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
-        electrum-wine-builder-img \
-        ./build.sh
-    ```
-4. The generated binaries are in `./contrib/build-wine/dist`.
+4. Generated binaries will also be published as a GitHub release if the following environment variables are set:
 
+      ```
+      GITHUB_RELEASE_TAG
+      GITHUB_RELEASE_COMMIT
+      GITHUB_RELEASE_REPOSITORY
+      GITHUB_RELEASE_ACCESS_TOKEN
+      ```
 
 
 Note: the `setup` binary (NSIS installer) is not deterministic yet.
