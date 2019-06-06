@@ -491,7 +491,7 @@ and there is no warning message.
 * CashShuffle: Raised default shuffle limit to 99.9999 BCH (cculianu)
 * Replaced the 'clock' icons with new hi-res versions. Please direct all
   hatemail to Calin Culianu for he volunteers to take full responsibility.
-  (cculianu, James Cramer, Axel Gembe)
+  (Jason Pribble, cculianu, James Cramer, Axel Gembe)
 * Minor fix: Clicking a link in browser to open a URL in Electron Cash no longer
   resurrects a closed wallet and instead opens the link in whatever active
   wallet windows exist. (cculianu)
