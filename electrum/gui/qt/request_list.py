@@ -76,8 +76,6 @@ class RequestList(MyTreeView):
         for i in range(self.model().rowCount()):
             item = self.model().index(i, self.Columns.DATE)
             row_key = item.data(ROLE_RHASH_OR_ADDR)
-            if item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN:
-                row_key = self.wallet.lnworker.invoices[row_key][1]
             if key == row_key:
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
