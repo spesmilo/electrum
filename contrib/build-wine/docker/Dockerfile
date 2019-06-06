@@ -40,4 +40,4 @@ WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
 COPY . /opt/wine64/drive_c/electrum/
 
-RUN ./build.sh && ./release.sh
+RUN ./opt/wine64/drive_c/electrum/contrib/build-wine/build.sh && ./opt/wine64/drive_c/electrum/contrib/build-wine/release.sh
