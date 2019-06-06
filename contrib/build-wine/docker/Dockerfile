@@ -34,11 +34,10 @@ RUN dpkg --add-architecture i386 && \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
-    apt-get clean && \
-    git clone https://github.com/buildkite/github-release.git
-
-ADD . /opt/wine64/drive_c/electrum/
+    apt-get clean
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
+
+COPY . /opt/wine64/drive_c/electrum/
 
 RUN ./build.sh && ./release.sh
