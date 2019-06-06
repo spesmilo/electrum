@@ -472,7 +472,7 @@ class ElectrumGui(QObject, PrintError):
         QtMultimedia '''
         try:
             from .qrreader import QrReaderCameraDialog
-        except (ImportError, ModuleNotFoundError) as e:
+        except ImportError as e:
             if show_warning:
                 self.warning(parent=parent,
                              title=_("QR Reader Error"),
