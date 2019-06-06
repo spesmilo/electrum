@@ -106,6 +106,7 @@ class ElectrumGui(QObject, PrintError):
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
         self.nd = None
+        self._last_active_window = None  # we remember the last activated ElectrumWindow as a Weak.ref
         # Dark Theme -- ideally set this before any widgets are created.
         self.set_dark_theme_if_needed()
         # /
@@ -130,6 +131,7 @@ class ElectrumGui(QObject, PrintError):
         self.new_window_signal.connect(self.start_new_window)
         if self.has_auto_update_check():
             self._start_auto_update_timer(first_run = True)
+        self.app.focusChanged.connect(self.on_focus_change)  # track last window the user interacted with
         run_hook('init_qt', self)
         # We did this once already in the set_dark_theme call, but we do this
         # again here just in case some plugin modified the color scheme.
@@ -317,17 +319,43 @@ class ElectrumGui(QObject, PrintError):
         full_path = os.path.join(wallet_folder, filename)
         return full_path
 
+    def on_focus_change(self, ignored, new_focus_widget):
+        ''' Remember the last wallet window that was activated because
+        start_new_window uses this information.  We store the ElectrumWindow
+        in a weak reference so that we don't interfere with its gc when it is
+        closed.'''
+        if not new_focus_widget:
+            return
+        window = new_focus_widget.window()
+        if isinstance(window, ElectrumWindow):
+            self._last_active_window = Weak.ref(window)
+
     def start_new_window(self, path, uri):
-        '''Raises the window for the wallet if it is open.  Otherwise
+        '''Raises the window for the wallet if it is open. Otherwise
         opens the wallet and creates a new window for it.
 
-        If path=None will raise whatever window is open or open last wallet if
-        no windows are open.'''
-        if not path and not self.windows:
-            # This branch is taken if nothing is currently open but path=None,
-            # in which case set path=last wallet
-            self.config.open_last_wallet()
-            path = self.config.get_wallet_path()
+        `path=None` is a special usage which will raise the last activated
+        window or open the 'last wallet' if no windows are open.'''
+        if not path:
+            if not self.windows:
+                # This branch is taken if nothing is currently open but
+                # path == None, in which case set path=last wallet
+                self.config.open_last_wallet()
+                path = self.config.get_wallet_path()
+            elif self._last_active_window:
+                # This branch is taken if we have windows open and we have
+                # _last_active_window defined, in which case we specify
+                # that this window should be activated by setting path
+                # so that the for loop below will trigger on this window.
+                w = self._last_active_window()  # weak ref -> strong ref
+                if w and w in self.windows:  # check ref still alive
+                    # this will cause the last active window to be used in the
+                    # for loop below
+                    path = w.wallet.storage.path
+
+        # NB: path may still be None here if it came in as None from args and
+        # if the above logic couldn't select a window to use -- in which case
+        # we'll end up picking self.windows[0]
 
         path = path and standardize_path(path) # just make sure some plugin didn't give us a symlink
         for w in self.windows:
