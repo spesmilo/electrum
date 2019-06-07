@@ -1097,12 +1097,14 @@ class Peer(Logger):
         self.logger.info("on_commitment_signed")
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
-        ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         if (chan.hm.pending_htlcs(LOCAL) == chan.hm.current_htlcs(LOCAL)
-            and chan.pending_feerate(LOCAL) == chan.constraints.feerate) \
-                or ctn_to_recv == self.recv_commitment_for_ctn_last[chan]:
-            raise RemoteMisbehaving('received commitment_signed without any change')
+            and chan.pending_feerate(LOCAL) == chan.constraints.feerate):
+            raise RemoteMisbehaving('received commitment_signed without pending changes')
+        # make sure ctn is new
+        ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
+        if ctn_to_recv == self.recv_commitment_for_ctn_last[chan]:
+            raise RemoteMisbehaving('received commitment_signed with same ctn')
         self.recv_commitment_for_ctn_last[chan] = ctn_to_recv
 
         data = payload["htlc_signature"]
