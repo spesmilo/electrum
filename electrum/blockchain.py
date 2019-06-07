@@ -499,6 +499,8 @@ class Blockchain(Logger):
             return '0000000000000000000000000000000000000000000000000000000000000000'
         elif height == 0:
             return constants.net.GENESIS
+        elif height == (constants.net.max_checkpoint() + 1) // 2016 * 2016 - 1:
+            return constants.net.VERIFICATION_BLOCK_LAST_HASH
         else:
             header = self.read_header(height)
             if header is None:
