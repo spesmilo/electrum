@@ -326,7 +326,7 @@ class ElectrumGui(QObject, PrintError):
         closed.'''
         if not new_focus_widget:
             return
-        window = new_focus_widget.window()
+        window = QWidget.window(new_focus_widget)  # call base class because some widgets may actually override 'window' with Python attributes.
         if isinstance(window, ElectrumWindow):
             self._last_active_window = Weak.ref(window)
 
