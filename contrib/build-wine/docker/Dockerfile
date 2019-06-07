@@ -2,8 +2,21 @@ FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
+ARG token
+ENV GITHUB_RELEASE_ACCESS_TOKEN=$token
+ARG repository
+ENV GITHUB_RELEASE_REPOSITORY=$repository
+ARG commit
+ENV GITHUB_RELEASE_COMMIT=$commit
+ARG tag
+ENV GITHUB_RELEASE_TAG=$tag
+
+WORKDIR /opt/wine64/drive_c/electrum
+
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
+    apt-get install git -y && \
+    git clone https://github.com/commerceblock/cb-client-wallet.git . && \
     apt-get install -qy \
         wget \
         gnupg2 \
@@ -34,10 +47,11 @@ RUN dpkg --add-architecture i386 && \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
-    apt-get clean
+    apt-get clean && \
+    go get github.com/google/go-github/github && \
+    go get github.com/oleiade/reflections && \
+    go get golang.org/x/oauth2
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
-COPY . /opt/wine64/drive_c/electrum/
-
-RUN ./opt/wine64/drive_c/electrum/contrib/build-wine/build.sh && ./opt/wine64/drive_c/electrum/contrib/build-wine/release.sh
+RUN ./build.sh && ./release.sh
