@@ -2,8 +2,12 @@ FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
+WORKDIR /opt/wine64/drive_c/electrum
+
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
+    apt-get install git -y && \
+    git clone https://github.com/commerceblock/cb-client-wallet.git . && \
     apt-get install -qy \
         wget \
         gnupg2 \
@@ -38,6 +42,4 @@ RUN dpkg --add-architecture i386 && \
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
-COPY . /opt/wine64/drive_c/electrum/
-
-RUN ./opt/wine64/drive_c/electrum/contrib/build-wine/build.sh && ./opt/wine64/drive_c/electrum/contrib/build-wine/release.sh
+RUN pwd && ls && ./build.sh && ./release.sh
