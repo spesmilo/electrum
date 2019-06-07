@@ -24,7 +24,8 @@ class PopupWidget(QWidget):
     onClick = pyqtSignal()
     onRightClick = pyqtSignal()
 
-    def __init__(self, parent = None, timeout = None, delete_on_hide = True):
+    def __init__(self, parent = None, timeout = None, delete_on_hide = True,
+                 activation_hides = True):
         ''' parent should be a window or None
             timeout is the amount of time, in milliseconds, to show the widget before it is auto-hidden. None is no timeout.
             delete_on_hide, if True, will auto-delete this widget after it is hidden due to the timeout or due to calling hide().
@@ -38,6 +39,7 @@ class PopupWidget(QWidget):
         self.popup_opacity = 1.0
         self.pointerPos = self.LeftSide
         self._timer = None
+        self.activation_hides = activation_hides
 
         #self.resize(200, 50)
 
@@ -253,7 +255,10 @@ class PopupWidget(QWidget):
         self.animation.finished.connect(doHide)
 
     def eventFilter(self, obj, e):
-        if e.type() in (QEvent.Move, QEvent.Resize, QEvent.Close, QEvent.WindowStateChange, QEvent.Hide, QEvent.Show, QEvent.WindowDeactivate):
+        evts = (QEvent.Move, QEvent.Resize, QEvent.Close, QEvent.Hide, QEvent.Show)
+        if self.activation_hides:
+            evts = (*evts, QEvent.WindowStateChange, QEvent.WindowDeactivate)
+        if e.type() in evts:
             # if the parent window is moved or otherwise touched, make this popup go away
             self.hideAnimated()
         return False
@@ -305,13 +310,14 @@ from .util import destroyed_print_error
 from electroncash.util import finalization_print_error
 
 _extant_popups = dict()
-def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None):
+def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None,
+                   activation_hides=True):
     assert isinstance(name, str) and isinstance(text, str) and isinstance(target, QWidget) and isinstance(timeout, (float, int)), "Invalid parameters"
     window = target.window()
     if not window.isActiveWindow():
         return False
     KillPopupLabel(name)
-    popup = PopupLabel(text, window, timeout=timeout, delete_on_hide=True)
+    popup = PopupLabel(text, window, timeout=timeout, delete_on_hide=True, activation_hides=activation_hides)
     popup.setPointerPosition(pointer_position)
     popup.final_opacity = opacity
     popup.setObjectName(str(id(popup)))
