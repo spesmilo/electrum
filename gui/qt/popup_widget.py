@@ -25,7 +25,7 @@ class PopupWidget(QWidget):
     onRightClick = pyqtSignal()
 
     def __init__(self, parent = None, timeout = None, delete_on_hide = True,
-                 activation_hides = True):
+                 activation_hides = True, dark_mode = False):
         ''' parent should be a window or None
             timeout is the amount of time, in milliseconds, to show the widget before it is auto-hidden. None is no timeout.
             delete_on_hide, if True, will auto-delete this widget after it is hidden due to the timeout or due to calling hide().
@@ -40,6 +40,7 @@ class PopupWidget(QWidget):
         self.pointerPos = self.LeftSide
         self._timer = None
         self.activation_hides = activation_hides
+        self.dark_mode = dark_mode
 
         #self.resize(200, 50)
 
@@ -92,11 +93,11 @@ class PopupWidget(QWidget):
 
         pal = QPalette(self.palette())
 
-        painter.setBrush(QBrush(pal.color(QPalette.Mid)))
+        painter.setBrush(QBrush(pal.color(QPalette.Window if self.dark_mode else QPalette.Mid)))
 
 
         pen = QPen()
-        pen.setColor(pal.color(QPalette.Button))
+        pen.setColor(pal.color(QPalette.Light if self.dark_mode else QPalette.Button))
         pen.setWidth(3)
         painter.setPen(pen)
 
@@ -104,7 +105,7 @@ class PopupWidget(QWidget):
         painter.drawRoundedRect(roundedRectDimensions, self.LR_MARGIN*2.0, self.TB_MARGIN*2.0)
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(pal.color(QPalette.Dark)))
+        painter.setBrush(QBrush(pal.color(QPalette.BrightText if self.dark_mode else QPalette.Dark)))
         #// Draw the popup pointer based on relPos
         self.drawPopupPointer(painter)
 
@@ -293,7 +294,7 @@ class PopupLabel(PopupWidget):
         p = QPalette(self.label.palette())
         p.setColor(QPalette.Window,QColor(0,0,0,0))
         if textColor is None:
-            textColor = QColor(255,255,255,255)
+            textColor = QColor(255,255,255,255) if not self.dark_mode else p.color(QPalette.BrightText)
         p.setColor(QPalette.WindowText,textColor)
         self.label.setPalette(p);
 
@@ -311,13 +312,13 @@ from electroncash.util import finalization_print_error
 
 _extant_popups = dict()
 def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None,
-                   activation_hides=True, track_target=True):
+                   activation_hides=True, track_target=True, dark_mode=False):
     assert isinstance(name, str) and isinstance(text, str) and isinstance(target, QWidget) and isinstance(timeout, (float, int)), "Invalid parameters"
     window = target.window()
     if not window.isActiveWindow():
         return False
     KillPopupLabel(name)
-    popup = PopupLabel(text, window, timeout=timeout, delete_on_hide=True, activation_hides=activation_hides)
+    popup = PopupLabel(text, window, timeout=timeout, delete_on_hide=True, activation_hides=activation_hides, dark_mode=dark_mode)
     popup.setPointerPosition(pointer_position)
     popup.final_opacity = opacity
     popup.setObjectName(str(id(popup)))

@@ -1759,7 +1759,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                                         target=self.send_button, timeout=15000.0,
                                         name="CoinTextPopup",
                                         pointer_position=PopupWidget.LeftSide,
-                                        activation_hides=True, track_target=True
+                                        activation_hides=True, track_target=True,
+                                        dark_mode = ColorScheme.dark_scheme
                             )
                             if not self._cointext_popup_kill_tab_changed_connection:
                                 # this ensures that if user changes tabs, the popup dies
@@ -4185,7 +4186,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             ShowPopupLabel(name = "CashShuffleError",
                            text="<center><b>{}</b><br><small>{}</small></center>".format(_("Server Error"),_("Right-click to resolve")),
                            target=self.cashshuffle_status_button,
-                           timeout=20000, onClick=onClick, onRightClick=onClick)
+                           timeout=20000, onClick=onClick, onRightClick=onClick,
+                           dark_mode = ColorScheme.dark_scheme)
         else:
             KillPopupLabel("CashShuffleError")
         self.print_error("Cash Shuffle flag is now {}".format(flag))
