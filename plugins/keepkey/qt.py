@@ -316,7 +316,9 @@ class SettingsDialog(WindowModalDialog):
     def __init__(self, window, plugin, keystore, device_id):
         title = _("{} Settings").format(plugin.device)
         super(SettingsDialog, self).__init__(window, title)
-        self.setMaximumWidth(540)
+        # NB: below breaks layout on some platforms. Better to let the layout
+        # manager do its thing.
+        #self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
         config = devmgr.config
