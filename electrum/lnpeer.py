@@ -703,8 +703,7 @@ class Peer(Logger):
         self.network.trigger_callback('channel', chan)
         current_remote_ctn = chan.config[REMOTE].ctn
         # send message
-        if self.their_localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ:
-            self.logger.info('peer requires data loss protect')
+        if self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT:
             if current_remote_ctn == 0:
                 last_rev_secret = 0
             else:
