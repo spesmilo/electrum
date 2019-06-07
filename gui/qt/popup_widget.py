@@ -311,7 +311,7 @@ from electroncash.util import finalization_print_error
 
 _extant_popups = dict()
 def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupWidget.RightSide, opacity=0.9, onClick=None, onRightClick=None,
-                   activation_hides=True):
+                   activation_hides=True, track_target=True):
     assert isinstance(name, str) and isinstance(text, str) and isinstance(target, QWidget) and isinstance(timeout, (float, int)), "Invalid parameters"
     window = target.window()
     if not window.isActiveWindow():
@@ -336,6 +336,17 @@ def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupW
             # Stale object or already removed from dict. No need to clean up the dict entry
             pass
             #print("----> Not found!!")
+    if track_target:
+        class MyEventFilter(QObject):
+            ''' Traps target move events and moves the popup to line up with the target '''
+            def eventFilter(self, obj, e):
+                lbl = self.parent()
+                if e.type() in (QEvent.Move, QEvent.Resize) and isinstance(lbl, PopupLabel):
+                    # track the target, moving us along with it if its geometry changes
+                    lbl.moveRelativeTo(obj)
+                return False
+        popup.my_e_filter = MyEventFilter(popup)
+        target.installEventFilter(popup.my_e_filter)
     popup.destroyed.connect(onDestroyed)
     destroyed_print_error(popup, "[PopupLabel/{}] destroyed".format(name))
     finalization_print_error(popup, "[PopupLabel/{}] finalized".format(name))
