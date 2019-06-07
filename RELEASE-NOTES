@@ -495,3 +495,14 @@ and there is no warning message.
 * Minor fix: Clicking a link in browser to open a URL in Electron Cash no longer
   resurrects a closed wallet and instead opens the link in whatever active
   wallet windows exist. (cculianu)
+
+# Release 4.0.7
+
+* CoinText: Show a popup label after CoinText is initiated to remind user
+  they need to hit "Send" or "Preview" to proceed (cculianu, imaginary_username)
+* KeepKey: Fixed a packaging issue where loading BIP39 onto an uninitialized
+  KeepKey would fail with a Python exception on Windows & Mac #1434 (cculianu)
+* Python 3.6 is officially the minimum Python version for Electron Cash now.
+  In the last version, you could still run on Python 3.5 (poorly), we just
+  made it official. (Axel Gembe, cculianu)
+
