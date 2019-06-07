@@ -1753,7 +1753,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                                         text=_("Please review payment before sending CoinText"),
                                         target=self.send_button, timeout=15000.0,
                                         name="CoinTextPopup",
-                                        pointer_position=PopupWidget.TopSide, activation_hides=True
+                                        pointer_position=PopupWidget.LeftSide, activation_hides=True
                             )
                             if not self._cointext_popup_kill_tab_changed_connection:
                                 # this ensures that if user changes tabs, the popup dies
