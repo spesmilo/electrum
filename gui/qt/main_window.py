@@ -1748,6 +1748,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         self.print_error("CoinText RESULT", repr(pr))
                         self.prepare_for_payment_request()
                         def show_popup():
+                            if not self.send_button.isVisible():
+                                # likely a watching-only wallet, in which case
+                                # showing the popup label for the send button
+                                # leads to unspecified position for the button
+                                return
                             show_it = partial(
                                         ShowPopupLabel,
                                         text=_("Please review payment before sending CoinText"),
