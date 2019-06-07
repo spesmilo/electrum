@@ -35,7 +35,14 @@ version.filename = %(source.dir)s/electrum/version.py
 #version = 1.9.8
 
 # (list) Application requirements
-requirements = python3, android, openssl, plyer, kivy==b47f669f44dbda4f463bcb7d2cada639f7fed3bc, libffi, libsecp256k1
+requirements =
+    python3,
+    android,
+    openssl,
+    plyer,
+    kivy==82d561d62577757d478df52173610f925c05ecab,
+    libffi,
+    libsecp256k1
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -64,11 +71,8 @@ android.api = 28
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 21
 
-# (int) Android SDK version to use
-android.sdk = 24
-
 # (str) Android NDK version to use
-android.ndk = 14b
+android.ndk = 17c
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21
