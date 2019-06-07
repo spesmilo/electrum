@@ -6,7 +6,8 @@ from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
                              QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
-                             QMessageBox, QFileDialog, QSlider, QTabWidget)
+                             QMessageBox, QFileDialog, QSlider, QTabWidget,
+                             QSizePolicy)
 
 from electroncash_gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
                                       OkButton, CloseButton)
@@ -23,8 +24,8 @@ PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
     "hidden behind a particular case-sensitive passphrase.")
 PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
-    "You need to create a separate Electrum wallet for each passphrase "
-    "you use as they each generate different addresses.  Changing "
+    "You need to create a separate Electron Cash wallet for each passphrase "
+    "you use as they each generate different addresses. Changing "
     "your passphrase does not lose other wallets, each is still "
     "accessible behind its own passphrase.")
 RECOMMEND_PIN = _(
@@ -382,14 +383,14 @@ class SettingsDialog(WindowModalDialog):
             currently_enabled = self.features.passphrase_protection
             if currently_enabled:
                 msg = _("After disabling passphrases, you can only pair this "
-                        "Electrum wallet if it had an empty passphrase.  "
+                        "Electron Cash wallet if it had an empty passphrase. "
                         "If its passphrase was not empty, you will need to "
-                        "create a new wallet with the install wizard.  You "
+                        "create a new wallet with the install wizard. You "
                         "can use this wallet again at any time by re-enabling "
                         "passphrases and entering its passphrase.")
             else:
-                msg = _("Your current Electrum wallet can only be used with "
-                        "an empty passphrase.  You must create a separate "
+                msg = _("Your current Electron Cash wallet can only be used "
+                        "with an empty passphrase. You must create a separate "
                         "wallet with the install wizard for other passphrases "
                         "as each one generates a new set of addresses.")
             msg += "\n\n" + _("Are you sure you want to proceed?")
@@ -557,6 +558,15 @@ class SettingsDialog(WindowModalDialog):
         advanced_glayout.addWidget(wipe_device_button, 6, 2)
         advanced_glayout.addWidget(wipe_device_msg, 7, 0, 1, 5)
         advanced_glayout.addWidget(wipe_device_warning, 8, 0, 1, 5)
+        for i in range(advanced_glayout.count()):
+            # This loop is needed to lay out the word-wrap labels properly
+            # so that they grow down rather than across.
+            w = advanced_glayout.itemAt(i).widget()
+            if isinstance(w, QLabel) and w.wordWrap():
+                sp = w.sizePolicy()
+                sp.setHorizontalPolicy(QSizePolicy.Ignored)
+                sp.setVerticalPolicy(QSizePolicy.MinimumExpanding)
+                w.setSizePolicy(sp)
         advanced_layout.addLayout(advanced_glayout)
         advanced_layout.addStretch(1)
 
