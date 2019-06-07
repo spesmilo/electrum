@@ -53,6 +53,7 @@ datas = [
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('mnemonic')  # wordlists used by keepkeylib from lib mnemonic
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electron-cash',
