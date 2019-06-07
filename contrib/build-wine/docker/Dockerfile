@@ -47,8 +47,11 @@ RUN dpkg --add-architecture i386 && \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
-    apt-get clean
+    apt-get clean && \
+    go get github.com/google/go-github/github && \
+    go get github.com/oleiade/reflections && \
+    go get golang.org/x/oauth2
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
-RUN pwd && ls && ./build.sh && ./release.sh
+RUN ./build.sh && ./release.sh
