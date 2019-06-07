@@ -683,6 +683,7 @@ class LNWallet(LNWorker):
             route = await self._create_route_from_invoice(decoded_invoice=addr)
             if not self.get_channel_by_short_id(route[0].short_channel_id):
                 assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
+            self.network.trigger_callback('ln_payment_attempt', i)
             if await self._pay_to_route(route, addr, invoice):
                 return True
         return False

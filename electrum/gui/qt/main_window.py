@@ -92,6 +92,7 @@ from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
 
+LN_NUM_PAYMENT_ATTEMPTS = 10
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -120,6 +121,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     new_fx_quotes_signal = pyqtSignal()
     new_fx_history_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
+    ln_payment_attempt_signal = pyqtSignal(str)
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
@@ -223,7 +225,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
                          'on_history', 'channel', 'channels', 'ln_message',
-                         'ln_payment_completed']
+                         'ln_payment_completed', 'ln_payment_attempt']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -372,6 +374,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
             self.update_status()
+        elif event == 'ln_payment_attempt':
+            msg = _('Sending lightning payment') + '... (%d/%d)'%(args[0]+1, LN_NUM_PAYMENT_ATTEMPTS)
+            self.ln_payment_attempt_signal.emit(msg)
         elif event == 'ln_payment_completed':
             # FIXME it is really inefficient to force update the whole GUI
             # just for a single LN payment. individual rows in lists should be updated instead.
@@ -1673,7 +1678,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def pay_lightning_invoice(self, invoice):
         amount = self.amount_e.get_amount()
-        LN_NUM_PAYMENT_ATTEMPTS = 3
         def on_success(result):
             self.logger.info(f'ln payment success. {result}')
             self.show_error(_('Payment succeeded'))
@@ -1687,12 +1691,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             else:
                 raise e
         def task():
-            success = self.wallet.lnworker.pay(invoice, attempts=LN_NUM_PAYMENT_ATTEMPTS, amount_sat=amount, timeout=30)
+            success = self.wallet.lnworker.pay(invoice, attempts=LN_NUM_PAYMENT_ATTEMPTS, amount_sat=amount, timeout=60)
             if not success:
-                raise PaymentFailure('Failed after {LN_NUM_PAYMENT_ATTEMPTS} attempts')
+                raise PaymentFailure(f'Failed after {LN_NUM_PAYMENT_ATTEMPTS} attempts')
 
         msg = _('Sending lightning payment...')
-        WaitingDialog(self, msg, task, on_success, on_failure)
+        d = WaitingDialog(self, msg, task, on_success, on_failure)
+        self.ln_payment_attempt_signal.connect(d.update)
 
     def do_send(self, preview = False):
         if self.payto_e.is_lightning:

@@ -288,8 +288,9 @@ class WaitingDialog(WindowModalDialog):
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
+        self.message_label = QLabel(message)
         vbox = QVBoxLayout(self)
-        vbox.addWidget(QLabel(message))
+        vbox.addWidget(self.message_label)
         self.accepted.connect(self.on_accepted)
         self.show()
         self.thread = TaskThread(self)
@@ -301,6 +302,10 @@ class WaitingDialog(WindowModalDialog):
 
     def on_accepted(self):
         self.thread.stop()
+
+    def update(self, msg):
+        print(msg)
+        self.message_label.setText(msg)
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
