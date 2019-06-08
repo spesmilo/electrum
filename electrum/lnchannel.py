@@ -473,9 +473,13 @@ class Channel(Logger):
         # if there are update_add_htlc msgs between commitment_signed and rev_ack,
         # this might break
         prev_remote_commitment = self.pending_commitment(REMOTE)
-
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
-        self.process_new_revocation_secret(revocation.per_commitment_secret)
+
+        # be robust to exceptions raised in lnwatcher
+        try:
+            self.process_new_revocation_secret(revocation.per_commitment_secret)
+        except Exception as e:
+            self.logger.info("Could not process revocation secret: {}".format(repr(e)))
 
         ##### start applying fee/htlc changes
 
