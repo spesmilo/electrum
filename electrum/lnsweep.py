@@ -55,7 +55,8 @@ def create_sweeptxs_for_their_revoked_ctx(chan: 'Channel', ctx: Transaction, per
             witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True)
-        txs.append(sweep_tx)
+        if sweep_tx:
+            txs.append(sweep_tx)
     # HTLCs
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
                                                                                       Optional[Transaction],
