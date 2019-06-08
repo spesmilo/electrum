@@ -371,7 +371,9 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         return
     if tx is None:
         tx = wallet.transactions.get(tx_hash, None)
-        if tx is not None: tx.deserialize()
+        if tx is not None and tx.raw:
+            tx = Transaction(tx.raw)
+            tx.deserialize()
     if tx is None:
         utils.NSLog("*** ERROR: Cannot find tx for hash: %s",tx_hash)
         return

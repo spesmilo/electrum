@@ -10,6 +10,7 @@ from electroncash import WalletStorage, Wallet
 from electroncash.address import Address, PublicKey
 from electroncash.util import timestamp_to_datetime, PrintError, profiler
 from electroncash.i18n import _, language
+from electroncash.transaction import Transaction
 
 import time, math, sys, os
 from collections import namedtuple
@@ -173,7 +174,11 @@ class _HistoryListProxy:
         else:
             img = None
         tx = wallet.transactions.get(tx_hash, None)
-        if tx is not None: tx.deserialize()
+        if tx is not None and tx.raw:
+            # NB: save a copy of the tx in this hentry, because it may get
+            # deserialized later, and if we were to deserialize the tx that's
+            # in the wallet dict, we'd eat memory.
+            tx = Transaction(tx.raw)
         entry = HistoryEntry(tx, tx_hash, status_str, label, v_str, balance_str, date, ts, conf, status, value, fiat_amount, fiat_balance, fiat_amount_str, fiat_balance_str, ccy, img)
         return entry
 
@@ -244,7 +249,7 @@ class ContactsHistorySynchronizer(utils.PySig):
         self.parent = parent
         self.eventFlag = threading.Event()
         self.stopFlag = threading.Event()
-        self.lock = threading.RLock()
+        #self.lock = threading.RLock()
         self.thread = None
     def __del__(self):
         self.stop()
@@ -265,8 +270,8 @@ class ContactsHistorySynchronizer(utils.PySig):
                 storage = wallet.storage if wallet else None
                 full = None
                 self.print_error("Woke Up...")
-                if wallet and storage:
-                    with self.lock:
+                if wallet and storage and wallet.is_up_to_date():
+                    if True: #with self.lock:
                         full = self._synch_full(wallet)
                         for addrstr, d in full.items():
                             k = 'contact_history_%s' % (addrstr)
@@ -326,7 +331,7 @@ class ContactsHistorySynchronizer(utils.PySig):
             address = Address.from_string(address)
         storage = self.parent.wallet.storage if self.parent.wallet else None
         if storage:
-            with self.lock:
+            if True:#with self.lock:
                 addrstr = address.to_storage_string()
                 k = 'contact_history_%s' % (addrstr)
                 storage.put(k, None)
@@ -343,9 +348,9 @@ class ContactsHistorySynchronizer(utils.PySig):
             # loop through ALL the history and see if relevant tx's exist for contacts we care about
             tx_hash = hitem[0]
             tx = wallet.transactions.get(tx_hash)
-            if tx:
-                tx.deserialize()
-                ins = tx.inputs()
+            if tx and tx.raw:
+                tx = Transaction(tx.raw)  # take a copy
+                ins = tx.inputs()  # implicit deserialize
                 for x in ins:
                     xa = x['address']
                     if isinstance(xa, PublicKey):
@@ -356,9 +361,9 @@ class ContactsHistorySynchronizer(utils.PySig):
                         if tx_hash not in dct:
                             dct[tx_hash] = hitem
                             if wasEmpty: seen[xa] = dct
-                outs = tx.get_outputs()
+                outs = tx.outputs()
                 for x in outs:
-                    xa, dummy = x
+                    typ, xa, dummy = x
                     if isinstance(xa, Address) and xa in c:
                         dct = seen.get(xa, dict())
                         wasEmpty = not dct
@@ -573,6 +578,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
                 tx = entry.tx
             else:
                 tx = parent.wallet.transactions.get(entry.tx_hash, None)
+                if tx and tx.raw: tx = Transaction(tx.raw)
         except:
             return
         if tx is None:

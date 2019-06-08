@@ -26,7 +26,7 @@ import time, html, re, sys, traceback
 from decimal import Decimal
 
 RE_ALIAS = '^(.*?)\s*\<([1-9A-Za-z]{26,})\>$'
-        
+
 def parent():
     return gui.ElectrumGui.gui
 
@@ -41,7 +41,7 @@ def fx():
     if p and p.daemon and p.daemon.fx:
         return p.daemon.fx
     return None
-  
+
 _CellIdentifier = "SpendFromCell"
 _TableHeaderHeight = 25
 _TableCellHeight = 20
@@ -60,7 +60,7 @@ class SendVC(SendBase):
     dismissOnAppear = objc_property()
     kbas = objc_property()
     queuedPayTo = objc_property()
-    
+
     @objc_method
     def init(self):
         self = ObjCInstance(send_super(__class__, self, 'init'))
@@ -75,7 +75,7 @@ class SendVC(SendBase):
         self.dismissOnAppear = False
         self.kbas = None
         self.queuedPayTo = None
-        
+
         self.navigationItem.leftItemsSupplementBackButton = True
         bb = UIBarButtonItem.new().autorelease()
         bb.title = _("Back")
@@ -127,22 +127,22 @@ class SendVC(SendBase):
             self.qrScanErr = False
         else:
             self.readerDidCancel_(reader)
-             
+
     @objc_method
     def readerDidCancel_(self, reader) -> None:
         if reader is not None: reader.stopScanning()
         self.dismissViewControllerAnimated_completion_(True, None)
         self.qr = None
-        self.qrvc = None    
-        
+        self.qrvc = None
+
     @objc_method
     def loadView(self) -> None:
         objs = NSBundle.mainBundle.loadNibNamed_owner_options_("Send",self,None)
         assert objs is not None and len(objs)
-        
+
         # Apply translations and other stuff to UI text...
         self.payToTit.setText_withKerning_(_("Pay to"), utils._kern)
-                
+
         # Input amount text field
         btcedit = self.amt
         fiatedit = self.fiat
@@ -167,7 +167,7 @@ class SendVC(SendBase):
         utils.add_callback(btcedit, 'edited', onEdit)
         btcedit.setUseUnitLabel_(True)
         btcedit.fixedUnitLabelWidth = 50.0
-        
+
         # Amount (Fiat) label
         # Input Fiat text field
         def onAmountFiat(t : ObjCInstance) -> None:
@@ -185,12 +185,12 @@ class SendVC(SendBase):
         utils.add_callback(fiatedit, 'edited', onEditFiat)
         fiatedit.setUseUnitLabel_(True)
         fiatedit.fixedUnitLabelWidth = 50.0
-        
-        self.descTit.setText_withKerning_( _("Description"), utils._kern )     
-        
+
+        self.descTit.setText_withKerning_( _("Description"), utils._kern )
+
         but = self.maxBut
         but.setTitle_forState_(_("Max"), UIControlStateNormal)
-                
+
         # Fee Label
         self.feeTit.setText_withKerning_( _("Fee"), utils._kern )
 
@@ -213,7 +213,7 @@ class SendVC(SendBase):
         self.descDel.tv = self.desc
         self.descDel.text = ""
         self.descDel.placeholderText = _("Description of the transaction (not mandatory).")
-   
+
         feelbl = self.feeLbl
         slider = self.feeSlider
         def sliderCB(dyn : bool, pos : int, fee_rate : int) -> None:
@@ -227,9 +227,9 @@ class SendVC(SendBase):
             self.spendMax() if self.isMax else self.updateFee()
             #print("testcb: %d %d %d.. tt='%s'"%(int(dyn), pos, fee_rate,txt))
         utils.add_callback(slider, 'callback', sliderCB)
-        
+
         utils.nspy_put_byname(self, 'dummy', '_last_spend_from') # trigger the clear
-        
+
         # set up navigation bar items...
         self.clearBut.title = _("Clear")
         but = self.sendBut
@@ -240,8 +240,8 @@ class SendVC(SendBase):
         self.navigationItem.rightBarButtonItems = [barButPreview]
         extra = self.navigationItem.leftBarButtonItems if self.navigationItem.leftBarButtonItems else []
         self.navigationItem.leftBarButtonItems = [*extra, self.clearBut]
-       
-        
+
+
     @objc_method
     def viewDidLoad(self) -> None:
         uinib = UINib.nibWithNibName_bundle_("SpendFromCell", None)
@@ -251,7 +251,7 @@ class SendVC(SendBase):
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
-        
+
         if self.dismissOnAppear and self.presentingViewController and not self.isBeingDismissed():
             self.presentingViewController.dismissViewControllerAnimated_completion_(animated, None)
             return
@@ -263,9 +263,9 @@ class SendVC(SendBase):
                 self.onPayTo_message_amount_(qpt[0],qpt[1],qpt[2])
             except:
                 utils.NSLog("queuedPayTo.. failed with exception: %s",str(sys.exc_info()[1]))
-            
-        
-        self.kbas = utils.register_keyboard_autoscroll(self.view.viewWithTag_(54321))        
+
+
+        self.kbas = utils.register_keyboard_autoscroll(self.view.viewWithTag_(54321))
 
         # redo amount label if prefs changed
         lbl = self.amtTit
@@ -298,7 +298,7 @@ class SendVC(SendBase):
         fiatte = self.fiat
         fiatte.setHidden_(not doFX)
         if doFX:
-            fiatte.placeholder = _("Fiat amount") 
+            fiatte.placeholder = _("Fiat amount")
         feelbl = self.feeTit
         c = self.csFeeTop
         if c is not None:
@@ -306,11 +306,11 @@ class SendVC(SendBase):
 
         parent().cash_addr_sig.connect(lambda: self.reformatSpendFrom(), self)
         self.reformatSpendFrom()
-        
+
         pay_to = utils.nspy_get_byname(self, 'pay_to')
         if pay_to is not None:
             if isinstance(pay_to, str):
-                self.payTo.text = pay_to            
+                self.payTo.text = pay_to
             utils.nspy_pop_byname(self, 'pay_to')
 
         utils.uitf_redo_attrs(self.payTo)
@@ -336,22 +336,22 @@ class SendVC(SendBase):
             return
         utils.nspy_put_byname(self, coins, '_last_spend_from')
         self.updateFee()
-        
+
     @objc_method
     def viewWillDisappear_(self, animated: bool) -> None:
         send_super(__class__, self, 'viewWillDisappear:', animated, argtypes=[c_bool])
         # Manual edit .. cache the feeSats in case they change stuff in prefs affecting this
         tedit = self.feeTf
         self.feeSats = tedit.getAmount()
-        # Amount edit --  cache the amountSats in case they change stuff in the prefs affecting this 
+        # Amount edit --  cache the amountSats in case they change stuff in the prefs affecting this
         tedit = self.amt
         self.amountSats = tedit.getAmount()
         parent().cash_addr_sig.disconnect(self)
-        
+
         if self.kbas:
             utils.unregister_keyboard_autoscroll(int(self.kbas))
             self.kbas = None
-        
+
 
     @objc_method
     def onQRBut_(self, but) -> None:
@@ -373,18 +373,18 @@ class SendVC(SendBase):
             def onPayTo(addys : list) -> None:
                 if contacts.pay_to(addys):
                     self.dismissViewControllerAnimated_completion_(True, None)
-            vc = contacts.ContactsVC.alloc().initWithMode_(contacts.ModePicker).autorelease()                
+            vc = contacts.ContactsVC.alloc().initWithMode_(contacts.ModePicker).autorelease()
             nav = utils.tintify(UINavigationController.alloc().initWithRootViewController_(vc).autorelease())
             utils.add_callback(vc, 'on_pay_to', onPayTo)
             if self.payTo and self.payTo.text:
                 utils.nspy_put_byname(vc, self.payTo.text, 'preselected')
             self.presentViewController_animated_completion_(nav, True, None)
         utils.boilerplate.vc_highlight_button_then_do(self, but, DoIt)
-        
+
     @objc_method
     def onMaxBut_(self, but) -> None:
         utils.boilerplate.vc_highlight_button_then_do(self, but, lambda:self.spendMax())
-        
+
     @objc_method
     def textFieldShouldEndEditing_(self, tf : ObjCInstance) -> bool:
         #print('textFieldShouldEndEditing %d'%tf.tag)
@@ -394,13 +394,13 @@ class SendVC(SendBase):
             self.chkOk()
         utils.uitf_redo_attrs(tf)
         return True
-        
+
     @objc_method
     def textFieldShouldReturn_(self, tf : ObjCInstance) -> bool:
         #print('textFieldShouldReturn %d'%tf.tag)
         tf.resignFirstResponder()
         return True
-    
+
     @objc_method
     def onPayTo_message_amount_(self, address, message, amount) -> None:
         # address
@@ -440,8 +440,8 @@ class SendVC(SendBase):
 
     @objc_method
     def chkOk(self) -> bool:
-        
-        coins = utils.nspy_get_byname(self, 'spend_from') 
+
+        coins = utils.nspy_get_byname(self, 'spend_from')
         if coins:
             h = _TableCellHeight*min(len(coins),_TableHeightRows) + _TableHeaderHeight
             self.tv.setHidden_(False)
@@ -451,28 +451,28 @@ class SendVC(SendBase):
             self.tv.setHidden_(True)
             self.csTvHeight.constant = 0
             self.csPayToTop.constant = 0
-        
+
         f = self.desc.frame
         self.csContentHeight.constant = f.origin.y + f.size.height + 125
-        
+
         retVal = False
         errLbl = self.message
         sendBut = self.sendBut
         previewBut = self.previewBut
         amountTf = self.amt
         errView = self.messageView
-        
+
         sendBut.enabled = False
         utils.uiview_set_enabled(sendBut, False)
         previewBut.enabled = False
         errLbl.text = ""
-        
+
         addy = ''
 
-        #c, u, x = wallet().get_balance()        
+        #c, u, x = wallet().get_balance()
         #a = self.amountSats if self.amountSats is not None else 0
         #f = self.feeSats if self.feeSats is not None else 0
-        
+
         try:
             #print("wallet balance: %f  amountSats: %f"%(float(c+u),float(self.amountSats)))
             if self.notEnoughFunds:
@@ -490,7 +490,7 @@ class SendVC(SendBase):
             if self.amountSats is None or self.feeSats is None or not len(addy): # or self.feeSats <= 0:
                 errLbl.text = ""
                 raise Exception("SilentException") # silent error when amount or fee isn't yet specified
-            
+
             previewBut.enabled = True #False # for now, unimplemented.. #True
             en = True if parent().wallet is not None and not parent().wallet.is_watching_only() else False
             sendBut.enabled = en
@@ -501,10 +501,10 @@ class SendVC(SendBase):
             pass
 
         errView.setHidden_(not bool(len(errLbl.text.strip())))
-        
+
         return retVal
-    
-        
+
+
     @objc_method
     def spendMax(self) -> None:
         self.isMax = True
@@ -546,7 +546,7 @@ class SendVC(SendBase):
         utils.nspy_pop_byname(self, 'spend_from')
         utils.nspy_put_byname(self, 'dummy', '_last_spend_from')
         self.reformatSpendFrom()
-       
+
     @objc_method
     def clear(self) -> None:
         self.clearAllExceptSpendFrom()
@@ -571,7 +571,7 @@ class SendVC(SendBase):
             self.payTo.text = get_PR(self).get_requestor()
         else:
             self.payTo.backgroundColor = utils.uicolor_custom('ultralight')
-            
+
     @objc_method
     def isPR(self) -> bool:
         return get_PR(self) is not None
@@ -607,7 +607,7 @@ class SendVC(SendBase):
         total = 0
         #self.payto_address = None
         payto_address = None
-        
+
         if len(lines) == 1:
             data = lines[0]
             if data.lower().startswith(networks.net.CASHADDR_PREFIX + ":"):
@@ -626,7 +626,7 @@ class SendVC(SendBase):
             if payto_address and len(payto_address) and isinstance(payto_address[1], Address):
                 #self.win.lock_amount(False)
                 #print("LOCK AMOUNT = False")
-                
+
                 try:
                     #self.onPayTo_message_amount_(payto_address[1].to_ui_string(), None, None)
                     self.onPayTo_message_amount_(data, None, None)
@@ -692,7 +692,7 @@ class SendVC(SendBase):
         payToAddr = py_from_ns(self.getPayToAddress())
         self.notEnoughFunds = False
         self.excessiveFee = False
-       
+
         def get_outputs(is_max):
             outputs = []
             if payToAddr:
@@ -700,7 +700,7 @@ class SendVC(SendBase):
                     amount = '!'
                 else:
                     amount = amount_e.getAmount()
-                
+
                 try:
                     _type, addr = Parser().parse_output(payToAddr)
                     outputs = [(_type, addr, amount)]
@@ -710,7 +710,7 @@ class SendVC(SendBase):
             return outputs[:]
         def get_dummy():
             return (bitcoin.TYPE_ADDRESS, wallet().dummy_address())
-        
+
         freeze_fee = (fee_e.isModified()
                       and (fee_e.text or fee_e.isFirstResponder))
 
@@ -762,7 +762,7 @@ class SendVC(SendBase):
         self.view.endEditing_(True)
         isPreview = but.ptr.value == self.previewBut.ptr.value
         self.doSend_(isPreview)
-        
+
     @objc_method
     def showTransaction_desc_(self, txraw, desc) -> None:
         tx = Transaction(txraw)
@@ -775,20 +775,20 @@ class SendVC(SendBase):
         status, status_str = (status_, _("Unsigned")) #wallet().get_tx_status(tx_hash, height, conf, timestamp)
         doFX = fx() and fx().is_enabled()
         ccy = fx().get_currency() if doFX else None
-        fiat_amount_str = str(self.fiat.text) if doFX else None 
+        fiat_amount_str = str(self.fiat.text) if doFX else None
         #HistoryEntry = namedtuple("HistoryEntry", "tx tx_hash status_str label v_str balance_str date ts conf status value fiat_amount fiat_balance fiat_amount_str fiat_balance_str ccy status_image")
         entry = HistoryEntry(tx,tx_hash,status_str,str(desc),self.amt.text,"",timestamp_to_datetime(time.time() if conf <= 0 else timestamp),timestamp,conf,status,amount,None,None,fiat_amount_str,None,ccy,None)
         def newLabel(l):
             self.descDel.text = l
-            
+
         self.navigationController.pushViewController_animated_(txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel), True)
-        
+
         # For modal do the following:
         #self.presentViewController_animated_completion_(txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel, asModalNav = True), True, None)
         '''
         # Below was used to generate a "please wait" notification but we optimized the code to be fast so this is no longer needed.. I hope!
         # Keeping it here in case we see slow loads again for tx detail of unsigned tx's... Feel free to remove this code sometime in the future.
-        
+
         notif = None
         txvc = None
         def onAppear():
@@ -798,7 +798,7 @@ class SendVC(SendBase):
                 utils.dismiss_notification(notif.autorelease())
                 notif = None
             utils.remove_callback(txvc, 'on_appear')
-        
+
         txvc = txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel, on_appear = onAppear).retain()
         def notifCompletion() -> None:
             self.navigationController.pushViewController_animated_(txvc.autorelease(), True)
@@ -808,7 +808,7 @@ class SendVC(SendBase):
                                         noTapDismiss = True, completion = notifCompletion).retain()
         '''
 
-            
+
     @objc_method
     def doSend_(self, preview : bool) -> None:
         #if run_hook('abort_send', self):
@@ -866,7 +866,7 @@ class SendVC(SendBase):
                 #else:
                 #    parent().show_error(_("An Unknown Error Occurred"))
             parent().sign_tx_with_password(tx, sign_done, password)
-            
+
         # IN THE FUTURE IF WE WANT TO APPEND SOMETHING IN THE MSG ABOUT THE FEE, CODE IS COMMENTED OUT:
         #if fee > confirm_rate * tx.estimated_size() / 1000:
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
@@ -917,15 +917,15 @@ class SendVC(SendBase):
             cell = UITableViewCell.alloc().initWithStyle_reuseIdentifier_(UITableViewCellStyleSubtitle, "ACell").autorelease()
             cell.textLabel.text = " "
         return cell
-            
+
     @objc_method
     def tableView_heightForRowAtIndexPath_(self, tv, indexPath) -> float:
         return _TableCellHeight
-    
+
     @objc_method
     def tableView_heightForHeaderInSection_(self, tableView, section) -> float:
         return _TableHeaderHeight
-    
+
     @objc_method
     def tableView_viewForHeaderInSection_(self, tv : ObjCInstance, section : int) -> ObjCInstance:
         objs = NSBundle.mainBundle.loadNibNamed_owner_options_("TableHeaders", None, None)
@@ -946,8 +946,8 @@ class SendVC(SendBase):
         else:
             hdr = UIView.alloc().initWithFrame_(CGRectMake(0,0,0,0)).autorelease()
         return hdr
-        
-    
+
+
     @objc_method
     def tableView_editingStyleForRowAtIndexPath_(self, tv, indexPath) -> int:
         return UITableViewCellEditingStyleDelete
@@ -979,7 +979,7 @@ class SendVC(SendBase):
         ''' This method is called in iOS 11.0+ only .. so we only create this UISwipeActionsConfiguration ObjCClass
             here rather than in uikit_bindings.py
         '''
-        
+
         try:
             row = int(indexPath.row) # save param outside objcinstance object and into python for 'handler' closure
             section = int(indexPath.section)
@@ -1010,7 +1010,7 @@ def get_coins(sendvc : ObjCInstance) -> list:
     coins = utils.nspy_get_byname(sendvc, 'spend_from')
     if coins: return coins
     return wallet().get_spendable_coins(None, config())
-           
+
 def read_send_form(send : ObjCInstance) -> tuple:
     label = send.descDel.text
     addr = py_from_ns(send.getPayToAddress())

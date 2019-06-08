@@ -716,7 +716,7 @@ def get_contacts(wallet = None, sort = True) -> list:
         return list()
     c = wallet.contacts
     contacts = list()
-    for addr,tupl in c.items():
+    for addr,tupl in c.copy().items():
         typ, name = tupl
         if typ == 'address' and Address.is_valid(addr):
             address = Address.from_string(addr)

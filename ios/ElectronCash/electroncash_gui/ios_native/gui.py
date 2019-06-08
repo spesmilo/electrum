@@ -49,7 +49,7 @@ from .custom_objc import *
 
 from electroncash.i18n import _, set_language, languages
 from electroncash.plugins import run_hook
-from electroncash import WalletStorage, Wallet
+from electroncash import WalletStorage, Wallet, Transaction
 from electroncash.address import Address
 from electroncash.util import UserCancelled, print_error, format_satoshis, format_satoshis_plain, PrintError, InvalidPassword, inv_base_units
 import electroncash.web as web
@@ -764,8 +764,8 @@ class ElectrumGui(PrintError):
                         # Combine the transactions if there are at least 2
                         total_amount = 0
                         for tx in self.tx_notifications:
-                            if tx:
-                                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+                            if tx and tx.raw:
+                                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(Transaction(tx.raw))
                                 if v > 0 and is_relevant:
                                     total_amount += v
                                     n_ok += 1
@@ -1351,6 +1351,7 @@ class ElectrumGui(PrintError):
         if self.wallet:
             if self.onboardingWizard and not self.onboardingWizard.isBeingDismissed():
                 self.onboardingWizard.presentingViewController.dismissViewControllerAnimated_completion_(False, None)
+            self.wallet.set_schnorr_enabled(False)  # hard-coded -- disable schnorr on iOS
             self.config.set_key('gui_last_wallet', self.wallet.storage.path)
             self.config.open_last_wallet() # this badly named function just sets the 'default wallet path' to the gui_last_wallet..
             vcs = self.tabController.viewControllers
