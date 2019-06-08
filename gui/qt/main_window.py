@@ -1514,7 +1514,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         outputs.append(self.output_for_opreturn_rawhex(opreturn_message))
                     else:
                         outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
                 self.op_return_toolong = False
             except NotEnoughFunds:
@@ -1790,7 +1790,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
@@ -4101,7 +4101,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return
-        new_tx = self.wallet.cpfp(parent_tx, fee, sign_schnorr=self.wallet.is_schnorr_enabled())
+        new_tx = self.wallet.cpfp(parent_tx, fee)
         if new_tx is None:
             self.show_error(_('CPFP no longer valid'))
             return

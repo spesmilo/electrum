@@ -135,7 +135,7 @@ class CoinUtils(PrintError):
         tx_inputs.sort(key=lambda x: x['prevout_hash']+str(x["tx_pos"]))
         tx_outputs = [(TYPE_ADDRESS, Address.from_string(output), int(amount))
                       for output in outputs]
-        transaction = Transaction.from_io(tx_inputs, tx_outputs)
+        transaction = Transaction.from_io(tx_inputs, tx_outputs, sign_schnorr=False)
         tx_changes = [(TYPE_ADDRESS, Address.from_string(changes[player]), int(amounts[player] - amount - fee))
                       for player in sorted(changes)
                       if Address.is_valid(changes[player]) and int(amounts[player] - amount - fee) >= dust]

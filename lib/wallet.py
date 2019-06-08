@@ -1068,7 +1068,11 @@ class Abstract_Wallet(PrintError):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None, sign_schnorr=False):
+    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None, sign_schnorr=None):
+        ''' sign_schnorr flag controls whether to mark the tx as signing with
+        schnorr or not. Specify either a bool, or set the flag to 'None' to use
+        whatever the wallet is configured to use from the GUI '''
+        sign_schnorr = self.is_schnorr_enabled() if sign_schnorr is None else bool(sign_schnorr)
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -1154,7 +1158,7 @@ class Abstract_Wallet(PrintError):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None, sign_schnorr=False):
+    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None, sign_schnorr=None):
         coins = self.get_spendable_coins(domain, config)
         tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr, sign_schnorr=sign_schnorr)
         self.sign_transaction(tx, password)
@@ -1317,7 +1321,9 @@ class Abstract_Wallet(PrintError):
                 break # ok, it's old. not need to keep looping
         return age > age_limit
 
-    def cpfp(self, tx, fee, sign_schnorr=False):
+    def cpfp(self, tx, fee, sign_schnorr=None):
+        ''' sign_schnorr is a bool or None for auto '''
+        sign_schnorr = self.is_schnorr_enabled() if sign_schnorr is None else bool(sign_schnorr)
         txid = tx.txid()
         for i, o in enumerate(tx.outputs()):
             otype, address, value = o
