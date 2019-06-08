@@ -1176,6 +1176,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
+        self.op_return_e = QLineEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
         payto_label = HelpLabel(_('Pay to'), msg)
@@ -1200,28 +1201,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(self.from_list, 3, 1, 1, -1)
         self.set_pay_from([])
 
+        msg = _('Op return data.') + '\n\n' \
+              + _('Op return data as hex')
+        op_return_label = HelpLabel(_('Op return data'), msg)
+        grid.addWidget(op_return_label, 4, 0)
+        grid.addWidget(self.op_return_e, 4, 1, 1, -1)
+
         msg = _('Amount to be sent.') + '\n\n' \
               + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
               + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
               + _('Keyboard shortcut: type "!" to send all your coins.')
         amount_label = HelpLabel(_('Amount'), msg)
-        grid.addWidget(amount_label, 4, 0)
-        grid.addWidget(self.amount_e, 4, 1)
+        grid.addWidget(amount_label, 5, 0)
+        grid.addWidget(self.amount_e, 5, 1)
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
-        grid.addWidget(self.fiat_send_e, 4, 2)
+        grid.addWidget(self.fiat_send_e, 5, 2)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(140)
         self.max_button.setCheckable(True)
-        grid.addWidget(self.max_button, 4, 3)
+        grid.addWidget(self.max_button, 5, 3)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
-        grid.addLayout(hbox, 4, 4)
+        grid.addLayout(hbox, 5, 4)
 
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -1303,7 +1310,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox_feelabel = QVBoxLayout()
         vbox_feelabel.addWidget(self.fee_e_label)
         vbox_feelabel.addStretch(1)
-        grid.addLayout(vbox_feelabel, 5, 0)
+        grid.addLayout(vbox_feelabel, 6, 0)
 
         self.fee_adv_controls = QWidget()
         hbox = QHBoxLayout(self.fee_adv_controls)
@@ -1318,7 +1325,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox_feecontrol.addWidget(self.fee_adv_controls)
         vbox_feecontrol.addWidget(self.fee_slider)
 
-        grid.addLayout(vbox_feecontrol, 5, 1, 1, -1)
+        grid.addLayout(vbox_feecontrol, 6, 1, 1, -1)
 
         if not self.config.get('show_fee', False):
             self.fee_adv_controls.setVisible(False)
@@ -1332,7 +1339,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        grid.addLayout(buttons, 6, 1, 1, 3)
+        grid.addLayout(buttons, 7, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
@@ -1432,7 +1439,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.statusBar().showMessage('')
             return
 
-        outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
+        outputs, fee_estimator, tx_desc, op_return, coins = self.read_send_tab()
         if not outputs:
             _type, addr = self.get_payto_or_dummy()
             outputs = [TxOutput(_type, addr, amount)]
@@ -1589,13 +1596,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def read_send_tab(self):
         label = self.message_e.text()
+        op_return = self.op_return_e.text()
         if self.payment_request:
             outputs = self.payment_request.get_outputs()
         else:
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
         fee_estimator = self.get_send_fee_estimator()
         coins = self.get_coins()
-        return outputs, fee_estimator, label, coins
+        return outputs, fee_estimator, label, op_return, coins
 
     def check_send_tab_outputs_and_show_errors(self, outputs) -> bool:
         """Returns whether there are errors with outputs.
@@ -1644,14 +1652,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def do_send(self, preview = False):
         if run_hook('abort_send', self):
             return
-        outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
+        outputs, fee_estimator, tx_desc, op_return, coins = self.read_send_tab()
         if self.check_send_tab_outputs_and_show_errors(outputs):
             return
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
                 coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
+                is_sweep=is_sweep, op_return=op_return)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             self.show_message(str(e))
             return

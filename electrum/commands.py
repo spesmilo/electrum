@@ -453,7 +453,7 @@ class Commands:
         message = util.to_bytes(message)
         return ecc.verify_message_with_address(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None, op_return=None):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -464,7 +464,7 @@ class Commands:
             final_outputs.append(TxOutput(TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
-        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
+        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr, op_return=op_return)
         if locktime != None:
             tx.locktime = locktime
         if rbf is None:
@@ -476,19 +476,19 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, op_return=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime, op_return)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, op_return=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime, op_return)
         return tx.as_dict()
 
     @command('w')
@@ -834,6 +834,7 @@ command_options = {
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
+    'op_return':   (None, "Set op_return data"),
 }
 
 
@@ -858,6 +859,7 @@ arg_types = {
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
+    'op_return': str,
 }
 
 config_variables = {

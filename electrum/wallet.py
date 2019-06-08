@@ -35,6 +35,7 @@ import json
 import copy
 import errno
 import traceback
+import binascii
 from functools import partial
 from numbers import Number
 from decimal import Decimal
@@ -46,8 +47,8 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo)
-from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
-                      is_minikey, relayfee, dust_threshold)
+from .bitcoin import (COIN, TYPE_ADDRESS, TYPE_SCRIPT, is_address, address_to_script,
+                      is_minikey, relayfee, dust_threshold, opcodes)
 from .crypto import sha256d
 from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore
@@ -671,7 +672,7 @@ class Abstract_Wallet(AddressSynchronizer):
         return candidate
 
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+                                  change_addr=None, is_sweep=False, op_return=None):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -682,6 +683,13 @@ class Abstract_Wallet(AddressSynchronizer):
                 if i_max is not None:
                     raise Exception("More than one output set to spend max")
                 i_max = i
+
+        if op_return and len(op_return) > 0:
+          op_return_bytes = binascii.unhexlify(op_return)
+          if len(op_return_bytes) > 80:
+            raise Exception(_('OP_RETURN data exceeds 80 bytes'))
+          script = (bytes([opcodes.OP_RETURN, len(op_return_bytes)]) + op_return_bytes).hex()
+          outputs.append(TxOutput(TYPE_SCRIPT, script, 0))
 
         if fixed_fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
