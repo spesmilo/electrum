@@ -261,7 +261,7 @@ class ContactsHistorySynchronizer(utils.PySig):
         return ret
     def _synchronizer(self):
         self.print_error("Started (wallet=%s)..." % self.wallet_name())
-        last_seen_len, announce, last_cost, last_ts = 0, False, 0.0, 0.0
+        last_seen_len, announce, last_cost, last_ts = 0, False, 1.0, 0.0
         while not self.stopFlag.is_set():
             if self.eventFlag.wait():
                 if self.stopFlag.is_set():
