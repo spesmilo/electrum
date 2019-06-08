@@ -261,24 +261,41 @@ class ContactsHistorySynchronizer(utils.PySig):
         return ret
     def _synchronizer(self):
         self.print_error("Started (wallet=%s)..." % self.wallet_name())
-        last_seen_len, announce = (0, False)
+        last_seen_len, announce, last_cost, last_ts = 0, False, 0.0, 0.0
         while not self.stopFlag.is_set():
             if self.eventFlag.wait():
                 if self.stopFlag.is_set():
                     break
+                self.print_error("Woke Up...")
+                # check that we aren't running too often...
+                diff_t = time.time() - last_ts
+                if diff_t > 0 and diff_t < last_cost:
+                    diff_t = last_cost - diff_t  # transform to "time left"
+                    # sleep diff_t seconds since we were running too often
+                    self.print_error(f"Throttled; sleeping {diff_t:1.3f} seconds...")
+                    if self.stopFlag.wait(diff_t):
+                        # we got a stop signal while sleeping, break out of loop
+                        self.print_error("stopped while throttling")
+                        break
+                #/
                 wallet = self.parent.wallet
                 storage = wallet.storage if wallet else None
                 full = None
-                self.print_error("Woke Up...")
-                if wallet and storage and wallet.is_up_to_date():
+                if wallet and storage and wallet.is_up_to_date() and wallet.synchronizer and wallet.synchronizer.is_up_to_date():
+                    t0 = time.time()
                     if True: #with self.lock:
                         full = self._synch_full(wallet)
+                        if full is None:
+                            # early return, callee detected stop signal
+                            self.print_error("stop caught in inner function")
+                            continue
                         for addrstr, d in full.items():
                             k = 'contact_history_%s' % (addrstr)
                             if storage.get(k) != d:
                                 storage.put(k, d)
                                 announce = True
                                 self.print_error('Wrote %s...' % k)
+                    last_cost = time.time() - t0
                 full_len = len(full) if full else 0
                 if announce or last_seen_len != full_len:
                     self.print_error("Contact history updated, announcing...")
@@ -287,6 +304,7 @@ class ContactsHistorySynchronizer(utils.PySig):
                 else:
                     self.print_error("No new contact history.")
                 last_seen_len = full_len
+                last_ts = time.time()
                 self.eventFlag.clear()
         self.print_error("Stopping! (wallet=%s)" % self.wallet_name())
     def _notify_needs_synch(self):
@@ -345,6 +363,9 @@ class ContactsHistorySynchronizer(utils.PySig):
         h = self._get_history(wallet)
         seen = dict() # Address -> dict of tx_hash_str -> hitem tuple
         for hitem in h:
+            if self.stopFlag.is_set():
+                # early return, another thread requested a stop
+                return None
             # loop through ALL the history and see if relevant tx's exist for contacts we care about
             tx_hash = hitem[0]
             tx = wallet.transactions.get(tx_hash)
@@ -382,8 +403,7 @@ class ContactsHistorySynchronizer(utils.PySig):
             ret[c.address] = c
         return ret
     def _get_history(self, wallet):
-        h = wallet.get_history(None)
-        h.reverse()
+        h = wallet.get_history(None, reverse=True)
         return h
 
 def get_contact_history(address : Address) -> list:
