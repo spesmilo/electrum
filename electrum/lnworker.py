@@ -911,32 +911,34 @@ class LNWallet(LNWorker):
         self.network.trigger_callback('channels', self.wallet)
         self.network.trigger_callback('wallet_updated', self.wallet)
 
-    async def reestablish_peers_and_channels(self):
-        async def reestablish_peer_for_given_channel():
-            # try last good address first
-            peer = self.channel_db.get_last_good_address(chan.node_id)
-            if peer:
-                last_tried = self._last_tried_peer.get(peer, 0)
-                if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-                    await self._add_peer(peer.host, peer.port, peer.pubkey)
-                    return
-            # try random address for node_id
-            node_info = self.channel_db.nodes_get(chan.node_id)
-            if not node_info: return
-            addresses = self.channel_db.get_node_addresses(node_info)
-            if not addresses: return
-            adr_obj = random.choice(addresses)
-            host, port = adr_obj.host, adr_obj.port
-            peer = LNPeerAddr(host, port, chan.node_id)
+    async def reestablish_peer_for_given_channel(self, chan):
+        now = time.time()
+        # try last good address first
+        peer = self.channel_db.get_last_good_address(chan.node_id)
+        if peer:
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-                await self._add_peer(host, port, chan.node_id)
+                await self._add_peer(peer.host, peer.port, peer.pubkey)
+                return
+        # try random address for node_id
+        node_info = self.channel_db.nodes_get(chan.node_id)
+        if not node_info:
+            return
+        addresses = self.channel_db.get_node_addresses(node_info)
+        if not addresses:
+            return
+        adr_obj = random.choice(addresses)
+        host, port = adr_obj.host, adr_obj.port
+        peer = LNPeerAddr(host, port, chan.node_id)
+        last_tried = self._last_tried_peer.get(peer, 0)
+        if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
+            await self._add_peer(host, port, chan.node_id)
 
+    async def reestablish_peers_and_channels(self):
         while True:
             await asyncio.sleep(1)
             with self.lock:
                 channels = list(self.channels.values())
-            now = time.time()
             for chan in channels:
                 if chan.is_closed():
                     continue
@@ -948,7 +950,7 @@ class LNWallet(LNWorker):
                 if not chan.should_try_to_reestablish_peer():
                     continue
                 peer = self.peers.get(chan.node_id, None)
-                coro = peer.reestablish_channel(chan) if peer else reestablish_peer_for_given_channel()
+                coro = peer.reestablish_channel(chan) if peer else self.reestablish_peer_for_given_channel(chan)
                 await self.network.main_taskgroup.spawn(coro)
 
     def current_feerate_per_kw(self):
