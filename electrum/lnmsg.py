@@ -115,7 +115,9 @@ class LNSerializer:
         lengths = {}
         for k in typ["payload"]:
             poslenMap = typ["payload"][k]
-            if "feature" in poslenMap: continue
+            if k not in kwargs and "feature" in poslenMap:
+                continue
+            param = kwargs.get(k, 0)
             leng = _eval_exp_with_ctx(poslenMap["length"], lengths)
             try:
                 clone = dict(lengths)
@@ -123,10 +125,6 @@ class LNSerializer:
                 leng = _eval_exp_with_ctx(poslenMap["length"], clone)
             except KeyError:
                 pass
-            try:
-                param = kwargs[k]
-            except KeyError:
-                param = 0
             try:
                 if not isinstance(param, bytes):
                     assert isinstance(param, int), "field {} is neither bytes or int".format(k)
