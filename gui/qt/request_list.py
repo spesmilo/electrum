@@ -58,6 +58,8 @@ class RequestList(MyTreeWidget):
             return
         expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
         amount = req['amount']
+        opr = req.get('op_return') or req.get('op_return_raw')
+        opr_is_raw = bool(req.get('op_return_raw'))
         message = self.wallet.labels.get(addr.to_storage_string(), '')
         self.parent.receive_address = addr
         self.parent.receive_address_e.setText(addr.to_full_ui_string())
@@ -66,6 +68,8 @@ class RequestList(MyTreeWidget):
         self.parent.expires_combo.hide()
         self.parent.expires_label.show()
         self.parent.expires_label.setText(expires)
+        self.parent.receive_opreturn_rawhex_cb.setChecked(opr_is_raw)
+        self.parent.receive_opreturn_e.setText(opr or '')
         self.parent.save_request_button.setEnabled(False)
 
     def select_item_by_address(self, address):

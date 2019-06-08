@@ -65,6 +65,10 @@ class QR_Window(QWidget, MessageBoxMixin):
         self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         vbox.addWidget(self.amount_label)
 
+        self.op_return_label = WWLabel()
+        self.op_return_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        vbox.addWidget(self.op_return_label)
+
         vbox.addStretch(2)
 
         copyBut = QPushButton(_("Copy QR Image"))
@@ -73,12 +77,15 @@ class QR_Window(QWidget, MessageBoxMixin):
 
         weakSelf = Weak.ref(self)  # Qt & Python GC hygeine: don't hold references to self in non-method slots as it appears Qt+Python GC don't like this too much and may leak memory in that case.
         weakQ = Weak.ref(self.qrw)
-        copyBut.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakSelf()))
+        weakBut = Weak.ref(copyBut)
+        copyBut.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakBut()))
         saveBut.clicked.connect(lambda: save_to_file(weakQ(), weakSelf()))
 
 
 
-    def set_content(self, win, address_text, amount, message, url):
+    def set_content(self, win, address_text, amount, message, url, *, op_return = None, op_return_raw = None):
+        if op_return is not None and op_return_raw is not None:
+            raise ValueError('Must specify exactly one of op_return or op_return_hex as kwargs to QR_Window.set_content')
         self.address_label.setText(address_text)
         if amount:
             amount_text = '{} {}'.format(win.format_amount(amount), win.base_unit())
@@ -87,6 +94,11 @@ class QR_Window(QWidget, MessageBoxMixin):
         self.amount_label.setText(amount_text)
         self.msg_label.setText(message)
         self.qrw.setData(url)
+        if op_return:
+            self.op_return_label.setText(f'OP_RETURN: {str(op_return)}')
+        elif op_return_raw:
+            self.op_return_label.setText(f'OP_RETURN (raw): {str(op_return_raw)}')
+        self.op_return_label.setVisible(bool(op_return or op_return_raw))
         self.layout().activate()
 
     def closeEvent(self, e):

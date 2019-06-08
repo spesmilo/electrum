@@ -505,4 +505,8 @@ and there is no warning message.
 * Python 3.6 is officially the minimum Python version for Electron Cash now.
   In the last version, you could still run on Python 3.5 (poorly), we just
   made it official. (Axel Gembe, cculianu)
+* Added OP_RETURN capability to the 'Receive' tab. You can now generate receive
+  request URIs and QR codes containing 'op_return' and/or 'op_return_raw'. Not
+  all wallets can read this query string argument, but Electron Cash can.
+  (cculianu)
 

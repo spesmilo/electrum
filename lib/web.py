@@ -95,23 +95,33 @@ def BE_sorted_list():
     return sorted(BE_info())
 
 
-def create_URI(addr, amount, message):
+def create_URI(addr, amount, message, *, op_return=None, op_return_raw=None):
     if not isinstance(addr, Address):
         return ""
+    if op_return is not None and op_return_raw is not None:
+        raise ValueError('Must specify exactly one of op_return or op_return_hex as kwargs to create_URI')
     scheme, path = addr.to_URI_components()
     query = []
     if amount:
         query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
         query.append('message=%s'%urllib.parse.quote(message))
+    if op_return:
+        query.append(f'op_return={str(op_return)}')
+    if op_return_raw:
+        query.append(f'op_return_raw={str(op_return_raw)}')
     p = urllib.parse.ParseResult(scheme=scheme,
                                  netloc='', path=path, params='',
                                  query='&'.join(query), fragment='')
     return urllib.parse.urlunparse(p)
 
-# URL decode
-#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+def urlencode(s):
+    ''' URL Encode; encodes a url or a uri fragment by %-quoting special chars'''
+    return urllib.parse.quote(s)
+
+def urldecode(url):
+    ''' Inverse of urlencode '''
+    return utllib.parse.unquote(url)
 
 def parse_URI(uri, on_pr=None):
     if ':' not in uri:
@@ -159,6 +169,8 @@ def parse_URI(uri, on_pr=None):
         out['exp'] = int(out['exp'])
     if 'sig' in out:
         out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
+    if 'op_return_raw' in out and 'op_return' in out:
+        del out['op_return_raw']  # allow only 1 of these
 
     r = out.get('r')
     sig = out.get('sig')

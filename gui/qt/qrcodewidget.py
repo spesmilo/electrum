@@ -4,7 +4,7 @@ from PyQt5.QtGui import *
 import PyQt5.QtGui as QtGui
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
-    QSizePolicy)
+    QSizePolicy, QToolTip)
 
 import os
 import qrcode
@@ -107,11 +107,11 @@ def save_to_file(qrw, parent):
             p.save(filename, 'png')
             isinstance(parent, MessageBoxMixin) and parent.show_message(_("QR code saved to file") + " " + filename)
 
-def copy_to_clipboard(qrw, parent):
+def copy_to_clipboard(qrw, widget):
     p = qrw and qrw.grab()
     if p and not p.isNull():
         QApplication.clipboard().setPixmap(p)
-        isinstance(parent, MessageBoxMixin) and parent.show_message(_("QR code copied to clipboard"))
+        QToolTip.showText(QCursor.pos(), _("QR code copied to clipboard"), widget)
 
 
 class QRDialog(WindowModalDialog):
@@ -135,7 +135,8 @@ class QRDialog(WindowModalDialog):
 
         b = QPushButton(_("Copy"))
         hbox.addWidget(b)
-        b.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakSelf()))
+        weakBut = util.Weak.ref(b)
+        b.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakBut()))
 
         b = QPushButton(_("Save"))
         hbox.addWidget(b)

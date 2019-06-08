@@ -136,6 +136,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self._tx_dialogs = Weak.Set()
         self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
         self.is_schnorr_enabled = self.wallet.is_schnorr_enabled  # This is a function -- Support for plugins that may be using the 4.0.3 & 4.0.4 API -- this function used to live in this class, before being moved to Abstract_Wallet.
+        self.send_tab_opreturn_widgets, self.receive_tab_opreturn_widgets = [], []  # defaults to empty list
 
         Address.show_cashaddr(config.get('show_cashaddr', True))
 
@@ -160,6 +161,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
+        # clears/inits the opreturn widgets
+        self.on_toggled_opreturn(bool(self.config.get('enable_opreturn')))
 
         def add_optional_tab(tabs, tab, icon, description, name, default=False):
             tab.tab_icon = icon
@@ -920,6 +923,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = show_transaction(tx, self, tx_desc)
         self._tx_dialogs.add(d)
 
+    def on_toggled_opreturn(self, b):
+        ''' toggles opreturn-related widgets for both the receive and send
+        tabs'''
+        b = bool(b)
+        self.config.set_key('enable_opreturn', b)
+        # send tab
+        if not b:
+            self.message_opreturn_e.setText("")
+            self.op_return_toolong = False
+        for x in self.send_tab_opreturn_widgets:
+            x.setVisible(b)
+        # receive tab
+        for x in self.receive_tab_opreturn_widgets:
+            x.setVisible(b)
+
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2
@@ -946,17 +964,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.receive_message_e, 1, 1, 1, -1)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
+        # OP_RETURN requests
+        self.receive_opreturn_e = QLineEdit()
+        msg = _("You may optionally append an OP_RETURN message to the payment URI and/or QR you generate.\n\nNote: Not all wallets yet support OP_RETURN parameters, so make sure the other party's wallet supports OP_RETURN URIs.")
+        self.receive_opreturn_label = label = HelpLabel(_('&OP_RETURN'), msg)
+        label.setBuddy(self.receive_opreturn_e)
+        self.receive_opreturn_rawhex_cb = QCheckBox(_('Raw &hex script'))
+        self.receive_opreturn_rawhex_cb.setToolTip(_('If unchecked, the textbox contents are UTF8-encoded into a single-push script: <tt>OP_RETURN PUSH &lt;text&gt;</tt>. If checked, the text contents will be interpreted as a raw hexadecimal script to be appended after the OP_RETURN opcode: <tt>OP_RETURN &lt;script&gt;</tt>.'))
+        grid.addWidget(label, 2, 0)
+        grid.addWidget(self.receive_opreturn_e, 2, 1, 1, 3)
+        grid.addWidget(self.receive_opreturn_rawhex_cb, 2, 4, Qt.AlignLeft)
+        self.receive_opreturn_e.textChanged.connect(self.update_receive_qr)
+        self.receive_opreturn_rawhex_cb.clicked.connect(self.update_receive_qr)
+        self.receive_tab_opreturn_widgets = [
+            self.receive_opreturn_e,
+            self.receive_opreturn_rawhex_cb,
+            self.receive_opreturn_label,
+        ]
+
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
         label = QLabel(_('Requested &amount'))
         label.setBuddy(self.receive_amount_e)
-        grid.addWidget(label, 2, 0)
-        grid.addWidget(self.receive_amount_e, 2, 1)
+        grid.addWidget(label, 3, 0)
+        grid.addWidget(self.receive_amount_e, 3, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
         self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_receive_e.setVisible(False)
-        grid.addWidget(self.fiat_receive_e, 2, 2, Qt.AlignLeft)
+        grid.addWidget(self.fiat_receive_e, 3, 2, Qt.AlignLeft)
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
 
         self.expires_combo = QComboBox()
@@ -971,12 +1007,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ])
         label = HelpLabel(_('Request &expires'), msg)
         label.setBuddy(self.expires_combo)
-        grid.addWidget(label, 3, 0)
-        grid.addWidget(self.expires_combo, 3, 1)
+        grid.addWidget(label, 4, 0)
+        grid.addWidget(self.expires_combo, 4, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
         self.expires_label.hide()
-        grid.addWidget(self.expires_label, 3, 1)
+        grid.addWidget(self.expires_label, 4, 1)
 
         self.save_request_button = QPushButton(_('&Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
@@ -1015,7 +1051,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
-        hbox.addWidget(self.receive_qr)
+        vbox2 = QVBoxLayout()
+        vbox2.setContentsMargins(0,0,0,0)
+        vbox2.setSpacing(4)
+        vbox2.addWidget(self.receive_qr)
+        self.receive_qr.setToolTip(_('Receive request QR code (click for details)'))
+        but = QPushButton(_('Copy &URI'))
+        def on_copy_uri():
+            if self.receive_qr.data:
+                uri = str(self.receive_qr.data)
+                qApp.clipboard().setText(uri)
+                QToolTip.showText(QCursor.pos(), _("Receive request URI copied to clipboard"), self)
+        but.clicked.connect(on_copy_uri)
+        but.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        but.setToolTip(_('Click to copy the receive request URI to the clipboard'))
+        vbox2.addWidget(but)
+        vbox2.setAlignment(but, Qt.AlignHCenter|Qt.AlignVCenter)
+
+        hbox.addLayout(vbox2)
 
         class ReceiveTab(QWidget):
             def showEvent(self, e):
@@ -1047,7 +1100,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         req = self.wallet.receive_requests[addr]
         message = self.wallet.labels.get(addr.to_storage_string(), '')
         amount = req['amount']
-        URI = web.create_URI(addr, amount, message)
+        op_return = req.get('op_return')
+        op_return_raw = req.get('op_return_raw') if not op_return else None
+        URI = web.create_URI(addr, amount, message, op_return=op_return, op_return_raw=op_return_raw)
         if req.get('time'):
             URI += "&time=%d"%req.get('time')
         if req.get('exp'):
@@ -1089,8 +1144,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return False
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
+        kwargs = {}
+        opr = self.receive_opreturn_e.text().strip()
+        if opr:
+            # save op_return, if any
+            arg = 'op_return'
+            if self.receive_opreturn_rawhex_cb.isChecked():
+                arg = 'op_return_raw'
+            kwargs[arg] = opr
         req = self.wallet.make_payment_request(self.receive_address, amount,
-                                               message, expiration)
+                                               message, expiration, **kwargs)
         self.wallet.add_payment_request(req, self.config)
         self.sign_payment_request(self.receive_address)
         self.request_list.update()
@@ -1147,6 +1210,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def set_receive_address(self, addr):
         self.receive_address = addr
         self.receive_message_e.setText('')
+        self.receive_opreturn_rawhex_cb.setChecked(False)
+        self.receive_opreturn_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.update_receive_address_widget()
 
@@ -1222,11 +1287,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        uri = web.create_URI(self.receive_address, amount, message)
+        kwargs = {}
+        if self.receive_opreturn_e.isVisible():
+            # set op_return if enabled
+            arg = 'op_return'
+            if self.receive_opreturn_rawhex_cb.isChecked():
+                arg = 'op_return_raw'
+            opret = self.receive_opreturn_e.text()
+            if opret:
+                kwargs[arg] = opret
+        uri = web.create_URI(self.receive_address, amount, message, **kwargs)
         self.receive_qr.setData(uri)
         if self.qr_window:
             self.qr_window.set_content(self, self.receive_address_e.text(), amount,
-                                       message, uri)
+                                       message, uri, **kwargs)
 
     def create_send_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1273,13 +1347,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(self.opreturn_rawhex_cb)
         grid.addLayout(hbox,  3 , 1, 1, -1)
 
-        if not self.config.get('enable_opreturn'):
-            self.message_opreturn_e.setText("")
-            self.message_opreturn_e.setHidden(True)
-            self.opreturn_rawhex_cb.setHidden(True)
-            self.opreturn_label.setHidden(True)
-
-
+        self.send_tab_opreturn_widgets = [
+            self.message_opreturn_e,
+            self.opreturn_rawhex_cb,
+            self.opreturn_label,
+        ]
 
         self.from_label = QLabel(_('&From'))
         grid.addWidget(self.from_label, 4, 0)
@@ -3680,21 +3752,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
-
-        def on_opret(x):
-            self.config.set_key('enable_opreturn', bool(x))
-            if not x:
-                self.message_opreturn_e.setText("")
-                self.op_return_toolong = False
-            self.message_opreturn_e.setHidden(not x)
-            self.opreturn_rawhex_cb.setHidden(not x)
-            self.opreturn_label.setHidden(not x)
-
         enable_opreturn = bool(self.config.get('enable_opreturn'))
         opret_cb = QCheckBox(_('Enable OP_RETURN output'))
         opret_cb.setToolTip(_('Enable posting messages with OP_RETURN.'))
         opret_cb.setChecked(enable_opreturn)
-        opret_cb.stateChanged.connect(on_opret)
+        opret_cb.stateChanged.connect(self.on_toggled_opreturn)
         tx_widgets.append((opret_cb,None))
 
         # Schnorr

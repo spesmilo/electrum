@@ -1536,11 +1536,14 @@ class Abstract_Wallet(PrintError):
             status = PR_UNKNOWN
         return status, conf
 
-    def make_payment_request(self, addr, amount, message, expiration=None):
+    def make_payment_request(self, addr, amount, message, expiration=None, *,
+                             op_return=None, op_return_raw=None):
         assert isinstance(addr, Address)
+        if op_return and op_return_raw:
+            raise ValueError("both op_return and op_return_raw cannot be specified as arguments to make_payment_request")
         timestamp = int(time.time())
         _id = bh2u(Hash(addr.to_storage_string() + "%d" % timestamp))[0:10]
-        return {
+        d = {
             'time': timestamp,
             'amount': amount,
             'exp': expiration,
@@ -1548,6 +1551,11 @@ class Abstract_Wallet(PrintError):
             'memo': message,
             'id': _id
         }
+        if op_return:
+            d['op_return'] = op_return
+        if op_return_raw:
+            d['op_return_raw'] = op_return_raw
+        return d
 
     def serialize_request(self, r):
         result = r.copy()
