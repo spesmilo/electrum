@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- mode: python -*-
+# -*- mode: python3 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2016  The Electrum developers
@@ -36,7 +36,7 @@ from electroncash.util import PrintError
 # The trickiest thing about this handler was getting windows properly
 # parented on MacOSX.
 class QtHandlerBase(QObject, PrintError):
-    '''An interface between the GUI (here, QT) and the device handling
+    '''An interface between the GUI (here, Qt) and the device handling
     logic for handling I/O.'''
 
     passphrase_signal = pyqtSignal(object, object)
@@ -169,7 +169,8 @@ class QtHandlerBase(QObject, PrintError):
 
     def clear_dialog(self):
         if self.dialog:
-            self.dialog.accept()
+            try: self.dialog.accept()
+            except RuntimeError: pass  # closes #1437. Yes, this is a band-aid but it's clean-up code anyway and so it doesn't matter. I also was unable to track down how it could ever happen.
             self.dialog = None
 
     def win_query_choice(self, msg, labels):
