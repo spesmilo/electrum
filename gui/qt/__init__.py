@@ -102,6 +102,7 @@ class ElectrumGui(QObject, PrintError):
         self.windows = []
         self.app = QApplication(sys.argv)
         self._set_icon()
+        self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules.
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
@@ -145,6 +146,27 @@ class ElectrumGui(QObject, PrintError):
         print_error("[{}] finalized{}".format(__class__.__name__, ' (stale instance)' if stale else ''))
         if hasattr(super(), '__del__'):
             super().__del__()
+
+    def _exit_if_required_pyqt_is_missing(self):
+        ''' Will check if required PyQt5 modules are present and if not,
+        display an error message box to the user and immediately quit the app.
+
+        This is because some Linux systems break up PyQt5 into multiple
+        subpackages, and for instance PyQt5 QtSvg is its own package, and it
+        may be missing.
+
+        This happens on Linux mint.  See #1436. '''
+        try:
+            from PyQt5 import QtSvg
+        except ImportError:
+            # Closes #1436 -- Some "Run from source" Linux users lack QtSvg
+            # (partial PyQt5 install)
+            msg = _("A required Qt module, QtSvg was not found. Please fully install all of PyQt5 5.11 or above to resolve this issue.")
+            if sys.platform == 'linux':
+                msg += "\n\n" + _("On Linux, you may try:\n\npython3 -m pip install --user -I pyqt5")
+            QMessageBox.critical(None, _("QtSvg Missing"), msg)  # this works even if app is not exec_() yet.
+            self.app.exit(1)
+            sys.exit(msg)
 
     def is_dark_theme_available(self):
         try:
@@ -330,35 +352,12 @@ class ElectrumGui(QObject, PrintError):
         if isinstance(window, ElectrumWindow):
             self._last_active_window = Weak.ref(window)
 
-    def _exit_if_required_pyqt_is_missing(self):
-        ''' Will check if required PyQt5 modules are present and if not,
-        display an error message box to the user and immediately quit the app.
-
-        This is because some Linux systems break up PyQt5 into multiple
-        subpackages, and for instance PyQt5 QtSvg is its own package, and it
-        may be missing.
-
-        This happens on Linux mint.  See #1436. '''
-        try:
-            from PyQt5 import QtSvg
-        except ImportError:
-            # Closes #1436 -- Some "Run from source" Linux users lack QtSvg
-            # (partial PyQt5 install)
-            msg = _("A required Qt module, QtSvg was not found. Please fully install all of PyQt5 5.11 or above to resolve this issue.")
-            if sys.platform == 'linux':
-                msg += "\n\n" + _("On Linux, you may try:\n\npython3 -m pip install --user -I pyqt5")
-            QMessageBox.critical(None, _("QtSvg Missing"), msg)
-            self.app.exit(1)
-            sys.exit(msg)
-
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open. Otherwise
         opens the wallet and creates a new window for it.
 
         `path=None` is a special usage which will raise the last activated
         window or open the 'last wallet' if no windows are open.'''
-
-        self._exit_if_required_pyqt_is_missing()  # Closes #1436. May quit the app immediately here
 
         if not path:
             if not self.windows:
