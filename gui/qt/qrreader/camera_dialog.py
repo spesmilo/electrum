@@ -25,12 +25,13 @@
 
 import time
 import math
+import sys
 from typing import List
 
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal
+from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
 
 from electroncash import get_config
 from electroncash.i18n import _
@@ -45,6 +46,20 @@ from .video_surface import QrReaderVideoSurface
 from .crop_blur_effect import QrReaderCropBlurEffect
 from .validator import AbstractQrReaderValidator, QrReaderValidatorCounted, QrReaderValidatorResult
 from ..util import MessageBoxMixin
+
+class CameraError(RuntimeError):
+    ''' Base class of the camera-related error conditions. '''
+
+class NoCamerasFound(CameraError):
+    ''' Raised by start_scan if no usable cameras were found. Interested
+    code can catch this specific exception.'''
+
+class NoCameraResolutionsFound(CameraError):
+    ''' Raised internally if no usable camera resolutions were found. '''
+
+class MissingQrDetectionLib(RuntimeError):
+    ''' Raised if we can't find zbar or whatever other platform lib
+    we require to detect QR in image frames. '''
 
 class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
     """
@@ -81,7 +96,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         # Try to get the QR reader for this system
         self.qrreader = get_qr_reader()
         if not self.qrreader:
-            raise RuntimeError(_("The platform QR detection library is not available."))
+            raise MissingQrDetectionLib(_("The platform QR detection library is not available."))
 
         # Set up the window, add the maximize button
         flags = self.windowFlags()
@@ -150,7 +165,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         """
         Given a list of resolutions that the camera supports this function picks the
         lowest resolution that is at least min_size in both width and height.
-        If no resolution is found, a RuntimeError is raised.
+        If no resolution is found, NoCameraResolutionsFound is raised.
         """
         def res_list_to_str(res_list: List[QSize]) -> str:
             return ', '.join(['{}x{}'.format(r.width(), r.height()) for r in res_list])
@@ -173,7 +188,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
         # Raise an error if we have no usable resolutions
         if not ideal_resolutions and not less_than_ideal_resolutions:
-            raise RuntimeError(_("Cannot start QR scanner, no usable camera resolution found."))
+            raise NoCameraResolutionsFound(_("Cannot start QR scanner, no usable camera resolution found.") + self._linux_pyqt5bug_msg())
 
         if not ideal_resolutions:
             self.print_error('Warning: No ideal resolutions found, falling back to less-than-ideal resolutions -- QR recognition may fail!')
@@ -200,11 +215,22 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
         scan_pos_y = (resolution.height() - scan_size) / 2
         return QRect(scan_pos_x, scan_pos_y, scan_size, scan_size)
 
+    @staticmethod
+    def _linux_pyqt5bug_msg():
+        ''' Returns a string that may be appended to an exception error message
+        only if on Linux and PyQt5 < 5.12.2, otherwise returns an empty string. '''
+        if sys.platform == 'linux' and PYQT_VERSION < 0x050c02:  # Check if PyQt5 < 5.12.2 on linux
+            # In this case it's possible we couldn't detect a camera because
+            # of that missing libQt5MultimediaGstTools.so problem.
+            return ("\n\n" + _('If you indeed do have a usable camera connected, then this error may be caused by bugs in previous PyQt5 versions on Linux. Try installing the latest PyQt5:')
+                    + "\n\n" + "python3 -m pip install --user -I pyqt5")
+        return ''
+
     def start_scan(self, device: str = ''):
         """
         Scans a QR code from the given camera device.
         If no QR code is found the returned string will be empty.
-        If the camera is not found or can't be opened a RuntimeError will be raised.
+        If the camera is not found or can't be opened NoCamerasFound will be raised.
         """
 
         self.validator = QrReaderValidatorCounted()
@@ -222,7 +248,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
             device_info = QCameraInfo.defaultCamera()
 
         if not device_info or device_info.isNull():
-            raise RuntimeError(_("Cannot start QR scanner, no usable camera found."))
+            raise NoCamerasFound(_("Cannot start QR scanner, no usable camera found.") + self._linux_pyqt5bug_msg())
 
         self._init_stats()
         self.qrreader_res = []

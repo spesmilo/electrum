@@ -125,7 +125,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
             self.qr_dialog.qr_finished.connect(_on_qr_reader_finished)
             self.qr_dialog.start_scan(get_config().get_video_device())
-        except BaseException as e:
+        except Exception as e:
             if util.is_verbose:
                 import traceback
                 traceback.print_exc()
