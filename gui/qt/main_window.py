@@ -1903,7 +1903,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if (fee < (tx.estimated_size())):
-            msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
+            msg.append(_('Warning') + ': ' + _("You're using a fee of less than 1.0 sats/B. It may take a very long time to confirm."))
+            tx.ephemeral['warned_low_fee_already'] = True
 
         if self.config.get('enable_opreturn') and self.message_opreturn_e.text():
             msg.append(_("You are using an OP_RETURN message. This gets permanently written to the blockchain."))
@@ -1917,7 +1918,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             msg.append(_('Proceed?'))
             password = None
-            if not self.question('\n'.join(msg)):
+            if not self.question('\n\n'.join(msg)):
                 return
 
         def sign_done(success):
@@ -1975,6 +1976,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 status, msg =  self.network.broadcast_transaction(tx)
             return status, msg
+
+        # Check fee and warn if it's below 1.0 sats/B (and not warned already)
+        fee = None
+        try: fee = tx.get_fee()
+        except: pass # no fee info available for tx
+        # Check fee >= size otherwise warn. FIXME: If someday network relay
+        # rules change to be other than 1.0 sats/B minimum, this code needs
+        # to be changed.
+        if (isinstance(fee, int) and tx.is_complete() and fee < len(str(tx))//2
+                and not tx.ephemeral.get('warned_low_fee_already')):
+            msg = _('Warning') + ': ' + _("You're using a fee of less than 1.0 sats/B. It may take a very long time to confirm.") + "\n\n" + _("Proceed?")
+            if not self.question(msg, title = _("Low Fee")):
+                return
+        # /end fee check
 
         # Capture current TL window; override might be removed on return
         parent = self.top_level_window()
