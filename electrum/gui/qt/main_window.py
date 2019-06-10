@@ -224,7 +224,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels', 'ln_message',
+                         'on_history', 'channel', 'channels', 'payment_received',
                          'ln_payment_completed', 'ln_payment_attempt']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
@@ -362,7 +362,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             wallet, tx = args
             if wallet == self.wallet:
                 self.tx_notification_queue.put(tx)
-        elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram', 'ln_message']:
+        elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram', 'payment_received']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
         elif event == 'on_quotes':
@@ -404,10 +404,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.fee_slider.update()
                 self.require_fee_update = True
             self.history_model.on_fee_histogram()
-        elif event == 'ln_message':
-            lnworker, message, htlc_id = args
-            if lnworker == self.wallet.lnworker:
-                self.notify(message)
+        elif event == 'payment_received':
+            wallet, key, status = args
+            if wallet == self.wallet:
+                self.notify(_('Payment received') + '\n' + key)
         else:
             self.logger.info(f"unexpected network_qt signal: {event} {args}")
 
@@ -1038,24 +1038,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.request_list.update()
         self.invoice_list.update()
         self.clear_receive_tab()
-
-    def get_request_URI(self, addr):
-        req = self.wallet.receive_requests[addr]
-        message = self.wallet.labels.get(addr, '')
-        amount = req['amount']
-        extra_query_params = {}
-        if req.get('time'):
-            extra_query_params['time'] = str(int(req.get('time')))
-        if req.get('exp'):
-            extra_query_params['exp'] = str(int(req.get('exp')))
-        if req.get('name') and req.get('sig'):
-            sig = bfh(req.get('sig'))
-            sig = bitcoin.base_encode(sig, base=58)
-            extra_query_params['name'] = req['name']
-            extra_query_params['sig'] = sig
-        uri = util.create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
-        return str(uri)
-
 
     def sign_payment_request(self, addr):
         alias = self.config.get('alias')

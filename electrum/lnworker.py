@@ -668,7 +668,6 @@ class LNWallet(LNWorker):
         except concurrent.futures.TimeoutError:
             raise PaymentFailure(_("Payment timed out"))
 
-
     def get_channel_by_short_id(self, short_channel_id):
         with self.lock:
             for chan in self.channels.values():
@@ -812,6 +811,8 @@ class LNWallet(LNWorker):
             return
         invoice, direction, _ = self.invoices[key]
         self.save_invoice(payment_hash, invoice, direction, is_paid=True)
+        if direction == RECEIVED:
+            self.network.trigger_callback('payment_received', self.wallet, key, PR_PAID)
 
     def get_invoice(self, payment_hash: bytes) -> LnAddr:
         try:
@@ -819,6 +820,28 @@ class LNWallet(LNWorker):
             return lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
+
+    def get_invoices(self):
+        items = self.invoices.items()
+        out = []
+        for key, (invoice, direction, is_paid) in items:
+            if direction == SENT:
+                continue
+            status = self.get_invoice_status(key)
+            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+            amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
+            description = lnaddr.get_description()
+            timestamp = lnaddr.date
+            out.append({
+                'lightning':True,
+                'status':status,
+                'amount':amount_sat,
+                'time':timestamp,
+                'memo':description,
+                'rhash':key,
+                'invoice': invoice
+            })
+        return out
 
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

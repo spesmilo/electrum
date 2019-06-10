@@ -4,6 +4,12 @@ from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from decimal import Decimal
 
+from electrum.util import age, PR_UNPAID
+from electrum.lnutil import SENT, RECEIVED
+from electrum.lnaddr import lndecode
+import electrum.constants as constants
+from electrum.bitcoin import COIN
+
 Builder.load_string('''
 <RequestLabel@Label>
     #color: .305, .309, .309, 1
@@ -58,7 +64,7 @@ Builder.load_string('''
 
 <RequestsDialog@Popup>
     id: popup
-    title: _('Requests')
+    title: _('Pending requests')
     BoxLayout:
         id:box
         orientation: 'vertical'
@@ -103,21 +109,20 @@ class RequestsDialog(Factory.Popup):
         self.cards = {}
         self.context_menu = None
 
-    def get_card(self, req):
-        address = req['address']
-        ci = self.cards.get(address)
+    def get_card(self, is_lightning, key, address, amount, memo, timestamp):
+        ci = self.cards.get(key)
         if ci is None:
             ci = Factory.RequestItem()
             ci.address = address
             ci.screen = self
-            self.cards[address] = ci
+            ci.is_lightning = is_lightning
+            ci.key = key
+            self.cards[key] = ci
 
-        amount = req.get('amount')
         ci.amount = self.app.format_amount_and_units(amount) if amount else ''
-        ci.memo = req.get('memo', '')
-        status, conf = self.app.wallet.get_request_status(address)
-        ci.status = request_text[status]
-        ci.icon = pr_icon[status]
+        ci.memo = memo
+        ci.status = age(timestamp)
+        #ci.icon = pr_icon[status]
         #exp = pr.get_expiration_date()
         #ci.date = format_time(exp) if exp else _('Never')
         return ci
@@ -127,14 +132,27 @@ class RequestsDialog(Factory.Popup):
         requests_list = self.ids.requests_container
         requests_list.clear_widgets()
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
-        for pr in _list:
-            ci = self.get_card(pr)
+        for req in _list[::-1]:
+            is_lightning = req.get('lightning', False)
+            status = req['status']
+            if status != PR_UNPAID:
+                continue
+            if not is_lightning:
+                address = req['address']
+                key = address
+            else:
+                key = req['rhash']
+                address = req['invoice']
+            timestamp = req.get('time', 0)
+            amount = req.get('amount')
+            description = req.get('memo', '')
+            ci = self.get_card(is_lightning, key, address, amount, description, timestamp)
             requests_list.add_widget(ci)
 
     def do_show(self, obj):
         self.hide_menu()
         self.dismiss()
-        self.app.show_request(obj.address)
+        self.app.show_request(obj.is_lightning, obj.key)
 
     def do_delete(self, req):
         from .question import Question

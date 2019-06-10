@@ -195,6 +195,12 @@ class ElectrumWindow(App):
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
 
+    def on_payment_received(self, event, wallet, key, status):
+        if self.request_popup and self.request_popup.key == key:
+            self.request_popup.set_status(status)
+        if status == PR_PAID:
+            self.show_info(_('Payment Received') + '\n' + key)
+
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
@@ -328,6 +334,7 @@ class ElectrumWindow(App):
         self._settings_dialog = None
         self._password_dialog = None
         self.fee_status = self.electrum_config.get_fee_status()
+        self.request_popup = None
 
     def on_pr(self, pr):
         if not self.wallet:
@@ -397,9 +404,17 @@ class ElectrumWindow(App):
         tab = self.tabs.ids[name + '_tab']
         panel.switch_to(tab)
 
-    def show_request(self, addr):
-        self.switch_to('receive')
-        self.receive_screen.screen.address = addr
+    def show_request(self, is_lightning, key):
+        from .uix.dialogs.request_dialog import RequestDialog
+        if is_lightning:
+            request, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None, None)
+            status = self.wallet.lnworker.get_invoice_status(key)
+        else:
+            request = self.wallet.get_request_URI(key)
+            status, conf = self.wallet.get_request_status(key)
+        self.request_popup = RequestDialog('Request', request, key)
+        self.request_popup.set_status(status)
+        self.request_popup.open()
 
     def show_pr_details(self, req, status, is_invoice):
         from electrum.util import format_time
@@ -534,6 +549,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
+            self.network.register_callback(self.on_payment_received, ['payment_received'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # URI passed in config
@@ -1047,9 +1063,9 @@ class ElectrumWindow(App):
         popup.update()
         popup.open()
 
-    def addresses_dialog(self, screen):
+    def addresses_dialog(self):
         from .uix.dialogs.addresses import AddressesDialog
-        popup = AddressesDialog(self, screen, None)
+        popup = AddressesDialog(self)
         popup.update()
         popup.open()
 

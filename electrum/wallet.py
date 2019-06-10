@@ -34,6 +34,7 @@ import json
 import copy
 import errno
 import traceback
+import operator
 from functools import partial
 from numbers import Number
 from decimal import Decimal
@@ -44,7 +45,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri)
 from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -1134,10 +1135,10 @@ class Abstract_Wallet(AddressSynchronizer):
         return wrapper
 
     def get_unused_addresses(self):
-        # fixme: use slots from expired requests
         domain = self.get_receiving_addresses()
+        in_use = [k for k in self.receive_requests.keys() if self.get_request_status(k)[0] != PR_EXPIRED]
         return [addr for addr in domain if not self.db.get_addr_history(addr)
-                and addr not in self.receive_requests.keys()]
+                and addr not in in_use]
 
     @check_returned_address
     def get_unused_address(self):
@@ -1218,30 +1219,49 @@ class Abstract_Wallet(AddressSynchronizer):
                     out['websocket_port'] = config.get('websocket_port', 9999)
         return out
 
+    def get_request_URI(self, addr):
+        req = self.receive_requests[addr]
+        message = self.labels.get(addr, '')
+        amount = req['amount']
+        extra_query_params = {}
+        if req.get('time'):
+            extra_query_params['time'] = str(int(req.get('time')))
+        if req.get('exp'):
+            extra_query_params['exp'] = str(int(req.get('exp')))
+        if req.get('name') and req.get('sig'):
+            sig = bfh(req.get('sig'))
+            sig = bitcoin.base_encode(sig, base=58)
+            extra_query_params['name'] = req['name']
+            extra_query_params['sig'] = sig
+        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
+        return str(uri)
+
     def get_request_status(self, key):
         r = self.receive_requests.get(key)
         if r is None:
             return PR_UNKNOWN
         address = r['address']
-        amount = r.get('amount')
+        amount = r.get('amount', 0)
         timestamp = r.get('time', 0)
         if timestamp and type(timestamp) != int:
             timestamp = 0
         expiration = r.get('exp')
         if expiration and type(expiration) != int:
             expiration = 0
-        conf = None
-        if amount:
-            if self.is_up_to_date():
-                paid, conf = self.get_payment_status(address, amount)
-                status = PR_PAID if paid else PR_UNPAID
-                if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
-                    status = PR_EXPIRED
-            else:
-                status = PR_UNKNOWN
-        else:
-            status = PR_UNKNOWN
+
+        paid, conf = self.get_payment_status(address, amount)
+        status = PR_PAID if paid else PR_UNPAID
+        if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
+            status = PR_EXPIRED
         return status, conf
+
+    def receive_tx_callback(self, tx_hash, tx, tx_height):
+        super().receive_tx_callback(tx_hash, tx, tx_height)
+        for txo in tx.outputs():
+            addr = self.get_txout_address(txo)
+            if addr in self.receive_requests:
+                status, conf = self.get_request_status(addr)
+                self.network.trigger_callback('payment_received', self, addr, status)
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
@@ -1306,9 +1326,12 @@ class Abstract_Wallet(AddressSynchronizer):
         return True
 
     def get_sorted_requests(self, config):
-        keys = map(lambda x: (self.get_address_index(x), x), self.receive_requests.keys())
-        sorted_keys = sorted(filter(lambda x: x[0] is not None, keys))
-        return [self.get_payment_request(x[1], config) for x in sorted_keys]
+        """ sorted by timestamp """
+        out = [self.get_payment_request(x, config) for x in self.receive_requests.keys()]
+        if self.lnworker:
+            out += self.lnworker.get_invoices()
+        out.sort(key=operator.itemgetter('time'))
+        return out
 
     def get_fingerprint(self):
         raise NotImplementedError()

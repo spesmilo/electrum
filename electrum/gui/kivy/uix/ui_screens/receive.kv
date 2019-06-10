@@ -9,51 +9,16 @@
 ReceiveScreen:
     id: s
     name: 'receive'
-
     address: ''
     amount: ''
     message: ''
     status: ''
-    lnaddr: ''
-
-    on_address:
-        self.parent.on_address(self.address)
-    on_amount:
-        self.parent.on_amount_or_message()
-    on_message:
-        self.parent.on_amount_or_message()
+    is_lightning: False
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
         orientation: 'vertical'
-        size_hint: 1, 1
-        FloatLayout:
-            id: bl
-            QRCodeWidget:
-                opacity: 0 if lnbutton.state == 'down' and not s.lnaddr else 1
-                id: qr
-                size_hint: None, 1
-                width: min(self.height, bl.width)
-                pos_hint: {'center': (.5, .5)}
-                shaded: False
-                foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
-                on_touch_down:
-                    touch = args[1]
-                    if self.collide_point(*touch.pos): self.shaded = not self.shaded
-            Label:
-                text: root.status
-                opacity: 1 if root.status else 0
-                pos_hint: {'center': (.5, .5)}
-                size_hint: None, 1
-                width: min(self.height, bl.width)
-                bcolor: 0.3, 0.3, 0.3, 0.9
-                canvas.before:
-                    Color:
-                        rgba: self.bcolor
-                    Rectangle:
-                        pos: self.pos
-                        size: self.size
 
         SendReceiveBlueBottom:
             id: blue_bottom
@@ -64,15 +29,17 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if lnbutton.state == 'down' else 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: address_label
-                    text: (s.address if s.address else _('Bitcoin Address')) if lnbutton.state != 'down' else (s.lnaddr if s.lnaddr else _('Please enter amount'))
+                    text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
                     shorten: True
-                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s) if lnbutton.state != 'down' else s.parent.do_copy())
+		    #on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
+                    on_release:
+                        root.is_lightning = not root.is_lightning
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -113,37 +80,31 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                opacity: 1 if lnbutton.state != 'down' else 0
-                icon: 'atlas://electrum/gui/kivy/theming/light/save' if lnbutton.state != 'down' else ''
-                size_hint: (0 if lnbutton.state == 'down' else 0.6), None
-                height: '48dp'
-                on_release: s.parent.do_save() if lnbutton.state != 'down' else None
-                width: (0 if lnbutton.state == 'down' else 100)
-            Button:
-                text: _('Requests') if lnbutton.state != 'down' else _('Lightning Invoices')
-                size_hint: 1 + (.6 if lnbutton.state == 'down' else 0), None
-                height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s) if lnbutton.state != 'down' else app.lightning_invoices_dialog(s.parent.do_open_lnaddr))
-            Button:
-                text: _('Copy')
+                icon: 'atlas://electrum/gui/kivy/theming/light/list'
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.parent.do_copy()
-            IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/share'
-                size_hint: 0.6, None
-                height: '48dp'
-                on_release: s.parent.do_share()
-        BoxLayout:
-            size_hint: 1, None
-            height: '48dp'
-            LightningButton
-                id: lnbutton
-                on_state: s.parent.on_amount_or_message()
-            Widget
-                size_hint: 1, 1
+                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
+            #Widget:
+            #    size_hint: 0.5, 1
             Button:
-                text: _('New')
+                text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.do_new())
+                on_release: Clock.schedule_once(lambda dt: s.parent.clear())
+            Button:
+                text: _('Request')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: s.parent.new_request(root.is_lightning))
+        Widget:
+            size_hint: 1, 1
+        #BoxLayout:
+        #    size_hint: 1, None
+        #    height: '48dp'
+        #    IconButton:
+        #        icon: 'atlas://electrum/gui/kivy/theming/light/list'
+        #        size_hint: 0.5, None
+        #        height: '48dp'
+        #        on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
+        #    Widget:
+        #        size_hint: 2.5, 1

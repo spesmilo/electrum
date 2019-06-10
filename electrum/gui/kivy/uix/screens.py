@@ -31,7 +31,7 @@ from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
 from electrum.lnaddr import lndecode
-from electrum.lnutil import RECEIVED, SENT
+from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .context_menu import ContextMenu
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
@@ -233,7 +233,7 @@ class SendScreen(CScreen):
             self.screen.destinationtype = Destination.Address
             self.payment_request = None
 
-    def do_save(self):
+    def save_invoice(self):
         if not self.screen.address:
             return
         if self.screen.destinationtype == Destination.PR:
@@ -247,7 +247,7 @@ class SendScreen(CScreen):
         pr = make_unsigned_request(req).SerializeToString()
         pr = PaymentRequest(pr)
         self.app.wallet.invoices.add(pr)
-        self.app.show_info(_("Invoice saved"))
+        #self.app.show_info(_("Invoice saved"))
         if pr.is_pr():
             self.screen.destinationtype = Destination.PR
             self.payment_request = pr
@@ -275,6 +275,8 @@ class SendScreen(CScreen):
             self.set_ln_invoice(data.rstrip())
         else:
             self.set_URI(data)
+            # save automatically
+            self.save_invoice()
 
     def _do_send_lightning(self):
         if not self.screen.amount:
@@ -282,27 +284,15 @@ class SendScreen(CScreen):
             return
         invoice = self.screen.address
         amount_sat = self.app.get_amount(self.screen.amount)
-        addr = self.app.wallet.lnworker._check_invoice(invoice, amount_sat)
         try:
-            route = self.app.wallet.lnworker._create_route_from_invoice(decoded_invoice=addr)
-        except Exception as e:
-            dia = LightningOpenChannelDialog(self.app, addr, str(e) + _(':\nYou can open a channel.'))
-            dia.open()
+            success = self.app.wallet.lnworker.pay(invoice, attempts=10, amount_sat=amount_sat, timeout=60)
+        except PaymentFailure as e:
+            self.app.show_error(_('Payment failure') + '\n' + str(e))
             return
-        self.app.network.register_callback(self.payment_completed_async_thread, ['ln_payment_completed'])
-        _addr, _peer, coro = self.app.wallet.lnworker._pay(invoice, amount_sat)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)
-        fut.add_done_callback(self.ln_payment_result)
-
-    def payment_completed_async_thread(self, event, date, direction, htlc, preimage, chan_id):
-        Clock.schedule_once(lambda dt: self.payment_completed(direction, htlc, preimage))
-
-    def payment_completed(self, direction, htlc, preimage):
-        self.app.show_info(_('Payment received') if direction == RECEIVED else _('Payment sent'))
-
-    def ln_payment_result(self, fut):
-        if fut.exception():
-            self.app.show_error(_('Lightning payment failed:') + '\n' + repr(fut.exception()))
+        if success:
+            self.app.show_info(_('Payment was sent'))
+        else:
+            self.app.show_error(_('Payment failed'))
 
     def do_send(self):
         if self.screen.destinationtype == Destination.LN:
@@ -389,37 +379,14 @@ class ReceiveScreen(CScreen):
 
     kvname = 'receive'
 
-    def update(self):
-        if not self.screen.address:
-            self.get_new_address()
-        else:
-            status = self.app.wallet.get_request_status(self.screen.address)
-            self.screen.status = _('Payment received') if status == PR_PAID else ''
-
     def clear(self):
         self.screen.address = ''
         self.screen.amount = ''
         self.screen.message = ''
         self.screen.lnaddr = ''
 
-    def get_new_address(self) -> bool:
-        """Sets the address field, and returns whether the set address
-        is unused."""
-        if not self.app.wallet:
-            return False
-        self.clear()
-        unused = True
-        try:
-            addr = self.app.wallet.get_unused_address()
-            if addr is None:
-                addr = self.app.wallet.get_receiving_address() or ''
-                unused = False
-        except InternalAddressCorruption as e:
-            addr = ''
-            self.app.show_error(str(e))
-            send_exception_to_crash_reporter(e)
+    def set_address(self, addr):
         self.screen.address = addr
-        return unused
 
     def on_address(self, addr):
         req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
@@ -430,7 +397,6 @@ class ReceiveScreen(CScreen):
             self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
             status = req.get('status', PR_UNKNOWN)
             self.screen.status = _('Payment received') if status == PR_PAID else ''
-        Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
         from electrum.util import create_bip21_uri
@@ -441,73 +407,37 @@ class ReceiveScreen(CScreen):
             amount = Decimal(a) * pow(10, self.app.decimal_point())
         return create_bip21_uri(self.screen.address, amount, self.screen.message)
 
-    @profiler
-    def update_qr(self):
-        qr = self.screen.ids.qr
-        if self.screen.ids.lnbutton.state == 'down':
-            qr.set_data(self.screen.lnaddr)
-        else:
-            uri = self.get_URI()
-            qr.set_data(uri)
-
     def do_share(self):
-        if self.screen.ids.lnbutton.state == 'down':
-            if self.screen.lnaddr:
-                self.app.do_share('lightning://' + self.lnaddr, _('Share Lightning invoice'))
-        else:
-            uri = self.get_URI()
-            self.app.do_share(uri, _("Share Bitcoin Request"))
+        uri = self.get_URI()
+        self.app.do_share(uri, _("Share Bitcoin Request"))
 
     def do_copy(self):
-        if self.screen.ids.lnbutton.state == 'down':
-            if self.screen.lnaddr:
-                self.app._clipboard.copy(self.screen.lnaddr)
-                self.app.show_info(_('Invoice copied to clipboard'))
-        else:
-            uri = self.get_URI()
-            self.app._clipboard.copy(uri)
-            self.app.show_info(_('Request copied to clipboard'))
+        uri = self.get_URI()
+        self.app._clipboard.copy(uri)
+        self.app.show_info(_('Request copied to clipboard'))
 
-    def save_request(self):
-        addr = self.screen.address
-        if not addr:
-            return False
+    def new_request(self, lightning):
         amount = self.screen.amount
-        message = self.screen.message
         amount = self.app.get_amount(amount) if amount else 0
-        req = self.app.wallet.make_payment_request(addr, amount, message, None)
-        try:
+        message = self.screen.message
+        expiration = 3600 # 1 hour
+        if lightning:
+            payment_hash = self.app.wallet.lnworker.add_invoice(amount, message)
+            request, direction, is_paid = self.app.wallet.lnworker.invoices.get(payment_hash.hex())
+            key = payment_hash.hex()
+        else:
+            addr = self.screen.address or self.app.wallet.get_unused_address()
+            if not addr:
+                self.app.show_info(_('No address available. Please remove some of your pending requests.'))
+                return
+            self.screen.address = addr
+            req = self.app.wallet.make_payment_request(addr, amount, message, expiration)
             self.app.wallet.add_payment_request(req, self.app.electrum_config)
-            added_request = True
-        except Exception as e:
-            self.app.show_error(_('Error adding payment request') + ':\n' + repr(e))
-            added_request = False
-        finally:
-            self.app.update_tab('requests')
-        return added_request
+            #request = self.get_URI()
+            key = addr
+        self.app.show_request(lightning, key)
 
-    def on_amount_or_message(self):
-        if self.screen.ids.lnbutton.state == 'down':
-            if self.screen.amount:
-                self.screen.lnaddr = self.app.wallet.lnworker.add_invoice(self.app.get_amount(self.screen.amount), self.screen.message)
-        Clock.schedule_once(lambda dt: self.update_qr())
 
-    def do_new(self):
-        is_unused = self.get_new_address()
-        if not is_unused:
-            self.app.show_info(_('Please use the existing requests first.'))
-
-    def do_save(self):
-        if self.save_request():
-            self.app.show_info(_('Request was saved.'))
-
-    def do_open_lnaddr(self, lnaddr):
-        self.clear()
-        self.screen.lnaddr = lnaddr
-        obj = lndecode(lnaddr, expected_hrp=constants.net.SEGWIT_HRP)
-        self.screen.message = dict(obj.tags).get('d', '')
-        self.screen.amount = self.app.format_amount_and_units(int(obj.amount * bitcoin.COIN))
-        self.on_amount_or_message()
 
 class TabbedCarousel(Factory.TabbedPanel):
     '''Custom TabbedPanel using a carousel used in the Main Screen
@@ -581,15 +511,3 @@ class TabbedCarousel(Factory.TabbedPanel):
             self.carousel.add_widget(widget)
             return
         super(TabbedCarousel, self).add_widget(widget, index=index)
-
-class LightningButton(ToggleButtonBehavior, Image):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_off'
-
-    def on_state(self, widget, value):
-        self.state = value
-        if value == 'down':
-            self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_on'
-        else:
-            self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_off'

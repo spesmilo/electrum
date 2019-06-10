@@ -70,7 +70,7 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: description
-                    text: s.message if s.message else ({Destination.LN: _('Lightning invoice contains no description'), Destination.Address: _('Description'), Destination.PR: _('No Description')}[root.destinationtype])
+                    text: s.message if s.message else ({Destination.LN: _('No description'), Destination.Address: _('Description'), Destination.PR: _('No Description')}[root.destinationtype])
                     disabled: root.destinationtype != Destination.Address
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
             CardSeparator:
@@ -95,34 +95,34 @@ SendScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                size_hint: 0.6, 1
-                on_release: s.parent.do_save()
-                icon: 'atlas://electrum/gui/kivy/theming/light/save'
-            Button:
-                text: _('Invoices')
-                size_hint: 1, 1
-                on_release: Clock.schedule_once(lambda dt: app.invoices_dialog(s))
-            Button:
-                text: _('Paste')
+                size_hint: 0.5, 1
+                icon: 'atlas://electrum/gui/kivy/theming/light/copy'
                 on_release: s.parent.do_paste()
             IconButton:
                 id: qr
-                size_hint: 0.6, 1
+                size_hint: 0.5, 1
                 on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
                 icon: 'atlas://electrum/gui/kivy/theming/light/camera'
-        BoxLayout:
-            size_hint: 1, None
-            height: '48dp'
             Button:
                 text: _('Clear')
-                on_release: s.parent.do_clear()
-            Widget:
                 size_hint: 1, 1
+                on_release: s.parent.do_clear()
             Button:
                 text: _('Pay')
                 size_hint: 1, 1
                 on_release: s.parent.do_send()
         Widget:
             size_hint: 1, 1
-
-
+        #BoxLayout:
+        #    size_hint: 1, None
+        #    height: '48dp'
+            #IconButton:
+            #    size_hint: 0.5, 1
+            #    on_release: s.parent.do_save()
+            #    icon: 'atlas://electrum/gui/kivy/theming/light/save'
+            #IconButton:
+            #    size_hint: 0.5, 1
+            #    icon: 'atlas://electrum/gui/kivy/theming/light/list'
+            #    on_release: Clock.schedule_once(lambda dt: app.invoices_dialog(s))
+            #Widget:
+            #    size_hint: 2.5, 1

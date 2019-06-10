@@ -5,9 +5,7 @@ PYTHON = python3
 .PHONY: theming apk clean
 
 theming:
-	bash -c 'for i in network lightning; do convert -background none theming/light/$$i.{svg,png}; done'
-	convert -background none -crop +0+390 theming/light/lightning_switch.svg theming/light/lightning_switch_off.png
-	convert -background none -crop 840x390+0+0 theming/light/lightning_switch.svg theming/light/lightning_switch_on.png
+	#bash -c 'for i in network lightning; do convert -background none theming/light/$$i.{svg,png}; done'
 	$(PYTHON) -m kivy.atlas theming/light 1024 theming/light/*.png
 prepare:
 	# running pre build setup

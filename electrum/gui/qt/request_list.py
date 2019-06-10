@@ -90,9 +90,9 @@ class RequestList(MyTreeView):
             if req is None:
                 self.update()
                 return
-            req = self.parent.get_request_URI(key)
+            req = self.wallet.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            req, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None)
+            req, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None, None)
             if req is None:
                 self.update()
                 return
@@ -107,51 +107,37 @@ class RequestList(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests(self.config):
-            address = req['address']
-            if address not in domain:
-                continue
+            request_type = REQUEST_TYPE_LN if req.get('lightning', False) else REQUEST_TYPE_BITCOIN
             timestamp = req.get('time', 0)
             amount = req.get('amount')
-            expiration = req.get('exp', None)
             message = req['memo']
             date = format_time(timestamp)
             status = req.get('status')
-            signature = req.get('sig')
-            requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
-            if signature is not None:
-                items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
-                items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
+            items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+            if request_type == REQUEST_TYPE_LN:
+                items[self.Columns.DATE].setData(req['rhash'], ROLE_RHASH_OR_ADDR)
+                items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
+                items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             else:
-                items[self.Columns.DATE].setIcon(read_QIcon("bitcoin.png"))
-            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+                address = req['address']
+                if address not in domain:
+                    continue
+                expiration = req.get('exp', None)
+                signature = req.get('sig')
+                requestor = req.get('name', '')
+                items[self.Columns.DATE].setData(address, ROLE_RHASH_OR_ADDR)
+                if signature is not None:
+                    items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
+                    items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
+                else:
+                    items[self.Columns.DATE].setIcon(read_QIcon("bitcoin.png"))
             self.model().insertRow(self.model().rowCount(), items)
-            items[self.Columns.DATE].setData(REQUEST_TYPE_BITCOIN, ROLE_REQUEST_TYPE)
-            items[self.Columns.DATE].setData(address, ROLE_RHASH_OR_ADDR)
         self.filter()
-        # lightning
-        lnworker = self.wallet.lnworker
-        items = lnworker.invoices.items() if lnworker else []
-        for key, (invoice, direction, is_paid) in items:
-            if direction == SENT:
-                continue
-            status = lnworker.get_invoice_status(key)
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-            amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
-            amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''
-            description = lnaddr.get_description()
-            date = format_time(lnaddr.date)
-            labels = [date, description, amount_str, pr_tooltips.get(status,'')]
-            items = [QStandardItem(e) for e in labels]
-            self.set_editability(items)
-            items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
-            items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
-            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            self.model().insertRow(self.model().rowCount(), items)
         # sort requests by date
         self.model().sort(self.Columns.DATE)
         # hide list if empty
@@ -192,7 +178,7 @@ class RequestList(MyTreeView):
 
     def create_menu_bitcoin_payreq(self, menu, addr):
         menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', addr))
-        menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', self.parent.get_request_URI(addr)))
+        menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', self.wallet.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)

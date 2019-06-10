@@ -104,11 +104,9 @@ from electrum.gui.kivy.uix.context_menu import ContextMenu
 
 class AddressesDialog(Factory.Popup):
 
-    def __init__(self, app, screen, callback):
+    def __init__(self, app):
         Factory.Popup.__init__(self)
         self.app = app
-        self.screen = screen
-        self.callback = callback
         self.context_menu = None
 
     def get_card(self, addr, balance, is_used, label):
@@ -155,7 +153,8 @@ class AddressesDialog(Factory.Popup):
     def do_use(self, obj):
         self.hide_menu()
         self.dismiss()
-        self.app.show_request(obj.address)
+        self.app.switch_to('receive')
+        self.app.receive_screen.set_address(obj.address)
 
     def do_view(self, obj):
         req = { 'address': obj.address, 'status' : obj.status }

@@ -5,13 +5,15 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
+from electrum.util import pr_tooltips
 
 
 Builder.load_string('''
-<QRDialog@Popup>
+<RequestDialog@Popup>
     id: popup
     title: ''
     data: ''
+    status: 'unknown'
     shaded: False
     show_text: False
     AnchorLayout:
@@ -29,7 +31,9 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
-                text: root.data if root.show_text else ''
+                text: root.data
+            TopLabel:
+                text: _('Status') + ': ' + root.status
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -54,21 +58,25 @@ Builder.load_string('''
                         popup.dismiss()
 ''')
 
-class QRDialog(Factory.Popup):
-    def __init__(self, title, data, show_text, *,
-                 failure_cb=None, text_for_clipboard=None):
+class RequestDialog(Factory.Popup):
+    def __init__(self, title, data, key):
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
         self.data = data
-        self.show_text = show_text
-        self.failure_cb = failure_cb
-        self.text_for_clipboard = text_for_clipboard if text_for_clipboard else data
+        self.key = key
+        #self.text_for_clipboard = text_for_clipboard if text_for_clipboard else data
 
     def on_open(self):
-        self.ids.qr.set_data(self.data, self.failure_cb)
+        self.ids.qr.set_data(self.data)
+
+    def set_status(self, status):
+        self.status = pr_tooltips[status]
+
+    def on_dismiss(self):
+        self.app.request_popup = None
 
     def copy_to_clipboard(self):
-        Clipboard.copy(self.text_for_clipboard)
+        Clipboard.copy(self.data)
         msg = _('Text copied to clipboard.')
         Clock.schedule_once(lambda dt: self.app.show_info(msg))

@@ -1249,7 +1249,7 @@ class Peer(Logger):
                           id=htlc_id,
                           payment_preimage=preimage)
         await self.await_remote(chan, remote_ctn)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment received', htlc_id)
+        #self.lnworker.payment_received(htlc_id)
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
