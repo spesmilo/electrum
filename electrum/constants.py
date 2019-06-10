@@ -148,11 +148,11 @@ class SyscoinMainnet(AbstractNet):
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "legion108.selfip.com": {
+        "104.248.3.80": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",
-            "version": "1.2"
+            "version": "1.4"
         }
     })
     CHECKPOINTS = read_json('checkpoints.json', [
@@ -192,11 +192,11 @@ class SyscoinTestnet(SyscoinMainnet):
     GENESIS = "0000064430008f1fe74ba0bf54080f1cf6e73da3372df7617e33648529940fc3"
     DEFAULT_PORTS = {'t': '59991', 's': '59992'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "legion108.selfip.com": {
+        "104.248.3.80": {
             "pruning": "-",
             "t": "59991",
             "s": "59992",
-            "version": "1.2"
+            "version": "1.4"
         }
     })
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
@@ -217,7 +217,6 @@ class SyscoinTestnet(SyscoinMainnet):
         'p2wsh':       0x02575483,  # Vpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 57
 
 
 class SyscoinRegtest(SyscoinTestnet):
@@ -227,14 +226,7 @@ class SyscoinRegtest(SyscoinTestnet):
     SEGWIT_HRP = "sysrt"
 
     GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
-    DEFAULT_SERVERS = read_json('servers_regtest.json', {
-        "legion108.selfip.com": {
-            "pruning": "-",
-            "t": "59991",
-            "s": "59992",
-            "version": "1.2"
-        }
-    })
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
 
 
