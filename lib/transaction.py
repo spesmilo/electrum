@@ -1037,6 +1037,7 @@ class Transaction:
                         to save the returned tx in our cache, since we did the
                         work to retrieve it anyway. '''
                         q.put(r)  # put the result in the queue no matter what it is
+                        txid = ''
                         try:
                             # Below will raise if response was 'error' or
                             # otherwise invalid. Note: for performance reasons
@@ -1052,7 +1053,8 @@ class Transaction:
                             cls.tx_cache_put(tx=tx, txid=txid)  # save tx to cache here
                         except Exception as e:
                             # response was not valid, ignore (don't cache)
-                            bad_txids.add(txid)
+                            if txid:  # txid may be '' if KeyError from r['result'] above
+                                bad_txids.add(txid)
                             print_error("fetch_input_data: put_in_queue_and_cache fail for txid:", txid, repr(e))
                     for txid, l in need_dl_txids.items():
                         wallet.network.queue_request('blockchain.transaction.get', [txid],
