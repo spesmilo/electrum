@@ -1225,11 +1225,14 @@ class Network(util.DaemonThread):
                 interface.good = height
                 next_height = (interface.bad + interface.good) // 2
             else:
-                # A backwards header request should not happen before the checkpoint height. It isn't requested in this
-                # context, and it isn't requested anywhere else. If this happens it is an error. Additionally, if the
-                # checkpoint height header was requested and it does not connect, then there's not much Electron-SV
-                # can do about it (that we're going to bother). We depend on the checkpoint being relevant for the
-                # blockchain the user is running against.
+                # A backwards header request should not happen before the
+                # checkpoint height. It isn't requested in this context, and it
+                # isn't requested anywhere else. If this happens it is an error.
+                # Additionally, if the checkpoint height header was requested
+                # and it does not connect, then there's not much Electron Cash
+                # can do about it (that we're going to bother). We depend on the
+                # checkpoint being relevant for the blockchain the user is
+                # running against.
                 if height <= networks.net.VERIFICATION_BLOCK_HEIGHT:
                     self.connection_down(interface.server)
                     next_height = None
