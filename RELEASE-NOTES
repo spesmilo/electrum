@@ -528,3 +528,7 @@ and there is no warning message.
 * Address tab: Allow CTRL+F of addresses prefixed with bitcoincash: to do the
   expected thing. (cculianu)
 * Various bugfixes (cculianu)
+* OpenAlias: Fix #1441 - Resurrected it form the dead. It wasn't working before.
+  You can now send payments to people via their openalias eg user@domain.net
+  (requires they set up a DNS TXT record).  See https://openalias.org/#implement
+  (Axel Gembe)
