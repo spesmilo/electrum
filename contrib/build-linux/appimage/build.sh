@@ -4,10 +4,11 @@ set -e
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
 CONTRIB="$PROJECT_ROOT/contrib"
+CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
-BUILDDIR="$CONTRIB/build-linux/appimage/build/appimage"
+BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum.AppDir"
-CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
+CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
 # pinned versions
 PYTHON_VERSION=3.6.8
@@ -49,7 +50,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       --enable-shared \
       --with-threads \
       -q
-    TZ=UTC faketime -f '2019-01-01 01:01:01' make -s
+    TZ=UTC faketime -f '2019-01-01 01:01:01' make -j4 -s
     make -s install > /dev/null
 )
 
@@ -71,7 +72,7 @@ info "building libsecp256k1."
       --enable-module-ecdh \
       --disable-jni \
       -q
-    make -s
+    make -j4 -s
     make -s install > /dev/null
 )
 
@@ -127,7 +128,7 @@ cp "$PROJECT_ROOT/electrum/gui/icons/electrum.png" "$APPDIR/electrum.png"
 
 
 # add launcher
-cp "$CONTRIB/build-linux/appimage/apprun.sh" "$APPDIR/AppRun"
+cp "$CONTRIB_APPIMAGE/apprun.sh" "$APPDIR/AppRun"
 
 info "finalizing AppDir."
 (
