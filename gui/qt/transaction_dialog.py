@@ -89,6 +89,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
+        self.tx_hash_e.addCopyButton()
         weakSelfRef = Weak.ref(self)
         qr_show = lambda: weakSelfRef() and weakSelfRef().main_window.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
         icon = ":icons/qrcode_white.svg" if ColorScheme.dark_scheme else ":icons/qrcode.svg"
