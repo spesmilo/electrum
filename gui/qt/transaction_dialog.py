@@ -405,7 +405,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         vbox.addLayout(hbox)
 
-        self.i_text = i_text = QTextEdit()
+        self.i_text = i_text = QTextBrowser()
+        i_text.setOpenLinks(False)  # disable automatic link opening
+        i_text.anchorClicked.connect(self.open_prevout)  # send links to our handler
         self.i_text_has_selection = False
         def set_i_text_has_selection(b):
             self.i_text_has_selection = bool(b)
@@ -414,6 +416,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         i_text.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
+        i_text.setTextInteractionFlags(i_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         vbox.addWidget(i_text)
 
 
@@ -479,8 +482,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         cursor = i_text.textCursor()
         has_schnorr = False
         for i, x in enumerate(self.tx.fetched_inputs() or self.tx.inputs()):
+            a_name = f"input {i}"
             for fmt in (ext, rec, chg):
-                fmt.setAnchorNames([f"input {i}"])  # anchor name for this line (remember input#); used by context menu creation
+                fmt.setAnchorNames([a_name])  # anchor name for this line (remember input#); used by context menu creation
             if x['type'] == 'coinbase':
                 cursor.insertText('coinbase', ext)
                 if isinstance(x.get('value'), int):
@@ -488,8 +492,16 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             else:
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
-                cursor.insertText(prevout_hash[0:8] + '...', ext)
-                cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
+                hashn = f'{ prevout_hash[0:6] }...{ prevout_hash[-6:] }:{ prevout_n }'
+                # linkify prevout_hash:n, send link to our handler
+                lnk = QTextCharFormat()
+                lnk.setToolTip(_('Click to open, right-click for menu'))
+                lnk.setAnchorHref(prevout_hash)
+                lnk.setAnchorNames([a_name])
+                lnk.setAnchor(True)
+                lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+                cursor.insertText(hashn, lnk)
+                cursor.insertText((1+max(4-len(str(prevout_n)), 0)) * ' ', ext)  # put spaces/padding
                 addr = x.get('address')
                 if addr is None:
                     addr_text = _('unknown')
@@ -536,6 +548,14 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             qApp.clipboard().setText(text)
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), widget)
 
+    def open_prevout(self, prevout):
+        ''' accepts either a str txid or a QUrl which should be of the form
+        'txid' ;) '''
+        if isinstance(prevout, QUrl):
+            prevout = prevout.toString(QUrl.None_)
+        assert prevout
+        self.main_window.do_process_from_txid(txid=prevout, parent=self)
+
     def on_context_menu_for_inputs(self, pos):
         i_text = self.i_text
         menu = QMenu()
@@ -566,7 +586,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                 if all(x is not None for x in u_tup):
                     # Copy UTXO
                     utxo = f"{u_tup[0]}:{u_tup[1]}"
-                    show_list += [ ( _("Show Prev Tx"), lambda: self.main_window.do_process_from_txid(txid=u_tup[0], parent=self) ) ]
+                    show_list += [ ( _("Show Prev Tx"), lambda: self.open_prevout(u_tup[0]) ) ]
                     copy_list += [ ( _("Copy Prevout"), lambda: self.copy_to_clipboard(utxo, i_text) ) ]
                 addr = inp.get('address')
                 if hasattr(addr, 'to_ui_string'):
@@ -581,7 +601,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                 if isinstance(value, int):
                     value_fmtd = self.main_window.format_amount(value)
                     copy_list += [ ( _("Copy Amount"), lambda: self.copy_to_clipboard(value_fmtd, i_text) ) ]
-        except (TypeError, ValueError, IndexError, KeyError) as e:
+        except (TypeError, ValueError, IndexError, KeyError, AttributeError) as e:
             self.print_error("Inputs right-click menu exception:", repr(e))
 
         for item in show_list:
