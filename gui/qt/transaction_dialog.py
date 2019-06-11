@@ -407,7 +407,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.i_text = i_text = QTextBrowser()
         i_text.setOpenLinks(False)  # disable automatic link opening
-        i_text.anchorClicked.connect(self.open_prevout)  # send links to our handler
+        i_text.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.i_text_has_selection = False
         def set_i_text_has_selection(b):
             self.i_text_has_selection = bool(b)
@@ -437,7 +437,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.recv_legend.setHidden(True)
         self.change_legend.setHidden(True)
 
-        self.o_text = o_text = QTextEdit()
+        self.o_text = o_text = QTextBrowser()
+        o_text.setOpenLinks(False)  # disable automatic link opening
+        o_text.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.o_text_has_selection = False
         def set_o_text_has_selection(b):
             self.o_text_has_selection = bool(b)
@@ -456,12 +458,14 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         o_text = self.o_text
         ext = QTextCharFormat()
         ext.setToolTip(_("Right-click for context menu"))
-        rec = QTextCharFormat()
+        lnk = QTextCharFormat()
+        lnk.setToolTip(_('Click to open, right-click for menu'))
+        lnk.setAnchor(True)
+        lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+        rec = QTextCharFormat(lnk)
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
-        rec.setToolTip(_("Wallet receive address"))
-        chg = QTextCharFormat()
+        chg = QTextCharFormat(lnk)
         chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(True)))
-        chg.setToolTip(_("Wallet change address"))
         rec_ct, chg_ct = 0, 0
 
         def text_format(addr):
@@ -469,10 +473,14 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             if isinstance(addr, Address) and self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     chg_ct += 1
-                    return chg
+                    chg2 = QTextCharFormat(chg)
+                    chg2.setAnchorHref(addr.to_ui_string())
+                    return chg2
                 else:
                     rec_ct += 1
-                    return rec
+                    rec2 = QTextCharFormat(rec)
+                    rec2.setAnchorHref(addr.to_ui_string())
+                    return rec2
             return ext
 
         def format_amount(amt):
@@ -483,7 +491,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         has_schnorr = False
         for i, x in enumerate(self.tx.fetched_inputs() or self.tx.inputs()):
             a_name = f"input {i}"
-            for fmt in (ext, rec, chg):
+            for fmt in (ext, rec, chg, lnk):
                 fmt.setAnchorNames([a_name])  # anchor name for this line (remember input#); used by context menu creation
             if x['type'] == 'coinbase':
                 cursor.insertText('coinbase', ext)
@@ -494,13 +502,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                 prevout_n = x.get('prevout_n')
                 hashn = f'{ prevout_hash[0:6] }...{ prevout_hash[-6:] }:{ prevout_n }'
                 # linkify prevout_hash:n, send link to our handler
-                lnk = QTextCharFormat()
-                lnk.setToolTip(_('Click to open, right-click for menu'))
-                lnk.setAnchorHref(prevout_hash)
-                lnk.setAnchorNames([a_name])
-                lnk.setAnchor(True)
-                lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
-                cursor.insertText(hashn, lnk)
+                lnk2 = QTextCharFormat(lnk)
+                lnk2.setAnchorHref(prevout_hash)
+                cursor.insertText(hashn, lnk2)
                 cursor.insertText((1+max(4-len(str(prevout_n)), 0)) * ' ', ext)  # put spaces/padding
                 addr = x.get('address')
                 if addr is None:
@@ -522,7 +526,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         cursor = o_text.textCursor()
         for i, tup in enumerate(self.tx.outputs()):
             typ, addr, v = tup
-            for fmt in (ext, rec, chg):
+            for fmt in (ext, rec, chg, lnk):
                 fmt.setAnchorNames([f"output {i}"])  # anchor name for this line (remember input#); used by context menu creation
             addrstr = addr.to_ui_string()
             cursor.insertText(addrstr, text_format(addr))
@@ -541,20 +545,26 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.change_legend.setVisible(bool(chg_ct))
 
     @staticmethod
-    def copy_to_clipboard(text, widget):
+    def _copy_to_clipboard(text, widget):
         if not text and isinstance(widget, QTextEdit):
             widget.copy()
         else:
             qApp.clipboard().setText(text)
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), widget)
 
-    def open_prevout(self, prevout):
-        ''' accepts either a str txid or a QUrl which should be of the form
-        'txid' ;) '''
-        if isinstance(prevout, QUrl):
-            prevout = prevout.toString(QUrl.None_)
-        assert prevout
-        self.main_window.do_process_from_txid(txid=prevout, parent=self)
+    def _open_internal_link(self, target):
+        ''' accepts either a str txid, str address, or a QUrl which should be
+        of the bare form "txid" and/or "address" -- used by the clickable
+        links in the inputs/outputs QTextBrowsers'''
+        if isinstance(target, QUrl):
+            target = target.toString(QUrl.None_)
+        assert target
+        if Address.is_valid(target):
+            # target was an address, open address dialog
+            self.main_window.show_address(Address.from_string(target), parent=self)
+        else:
+            # target was a txid, open new tx dialog
+            self.main_window.do_process_from_txid(txid=target, parent=self)
 
     def on_context_menu_for_inputs(self, pos):
         i_text = self.i_text
@@ -586,21 +596,13 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                 if all(x is not None for x in u_tup):
                     # Copy UTXO
                     utxo = f"{u_tup[0]}:{u_tup[1]}"
-                    show_list += [ ( _("Show Prev Tx"), lambda: self.open_prevout(u_tup[0]) ) ]
-                    copy_list += [ ( _("Copy Prevout"), lambda: self.copy_to_clipboard(utxo, i_text) ) ]
+                    show_list += [ ( _("Show Prev Tx"), lambda: self._open_internal_link(u_tup[0]) ) ]
+                    copy_list += [ ( _("Copy Prevout"), lambda: self._copy_to_clipboard(utxo, i_text) ) ]
                 addr = inp.get('address')
-                if hasattr(addr, 'to_ui_string'):
-                    addr_text = addr.to_ui_string()
-                    if isinstance(addr, Address) and self.wallet.is_mine(addr):
-                        show_list += [ ( _("Address Details"), lambda: self.main_window.show_address(addr, parent=self) ) ]
-                    action_text = _("Copy Address")
-                    if isinstance(addr, ScriptOutput):
-                        action_text = _("Copy Script Hex")
-                        addr_text = addr.to_script().hex() or ''
-                    copy_list += [ ( action_text, lambda: self.copy_to_clipboard(addr_text, i_text) ) ]
+                self._add_addr_to_io_menu_lists_for_widget(addr, show_list, copy_list, i_text)
                 if isinstance(value, int):
                     value_fmtd = self.main_window.format_amount(value)
-                    copy_list += [ ( _("Copy Amount"), lambda: self.copy_to_clipboard(value_fmtd, i_text) ) ]
+                    copy_list += [ ( _("Copy Amount"), lambda: self._copy_to_clipboard(value_fmtd, i_text) ) ]
         except (TypeError, ValueError, IndexError, KeyError, AttributeError) as e:
             self.print_error("Inputs right-click menu exception:", repr(e))
 
@@ -614,9 +616,27 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         if show_list or copy_list or was_cb: menu.addSeparator()
         if self.i_text_has_selection:
             # Add this if they have a selection
-            menu.addAction(_("Copy Selected Text"), lambda: self.copy_to_clipboard(None, i_text))
+            menu.addAction(_("Copy Selected Text"), lambda: self._copy_to_clipboard(None, i_text))
         menu.addAction(_("Select All"), i_text.selectAll)
         menu.exec_(global_pos)
+
+    def _add_addr_to_io_menu_lists_for_widget(self, addr, show_list, copy_list, widget):
+        if hasattr(addr, 'to_ui_string'):
+            addr_text = addr.to_ui_string()
+            if isinstance(addr, Address) and self.wallet.is_mine(addr):
+                show_list += [ ( _("Address Details"), lambda: self._open_internal_link(addr_text) ) ]
+            if isinstance(addr, ScriptOutput):
+                action_text = _("Copy Script Text")
+            elif isinstance(addr, PublicKey):
+                action_text = _("Copy Public Key")
+            else:
+                action_text = _("Copy Address")
+            copy_list += [ ( action_text, lambda: self._copy_to_clipboard(addr_text, widget) ) ]
+            # also add script hex copy to clipboard
+            if isinstance(addr, ScriptOutput):
+                hex_text = addr.to_script().hex() or ''
+                if hex_text:
+                    copy_list += [ ( _("Copy Script Hex"), lambda: self._copy_to_clipboard(hex_text, widget) ) ]
 
     def on_context_menu_for_outputs(self, pos):
         o_text = self.o_text
@@ -635,18 +655,10 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             ignored, addr, value = (self.tx.outputs())[i]
             menu.addAction(_("Output") + " #" + str(i)).setDisabled(True)
             menu.addSeparator()
-            if hasattr(addr, 'to_ui_string'):
-                addr_text = addr.to_ui_string()
-                if isinstance(addr, Address) and self.wallet.is_mine(addr):
-                    show_list += [ ( _("Address Details"), lambda: self.main_window.show_address(addr, parent=self) ) ]
-                action_text = _("Copy Address")
-                if isinstance(addr, ScriptOutput):
-                    action_text = _("Copy Script Hex")
-                    addr_text = addr.to_script().hex() or ''
-                copy_list += [ ( action_text, lambda: self.copy_to_clipboard(addr_text, o_text) ) ]
+            self._add_addr_to_io_menu_lists_for_widget(addr, show_list, copy_list, o_text)
             if isinstance(value, int):
                 value_fmtd = self.main_window.format_amount(value)
-                copy_list += [ ( _("Copy Amount"), lambda: self.copy_to_clipboard(value_fmtd, o_text) ) ]
+                copy_list += [ ( _("Copy Amount"), lambda: self._copy_to_clipboard(value_fmtd, o_text) ) ]
         except (TypeError, ValueError, IndexError, KeyError) as e:
             self.print_error("Outputs right-click menu exception:", repr(e))
 
@@ -660,6 +672,6 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         if show_list or copy_list: menu.addSeparator()
         if self.o_text_has_selection:
             # Add this if they have a selection
-            menu.addAction(_("Copy Selected Text"), lambda: self.copy_to_clipboard(None, o_text))
+            menu.addAction(_("Copy Selected Text"), lambda: self._copy_to_clipboard(None, o_text))
         menu.addAction(_("Select All"), o_text.selectAll)
         menu.exec_(global_pos)
