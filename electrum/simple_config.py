@@ -3,6 +3,7 @@ import threading
 import time
 import os
 import stat
+import pkgutil
 from decimal import Decimal
 from typing import Union, Optional
 from numbers import Real
@@ -288,6 +289,12 @@ class SimpleConfig(PrintError):
         if self.get('wallet_path') is None:
             path = wallet.storage.path
             self.set_key('gui_last_wallet', path)
+
+    def update_contract_from_data(self):
+        data = pkgutil.get_data('electrum', 'contract/contract')
+        self.contract_text = data
+        # Hash contract and store in string format
+        self.set_key('contract_hash', bh2u(Hash(data)[::-1]))
 
     def update_contract_from_file(self, path):
         # Read contract from file and store it's hash in config

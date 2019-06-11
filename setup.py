@@ -66,6 +66,7 @@ setup(
         'electrum': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
+            'contract/contract'
         ],
     },
     scripts=['electrum/electrum'],
