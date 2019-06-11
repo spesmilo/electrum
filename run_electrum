@@ -390,9 +390,6 @@ if __name__ == '__main__':
     # todo: defer this to gui
     config = SimpleConfig(config_options)
 
-    if not config.get('contract_hash'):
-        config.update_contract_from_data()
-
     cmdname = config.get('cmd')
 
     if config.get('testnet'):

@@ -88,7 +88,7 @@ class SimpleConfig(PrintError):
         self.user_config = {}  # for self.get in electrum_path()
         self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
-        self.update_contract_from_file(self.path)
+        self.update_contract_from_data()
         if not self.user_config:
             # avoid new config getting upgraded
             self.user_config = {'config_version': FINAL_CONFIG_VERSION}
