@@ -36,6 +36,7 @@ from electroncash.address import Address
 from electroncash.plugins import run_hook
 import electroncash.web as web
 from electroncash.util import profiler
+from electroncash import networks
 
 
 class AddressList(MyTreeWidget):
@@ -48,6 +49,16 @@ class AddressList(MyTreeWidget):
         self.setSortingEnabled(True)
         # force attributes to always be defined, even if None, at construction.
         self.wallet = self.parent.wallet
+
+    def filter(self, p):
+        ''' Reimplementation from superclass filter.  Chops off the
+        "bitcoincash:" prefix so that address filters ignore this prefix.
+        Closes #1440. '''
+        cashaddr_prefix = f"{networks.net.CASHADDR_PREFIX}:".lower()
+        p = p.strip()
+        if len(p) > len(cashaddr_prefix) and p.lower().startswith(cashaddr_prefix):
+            p = p[len(cashaddr_prefix):]  # chop off prefix
+        super().filter(p)  # call super on chopped-off-piece
 
     def refresh_headers(self):
         headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
