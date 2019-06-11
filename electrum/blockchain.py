@@ -306,7 +306,10 @@ class Blockchain(Logger):
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
-        _pow_hash = auxpow.hash_parent_header(header)
+        has_auxpow_data = header.get('auxpow') is not None
+        if has_auxpow_data:
+            _pow_hash = auxpow.hash_parent_header(header)
+
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
@@ -318,9 +321,10 @@ class Blockchain(Logger):
         if bits != header.get('bits'):
             raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
 
-        block_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+        if has_auxpow_data:
+            block_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
+            if block_hash_as_num > target:
+                raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> bytes:
         stripped = bytearray()
@@ -543,23 +547,20 @@ class Blockchain(Logger):
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
             return t
-        # new target
 
-        pow_block_adjust = constants.net.POW_BLOCK_ADJUST
+        first = self.read_header(index * constants.net.POW_BLOCK_ADJUST)
+        last = self.read_header(index * constants.net.POW_BLOCK_ADJUST + (constants.net.POW_BLOCK_ADJUST - 1))
 
-        first = self.read_header(index * pow_block_adjust)
-        last = self.read_header(index * pow_block_adjust + (pow_block_adjust - 1))
         if not first or not last:
-            self.logger.info("first {} {}".format(index * pow_block_adjust, first if first else "NONE"))
-            self.logger.info("last {} {}".format(index * pow_block_adjust + (pow_block_adjust - 1), last if last else "NONE"))
             raise MissingHeader()
+
         bits = last.get('bits')
         target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = constants.net.POW_TARGET_TIMESPAN
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+        actual_timespan = last.get('timestamp') - first.get('timestamp')
+        actual_timespan = max(actual_timespan, constants.net.POW_TARGET_TIMESPAN // 4)
+        actual_timespan = min(actual_timespan, constants.net.POW_TARGET_TIMESPAN * 4)
+        new_target = min(MAX_TARGET, (target * actual_timespan) // constants.net.POW_TARGET_TIMESPAN)
+
         # not any target can be represented in 32 bits:
         new_target = self.bits_to_target(self.target_to_bits(new_target))
         return new_target
@@ -568,7 +569,6 @@ class Blockchain(Logger):
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
         bitsBase = bits & 0xffffff
-        print("bits_to_target {} {} {}".format(bits, bitsN, bitsBase))
         if not (0x03 <= bitsN <= 0x1e):
             raise Exception("First part of bits should be in [0x03, 0x1e]")
         if not (0x8000 <= bitsBase <= 0x7fffff):
@@ -635,7 +635,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // constants.net.POW_BLOCK_ADJUST - 1)
+            target = self.get_target((height // constants.net.POW_BLOCK_ADJUST) - 1)
         except MissingHeader:
             return False
         try:

@@ -160,8 +160,9 @@ def strip_auxpow_headers(index, chunk):
 
     return bytes(result)
 
+
 def hash_parent_header(header):
-    if not auxpow_active(header):
+    if header.get('auxpow') is None or not auxpow_active(header):
         return electrum.blockchain.hash_header(header)
 
     verify_auxpow(header)
