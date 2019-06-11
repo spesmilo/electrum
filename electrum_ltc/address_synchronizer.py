@@ -61,6 +61,9 @@ class AddressSynchronizer(Logger):
     """
 
     def __init__(self, storage: 'WalletStorage'):
+        if not storage.is_ready_to_be_used_by_wallet():
+            raise Exception("storage not ready to be used by AddressSynchronizer")
+
         self.storage = storage
         self.db = self.storage.db
         self.network = None  # type: Network

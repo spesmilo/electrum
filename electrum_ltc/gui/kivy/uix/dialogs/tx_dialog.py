@@ -184,7 +184,7 @@ class TxDialog(Factory.Popup):
             self._action_button_fn = dropdown.open
             for option in options:
                 if option.enabled:
-                    btn = Button(text=option.text, size_hint_y=None, height=48)
+                    btn = Button(text=option.text, size_hint_y=None, height='48dp')
                     btn.bind(on_release=option.func)
                     dropdown.add_widget(btn)
 

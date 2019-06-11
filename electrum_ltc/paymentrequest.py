@@ -27,6 +27,7 @@ import sys
 import time
 import traceback
 import json
+from typing import Optional
 
 import certifi
 import urllib.parse
@@ -92,9 +93,19 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                     data_len = len(data) if data is not None else None
                     _logger.info(f'fetched payment request {url} {data_len}')
         except aiohttp.ClientError as e:
-            error = f"Error while contacting payment URL:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Error while contacting payment URL: {url}.\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             data = None
     elif u.scheme == 'file':
         try:
@@ -106,15 +117,15 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
     else:
         data = None
         error = f"Unknown scheme for payment request. URL: {url}"
-    pr = PaymentRequest(data, error)
+    pr = PaymentRequest(data, error=error)
     return pr
 
 
 class PaymentRequest:
 
-    def __init__(self, data, error=None):
+    def __init__(self, data, *, error=None):
         self.raw = data
-        self.error = error
+        self.error = error  # FIXME overloaded and also used when 'verify' succeeds
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
@@ -123,6 +134,7 @@ class PaymentRequest:
         return str(self.raw)
 
     def parse(self, r):
+        self.outputs = []
         if self.error:
             return
         self.id = bh2u(sha256(r)[0:16])
@@ -134,7 +146,6 @@ class PaymentRequest:
             return
         self.details = pb2.PaymentDetails()
         self.details.ParseFromString(self.data.serialized_payment_details)
-        self.outputs = []
         for o in self.details.outputs:
             type_, addr = transaction.get_address_from_output_script(o.script)
             if type_ != TYPE_ADDRESS:
@@ -235,7 +246,9 @@ class PaymentRequest:
             self.error = "unknown algo"
             return False
 
-    def has_expired(self):
+    def has_expired(self) -> Optional[bool]:
+        if not hasattr(self, 'details'):
+            return None
         return self.details.expires and self.details.expires < int(time.time())
 
     def get_expiration_date(self):
@@ -302,9 +315,19 @@ class PaymentRequest:
                     print(f"PaymentACK message received: {paymntack.memo}")
                     return True, paymntack.memo
         except aiohttp.ClientError as e:
-            error = f"Payment Message/PaymentACK Failed:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Payment Message/PaymentACK Failed:\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             return False, error
 
 

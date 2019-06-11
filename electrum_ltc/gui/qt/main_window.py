@@ -37,6 +37,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
+from typing import Optional
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -71,6 +72,7 @@ from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFai
 from electrum_ltc.exchange_rate import FxThread
 from electrum_ltc.simple_config import SimpleConfig
 from electrum_ltc.logging import Logger
+from electrum_ltc.paymentrequest import PR_PAID
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -109,9 +111,6 @@ class StatusBarButton(QPushButton):
             self.func()
 
 
-from electrum_ltc.paymentrequest import PR_PAID
-
-
 class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
@@ -141,7 +140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.tray = gui_object.tray
         self.app = gui_object.app
         self.cleaned_up = False
-        self.payment_request = None
+        self.payment_request = None  # type: Optional[paymentrequest.PaymentRequest]
         self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
@@ -907,6 +906,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = _('Litecoin address where the payment should be received. Note that each payment request uses a different Litecoin address.')
         self.receive_address_label = HelpLabel(_('Receiving address'), msg)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
+        self.receive_address_e.textChanged.connect(self.update_receive_address_styling)
         self.receive_address_e.setFocusPolicy(Qt.ClickFocus)
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
@@ -1151,6 +1151,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.qrw.setData(uri)
+
+    def update_receive_address_styling(self):
+        addr = str(self.receive_address_e.text())
+        if self.wallet.is_used(addr):
+            self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+            self.receive_address_e.setToolTip(_("This address has already been used. "
+                                                "For better privacy, do not reuse it for new payments."))
+        else:
+            self.receive_address_e.setStyleSheet("")
+            self.receive_address_e.setToolTip("")
 
     def set_feerounding_text(self, num_satoshis_added):
         self.feerounding_text = (_('Additional {} satoshis are going to be added.')
@@ -1591,11 +1601,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
-        if self.payment_request and self.payment_request.has_expired():
-            self.show_error(_('Payment request has expired'))
-            return True
+        pr = self.payment_request
+        if pr:
+            if pr.has_expired():
+                self.show_error(_('Payment request has expired'))
+                return True
 
-        if not self.payment_request:
+        if not pr:
             errors = self.payto_e.get_errors()
             if errors:
                 self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
@@ -1809,6 +1821,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def payment_request_ok(self):
         pr = self.payment_request
+        if not pr:
+            return
         key = self.invoices.add(pr)
         status = self.invoices.get_status(key)
         self.invoice_list.update()
@@ -1829,7 +1843,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
-        self.show_message(self.payment_request.error)
+        pr = self.payment_request
+        if not pr:
+            return
+        self.show_message(pr.error)
         self.payment_request = None
         self.do_clear()
 

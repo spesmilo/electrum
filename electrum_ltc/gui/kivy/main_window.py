@@ -435,7 +435,8 @@ class ElectrumWindow(App):
                 msg += '\n' + _('Text copied to clipboard.')
                 self._clipboard.copy(text_for_clipboard)
             Clock.schedule_once(lambda dt: self.show_info(msg))
-        popup = QRDialog(title, data, show_text, on_qr_failure)
+        popup = QRDialog(title, data, show_text, failure_cb=on_qr_failure,
+                         text_for_clipboard=text_for_clipboard)
         popup.open()
 
     def scan_qr(self, on_complete):
