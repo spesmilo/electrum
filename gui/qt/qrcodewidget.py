@@ -77,7 +77,7 @@ class QRCodeWidget(QWidget, util.PrintError):
         qp = QtGui.QPainter(self)
         r = qp.viewport()
 
-        margin = 10
+        margin = 5
         framesize = min(r.width(), r.height())
         boxsize = int( (framesize - 2*margin)/k )
         size = k*boxsize
