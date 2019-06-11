@@ -37,9 +37,10 @@ from .qrtextedit import ShowQRTextEdit
 
 class AddressDialog(WindowModalDialog):
 
-    def __init__(self, parent, address):
+    def __init__(self, parent, address, *, windowParent=None):
         assert isinstance(address, Address)
-        WindowModalDialog.__init__(self, parent, _("Address"))
+        windowParent = windowParent or parent
+        WindowModalDialog.__init__(self, windowParent, _("Address"))
         self.address = address
         self.parent = parent
         self.config = parent.config

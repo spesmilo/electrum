@@ -32,7 +32,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from electroncash.address import Address, PublicKey
+from electroncash.address import Address, PublicKey, ScriptOutput
 from electroncash.bitcoin import base_encode
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
@@ -406,6 +406,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         vbox.addLayout(hbox)
 
         self.i_text = i_text = QTextEdit()
+        self.i_text_has_selection = False
+        def set_i_text_has_selection(b):
+            self.i_text_has_selection = bool(b)
+        i_text.copyAvailable.connect(set_i_text_has_selection)
+        i_text.setContextMenuPolicy(Qt.CustomContextMenu)
+        i_text.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
         vbox.addWidget(i_text)
@@ -429,6 +435,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.change_legend.setHidden(True)
 
         self.o_text = o_text = QTextEdit()
+        self.o_text_has_selection = False
+        def set_o_text_has_selection(b):
+            self.o_text_has_selection = bool(b)
+        o_text.copyAvailable.connect(set_o_text_has_selection)
+        o_text.setContextMenuPolicy(Qt.CustomContextMenu)
+        o_text.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
         vbox.addWidget(o_text)
@@ -440,6 +452,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         i_text = self.i_text
         o_text = self.o_text
         ext = QTextCharFormat()
+        ext.setToolTip(_("Right-click for context menu"))
         rec = QTextCharFormat()
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
         rec.setToolTip(_("Wallet receive address"))
@@ -466,8 +479,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         cursor = i_text.textCursor()
         has_schnorr = False
         for i, x in enumerate(self.tx.fetched_inputs() or self.tx.inputs()):
+            for fmt in (ext, rec, chg):
+                fmt.setAnchorNames([f"input {i}"])  # anchor name for this line (remember input#); used by context menu creation
             if x['type'] == 'coinbase':
-                cursor.insertText('coinbase')
+                cursor.insertText('coinbase', ext)
+                if isinstance(x.get('value'), int):
+                    cursor.insertText(format_amount(x['value']), ext)
             else:
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
@@ -491,7 +508,10 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         o_text.clear()
         cursor = o_text.textCursor()
-        for addr, v in self.tx.get_outputs():
+        for i, tup in enumerate(self.tx.outputs()):
+            typ, addr, v = tup
+            for fmt in (ext, rec, chg):
+                fmt.setAnchorNames([f"output {i}"])  # anchor name for this line (remember input#); used by context menu creation
             addrstr = addr.to_ui_string()
             cursor.insertText(addrstr, text_format(addr))
             if v is not None:
@@ -507,3 +527,119 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         # make the change & receive legends appear only if we used that color
         self.recv_legend.setVisible(bool(rec_ct))
         self.change_legend.setVisible(bool(chg_ct))
+
+    @staticmethod
+    def copy_to_clipboard(text, widget):
+        if not text and isinstance(widget, QTextEdit):
+            widget.copy()
+        else:
+            qApp.clipboard().setText(text)
+        QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), widget)
+
+    def on_context_menu_for_inputs(self, pos):
+        i_text = self.i_text
+        menu = QMenu()
+        global_pos = i_text.viewport().mapToGlobal(pos)
+
+        charFormat, cursor = QTextCharFormat(), i_text.cursorForPosition(pos)
+        charFormat = cursor and cursor.charFormat()
+        name = charFormat.anchorNames() and charFormat.anchorNames()[0]
+
+        show_list = []
+        copy_list = []
+        was_cb = False
+        try:
+            # figure out which input they right-clicked on .. input lines have an anchor named "input N"
+            i = int(name.split()[1])  # split "input N", translate N -> int
+            inp = (self.tx.fetched_inputs() or self.tx.inputs())[i]
+            value = inp.get('value')
+            #value_text = (value is not None and (self.main_window.format_amount(value) + " " + self.main_window.base_unit()))
+            #menu.addAction(_("Input") + " #" + str(i) + (' - ' + value_text if value else '')).setDisabled(True)
+            menu.addAction(_("Input") + " #" + str(i)).setDisabled(True)
+            menu.addSeparator()
+            if inp.get('type') == 'coinbase':
+                menu.addAction(_("Coinbase Input")).setDisabled(True)
+                was_cb = True
+            else:
+                # not coindbase, add options
+                u_tup = inp.get('prevout_hash'), inp.get('prevout_n')
+                if all(x is not None for x in u_tup):
+                    # Copy UTXO
+                    utxo = f"{u_tup[0]}:{u_tup[1]}"
+                    show_list += [ ( _("Show Prev Tx"), lambda: self.main_window.do_process_from_txid(txid=u_tup[0], parent=self) ) ]
+                    copy_list += [ ( _("Copy Prevout"), lambda: self.copy_to_clipboard(utxo, i_text) ) ]
+                addr = inp.get('address')
+                if hasattr(addr, 'to_ui_string'):
+                    addr_text = addr.to_ui_string()
+                    if isinstance(addr, Address) and self.wallet.is_mine(addr):
+                        show_list += [ ( _("Address Details"), lambda: self.main_window.show_address(addr, parent=self) ) ]
+                    action_text = _("Copy Address")
+                    if isinstance(addr, ScriptOutput):
+                        action_text = _("Copy Script Hex")
+                        addr_text = addr.to_script().hex() or ''
+                    copy_list += [ ( action_text, lambda: self.copy_to_clipboard(addr_text, i_text) ) ]
+                if isinstance(value, int):
+                    value_fmtd = self.main_window.format_amount(value)
+                    copy_list += [ ( _("Copy Amount"), lambda: self.copy_to_clipboard(value_fmtd, i_text) ) ]
+        except (TypeError, ValueError, IndexError, KeyError) as e:
+            self.print_error("Inputs right-click menu exception:", repr(e))
+
+        for item in show_list:
+            menu.addAction(*item)
+        if show_list and copy_list:
+            menu.addSeparator()
+        for item in copy_list:
+            menu.addAction(*item)
+
+        if show_list or copy_list or was_cb: menu.addSeparator()
+        if self.i_text_has_selection:
+            # Add this if they have a selection
+            menu.addAction(_("Copy Selected Text"), lambda: self.copy_to_clipboard(None, i_text))
+        menu.addAction(_("Select All"), i_text.selectAll)
+        menu.exec_(global_pos)
+
+    def on_context_menu_for_outputs(self, pos):
+        o_text = self.o_text
+        menu = QMenu()
+        global_pos = o_text.viewport().mapToGlobal(pos)
+
+        charFormat, cursor = QTextCharFormat(), o_text.cursorForPosition(pos)
+        charFormat = cursor and cursor.charFormat()
+        name = charFormat.anchorNames() and charFormat.anchorNames()[0]
+
+        show_list = []
+        copy_list = []
+        try:
+            # figure out which output they right-clicked on .. output lines have an anchor named "output N"
+            i = int(name.split()[1])  # split "output N", translate N -> int
+            ignored, addr, value = (self.tx.outputs())[i]
+            menu.addAction(_("Output") + " #" + str(i)).setDisabled(True)
+            menu.addSeparator()
+            if hasattr(addr, 'to_ui_string'):
+                addr_text = addr.to_ui_string()
+                if isinstance(addr, Address) and self.wallet.is_mine(addr):
+                    show_list += [ ( _("Address Details"), lambda: self.main_window.show_address(addr, parent=self) ) ]
+                action_text = _("Copy Address")
+                if isinstance(addr, ScriptOutput):
+                    action_text = _("Copy Script Hex")
+                    addr_text = addr.to_script().hex() or ''
+                copy_list += [ ( action_text, lambda: self.copy_to_clipboard(addr_text, o_text) ) ]
+            if isinstance(value, int):
+                value_fmtd = self.main_window.format_amount(value)
+                copy_list += [ ( _("Copy Amount"), lambda: self.copy_to_clipboard(value_fmtd, o_text) ) ]
+        except (TypeError, ValueError, IndexError, KeyError) as e:
+            self.print_error("Outputs right-click menu exception:", repr(e))
+
+        for item in show_list:
+            menu.addAction(*item)
+        if show_list and copy_list:
+            menu.addSeparator()
+        for item in copy_list:
+            menu.addAction(*item)
+
+        if show_list or copy_list: menu.addSeparator()
+        if self.o_text_has_selection:
+            # Add this if they have a selection
+            menu.addAction(_("Copy Selected Text"), lambda: self.copy_to_clipboard(None, o_text))
+        menu.addAction(_("Select All"), o_text.selectAll)
+        menu.exec_(global_pos)
