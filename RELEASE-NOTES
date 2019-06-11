@@ -500,6 +500,12 @@ and there is no warning message.
 
 * CoinText: Show a popup label after CoinText is initiated to remind user
   they need to hit "Send" or "Preview" to proceed (cculianu, imaginary_username)
+* Tx Dialog: Fixups and functionality expanded. All wallet addresses are now
+  links which are clickable (leading to the address's history view). All input
+  prevouts are now clickable links as well; they lead to a tx dialog screen for
+  the prevout tx. Additionally, we added a right-click context menu for the
+  input/output panes of the tx dialog window. This brings EC's functionality
+  closer to that of a mini block explorer. (cculianu)
 * KeepKey: Fixed a packaging issue where loading BIP39 onto an uninitialized
   KeepKey would fail with a Python exception on Windows & Mac #1434 (cculianu)
 * Python 3.6 is officially the minimum Python version for Electron Cash now.
@@ -509,4 +515,16 @@ and there is no warning message.
   request URIs and QR codes containing 'op_return' and/or 'op_return_raw'. Not
   all wallets can read this query string argument, but Electron Cash can.
   (cculianu)
-
+* Linux run-from-source: Warn/Abort with helpful messages if user is missing
+  required PyQt libs such as QtSvg. (cculianu)
+* QR Scanner: Added informative message for Linux run-from-source users who
+  happen to have a broken PyQt5 lacking a required lib for accessing the
+  camera. (cculianu)
+* Schnorr: Defaults to off for watching-only wallets. This is to prevent
+  air-gapped setups from underestimating fee between generating and signing EC.
+  (cculianu)
+* Tx Dialog: Warn if user is attempting to broadcat a low fee tx of <1 sats/B.
+  (cculianu)
+* Address tab: Allow CTRL+F of addresses prefixed with bitcoincash: to do the
+  expected thing. (cculianu)
+* Various bugfixes (cculianu)
