@@ -34,6 +34,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from electroncash import bitcoin
 from electroncash.address import Address, ScriptOutput
 from electroncash import networks
+from electroncash.util import print_error
 
 from . import util
 
@@ -313,17 +314,19 @@ class PayToEdit(ScanQRTextEdit):
         if self.is_pr:
             return
         key = str(self.toPlainText())
+        key = key.strip()  # strip whitespaces
         if key == self.previous_payto:
             return
         self.previous_payto = key
         if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
             return
-        parts = key.split(sep=',')  # assuming single lie
+        parts = key.split(sep=',')  # assuming single line
         if parts and len(parts) > 0 and Address.is_valid(parts[0]):
             return
         try:
             data = self.win.contacts.resolve(key)
-        except:
+        except Exception as e:
+            print_error(f'error resolving alias: {repr(e)}')
             return
         if not data:
             return
@@ -331,7 +334,16 @@ class PayToEdit(ScanQRTextEdit):
 
         address = data.get('address')
         name = data.get('name')
-        new_url = key + ' <' + address + '>'
+
+        address_str = None
+        if isinstance(address, str):
+            address_str = address
+        elif isinstance(address, Address):
+            address_str = address.to_ui_string()
+        else:
+            raise RuntimeError('unknown address type')
+
+        new_url = key + ' <' + address_str + '>'
         self.setText(new_url)
         self.previous_payto = new_url
 
