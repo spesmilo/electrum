@@ -47,7 +47,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
+    GENESIS = "672e90f01e9c89385030c05583ed9c8fa08a6916b6c1a00885150efa31edacc0"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -88,7 +88,7 @@ class OceanTestnet(OceanMainnet):
     ADDRTYPE_P2SH = 75  
     WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
     WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
-    GENESIS = "5e94f35373cb088fda819150f59cb33baa51280206d308e9e29d7bef90c76bce"
+    GENESIS = "672e90f01e9c89385030c05583ed9c8fa08a6916b6c1a00885150efa31edacc0"
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv
