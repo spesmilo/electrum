@@ -108,7 +108,7 @@ build_zbar() {
         }
 
         pushd "$here"/../zbar || fail "Could not chdir to zbar"
-        LIBZBAR_VERSION="11e819815be2de88b64b985605a3386a95079245" # mchehab master as of 2019-05-19
+        LIBZBAR_VERSION="1d51925e6cc9151f4a73781989f21fcd7b57ef32" # version 0.23
         git checkout $LIBZBAR_VERSION || fail "Could not check out zbar $LIBZBAR_VERSION"
         git clean -f -x -q
 
