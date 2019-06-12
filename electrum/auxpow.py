@@ -348,7 +348,7 @@ def fast_tx_deserialize(tx):
     real_parse_output, transaction.parse_output = transaction.parse_output, stub_parse_output
 
     try:
-        result = tx.deserialize()
+        result = tx.deserialize(ignore_inputs=True)
     finally:
         # Restore the real output address parser.
         transaction.parse_output = real_parse_output
