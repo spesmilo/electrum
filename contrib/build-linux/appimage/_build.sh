@@ -10,6 +10,7 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 
 # pinned versions
+SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 
 
@@ -62,6 +63,14 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.6/_sysconfigdata*
 )
 
+info "Building squashfskit"
+git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfskit"
+(
+    cd "$BUILDDIR/squashfskit"
+    git checkout -b pinned "$SQUASHFSKIT_COMMIT"
+    make -C squashfs-tools mksquashfs
+)
+MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
 #info "Building libsecp256k1"  # make_secp below already prints this
 (
@@ -213,7 +222,14 @@ info "Creating the AppImage"
     cd "$BUILDDIR"
     chmod +x "$CACHEDIR/appimagetool"
     "$CACHEDIR/appimagetool" --appimage-extract
-    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
+    # We build a small wrapper for mksquashfs that removes the -mkfs-fixed-time option
+    # that mksquashfs from squashfskit does not support. It is not needed for squashfskit.
+    cat > ./squashfs-root/usr/lib/appimagekit/mksquashfs << EOF
+#!/bin/sh
+args=\$(echo "\$@" | sed -e 's/-mkfs-fixed-time 0//')
+"$MKSQUASHFS" \$args
+EOF
+    env VERSION="$VERSION" ARCH=x86_64 SOURCE_DATE_EPOCH=1530212462 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
 )
 
 
