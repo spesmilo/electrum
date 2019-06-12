@@ -132,9 +132,9 @@ verify_hash $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib d147e7382dfa676d93e8b17
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx || fail "Could not copy libusb"
 
 info "Downloading ZBar dylib..."
-curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libzbar.0.dylib.xz | \
+curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/v0.23-libzbar.0.dylib.xz | \
     xz -d -c > contrib/osx/libzbar.0.dylib || fail "Could not download libzbar"
-verify_hash contrib/osx/libzbar.0.dylib 60970c28db13731657eaf6b1c527082b463779737da4aeecfc07645684812753
+verify_hash contrib/osx/libzbar.0.dylib 7b82238dd73e56d9f57913230ea5418c247b292cf96c8996becda961ab001c85
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
