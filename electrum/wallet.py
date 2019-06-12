@@ -347,6 +347,8 @@ class Abstract_Wallet(AddressSynchronizer):
     def export_private_key(self, address, password):
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
+        if not is_address(address):
+            raise Exception(f"Invalid bitcoin address: {address}")
         if not self.is_mine(address):
             raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
@@ -1488,8 +1490,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def get_address_index(self, address):
         # returns None if address is not mine
-        if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
         return self.get_public_key(address)
 
     def get_public_key(self, address):
@@ -1681,8 +1681,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         return True
 
     def get_address_index(self, address):
-        if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
         return self.db.get_address_index(address)
 
     def get_master_public_keys(self):
