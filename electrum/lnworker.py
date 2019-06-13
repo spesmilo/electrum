@@ -82,7 +82,10 @@ class LNWorker(Logger):
         Logger.__init__(self)
         self.node_keypair = generate_keypair(keystore.from_xprv(xprv), LnKeyFamily.NODE_KEY, 0)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
+        # set some feature flags as baseline for both LNWallet and LNGossip
+        # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.localfeatures = LnLocalFeatures(0)
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
 
     async def maybe_listen(self):
         listen_addr = self.config.get('lightning_listen')
@@ -302,7 +305,6 @@ class LNWallet(LNWorker):
         super().__init__(xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
