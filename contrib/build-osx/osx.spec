@@ -31,7 +31,8 @@ hiddenimports += collect_submodules('websocket')
 datas = [
     (electrum+'electrum/*.json', PYPKG),
     (electrum+'electrum/wordlist/english.txt', PYPKG + '/wordlist'),
-    (electrum+'electrum/locale', PYPKG + '/locale')
+    (electrum+'electrum/locale', PYPKG + '/locale'),
+    (electrum+'electrum/contract/contract', PYPKG + '/contract')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
