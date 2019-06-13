@@ -2550,11 +2550,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("This is a watching-only wallet"))
             return
 
-        if isinstance(self.wallet, Multisig_Wallet):
-            self.show_message(_('This is a multi-signature wallet.') + '\n' +
-                            _('Registration is not currently supported.'))
-        
-
         kycfileString=self.wallet.get_kyc_string(password)
         if kycfileString == None:
             self.show_critical(txt, title=_("Unable to encrypt kyc data"))

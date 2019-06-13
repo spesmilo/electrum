@@ -1147,7 +1147,6 @@ class Abstract_Wallet(AddressSynchronizer):
             for contract_hash in self.contracts + [None]:
                 pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
                 pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
-                tempAddr = self.pubkeys_to_address(pubkey_from_priv)
                 if address == tempAddr:
                     return pk, compressed
         elif aType == 'p2sh':
@@ -1943,6 +1942,75 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, storage)
 
+    def get_kyc_string(self, password=None):
+        address=self.get_unused_encryption_address()
+        print(address)
+        if address == None:
+            return "No wallet encryption keys available."
+        onboardUserPubKey=self.get_public_key(address)
+
+        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        txin_type = self.get_txin_type(address)
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        onboardUserKey=ecc.ECPrivkey(secret_bytes)
+      
+        onboardPubKey=self.get_unassigned_kyc_pubkey()
+        if onboardPubKey is None:
+            return "No unassigned KYC public keys available."
+
+        ss = StringIO()
+
+        addrs=self.get_addresses()
+
+        address_pubkey_list = []
+        for addr in addrs:
+            line="{} {}".format(self.m, addr)
+            tempPubKeys = self.get_public_keys(addr, self.m, False)
+            for pub in tempPubKeys:
+                line+=" {}".format(pub)
+            address_pubkey_list.append(line)
+            ss.write(line)
+            ss.write("\n")
+
+        #Encrypt the addresses string
+        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+
+        ss2 = StringIO()
+        str_encrypted=str(encrypted)
+        #Remove the b'' characters (first 2 and last characters)
+        str_encrypted=str_encrypted[2:]
+        str_encrypted=str_encrypted[:-1]
+        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write(str_encrypted)
+        kyc_string=ss2.getvalue()
+
+        return kyc_string
+
+    def dumpkycfile(self, filename=None, password=None):
+        kycfile_string = self.get_kyc_string(password)
+
+        if filename:
+            f=open(filename, 'w')
+            f.write(kycfile_string)
+            f.close()
+            return True
+        return False
+
+    def get_public_key(self, address, tweaked=True):
+        r = self.get_address_index(address)
+        if len(r) == 3:
+            e, c, i = self.get_address_index(address)
+        else:
+            c, i = self.get_address_index(address)
+            e = False
+
+        keyStore = self.get_keystores()[0]
+        pubkey = keyStore.derive_pubkey(c, i, e)
+
+        if tweaked:
+            return self.get_tweaked_public_key(address, pubkey)
+        return pubkey
+
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
@@ -1955,8 +2023,20 @@ class Multisig_Wallet(Deterministic_Wallet):
         return pubkeys
 
     def pubkeys_to_address(self, pubkeys):
-        redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-        return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+        if(sys.getsizeof(pubkeys[0]) < 55):
+            if(self.txin_type == "p2sh"):
+                return bitcoin.pubkey_to_address('p2pkh', pubkeys)
+            else:
+                return bitcoin.pubkey_to_address(self.txin_type, pubkeys)
+        else:
+            if len(pubkeys) != 1 and self.txin_type == 'p2sh':
+                redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+                return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+            else:
+                if(self.txin_type == "p2sh"):
+                    return bitcoin.pubkey_to_address('p2pkh', pubkeys[0])
+                else:
+                    return bitcoin.pubkey_to_address(self.txin_type, pubkeys[0])
 
     def pubkeys_to_redeem_script(self, pubkeys):
         if(sys.getsizeof(pubkeys[0]) < 55):
@@ -1966,7 +2046,7 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_redeem_script(self, address):
         #TODO likely broken for multisig
-        pubkeys = self.get_public_keys(address)
+        pubkeys = self.get_public_keys(address, self.m)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script
 
