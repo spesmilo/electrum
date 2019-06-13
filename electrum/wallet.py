@@ -1742,7 +1742,6 @@ class Deterministic_Wallet(Abstract_Wallet):
                 addr_list=self.receiving_addresses
             n = len(addr_list)
             x = self.derive_pubkeys(for_change, n, for_encryption)
-            print(x)
             if self.contracts:
                 x = self.tweak_pubkeys(x, self.contracts[-1])
             address = self.pubkeys_to_address(x)
@@ -1966,6 +1965,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
+        #TODO likely broken for multisig
         pubkeys = self.get_public_keys(address)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script
