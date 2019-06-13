@@ -301,7 +301,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_redeem_script(self, address):
         return None
 
-    def export_private_key(self, address, password):
+    def export_private_key(self, address, password, includeRedeemScript = True):
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
@@ -311,9 +311,13 @@ class Abstract_Wallet(AddressSynchronizer):
         pk, compressed = self.get_tweaked_private_key(address, index, password)
 
         txin_type = self.get_txin_type(address)
-        redeem_script = self.get_redeem_script(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
-        return serialized_privkey, redeem_script
+
+        if includeRedeemScript == True:
+            redeem_script = self.get_redeem_script(address)
+            return serialized_privkey, redeem_script
+        else:
+            return serialized_privkey
 
     def get_public_keys(self, address, tweaked=True):
         return [self.get_public_key(address, tweaked)]
@@ -1147,7 +1151,7 @@ class Abstract_Wallet(AddressSynchronizer):
             for contract_hash in self.contracts + [None]:
                 pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
                 pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
-                if address == tempAddr:
+                if address == self.pubkeys_to_address(pubkey_from_priv):
                     return pk, compressed
         elif aType == 'p2sh':
             for contract_hash in self.contracts + [None]:
@@ -1949,7 +1953,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
-        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        onboardUserKey_serialized=self.export_private_key(address, password, False)   
         txin_type = self.get_txin_type(address)
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
         onboardUserKey=ecc.ECPrivkey(secret_bytes)
@@ -2004,8 +2008,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             c, i = self.get_address_index(address)
             e = False
 
-        keyStore = self.get_keystores()[0]
-        pubkey = keyStore.derive_pubkey(c, i, e)
+        pubkey = self.keystore.derive_pubkey(c, i, e)
 
         if tweaked:
             return self.get_tweaked_public_key(address, pubkey)
@@ -2016,6 +2019,7 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_public_keys(self, address, m, tweaked=True):
         sequence = self.get_address_index(address)
+        print(sequence)
         pubkeys = self.get_pubkeys(*sequence)
         if tweaked:
             tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, m)
@@ -2051,14 +2055,16 @@ class Multisig_Wallet(Deterministic_Wallet):
         return redeem_script
 
     def derive_pubkeys(self, c, i, e=False):
-        return [k.derive_pubkey(c, i, e) for k in self.get_keystores()]
+        if e == True:  
+            return [self.keystore.derive_pubkey(c, i, e)]
+        else:
+            return [k.derive_pubkey(c, i, e) for k in self.get_keystores()]
 
     def tweak_pubkeys(self, c, t):
-        tempStore = self.get_keystores()[0]
-        if(sys.getsizeof(c[0]) < 55):
-            return [tempStore.tweak_pubkey(c, t)]
+        if sys.getsizeof(c[0]) < 55 :
+            return [self.keystore.tweak_pubkey(c, t)]
         else:
-            return [tempStore.tweak_pubkey(cv, t) for cv in c]
+            return [self.keystore.tweak_pubkey(cv, t) for cv in c]
 
     def load_keystore(self):
         self.keystores = {}
