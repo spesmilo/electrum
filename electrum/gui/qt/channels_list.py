@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 import traceback
 import asyncio
+from enum import IntEnum
+
 from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
 
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
@@ -13,12 +16,29 @@ from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
+
+ROLE_CHANNEL_ID = Qt.UserRole
+
+
 class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal()
     update_single_row = QtCore.pyqtSignal(Channel)
 
+    class Columns(IntEnum):
+        NODE_ID = 0
+        LOCAL_BALANCE = 1
+        REMOTE_BALANCE = 2
+        CHANNEL_STATUS = 3
+
+    headers = {
+        Columns.NODE_ID: _('Node ID'),
+        Columns.LOCAL_BALANCE: _('Local'),
+        Columns.REMOTE_BALANCE: _('Remote'),
+        Columns.CHANNEL_STATUS: _('Status'),
+    }
+
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, 0)
+        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID)
         self.setModel(QtGui.QStandardItemModel(self))
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
@@ -75,7 +95,7 @@ class ChannelsList(MyTreeView):
         item = self.model().itemFromIndex(idx)
         if not item:
             return
-        channel_id = idx.sibling(idx.row(), 0).data(QtCore.Qt.UserRole)
+        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
         if not chan.is_closed():
@@ -92,18 +112,18 @@ class ChannelsList(MyTreeView):
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):
         for row in range(self.model().rowCount()):
-            item = self.model().item(row,0)
-            if item.data(QtCore.Qt.UserRole) == chan.channel_id:
+            item = self.model().item(row, self.Columns.NODE_ID)
+            if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
                 for column, v in enumerate(self.format_fields(chan)):
                     self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
 
     @QtCore.pyqtSlot()
     def do_update_rows(self):
         self.model().clear()
-        self.update_headers([_('Node ID'), _('Local'), _('Remote'), _('Status')])
+        self.update_headers(self.headers)
         for chan in self.parent.wallet.lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
-            items[0].setData(chan.channel_id, QtCore.Qt.UserRole)
+            items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
             self.model().insertRow(0, items)
 
     def get_toolbar(self):
