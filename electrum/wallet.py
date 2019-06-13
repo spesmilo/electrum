@@ -54,7 +54,7 @@ from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, multisig_script
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
@@ -872,7 +872,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     # Add private keys
                     keypairs = k.get_tx_derivations(tx)
                     for x_pubkey, (derivation, address) in keypairs.items():
-                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password)
+                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password, self.get_txin_type(address))
                     k.sign_transaction(tx, keypairs)
             except UserCancelled:
                 continue
@@ -1142,11 +1142,17 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.storage.write()
 
-    def get_tweaked_private_key(self, address, sequence, password):
-        for contract_hash in self.contracts + [None]:
-            pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
-            pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
-            if address == self.pubkeys_to_address(pubkey_from_priv):
+    def get_tweaked_private_key(self, address, sequence, password, aType='p2pkh'):
+        if aType == 'p2pkh':
+            for contract_hash in self.contracts + [None]:
+                pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
+                pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+                tempAddr = self.pubkeys_to_address(pubkey_from_priv)
+                if address == tempAddr:
+                    return pk, compressed
+        elif aType == 'p2sh':
+            for contract_hash in self.contracts + [None]:
+                pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
                 return pk, compressed
         # This exception will probably never be thrown since we allow
         # non-tweaked addresses in the above loop (by using 'None')
@@ -1161,6 +1167,16 @@ class Abstract_Wallet(AddressSynchronizer):
             if address == self.pubkeys_to_address(tweaked_pubkey):
                 return tweaked_pubkey
         raise WalletFileException('Public key not found. The corresponding '
+        'address might have been derived without tweaking or incorrect tweaking.')
+
+    def get_tweaked_multi_public_keys(self, address, pubkeys, n):
+        for contract_hash in self.contracts + [None]:
+            tweaked_pubkeys = sorted(self.tweak_pubkeys(pubkeys, contract_hash))
+            redeem_script = multisig_script(tweaked_pubkeys, n) 
+            tempAddr = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
+            if tempAddr == address:
+                return tweaked_pubkeys
+        raise WalletFileException('Public keys not found. The corresponding '
         'address might have been derived without tweaking or incorrect tweaking.')
 
     def sign_message(self, address, message, password):
@@ -1726,6 +1742,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 addr_list=self.receiving_addresses
             n = len(addr_list)
             x = self.derive_pubkeys(for_change, n, for_encryption)
+            print(x)
             if self.contracts:
                 x = self.tweak_pubkeys(x, self.contracts[-1])
             address = self.pubkeys_to_address(x)
@@ -1930,13 +1947,11 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
-    def get_public_keys(self, address, tweaked=True):
+    def get_public_keys(self, address, m, tweaked=True):
         sequence = self.get_address_index(address)
         pubkeys = self.get_pubkeys(*sequence)
         if tweaked:
-            tweaked_pubkeys = []
-            for pubkey in pubkeys:
-                tweaked_pubkeys.append(self.get_tweaked_public_key(address, pubkey))
+            tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, m)
             return tweaked_pubkeys
         return pubkeys
 
@@ -1945,18 +1960,25 @@ class Multisig_Wallet(Deterministic_Wallet):
         return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
 
     def pubkeys_to_redeem_script(self, pubkeys):
-        return transaction.multisig_script(sorted(pubkeys), self.m)
+        if(sys.getsizeof(pubkeys[0]) < 55):
+            return multisig_script([pubkeys], self.m)
+        else:
+            return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
         pubkeys = self.get_public_keys(address)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script
 
-    def derive_pubkeys(self, c, i):
-        return [k.derive_pubkey(c, i) for k in self.get_keystores()]
+    def derive_pubkeys(self, c, i, e=False):
+        return [k.derive_pubkey(c, i, e) for k in self.get_keystores()]
 
     def tweak_pubkeys(self, c, t):
-        return [k.tweak_pubkey(c, t) for k in self.get_keystores()]
+        tempStore = self.get_keystores()[0]
+        if(sys.getsizeof(c[0]) < 55):
+            return [tempStore.tweak_pubkey(c, t)]
+        else:
+            return [tempStore.tweak_pubkey(cv, t) for cv in c]
 
     def load_keystore(self):
         self.keystores = {}
@@ -2022,7 +2044,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         # otherwise we might delete signatures
         if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
             return
-        pubkeys = self.get_public_keys(address)
+        pubkeys = self.get_public_keys(address, self.m)
         txin['x_pubkeys'] = x_pubkeys_expected
         txin['pubkeys'] = pubkeys
         # we need n place holders

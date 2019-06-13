@@ -99,7 +99,7 @@ class BaseWizard(object):
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
             #('2fa', _("Wallet with two-factor authentication")),
-            #('multisig',  _("Multi-signature wallet")),
+            ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Import Ocean addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
