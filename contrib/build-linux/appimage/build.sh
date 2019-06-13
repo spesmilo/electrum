@@ -4,14 +4,15 @@ set -e
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
 CONTRIB="$PROJECT_ROOT/contrib"
+CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
-BUILDDIR="$CONTRIB/build-linux/appimage/build/appimage"
+BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum-ltc.AppDir"
-CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
+CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
 # pinned versions
 PYTHON_VERSION=3.6.8
-PKG2APPIMAGE_COMMIT="83483c2971fcaa1cb0c1253acd6c731ef8404381"
+PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 
@@ -27,10 +28,10 @@ mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
 
 info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"
-verify_hash "$CACHEDIR/functions.sh" "a73a21a6c1d1e15c0a9f47f017ae833873d1dc6aa74a4c840c0b901bf1dcf09c"
+verify_hash "$CACHEDIR/functions.sh" "78b7ee5a04ffb84ee1c93f0cb2900123773bc6709e5d1e43c37519f590f86918"
 
-download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/probonopd/AppImageKit/releases/download/11/appimagetool-x86_64.AppImage"
-verify_hash "$CACHEDIR/appimagetool" "c13026b9ebaa20a17e7e0a4c818a901f0faba759801d8ceab3bb6007dde00372"
+download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/12/appimagetool-x86_64.AppImage"
+verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395c31f619d9aaf7030499a13"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"
@@ -49,7 +50,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       --enable-shared \
       --with-threads \
       -q
-    TZ=UTC faketime -f '2019-01-01 01:01:01' make -s
+    TZ=UTC faketime -f '2019-01-01 01:01:01' make -j4 -s
     make -s install > /dev/null
 )
 
@@ -71,7 +72,7 @@ info "building libsecp256k1."
       --enable-module-ecdh \
       --disable-jni \
       -q
-    make -s
+    make -j4 -s
     make -s install > /dev/null
 )
 
@@ -127,7 +128,7 @@ cp "$PROJECT_ROOT/electrum_ltc/gui/icons/electrum-ltc.png" "$APPDIR/electrum-ltc
 
 
 # add launcher
-cp "$CONTRIB/build-linux/appimage/apprun.sh" "$APPDIR/AppRun"
+cp "$CONTRIB_APPIMAGE/apprun.sh" "$APPDIR/AppRun"
 
 info "finalizing AppDir."
 (

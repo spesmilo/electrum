@@ -92,7 +92,7 @@ git reset --hard $LIBSECP_VERSION
 git clean -f -x -q
 ./autogen.sh
 ./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
-make
+make -j4
 popd
 cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
 
