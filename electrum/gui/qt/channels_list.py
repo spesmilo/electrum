@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
 from electrum.lnchannel import Channel
-from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
+from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id
 
 from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog
 from .amountedit import BTCAmountEdit
@@ -25,12 +25,14 @@ class ChannelsList(MyTreeView):
     update_single_row = QtCore.pyqtSignal(Channel)
 
     class Columns(IntEnum):
-        NODE_ID = 0
-        LOCAL_BALANCE = 1
-        REMOTE_BALANCE = 2
-        CHANNEL_STATUS = 3
+        SHORT_CHANID = 0
+        NODE_ID = 1
+        LOCAL_BALANCE = 2
+        REMOTE_BALANCE = 3
+        CHANNEL_STATUS = 4
 
     headers = {
+        Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ID: _('Node ID'),
         Columns.LOCAL_BALANCE: _('Local'),
         Columns.REMOTE_BALANCE: _('Remote'),
@@ -58,6 +60,7 @@ class ChannelsList(MyTreeView):
                 label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
         return [
+            format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
             labels[LOCAL],
             labels[REMOTE],
