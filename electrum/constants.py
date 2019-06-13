@@ -77,7 +77,7 @@ class OceanMainnet:
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
     WHITELISTCOINSDESTINATION = "76a914402c656d1e33f8c4ba209c767eea7616785ee29288ac"
     WHITELISTCOINSADDRESS = "16rKRynAChcFwfzXxUF4bdLDVxBXvJUDJZ"
-    WHITELISTASSET="06ac64b25aa03694714f4c6ab47e6216600d39878b660714d7e553ed4d465307"
+    WHITELISTASSET="c5df05768e4d67b9adde1ea711916a9fbd1b491f19724603678681caf8f9e82c"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
