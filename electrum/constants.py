@@ -47,7 +47,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "672e90f01e9c89385030c05583ed9c8fa08a6916b6c1a00885150efa31edacc0"
+    GENESIS = ""
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
@@ -85,7 +85,7 @@ class OceanTestnet(OceanMainnet):
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = []
     ADDRTYPE_P2PKH = 235
-    ADDRTYPE_P2SH = 75  
+    ADDRTYPE_P2SH = 75
     WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
     WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
     GENESIS = "672e90f01e9c89385030c05583ed9c8fa08a6916b6c1a00885150efa31edacc0"
@@ -110,7 +110,7 @@ class OceanTestnet(OceanMainnet):
     CONTROLER1 = "048249c166d63d2b76c958bab0ad13bf7009121acfe1c2727701df8a4fc3f3d045744cf6894db9df71ce9ef64d2bb5c6d80a1318b74dfee4ad69137469defa9d2a"
     CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
     CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
- 
+
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
 
 class OceanRegtest(OceanMainnet):
