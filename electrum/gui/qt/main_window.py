@@ -1163,7 +1163,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_address_styling(self):
         addr = str(self.receive_address_e.text())
-        # note: 'addr' could be ln invoice here
+        # note: 'addr' could be ln invoice or BIP21 URI
+        try:
+            uri = util.parse_URI(addr)
+        except InvalidBitcoinURI:
+            pass
+        else:
+            addr = uri.get('address')
         if is_address(addr) and self.wallet.is_used(addr):
             self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             self.receive_address_e.setToolTip(_("This address has already been used. "
