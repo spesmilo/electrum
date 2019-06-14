@@ -532,3 +532,7 @@ and there is no warning message.
   You can now send payments to people via their openalias eg user@domain.net
   (requires they set up a DNS TXT record).  See https://openalias.org/#implement
   (Axel Gembe)
+* AppImage: 100% deterministic builds now. (Axel Gembe)
+* Windows: We figured out what was causing the anti-virus false positives on
+  our recent releases and took steps to reduce the possibility of AV false
+  positives going forward. (cculianu, Axel Gembe)
