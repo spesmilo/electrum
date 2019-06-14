@@ -23,11 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import webbrowser
-
 from functools import partial
 
-from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem, rate_limited
+from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem, rate_limited, webopen
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QKeySequence
 from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu
@@ -217,7 +215,7 @@ class AddressList(MyTreeWidget):
                 menu.addAction(_("Remove from wallet"), lambda: self.parent.remove_address(addr))
             addr_URL = web.BE_URL(self.config, 'addr', addr)
             if addr_URL:
-                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
+                menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
 
         freeze = self.parent.set_frozen_state
         if any(self.wallet.is_frozen(addr) for addr in addrs):

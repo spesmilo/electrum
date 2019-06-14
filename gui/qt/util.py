@@ -4,6 +4,8 @@ import sys
 import platform
 import queue
 import threading
+import os
+import webbrowser
 from collections import namedtuple
 from functools import partial, wraps
 
@@ -1040,6 +1042,17 @@ def destroyed_print_error(qobject, msg=None):
         msg = "[{}] destroyed".format(name)
     qobject.destroyed.connect(lambda x=None,msg=msg: print_error(msg))
 
+def webopen(url: str):
+    if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
+        # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.
+        # We just fork the process and unset LD_LIBRARY_PATH before opening the URL.
+        # See https://github.com/spesmilo/electrum/issues/5425
+        if os.fork() == 0:
+            del os.environ['LD_LIBRARY_PATH']
+            webbrowser.open(url)
+            sys.exit(0)
+    else:
+        webbrowser.open(url)
 
 if __name__ == "__main__":
     app = QApplication([])
