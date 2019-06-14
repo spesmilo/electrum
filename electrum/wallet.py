@@ -45,7 +45,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -482,45 +482,79 @@ class Abstract_Wallet(AddressSynchronizer):
         # return last balance
         return balance
 
+    def get_onchain_history(self):
+        for tx_hash, tx_mined_status, value, balance in self.get_history():
+            yield {
+                'txid': tx_hash,
+                'height': tx_mined_status.height,
+                'confirmations': tx_mined_status.conf,
+                'timestamp': tx_mined_status.timestamp,
+                'incoming': True if value>0 else False,
+                'bc_value': Satoshis(value),
+                'balance': Satoshis(balance),
+                'date': timestamp_to_datetime(tx_mined_status.timestamp),
+                'label': self.get_label(tx_hash),
+                'txpos_in_block': tx_mined_status.txpos,
+            }
+
     @profiler
-    def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None,
-                         fx=None, show_addresses=False, show_fees=False,
-                         from_height=None, to_height=None):
-        if (from_timestamp is not None or to_timestamp is not None) \
-                and (from_height is not None or to_height is not None):
-            raise Exception('timestamp and block height based filtering cannot be used together')
+    def get_full_history(self, fx=None):
+        transactions = OrderedDictWithIndex()
+        onchain_history = self.get_onchain_history()
+        for tx_item in onchain_history:
+            txid = tx_item['txid']
+            transactions[txid] = tx_item
+        lightning_history = self.lnworker.get_history() if self.lnworker else []
+        for i, tx_item in enumerate(lightning_history):
+            txid = tx_item.get('txid')
+            ln_value = Decimal(tx_item['amount_msat']) / 1000
+            if txid and txid in transactions:
+                item = transactions[txid]
+                item['label'] = tx_item['label']
+                item['ln_value'] = Satoshis(ln_value)
+                item['balance_msat'] = tx_item['balance_msat']
+            else:
+                tx_item['lightning'] = True
+                tx_item['ln_value'] = Satoshis(ln_value)
+                tx_item['txpos'] = i # for sorting
+                key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
+                transactions[key] = tx_item
+        now = time.time()
+        for item in transactions.values():
+            # add on-chain and lightning values
+            value = Decimal(0)
+            if item.get('bc_value'):
+                value += item['bc_value'].value
+            if item.get('ln_value'):
+                value += item.get('ln_value').value
+            item['value'] = Satoshis(value)
+            if fx:
+                timestamp = item['timestamp'] or now
+                fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
+                item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+                item['fiat_default'] = True
+        return transactions
+
+    @profiler
+    def get_detailed_history(self, from_timestamp=None, to_timestamp=None,
+                             fx=None, show_addresses=False, show_fees=False):
+        # History with capital gains, using utxo pricing
+        # FIXME: Lightning capital gains would requires FIFO
         out = []
         income = 0
         expenditures = 0
         capital_gains = Decimal(0)
         fiat_income = Decimal(0)
         fiat_expenditures = Decimal(0)
-        h = self.get_history(domain)
         now = time.time()
-        for tx_hash, tx_mined_status, value, balance in h:
-            timestamp = tx_mined_status.timestamp
+        for item in self.get_onchain_history():
+            timestamp = item['timestamp']
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
             if to_timestamp and (timestamp or now) >= to_timestamp:
                 continue
-            height = tx_mined_status.height
-            if from_height is not None and height < from_height:
-                continue
-            if to_height is not None and height >= to_height:
-                continue
+            tx_hash = item['txid']
             tx = self.db.get_transaction(tx_hash)
-            item = {
-                'txid': tx_hash,
-                'height': height,
-                'confirmations': tx_mined_status.conf,
-                'timestamp': timestamp,
-                'incoming': True if value>0 else False,
-                'value': Satoshis(value),
-                'balance': Satoshis(balance),
-                'date': timestamp_to_datetime(timestamp),
-                'label': self.get_label(tx_hash),
-                'txpos_in_block': tx_mined_status.txpos,
-            }
             tx_fee = None
             if show_fees:
                 tx_fee = self.get_tx_fee(tx)
@@ -529,10 +563,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
                 item['outputs'] = list(map(lambda x:{'address':x.address, 'value':Satoshis(x.value)},
                                            tx.get_outputs_for_UI()))
-            # value may be None if wallet is not fully synchronized
-            if value is None:
-                continue
             # fixme: use in and out values
+            value = item['bc_value'].value
             if value < 0:
                 expenditures += -value
             else:
@@ -550,7 +582,7 @@ class Abstract_Wallet(AddressSynchronizer):
             out.append(item)
         # add summary
         if out:
-            b, v = out[0]['balance'].value, out[0]['value'].value
+            b, v = out[0]['balance'].value, out[0]['bc_value'].value
             start_balance = None if b is None or v is None else b - v
             end_balance = out[-1]['balance'].value
             if from_timestamp is not None and to_timestamp is not None:
@@ -562,15 +594,13 @@ class Abstract_Wallet(AddressSynchronizer):
             summary = {
                 'start_date': start_date,
                 'end_date': end_date,
-                'from_height': from_height,
-                'to_height': to_height,
                 'start_balance': Satoshis(start_balance),
                 'end_balance': Satoshis(end_balance),
                 'incoming': Satoshis(income),
                 'outgoing': Satoshis(expenditures)
             }
             if fx and fx.is_enabled() and fx.get_history_config():
-                unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
+                unrealized = self.unrealized_gains(None, fx.timestamp_rate, fx.ccy)
                 summary['fiat_currency'] = fx.ccy
                 summary['fiat_capital_gains'] = Fiat(capital_gains, fx.ccy)
                 summary['fiat_incoming'] = Fiat(fiat_income, fx.ccy)

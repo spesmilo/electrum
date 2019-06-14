@@ -116,7 +116,6 @@ class HistoryModel(QAbstractItemModel, Logger):
         self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
-        self.summary = None
 
     def set_view(self, history_list: 'HistoryList'):
         # FIXME HistoryModel and HistoryList mutually depend on each other.
@@ -173,7 +172,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
                 HistoryColumns.AMOUNT:
-                    tx_item['value'].value if 'value' in tx_item else None,
+                    tx_item['bc_value'].value if 'bc_value' in tx_item else None,
                 HistoryColumns.LN_AMOUNT:
                     tx_item['ln_value'].value if 'ln_value' in tx_item else None,
                 HistoryColumns.BALANCE:
@@ -217,8 +216,8 @@ class HistoryModel(QAbstractItemModel, Logger):
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION and 'label' in tx_item:
             return QVariant(tx_item['label'])
-        elif col == HistoryColumns.AMOUNT and 'value' in tx_item:
-            value = tx_item['value'].value
+        elif col == HistoryColumns.AMOUNT and 'bc_value' in tx_item:
+            value = tx_item['bc_value'].value
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
         elif col == HistoryColumns.LN_AMOUNT and 'ln_value' in tx_item:
@@ -276,44 +275,22 @@ class HistoryModel(QAbstractItemModel, Logger):
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
         wallet = self.parent.wallet
-        r = wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
-        lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
         self.set_visibility_of_columns()
-        #if r['transactions'] == list(self.transactions.values()):
-        #    return
+        transactions = wallet.get_full_history(self.parent.fx)
+        if transactions == list(self.transactions.values()):
+            return
         old_length = len(self.transactions)
         if old_length != 0:
             self.beginRemoveRows(QModelIndex(), 0, old_length)
             self.transactions.clear()
             self.endRemoveRows()
-
-        transactions = OrderedDictWithIndex()
-        for tx_item in r['transactions']:
-            txid = tx_item['txid']
-            transactions[txid] = tx_item
-        for i, tx_item in enumerate(lightning_history):
-            txid = tx_item.get('txid')
-            ln_value = tx_item['amount_msat']/1000.
-            if txid and txid in transactions:
-                item = transactions[txid]
-                item['label'] = tx_item['label']
-                item['ln_value'] = Satoshis(ln_value)
-                item['balance_msat'] = tx_item['balance_msat']
-            else:
-                tx_item['lightning'] = True
-                tx_item['ln_value'] = Satoshis(ln_value)
-                tx_item['txpos'] = i # for sorting
-                key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
-                transactions[key] = tx_item
-
         self.beginInsertRows(QModelIndex(), 0, len(transactions)-1)
         self.transactions = transactions
         self.endInsertRows()
         if selected_row:
             self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
         self.view.filter()
-        # update summary
-        self.summary = r['summary']
+        # update time filter
         if not self.view.years and self.transactions:
             start_date = date.today()
             end_date = date.today()
@@ -535,7 +512,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return datetime.datetime(date.year, date.month, date.day)
 
     def show_summary(self):
-        h = self.model().sourceModel().summary
+        h = self.parent.wallet.get_detailed_history()['summary']
         if not h:
             self.parent.show_message(_("Nothing to summarize."))
             return

@@ -497,14 +497,11 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False,
-                from_height=None, to_height=None):
-        """Wallet history. Returns the transaction history of your wallet."""
+    def onchain_history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False):
+        """Wallet onchain history. Returns the transaction history of your wallet."""
         kwargs = {
             'show_addresses': show_addresses,
             'show_fees': show_fees,
-            'from_height': from_height,
-            'to_height': to_height,
         }
         if year:
             import time
@@ -516,7 +513,13 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return json_encode(self.wallet.get_full_history(**kwargs))
+        return json_encode(self.wallet.get_detailed_history(**kwargs))
+
+    @command('w')
+    def lightning_history(self, show_fiat=False):
+        """ lightning history """
+        lightning_history = self.wallet.lnworker.get_history() if self.wallet.lnworker else []
+        return json_encode(lightning_history)
 
     @command('w')
     def setlabel(self, key, label):

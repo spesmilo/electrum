@@ -26,7 +26,7 @@ from electrum.util import profiler, parse_URI, format_time, InvalidPassword, Not
 from electrum import bitcoin, constants
 from electrum.transaction import TxOutput, Transaction, tx_from_str
 from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
@@ -145,34 +145,49 @@ class HistoryScreen(CScreen):
         d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()
 
-    def get_card(self, tx_hash, tx_mined_status, value, balance):
-        status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_status)
-        icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
-        label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
+    def get_card(self, tx_item): #tx_hash, tx_mined_status, value, balance):
+        is_lightning = tx_item.get('lightning', False)
+        timestamp = tx_item['timestamp']
+        if is_lightning:
+            status = 0
+            txpos = tx_item['txpos']
+            if timestamp is None:
+                status_str = 'unconfirmed'
+            else:
+                status_str = format_time(int(timestamp))
+            icon = "atlas://electrum/gui/kivy/theming/light/lightning"
+        else:
+            tx_hash = tx_item['txid']
+            conf = tx_item['confirmations']
+            txpos = tx_item['txpos_in_block'] or 0
+            height = tx_item['height']
+            tx_mined_info = TxMinedInfo(height=tx_item['height'],
+                                        conf=tx_item['confirmations'],
+                                        timestamp=tx_item['timestamp'])
+            status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
+            icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
         ri = {}
         ri['screen'] = self
-        ri['tx_hash'] = tx_hash
         ri['icon'] = icon
         ri['date'] = status_str
-        ri['message'] = label
-        ri['confirmations'] = tx_mined_status.conf
+        ri['message'] = tx_item['label']
+        value = tx_item['value'].value
         if value is not None:
             ri['is_mine'] = value < 0
             if value < 0: value = - value
             ri['amount'] = self.app.format_amount_and_units(value)
-            if self.app.fiat_unit:
-                fx = self.app.fx
-                fiat_value = value / Decimal(bitcoin.COIN) * self.app.wallet.price_at_timestamp(tx_hash, fx.timestamp_rate)
-                fiat_value = Fiat(fiat_value, fx.ccy)
-                ri['quote_text'] = fiat_value.to_ui_string()
+            if 'fiat_value' in tx_item:
+                ri['quote_text'] = tx_item['fiat_value'].to_ui_string()
         return ri
 
     def update(self, see_all=False):
-        if self.app.wallet is None:
+        import operator
+        wallet = self.app.wallet
+        if wallet is None:
             return
-        history = reversed(self.app.wallet.get_history())
+        history = sorted(wallet.get_full_history(self.app.fx).values(), key=lambda x: x.get('timestamp') or float('inf'), reverse=True)
         history_card = self.screen.ids.history_container
-        history_card.data = [self.get_card(*item) for item in history]
+        history_card.data = [self.get_card(item) for item in history]
 
 
 class SendScreen(CScreen):
