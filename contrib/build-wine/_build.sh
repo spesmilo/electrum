@@ -136,6 +136,9 @@ prepare_wine() {
         LIBUSB_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libusb-1.0.21.7z'
         LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
 
+        PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
+        PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
+
         ## These settings probably don't need change
         export WINEPREFIX=/opt/wine64
         #export WINEARCH='win32'
@@ -195,16 +198,21 @@ prepare_wine() {
         info "Installing build requirements from requirements-wine-build.txt ..."
         $PYTHON -m pip install -I -r $here/requirements-wine-build.txt || fail "Failed to install build requirements"
 
-        info "Installing our custom PyInstaller 3.4 with AntiVirus False-Positive Protection™"
-        wget 'https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/PyInstaller-3.4_recompiled_bootloader.tar.gz'
-        verify_hash PyInstaller-3.4_recompiled_bootloader.tar.gz a1b28da3927eb2665b05228a8a50297611a14f3e15b8df1dc56e74785ee865bf
-        # We install with --no-deps to save time as the above requirements-wine-build.txt already installed the deps.
-        $PYTHON -m pip install --no-deps PyInstaller-3.4_recompiled_bootloader.tar.gz || fail "Failed to install PyInstaller"
+        info "Compiling PyInstaller bootloader with AntiVirus False-Positive Protection™ ..."
+        git clone $PYINSTALLER_REPO
+        (
+            cd pyinstaller
+            git checkout -b pinned $PYINSTALLER_COMMIT
+            cd bootloader
+            python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
+        )
+        info "Installing PyInstaller ..."
+        $PYTHON -m pip install ./pyinstaller
+
+        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         info "Installing Packages from requirements-binaries ..."
         $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
-
-        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         #The below has been commented-out as our requirements-wine-build.txt already handles this
         #info "Upgrading setuptools ..."
