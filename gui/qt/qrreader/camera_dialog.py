@@ -26,6 +26,7 @@
 import time
 import math
 import sys
+import os
 from typing import List
 
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
@@ -219,7 +220,10 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
     def _linux_pyqt5bug_msg():
         ''' Returns a string that may be appended to an exception error message
         only if on Linux and PyQt5 < 5.12.2, otherwise returns an empty string. '''
-        if sys.platform == 'linux' and PYQT_VERSION < 0x050c02:  # Check if PyQt5 < 5.12.2 on linux
+        if (sys.platform == 'linux' and PYQT_VERSION < 0x050c02 # Check if PyQt5 < 5.12.2 on linux
+                # Also: this warning is not relevant to APPIMAGE; so make sure
+                # we are not running from APPIMAGE.
+                and not os.environ.get('APPIMAGE')):
             # In this case it's possible we couldn't detect a camera because
             # of that missing libQt5MultimediaGstTools.so problem.
             return ("\n\n" + _('If you indeed do have a usable camera connected, then this error may be caused by bugs in previous PyQt5 versions on Linux. Try installing the latest PyQt5:')

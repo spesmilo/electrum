@@ -1043,7 +1043,8 @@ def destroyed_print_error(qobject, msg=None):
     qobject.destroyed.connect(lambda x=None,msg=msg: print_error(msg))
 
 def webopen(url: str):
-    if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
+    if (sys.platform == 'linux' and os.environ.get('APPIMAGE')
+            and os.environ.get('LD_LIBRARY_PATH') is not None):
         # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.
         # We just fork the process and unset LD_LIBRARY_PATH before opening the URL.
         # See https://github.com/spesmilo/electrum/issues/5425
