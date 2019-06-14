@@ -195,6 +195,12 @@ prepare_wine() {
         info "Installing build requirements from requirements-wine-build.txt ..."
         $PYTHON -m pip install -I -r $here/requirements-wine-build.txt || fail "Failed to install build requirements"
 
+        info "Installing our custom PyInstaller 3.4 with AntiVirus False-Positive Protection™"
+        wget 'https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/PyInstaller-3.4_recompiled_bootloader.tar.gz'
+        verify_hash PyInstaller-3.4_recompiled_bootloader.tar.gz a1b28da3927eb2665b05228a8a50297611a14f3e15b8df1dc56e74785ee865bf
+        # We install with --no-deps to save time as the above requirements-wine-build.txt already installed the deps.
+        $PYTHON -m pip install --no-deps PyInstaller-3.4_recompiled_bootloader.tar.gz || fail "Failed to install PyInstaller"
+
         info "Installing Packages from requirements-binaries ..."
         $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
 
