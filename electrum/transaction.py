@@ -1128,10 +1128,6 @@ class Transaction:
         ser = self.serialize_to_network(witness=True)
         return bh2u(Hash(bfh(ser))[::-1])
 
-    def add_inputs(self, inputs):
-        self._inputs.extend(inputs)
-        self.raw = None
-
     def add_outputs(self, outputs):
         self._outputs.extend(outputs)
         self.raw = None
@@ -1148,9 +1144,8 @@ class Transaction:
         for o in self.outputs():
             if o.type == TYPE_SCRIPT and o.address == '':
                 return o.value
-        # if fee output has not been added it will return
-        # the original fee sum of input - sum of output value
-        return self.input_value() - self.output_value()
+        # if fee output has not been added it will return 0
+        return 0
 
     def is_final(self):
         return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 1 for x in self.inputs()])

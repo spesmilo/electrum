@@ -40,7 +40,7 @@ from functools import partial
 from numbers import Number
 from decimal import Decimal
 from io import StringIO, BytesIO
-from bitcoin import bin_to_b58check
+from .bitcoin import hash160_to_b58_address
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -1396,7 +1396,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if i3 > ptlen:
                 break
             addrbytes=bytes(data[i1:i2])
-            addrs.append(bin_to_b58check(addrbytes, constants.net.ADDRTYPE_P2PKH))
+            addrs.append(hash160_to_b58_address(addrbytes, constants.net.ADDRTYPE_P2PKH))
         
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
