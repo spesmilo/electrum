@@ -407,22 +407,29 @@ def parse_scriptSig(d, _bytes):
     # p2sh transaction, m of n
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if match_decoded(decoded, match):
-        redeem_script_unsanitized = decoded[-1][1]  # for partial multisig txn, this has the real tweaked redeem script
+        redeem_script_unsanitized = decoded[-2][1]  # for partial multisig txn, this has the real tweaked redeem script
         sigEnd = -2
         try:
             m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(redeem_script_unsanitized)
-        except NotRecognizedRedeemScript:
-            print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
-                        bh2u(_bytes))
-            # we could still guess:
-            # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
-            return
+            redeem_script_unsanitized = decoded[-1][1]  # for partial multisig txn, this has x_pubkeys
 
-        redeem_script_unsanitized = decoded[-2][1]  # for partial multisig txn, this has x_pubkeys
-        try:
-            m, n, x_pubkeys, pubkeys, _ = parse_redeemScript_multisig(redeem_script_unsanitized)
+            try:
+                m, n, pubkeys, _, redeem_script = parse_redeemScript_multisig(redeem_script_unsanitized, False)
+            except NotRecognizedRedeemScript:
+                print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
+                            bh2u(_bytes))
+                return
+
         except NotRecognizedRedeemScript:
-            sigEnd = -1
+            try:
+                m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(decoded[-1][1])
+                sigEnd = -1
+            except: 
+                print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
+                            bh2u(_bytes))
+                # we could still guess:
+                # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
+                return
 
         x_sig = [bh2u(x[1]) for x in decoded[1:sigEnd]]
 
@@ -460,7 +467,7 @@ def parse_scriptSig(d, _bytes):
                 bh2u(_bytes))
 
 
-def parse_redeemScript_multisig(redeem_script: bytes):
+def parse_redeemScript_multisig(redeem_script: bytes, hasXPubs=True):
     dec2 = [ x for x in script_GetOp(redeem_script) ]
     try:
         m = dec2[0][0] - opcodes.OP_1 + 1
@@ -472,13 +479,21 @@ def parse_redeemScript_multisig(redeem_script: bytes):
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
         raise NotRecognizedRedeemScript()
-    x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
-    pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
-    redeem_script2 = bfh(multisig_script(x_pubkeys, m))
-    if redeem_script2 != redeem_script:
-        raise NotRecognizedRedeemScript()
-    redeem_script_sanitized = multisig_script(pubkeys, m)
-    return m, n, x_pubkeys, pubkeys, redeem_script_sanitized
+    if hasXPubs == True:
+        x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
+        pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
+        redeem_script2 = bfh(multisig_script(x_pubkeys, m))
+        if redeem_script2 != redeem_script:
+            raise NotRecognizedRedeemScript()
+        redeem_script_sanitized = multisig_script(pubkeys, m)
+        return m, n, x_pubkeys, pubkeys, redeem_script_sanitized
+    else: 
+        pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
+        redeem_script2 = bfh(multisig_script(pubkeys, m))
+        if redeem_script2 != redeem_script:
+            raise NotRecognizedRedeemScript()
+        redeem_script_sanitized = multisig_script(pubkeys, m)
+        return m, n, pubkeys, pubkeys, redeem_script_sanitized
 
 def get_data_from_policy_output_script(_bytes, *, net=None):
     decoded = [x for x in script_GetOp(_bytes)]
