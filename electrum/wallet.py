@@ -1405,17 +1405,47 @@ class Abstract_Wallet(AddressSynchronizer):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
-        i3=0
-        ptlen=len(data)
-        addrs=[]
-        while True:
-            i1=i3
-            i2=i1+20
-            i3=i2+33
+        #If it is a multisig wallet then we need to account for the extra byte of N
+        i3 = 0
+        ptlen = len(data)
+        addrs = []
+        multiSize = 0
+        addrType = constants.net.ADDRTYPE_P2PKH
+        if "of" in self.wallet_type:
+            multiSize = 1
+            addrType = constants.net.ADDRTYPE_P2SH
+
+        print('testweird')
+        moreLeft = True
+        while moreLeft is True:
+            i1 = i3 + multiSize
+            i2 = i1 + 20
+            i3 = i2 + 33
+            bkupI = it2
+
             if i3 > ptlen:
                 break
+
+            if multiSize != 0:
+                while True:
+                    pubkeyBytes = bytes(data[bkupI:i3])
+                    #Since pubkey is not validated anywhere, this is a hacky solution to validate it by
+                    #constructing an address with it and then checking the result
+                    tempAddr = bitcoin.pubkey_to_address('p2pkh', bh2u(pubkeyBytes))
+                    if bitcoin.is_address(tempAddr) == False:
+                        i3 = bkupI
+                        print('reached this point')
+                        break;
+                    else:
+                        bkupI = i3
+                        i3 += 33
+
+                    if i3 > ptlen:
+                        moreLeft = False
+                        break
+            print(bin_to_b58check(addrbytes, addrType))
             addrbytes=bytes(data[i1:i2])
-            addrs.append(bin_to_b58check(addrbytes, constants.net.ADDRTYPE_P2PKH))
+            addrs.append(bin_to_b58check(addrbytes, addrType))
         
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
