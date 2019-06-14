@@ -407,8 +407,8 @@ def parse_scriptSig(d, _bytes):
     # p2sh transaction, m of n
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if match_decoded(decoded, match):
-        x_sig = [bh2u(x[1]) for x in decoded[1:-1]]
-        redeem_script_unsanitized = decoded[-1][1]  # for partial multisig txn, this has x_pubkeys
+        redeem_script_unsanitized = decoded[-1][1]  # for partial multisig txn, this has the real tweaked redeem script
+        sigEnd = -2
         try:
             m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(redeem_script_unsanitized)
         except NotRecognizedRedeemScript:
@@ -417,6 +417,15 @@ def parse_scriptSig(d, _bytes):
             # we could still guess:
             # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
             return
+
+        redeem_script_unsanitized = decoded[-2][1]  # for partial multisig txn, this has x_pubkeys
+        try:
+            m, n, x_pubkeys, pubkeys, _ = parse_redeemScript_multisig(redeem_script_unsanitized)
+        except NotRecognizedRedeemScript:
+            sigEnd = -1
+
+        x_sig = [bh2u(x[1]) for x in decoded[1:sigEnd]]
+
         # write result in d
         d['type'] = 'p2sh'
         d['num_sig'] = m
@@ -446,6 +455,7 @@ def parse_scriptSig(d, _bytes):
         d['data']=decoded[1][1]
         return
 
+    print(decoded)
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
                 bh2u(_bytes))
 
@@ -827,13 +837,14 @@ class Transaction:
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
         if txin['type'] == 'coinbase':
-            return [], []
+            return [], [], None
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
             pk_list = ["00" * pubkey_size] * len(txin.get('x_pubkeys', [None]))
             # we assume that signature will be 0x48 bytes long
             sig_list = [ "00" * 0x48 ] * num_sig
+            rem_pk_list = None
         else:
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             x_signatures = txin['signatures']
@@ -842,10 +853,12 @@ class Transaction:
             if is_complete:
                 pk_list = pubkeys
                 sig_list = signatures
+                rem_pk_list = None
             else:
                 pk_list = x_pubkeys
                 sig_list = [sig if sig else NO_SIGNATURE for sig in x_signatures]
-        return pk_list, sig_list
+                rem_pk_list = pubkeys
+        return pk_list, sig_list, rem_pk_list
 
     @classmethod
     def serialize_witness_in(self, txin, estimate_size=False):
@@ -920,7 +933,7 @@ class Transaction:
         if script_sig is not None and self.is_txin_complete(txin):
             return script_sig
 
-        pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        pubkeys, sig_list, rem_list = self.get_siglist(txin, estimate_size)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'address' and estimate_size:
             _type = self.guess_txintype_from_address(txin['address'])
@@ -931,6 +944,9 @@ class Transaction:
             script = '00' + script
             redeem_script = multisig_script(pubkeys, txin['num_sig'])
             script += push_script(redeem_script)
+            if rem_list is not None:
+                redeem_script_rem = multisig_script(rem_list, txin['num_sig'])
+                script += push_script(redeem_script_rem)
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
         elif _type in ['p2wpkh', 'p2wsh']:

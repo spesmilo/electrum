@@ -1415,7 +1415,6 @@ class Abstract_Wallet(AddressSynchronizer):
             multiSize = 1
             addrType = constants.net.ADDRTYPE_P2SH
 
-        print('testweird')
         moreLeft = True
         while moreLeft is True:
             i1 = i3 + multiSize
@@ -1434,7 +1433,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     tempAddr = bitcoin.pubkey_to_address('p2pkh', bh2u(pubkeyBytes))
                     if bitcoin.is_address(tempAddr) == False:
                         i3 = bkupI
-                        print('reached this point')
                         break;
                     else:
                         bkupI = i3
@@ -1443,7 +1441,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     if i3 > ptlen:
                         moreLeft = False
                         break
-            print(bin_to_b58check(addrbytes, addrType))
             addrbytes=bytes(data[i1:i2])
             addrs.append(bin_to_b58check(addrbytes, addrType))
         
