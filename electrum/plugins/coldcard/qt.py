@@ -3,16 +3,22 @@ from functools import partial
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
+from PyQt5.QtWidgets import QFileDialog
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window
+from electrum.wallet import Standard_Wallet, Multisig_Wallet
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 
+from binascii import a2b_hex
+from base64 import b64encode, b64decode
+
+from .basic_psbt import BasicPSBT
+from .build_psbt import build_psbt
 
 class Plugin(ColdcardPlugin, QtPluginBase):
     icon_unpaired = "coldcard_unpaired.png"
@@ -24,13 +30,54 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) is not Standard_Wallet:
-            return
-        keystore = wallet.get_keystore()
+        # Context menu on each address in the Addresses Tab, right click...
+
+        if type(wallet) is Standard_Wallet:
+            keystore = wallet.get_keystore()
+        else:
+            # find if any devices are connected and ready to go, use first of those.
+            for ks in wallet.get_keystores():
+                if ks.has_usable_connection_with_device():
+                    keystore = ks
+                    break
+            else:
+                # don't hook into menu
+                return
+
         if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on Coldcard"), show_address)
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
+            menu.addAction(_("Show on Coldcard ({})").format(keystore.label), show_address)
+
+    @only_hook_if_libraries_available
+    @hook
+    def wallet_info_buttons(self, main_window, dialog):
+        # user is about to see the "Wallet Information" dialog
+        # - add a button if multisig wallet, and a Coldcard is a cosigner.
+        wallet = main_window.wallet
+
+        if type(wallet) is not Multisig_Wallet:
+            return
+
+        if not any(type(ks) == self.keystore_class for ks in wallet.get_keystores()):
+            # doesn't involve a Coldcard wallet, hide feature
+            return
+
+        btn = QPushButton(_("Export for Coldcard"))
+        btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
+
+        return Buttons(btn, CloseButton(dialog))
+
+    def export_multisig_setup(self, main_window, wallet):
+
+        basename = wallet.basename().rsplit('.', 1)[0]        # trim .json
+        name = f'{basename}-cc-export.txt'.replace(' ', '-')
+        fileName = main_window.getSaveFileName(_("Select where to save the setup file"),
+                                                        name, "*.txt")
+        if fileName:
+            with open(fileName, "wt") as f:
+                ColdcardPlugin.export_ms_wallet(wallet, f, basename)
+            main_window.show_message(_("Wallet setup file exported successfully"))
 
     @only_hook_if_libraries_available
     @hook
@@ -65,22 +112,61 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         assert type(keystore) == self.keystore_class
 
         # convert to PSBT
-        raw_psbt = keystore.build_psbt(tx, wallet=dia.wallet)
+        build_psbt(tx, dia.wallet)
 
-        name = (dia.wallet.basename() + time.strftime('-%y%m%d-%H%M.psbt')).replace(' ', '-')
+        name = (dia.wallet.basename() + time.strftime('-%y%m%d-%H%M.psbt'))\
+                    .replace(' ', '-').replace('.json', '')
         fileName = dia.main_window.getSaveFileName(_("Select where to save the PSBT file"),
                                                         name, "*.psbt")
         if fileName:
             with open(fileName, "wb+") as f:
-                f.write(raw_psbt)
+                f.write(tx.raw_psbt)
             dia.show_message(_("Transaction exported successfully"))
             dia.saved = True
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
-        device_id = self.choose_device(window, keystore)
-        if device_id:
-            CKCCSettingsDialog(window, self, keystore, device_id).exec_()
+        # - doesn't matter if device not connected, continue
+        CKCCSettingsDialog(window, self, keystore).exec_()
+
+    @hook
+    def init_menubar_tools(self, main_window, tools_menu):
+        # add some PSBT-related tools to the Tool menu.
+        tools_menu.addSeparator()
+        tools_menu.addAction(_("&Combine PSBT Files"), lambda: self.psbt_combiner(main_window))
+
+    def psbt_combiner(self, window):
+        title = _("Select the signed PSBT files to combine and transmit")
+        directory = ''
+        fnames, __ = QFileDialog.getOpenFileNames(window, title, directory, "PSBT Files (*.psbt)")
+
+        psbts = []
+        for fn in fnames:
+            try:
+                with open(fn, "rb") as f:
+                    raw = f.read()
+
+                    psbt = BasicPSBT()
+                    psbt.parse(raw, fn)
+
+                    psbts.append(psbt)
+            except (AssertionError, ValueError, IOError, os.error) as reason:
+                window.show_critical(_("Electrum was unable to open your PSBT file") + "\n" + str(reason), title=_("Unable to read file"))
+                return
+
+        # Consistency checks
+        try:
+            assert len(psbts) >= 2, _("Need 2 or more PSBT to be able to combine them.")
+            first = psbts[0]
+            for p in psbts:
+                assert (p.txn == first.txn), \
+                    f"All must relate to the same original transaction, check file: {p.filename}"
+                for idx, inp in enumerate(p.inputs):
+                    assert inp.part_sigs, f"No partial signatures found in file: {p.filename}"
+                    
+        except AssertionError as exc:
+            window.show_critical(str(exc), title=_("Unable to combine PSBT files"))
+            return
 
 
 class Coldcard_Handler(QtHandlerBase):
@@ -112,21 +198,25 @@ class Coldcard_Handler(QtHandlerBase):
         return
 
 class CKCCSettingsDialog(WindowModalDialog):
-    '''This dialog doesn't require a device be paired with a wallet.
-    We want users to be able to wipe a device even if they've forgotten
-    their PIN.'''
 
-    def __init__(self, window, plugin, keystore, device_id):
+    def __init__(self, window, plugin, keystore):
         title = _("{} Settings").format(plugin.device)
         super(CKCCSettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
+        # Note: Coldcard may **not** be connected at present time. Keep working!
+
         devmgr = plugin.device_manager()
-        config = devmgr.config
-        handler = keystore.handler
+        #config = devmgr.config
+        #handler = keystore.handler
         self.thread = thread = keystore.thread
+        self.keystore = keystore
 
         def connect_and_doit():
+            # Attempt connection to device, or raise.
+            device_id = plugin.choose_device(window, keystore)
+            if not device_id:
+                raise RuntimeError("Device not connected")
             client = devmgr.client_by_id(device_id)
             if not client:
                 raise RuntimeError("Device not connected")
@@ -148,13 +238,14 @@ class CKCCSettingsDialog(WindowModalDialog):
         y = 3
 
         rows = [
+            ('xfp', _("Master Fingerprint")),
+            ('serial', _("USB Serial")),
             ('fw_version', _("Firmware Version")),
             ('fw_built', _("Build Date")),
             ('bl_version', _("Bootloader")),
-            ('xfp', _("Master Fingerprint")),
-            ('serial', _("USB Serial")),
         ]
         for row_num, (member_name, label) in enumerate(rows):
+            # XXX we know xfp already, even if not connected
             widget = QLabel('<tt>000000000000')
             widget.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
 
@@ -164,7 +255,7 @@ class CKCCSettingsDialog(WindowModalDialog):
             y += 1
         body_layout.addLayout(grid)
 
-        upg_btn = QPushButton('Upgrade')
+        upg_btn = QPushButton(_('Upgrade'))
         #upg_btn.setDefault(False)
         def _start_upgrade():
             thread.add(connect_and_doit, on_success=self.start_upgrade)
@@ -177,10 +268,19 @@ class CKCCSettingsDialog(WindowModalDialog):
         dialog_vbox = QVBoxLayout(self)
         dialog_vbox.addWidget(body)
 
-        # Fetch values and show them
-        thread.add(connect_and_doit, on_success=self.show_values)
+        # Fetch firmware/versions values and show them.
+        thread.add(connect_and_doit, on_success=self.show_values, on_error=self.show_placeholders)
+
+    def show_placeholders(self, unclear_arg):
+        # device missing, so hide lots of detail.
+        self.xfp.setText('<tt>%s' % xfp2str(self.keystore.ckcc_xfp))
+        self.serial.setText('(not connected)')
+        self.fw_version.setText('')
+        self.fw_built.setText('')
+        self.bl_version.setText('')
 
     def show_values(self, client):
+
         dev = client.dev
 
         self.xfp.setText('<tt>%s' % xfp2str(dev.master_fingerprint))
