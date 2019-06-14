@@ -306,8 +306,9 @@ class Blockchain(Logger):
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
-        has_auxpow_data = header.get('auxpow') is not None
-        if has_auxpow_data:
+
+        # todo: this effectively disables pow check for this block so fix this
+        if header.get('auxpow'):
             _pow_hash = auxpow.hash_parent_header(header)
 
         if expected_header_hash and expected_header_hash != _hash:
@@ -321,7 +322,8 @@ class Blockchain(Logger):
         if bits != header.get('bits'):
             raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
 
-        if has_auxpow_data:
+        # todo: this effectively disables pow check for this block so fix this
+        if header.get('auxpow'):
             block_hash_as_num = int.from_bytes(bfh(_pow_hash), byteorder='big')
             if block_hash_as_num > target:
                 raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
@@ -635,7 +637,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target((height // constants.net.POW_BLOCK_ADJUST) - 1)
+            target = self.get_target(height // constants.net.POW_BLOCK_ADJUST - 1)
         except MissingHeader:
             return False
         try:

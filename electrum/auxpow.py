@@ -162,7 +162,7 @@ def strip_auxpow_headers(index, chunk):
 
 
 def hash_parent_header(header):
-    if header.get('auxpow') is None or not auxpow_active(header):
+    if not auxpow_active(header):
         return electrum.blockchain.hash_header(header)
 
     verify_auxpow(header)
@@ -348,7 +348,7 @@ def fast_tx_deserialize(tx):
     real_parse_output, transaction.parse_output = transaction.parse_output, stub_parse_output
 
     try:
-        result = tx.deserialize(ignore_inputs=True)
+        result = tx.deserialize()
     finally:
         # Restore the real output address parser.
         transaction.parse_output = real_parse_output

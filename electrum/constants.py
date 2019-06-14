@@ -155,9 +155,7 @@ class SyscoinMainnet(AbstractNet):
             "version": "1.4"
         }
     })
-    CHECKPOINTS = read_json('checkpoints.json', [
-
-    ])
+    CHECKPOINTS = read_json('checkpoints.json', [])
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv XPRV_VERBYTES
