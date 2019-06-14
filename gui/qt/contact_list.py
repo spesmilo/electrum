@@ -22,7 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import webbrowser
 
 from electroncash.i18n import _
 import electroncash.web as web
@@ -33,7 +32,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
-from .util import MyTreeWidget
+from .util import MyTreeWidget, webopen
 
 
 class ContactList(MyTreeWidget):
@@ -98,7 +97,7 @@ class ContactList(MyTreeWidget):
             URLs = [web.BE_URL(self.config, 'addr', Address.from_string(key))
                     for key in keys if Address.is_valid(key)]
             if any(URLs):
-                menu.addAction(_("View on block explorer"), lambda: [URL and webbrowser.open(URL) for URL in URLs])
+                menu.addAction(_("View on block explorer"), lambda: [URL and webopen(URL) for URL in URLs])
 
         run_hook('create_contact_menu', menu, selected)
         menu.exec_(self.viewport().mapToGlobal(position))
