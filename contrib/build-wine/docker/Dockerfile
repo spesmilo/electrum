@@ -44,6 +44,7 @@ RUN dpkg --add-architecture i386 && \
         gettext \
         direnv \
         golang-go \
+        pyqt5-dev-tools \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

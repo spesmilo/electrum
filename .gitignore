@@ -20,3 +20,9 @@ bin/
 # tox files
 .cache/
 .coverage
+
+# macOS
+.DS_Store
+contrib/build-osx/libsecp256k1.0.dylib
+contrib/build-osx/libusb-1.0.dylib
+contrib/osx
