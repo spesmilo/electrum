@@ -154,6 +154,8 @@ RUN cd /opt \
     && git cherry-pick ed20e196fbcdce718a180f88f23bb2d165c4c5d8 \
        # gradle: persist debug keystore:
     && git cherry-pick aaa0d5d0e7a334631df71e0a9bf127817e0ab9ab \
+       # add recipe for pycryptodomex:
+    && git cherry-pick 9bab610565d95111d8035998765e97c70fa3e1b4 \
     && python3 -m pip install --user -e .
 
 # build env vars

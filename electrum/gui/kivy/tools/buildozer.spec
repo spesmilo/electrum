@@ -42,7 +42,8 @@ requirements =
     plyer,
     kivy==82d561d62577757d478df52173610f925c05ecab,
     libffi,
-    libsecp256k1
+    libsecp256k1,
+    pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -180,7 +181,7 @@ p4a.source_dir = /opt/python-for-android
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
-log_level = 1
+log_level = 2
 
 
 # -----------------------------------------------------------------------------
