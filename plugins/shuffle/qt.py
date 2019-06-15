@@ -22,10 +22,14 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-from __future__ import absolute_import
-
-import os, sys, json, copy, socket, time
+import os
+import sys
+import json
+import copy
+import socket
+import time
+import threading
+import queue
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -33,7 +37,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-from electroncash.util import print_error, profiler, PrintError, Weak, format_satoshis_plain
+from electroncash.util import print_error, profiler, PrintError, Weak, format_satoshis_plain, finalization_print_error
 from electroncash.network import Network
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
@@ -1642,81 +1646,75 @@ class SettingsDialogMixin(NetworkCheckerDelegateMixin, PrintError):
     def _vpOnPoolsBut(self):
         w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=True)
 
+    def _on_statusChanged(self, d):
+        red, blue, green = "red", "blue", "green"
+        try: red, blue, green = ColorScheme.RED._get_color(0), ColorScheme.BLUE._get_color(0), ColorScheme.GREEN._get_color(0)
+        except AttributeError: pass
+        #self.print_error("status changed", d)
+        if not d: # Empty dict means we are connecting
+            self.serverOk = None
+            self.statusLabel.setText("<font color=\"{}\"><i>{}</i></font>".format(blue, _("Checking server...")))
+            return
+        if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
+            reason = d['failed']
+            if reason == 'offline_mode':
+                reason = _("Electron Cash is in offline mode.")
+            elif reason == 'bad':
+                reason = _("Server is misconfigured")
+            elif reason == 'ssl':
+                reason = _("Failed to verify SSL certificate")
+            else:
+                reason = _("Connection failure")
+            self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"{}\">{}</font>".format(red, reason))
+            self.serverOk = False
+            return
+
+        # any other case has all the below keys defined
+
+        self.serverOk = d['status'] == _('Ok')
+
+        self.statusLabel.setText(
+            '''
+            <b>{}:</b> <i>{}</i><br>
+            <b>{}:</b> <font color="{}">{}</font> {} &nbsp;&nbsp;&nbsp;{}
+            <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
+            '''
+            .format(_('Server'), _elide(d['host'], maxlen=40, startlen=12),
+                    _('Status'), green if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
+                    _('Pool size'), d['poolSize'],
+                    _('Connections'),
+                    d['connections'],
+                    _('Active pools'), d['pools'])
+        )
+
+    def _on_formChange(self):
+        try:
+            #self.print_error("onFormChange")
+            d = self.get_form()
+            self.settingsChanged.emit(d)
+        except RuntimeError as e:
+            # Paranoia guard against C++ object deleted exception
+            # (we may get called from a QTimer.singleShot below)
+            if 'C++' not in str(e).upper():
+                raise
+
     def startNetworkChecker(self):
         if self.networkChecker: return
 
-        def onStatusChanged(d):
-            red, blue, green = "red", "blue", "green"
-            try: red, blue, green = ColorScheme.RED._get_color(0), ColorScheme.BLUE._get_color(0), ColorScheme.GREEN._get_color(0)
-            except AttributeError: pass
-            #self.print_error("status changed", d)
-            if not d: # Empty dict means we are connecting
-                self.serverOk = None
-                self.statusLabel.setText("<font color=\"{}\"><i>{}</i></font>".format(blue, _("Checking server...")))
-                return
-            if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
-                reason = d['failed']
-                if reason == 'offline_mode':
-                    reason = _("Electron Cash is in offline mode.")
-                elif reason == 'bad':
-                    reason = _("Server is misconfigured")
-                elif reason == 'ssl':
-                    reason = _("Failed to verify SSL certificate")
-                else:
-                    reason = _("Connection failure")
-                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"{}\">{}</font>".format(red, reason))
-                self.serverOk = False
-                return
-
-            # any other case has all the below keys defined
-
-            self.serverOk = d['status'] == _('Ok')
-
-            self.statusLabel.setText(
-                '''
-                <b>{}:</b> <i>{}</i><br>
-                <b>{}:</b> <font color="{}">{}</font> {} &nbsp;&nbsp;&nbsp;{}
-                <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
-                '''
-                .format(_('Server'), _elide(d['host'], maxlen=40, startlen=12),
-                        _('Status'), green if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
-                        _('Pool size'), d['poolSize'],
-                        _('Connections'),
-                        d['connections'],
-                        _('Active pools'), d['pools'])
-            )
-
         self.networkChecker = NetworkChecker(self)
-        self.networkChecker.conn1 = self.statusChanged.connect(lambda d: onStatusChanged(d))
-        def onFormChange():
-            try:
-                #self.print_error("onFormChange")
-                d = self.get_form()
-                self.settingsChanged.emit(d)
-            except RuntimeError as e:
-                if 'c++' not in str(e).lower():
-                    raise
-                # else...
-                # FIXME
-                # Caught C++ object deleted exception. This can happen if they
-                # close the dialog very quickly. Because we used a QTimer.singleShot
-                # below.  This fixes #1465.
-        self.networkChecker.conn2 = self.formChanged.connect(lambda: onFormChange())
+        self.statusChanged.connect(self._on_statusChanged, Qt.QueuedConnection)
+        self.formChanged.connect(self._on_formChange, Qt.QueuedConnection)
         self.print_error("Starting network checker...")
         self.networkChecker.start()
-        QTimer.singleShot(100, lambda: onFormChange())  # Note this is potentially unsafe as this object can get deleteLater'd before the timer fires. See above try: except: in onFormChange.
+        QTimer.singleShot(100, self._on_formChange)  # kicks off the network checker by sending it new settings
 
     def stopNetworkChecker(self):
         if self.networkChecker:
-            if self.networkChecker.conn1:
-                self.statusChanged.disconnect(self.networkChecker.conn1)
-                self.networkChecker.conn1 = None
-            if self.networkChecker.conn2:
-                self.statusChanged.disconnect(self.networkChecker.conn2)
-                self.networkChecker.conn2 = None
-            self.networkChecker.quit()
-            self.networkChecker.wait()
-            self.networkChecker.deleteLater()
+            try: self.statusChanged.disconnect(self._on_statusChanged)
+            except TypeError: pass  # not connected
+            try: self.statusChanged.disconnect(self._on_formChange)
+            except TypeError: pass  # not connected
+            self.networkChecker.stop()
             self.networkChecker = None
             self.print_error("Stopped network checker.")
     # /
@@ -1750,12 +1748,16 @@ class SettingsTab(SettingsDialogMixin, QWidget):
         self.vbox.addStretch()
         hbox.addStretch(1)
         hbox.addWidget(self.apply)
-        self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
+        self.apply.clicked.connect(self._re_emit_applyChanges)
+
+    def _re_emit_applyChanges(self):
+        self.applyChanges.emit(self)
+
     def _vpOnPoolsBut(self):
         w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=False, parent_window=self)
 # /SettingsTab
 
-class NetworkChecker(PrintError, QThread):
+class NetworkChecker(PrintError):
     ''' Runs in a separate thread, checks the server automatically when the settings form changes
         and publishes results to GUI thread. '''
     pollTimeSecs = 15.0
@@ -1764,107 +1766,144 @@ class NetworkChecker(PrintError, QThread):
 
     def __init__(self, parent):
         assert isinstance(parent, NetworkCheckerDelegateMixin), "Parent to NetworkChecker must be a NetworkCheckerDelegateMixin"
-        super().__init__(parent)
-        self.parent = parent
-        self.timer = None # delay checking server in case user is typing in a new one in the custom box
-        self.timerCon = None
-        destroyed_print_error(self)
+        self.weakParent = Weak.ref(parent)
+        self.q = queue.Queue()
+        self.thread = threading.Thread(target=self.thread_func, daemon=True)
+        self._please_stop = False
+        self._sock = None
+        self._update_ct = 0
+        parent.settingsChanged.connect(self._on_settings_changed, Qt.QueuedConnection)
         self.print_error("created")
-    #def __del__(self):
-    #    self.print_error("(Instance deleted)")
-    def run(self): # overrides QThread
+        finalization_print_error(self)
+
+    def stop(self):
+        if self.thread.is_alive():
+            self._please_stop = True
+            self.q.put(None)    # signal to thread to die
+            try: self._sock.close() # force close thread
+            except: pass
+            self.thread.join(timeout=15.0)  # wait for thread to finish
+            if self.thread.is_alive():
+                # This should never happen
+                self.print_error("*** WARNING: Waited for thread to exit for 15.0 seconds, but it is still running! FIXME!")
+
+    def start(self):
+        if not self.thread.is_alive():
+            self.q.put(None)  # paranoia just in case
+            self.q = queue.Queue()  # clear the queue
+            self._please_stop = False
+            self.thread.start()  # this raises RuntimeError if called more than once.
+
+    def _on_settings_changed(self, d):
+        self._update_ct = 0  # reset ctr for these settings.  ctr = 0 causes us to tell gui to draw the "Connecting, please wait..." text
+        self.q.put(d.copy())  # notify thread which waits on this q
+
+    def _wait_drain_q(self, last_settings):
+        q = self.q
         try:
-            self.print_error("Started thread.")
-            def updateStatus(d):
-                #self.print_error("updateStatus", d) # XXX
-                is_bad_server, is_bad_ssl, is_offline_mode = False, False, False
-                try:
-                    if not Network.get_instance():
-                        is_offline_mode = True
-                        raise RuntimeError("No network")
+            res = None
+            try:
+                # Drain queue to get latest settings
+                while True:
+                    # keep reading from the queue until it's empty
+                    res = q.get_nowait()
+                    if res is None:
+                        # we got a None, return early -- this indicates abort thread
+                        return res
+            except queue.Empty:
+                ''' No settings were waiting in queue.. move to blocking
+                operation '''
+            if self._please_stop:
+                return # indicate stop
+            if res is not None:
+                # we had a result, return
+                return res
+            # no result from Queue, block for pollTimeSecs
+            return q.get(timeout=self.pollTimeSecs)
+        except queue.Empty:
+            # no result in pollTimeSecs, return last settings value
+            return last_settings
 
-                    port, poolSize, connections, pools, banScore, banned = query_server_for_stats(d['server'], d['info'], d['ssl'])
-
-                    if poolSize < 3:
-                        # hard-coded -- do not accept servers with poolSize < 3
-                        is_bad_server = True
-                        raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
-                    if d['ssl'] and self.verifySSL and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
-                        is_bad_ssl = True
-                        raise RuntimeError("Could not verify SSL server certificate.")
-
-                    if self.checkShufflePort:
-                        socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
-                    self.parent.statusChanged.emit({
-                        'host'   : d['server'],
-                        'status' : _('Ok') if not banned else _('Banned'),
-                        'poolSize' : str(poolSize),
-                        'connections' : str(connections),
-                        'pools' : str(len(pools)),
-                        'poolsList' : pools,
-                        'banScore' : banScore,
-                        'banned' : banned,
-                        'name' : d['server'] + ":" + str(d['info']),
-                        'info' : d['info'],
-                        'ssl'  : d['ssl'],
-                    })
-                except BaseException as e:
-                    #import traceback
-                    #traceback.print_exc()
-                    self.print_error("exception on connect:",str(e))
-                    if is_offline_mode:
-                        self.parent.statusChanged.emit({'failed' : 'offline_mode'})
-                    elif is_bad_ssl:
-                        self.parent.statusChanged.emit({'failed' : 'ssl'})
-                    elif is_bad_server:
-                        self.parent.statusChanged.emit({'failed' : 'bad'})
-                    else:
-                        self.parent.statusChanged.emit({'failed' : 'failed'})
-            def onSettingsChange(d):
-                #self.print_error("onSettingsChange",d) # XXX
-                self.parent.statusChanged.emit(dict())
-                updateStatus(d)
-            def onTimer(t, d):
-                #self.print_error("onTimer",t.objectName()) # XXX
-                if t.objectName() == "Virgin Timer":
-                    t.setObjectName("Nonvirgin Timer")
-                    t.setSingleShot(False)
-                    t.start(self.pollTimeSecs*1e3) # fire every 15 seconds to update stats
-                    onSettingsChange(d)
-                else:
-                    updateStatus(d)
-            def killTimer():
-                if self.timer:
-                    #self.print_error("killTimer") # XXX
-                    self.timer.stop()
-                    if self.timerCon:
-                        self.timer.timeout.disconnect(self.timerCon)
-                    self.timeCon = None
-                    self.timer.deleteLater()
-                    self.timer = None
-            def startTimer(d):
-                #self.print_error("startTimer",self.pollTimeSecs,d) # XXX
-                d = d.copy()
-                killTimer()
-                class MyTimer(QTimer, PrintError):
-                    def __init__(self, parent=None):
-                        QTimer.__init__(self, parent)
-                        #self.destroyed.connect(lambda x: self.print_error("destroyed"))
-                    #def __del__(self):
-                    #    self.print_error("(Instance deleted)")
-                self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
-                self.timerCon = self.timer.timeout.connect(lambda: onTimer(self.timer,d))
-                self.timer.start(250)
-
-            c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
-            super().exec_() # Process thread event loop
-            killTimer()
-            self.print_error("Exiting thread...")
+    def thread_func(self):
+        try:
+            self.print_error("thread entered")
+            settings = dict()
+            while True:
+                settings = self._wait_drain_q(settings)
+                if settings is None:
+                    return  # exit thread if we got a None
+                if settings:
+                    self._on_update_status(settings)
         finally:
-            if c:
-                self.parent.settingsChanged.disconnect(c)
-            del c
-    # / run
+            self.print_error("thread exiting")
+
+    def _emit_status_changed(self, d):
+        self.weakParent() and self.weakParent().statusChanged.emit(d)
+
+    def _on_update_status(self, d):
+        d = d.copy()
+        #self.print_error("updateStatus", d) # XXX
+        is_bad_server, is_bad_ssl, is_offline_mode = False, False, False
+        try:
+            if not Network.get_instance():
+                is_offline_mode = True
+                raise RuntimeError("No network")
+
+            if self._update_ct == 0:
+                self._emit_status_changed(dict())  # tells GUI we are "connecting..."
+            self._update_ct += 1
+
+            port, poolSize, connections, pools, banScore, banned = query_server_for_stats(d['server'], d['info'], d['ssl'])
+
+            if self._please_stop:
+                return
+
+            if poolSize < 3:
+                # hard-coded -- do not accept servers with poolSize < 3
+                is_bad_server = True
+                raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
+            if d['ssl'] and self.verifySSL and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
+                is_bad_ssl = True
+                raise RuntimeError("Could not verify SSL server certificate.")
+
+            if self._please_stop:
+                return
+
+            if self.checkShufflePort:
+                self._sock = socket.create_connection((d['server'], port), 5.0) # test connectivity to port
+                self._sock.close()
+                self._sock = None
+
+            if self._please_stop:
+                return
+
+            self._emit_status_changed({
+                'host'   : d['server'],
+                'status' : _('Ok') if not banned else _('Banned'),
+                'poolSize' : str(poolSize),
+                'connections' : str(connections),
+                'pools' : str(len(pools)),
+                'poolsList' : pools,
+                'banScore' : banScore,
+                'banned' : banned,
+                'name' : d['server'] + ":" + str(d['info']),
+                'info' : d['info'],
+                'ssl'  : d['ssl'],
+            })
+        except Exception as e:
+            # DEBUG
+            #import traceback
+            #traceback.print_exc()
+            # /DEBUG
+            self.print_error("exception on connect:",str(e))
+            if is_offline_mode:
+                self._emit_status_changed({'failed' : 'offline_mode'})
+            elif is_bad_ssl:
+                self._emit_status_changed({'failed' : 'ssl'})
+            elif is_bad_server:
+                self._emit_status_changed({'failed' : 'bad'})
+            else:
+                self._emit_status_changed({'failed' : 'failed'})
 # / NetworkChecker
 
 class PoolsWinMgr(QObject, PrintError):
@@ -2116,9 +2155,9 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             if self.needsColumnSizing:  # this flag suppresses resizing each refresh to allow users to manually size the columns after a display with real data appears.
                 sizeColumnsToFit()
                 self.needsColumnSizing = False
-    def _kick_off_timer(self):
+    def _kick_off_nc(self):
         try:
-            self.settingsChanged.emit(self.settings) # kicks off the timer
+            self.settingsChanged.emit(self.settings) # kicks off the NetworkChecker by sending it some server settings to check
         except RuntimeError:
             pass  # paranoia: guard against wrapped C++ object exception.. shouldn't happen because timer was keyed off this object as receiver
     def startNetworkChecker(self):
@@ -2127,12 +2166,10 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         nc.pollTimeSecs, nc.verifySSL, nc.checkShufflePort = 2.0, False, False
         self.print_error("Starting network checker...")
         self.networkChecker.start()
-        QTimer.singleShot(500, self._kick_off_timer)  # despite appearances timer will not fire after object deletion due to PyQt5 singal/slot receiver rules
+        QTimer.singleShot(500, self._kick_off_nc)  # despite appearances timer will not fire after object deletion due to PyQt5 singal/slot receiver rules
     def stopNetworkChecker(self):
         if self.networkChecker:
-            self.networkChecker.quit()
-            self.networkChecker.wait()
-            self.networkChecker.deleteLater()
+            self.networkChecker.stop() # waits for network checker to finish...
             self.networkChecker = None
             self.print_error("Stopped network checker.")
 # /PoolsWindow
