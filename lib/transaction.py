@@ -98,6 +98,11 @@ class BCDataStream(object):
 
         return ''
 
+    def can_read_more(self) -> bool:
+        if not self.input:
+            return False
+        return self.read_cursor < len(self.input)
+
     def read_boolean(self): return self.read_bytes(1)[0] != chr(0)
     def read_int16(self): return self._read_num('<h')
     def read_uint16(self): return self._read_num('<H')
@@ -347,8 +352,11 @@ def deserialize(raw):
     assert n_vin != 0
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
+    assert n_vout != 0
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
     d['lockTime'] = vds.read_uint32()
+    if vds.can_read_more():
+        raise SerializationError('extra junk at the end')
     return d
 
 
@@ -1089,7 +1097,8 @@ class Transaction:
                         except queue.Empty:
                             print_error("fetch_input_data: timed out after 10.0s fetching from network, giving up.")
                             break
-                        except (AssertionError, ValueError, TypeError, KeyError, IndexError, ErrorResp) as e:
+                        except (AssertionError, ValueError, TypeError, KeyError,
+                                IndexError, ErrorResp, InputValueMissing, SerializationError) as e:
                             print_error("fetch_input_data:", repr(e))
                 finally:
                     # force-cancel any extant requests -- this is especially
