@@ -17,6 +17,8 @@ set -e
 
 git checkout "$to_build" || fail "Could not branch or tag $to_build"
 
+GIT_COMMIT_HASH=$(git rev-parse HEAD)
+
 info "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -fr
 rm "$here"/dist/* -fr
@@ -203,6 +205,7 @@ prepare_wine() {
         (
             cd pyinstaller
             git checkout -b pinned $PYINSTALLER_COMMIT
+            echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
             cd bootloader
             python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
         )
