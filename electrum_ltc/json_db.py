@@ -582,19 +582,22 @@ class JsonDB(Logger):
 
     @locked
     def get_spent_outpoint(self, prevout_hash, prevout_n):
-        return self.spent_outpoints.get(prevout_hash, {}).get(str(prevout_n))
+        prevout_n = str(prevout_n)
+        return self.spent_outpoints.get(prevout_hash, {}).get(prevout_n)
 
     @modifier
     def remove_spent_outpoint(self, prevout_hash, prevout_n):
-        self.spent_outpoints[prevout_hash].pop(prevout_n, None)  # FIXME
+        prevout_n = str(prevout_n)
+        self.spent_outpoints[prevout_hash].pop(prevout_n, None)
         if not self.spent_outpoints[prevout_hash]:
             self.spent_outpoints.pop(prevout_hash)
 
     @modifier
     def set_spent_outpoint(self, prevout_hash, prevout_n, tx_hash):
+        prevout_n = str(prevout_n)
         if prevout_hash not in self.spent_outpoints:
             self.spent_outpoints[prevout_hash] = {}
-        self.spent_outpoints[prevout_hash][str(prevout_n)] = tx_hash
+        self.spent_outpoints[prevout_hash][prevout_n] = tx_hash
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
