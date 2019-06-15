@@ -989,7 +989,14 @@ class Abstract_Wallet(PrintError):
             else:
                 date_str = _("unconfirmed")
             item['date'] = date_str
-            item['label'] = self.get_label(tx_hash)
+            try:
+                # Defensive programming.. sanitize label.
+                # The below ensures strings are utf8-encodable. We do this
+                # as a paranoia measure.
+                item['label'] = self.get_label(tx_hash).encode(encoding='utf-8', errors='replace').decode(encoding='utf-8', errors='replace')
+            except UnicodeError:
+                self.print_error(f"Warning: could not export label for {tx_hash}, defaulting to ???")
+                item['label'] = "???"
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
                 tx.deserialize()

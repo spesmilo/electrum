@@ -2907,7 +2907,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not fileName:
             return
         try:
-            with open(fileName, "r") as f:
+            with open(fileName, "r", encoding='utf-8') as f:
                 file_content = f.read()
             file_content = file_content.strip()
             tx_file_dict = json.loads(str(file_content))
@@ -3054,7 +3054,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(_("Private keys exported."))
 
     def do_export_privkeys(self, fileName, pklist, is_csv):
-        with open(fileName, "w+") as f:
+        with open(fileName, "w+", encoding='utf-8') as f:
             if is_csv:
                 transaction = csv.writer(f)
                 transaction.writerow(["address", "private_key"])
@@ -3067,7 +3067,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         labelsFile = self.getOpenFileName(_("Open labels file"), "*.json")
         if not labelsFile: return
         try:
-            with open(labelsFile, 'r') as f:
+            with open(labelsFile, 'r', encoding='utf-8') as f:  # always ensure UTF-8. See issue #1453.
                 data = f.read()
                 data = json.loads(data)
             if type(data) is not dict or not len(data) or not all(type(v) is str and type(k) is str for k,v in data.items()):
@@ -3088,7 +3088,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             fileName = self.getSaveFileName(_("Select file to save your labels"), 'electron-cash_labels.json', "*.json")
             if fileName:
-                with open(fileName, 'w+') as f:
+                with open(fileName, 'w+', encoding='utf-8') as f:  # always ensure UTF-8. See issue #1453.
                     json.dump(labels, f, indent=4, sort_keys=True)
                 self.show_message(_("Your labels were exported to") + " '%s'" % str(fileName))
         except (IOError, os.error) as reason:
@@ -3140,7 +3140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 lines.append(item)
 
-        with open(fileName, "w+") as f:
+        with open(fileName, "w+", encoding="utf-8") as f:  # ensure encoding to utf-8. Avoid Windows cp1252. See #1453.
             if is_csv:
                 transaction = csv.writer(f, lineterminator='\n')
                 transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])

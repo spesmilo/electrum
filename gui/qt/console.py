@@ -249,7 +249,7 @@ class Console(QtWidgets.QWidget):
         self.is_json = b
 
     def run_script(self, filename):
-        with open(filename) as f:
+        with open(filename, encoding='utf-8') as f:
             script = f.read()
 
         # eval is generally considered bad practice. use it wisely!

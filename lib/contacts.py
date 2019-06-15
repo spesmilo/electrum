@@ -54,7 +54,7 @@ class Contacts(dict):
     def import_file(self, path):
         count = 0
         try:
-            with open(path, 'r') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 d = self._validate(json.loads(f.read()))
                 count = len(d)
         except:
@@ -66,7 +66,7 @@ class Contacts(dict):
 
     def export_file(self, path):
         ''' Save contacts as JSON to a file. May raise OSError. '''
-        with open(path, 'w+') as f:
+        with open(path, 'w+', encoding='utf-8') as f:
             json.dump(self, f, indent=4, sort_keys=True)
         return len(self)
 

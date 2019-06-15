@@ -478,7 +478,7 @@ class InvoiceStore(object):
 
     def import_file(self, path):
         try:
-            with open(path, 'r') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 d = json.loads(f.read())
                 self.load(d)
         except json.decoder.JSONDecodeError:
