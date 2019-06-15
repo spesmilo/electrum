@@ -1689,13 +1689,22 @@ class SettingsDialogMixin(NetworkCheckerDelegateMixin, PrintError):
         self.networkChecker = NetworkChecker(self)
         self.networkChecker.conn1 = self.statusChanged.connect(lambda d: onStatusChanged(d))
         def onFormChange():
-            #self.print_error("onFormChange")
-            d = self.get_form()
-            self.settingsChanged.emit(d)
+            try:
+                #self.print_error("onFormChange")
+                d = self.get_form()
+                self.settingsChanged.emit(d)
+            except RuntimeError as e:
+                if 'c++' not in str(e).lower():
+                    raise
+                # else...
+                # FIXME
+                # Caught C++ object deleted exception. This can happen if they
+                # close the dialog very quickly. Because we used a QTimer.singleShot
+                # below.  This fixes #1465.
         self.networkChecker.conn2 = self.formChanged.connect(lambda: onFormChange())
         self.print_error("Starting network checker...")
         self.networkChecker.start()
-        QTimer.singleShot(100, lambda: onFormChange())
+        QTimer.singleShot(100, lambda: onFormChange())  # Note this is potentially unsafe as this object can get deleteLater'd before the timer fires. See above try: except: in onFormChange.
 
     def stopNetworkChecker(self):
         if self.networkChecker:
@@ -2107,13 +2116,18 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             if self.needsColumnSizing:  # this flag suppresses resizing each refresh to allow users to manually size the columns after a display with real data appears.
                 sizeColumnsToFit()
                 self.needsColumnSizing = False
+    def _kick_off_timer(self):
+        try:
+            self.settingsChanged.emit(self.settings) # kicks off the timer
+        except RuntimeError:
+            pass  # paranoia: guard against wrapped C++ object exception.. shouldn't happen because timer was keyed off this object as receiver
     def startNetworkChecker(self):
         if self.networkChecker: return
         self.networkChecker = nc = NetworkChecker(self)
         nc.pollTimeSecs, nc.verifySSL, nc.checkShufflePort = 2.0, False, False
         self.print_error("Starting network checker...")
         self.networkChecker.start()
-        QTimer.singleShot(500, lambda: self.settingsChanged.emit(self.settings)) # kicks off the timer
+        QTimer.singleShot(500, self._kick_off_timer)  # despite appearances timer will not fire after object deletion due to PyQt5 singal/slot receiver rules
     def stopNetworkChecker(self):
         if self.networkChecker:
             self.networkChecker.quit()
