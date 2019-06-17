@@ -30,6 +30,7 @@ import csv
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 import base64
 from functools import partial
+from collections import OrderedDict
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -3497,7 +3498,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs = QTabWidget()
         gui_widgets = []
         fee_widgets = []
-        tx_widgets = []
+        global_tx_widgets, per_wallet_tx_widgets = [], []
         id_widgets = []
 
         cashaddr_cb = QCheckBox(_('CashAddr address format'))
@@ -3759,7 +3760,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.wallet.storage.put('use_change', self.wallet.use_change)
                     multiple_cb.setEnabled(self.wallet.use_change)
             usechange_cb.stateChanged.connect(on_usechange)
-        tx_widgets.append((usechange_cb, None))
+        per_wallet_tx_widgets.append((usechange_cb, None))
 
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
@@ -3782,7 +3783,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.wallet.multiple_change = multiple
                     self.wallet.storage.put('multiple_change', multiple)
             multiple_cb.stateChanged.connect(on_multiple)
-        tx_widgets.append((multiple_cb, None))
+        per_wallet_tx_widgets.append((multiple_cb, None))
 
         def fmt_docs(key, klass):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
@@ -3795,7 +3796,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
         unconf_cb.setChecked(conf_only)
         unconf_cb.stateChanged.connect(on_unconf)
-        tx_widgets.append((unconf_cb, None))
+        global_tx_widgets.append((unconf_cb, None))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
@@ -3808,7 +3809,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         opret_cb.setToolTip(_('Enable posting messages with OP_RETURN.'))
         opret_cb.setChecked(enable_opreturn)
         opret_cb.stateChanged.connect(self.on_toggled_opreturn)
-        tx_widgets.append((opret_cb,None))
+        global_tx_widgets.append((opret_cb,None))
 
         # Schnorr
         use_schnorr_cb = QCheckBox(_("Enable Schnorr signatures"))
@@ -3822,7 +3823,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # not possible (wallet type not supported); show reason in tooltip
             use_schnorr_cb.setEnabled(False)
             use_schnorr_cb.setToolTip(no_schnorr_reason[0])
-        tx_widgets.append((use_schnorr_cb, None))
+        per_wallet_tx_widgets.append((use_schnorr_cb, None))
 
 
         def update_currencies():
@@ -3915,16 +3916,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tabs_info = [
             (fee_widgets, _('Fees')),
-            (tx_widgets, _('Transactions')),
+            (OrderedDict([
+                ( _("App-Global Options") , global_tx_widgets ),
+                ( _("Per-Wallet Options") , per_wallet_tx_widgets),
+             ]), _('Transactions')),
             (gui_widgets, _('General')),
             (fiat_widgets, _('Fiat')),
             (id_widgets, _('Identity')),
         ]
-        for widgets, name in tabs_info:
-            tab = QWidget()
-            grid = QGridLayout(tab)
-            grid.setColumnStretch(0,1)
-            for a,b in widgets:
+        def add_tabs_info_to_tabs(tabs, tabs_info):
+            def add_widget_pair(a,b,grid):
                 i = grid.rowCount()
                 if b:
                     if a:
@@ -3935,7 +3936,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         grid.addWidget(a, i, 0, 1, 2)
                     else:
                         grid.addItem(QSpacerItem(15, 15), i, 0, 1, 2)
-            tabs.addTab(tab, name)
+            for thing, name in tabs_info:
+                tab = QWidget()
+                if isinstance(thing, dict):
+                    # This Prefs tab is laid out as groupboxes one atop another...
+                    d = thing
+                    vbox = QVBoxLayout(tab)
+                    for groupName, widgets in d.items():
+                        gbox = QGroupBox(groupName)
+                        grid = QGridLayout(gbox)
+                        grid.setColumnStretch(0,1)
+                        for a,b in widgets:
+                            add_widget_pair(a,b,grid)
+                        vbox.addWidget(gbox)
+                else:
+                    # Standard layout.. 1 tab has just a grid of widgets
+                    widgets = thing
+                    grid = QGridLayout(tab)
+                    grid.setColumnStretch(0,1)
+                    for a,b in widgets:
+                        add_widget_pair(a,b,grid)
+                tabs.addTab(tab, name)
+        # / add_tabs_info_to_tabs
+        add_tabs_info_to_tabs(tabs, tabs_info)
 
         vbox.addWidget(tabs)
         vbox.addStretch(1)
