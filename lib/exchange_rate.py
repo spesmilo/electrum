@@ -97,6 +97,21 @@ class ExchangeBase(PrintError):
     def is_historical_rate_old(self, ccy):
         return self._is_timestamp_old(self.history_timestamps.get(ccy, 0.0))
 
+    def _cache_historical_rates(self, h, ccy, cache_dir):
+        ''' Writes the history, h, to the cache file. Catches its own exceptions
+        and always returns successfully, even if the write process failed. '''
+        wroteBytes, filename = 0, '(none)'
+        try:
+            filename = self._get_cache_filename(ccy, cache_dir)
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(json.dumps(h))
+            wroteBytes = os.stat(filename).st_size
+        except Exception as e:
+            self.print_error("cache_historical_rates error:", repr(e))
+            return False
+        self.print_error(f"cache_historical_rates: wrote {wroteBytes} bytes to file {filename}")
+        return True
+
     def get_historical_rates_safe(self, ccy, cache_dir):
         h, timestamp = self.read_historical_rates(ccy, cache_dir)
         if not h or self._is_timestamp_old(timestamp):
@@ -108,9 +123,7 @@ class ExchangeBase(PrintError):
                     # Paranoia: No data; abort early rather than write out an
                     # empty file
                     raise RuntimeWarning(f"received empty history for {ccy}")
-                filename = self._get_cache_filename(ccy, cache_dir)
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(json.dumps(h))
+                self._cache_historical_rates(h, ccy, cache_dir)
             except Exception as e:
                 self.print_error("failed fx history:", repr(e))
                 return
