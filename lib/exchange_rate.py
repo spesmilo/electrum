@@ -10,6 +10,7 @@ import time
 import csv
 import decimal
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
+from collections import defaultdict
 
 from .bitcoin import COIN
 from .i18n import _
@@ -33,6 +34,7 @@ class ExchangeBase(PrintError):
 
     def __init__(self, on_quotes, on_history):
         self.history = {}
+        self.history_timestamps = defaultdict(float)
         self.quotes = {}
         self.on_quotes = on_quotes
         self.on_history = on_history
@@ -61,56 +63,67 @@ class ExchangeBase(PrintError):
             self.print_error("getting fx quotes for", ccy)
             self.quotes = self.get_rates(ccy)
             self.print_error("received fx quotes")
-        except BaseException as e:
+        except Exception as e:
             self.print_error("failed fx quotes:", e)
         self.on_quotes()
 
     def update(self, ccy):
-        t = Thread(target=self.update_safe, args=(ccy,))
-        t.setDaemon(True)
+        t = Thread(target=self.update_safe, args=(ccy,), daemon=True)
         t.start()
 
     def read_historical_rates(self, ccy, cache_dir):
-        filename = os.path.join(cache_dir, self.name() + '_'+ ccy)
+        filename = self._get_cache_filename(ccy, cache_dir)
+        h, timestamp = None, 0.0
         if os.path.exists(filename):
             timestamp = os.stat(filename).st_mtime
             try:
                 with open(filename, 'r', encoding='utf-8') as f:
                     h = json.loads(f.read())
-            except:
-                h = None
-        else:
-            h = None
-            timestamp = False
-        if h:
-            self.history[ccy] = h
-            self.on_history()
-        else:
-            h = None
+                if h:
+                    self.print_error("read_historical_rates: returning cached history from", filename)
+            except Exception as e:
+                self.print_error("read_historical_rates: error", repr(e))
+        h = h or None
         return h, timestamp
+
+    def _get_cache_filename(self, ccy, cache_dir):
+        return os.path.join(cache_dir, self.name() + '_' + ccy)
+
+    @staticmethod
+    def _is_timestamp_old(timestamp):
+        HOUR = 60.0*60.0  # number of seconds in an hour
+        return time.time() - timestamp >= 24.0 * HOUR  # check history rates every 24 hours, as the granularity is per-day anyway
+
+    def is_historical_rate_old(self, ccy):
+        return self._is_timestamp_old(self.history_timestamps.get(ccy, 0.0))
 
     def get_historical_rates_safe(self, ccy, cache_dir):
         h, timestamp = self.read_historical_rates(ccy, cache_dir)
-        if h is None or time.time() - timestamp < 24*3600:
+        if not h or self._is_timestamp_old(timestamp):
             try:
                 self.print_error("requesting fx history for", ccy)
                 h = self.request_history(ccy)
                 self.print_error("received fx history for", ccy)
-                self.on_history()
-            except BaseException as e:
-                self.print_error("failed fx history:", e)
+                if not h:
+                    # Paranoia: No data; abort early rather than write out an
+                    # empty file
+                    raise RuntimeWarning(f"received empty history for {ccy}")
+                filename = self._get_cache_filename(ccy, cache_dir)
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(h))
+            except Exception as e:
+                self.print_error("failed fx history:", repr(e))
                 return
-            filename = os.path.join(cache_dir, self.name() + '_' + ccy)
-            with open(filename, 'w', encoding='utf-8') as f:
-                f.write(json.dumps(h))
+        self.print_error("received history rates of length", len(h))
         self.history[ccy] = h
+        self.history_timestamps[ccy] = timestamp
         self.on_history()
 
     def get_historical_rates(self, ccy, cache_dir):
-        result = self.history.get(ccy)
-        if not result and ccy in self.history_ccys():
-            t = Thread(target=self.get_historical_rates_safe, args=(ccy, cache_dir))
-            t.setDaemon(True)
+        result, timestamp = self.history.get(ccy), self.history_timestamps.get(ccy, 0.0)
+
+        if (not result or self._is_timestamp_old(timestamp)) and ccy in self.history_ccys():
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy, cache_dir), daemon=True)
             t.start()
         return result
 
@@ -328,6 +341,7 @@ class FxThread(ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
+        self.timeout = 0.0
         self.cache_dir = os.path.join(config.path, 'cache')
         self.set_exchange(self.config_exchange())
         if not os.path.exists(self.cache_dir):
@@ -354,13 +368,22 @@ class FxThread(ThreadJob):
         return fmt_str.format(rounded_amount)
 
     def run(self):
-        # This runs from the plugins thread which catches exceptions
+        ''' This runs from the Network thread. It is invoked roughly every
+        100ms (see network.py), with actual work being done every 2.5 minutes. '''
         if self.is_enabled():
-            if self.timeout == 0 and self.show_history():
-                self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             if self.timeout <= time.time():
-                self.timeout = time.time() + 150
                 self.exchange.update(self.ccy)
+                if (self.show_history()
+                        and (self.timeout == 0  # forced update
+                             # OR > 24 hours have expired
+                             or self.exchange.is_historical_rate_old(self.ccy))):
+                    # Update historical rates. Note this doesn't actually
+                    # go out to the network unless cache file is missing
+                    # and/or >= 24 hours have passed since last fetch.
+                    self.exchange.get_historical_rates(self.ccy, self.cache_dir)
+                # And, finally, update self.timeout so we execute this branch
+                # every ~2.5 minutes
+                self.timeout = time.time() + 150
 
     def is_enabled(self):
         return self.config.get('use_exchange_rate', DEFAULT_ENABLED)
@@ -394,7 +417,7 @@ class FxThread(ThreadJob):
         self.ccy = ccy
         if self.get_currency() != ccy:
             self.config.set_key('currency', ccy, True)
-        self.timeout = 0 # Because self.ccy changes
+        self.timeout = 0  # Force update because self.ccy changes
         self.on_quotes()
 
     def set_exchange(self, name):
@@ -412,10 +435,9 @@ class FxThread(ThreadJob):
             self.set_exchange(self.default_exchange)
             return
         self.print_error("using exchange", name)
-        # A new exchange means new fx quotes, initially empty.  Force
-        # a quote refresh
+        # A new exchange means new fx quotes, initially empty.
+        # This forces a quote refresh, which will happen in the Network thread.
         self.timeout = 0
-        self.exchange.read_historical_rates(self.ccy, self.cache_dir)
 
     def on_quotes(self):
         if self.network:
