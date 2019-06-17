@@ -547,3 +547,8 @@ and there is no warning message.
   always exports fiat history data if "Fiat History" is enabled in preferences.
   Note also that the history export is now sorted in descending order by date,
   like the history tab default sort order.  (cculianu)
+* Update checker: Made the "new version available!" notification less obtrusive:
+  it now posts a message to the system tray popup as well as just creating a
+  new status bar icon you can click on to respond to the notification at your
+  leisure.  Hopefully this will tempt fewer people to turn off the notifications
+  (cculianu)
