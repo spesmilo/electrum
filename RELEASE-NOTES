@@ -552,3 +552,12 @@ and there is no warning message.
   new status bar icon you can click on to respond to the notification at your
   leisure.  Hopefully this will tempt fewer people to turn off the notifications
   (cculianu)
+* Preferences pane: Split up the "Transactions" tab in the preferences to
+  "per-wallet" and "app-global" sections to more clearly communicate in the UI
+  which of the options are global and which are per-wallet. Closes issue #1427
+  (cculianu)
+* Preferences pane: Added a new option "notify when receiving funds" which
+  is on by default and if unchecked, allows you to no longer receive system
+  tray notifications on tx's. This is a per-wallet setting. Closes issue #1451
+  (cculianu)
+
