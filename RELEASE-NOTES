@@ -517,9 +517,6 @@ and there is no warning message.
   (cculianu)
 * Linux run-from-source: Warn/Abort with helpful messages if user is missing
   required PyQt libs such as QtSvg. (cculianu)
-* Quotes/Fiat Exchange Rate: The "historical rates" code was buggy and prone
-  to "no data" being shown even when the server we get the quotes from has
-  data. Bug #1448. This has now been fully fixed and made unbuggy. (cculianu)
 * QR Scanner: Added informative message for Linux run-from-source users who
   happen to have a broken PyQt5 lacking a required lib for accessing the
   camera. (cculianu)
@@ -543,3 +540,10 @@ and there is no warning message.
 * CashShuffle: Fix #1223 - Finally resolved the "dead menu actions" bug where
   sometimes after bringing up the CashShuffle settings, hotkeys and File->menu
   actions would no longer respond. (cculianu, Axel Gembe)
+* Quotes/Fiat Exchange Rate: The "historical rates" code was buggy and prone
+  to "no data" being shown even when the server we get the quotes from has
+  data. Bug #1448. This has now been fully fixed and made unbuggy. (cculianu)
+* Export Wallet History: Fix #1459 - The Wallet -> Export History facility now
+  always exports fiat history data if "Fiat History" is enabled in preferences.
+  Note also that the history export is now sorted in descending order by date,
+  like the history tab default sort order.  (cculianu)
