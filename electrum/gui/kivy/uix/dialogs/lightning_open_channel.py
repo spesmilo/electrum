@@ -33,29 +33,21 @@ Builder.load_string('''
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
-                    text: s.pubkey if s.pubkey else _('Node ID, [pubkey]@[host]:[port]')
+                    text: s.pubkey if s.pubkey else _('Node ID')
                     shorten: True
-                    on_release: s.choose_node()
-                IconButton:
-                    on_release: app.scan_qr(on_complete=s.on_pubkey)
-                    icon: 'atlas://electrum/gui/kivy/theming/light/camera'
-                    color: blue_bottom.foreground_color
-                    size: '22dp', '22dp'
-                    pos_hint: {'center_y': .5}
-                    size_hint: None, None
-            CardSeparator:
-                color: blue_bottom.foreground_color
-            BoxLayout:
-                size_hint: 1, None
-                height: blue_bottom.item_height
-                Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/network'
-                    size_hint: None, None
-                    size: '22dp', '22dp'
-                    pos_hint: {'center_y': .5}
-                BlueButton:
-                    text: s.ipport if s.ipport else _('Auto-detect IP/port')
-                    on_release: s.ipport_dialog()
+            #CardSeparator:
+            #    color: blue_bottom.foreground_color
+            #BoxLayout:
+            #    size_hint: 1, None
+            #    height: blue_bottom.item_height
+            #    Image:
+            #        source: 'atlas://electrum/gui/kivy/theming/light/network'
+            #        size_hint: None, None
+            #        size: '22dp', '22dp'
+            #        pos_hint: {'center_y': .5}
+            #    BlueButton:
+            #        text: s.ipport if s.ipport else _('host:port')
+            #        on_release: s.ipport_dialog()
             CardSeparator:
                 color: blue_bottom.foreground_color
             BoxLayout:
@@ -67,18 +59,32 @@ Builder.load_string('''
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
-                    text: s.amount if s.amount else _('Channel capacity amount')
+                    text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
-        Button:
+        BoxLayout:
             size_hint: 1, None
-            height: blue_bottom.item_height
-            text: _('Paste')
-            on_release: s.do_paste()
-        Button:
-            size_hint: 1, None
-            height: blue_bottom.item_height
-            text: _('Open Channel')
-            on_release: s.do_open_channel()
+            IconButton:
+                icon: 'atlas://electrum/gui/kivy/theming/light/copy'
+                size_hint: 0.5, None
+                height: '48dp'
+                on_release: s.do_paste()
+            IconButton:
+                icon: 'atlas://electrum/gui/kivy/theming/light/camera'
+                size_hint: 0.5, None
+                height: '48dp'
+                on_release: app.scan_qr(on_complete=s.on_pubkey)
+            Button:
+                text: _('Suggest')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.choose_node()
+            Button:
+                text: _('Open')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.open_channel()
+        Widget:
+            size_hint: 1, 1
 ''')
 
 class LightningOpenChannelDialog(Factory.Popup):
@@ -88,18 +94,10 @@ class LightningOpenChannelDialog(Factory.Popup):
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
 
-    def on_pubkey(self, data):
-        self.pubkey = data.replace('\n', '') # strip newlines if we choose from ChoiseDialog
-
     def choose_node(self):
-        lines = []
         suggested = self.app.wallet.lnworker.suggest_peer()
         if suggested:
-            assert len(suggested) == 33
-            for i in range(0, 34, 11):
-                lines += [bh2u(suggested[i:i+11])]
-        servers = ['\n'.join(lines)]
-        ChoiceDialog(_('Choose node to connect to'), sorted(servers), self.pubkey, self.on_pubkey).open()
+            self.pubkey = suggested.hex()
 
     def __init__(self, app, lnaddr=None, msg=None):
         super(LightningOpenChannelDialog, self).__init__()
@@ -125,17 +123,21 @@ class LightningOpenChannelDialog(Factory.Popup):
             return
         self.pubkey = contents
 
-    def do_open_channel(self):
+    def open_channel(self):
         if not self.pubkey or not self.amount:
             self.app.show_info(_('All fields must be filled out'))
             return
         conn_str = self.pubkey
         if self.ipport:
             conn_str += '@' + self.ipport.strip()
+        amount = self.app.get_amount(self.amount)
+        self.app.protected('Enter PIN to create a new channel', self.do_open_channel, (conn_str, amount))
+        self.dismiss()
+
+    def do_open_channel(self, conn_str, amount, password):
         try:
-            node_id_hex = self.app.wallet.lnworker.open_channel(conn_str, self.app.get_amount(self.amount), 0)
+            node_id_hex = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
         except Exception as e:
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         self.app.show_info(_('Please wait for confirmation, channel is opening with node ') + node_id_hex[:16])
-        self.dismiss()

@@ -20,8 +20,8 @@ Builder.load_string(r'''
         color: (.5,.5,.5,1) if not card.active else (1,1,1,1)
         text: root.channelId
     Label:
-        text: _('State:\n') + (card._chan.get_state() if card._chan else 'n/a')
-        font_size: '10sp'
+        text: (card._chan.get_state() if card._chan else 'n/a')
+
 
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
@@ -31,11 +31,6 @@ Builder.load_string(r'''
         id: box
         orientation: 'vertical'
         spacing: '1dp'
-        Button:
-            size_hint: 1, None
-            height: '48dp'
-            text: _('New channel...')
-            on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
         ScrollView:
             GridLayout:
                 cols: 1
@@ -44,6 +39,11 @@ Builder.load_string(r'''
                 height: self.minimum_height
                 spacing: '2dp'
                 padding: '12dp'
+        Button:
+            size_hint: 1, None
+            height: '48dp'
+            text: _('New channel...')
+            on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
 
 <ChannelDetailsItem@BoxLayout>:
     canvas.before:

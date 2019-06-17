@@ -435,12 +435,14 @@ class LNWallet(LNWorker):
             return ctr
 
     def suggest_peer(self):
+        r = []
         for node_id, peer in self.peers.items():
             if not peer.initialized.is_set():
                 continue
             if not all([chan.is_closed() for chan in peer.channels.values()]):
                 continue
-            return node_id
+            r.append(node_id)
+        return random.choice(r) if r else None
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
