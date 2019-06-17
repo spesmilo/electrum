@@ -54,6 +54,7 @@ from .update_checker import UpdateChecker
 
 class ElectrumGui(QObject, PrintError):
     new_window_signal = pyqtSignal(str, object)
+    update_available_signal = pyqtSignal(bool)
 
     instance = None
 
@@ -101,6 +102,7 @@ class ElectrumGui(QObject, PrintError):
         self.plugins = plugins
         self.windows = []
         self.app = QApplication(sys.argv)
+        self.new_version_available = None
         self._set_icon()
         self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules.
         self.app.installEventFilter(self)
@@ -121,7 +123,7 @@ class ElectrumGui(QObject, PrintError):
         # /
         self.update_checker = UpdateChecker()
         self.update_checker_timer = QTimer(self); self.update_checker_timer.timeout.connect(self.on_auto_update_timeout); self.update_checker_timer.setSingleShot(False)
-        self.update_checker.got_new_version.connect(lambda x: self.show_update_checker(parent=None, skip_check=True))
+        self.update_checker.got_new_version.connect(self.on_new_version)
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), self)
@@ -486,6 +488,15 @@ class ElectrumGui(QObject, PrintError):
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 
+    def on_new_version(self, newver):
+        ''' Called by the auto update check mechanism to notify
+        that a new version is available.  We propagate the signal out
+        using our own update_available_signal as well as post a message
+        to the system tray. '''
+        self.new_version_available = newver
+        self.update_available_signal.emit(True)
+        self.notify(_("A new version of Electron Cash is available: {}").format(newver))
+
     def show_update_checker(self, parent, *, skip_check = False):
         if self.warn_if_no_network(parent):
             return
@@ -508,7 +519,7 @@ class ElectrumGui(QObject, PrintError):
         if first_run:
             interval = 10.0*1e3 # do it very soon (in 10 seconds)
         else:
-            interval = 3600.0*1e3 # once per hour (in ms)
+            interval = 4.0*3600.0*1e3 # once every 4 hours (in ms)
         self.update_checker_timer.start(interval)
         self.print_error("Auto update check: interval set to {} seconds".format(interval//1e3))
 
@@ -646,6 +657,18 @@ class ElectrumGui(QObject, PrintError):
         # aboutToQuit is emitted (but following this, it should be emitted)
         if qApp.quitOnLastWindowClosed():
             qApp.quit()
+
+    def notify(self, message):
+        ''' Display a message in the system tray popup notification. On macOS
+        this is the GROWL thing. On Windows it's a balloon popup from the system
+        tray. On Linux it's usually a banner in the top of the screen.'''
+        if self.tray:
+            try:
+                # this requires Qt 5.9
+                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron.ico"), 20000)
+            except TypeError:
+                self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
+
 
     def main(self):
         try:

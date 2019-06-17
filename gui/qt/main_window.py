@@ -198,6 +198,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
+        self.gui_object.update_available_signal.connect(self.on_update_available)  # shows/hides the update_available_button, emitted by update check mechanism when a new version is available
         self.history_list.setFocus(True)
 
         # update fee slider in case we missed the callback
@@ -679,13 +680,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(msg, title="Electron Cash - " + _("Reporting Bugs"), rich_text = True)
 
     def notify(self, message):
-        if self.tray:
-            try:
-                # this requires Qt 5.9
-                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron_dark_icon.png"), 20000)
-            except TypeError:
-                self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
-
+        self.gui_object.notify(message)
 
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
@@ -2460,6 +2455,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.search_box.hide()
         sb.addPermanentWidget(self.search_box)
 
+        self.update_available_button = StatusBarButton(QIcon(":icons/electron-cash-update.svg"), _("Update available, click for details"), lambda: self.gui_object.show_update_checker(self, skip_check=True))
+        self.update_available_button.setStatusTip(_("An Electron Cash update is available"))
+        sb.addPermanentWidget(self.update_available_button)
+        self.update_available_button.setVisible(bool(self.gui_object.new_version_available))  # if hidden now gets unhidden by on_update_available when a new version comes in
+
         self.lock_icon = QIcon()
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
@@ -2501,6 +2501,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
+
+    def on_update_available(self, b):
+        self.update_available_button.setVisible(bool(b))
+
+        # The popup label won't really be shown unless this window is
+        # on top.. but regardless we give each label a unique internal name
+        # so they dont interfere with each other.
+        lblName = "UpdateAvailable_" + self.diagnostic_name()
+
+        if b:
+            ShowPopupLabel(name = lblName,
+                           text="<center><b>{}</b><br><small>{}</small></center>".format(_("Update Available"),_("Click for details")),
+                           target=self.update_available_button,
+                           timeout=20000, onClick=self.update_available_button.click,
+                           onRightClick=self.update_available_button.click,
+                           dark_mode = ColorScheme.dark_scheme)
+        else:
+            # Immediately kills any extant labels
+            KillPopupLabel(lblName)
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.svg") if self.wallet.has_password() else QIcon(":icons/unlock.svg")
