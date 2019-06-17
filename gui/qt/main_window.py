@@ -3744,6 +3744,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((updatecheck_cb, None))
 
 
+        notify_tx_cb = QCheckBox(_('Notify when receiving funds'))
+        notify_tx_cb.setToolTip(_('If enabled, a system notification will be presented when you receive funds to this wallet.'))
+        notify_tx_cb.setChecked(bool(self.wallet.storage.get('gui_notify_tx', True)))
+        def on_notify_tx(b):
+            self.wallet.storage.put('gui_notify_tx', bool(b))
+        notify_tx_cb.stateChanged.connect(on_notify_tx)
+        per_wallet_tx_widgets.append((notify_tx_cb, None))
+
+
         usechange_cb = QCheckBox(_('Use change addresses'))
         if self.force_use_single_change_addr:
             usechange_cb.setChecked(True)
@@ -3948,7 +3957,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         grid.setColumnStretch(0,1)
                         for a,b in widgets:
                             add_widget_pair(a,b,grid)
-                        vbox.addWidget(gbox)
+                        vbox.addWidget(gbox, len(widgets))
                 else:
                     # Standard layout.. 1 tab has just a grid of widgets
                     widgets = thing
@@ -4461,7 +4470,7 @@ class TxUpdateMgr(QObject, PrintError):
         if parent.network:
             n_ok = 0
             txns = self.notifs_get_and_clear()
-            if txns:
+            if txns and parent.wallet.storage.get('gui_notify_tx', True):
                 # Combine the transactions
                 total_amount = 0
                 for tx in txns:
