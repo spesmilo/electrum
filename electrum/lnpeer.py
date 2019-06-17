@@ -237,6 +237,7 @@ class Peer(Logger):
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
                     break
+            self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
             # note: data processed in chunks to avoid taking sql lock for too long
             # channel announcements
             for chan_anns_chunk in chunks(chan_anns, 300):
