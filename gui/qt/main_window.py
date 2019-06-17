@@ -598,7 +598,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction(_("Plot"), self.plot_history_dialog).setEnabled(plot_history is not None)
+        #hist_menu.addAction(_("Plot"), self.plot_history_dialog).setEnabled(plot_history is not None)
         hist_menu.addAction(_("Export"), self.export_history_dialog)
 
         wallet_menu.addSeparator()
@@ -3133,17 +3133,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_export_history(self, wallet, fileName, is_csv):
         history = wallet.export_history(fx=self.fx)
+        ccy = (self.fx and self.fx.get_currency()) or ''
+        has_fiat_columns = history and self.fx and self.fx.show_history() and 'fiat_value' in history[0] and 'fiat_balance' in history[0]
         lines = []
         for item in history:
             if is_csv:
-                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
+                cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']]
+                if has_fiat_columns:
+                    cols += [item['fiat_value'], item['fiat_balance']]
+                lines.append(cols)
             else:
+                if has_fiat_columns and ccy:
+                    item['fiat_currency'] = ccy  # add the currency to each entry in the json. this wastes space but json is bloated anyway so this won't hurt too much, we hope
+                elif not has_fiat_columns:
+                    # No need to include these fields as they will always be 'No Data'
+                    item.pop('fiat_value', None)
+                    item.pop('fiat_balance', None)
                 lines.append(item)
 
         with open(fileName, "w+", encoding="utf-8") as f:  # ensure encoding to utf-8. Avoid Windows cp1252. See #1453.
             if is_csv:
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
+                cols = ["transaction_hash","label", "confirmations", "value", "timestamp"]
+                if has_fiat_columns:
+                    cols += [f"fiat_value_{ccy}", f"fiat_balance_{ccy}"]  # in CSV mode, we use column names eg fiat_value_USD, etc
+                transaction.writerow(cols)
                 for line in lines:
                     transaction.writerow(line)
             else:
