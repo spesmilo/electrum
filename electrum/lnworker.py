@@ -274,7 +274,7 @@ class LNGossip(LNWorker):
             await asyncio.sleep(5)
 
     def add_new_ids(self, ids):
-        known = self.channel_db.compare_channels(ids)
+        known = self.channel_db.known_ids()
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
 
