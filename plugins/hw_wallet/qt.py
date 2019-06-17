@@ -191,7 +191,7 @@ class QtPluginBase(object):
 
     @hook
     def load_wallet(self, wallet, window):
-        for keystore in wallet.get_keystores():
+        for i, keystore in enumerate(wallet.get_keystores()):
             if not isinstance(keystore, self.keystore_class):
                 continue
             if not self.libraries_available:
@@ -211,7 +211,7 @@ class QtPluginBase(object):
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
-            keystore.thread = TaskThread(window, window.on_error)
+            keystore.thread = TaskThread(window, window.on_error, name = wallet.diagnostic_name() + f'/keystore{i}')
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 

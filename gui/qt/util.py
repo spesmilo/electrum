@@ -688,34 +688,48 @@ class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
         self.setText = self.setPlainText
         self.text = self.toPlainText
 
-class TaskThread(QThread):
+class TaskThread(PrintError, QThread):
     '''Thread that runs background tasks.  Callbacks are guaranteed
     to happen in the context of its parent.'''
 
     Task = namedtuple("Task", "task cb_success cb_done cb_error")
     doneSig = pyqtSignal(object, object, object)
 
-    def __init__(self, parent, on_error=None):
-        super(TaskThread, self).__init__(parent)
+    def __init__(self, parent, on_error=None, *, name=None):
+        QThread.__init__(self, parent)
+        if name is not None:
+            self.setObjectName(name)
         self.on_error = on_error
         self.tasks = queue.Queue()
         self.doneSig.connect(self.on_done)
+        Weak.finalization_print_error(self)  # track task thread lifecycle in debug log
         self.start()
 
     def add(self, task, on_success=None, on_done=None, on_error=None):
         on_error = on_error or self.on_error
         self.tasks.put(TaskThread.Task(task, on_success, on_done, on_error))
 
+    def diagnostic_name(self):
+        name = self.__class__.__name__
+        o = self.objectName() or ''
+        if o:
+            name += '/' + o
+        return name
+
     def run(self):
-        while True:
-            task = self.tasks.get()
-            if not task:
-                break
-            try:
-                result = task.task()
-                self.doneSig.emit(result, task.cb_done, task.cb_success)
-            except BaseException:
-                self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
+        self.print_error("started")
+        try:
+            while True:
+                task = self.tasks.get()
+                if not task:
+                    break
+                try:
+                    result = task.task()
+                    self.doneSig.emit(result, task.cb_done, task.cb_success)
+                except BaseException:
+                    self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
+        finally:
+            self.print_error("exiting")
 
     def on_done(self, result, cb_done, cb):
         # This runs in the parent's thread.
@@ -724,8 +738,13 @@ class TaskThread(QThread):
         if cb:
             cb(result)
 
-    def stop(self):
+    def stop(self, *, waitTime = None):
+        ''' pass optional time to wait in seconds (float).  If no waitTime
+        specified, will not wait. '''
         self.tasks.put(None)
+        if waitTime is not None and self.isRunning():
+            if not self.wait(int(waitTime * 1e3)):  # secs -> msec
+                self.print_error(f"wait timed out after {waitTime} seconds")
 
 
 class ColorSchemeItem:

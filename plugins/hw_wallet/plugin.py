@@ -28,7 +28,7 @@ from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
 from electroncash import Transaction
 from electroncash.bitcoin import TYPE_SCRIPT
-from electroncash.util import bfh
+from electroncash.util import bfh, finalization_print_error
 from electroncash.address import OpCodes, Address, Script
 
 class HW_PluginBase(BasePlugin):
@@ -54,6 +54,16 @@ class HW_PluginBase(BasePlugin):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
+                self._cleanup_keystore_extra(keystore)
+
+    def _cleanup_keystore_extra(self, keystore):
+        # awkward cleanup code for the keystore 'thread' object (qt.util.TaskThread object)
+        # we have to do it this way so as to avoid relying on and/or importing gui.qt
+        finalization_print_error(keystore)  # track object lifecycle
+        thread = getattr(keystore, 'thread', None)
+        if thread and all(hasattr(thread, attr) for attr in ('isRunning', 'stop')) and thread.isRunning():
+            # was a Qt TaskThread, kill it, and wait up to 5 seconds for it to stop
+            thread.stop(waitTime=5.0)
 
     def show_address(self, wallet, address, keystore=None):
         pass  # implemented in child classes

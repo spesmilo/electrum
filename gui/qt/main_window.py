@@ -390,7 +390,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('close_wallet', self.wallet)
 
     def load_wallet(self, wallet):
-        wallet.thread = TaskThread(self, self.on_error)
+        wallet.thread = TaskThread(self, self.on_error, name = wallet.diagnostic_name() + '/Wallet')
         self.update_recently_visited(wallet.storage.path)
         # address used to create a dummy transaction and estimate transaction fee
         self.history_list.update()
