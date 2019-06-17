@@ -517,6 +517,9 @@ and there is no warning message.
   (cculianu)
 * Linux run-from-source: Warn/Abort with helpful messages if user is missing
   required PyQt libs such as QtSvg. (cculianu)
+* Quotes/Fiat Exchange Rate: The "historical rates" code was buggy and prone
+  to "no data" being shown even when the server we get the quotes from has
+  data. Bug #1448. This has now been fully fixed and made unbuggy. (cculianu)
 * QR Scanner: Added informative message for Linux run-from-source users who
   happen to have a broken PyQt5 lacking a required lib for accessing the
   camera. (cculianu)
