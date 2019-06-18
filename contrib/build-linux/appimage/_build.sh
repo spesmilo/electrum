@@ -196,22 +196,35 @@ remove_emptydirs
 
 
 info "Removing some unneeded files to decrease binary size"
-rm -rf "$APPDIR"/usr/lib/python3.6/test
-rm -rf "$APPDIR"/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/translations/qtwebengine_locales
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/resources/qtwebengine_*
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/qml
-for component in Web Designer Qml Quick Location Test Xml ; do
-    rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5${component}*
-    rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt${component}*
+rm -rf "$APPDIR"/usr/{share,include}
+PYDIR="$APPDIR"/usr/lib/python3.6
+rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
+rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
+rm -rf "$PYDIR"/distutils/{command,tests}
+rm -rf "$PYDIR"/config-3.6m-x86_64-linux-gnu
+rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
+rm -rf "$PYDIR"/site-packages/Cython/Tests
+rm -rf "$PYDIR"/site-packages/Cython/*/Tests
+rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
+rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
+for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do
+  rm -rf "$PYDIR"/site-packages/PyQt5/Qt/translations/qt${component}_*
+  rm -rf "$PYDIR"/site-packages/PyQt5/Qt/resources/qt${component}_*
 done
-rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt.so
+rm -rf "$PYDIR"/site-packages/PyQt5/Qt/{qml,libexec}
+rm -rf "$PYDIR"/site-packages/PyQt5/{pyrcc.so,pylupdate.so,uic}
+rm -rf "$PYDIR"/site-packages/PyQt5/Qt/plugins/{bearer,gamepads,geometryloaders,geoservices,playlistformats,position,printsupport,renderplugins,sceneparsers,sensors,sqldrivers,texttospeech,webview}
+for component in Bluetooth Concurrent Designer Help Location NetworkAuth Nfc Positioning PositioningQuick PrintSupport Qml Quick Sensors SerialPort Sql Test Web Xml ; do
+
+    rm -rf "$PYDIR"/site-packages/PyQt5/Qt/lib/libQt5${component}*
+    rm -rf "$PYDIR"/site-packages/PyQt5/Qt${component}*
+done
+rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
-rm "$APPDIR"/usr/lib/python3.6/site-packages/pyblake2-*.dist-info/RECORD
-rm "$APPDIR"/usr/lib/python3.6/site-packages/hidapi-*.dist-info/RECORD
-rm "$APPDIR"/usr/lib/python3.6/site-packages/psutil-*.dist-info/RECORD
+rm -rf "$PYDIR"/site-packages/*.dist-info/
+rm -rf "$PYDIR"/site-packages/*.egg-info/
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
