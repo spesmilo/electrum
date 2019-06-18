@@ -89,7 +89,6 @@ def verify_header_proof(h):
 
     keyfound = []
     nverified = 0
-    nfail = 0
     #loop over each signature and then check each pubkey in turn
     for sig in d['signatures']:
         sig_string = ecc.sig_string_from_der_sig(bfh(sig))
@@ -102,7 +101,7 @@ def verify_header_proof(h):
                 keyfound.append(pubkey)
                 nverified += 1
             except:
-                nfail += 1
+                pass
         if nverified >= d['num_sig']: return True
 
     return False
