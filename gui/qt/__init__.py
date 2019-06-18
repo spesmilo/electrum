@@ -244,7 +244,7 @@ class ElectrumGui(QObject, PrintError):
         else:
             # Unconditionally set this on all other platforms as it can only
             # help and never harm, and is always available.
-            icon = QIcon(":icons/electron.ico")
+            icon = QIcon(":icons/electron.svg")
         if icon:
             self.app.setWindowIcon(icon)
 
@@ -285,9 +285,9 @@ class ElectrumGui(QObject, PrintError):
 
     def tray_icon(self):
         if self.dark_icon:
-            return QIcon(':icons/electron_dark_icon.png')
+            return QIcon(':icons/electron_dark_icon.svg')
         else:
-            return QIcon(':icons/electron_light_icon.png')
+            return QIcon(':icons/electron_light_icon.svg')
 
     def toggle_tray_icon(self):
         self.dark_icon = not self.dark_icon
@@ -665,7 +665,7 @@ class ElectrumGui(QObject, PrintError):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron.ico"), 20000)
+                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron.svg"), 20000)
             except TypeError:
                 self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
 
