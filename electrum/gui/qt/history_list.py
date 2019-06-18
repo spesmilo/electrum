@@ -149,7 +149,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 HistoryColumns.STATUS_ICON:
                     # height breaks ties for unverified txns
                     # txpos breaks ties for verified same block txns
-                    (status, conf, -height, -txpos),
+                    (conf, -status, -height, -txpos),
                 HistoryColumns.STATUS_TEXT: status_str,
                 HistoryColumns.DESCRIPTION: tx_item['label'],
                 HistoryColumns.COIN_VALUE:  tx_item['value'].value,
@@ -618,8 +618,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if len(to_delete) > 1:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
                         .format(len(to_delete) - 1))
-        answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
-        if answer == QMessageBox.No:
+        if not self.parent.question(msg=question,
+                                    title=_("Please confirm")):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)

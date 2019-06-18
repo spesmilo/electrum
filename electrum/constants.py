@@ -143,7 +143,7 @@ class SyscoinMainnet(AbstractNet):
 
     POW_TARGET_TIMESPAN = 21600  # 60 * 60 * 6 seconds / 6 hours
     POW_TARGET_SPACING = 60  # 60 seconds
-    POW_BLOCK_ADJUST = 2016  # int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
+    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
 
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
@@ -155,9 +155,7 @@ class SyscoinMainnet(AbstractNet):
             "version": "1.4"
         }
     })
-    CHECKPOINTS = read_json('checkpoints.json', [
-
-    ])
+    CHECKPOINTS = read_json('checkpoints.json', [])
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv XPRV_VERBYTES

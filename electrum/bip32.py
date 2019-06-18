@@ -198,6 +198,8 @@ class BIP32Node(NamedTuple):
         return isinstance(self.eckey, ecc.ECPrivkey)
 
     def subkey_at_private_derivation(self, path: Union[str, Iterable[int]]) -> 'BIP32Node':
+        if path is None:
+            raise Exception("derivation path must not be None")
         if isinstance(path, str):
             path = convert_bip32_path_to_list_of_uint32(path)
         if not self.is_private():
@@ -222,6 +224,8 @@ class BIP32Node(NamedTuple):
                          child_number=child_number)
 
     def subkey_at_public_derivation(self, path: Union[str, Iterable[int]]) -> 'BIP32Node':
+        if path is None:
+            raise Exception("derivation path must not be None")
         if isinstance(path, str):
             path = convert_bip32_path_to_list_of_uint32(path)
         if not path:

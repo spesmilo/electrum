@@ -121,7 +121,7 @@ class CoinChooserBase(Logger):
 
         return list(map(make_Bucket, buckets.keys(), buckets.values()))
 
-    def penalty_func(self, tx):
+    def penalty_func(self, tx, *, fee_for_buckets):
         def penalty(candidate):
             return 0
         return penalty
@@ -251,10 +251,19 @@ class CoinChooserBase(Logger):
             total_weight = get_tx_weight(buckets)
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 
+        def fee_for_buckets(buckets) -> int:
+            """Given a list of buckets, return the total fee paid by the
+            transaction, in satoshis.
+            Note that the change output(s) are not yet known here,
+            so fees for those are excluded and hence this is a lower bound.
+            """
+            total_weight = get_tx_weight(buckets)
+            return fee_estimator_w(total_weight)
+
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)
         buckets = self.choose_buckets(buckets, sufficient_funds,
-                                      self.penalty_func(tx))
+                                      self.penalty_func(tx, fee_for_buckets=fee_for_buckets))
 
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_weight = get_tx_weight(buckets)
@@ -379,7 +388,7 @@ class CoinChooserPrivacy(CoinChooserRandom):
     def keys(self, coins):
         return [coin['address'] for coin in coins]
 
-    def penalty_func(self, tx):
+    def penalty_func(self, tx, *, fee_for_buckets):
         min_change = min(o.value for o in tx.outputs()) * 0.75
         max_change = max(o.value for o in tx.outputs()) * 1.33
         spent_amount = sum(o.value for o in tx.outputs())
@@ -387,8 +396,10 @@ class CoinChooserPrivacy(CoinChooserRandom):
         def penalty(buckets):
             badness = len(buckets) - 1
             total_input = sum(bucket.value for bucket in buckets)
-            # FIXME "change" here also includes fees
-            change = float(total_input - spent_amount)
+            # FIXME fee_for_buckets does not include fees needed to cover the change output(s)
+            # so fee here is a lower bound
+            fee = fee_for_buckets(buckets)
+            change = float(total_input - spent_amount - fee)
             # Penalize change not roughly in output range
             if change < min_change:
                 badness += (min_change - change) / (min_change + 10000)

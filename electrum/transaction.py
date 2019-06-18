@@ -727,11 +727,11 @@ class Transaction:
 
     # If expect_trailing_data == True, also returns start position of trailing
     # data.
-    def deserialize(self, force_full_parse=False, wallet=None, unsigned_segwit=False):
+    def deserialize(self, force_full_parse=False, wallet=None, unsigned_segwit=False, ignore_inputs=False):
         if self.raw is None and self.raw_bytes is None:
             return
             #self.raw = self.serialize()
-        if self._inputs is not None:
+        if self._inputs is not None and not ignore_inputs:
             return
         if self.expect_trailing_data:
             d, start_position = deserialize(self.raw,

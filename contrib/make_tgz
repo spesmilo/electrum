@@ -20,8 +20,8 @@ fi
 (
     cd "$ROOT_FOLDER"
 
-    echo "'git clean -fx' would delete the following files: >>>"
-    git clean -fx --dry-run
+    echo "'git clean -fd' would delete the following files: >>>"
+    git clean -fd --dry-run
     echo "<<<"
 
     # we could build the kivy atlas potentially?

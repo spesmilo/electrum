@@ -43,6 +43,7 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger
+from electrum.base_wizard import GoBack
 
 from .trustedcoin import TrustedCoinPlugin, server
 
@@ -221,9 +222,13 @@ class Plugin(TrustedCoinPlugin):
             _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)
-        wizard.create_storage(wizard.path)
         wizard.reset_stack()
-        wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
+        try:
+            wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
+        except GoBack:
+            # user clicked 'Cancel' and decided to move wallet file manually
+            wizard.create_storage(wizard.path)
+            raise
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()

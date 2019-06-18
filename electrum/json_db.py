@@ -57,11 +57,12 @@ class JsonDB(PrintError):
         self.data = {}
         self._modified = False
         self.manual_upgrades = manual_upgrades
-        if raw:
+        self._called_after_upgrade_tasks = False
+        if raw:  # loading existing db
             self.load_data(raw)
-        else:
+        else:  # creating new db
             self.put('seed_version', FINAL_SEED_VERSION)
-        self.load_transactions()
+            self._after_upgrade_tasks()
 
     def set_modified(self, b):
         with self.lock:
@@ -105,12 +106,6 @@ class JsonDB(PrintError):
                 self.data[key] = copy.deepcopy(value)
                 return True
         elif key in self.data:
-            # clear current contents in case of references
-            cur_val = self.data[key]
-            clear_method = getattr(cur_val, "clear", None)
-            if callable(clear_method):
-                clear_method()
-            # pop from dict to delete key
             self.data.pop(key)
             return True
         return False
@@ -143,11 +138,13 @@ class JsonDB(PrintError):
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
 
-        if not self.manual_upgrades:
-            if self.requires_split():
-                raise WalletFileException("This wallet has multiple accounts and must be split")
-            if self.requires_upgrade():
-                self.upgrade()
+        if not self.manual_upgrades and self.requires_split():
+            raise WalletFileException("This wallet has multiple accounts and must be split")
+
+        if not self.requires_upgrade():
+            self._after_upgrade_tasks()
+        elif not self.manual_upgrades:
+            self.upgrade()
 
     def requires_split(self):
         d = self.get('accounts', {})
@@ -198,7 +195,10 @@ class JsonDB(PrintError):
 
     @profiler
     def upgrade(self):
-        self.print_error('upgrading wallet format')
+        self.logger.info('upgrading wallet format')
+        if self._called_after_upgrade_tasks:
+            # we need strict ordering between upgrade() and after_upgrade_tasks()
+            raise Exception("'after_upgrade_tasks' must NOT be called before 'upgrade'")
         self._convert_imported()
         self._convert_wallet_type()
         self._convert_account()
@@ -209,6 +209,12 @@ class JsonDB(PrintError):
         self._convert_version_17()
         self._convert_version_18()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
+
+        self._after_upgrade_tasks()
+
+    def _after_upgrade_tasks(self):
+        self._called_after_upgrade_tasks = True
+        self._load_transactions()
 
     def _convert_wallet_type(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -405,15 +411,16 @@ class JsonDB(PrintError):
 
         self.put('pruned_txo', None)
 
-        transactions = self.get('transactions', {})  # txid -> Transaction
+        transactions = self.get('transactions', {})  # txid -> raw_tx
         spent_outpoints = defaultdict(dict)
-        for txid, tx in transactions.items():
+        for txid, raw_tx in transactions.items():
+            tx = Transaction(raw_tx)
             for txin in tx.inputs():
                 if txin['type'] == 'coinbase':
                     continue
                 prevout_hash = txin['prevout_hash']
                 prevout_n = txin['prevout_n']
-                spent_outpoints[prevout_hash][prevout_n] = txid
+                spent_outpoints[prevout_hash][str(prevout_n)] = txid
         self.put('spent_outpoints', spent_outpoints)
 
         self.put('seed_version', 17)
@@ -465,6 +472,7 @@ class JsonDB(PrintError):
         self.put('accounts', None)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
+        assert min_version <= max_version
         cur_version = self.get_seed_version()
         if cur_version > max_version:
             return False
@@ -572,19 +580,22 @@ class JsonDB(PrintError):
 
     @locked
     def get_spent_outpoint(self, prevout_hash, prevout_n):
-        return self.spent_outpoints.get(prevout_hash, {}).get(str(prevout_n))
+        prevout_n = str(prevout_n)
+        return self.spent_outpoints.get(prevout_hash, {}).get(prevout_n)
 
     @modifier
     def remove_spent_outpoint(self, prevout_hash, prevout_n):
-        self.spent_outpoints[prevout_hash].pop(prevout_n, None)  # FIXME
+        prevout_n = str(prevout_n)
+        self.spent_outpoints[prevout_hash].pop(prevout_n, None)
         if not self.spent_outpoints[prevout_hash]:
             self.spent_outpoints.pop(prevout_hash)
 
     @modifier
     def set_spent_outpoint(self, prevout_hash, prevout_n, tx_hash):
+        prevout_n = str(prevout_n)
         if prevout_hash not in self.spent_outpoints:
             self.spent_outpoints[prevout_hash] = {}
-        self.spent_outpoints[prevout_hash][str(prevout_n)] = tx_hash
+        self.spent_outpoints[prevout_hash][prevout_n] = tx_hash
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
@@ -663,6 +674,8 @@ class JsonDB(PrintError):
 
     @locked
     def get_data_ref(self, name):
+        # Warning: interacts un-intuitively with 'put': certain parts
+        # of 'data' will have pointers saved as separate variables.
         if name not in self.data:
             self.data[name] = {}
         return self.data[name]
@@ -735,7 +748,7 @@ class JsonDB(PrintError):
                 self._addr_to_addr_index[addr] = (True, i)
 
     @profiler
-    def load_transactions(self):
+    def _load_transactions(self):
         # references in self.data
         self.txi = self.get_data_ref('txi')  # txid -> address -> list of (prev_outpoint, value)
         self.txo = self.get_data_ref('txo')  # txid -> address -> list of (output_index, value, is_coinbase)

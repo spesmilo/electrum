@@ -6,6 +6,7 @@ import datetime
 import traceback
 from decimal import Decimal
 import threading
+import asyncio
 
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
@@ -160,7 +161,7 @@ class ElectrumWindow(App):
         self.send_screen.set_URI(uri)
 
     def on_new_intent(self, intent):
-        if intent.getScheme() != 'syscoin':
+        if intent.getScheme() != 'bitcoin':
             return
         uri = intent.getDataString()
         self.set_URI(uri)
@@ -280,6 +281,7 @@ class ElectrumWindow(App):
         self.is_exit = False
         self.wallet = None
         self.pause_time = 0
+        self.asyncio_loop = asyncio.get_event_loop()
 
         App.__init__(self)#, **kwargs)
 
@@ -304,7 +306,7 @@ class ElectrumWindow(App):
         self.fx = self.daemon.fx
 
         self.use_rbf = config.get('use_rbf', True)
-        self.use_change = config.get('use_change', False)
+        self.use_change = config.get('use_change', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updating a max of 2 times a sec
@@ -348,7 +350,7 @@ class ElectrumWindow(App):
         if is_address(data):
             self.set_URI(data)
             return
-        if data.startswith('syscoin:'):
+        if data.startswith('bitcoin:'):
             self.set_URI(data)
             return
         # try to decode transaction
@@ -433,7 +435,8 @@ class ElectrumWindow(App):
                 msg += '\n' + _('Text copied to clipboard.')
                 self._clipboard.copy(text_for_clipboard)
             Clock.schedule_once(lambda dt: self.show_info(msg))
-        popup = QRDialog(title, data, show_text, on_qr_failure)
+        popup = QRDialog(title, data, show_text, failure_cb=on_qr_failure,
+                         text_for_clipboard=text_for_clipboard)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -454,6 +457,8 @@ class ElectrumWindow(App):
                     String = autoclass("java.lang.String")
                     contents = intent.getStringExtra(String("text"))
                     on_complete(contents)
+            except Exception as e:  # exc would otherwise get lost
+                send_exception_to_crash_reporter(e)
             finally:
                 activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)

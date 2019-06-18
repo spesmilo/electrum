@@ -26,13 +26,17 @@ import asyncio
 import hashlib
 from typing import Dict, List, TYPE_CHECKING
 from collections import defaultdict
+import logging
 
-from aiorpcx import TaskGroup, run_in_thread
+from aiorpcx import TaskGroup, run_in_thread, RPCError
 
 from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash, is_address
 from .network import UntrustedServerReturnedError
+from .logging import Logger
+from .interface import GracefulDisconnect
+
 
 if TYPE_CHECKING:
     from .network import Network
@@ -95,7 +99,14 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         async def subscribe_to_address(addr):
             h = address_to_scripthash(addr)
             self.scripthash_to_address[h] = addr
-            await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
+            self._requests_sent += 1
+            try:
+                await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
+            except RPCError as e:
+                if e.message == 'history too large':  # no unique error code
+                    raise GracefulDisconnect(e, log_level=logging.ERROR) from e
+                raise
+            self._requests_answered += 1
             self.requested_addrs.remove(addr)
 
         while True:

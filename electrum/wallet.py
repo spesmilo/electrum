@@ -203,8 +203,8 @@ class Abstract_Wallet(AddressSynchronizer):
     verbosity_filter = 'w'
 
     def __init__(self, storage: WalletStorage):
-        if storage.requires_upgrade():
-            raise Exception("storage must be upgraded before constructing wallet")
+        if not storage.is_ready_to_be_used_by_wallet():
+            raise Exception("storage not ready to be used by Abstract_Wallet")
 
         # load addresses needs to be called before constructor for sanity checks
         storage.db.load_addresses(self.wallet_type)
@@ -252,8 +252,11 @@ class Abstract_Wallet(AddressSynchronizer):
     def test_addresses_sanity(self):
         addrs = self.get_receiving_addresses()
         if len(addrs) > 0:
-            if not bitcoin.is_address(addrs[0]):
-                raise WalletFileException('The addresses in this wallet are not bitcoin addresses.')
+            addr = str(addrs[0])
+            if not bitcoin.is_address(addr):
+                neutered_addr = addr[:5] + '..' + addr[-2:]
+                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
+                                          f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def calc_unused_change_addresses(self):
         with self.lock:
@@ -340,7 +343,11 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def export_private_key(self, address, password):
         if self.is_watching_only():
-            return []
+            raise Exception(_("This is a watching-only wallet"))
+        if not is_address(address):
+            raise Exception(f"Invalid bitcoin address: {address}")
+        if not self.is_mine(address):
+            raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
         txin_type = self.get_txin_type(address)
@@ -435,10 +442,12 @@ class Abstract_Wallet(AddressSynchronizer):
         return c1-c2, u1-u2, x1-x2
 
     def balance_at_timestamp(self, domain, target_timestamp):
+        # we assume that get_history returns items ordered by block height
+        # we also assume that block timestamps are monotonic (which is false...!)
         h = self.get_history(domain)
         balance = 0
         for tx_hash, tx_mined_status, value, balance in h:
-            if tx_mined_status.timestamp > target_timestamp:
+            if tx_mined_status.timestamp is None or tx_mined_status.timestamp > target_timestamp:
                 return balance - value
         # return last balance
         return balance
@@ -1446,7 +1455,7 @@ class Imported_Wallet(Simple_Wallet):
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
-            self.db.remove_history(address)
+            self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
                 self.db.remove_tx_fee(tx_hash)
@@ -1477,7 +1486,7 @@ class Imported_Wallet(Simple_Wallet):
         return self.db.has_imported_address(address)
 
     def get_address_index(self, address):
-        # returns None is address is not mine
+        # returns None if address is not mine
         return self.get_public_key(address)
 
     def get_public_key(self, address):
@@ -1867,7 +1876,7 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True):
+def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True, gap_limit=None):
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
@@ -1878,6 +1887,8 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
     k = keystore.from_seed(seed, passphrase)
     storage.put('keystore', k.dump())
     storage.put('wallet_type', 'standard')
+    if gap_limit is not None:
+        storage.put('gap_limit', gap_limit)
     wallet = Wallet(storage)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
@@ -1887,7 +1898,9 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path, network, passphrase=None, password=None, encrypt_file=True):
+def restore_wallet_from_text(text, *, path, network=None,
+                             passphrase=None, password=None, encrypt_file=True,
+                             gap_limit=None):
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
@@ -1921,6 +1934,8 @@ def restore_wallet_from_text(text, *, path, network, passphrase=None, password=N
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
+        if gap_limit is not None:
+            storage.put('gap_limit', gap_limit)
         wallet = Wallet(storage)
 
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
