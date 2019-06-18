@@ -82,8 +82,6 @@ MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
     "$CONTRIB"/make_secp || fail "Could not build libsecp"
 
-    find lib -type f -name libsecp\* -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-
     popd
 )
 
@@ -92,8 +90,6 @@ MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
     pushd "$PROJECT_ROOT"
 
     "$CONTRIB"/make_zbar || fail "Could not build libzbar"
-
-    find lib -type f -name libzbar\* -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 
     popd
 )
