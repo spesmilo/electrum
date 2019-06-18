@@ -70,11 +70,11 @@ class SweepStore(SqlDB):
     @sql
     def get_tx_by_index(self, funding_outpoint, index):
         r = self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint, SweepTx.index==index).one_or_none()
-        return r.prevout, bh2u(r.tx)
+        return str(r.prevout), bh2u(r.tx)
 
     @sql
     def list_sweep_tx(self):
-        return set(r.funding_outpoint for r in self.DBSession.query(SweepTx).all())
+        return set(str(r.funding_outpoint) for r in self.DBSession.query(SweepTx).all())
 
     @sql
     def add_sweep_tx(self, funding_outpoint, prevout, tx):
@@ -84,7 +84,7 @@ class SweepStore(SqlDB):
 
     @sql
     def get_num_tx(self, funding_outpoint):
-        return self.DBSession.query(SweepTx).filter(funding_outpoint==funding_outpoint).count()
+        return int(self.DBSession.query(SweepTx).filter(funding_outpoint==funding_outpoint).count())
 
     @sql
     def remove_sweep_tx(self, funding_outpoint):
@@ -111,11 +111,11 @@ class SweepStore(SqlDB):
     @sql
     def get_address(self, outpoint):
         r = self.DBSession.query(ChannelInfo).filter(ChannelInfo.outpoint==outpoint).one_or_none()
-        return r.address if r else None
+        return str(r.address) if r else None
 
     @sql
     def list_channel_info(self):
-        return [(r.address, r.outpoint) for r in self.DBSession.query(ChannelInfo).all()]
+        return [(str(r.address), str(r.outpoint)) for r in self.DBSession.query(ChannelInfo).all()]
 
 
 class LNWatcher(AddressSynchronizer):
@@ -150,14 +150,21 @@ class LNWatcher(AddressSynchronizer):
         self.watchtower_queue = asyncio.Queue()
 
     def get_num_tx(self, outpoint):
-        return self.sweepstore.get_num_tx(outpoint)
+        async def f():
+            return await self.sweepstore.get_num_tx(outpoint)
+        return self.network.run_from_another_thread(f())
+
+    def list_sweep_tx(self):
+        async def f():
+            return await self.sweepstore.list_sweep_tx()
+        return self.network.run_from_another_thread(f())
 
     @ignore_exceptions
     @log_exceptions
     async def watchtower_task(self):
         self.logger.info('watchtower task started')
         # initial check
-        for address, outpoint in self.sweepstore.list_channel_info():
+        for address, outpoint in await self.sweepstore.list_channel_info():
             await self.watchtower_queue.put(outpoint)
         while True:
             outpoint = await self.watchtower_queue.get()
@@ -165,30 +172,30 @@ class LNWatcher(AddressSynchronizer):
                 continue
             # synchronize with remote
             try:
-                local_n = self.sweepstore.get_num_tx(outpoint)
+                local_n = await self.sweepstore.get_num_tx(outpoint)
                 n = self.watchtower.get_num_tx(outpoint)
                 if n == 0:
-                    address = self.sweepstore.get_address(outpoint)
+                    address = await self.sweepstore.get_address(outpoint)
                     self.watchtower.add_channel(outpoint, address)
                 self.logger.info("sending %d transactions to watchtower"%(local_n - n))
                 for index in range(n, local_n):
-                    prevout, tx = self.sweepstore.get_tx_by_index(outpoint, index)
+                    prevout, tx = await self.sweepstore.get_tx_by_index(outpoint, index)
                     self.watchtower.add_sweep_tx(outpoint, prevout, tx)
             except ConnectionRefusedError:
                 self.logger.info('could not reach watchtower, will retry in 5s')
                 await asyncio.sleep(5)
                 await self.watchtower_queue.put(outpoint)
 
-    def add_channel(self, outpoint, address):
+    async def add_channel(self, outpoint, address):
         self.add_address(address)
         with self.lock:
-            if not self.sweepstore.has_channel(outpoint):
-                self.sweepstore.add_channel(outpoint, address)
+            if not await self.sweepstore.has_channel(outpoint):
+                await self.sweepstore.add_channel(outpoint, address)
 
-    def unwatch_channel(self, address, funding_outpoint):
+    async def unwatch_channel(self, address, funding_outpoint):
         self.logger.info(f'unwatching {funding_outpoint}')
-        self.sweepstore.remove_sweep_tx(funding_outpoint)
-        self.sweepstore.remove_channel(funding_outpoint)
+        await self.sweepstore.remove_sweep_tx(funding_outpoint)
+        await self.sweepstore.remove_channel(funding_outpoint)
         if funding_outpoint in self.tx_progress:
             self.tx_progress[funding_outpoint].all_done.set()
 
@@ -202,7 +209,7 @@ class LNWatcher(AddressSynchronizer):
             return
         if not self.synchronizer.is_up_to_date():
             return
-        for address, outpoint in self.sweepstore.list_channel_info():
+        for address, outpoint in await self.sweepstore.list_channel_info():
             await self.check_onchain_situation(address, outpoint)
 
     async def check_onchain_situation(self, address, funding_outpoint):
@@ -223,7 +230,7 @@ class LNWatcher(AddressSynchronizer):
                                           closing_height, closing_tx)  # FIXME sooo many args..
             await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
-            self.unwatch_channel(address, funding_outpoint)
+            await self.unwatch_channel(address, funding_outpoint)
         else:
             #self.logger.info(f'we will keep_watching {funding_outpoint}')
             pass
@@ -260,7 +267,7 @@ class LNWatcher(AddressSynchronizer):
         for prevout, spender in spenders.items():
             if spender is not None:
                 continue
-            sweep_txns = self.sweepstore.get_sweep_tx(funding_outpoint, prevout)
+            sweep_txns = await self.sweepstore.get_sweep_tx(funding_outpoint, prevout)
             for tx in sweep_txns:
                 if not await self.broadcast_or_log(funding_outpoint, tx):
                     self.logger.info(f'{tx.name} could not publish tx: {str(tx)}, prevout: {prevout}')
@@ -279,8 +286,8 @@ class LNWatcher(AddressSynchronizer):
                 await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid
 
-    def add_sweep_tx(self, funding_outpoint: str, prevout: str, tx: str):
-        self.sweepstore.add_sweep_tx(funding_outpoint, prevout, tx)
+    async def add_sweep_tx(self, funding_outpoint: str, prevout: str, tx: str):
+        await self.sweepstore.add_sweep_tx(funding_outpoint, prevout, tx)
         if self.watchtower:
             self.watchtower_queue.put_nowait(funding_outpoint)
 

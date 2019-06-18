@@ -258,13 +258,20 @@ class LnAddr(object):
     def get_min_final_cltv_expiry(self) -> int:
         return self._min_final_cltv_expiry
 
-    def get_description(self):
+    def get_tag(self, tag):
         description = ''
         for k,v in self.tags:
-            if k == 'd':
+            if k == tag:
                 description = v
                 break
         return description
+
+    def get_description(self):
+        return self.get_tag('d')
+
+    def get_expiry(self):
+        return int(self.get_tag('x') or '3600')
+
 
 
 def lndecode(a, verbose=False, expected_hrp=None):

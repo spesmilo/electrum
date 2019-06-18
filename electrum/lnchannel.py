@@ -163,8 +163,6 @@ class Channel(Logger):
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
         self.set_state('DISCONNECTED')
-        self.lnwatcher = None
-
         self.local_commitment = None
         self.remote_commitment = None
         self.sweep_info = None
@@ -453,13 +451,10 @@ class Channel(Logger):
         return secret, point
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
-        if not self.lnwatcher:
-            return
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
         sweeptxs = create_sweeptxs_for_their_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
-        for tx in sweeptxs:
-            self.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
+        return sweeptxs
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
@@ -477,9 +472,10 @@ class Channel(Logger):
 
         # be robust to exceptions raised in lnwatcher
         try:
-            self.process_new_revocation_secret(revocation.per_commitment_secret)
+            sweeptxs = self.process_new_revocation_secret(revocation.per_commitment_secret)
         except Exception as e:
             self.logger.info("Could not process revocation secret: {}".format(repr(e)))
+            sweeptxs = []
 
         ##### start applying fee/htlc changes
 
@@ -505,6 +501,8 @@ class Channel(Logger):
 
         self.set_remote_commitment()
         self.remote_commitment_to_be_revoked = prev_remote_commitment
+        # return sweep transactions for watchtower
+        return sweeptxs
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """

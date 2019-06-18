@@ -37,7 +37,7 @@ import binascii
 import base64
 
 from . import constants
-from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits, print_msg, chunks
+from .util import bh2u, profiler, get_headers_dir, is_ip_address, list_enabled_bits, print_msg, chunks
 from .logging import Logger
 from .storage import JsonDB
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
@@ -169,7 +169,6 @@ class LNPathFinder(Logger):
         To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
         i.e. an element reads as, "to get to node_id, travel through short_channel_id"
         """
-        self.channel_db.load_data()
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
@@ -195,11 +194,12 @@ class LNPathFinder(Logger):
                 else:  # payment incoming, on our channel. (funny business, cycle weirdness)
                     assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
                     pass  # TODO?
-            edge_cost, fee_for_edge_msat = self._edge_cost(edge_channel_id,
-                                                           start_node=edge_startnode,
-                                                           end_node=edge_endnode,
-                                                           payment_amt_msat=amount_msat,
-                                                           ignore_costs=(edge_startnode == nodeA))
+            edge_cost, fee_for_edge_msat = self._edge_cost(
+                edge_channel_id,
+                start_node=edge_startnode,
+                end_node=edge_endnode,
+                payment_amt_msat=amount_msat,
+                ignore_costs=(edge_startnode == nodeA))
             alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
             if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                 distance_from_start[edge_startnode] = alt_dist_to_neighbour
@@ -219,9 +219,10 @@ class LNPathFinder(Logger):
                 continue
             for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode):
                 assert type(edge_channel_id) is bytes
-                if edge_channel_id in self.blacklist: continue
+                if edge_channel_id in self.blacklist:
+                    continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
-                edge_startnode = bfh(channel_info.node2_id) if bfh(channel_info.node1_id) == edge_endnode else bfh(channel_info.node1_id)
+                edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
                 inspect_edge()
         else:
             return None  # no path found

@@ -16,7 +16,8 @@ from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnLocalFeatures
-from electrum.lnrouter import ChannelDB, LNPathFinder
+from electrum.lnrouter import LNPathFinder
+from electrum.channel_db import ChannelDB
 from electrum.lnworker import LNWallet
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler

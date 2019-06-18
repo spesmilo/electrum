@@ -56,10 +56,11 @@ class WatcherList(MyTreeView):
             return
         self.model().clear()
         self.update_headers({0:_('Outpoint'), 1:_('Tx'), 2:_('Status')})
-        sweepstore = self.parent.lnwatcher.sweepstore
-        for outpoint in sweepstore.list_sweep_tx():
-            n = sweepstore.get_num_tx(outpoint)
-            status = self.parent.lnwatcher.get_channel_status(outpoint)
+        lnwatcher = self.parent.lnwatcher
+        l = lnwatcher.list_sweep_tx()
+        for outpoint in l:
+            n = lnwatcher.get_num_tx(outpoint)
+            status = lnwatcher.get_channel_status(outpoint)
             items = [QStandardItem(e) for e in [outpoint, "%d"%n, status]]
             self.model().insertRow(self.model().rowCount(), items)
 

@@ -42,7 +42,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY)
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
-from .lnverifier import verify_sig_for_channel_update
 from .interface import GracefulDisconnect
 
 if TYPE_CHECKING:
@@ -242,22 +241,20 @@ class Peer(Logger):
             # channel announcements
             for chan_anns_chunk in chunks(chan_anns, 300):
                 self.verify_channel_announcements(chan_anns_chunk)
-                self.channel_db.on_channel_announcement(chan_anns_chunk)
+                self.channel_db.add_channel_announcement(chan_anns_chunk)
             # node announcements
             for node_anns_chunk in chunks(node_anns, 100):
                 self.verify_node_announcements(node_anns_chunk)
-                self.channel_db.on_node_announcement(node_anns_chunk)
+                self.channel_db.add_node_announcement(node_anns_chunk)
             # channel updates
             for chan_upds_chunk in chunks(chan_upds, 1000):
-                orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates(chan_upds_chunk,
-                                                                                                        max_age=self.network.lngossip.max_age)
+                orphaned, expired, deprecated, good, to_delete = self.channel_db.add_channel_updates(
+                    chan_upds_chunk, max_age=self.network.lngossip.max_age)
                 if orphaned:
                     self.logger.info(f'adding {len(orphaned)} unknown channel ids')
-                    self.network.lngossip.add_new_ids(orphaned)
+                    await self.network.lngossip.add_new_ids(orphaned)
                 if good:
                     self.logger.debug(f'on_channel_update: {len(good)}/{len(chan_upds_chunk)}')
-                    self.verify_channel_updates(good)
-                    self.channel_db.update_policies(good, to_delete)
             # refresh gui
             if chan_anns or node_anns or chan_upds:
                 self.network.lngossip.refresh_gui()
@@ -279,14 +276,6 @@ class Peer(Logger):
             if not ecc.verify_signature(pubkey, signature, h):
                 raise Exception('signature failed')
 
-    def verify_channel_updates(self, chan_upds):
-        for payload in chan_upds:
-            short_channel_id = payload['short_channel_id']
-            if constants.net.rev_genesis_bytes() != payload['chain_hash']:
-                raise Exception('wrong chain hash')
-            if not verify_sig_for_channel_update(payload, payload['start_node']):
-                raise BaseException('verify error')
-
     async def query_gossip(self):
         try:
             await asyncio.wait_for(self.initialized.wait(), 10)
@@ -298,7 +287,7 @@ class Peer(Logger):
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
-            self.lnworker.add_new_ids(ids)
+            await self.lnworker.add_new_ids(ids)
             while True:
                 todo = self.lnworker.get_ids_to_query()
                 if not todo:
@@ -658,7 +647,7 @@ class Peer(Logger):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.save_channel(chan)
-        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        await self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
         while True:
             try:
@@ -862,8 +851,6 @@ class Peer(Logger):
             bitcoin_key_2=bitcoin_keys[1]
         )
 
-        print("SENT CHANNEL ANNOUNCEMENT")
-
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
         if chan.get_state() == "OPEN":
@@ -872,6 +859,10 @@ class Peer(Logger):
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
+        asyncio.ensure_future(self.add_own_channel(chan))
+        self.logger.info("CHANNEL OPENING COMPLETED")
+
+    async def add_own_channel(self, chan):
         # add channel to database
         bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
         sorted_node_ids = list(sorted(self.node_ids))
@@ -887,7 +878,7 @@ class Peer(Logger):
         #   that the remote sends, even if the channel was not announced
         #   (from BOLT-07: "MAY create a channel_update to communicate the channel
         #    parameters to the final node, even though the channel has not yet been announced")
-        self.channel_db.on_channel_announcement(
+        self.channel_db.add_channel_announcement(
             {
                 "short_channel_id": chan.short_channel_id,
                 "node_id_1": node_ids[0],
@@ -921,8 +912,6 @@ class Peer(Logger):
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
             self.channel_db.add_channel_update(pending_channel_update)
-
-        self.logger.info("CHANNEL OPENING COMPLETED")
 
     def send_announcement_signatures(self, chan: Channel):
 
@@ -962,6 +951,21 @@ class Peer(Logger):
     def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
+        chan = self.channels[channel_id]
+        chan.receive_fail_htlc(htlc_id)
+        local_ctn = chan.get_current_ctn(LOCAL)
+        asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
+        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn))
+
+    @log_exceptions
+    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn):
+        chan = self.channels[channel_id]
+        await self.await_local(chan, local_ctn)
+        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(False)
+
+    @log_exceptions
+    async def _handle_error_code_from_failed_htlc(self, payload, channel_id, htlc_id):
+        chan = self.channels[channel_id]
         key = (channel_id, htlc_id)
         try:
             route = self.attempted_route[key]
@@ -969,29 +973,12 @@ class Peer(Logger):
             # the remote might try to fail an htlc after we restarted...
             # attempted_route is not persisted, so we will get here then
             self.logger.info("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
-        else:
-            try:
-                self._handle_error_code_from_failed_htlc(payload["reason"], route, channel_id, htlc_id)
-            except Exception:
-                # exceptions are suppressed as failing to handle an error code
-                # should not block us from removing the htlc
-                traceback.print_exc(file=sys.stderr)
-        # process update_fail_htlc on channel
-        chan = self.channels[channel_id]
-        chan.receive_fail_htlc(htlc_id)
-        local_ctn = chan.get_current_ctn(LOCAL)
-        asyncio.ensure_future(self._on_update_fail_htlc(chan, htlc_id, local_ctn))
-
-    @log_exceptions
-    async def _on_update_fail_htlc(self, chan, htlc_id, local_ctn):
-        await self.await_local(chan, local_ctn)
-        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(False)
-
-    def _handle_error_code_from_failed_htlc(self, error_reason, route: List['RouteEdge'], channel_id, htlc_id):
-        chan = self.channels[channel_id]
-        failure_msg, sender_idx = decode_onion_error(error_reason,
-                                                     [x.node_id for x in route],
-                                                     chan.onion_keys[htlc_id])
+            return
+        error_reason = payload["reason"]
+        failure_msg, sender_idx = decode_onion_error(
+            error_reason,
+            [x.node_id for x in route],
+            chan.onion_keys[htlc_id])
         code, data = failure_msg.code, failure_msg.data
         self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
         self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
@@ -1009,11 +996,9 @@ class Peer(Logger):
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
-            orphaned, expired, deprecated, good, to_delete = self.channel_db.filter_channel_updates([payload])
+            orphaned, expired, deprecated, good, to_delete = self.channel_db.add_channel_updates([payload])
             blacklist = False
             if good:
-                self.verify_channel_updates(good)
-                self.channel_db.update_policies(good, to_delete)
                 self.logger.info("applied channel update on our db")
             elif orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
@@ -1276,11 +1261,17 @@ class Peer(Logger):
         self.logger.info("on_revoke_and_ack")
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
-        chan.receive_revocation(RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"]))
+        sweeptxs = chan.receive_revocation(RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"]))
         self._remote_changed_events[chan.channel_id].set()
         self._remote_changed_events[chan.channel_id].clear()
         self.lnworker.save_channel(chan)
         self.maybe_send_commitment(chan)
+        asyncio.ensure_future(self._on_revoke_and_ack(chan, sweeptxs))
+
+    async def _on_revoke_and_ack(self, chan, sweeptxs):
+        outpoint = chan.funding_outpoint.to_str()
+        for tx in sweeptxs:
+            await self.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
 
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]
