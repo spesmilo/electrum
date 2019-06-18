@@ -89,12 +89,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         try:
             address = self.parse_address(x)
             return bitcoin.TYPE_ADDRESS, address
-            # todo: sense sys script, return its type?
         except:
             script = self.parse_script(x)
-            #sys_part, script_part = Syscoin.split_syscoin_script(script)
-            #if sys_part is not None:
-            #    return bitcoin.TYPE_SYSCOIN, script_part
             return bitcoin.TYPE_SCRIPT, script
 
     def parse_script(self, x):

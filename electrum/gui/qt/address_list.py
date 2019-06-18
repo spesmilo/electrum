@@ -187,6 +187,8 @@ class AddressList(MyTreeView):
         menu = QMenu()
         if not multi_select:
             idx = self.indexAt(position)
+            if not idx.isValid():
+                return
             col = idx.column()
             item = self.model().itemFromIndex(idx)
             if not item:

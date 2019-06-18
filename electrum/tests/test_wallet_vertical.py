@@ -8,7 +8,7 @@ from electrum import storage, bitcoin, keystore, bip32
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
+from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet, restore_wallet_from_text
 from electrum.util import bfh, bh2u
 from electrum.transaction import TxOutput
 from electrum.mnemonic import seed_type
@@ -1745,3 +1745,47 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
                                    {})
         w.synchronize()
         self.assertEqual(9999788, sum(w.get_balance()))
+
+
+class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
+    transactions = {
+        # txn A:
+        "a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625": "020000000001011b7eb29921187b40209c234344f57a3365669c8883a3d511fbde5155f11f64d10000000000fdffffff024c400f0000000000160014b50d21483fb5e088db90bf766ea79219fb377fef40420f0000000000160014aaf5fc4a6297375c32403a9c2768e7029c8dbd750247304402206efd510954b289829f8f778163b98a2a4039deb93c3b0beb834b00cd0add14fd02201c848315ddc52ced0350a981fe1a7f3cbba145c7a43805db2f126ed549eaa500012103083a50d63264743456a3e812bfc91c11bd2a673ba4628c09f02d78f62157e56d788d1700",
+        # txn B:
+        "0e2182ead6660790290371516cb0b80afa8baebd30dad42b5e58a24ceea17f1c": "020000000001012516fade5b5938336a11815d02787ba1580b3189432aa11b150527f8409084a30100000000fdffffff02a086010000000000160014cb893c9fbb565363556fb18a3bcdda6f20af0bf8d8ba0d0000000000160014478902f02c2b6cd405bb6bd1f90e9860bec173e20247304402206940671b5bdb230a9721aa57396af73d399fb210d795e7dbb8ec1977e101a5470220625505de035d4006b72bd6dfcf09468d1e8da53071080b37b16b0dbbf776db78012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
+        # txn C:
+        "2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017": "020000000001012516fade5b5938336a11815d02787ba1580b3189432aa11b150527f8409084a30100000000fdffffff01d2410f00000000001600147880a7c79744b908a5f6d6235f2eb46c174c84f002483045022100974d27c872f09115e57c6acb674cd4da6d0b26656ad967ddb2678ff409714b9502206d91b49cf778ced6ca9e40b4094fb57b86c86fac09ce46ce53aea4afa68ff311012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
+    }
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_restoring_wallet_without_manual_delete(self, mock_write):
+        w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
+                                     path='if_this_exists_mocking_failed_648151893',
+                                     gap_limit=5)['wallet']
+        for txid in self.transactions:
+            tx = Transaction(self.transactions[txid])
+            w.add_transaction(tx.txid(), tx)
+        # txn A is an external incoming txn funding the wallet
+        # txn B is an outgoing payment to an external address
+        # txn C is double-spending txn B, to a wallet address
+        self.assertEqual(999890, sum(w.get_balance()))
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_restoring_wallet_with_manual_delete(self, mock_write):
+        w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
+                                     path='if_this_exists_mocking_failed_648151893',
+                                     gap_limit=5)['wallet']
+        # txn A is an external incoming txn funding the wallet
+        txA = Transaction(self.transactions["a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625"])
+        w.add_transaction(txA.txid(), txA)
+        # txn B is an outgoing payment to an external address
+        txB = Transaction(self.transactions["0e2182ead6660790290371516cb0b80afa8baebd30dad42b5e58a24ceea17f1c"])
+        w.add_transaction(txB.txid(), txB)
+        # now the user manually deletes txn B to attempt the double spend
+        # txn C is double-spending txn B, to a wallet address
+        # rationale1: user might do this with opt-in RBF transactions
+        # rationale2: this might be a local transaction, in which case the GUI even allows it
+        w.remove_transaction(txB)
+        txC = Transaction(self.transactions["2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017"])
+        w.add_transaction(txC.txid(), txC)
+        self.assertEqual(999890, sum(w.get_balance()))

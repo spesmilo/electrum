@@ -44,10 +44,8 @@ REGTEST_MAX_TARGET = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 class MissingHeader(Exception):
     pass
 
-
 class InvalidHeader(Exception):
     pass
-
 
 def serialize_header(header_dict: dict) -> str:
     s = int_to_hex(header_dict['version'], 4) \
@@ -91,7 +89,6 @@ def deserialize_header(s: bytes, height: int, expect_trailing_data=False, start_
         return h, start_position
 
     return h
-
 
 def hash_header(header: dict) -> str:
     if header is None:
@@ -555,7 +552,6 @@ class Blockchain(Logger):
 
         if not first or not last:
             raise MissingHeader()
-
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         actual_timespan = last.get('timestamp') - first.get('timestamp')
@@ -570,9 +566,9 @@ class Blockchain(Logger):
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        bitsBase = bits & 0xffffff
         if not (0x03 <= bitsN <= 0x1e):
             raise Exception("First part of bits should be in [0x03, 0x1e]")
+        bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))

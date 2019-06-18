@@ -838,6 +838,11 @@ class TestTransactionTestnet(TestCaseForTestnet):
         txid = 'ba5c88e07a4025a39ad3b85247cbd4f556a70d6312b18e04513c7cec9d45d6ac'
         self._run_naive_tests_on_tx(raw_tx, txid)
 
+    def test_txid_partial_issue_5366(self):
+        raw_tx = '45505446ff000200000000010127523d70642dabd999fb43191ff6763f5b04150ba4cf38d2cfb53edf6a40ac4f0100000000fdffffff013286010000000000160014e79c7ac0b390a9caf52dc002e1095a5fbc042a18feffffffffa08601000000000000000201ff57ff045f1cf60157e9eb7a8000000038fa0b3a9c155ff3390ca0d639783d97af3b3bf66ebb69a31dfe8317fae0a7fe0324bc048fc0002253dfec9d6299711d708175f950ecee8e09db3518a5685741830000ffffcf01010043281700'
+        txid = 'a0c159616073dc7a4a482092dab4e8516c83dddb769b65919f23f6df63d33eb8'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
 # end partial txns <---
 
 

@@ -14,7 +14,7 @@ build_dll() {
         --enable-experimental \
         --enable-module-ecdh \
         --disable-jni
-    make
+    make -j4
     ${1}-strip .libs/libsecp256k1-0.dll
 }
 

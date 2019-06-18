@@ -61,6 +61,9 @@ class AddressSynchronizer(Logger):
     """
 
     def __init__(self, storage: 'WalletStorage'):
+        if not storage.is_ready_to_be_used_by_wallet():
+            raise Exception("storage not ready to be used by AddressSynchronizer")
+
         self.storage = storage
         self.db = self.storage.db
         self.network = None  # type: Network
@@ -193,7 +196,8 @@ class AddressSynchronizer(Logger):
                 if spending_tx_hash is None:
                     continue
                 # this outpoint has already been spent, by spending_tx
-                assert self.db.get_transaction(spending_tx_hash)
+                # annoying assert that has revealed several bugs over time:
+                assert self.db.get_transaction(spending_tx_hash), "spending tx not in wallet db"
                 conflicting_txns |= {spending_tx_hash}
             if tx_hash in conflicting_txns:
                 # this tx is already in history, so it conflicts with itself

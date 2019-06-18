@@ -328,41 +328,33 @@ def hash160_to_p2pkh(h160: bytes, *, net=None) -> str:
     if net is None: net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2PKH)
 
-
 def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
     if net is None: net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
-
 
 def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
     if net is None: net = constants.net
     return hash160_to_p2pkh(hash_160(public_key), net=net)
 
-
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     if net is None: net = constants.net
     return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
-
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
     if net is None: net = constants.net
     return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
-
 def script_to_p2wsh(script: str, *, net=None) -> str:
     if net is None: net = constants.net
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
-
 
 def p2wpkh_nested_script(pubkey: str) -> str:
     pkh = bh2u(hash_160(bfh(pubkey)))
     return '00' + push_script(pkh)
 
-
 def p2wsh_nested_script(witness_script: str) -> str:
     wsh = bh2u(sha256(bfh(witness_script)))
     return '00' + push_script(wsh)
-
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -375,7 +367,6 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
         return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
     else:
         raise NotImplementedError(txin_type)
-
 
 def redeem_script_to_address(txin_type: str, redeem_script: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -395,7 +386,6 @@ def script_to_address(script: str, *, net=None) -> str:
     t, addr = get_address_from_output_script(bfh(script), net=net)
     assert t == TYPE_ADDRESS
     return addr
-
 
 def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -421,24 +411,19 @@ def address_to_script(addr: str, *, net=None) -> str:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
-
 def address_to_scripthash(addr: str) -> str:
     script = address_to_script(addr)
     return script_to_scripthash(script)
-
 
 def script_to_scripthash(script: str) -> str:
     h = sha256(bfh(script))[0:32]
     return bh2u(bytes(reversed(h)))
 
-
 def public_key_to_p2pk_script(pubkey: str) -> str:
     return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
 
-
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58
-
 
 __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43

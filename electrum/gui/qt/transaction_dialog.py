@@ -28,6 +28,7 @@ import copy
 import datetime
 import json
 import traceback
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
@@ -46,6 +47,9 @@ from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
@@ -83,7 +87,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        self.main_window = parent
+        self.main_window = parent  # type: ElectrumWindow
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
@@ -273,8 +277,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         if fee is not None:
             fee_rate = fee/size*1000
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
-            confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
-            if fee_rate > confirm_rate:
+            feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
+            if fee_rate > feerate_warning:
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)

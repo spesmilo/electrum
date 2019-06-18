@@ -103,7 +103,10 @@ class HelpLabel(QLabel):
         self.font = QFont()
 
     def mouseReleaseEvent(self, x):
-        QMessageBox.information(self, 'Help', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Help'),
+                           text=self.help_text)
 
     def enterEvent(self, event):
         self.font.setUnderline(True)
@@ -127,7 +130,11 @@ class HelpButton(QPushButton):
         self.clicked.connect(self.onclick)
 
     def onclick(self):
-        QMessageBox.information(self, 'Help', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Help'),
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class InfoButton(QPushButton):
@@ -139,7 +146,11 @@ class InfoButton(QPushButton):
         self.clicked.connect(self.onclick)
 
     def onclick(self):
-        QMessageBox.information(self, 'Info', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Info'),
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class Buttons(QHBoxLayout):
@@ -195,11 +206,15 @@ class MessageBoxMixin(object):
     def top_level_window(self, test_func=None):
         return self.top_level_window_recurse(test_func)
 
-    def question(self, msg, parent=None, title=None, icon=None):
+    def question(self, msg, parent=None, title=None, icon=None, **kwargs) -> bool:
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return self.msg_box(icon or QMessageBox.Question,
-                            parent, title or '',
-                            msg, buttons=Yes|No, defaultButton=No) == Yes
+        return Yes == self.msg_box(icon=icon or QMessageBox.Question,
+                                   parent=parent,
+                                   title=title or '',
+                                   text=msg,
+                                   buttons=Yes|No,
+                                   defaultButton=No,
+                                   **kwargs)
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
@@ -217,26 +232,44 @@ class MessageBoxMixin(object):
         return self.msg_box(QMessageBox.Information, parent,
                             title or _('Information'), msg, **kwargs)
 
-    def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, *, rich_text=False,
+    def msg_box(self, icon, parent, title, text, *, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton, rich_text=False,
                 checkbox=None):
         parent = parent or self.top_level_window()
-        if type(icon) is QPixmap:
-            d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
-            d.setIconPixmap(icon)
-        else:
-            d = QMessageBox(icon, title, str(text), buttons, parent)
-        d.setWindowModality(Qt.WindowModal)
-        d.setDefaultButton(defaultButton)
-        if rich_text:
-            d.setTextInteractionFlags(Qt.TextSelectableByMouse| Qt.LinksAccessibleByMouse)
-            d.setTextFormat(Qt.RichText)
-        else:
-            d.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            d.setTextFormat(Qt.PlainText)
-        if checkbox is not None:
-            d.setCheckBox(checkbox)
-        return d.exec_()
+        return custom_message_box(icon=icon,
+                                  parent=parent,
+                                  title=title,
+                                  text=text,
+                                  buttons=buttons,
+                                  defaultButton=defaultButton,
+                                  rich_text=rich_text,
+                                  checkbox=checkbox)
+
+
+def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.Ok,
+                       defaultButton=QMessageBox.NoButton, rich_text=False,
+                       checkbox=None):
+    if type(icon) is QPixmap:
+        d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
+        d.setIconPixmap(icon)
+    else:
+        d = QMessageBox(icon, title, str(text), buttons, parent)
+    d.setWindowModality(Qt.WindowModal)
+    d.setDefaultButton(defaultButton)
+    if rich_text:
+        d.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        # set AutoText instead of RichText
+        # AutoText lets Qt figure out whether to render as rich text.
+        # e.g. if text is actually plain text and uses "\n" newlines;
+        #      and we set RichText here, newlines would be swallowed
+        d.setTextFormat(Qt.AutoText)
+    else:
+        d.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        d.setTextFormat(Qt.PlainText)
+    if checkbox is not None:
+        d.setCheckBox(checkbox)
+    return d.exec_()
+
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
     '''Handy wrapper; window modal dialogs are better for our multi-window
@@ -562,14 +595,15 @@ class MyTreeView(QTreeView):
 
     def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
-        hide_button = QPushButton('x')
-        hide_button.setVisible(False)
-        hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
         buttons = self.get_toolbar_buttons()
         if buttons is not None:
             for b in buttons:
                 b.setVisible(False)
                 hbox.addWidget(b)
+        hide_button = QPushButton('x')
+        hide_button.setVisible(False)
+        hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
+        if buttons is not None:
             self.toolbar_buttons = buttons + (hide_button,)
         else:
             self.toolbar_buttons = (hide_button,)
