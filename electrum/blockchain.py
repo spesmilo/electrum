@@ -24,9 +24,11 @@ import os
 import threading
 
 from . import util
-from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
+from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex, op_push
+from .transaction import parse_scriptSig
 from . import constants
 from .util import bfh, bh2u
+from . import ecc 
 from pprint import pprint
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
@@ -71,6 +73,38 @@ def deserialize_headers(s, height):
         height += 1
 
     return headers
+
+def verify_header_proof(h):
+    rproof = h['proof']
+    rchallenge = h['challenge']
+    proof = "".join(reversed([rproof[i:i+2] for i in range(0, len(rproof), 2)]))
+    challenge = "".join(reversed([rchallenge[i:i+2] for i in range(0, len(rchallenge), 2)]))
+    if challenge != constants.net.CHALLENGE: return False
+
+    d = {}
+    pushdata = op_push(int(len(challenge)/2))
+    parse_scriptSig(d, bytearray.fromhex(proof+pushdata+challenge))
+    rhhash = hash_header(h)
+    hhash = "".join(reversed([rhhash[i:i+2] for i in range(0, len(rhhash), 2)]))
+
+    keyfound = []
+    nverified = 0
+    #loop over each signature and then check each pubkey in turn
+    for sig in d['signatures']:
+        sig_string = ecc.sig_string_from_der_sig(bfh(sig))
+        for pubkey in d['pubkeys']:
+            if pubkey in keyfound: continue
+            pubpoint = ecc.ser_to_point(bytes.fromhex(pubkey))
+            public_key = ecc.ECPubkey.from_point(pubpoint)
+            try:
+                public_key.verify_message_hash(sig_string, bytes.fromhex(hhash))
+                keyfound.append(pubkey)
+                nverified += 1
+            except:
+                pass
+        if nverified >= d['num_sig']: return True
+
+    return False
 
 def deserialize_header(s, height):
     if not s:
@@ -402,6 +436,7 @@ class Blockchain(util.PrintError):
                 raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
         if h == bytes([0])*(constants.net.MIN_HEADER_SIZE):
             return None
+
         return deserialize_header(h, height)
 
     def get_hash(self, height):
@@ -435,6 +470,9 @@ class Blockchain(util.PrintError):
         try:
             self.verify_header(header, prev_hash)
         except BaseException as e:
+            return False
+        if not verify_header_proof(header):
+            self.print_error("invalid block proof at height ", height)
             return False
         return True
 
