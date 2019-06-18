@@ -3684,8 +3684,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             qr_label.setToolTip(qr_combo.toolTip())
         for cam in system_cameras:
             qr_combo.addItem(cam.description(), cam.deviceName())
-        index = qr_combo.findData(self.config.get("video_device"))
-        qr_combo.setCurrentIndex(index)
+        video_device = self.config.get("video_device")
+        video_device_index = 0
+        if video_device:
+            video_device_index = qr_combo.findData(video_device)
+        qr_combo.setCurrentIndex(video_device_index)
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
