@@ -40,8 +40,8 @@
     <file>icons/tab_coins.png</file>
     <file>icons/tab_console.png</file>
     <file>icons/tab_contacts.png</file>
-    <file>icons/tab_converter.png</file>
-    <file>icons/tab_converter_bw.png</file>
+    <file>icons/tab_converter.svg</file>
+    <file>icons/tab_converter_bw.svg</file>
     <file>icons/cashshuffle_on_error.svg</file>
     <file>icons/cashshuffle_on.svg</file>
     <file>icons/cashshuffle_off.svg</file>

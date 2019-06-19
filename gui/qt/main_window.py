@@ -175,7 +175,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
-        add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.png"), _("Address Converter"), "converter", True)
+        add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter", True)
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -3364,9 +3364,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def cashaddr_icon(self):
         if self.config.get('show_cashaddr', True):
-            return QIcon(":icons/tab_converter.png")
+            return QIcon(":icons/tab_converter.svg")
         else:
-            return QIcon(":icons/tab_converter_bw.png")
+            return QIcon(":icons/tab_converter_bw.svg")
 
     def update_cashaddr_icon(self):
         self.addr_converter_button.setIcon(self.cashaddr_icon())

@@ -1,3 +1,8 @@
+tab_converter.svg & tab_converter_bw.svg
+    Author: Leandro Di Marco <<leandrodimarco@gmail.com>>
+    License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+    from: Sent personally to Electron Cash dev team
+
 confirmed.svg
     Author: GregorDS (https://commons.wikimedia.org/wiki/User:GregorDS)
     License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
@@ -7,7 +12,7 @@ expired.svg
     Author: The Oxygen Team, KDE
     License: LGPLv3 (https://www.gnu.org/licenses/lgpl-3.0.html)
     from https://commons.wikimedia.org/wiki/File:Oxygen480-emblems-emblem-important.svg
-    
+
 preferences.svg
     Author: GNOME icon artists (https://github.com/GNOME/gnome-icon-theme/blob/master/AUTHORS)
     License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)
