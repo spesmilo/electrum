@@ -560,4 +560,10 @@ and there is no warning message.
   is on by default and if unchecked, allows you to no longer receive system
   tray notifications on tx's. This is a per-wallet setting. Closes issue #1451
   (cculianu)
-
+* Tx Send Confirmation: Added a new button to the tx send confirmation dialog
+  "Copy link" which copies the link to the tx on the configured block explorer.
+  Issue #1464 (cculianu)
+* .DMG and AppImage builds have been made SIGNIFICANTLY smaller! (Axel Gembe)
+* Cash Address Toggle: Replaced icon with a much nicer one. (Leandro Di Marco)
+* Improved system tray icon and other assorted icons to be higher resolution.
+  (Axel Gembe)
