@@ -241,8 +241,8 @@ class Upbit(ExchangeBase):
         json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
         if ccy != "BTC":
             json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['trade_price'])*Decimal(json2['last'])}
-        return {ccy: Decimal(json1['trade_price'])}
+            return {ccy: Decimal(json1[0]['trade_price'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1[0]['trade_price'])}
 
 def dictinvert(d):
     inv = {}
