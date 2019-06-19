@@ -100,7 +100,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
-    cashaddr_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
     labels_updated_signal = pyqtSignal() # note this signal occurs when an explicit update_labels() call happens. Interested GUIs should also listen for history_updated_signal as well which also indicates labels may have changed.
     on_timer_signal = pyqtSignal()  # functions wanting to be executed from timer_actions should connect to this signal, preferably via Qt.DirectConnection
@@ -130,6 +129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = None
         self.hardwarewalletdialog = None
         self.require_fee_update = False
+        self.cashaddr_toggled_signal = self.gui_object.cashaddr_toggled_signal  # alias for backwards compatibility for plugins -- this signal used to live in each window and has since been refactored to gui-object where it belongs (since it's really an app-global setting)
         self.force_use_single_change_addr = None  # this is set by the CashShuffle plugin to a single string that will go into the tool-tip explaining why this preference option is disabled (see self.settings_dialog)
         self.tl_windows = []
         self.tx_external_keypairs = {}
@@ -137,8 +137,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
         self.is_schnorr_enabled = self.wallet.is_schnorr_enabled  # This is a function -- Support for plugins that may be using the 4.0.3 & 4.0.4 API -- this function used to live in this class, before being moved to Abstract_Wallet.
         self.send_tab_opreturn_widgets, self.receive_tab_opreturn_widgets = [], []  # defaults to empty list
-
-        Address.show_cashaddr(config.get('show_cashaddr', True))
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -196,7 +194,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for i in range(wrtabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
 
-        self.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
+        self.gui_object.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.gui_object.update_available_signal.connect(self.on_update_available)  # shows/hides the update_available_button, emitted by update check mechanism when a new version is available
@@ -949,7 +947,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         label = HelpLabel(_('&Receiving address'), msg)
         label.setBuddy(self.receive_address_e)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
-        self.cashaddr_toggled_signal.connect(self.update_receive_address_widget)
+        self.gui_object.cashaddr_toggled_signal.connect(self.update_receive_address_widget)
         grid.addWidget(label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
 
@@ -2276,19 +2274,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_addresses_tab(self):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
-        self.cashaddr_toggled_signal.connect(l.update)
+        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
         self.utxo_list = l = UTXOList(self)
-        self.cashaddr_toggled_signal.connect(l.update)
+        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
         from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
-        self.cashaddr_toggled_signal.connect(l.update)
+        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
@@ -2509,6 +2507,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.toggle_cashaddr_status_bar
         )
         sb.addPermanentWidget(self.addr_converter_button)
+        self.addr_converter_button.setHidden(self.gui_object.is_cashaddr_status_button_hidden())
+        self.gui_object.cashaddr_status_button_hidden_signal.connect(self.addr_converter_button.setHidden)
 
         sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
@@ -3363,7 +3363,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_status()
 
     def cashaddr_icon(self):
-        if self.config.get('show_cashaddr', True):
+        if self.gui_object.is_cashaddr():
             return QIcon(":icons/tab_converter.svg")
         else:
             return QIcon(":icons/tab_converter_bw.svg")
@@ -3372,16 +3372,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addr_converter_button.setIcon(self.cashaddr_icon())
 
     def toggle_cashaddr_status_bar(self):
-        self.toggle_cashaddr(not self.config.get('show_cashaddr', True))
+        self.gui_object.toggle_cashaddr()
 
     def toggle_cashaddr_settings(self, state):
-        self.toggle_cashaddr(state == Qt.Checked)
+        self.gui_object.toggle_cashaddr(state == Qt.Checked)
 
     def toggle_cashaddr(self, on):
-        self.config.set_key('show_cashaddr', on)
-        Address.show_cashaddr(on)
-        for window in self.gui_object.windows:
-            window.cashaddr_toggled_signal.emit()
+        self.print_error('*** WARNING ElectrumWindow.toggle_cashaddr: This function is deprecated. Please do not call it!')
+        self.gui_object.toggle_cashaddr(on)
 
     def cashshuffle_plugin_if_loaded(self):
         return self.gui_object.plugins.get_internal_plugin("shuffle", force_load = False)
@@ -3517,12 +3515,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_widgets = []
         global_tx_widgets, per_wallet_tx_widgets = [], []
         id_widgets = []
-
-        cashaddr_cb = QCheckBox(_('CashAddr address format'))
-        cashaddr_cb.setChecked(Address.FMT_UI == Address.FMT_CASHADDR)
-        cashaddr_cb.setToolTip(_("If unchecked, addresses are shown in legacy format"))
-        cashaddr_cb.stateChanged.connect(self.toggle_cashaddr_settings)
-        gui_widgets.append((cashaddr_cb, None))
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -3753,6 +3745,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.need_restart = True
             hidpi_chk.stateChanged.connect(on_hi_dpi_toggle)
             gui_widgets.append((hidpi_chk, None))
+
+        # CashAddr control
+        gui_widgets.append((None, None)) # spacer
+        address_w = QGroupBox(_('Address format'))
+        address_w.setToolTip(_('Select between Cash Address and Legacy formats for addresses'))
+        hbox = QHBoxLayout(address_w)
+        cashaddr_cbox = QComboBox()
+        cashaddr_cbox.addItem(QIcon(':icons/tab_converter.svg'), _("CashAddr"), Address.FMT_CASHADDR)
+        cashaddr_cbox.addItem(QIcon(':icons/tab_converter_bw.svg'), _("Legacy"), Address.FMT_LEGACY)
+        cashaddr_cbox.setCurrentIndex(0 if self.gui_object.is_cashaddr() else 1)
+        def cashaddr_cbox_handler(ignored_param):
+            fmt = int(cashaddr_cbox.currentData())
+            self.gui_object.toggle_cashaddr(fmt == Address.FMT_CASHADDR)
+        cashaddr_cbox.currentIndexChanged.connect(cashaddr_cbox_handler)
+        hbox.addWidget(cashaddr_cbox)
+        toggle_cashaddr_control = QCheckBox(_('Hide status button'))
+        toggle_cashaddr_control.setToolTip(_('If checked, the status bar button for toggling address formats will be hidden'))
+        toggle_cashaddr_control.setChecked(self.gui_object.is_cashaddr_status_button_hidden())
+        toggle_cashaddr_control.toggled.connect(self.gui_object.set_cashaddr_status_button_hidden)
+        hbox.addWidget(toggle_cashaddr_control)
+        gui_widgets.append((address_w, None))
 
         gui_widgets.append((None, None)) # spacer
         updatecheck_cb = QCheckBox(_("Automatically check for updates"))
@@ -4019,7 +4032,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def clean_up_connections(self):
         def disconnect_signals():
             for attr_name in dir(self):
-                if attr_name.endswith("_signal"):
+                if attr_name.endswith("_signal") and attr_name != "cashaddr_toggled_signal":
                     sig = getattr(self, attr_name)
                     if isinstance(sig, pyqtBoundSignal):
                         try: sig.disconnect()

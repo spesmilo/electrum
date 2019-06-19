@@ -41,6 +41,7 @@ from electroncash.util import (UserCancelled, PrintError, print_error,
                                standardize_path, finalization_print_error, Weak,
                                get_new_wallet_name)
 from electroncash import version
+from electroncash.address import Address
 
 from .installwizard import InstallWizard, GoBack
 
@@ -55,6 +56,8 @@ from .update_checker import UpdateChecker
 class ElectrumGui(QObject, PrintError):
     new_window_signal = pyqtSignal(str, object)
     update_available_signal = pyqtSignal(bool)
+    cashaddr_toggled_signal = pyqtSignal()  # app-wide signal for when cashaddr format is toggled. This used to live in each ElectrumWindow instance but it was recently refactored to here.
+    cashaddr_status_button_hidden_signal = pyqtSignal(bool)  # app-wide signal for when cashaddr toggle button is hidden from the status bar
 
     instance = None
 
@@ -110,6 +113,7 @@ class ElectrumGui(QObject, PrintError):
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
         self.nd = None
         self._last_active_window = None  # we remember the last activated ElectrumWindow as a Weak.ref
+        Address.show_cashaddr(self.is_cashaddr())
         # Dark Theme -- ideally set this before any widgets are created.
         self.set_dark_theme_if_needed()
         # /
@@ -669,6 +673,29 @@ class ElectrumGui(QObject, PrintError):
             except TypeError:
                 self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
 
+    def is_cashaddr(self):
+        return bool(self.config.get('show_cashaddr', True))
+
+    def toggle_cashaddr(self, on = None):
+        was = self.is_cashaddr()
+        if on is None:
+            on = not was
+        else:
+            on = bool(on)
+        self.config.set_key('show_cashaddr', on)
+        Address.show_cashaddr(on)
+        if was != on:
+            self.cashaddr_toggled_signal.emit()
+
+    def is_cashaddr_status_button_hidden(self):
+        return bool(self.config.get('hide_cashaddr_button', False))
+
+    def set_cashaddr_status_button_hidden(self, b):
+        b = bool(b)
+        was = self.is_cashaddr_status_button_hidden()
+        if was != b:
+            self.config.set_key('hide_cashaddr_button', bool(b))
+            self.cashaddr_status_button_hidden_signal.emit(b)
 
     def main(self):
         try:
