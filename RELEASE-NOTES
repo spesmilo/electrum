@@ -563,7 +563,12 @@ and there is no warning message.
 * Tx Send Confirmation: Added a new button to the tx send confirmation dialog
   "Copy link" which copies the link to the tx on the configured block explorer.
   Issue #1464 (cculianu)
-* .DMG and AppImage builds have been made SIGNIFICANTLY smaller! (Axel Gembe)
+* AppImage builds have been made SIGNIFICANTLY smaller. Here's to faster
+  downloads and peppier startup times, hooray! In addition, the macOS .dmg build
+  and the Windows .exe builds have been made slightly smaller. (Axel Gembe)
 * Cash Address Toggle: Replaced icon with a much nicer one. (Leandro Di Marco)
-* Improved system tray icon and other assorted icons to be higher resolution.
-  (Axel Gembe)
+* Cash Address Toggle: After a reddit poll was conducted, we decided to make it
+  possible to disable the cash address status bar button in the GUI. It's on
+  by default, but can be disabled in Preferences -> General. In addition, the
+  Preferences -> General tab has been laid out slightly differently. (cculianu)
+* Improved system tray icon and other assorted icons for high DPI. (Axel Gembe)
