@@ -196,11 +196,22 @@ class AddressList(MyTreeWidget):
             addr = addrs[0]
 
             column_title = self.headerItem().text(col)
+            alt_copy_text, alt_column_title = None, None
             if col == 0:
                 copy_text = addr.to_full_ui_string()
+                if Address.FMT_UI == Address.FMT_LEGACY:
+                    alt_copy_text, alt_column_title = addr.to_full_string(Address.FMT_CASHADDR), _('Cash Address')
+                else:
+                    alt_copy_text, alt_column_title = addr.to_full_string(Address.FMT_LEGACY), _('Legacy Address')
             else:
                 copy_text = item.text(col)
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text.strip()))
+            def doCopy(txt):
+                txt = txt.strip()
+                self.parent.copy_to_clipboard(txt)
+            menu.addAction(_("Copy {}").format(column_title), lambda: doCopy(copy_text))
+            if alt_copy_text and alt_column_title:
+                # Add 'Copy Legacy Address' and 'Copy Cash Address' alternates if right-click is on column 0
+                menu.addAction(_("Copy {}").format(alt_column_title), lambda: doCopy(alt_copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
                 menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(self.itemAt(position), # NB: C++ item may go away if this widget is refreshed while menu is up -- so need to re-grab and not store in lamba. See #953

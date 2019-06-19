@@ -1050,12 +1050,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox2.setSpacing(4)
         vbox2.addWidget(self.receive_qr, Qt.AlignHCenter|Qt.AlignTop)
         self.receive_qr.setToolTip(_('Receive request QR code (click for details)'))
-        but = QPushButton(_('Copy &URI'))
+        but = uribut = QPushButton(_('Copy &URI'))
         def on_copy_uri():
             if self.receive_qr.data:
                 uri = str(self.receive_qr.data)
-                qApp.clipboard().setText(uri)
-                QToolTip.showText(QCursor.pos(), _("Receive request URI copied to clipboard"), self)
+                self.copy_to_clipboard(uri, _('Receive request URI copied to clipboard'), uribut)
         but.clicked.connect(on_copy_uri)
         but.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         but.setToolTip(_('Click to copy the receive request URI to the clipboard'))
@@ -2017,8 +2016,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                                            defaultButton = buttons[-1],
                                            escapeButton = buttons[-1]) == copy_index:
                         # There WAS a 'Copy link' and they clicked it
-                        qApp.clipboard().setText(copy_link)
-                        QToolTip.showText(QCursor.pos(), _("Block explorer link copied to clipboard"), self.top_level_window())
+                        self.copy_to_clipboard(copy_link, _("Block explorer link copied to clipboard"), self.top_level_window())
                     self.invoice_list.update()
                     self.do_clear()
                 else:
@@ -4402,6 +4400,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = ScanBeyondGap(self)
         d.exec_()
         d.setParent(None)  # help along Python by dropping refct to 0
+
+    def copy_to_clipboard(self, text, tooltip=None, widget=None):
+        tooltip = tooltip or _("Text copied to clipboard")
+        widget = widget or self
+        qApp.clipboard().setText(text)
+        QToolTip.showText(QCursor.pos(), tooltip, widget)
 
 
 class TxUpdateMgr(QObject, PrintError):
