@@ -143,41 +143,30 @@ class ExchangeBase(Logger):
         rates = await self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
-
-class BlockchainInfo(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('blockchain.info', '/ticker')
-        return dict([(r, Decimal(json[r]['15m'])) for r in json])
-
-    def name(self):
-        return "Blockchain"
-
 class Binance(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
-        return {'BTC': Decimal(json['price'])}
+        json1 = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['price'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['price'])}
 
-    def history_ccys(self):
-        return ['BTC']
-
-    async def request_history(self, ccy):
-        json = await self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
-        return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
+class BitcoinAverage(ExchangeBase):
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/crypto/ticker/GRSBTC')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['last'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['last'])}
 
 class Bittrex(ExchangeBase):
-
     async def get_rates(self, ccy):
-        quote_currencies = {}
-        resp = await self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=BTC-GRS')
-        grs_btc_rate = quote_currencies['BTC'] = Decimal(resp['result']['Last'])
-
-        # Get BTC/fiat rates from BlockchainInfo.
-        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
-        for currency, btc_rate in blockchain_tickers.items():
-            quote_currencies[currency] = grs_btc_rate * btc_rate
-        return quote_currencies
+        json1 = await self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=btc-grs')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['result']['Last'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['result']['Last'])}
 
 class CoinCap(ExchangeBase):
 
@@ -214,6 +203,14 @@ class CoinGecko(ExchangeBase):
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
                      for h in history['prices']])
 
+class CryptoBridge(ExchangeBase):
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.crypto-bridge.org', '/api/v1/ticker/GRS_BTC')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['last'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['last'])}
+
 class CryptoCompare(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -229,32 +226,23 @@ class CryptoCompare(ExchangeBase):
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
 
-class GRSTicker(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        url = 'https://groestlcoin.org/grsticker.php'
-        response = requests.request('GET', url,
-                                    headers={'User-Agent' : 'Electrum-GRS'})
-
-        quote_currencies = {}
-        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content.decode())
-        # Get BTC/fiat rates from BlockchainInfo.
-        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
-        for currency, btc_rate in blockchain_tickers.items():
-            quote_currencies[currency] = grs_btc_rate * btc_rate
-        return quote_currencies
-
 class Huobi(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
-        return {'BTC': Decimal(json['tick']['data'][0]['price'])}
+        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['tick']['data'][0]['price'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['tick']['data'][0]['price'])}
 
 class Upbit(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
-        return {'BTC': Decimal(json[0]['trade_price'])}
+        json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+        if ccy != "BTC":
+            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
+            return {ccy: Decimal(json1['trade_price'])*Decimal(json2['last'])}
+        return {ccy: Decimal(json1['trade_price'])}
 
 def dictinvert(d):
     inv = {}
@@ -275,10 +263,9 @@ def get_exchanges_and_currencies():
     # or if not present, generate it now.
     print("cannot find currencies.json. will regenerate it now.")
     d = {}
-    # BlockchainInfo is used for BTC/fiat rates, so it is excluded.
     is_exchange = lambda obj: (inspect.isclass(obj)
                                and issubclass(obj, ExchangeBase)
-                               and obj not in [ExchangeBase, BlockchainInfo])
+                               and obj != ExchangeBase)
     exchanges = dict(inspect.getmembers(sys.modules[__name__], is_exchange))
 
     async def get_currencies_safe(name, exchange):
