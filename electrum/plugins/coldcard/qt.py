@@ -9,6 +9,7 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Standard_Wallet, Multisig_Wallet
 from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrum.transaction import Transaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -18,7 +19,7 @@ from binascii import a2b_hex
 from base64 import b64encode, b64decode
 
 from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt
+from .build_psbt import build_psbt, combine_psbt
 
 class Plugin(ColdcardPlugin, QtPluginBase):
     icon_unpaired = "coldcard_unpaired.png"
@@ -84,9 +85,8 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def transaction_dialog(self, dia):
         # see gui/qt/transaction_dialog.py
 
-        keystore = dia.wallet.get_keystore()
-        if type(keystore) != self.keystore_class:
-            # not a Coldcard wallet, hide feature
+        # if not a Coldcard wallet, hide feature
+        if not any(type(ks) != self.keystore_class for ks in dia.wallet.get_keystores()):
             return
 
         # - add a new button, near "export"
@@ -136,7 +136,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         tools_menu.addAction(_("&Combine PSBT Files"), lambda: self.psbt_combiner(main_window))
 
     def psbt_combiner(self, window):
-        title = _("Select the signed PSBT files to combine and transmit")
+        title = _("Select the signed PSBT files to combine")
         directory = ''
         fnames, __ = QFileDialog.getOpenFileNames(window, title, directory, "PSBT Files (*.psbt)")
 
@@ -154,20 +154,61 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 window.show_critical(_("Electrum was unable to open your PSBT file") + "\n" + str(reason), title=_("Unable to read file"))
                 return
 
+    
+        if len(psbts) < 2:
+            window.show_critical(_("Need 2 or more PSBT to be able to combine them."),
+                                        title=_("Unable to combine PSBT files"))
+            return
+
         # Consistency checks
         try:
-            assert len(psbts) >= 2, _("Need 2 or more PSBT to be able to combine them.")
             first = psbts[0]
             for p in psbts:
                 assert (p.txn == first.txn), \
-                    f"All must relate to the same original transaction, check file: {p.filename}"
+                    "All must relate to the same original transaction"
+
                 for idx, inp in enumerate(p.inputs):
-                    assert inp.part_sigs, f"No partial signatures found in file: {p.filename}"
+                    assert inp.part_sigs, "No partial signatures found in file"
+                    assert first.inputs[idx].redeem_script == inp.redeem_script, "Mismatched redeem scripts"
+                    assert first.inputs[idx].witness_script == inp.witness_script, "Mismatched witness"
                     
         except AssertionError as exc:
-            window.show_critical(str(exc), title=_("Unable to combine PSBT files"))
+            window.show_critical(str(exc), title=_("Unable to combine PSBT files, check: ")+p.filename)
             return
 
+        # Build the transaction, add sigs, and show to user for possible transmission.
+        tx = Transaction(first.txn.hex())
+        tx.deserialize(force_full_parse=True)
+
+        from electrum.transaction import parse_redeemScript_multisig
+
+        # .. add back some data that's been preserved in the PSBT, but isn't part of
+        # of the unsigned bitcoin txn
+        tx.is_partial_originally = True
+        for idx, inp in enumerate(tx.inputs()):
+            scr = first.inputs[idx].redeem_script
+            if scr:
+                M, N, __, pubkeys, __ = parse_redeemScript_multisig(scr)
+                inp['pubkeys'] = pubkeys
+                inp['x_pubkeys'] = pubkeys
+                inp['num_sig'] = M
+                inp['type'] = 'p2sh'        # XXX p2wsh
+                # bugfix: transaction.pyparse_input puts dict here?
+                inp['signatures'] = [None] * N      
+
+        for p in psbts:
+            try:
+                combine_psbt(tx, p)
+            except BaseException as exc:
+                from PyQt5.QtCore import pyqtRemoveInputHook
+                pyqtRemoveInputHook()
+                import pdb; pdb.post_mortem()
+                window.show_critical(str(exc), 
+                    title=_("Unable to combine PSBT file: ") + p.filename)
+                return
+
+        # Display result, might not be complete yet.
+        window.show_transaction(tx, "PSBT Combined")
 
 class Coldcard_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()

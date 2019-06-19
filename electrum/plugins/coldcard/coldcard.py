@@ -10,7 +10,7 @@ from electrum.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
 from electrum.i18n import _
 from electrum.plugin import Device, hook
 from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
-from electrum.transaction import Transaction, multisig_script, parse_redeemScript_multisig
+from electrum.transaction import Transaction, multisig_script
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
 from electrum.crypto import hash_160
 from electrum.util import bfh, bh2u, versiontuple, UserFacingException
@@ -22,7 +22,7 @@ from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
 from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt, xfp2str, unpacked_xfp_path
+from .build_psbt import build_psbt, xfp2str, unpacked_xfp_path, combine_psbt
 
 _logger = get_logger(__name__)
 
@@ -258,6 +258,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         self.ux_busy = False
 
         # for multisig I need to know what wallet this keystore is part of
+        # this is captured by hooling  make_unsigned_transaction
         self.my_wallet = None
 
         # Seems like only the derivation path and resulting **derived** xpub is stored in
@@ -386,12 +387,17 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         client = self.get_client()
 
+        from pprint import pprint
+        for n,i in enumerate(tx.inputs()):
+            print('[%d]: ' % n, end='')
+            pprint(i)
+
         assert client.dev.master_fingerprint == self.ckcc_xfp
 
         # makes PSBT required
         raw_psbt = build_psbt(tx, self.my_wallet)
 
-        cc_finalize = not (type(wallet) is Multisig_Wallet)
+        cc_finalize = not (type(self.my_wallet) is Multisig_Wallet)
 
         try:
             try:
@@ -430,33 +436,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         else:
             # apply partial signatures back into txn
             psbt = BasicPSBT()
-            psbt.parse(raw_resp, self.get_label())
+            psbt.parse(raw_resp, client.label())
 
-            self.merge_psbt(tx, psbt, wallet)
+            combine_psbt(tx, psbt)
 
-    def merge_psbt(self, tx: Transaction, psbt: BasicPSBT, wallet: Wallet):
-        # Take new signatures from PSBT, and merge into on-going in-memory transaction.
-        # - "we trust everyone here"
-
-        count = 0
-        for inp_idx, inp in enumerate(psbt.inputs):
-            # need to map from pubkey to signing position in redeem script
-            M, N, _, pubkeys, _ = parse_redeemScript_multisig(inp.redeem_script)
-            assert (M, N) == (wallet.M, wallet.N)
-
-            for sig_pk in inp.part_sigs:
-                pk_pos = pubkeys.find(sig_pk)
-                assert pk_pos >= 0, "unknown pubkey?"
-                tx.add_signature_to_txin(inp_idx, pk_pos, sig)
-                count += 1
-
-        assert count, "unable to add any partial sigs"
-        
-        # reset / update objs
-        tx.raw = tx.serialize()
-        tx.raw_psbt = None
-
-        return count
+            # caller's logic looks at tx now and if it's sufficiently signed,
+            # will send it if that's the user's intent.
 
     @staticmethod
     def _encode_txin_type(txin_type):
@@ -686,12 +671,14 @@ class ColdcardPlugin(HW_PluginBase):
             keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
             return
 
-    # overloads HW_PluginBase.load_wallet, which we need
-    def XXX_load_wallet(self, wallet, window):
-        # Hook runs when a specific wallet is openned okay; also maybe a new one?
-        # - capture wallet containing keystore
+    @hook
+    def make_unsigned_transaction(self, wallet, tx):
+        # PROBLEM: wallet.sign_transaction() does not pass in the wallet to the individual
+        # keystores, and we need to know about our co-signers at that time.
+        # - capture wallet containing each keystore early in the process
         for ks in wallet.get_keystores():
             if type(ks) == Coldcard_KeyStore:
-                ks.my_wallet = wallet
+                if not ks.my_wallet:
+                    ks.my_wallet = wallet
 
 # EOF

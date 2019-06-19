@@ -6,7 +6,7 @@ from base64 import b64decode
 from binascii import a2b_hex, b2a_hex
 from struct import pack, unpack
 
-from electrum.transaction import Transaction, multisig_script
+from electrum.transaction import Transaction, multisig_script, parse_redeemScript_multisig
 
 from electrum.logging import get_logger
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
@@ -287,6 +287,28 @@ def build_psbt(tx: Transaction, wallet: Wallet):
 
     return tx.raw_psbt
 
+
+def combine_psbt(tx: Transaction, psbt):
+    # Take new signatures from PSBT, and merge into on-going in-memory transaction.
+    # - "we trust everyone here"
+
+    count = 0
+    for inp_idx, inp in enumerate(psbt.inputs):
+        # need to map from pubkey to signing position in redeem script
+        M, N, _, pubkeys, _ = parse_redeemScript_multisig(inp.redeem_script)
+        #assert (M, N) == (wallet.m, wallet.n)
+
+        for sig_pk in inp.part_sigs:
+            pk_pos = pubkeys.index(sig_pk.hex())
+            tx.add_signature_to_txin(inp_idx, pk_pos, inp.part_sigs[sig_pk].hex())
+            count += 1
+
+    assert count, "unable to add any partial sigs"
+    
+    # reset serialization of TX
+    tx.raw = tx.serialize()
+
+    return count
 
 # EOF
 
