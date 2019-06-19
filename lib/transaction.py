@@ -1080,7 +1080,10 @@ class Transaction:
                                 # early abort from func, canceled
                                 break
                             if r.get('error'):
-                                raise ErrorResp(r.get('error').get('message'))
+                                msg = r.get('error')
+                                if isinstance(msg, dict):
+                                    msg = msg.get('message') or 'unknown error'
+                                raise ErrorResp(msg)
                             rawhex = r['result']
                             txid = r['params'][0]
                             assert txid not in bad_txids, "txid marked bad"  # skip if was marked bad by our callback code
@@ -1097,8 +1100,7 @@ class Transaction:
                         except queue.Empty:
                             print_error("fetch_input_data: timed out after 10.0s fetching from network, giving up.")
                             break
-                        except (AssertionError, ValueError, TypeError, KeyError,
-                                IndexError, ErrorResp, InputValueMissing, SerializationError) as e:
+                        except Exception as e:
                             print_error("fetch_input_data:", repr(e))
                 finally:
                     # force-cancel any extant requests -- this is especially

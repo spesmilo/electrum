@@ -2003,9 +2003,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if result:
                 status, msg = result
                 if status:
-                    if tx_desc is not None and tx.is_complete():
-                        self.wallet.set_label(tx.txid(), tx_desc)
-                    parent.show_message(_('Payment sent.') + '\n' + msg)
+                    buttons, copy_index, copy_link = [ _('Ok') ], None, ''
+                    try: txid = tx.txid()  # returns None if not is_complete, but may raise potentially as well
+                    except: txid = None
+                    if txid is not None:
+                        if tx_desc is not None:
+                            self.wallet.set_label(txid, tx_desc)
+                        copy_link = web.BE_URL(self.config, 'tx', txid)
+                        if copy_link:
+                            # tx is complete and there is a copy_link
+                            buttons.insert(0, _("Copy link"))
+                            copy_index = 0
+                    if parent.show_message(_('Payment sent.') + '\n' + msg,
+                                           buttons = buttons,
+                                           defaultButton = buttons[-1],
+                                           escapeButton = buttons[-1]) == copy_index:
+                        # There WAS a 'Copy link' and they clicked it
+                        qApp.clipboard().setText(copy_link)
+                        QToolTip.showText(QCursor.pos(), _("Block explorer link copied to clipboard"), self.top_level_window())
                     self.invoice_list.update()
                     self.do_clear()
                 else:

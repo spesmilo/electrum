@@ -67,7 +67,7 @@ def BE_info():
 def BE_tuple(config):
     infodict = BE_info()
     return (infodict.get(BE_from_config(config))
-            or infodict.get(BE_default_explorer()) # In case block explorer in config is bad/no longet valid
+            or infodict.get(BE_default_explorer()) # In case block explorer in config is bad/no longer valid
            )
 
 def BE_default_explorer():
