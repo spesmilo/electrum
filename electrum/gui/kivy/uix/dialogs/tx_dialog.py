@@ -27,6 +27,7 @@ Builder.load_string('''
     can_broadcast: False
     can_rbf: False
     fee_str: ''
+    feerate_str: ''
     date_str: ''
     date_label:''
     amount_str: ''
@@ -65,6 +66,9 @@ Builder.load_string('''
                     BoxLabel:
                         text: _('Transaction fee') if root.fee_str else ''
                         value: root.fee_str
+                    BoxLabel:
+                        text: _('Transaction fee rate') if root.feerate_str else ''
+                        value: root.feerate_str
                 TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
@@ -148,7 +152,13 @@ class TxDialog(Factory.Popup):
         else:
             self.is_mine = True
             self.amount_str = format_amount(-amount)
-        self.fee_str = format_amount(fee) if fee is not None else _('unknown')
+        if fee is not None:
+            self.fee_str = format_amount(fee)
+            fee_per_kb = fee / self.tx.estimated_size() * 1000
+            self.feerate_str = self.app.format_fee_rate(fee_per_kb)
+        else:
+            self.fee_str = _('unknown')
+            self.feerate_str = _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
