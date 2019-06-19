@@ -205,22 +205,25 @@ prepare_wine() {
         (
             cd pyinstaller
             git checkout -b pinned $PYINSTALLER_COMMIT
+            rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
             echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
-            cd bootloader
+            pushd bootloader
+            # If switching to 64-bit Windows, edit CC= below
             python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
-        )
+            # Note: it's possible for the EXE to not be there if the build
+            # failed but didn't return exit status != 0 to the shell (waf bug?);
+            # So we need to do this to make sure the EXE is actually there.
+            # If we switch to 64-bit, edit this path below.
+            popd
+            [ -e PyInstaller/bootloader/Windows-32bit/runw.exe ] || fail "Could not find runw.exe in target dir!"
+        ) || fail "PyInstaller bootloader build failed"
         info "Installing PyInstaller ..."
-        $PYTHON -m pip install ./pyinstaller
+        $PYTHON -m pip install ./pyinstaller || fail "PyInstaller install failed"
 
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         info "Installing Packages from requirements-binaries ..."
         $PYTHON -m pip install -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
-
-        #The below has been commented-out as our requirements-wine-build.txt already handles this
-        #info "Upgrading setuptools ..."
-        # Upgrade setuptools (so Electron-Cash can be installed later)
-        #$PYTHON -m pip install setuptools --upgrade
 
         info "Installing NSIS ..."
         # Install NSIS installer
@@ -234,11 +237,6 @@ prepare_wine() {
         7z x -olibusb libusb.7z
         mkdir -p $WINEPREFIX/drive_c/tmp
         cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb.dll to its destination"
-
-        # Install UPX
-        #wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
-        #unzip -o upx.zip
-        #cp upx*/upx.exe .
 
         # libsecp256k1 & libzbar
         mkdir -p $WINEPREFIX/drive_c/tmp
