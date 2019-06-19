@@ -1,4 +1,7 @@
 {
+    "Binance": [
+      "BTC"
+    ],
     "Bittrex": [
         "USD",
         "TWD",
@@ -24,50 +27,8 @@
         "BTC",
         "PLN"
     ],
-    "GRSTicker": [
-        "USD",
-        "TWD",
-        "ISK",
-        "GBP",
-        "DKK",
-        "CAD",
-        "SEK",
-        "SGD",
-        "HKD",
-        "AUD",
-        "CHF",
-        "KRW",
-        "CNY",
-        "NZD",
-        "CLP",
-        "THB",
-        "EUR",
-        "RUB",
-        "INR",
-        "JPY",
-        "BRL",
-        "BTC",
-        "PLN"
-    ],
-    "CryptoCompare": [
-        "AED",
-        "AUD",
-        "CAD",
-        "CHF",
-        "CNY",
-        "EUR",
-        "GBP",
-        "INR",
-        "JPY",
-        "KRW",
-        "PKR",
-        "RUB",
-        "SEK",
-        "USD",
-        "BTC"
-    ],
-    "Binance": [
-        "BTC"
+    "CoinCap": [
+        "USD"
     ],
     "CoinGecko": [
         "AED",
@@ -124,6 +85,48 @@
         "XLM",
         "XRP",
         "ZAR"
+    ],
+    "CryptoCompare": [
+        "AED",
+        "AUD",
+        "CAD",
+        "CHF",
+        "CNY",
+        "EUR",
+        "GBP",
+        "INR",
+        "JPY",
+        "KRW",
+        "PKR",
+        "RUB",
+        "SEK",
+        "USD",
+        "BTC"
+    ],
+    "GRSTicker": [
+        "USD",
+        "TWD",
+        "ISK",
+        "GBP",
+        "DKK",
+        "CAD",
+        "SEK",
+        "SGD",
+        "HKD",
+        "AUD",
+        "CHF",
+        "KRW",
+        "CNY",
+        "NZD",
+        "CLP",
+        "THB",
+        "EUR",
+        "RUB",
+        "INR",
+        "JPY",
+        "BRL",
+        "BTC",
+        "PLN"
     ],
     "Huobi": [
         "BTC"

@@ -153,6 +153,19 @@ class BlockchainInfo(ExchangeBase):
     def name(self):
         return "Blockchain"
 
+class Binance(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
+        return {'BTC': Decimal(json['price'])}
+
+    def history_ccys(self):
+        return ['BTC']
+
+    async def request_history(self, ccy):
+        json = await self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
+        return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
+
 class Bittrex(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -166,60 +179,22 @@ class Bittrex(ExchangeBase):
             quote_currencies[currency] = grs_btc_rate * btc_rate
         return quote_currencies
 
-class GRSTicker(ExchangeBase):
+class CoinCap(ExchangeBase):
 
     async def get_rates(self, ccy):
-        url = 'https://groestlcoin.org/grsticker.php'
-        response = requests.request('GET', url,
-                                    headers={'User-Agent' : 'Electrum-GRS'})
-
-        quote_currencies = {}
-        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content.decode())
-        # Get BTC/fiat rates from BlockchainInfo.
-        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
-        for currency, btc_rate in blockchain_tickers.items():
-            quote_currencies[currency] = grs_btc_rate * btc_rate
-        return quote_currencies
-
-class CryptoCompare(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        tsyms = ','.join(self.history_ccys())
-        result = await self.get_json('min-api.cryptocompare.com', '/data/price?fsym=GRS&tsyms={}&extraParams=ElectrumGRS'.format(tsyms))
-        return dict((k, Decimal(v)) for k, v in result.items())
+        json = await self.get_json('api.coincap.io', '/v2/assets/groestlcoin/')
+        return {'USD': Decimal(json['data']['priceUsd'])}
 
     def history_ccys(self):
-        return ['AED', 'AUD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'INR', 'JPY', 'KRW', 'PKR', 'RUB', 'SEK', 'USD', 'BTC']
+        return ['USD']
 
     async def request_history(self, ccy):
-        result = await self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
-        result = result.get('Data', [])
-        return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
-
-class Huobi(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
-        return {'BTC': Decimal(json['tick']['data'][0]['price'])}
-
-class Upbit(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
-        return {'BTC': Decimal(json[0]['trade_price'])}
-
-class Binance(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
-        return {'BTC': Decimal(json['price'])}
-
-    def history_ccys(self):
-        return ['BTC']
-
-    async def request_history(self, ccy):
-        json = await self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
-        return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
+        # Currently 2000 days is the maximum in 1 API call
+        # (and history starts on 2017-03-23)
+        history = await self.get_json('api.coincap.io',
+                                      '/v2/assets/groestlcoin/history?interval=d1&limit=2000')
+        return dict([(datetime.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'), h['priceUsd'])
+                     for h in history['data']])
 
 class CoinGecko(ExchangeBase):
 
@@ -238,6 +213,48 @@ class CoinGecko(ExchangeBase):
 
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
                      for h in history['prices']])
+
+class CryptoCompare(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        tsyms = ','.join(self.history_ccys())
+        result = await self.get_json('min-api.cryptocompare.com', '/data/price?fsym=GRS&tsyms={}&extraParams=ElectrumGRS'.format(tsyms))
+        return dict((k, Decimal(v)) for k, v in result.items())
+
+    def history_ccys(self):
+        return ['AED', 'AUD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'INR', 'JPY', 'KRW', 'PKR', 'RUB', 'SEK', 'USD', 'BTC']
+
+    async def request_history(self, ccy):
+        result = await self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
+        result = result.get('Data', [])
+        return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
+
+class GRSTicker(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        url = 'https://groestlcoin.org/grsticker.php'
+        response = requests.request('GET', url,
+                                    headers={'User-Agent' : 'Electrum-GRS'})
+
+        quote_currencies = {}
+        grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content.decode())
+        # Get BTC/fiat rates from BlockchainInfo.
+        blockchain_tickers = BlockchainInfo(None, None).get_rates(ccy)
+        for currency, btc_rate in blockchain_tickers.items():
+            quote_currencies[currency] = grs_btc_rate * btc_rate
+        return quote_currencies
+
+class Huobi(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+        return {'BTC': Decimal(json['tick']['data'][0]['price'])}
+
+class Upbit(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+        return {'BTC': Decimal(json[0]['trade_price'])}
 
 def dictinvert(d):
     inv = {}

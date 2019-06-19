@@ -646,6 +646,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockbook': ('https://blockbook.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'blockchair.com': ('https://blockchair.com/groestlcoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'system default': ('blockchain://00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
