@@ -2218,28 +2218,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
             grid.addWidget(QLabel(ks_type), 4, 1)
         vbox.addLayout(grid)
+
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
             mpk_text.setMaximumHeight(150)
             mpk_text.addCopyButton(self.app)
+
             def show_mpk(index):
                 mpk_text.setText(mpk_list[index])
-            # only show the combobox in case multiple accounts are available
+
             if len(mpk_list) > 1:
-                def label(key):
+                # only show the combobox if multiple master keys are defined
+                def label(idx, ks):
                     if isinstance(self.wallet, Multisig_Wallet):
-                        return _("cosigner") + f' {key+1} ( keystore: {keystore_types[key]} )'
-                    return ''
-                labels = [label(i) for i in range(len(mpk_list))]
+                        return _("cosigner") + f' {idx+1}: {ks.get_type_text()} {ks.label}'
+                    else:
+                        return _("keystore") + f' {idx+1}'
+
+                labels = [label(idx, ks) for idx, ks in enumerate(self.wallet.get_keystores())]
+
                 on_click = lambda clayout: show_mpk(clayout.selected_index())
                 labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
             else:
                 vbox.addWidget(QLabel(_("Master Public Key")))
+
             show_mpk(0)
             vbox.addWidget(mpk_text)
+
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CloseButton(dialog)))
+        btns = run_hook('wallet_info_buttons', self, dialog) or Buttons(CloseButton(dialog))
+        vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()
 
