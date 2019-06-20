@@ -3414,7 +3414,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         loaded = bool(self.cashshuffle_plugin_if_loaded())
         en = self.is_cashshuffle_enabled()
         if self._cash_shuffle_flag == 0:
-            self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
+            self.cashshuffle_status_button.setStatusTip(_("CashShuffle") + " - " + _("ENABLED") if en else _("CashShuffle") + " - " + _("Disabled"))
             rcfcm = _("Right-click for context menu")
             self.cashshuffle_status_button.setToolTip(
                 (_("Toggle CashShuffle") + "\n" + rcfcm)
