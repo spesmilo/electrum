@@ -111,14 +111,14 @@ class CoinChooserBase(Logger):
     def keys(self, coins):
         raise NotImplementedError
 
-    def bucketize_coins(self, coins, *, fee_estimator):
+    def bucketize_coins(self, coins, *, fee_estimator_vb):
         keys = self.keys(coins)
         buckets = defaultdict(list)
         for key, coin in zip(keys, coins):
             buckets[key].append(coin)
         # fee_estimator returns fee to be paid, for given vbytes.
         # guess whether it is just returning a constant as follows.
-        constant_fee = fee_estimator(2000) == fee_estimator(200)
+        constant_fee = fee_estimator_vb(2000) == fee_estimator_vb(200)
 
         def make_Bucket(desc, coins):
             witness = any(Transaction.is_segwit_input(coin, guess_for_address=True) for coin in coins)
@@ -136,7 +136,7 @@ class CoinChooserBase(Logger):
             else:
                 # when converting from weight to vBytes, instead of rounding up,
                 # keep fractional part, to avoid overestimating fee
-                fee = fee_estimator(Decimal(weight) / 4)
+                fee = fee_estimator_vb(Decimal(weight) / 4)
                 effective_value = value - fee
             return Bucket(desc=desc,
                           weight=weight,
@@ -151,7 +151,7 @@ class CoinChooserBase(Logger):
     def penalty_func(self, base_tx, *, tx_from_buckets) -> Callable[[List[Bucket]], ScoredCandidate]:
         raise NotImplementedError
 
-    def _change_amounts(self, tx, count, fee_estimator):
+    def _change_amounts(self, tx, count, fee_estimator_numchange):
         # Break change up if bigger than max_change
         output_amounts = [o.value for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
@@ -160,7 +160,7 @@ class CoinChooserBase(Logger):
         # Use N change outputs
         for n in range(1, count + 1):
             # How much is left if we add this many change outputs?
-            change_amount = max(0, tx.get_fee() - fee_estimator(n))
+            change_amount = max(0, tx.get_fee() - fee_estimator_numchange(n))
             if change_amount // n <= max_change:
                 break
 
@@ -205,8 +205,8 @@ class CoinChooserBase(Logger):
 
         return amounts
 
-    def _change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
-        amounts = self._change_amounts(tx, len(change_addrs), fee_estimator)
+    def _change_outputs(self, tx, change_addrs, fee_estimator_numchange, dust_threshold):
+        amounts = self._change_amounts(tx, len(change_addrs), fee_estimator_numchange)
         assert min(amounts) >= 0
         assert len(change_addrs) >= len(amounts)
         # If change is above dust threshold after accounting for the
@@ -233,8 +233,8 @@ class CoinChooserBase(Logger):
 
         # This takes a count of change outputs and returns a tx fee
         output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
-        fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
-        change = self._change_outputs(tx, change_addrs, fee, dust_threshold)
+        fee_estimator_numchange = lambda count: fee_estimator_w(tx_weight + count * output_weight)
+        change = self._change_outputs(tx, change_addrs, fee_estimator_numchange, dust_threshold)
         tx.add_outputs(change)
 
         return tx, change
@@ -259,14 +259,14 @@ class CoinChooserBase(Logger):
 
         return total_weight
 
-    def make_tx(self, coins, inputs, outputs, change_addrs, fee_estimator,
+    def make_tx(self, coins, inputs, outputs, change_addrs, fee_estimator_vb,
                 dust_threshold):
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
         added to the transaction fee.
 
-        Note: fee_estimator expects virtual bytes
+        Note: fee_estimator_vb expects virtual bytes
         """
 
         # Deterministic randomness from coins
@@ -286,7 +286,7 @@ class CoinChooserBase(Logger):
         spent_amount = base_tx.output_value()
 
         def fee_estimator_w(weight):
-            return fee_estimator(Transaction.virtual_size_from_weight(weight))
+            return fee_estimator_vb(Transaction.virtual_size_from_weight(weight))
 
         def sufficient_funds(buckets, *, bucket_value_sum):
             '''Given a list of buckets, return True if it has enough
@@ -309,7 +309,7 @@ class CoinChooserBase(Logger):
                                                             base_weight=base_weight)
 
         # Collect the coins into buckets
-        all_buckets = self.bucketize_coins(coins, fee_estimator=fee_estimator)
+        all_buckets = self.bucketize_coins(coins, fee_estimator_vb=fee_estimator_vb)
         # Filter some buckets out. Only keep those that have positive effective value.
         # Note that this filtering is intentionally done on the bucket level
         # instead of per-coin, as each bucket should be either fully spent or not at all.
