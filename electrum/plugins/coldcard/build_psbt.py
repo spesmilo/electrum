@@ -6,23 +6,24 @@ from base64 import b64decode
 from binascii import a2b_hex, b2a_hex
 from struct import pack, unpack
 
-from electrum.transaction import Transaction, multisig_script, parse_redeemScript_multisig
+from electrum.transaction import (Transaction, multisig_script, parse_redeemScript_multisig,
+                                    NotRecognizedRedeemScript)
 
 from electrum.logging import get_logger
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
-from electrum.keystore import xpubkey_to_pubkey
+from electrum.keystore import xpubkey_to_pubkey, Xpub
 from electrum.util import bfh, bh2u
 from electrum.crypto import hash_160
 from electrum.bitcoin import DecodeBase58Check
 
 from .basic_psbt import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_GLOBAL_XPUB, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
-        PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT,
+        PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT, PSBT_IN_PARTIAL_SIG,
         PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
+from .basic_psbt import BasicPSBT
 
 from electrum.logging import get_logger
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
-from electrum.keystore import xpubkey_to_pubkey
 from electrum.util import bfh, bh2u
 from electrum.crypto import hash_160
 from electrum.bitcoin import DecodeBase58Check
@@ -43,10 +44,11 @@ def xfp_from_xpub(xpub):
     xfp, = unpack('<I', hash_160(kk)[0:4])
     return xfp
 
-def packed_xfp_path(xfp, text_path):
+def packed_xfp_path(xfp, text_path, int_path=[]):
     # Convert text subkey derivation path into binary format needed for PSBT
     # - binary LE32 values, first one is the fingerprint
     rv = pack('<I', xfp)
+
     for x in text_path.split('/'):
         if x == 'm': continue
         if x.endswith("'"):
@@ -54,6 +56,10 @@ def packed_xfp_path(xfp, text_path):
         else:
             x = int(x)
         rv += pack('<I', x)
+
+    for x in int_path:
+        rv += pack('<I', x)
+
     return rv
 
 def unpacked_xfp_path(xfp, text_path):
@@ -158,8 +164,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
 
             # assuming depth two, non-harded: change + index
             aa, bb = derivation
-            assert 0 <= aa < 0x80000000
-            assert 0 <= bb < 0x80000000
+            assert 0 <= aa < 0x80000000 and 0 <= bb < 0x80000000
 
             subkeys[bfh(pubkey)] = ks_prefix + pack('<II', aa, bb)
 
@@ -238,8 +243,26 @@ def build_psbt(tx: Transaction, wallet: Wallet):
             scr = Transaction.get_preimage_script(txin)
             write_kv(PSBT_IN_REDEEM_SCRIPT, bfh(scr))
 
-        for k in pubkeys:
-            write_kv(PSBT_IN_BIP32_DERIVATION, subkeys[k], k)
+        sigs = txin.get('signatures')
+
+        for pk_pos, (pubkey, x_pubkey) in enumerate(zip(pubkeys, x_pubkeys)):
+            if pubkey in subkeys:
+                # faster? case ... calculated above
+                write_kv(PSBT_IN_BIP32_DERIVATION, subkeys[pubkey], pubkey)
+            else:
+                # when an input is partly signed, tx.get_tx_derivations()
+                # doesn't include that keystore's value and yet we need it
+                # because we need to show a correct keypath... 
+                assert x_pubkey[0:2] == 'ff', x_pubkey
+
+                for ks in wallet.get_keystores():
+                    d = ks.get_pubkey_derivation(x_pubkey)
+                    if d is not None:
+                        ks_path = packed_xfp_path(xfp_for_keystore(ks), ks.get_derivation()[2:], d)
+                        write_kv(PSBT_IN_BIP32_DERIVATION, ks_path, pubkey)
+                        break
+                else:
+                    raise AssertionError("no keystore for: %s" % x_pubkey)
 
             if txin['type'] == 'p2wpkh-p2sh':
                 assert len(pubkeys) == 1, 'can be only one redeem script per input'
@@ -247,7 +270,9 @@ def build_psbt(tx: Transaction, wallet: Wallet):
                 assert len(pa) == 20
                 write_kv(PSBT_IN_REDEEM_SCRIPT, b'\x00\x14'+pa)
 
-        # TODO optional: insert (partial) signatures that we already have!
+            # optional? insert (partial) signatures that we already have
+            if sigs and sigs[pk_pos]:
+                write_kv(PSBT_IN_PARTIAL_SIG, bfh(sigs[pk_pos]), pubkey)
 
         out_fd.write(b'\x00')
 
@@ -288,12 +313,49 @@ def build_psbt(tx: Transaction, wallet: Wallet):
     return tx.raw_psbt
 
 
-def combine_psbt(tx: Transaction, psbt):
-    # Take new signatures from PSBT, and merge into on-going in-memory transaction.
-    # - "we trust everyone here"
+def recover_tx_from_psbt(first: BasicPSBT, wallet: Wallet) -> Transaction:
+    # Take a PSBT object and re-construct the Electrum transaction object.
+    # - does not include signatures, see merge_sigs_from_psbt
+    # - any PSBT in the group could be used for this purpose; all must share tx details
+    
+    tx = Transaction(first.txn.hex())
+    tx.deserialize(force_full_parse=True)
+
+    # .. add back some data that's been preserved in the PSBT, but isn't part of
+    # of the unsigned bitcoin txn
+    tx.is_partial_originally = True
+
+    for idx, inp in enumerate(tx.inputs()):
+        scr = first.inputs[idx].redeem_script
+
+        # XXX should use transaction.py parse_scriptSig() here!
+        if scr:
+            try:
+                M, N, __, pubkeys, __ = parse_redeemScript_multisig(scr)
+            except NotRecognizedRedeemScript:
+                # problem: we can only handle M-of-N multisig here
+                raise ValueError("Cannot handle non M-of-N multisig input")
+
+            inp['pubkeys'] = pubkeys
+            inp['x_pubkeys'] = pubkeys
+            inp['num_sig'] = M
+            inp['type'] = 'p2wsh' if first.inputs[idx].witness_script else 'p2sh'
+
+            # bugfix: transaction.py:parse_input() puts empty dict here, but need a list
+            inp['signatures'] = [None] * N
+
+
+    return tx
+
+def merge_sigs_from_psbt(tx: Transaction, psbt: BasicPSBT):
+    # Take new signatures from PSBT, and merge into in-memory transaction object.
+    # - "we trust everyone here" ... no validation/checks
 
     count = 0
     for inp_idx, inp in enumerate(psbt.inputs):
+        if not inp.part_sigs:
+            continue
+
         # need to map from pubkey to signing position in redeem script
         M, N, _, pubkeys, _ = parse_redeemScript_multisig(inp.redeem_script)
         #assert (M, N) == (wallet.m, wallet.n)
@@ -303,10 +365,11 @@ def combine_psbt(tx: Transaction, psbt):
             tx.add_signature_to_txin(inp_idx, pk_pos, inp.part_sigs[sig_pk].hex())
             count += 1
 
-    assert count, "unable to add any partial sigs"
+        #print("#%d: sigs = %r" % (inp_idx, tx.inputs()[inp_idx]['signatures']))
     
     # reset serialization of TX
     tx.raw = tx.serialize()
+    tx.raw_psbt = None
 
     return count
 

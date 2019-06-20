@@ -9,7 +9,7 @@ import traceback
 from electrum.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
 from electrum.i18n import _
 from electrum.plugin import Device, hook
-from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
+from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction, multisig_script
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
 from electrum.crypto import hash_160
@@ -22,7 +22,7 @@ from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
 from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt, xfp2str, unpacked_xfp_path, combine_psbt
+from .build_psbt import build_psbt, xfp2str, unpacked_xfp_path, merge_sigs_from_psbt
 
 _logger = get_logger(__name__)
 
@@ -92,7 +92,6 @@ class CKCCClient:
                                                         self.label())
 
     def verify_connection(self, expected_xfp, expected_xpub=None):
-        print("verify")
         ex = (expected_xfp, expected_xpub)
 
         if self._expected_device == ex:
@@ -123,7 +122,6 @@ class CKCCClient:
             self.ckcc_xpub = expected_xpub
 
         _logger.info("Successfully verified against MiTM")
-        print("verify OK")
 
     def is_pairable(self):
         # can't do anything w/ devices that aren't setup (this code not normally reachable)
@@ -385,12 +383,15 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         if tx.is_complete():
             return
 
+        assert self.my_wallet, "Not clear which wallet associated with this Coldcard"
+
         client = self.get_client()
 
-        from pprint import pprint
-        for n,i in enumerate(tx.inputs()):
-            print('[%d]: ' % n, end='')
-            pprint(i)
+        if 0:
+            from pprint import pprint
+            for n,i in enumerate(tx.inputs()):
+                print('[%d]: ' % n, end='')
+                pprint(i)
 
         assert client.dev.master_fingerprint == self.ckcc_xfp
 
@@ -438,7 +439,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             psbt = BasicPSBT()
             psbt.parse(raw_resp, client.label())
 
-            combine_psbt(tx, psbt)
+            merge_sigs_from_psbt(tx, psbt)
 
             # caller's logic looks at tx now and if it's sufficiently signed,
             # will send it if that's the user's intent.
@@ -671,14 +672,18 @@ class ColdcardPlugin(HW_PluginBase):
             keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
             return
 
-    @hook
-    def make_unsigned_transaction(self, wallet, tx):
+    @classmethod
+    def link_wallet(cls, wallet):
         # PROBLEM: wallet.sign_transaction() does not pass in the wallet to the individual
         # keystores, and we need to know about our co-signers at that time.
-        # - capture wallet containing each keystore early in the process
         for ks in wallet.get_keystores():
             if type(ks) == Coldcard_KeyStore:
                 if not ks.my_wallet:
                     ks.my_wallet = wallet
+
+    @hook
+    def make_unsigned_transaction(self, wallet, tx):
+        # - capture wallet containing each keystore early in the process
+        self.link_wallet(wallet)
 
 # EOF

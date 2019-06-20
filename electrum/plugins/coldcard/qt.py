@@ -1,4 +1,4 @@
-import time
+import time, os
 from functools import partial
 
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -19,7 +19,7 @@ from binascii import a2b_hex
 from base64 import b64encode, b64decode
 
 from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt, combine_psbt
+from .build_psbt import build_psbt, merge_sigs_from_psbt, recover_tx_from_psbt
 
 class Plugin(ColdcardPlugin, QtPluginBase):
     icon_unpaired = "coldcard_unpaired.png"
@@ -86,7 +86,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         # see gui/qt/transaction_dialog.py
 
         # if not a Coldcard wallet, hide feature
-        if not any(type(ks) != self.keystore_class for ks in dia.wallet.get_keystores()):
+        if not any(type(ks) == self.keystore_class for ks in dia.wallet.get_keystores()):
             return
 
         # - add a new button, near "export"
@@ -131,12 +131,13 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     @hook
     def init_menubar_tools(self, main_window, tools_menu):
-        # add some PSBT-related tools to the Tool menu.
-        tools_menu.addSeparator()
-        tools_menu.addAction(_("&Combine PSBT Files"), lambda: self.psbt_combiner(main_window))
+        # add some PSBT-related tools to the "Load Transaction" menu.
+        rt = main_window.raw_transaction_menu
+        wallet = main_window.wallet
+        rt.addAction(_("From &PSBT File or Files"), lambda: self.psbt_combiner(main_window, wallet))
 
-    def psbt_combiner(self, window):
-        title = _("Select the signed PSBT files to combine")
+    def psbt_combiner(self, window, wallet):
+        title = _("Select the PSBT file to load or PSBT files to combine")
         directory = ''
         fnames, __ = QFileDialog.getOpenFileNames(window, title, directory, "PSBT Files (*.psbt)")
 
@@ -154,61 +155,62 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 window.show_critical(_("Electrum was unable to open your PSBT file") + "\n" + str(reason), title=_("Unable to read file"))
                 return
 
-    
-        if len(psbts) < 2:
-            window.show_critical(_("Need 2 or more PSBT to be able to combine them."),
-                                        title=_("Unable to combine PSBT files"))
-            return
+        warn = []
 
-        # Consistency checks
+        # Consistency checks and warnings.
         try:
             first = psbts[0]
             for p in psbts:
+                fn = os.path.split(p.filename)[1]
+
                 assert (p.txn == first.txn), \
-                    "All must relate to the same original transaction"
+                    "All must relate to the same unsigned transaction."
 
                 for idx, inp in enumerate(p.inputs):
-                    assert inp.part_sigs, "No partial signatures found in file"
+                    if not inp.part_sigs:
+                        warn.append(fn + ':\n  ' + _("No partial signatures found for input #%d") % idx)
+
                     assert first.inputs[idx].redeem_script == inp.redeem_script, "Mismatched redeem scripts"
                     assert first.inputs[idx].witness_script == inp.witness_script, "Mismatched witness"
                     
         except AssertionError as exc:
-            window.show_critical(str(exc), title=_("Unable to combine PSBT files, check: ")+p.filename)
+            # Fatal errors stop here.
+            window.show_critical(str(exc),
+                    title=_("Unable to combine PSBT files, check: ")+p.filename)
             return
 
-        # Build the transaction, add sigs, and show to user for possible transmission.
-        tx = Transaction(first.txn.hex())
-        tx.deserialize(force_full_parse=True)
+        if warn:
+            # Lots of potential warnings...
+            window.show_warning('\n\n'.join(warn), title=_("PSBT warnings"))
 
-        from electrum.transaction import parse_redeemScript_multisig
+        # Construct an Electrum transaction object from data in first PSBT file.
+        try:
+            tx = recover_tx_from_psbt(first, wallet)
+        except BaseException as exc:
+            window.show_critical(str(exc), title=_("Unable to understand PSBT file"))
+            return
 
-        # .. add back some data that's been preserved in the PSBT, but isn't part of
-        # of the unsigned bitcoin txn
-        tx.is_partial_originally = True
-        for idx, inp in enumerate(tx.inputs()):
-            scr = first.inputs[idx].redeem_script
-            if scr:
-                M, N, __, pubkeys, __ = parse_redeemScript_multisig(scr)
-                inp['pubkeys'] = pubkeys
-                inp['x_pubkeys'] = pubkeys
-                inp['num_sig'] = M
-                inp['type'] = 'p2sh'        # XXX p2wsh
-                # bugfix: transaction.pyparse_input puts dict here?
-                inp['signatures'] = [None] * N      
-
+        # Combine the signatures from all the PSBTS (may do nothing if unsigned PSBTs)
         for p in psbts:
             try:
-                combine_psbt(tx, p)
+                merge_sigs_from_psbt(tx, p)
             except BaseException as exc:
-                from PyQt5.QtCore import pyqtRemoveInputHook
-                pyqtRemoveInputHook()
-                import pdb; pdb.post_mortem()
+                #from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
+                #import pdb; pdb.post_mortem()
                 window.show_critical(str(exc), 
                     title=_("Unable to combine PSBT file: ") + p.filename)
                 return
 
-        # Display result, might not be complete yet.
-        window.show_transaction(tx, "PSBT Combined")
+        # Display result, might not be complete yet, but hopefully it's ready to transmit!
+        if len(psbts) == 1:
+            desc = _("From PSBT file: ") + fn
+        else:
+            desc = _("Combined from %d PSBT files") % len(psbts)
+
+        # need to associated our pluging to this wallet
+        ColdcardPlugin.link_wallet(wallet)
+
+        window.show_transaction(tx, desc)
 
 class Coldcard_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
