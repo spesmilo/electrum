@@ -721,10 +721,6 @@ class Abstract_Wallet(AddressSynchronizer):
         for item in coins:
             self.add_input_info(item)
 
-        # change address
-        # if empty, coin_chooser will set it
-        change_addrs = self.get_change_addresses_for_new_transaction(change_addr)
-
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee
@@ -757,9 +753,13 @@ class Abstract_Wallet(AddressSynchronizer):
                     return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
+                old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
             else:
                 txi = []
                 txo = []
+                old_change_addrs = []
+            # change address. if empty, coin_chooser will set it
+            change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
             tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs,
                                       fee_estimator, self.dust_threshold())
         else:
