@@ -2568,7 +2568,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.svg") if self.wallet.has_password() else QIcon(":icons/unlock.svg")
-        tip = _('Wallet password') + ' - '
+        tip = _('Wallet Password') + ' - '
         tip +=  _('Enabled') if self.wallet.has_password() else _('Disabled')
         self.password_button.setIcon(icon)
         self.password_button.setStatusTip(tip)
@@ -3400,9 +3400,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def cashaddr_status_tip(self):
         if self.gui_object.is_cashaddr():
-            return _('Address format') + ' - ' + _('CashAddr')
+            return _('Address Format') + ' - ' + _('CashAddr')
         else:
-            return _('Address format') + ' - ' + _('Legacy')
+            return _('Address Format') + ' - ' + _('Legacy')
 
     def update_cashaddr_icon(self):
         self.addr_converter_button.setIcon(self.cashaddr_icon())
@@ -3786,7 +3786,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # CashAddr control
         gui_widgets.append((None, None)) # spacer
-        address_w = QGroupBox(_('Address format'))
+        address_w = QGroupBox(_('Address Format'))
         address_w.setToolTip(_('Select between Cash Address and Legacy formats for addresses'))
         hbox = QHBoxLayout(address_w)
         cashaddr_cbox = QComboBox()
