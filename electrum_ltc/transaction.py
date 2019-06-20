@@ -1043,7 +1043,7 @@ class Transaction:
         return sum(x['value'] for x in self.inputs())
 
     def output_value(self):
-        return sum(val for tp, addr, val in self.outputs())
+        return sum(o.value for o in self.outputs())
 
     def get_fee(self):
         return self.input_value() - self.output_value()

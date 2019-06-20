@@ -14,7 +14,7 @@ from electrum_ltc.wallet import Wallet, InternalAddressCorruption
 from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum_ltc.plugin import run_hook
-from electrum_ltc.util import format_satoshis, format_satoshis_plain
+from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_fee_satoshis
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc import blockchain
 from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed
@@ -807,6 +807,10 @@ class ElectrumWindow(App):
 
     def format_amount_and_units(self, x):
         return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+
+    def format_fee_rate(self, fee_rate):
+        # fee_rate is in sat/kB
+        return format_fee_satoshis(fee_rate/1000) + ' sat/byte'
 
     #@profiler
     def update_wallet(self, *dt):

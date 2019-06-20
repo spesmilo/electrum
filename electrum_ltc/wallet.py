@@ -869,17 +869,17 @@ class Abstract_Wallet(AddressSynchronizer):
         inputs = tx.inputs()
         outputs = tx.outputs()
         # use own outputs
-        s = list(filter(lambda x: self.is_mine(x[1]), outputs))
+        s = list(filter(lambda o: self.is_mine(o.address), outputs))
         # ... unless there is none
         if not s:
             s = outputs
             x_fee = run_hook('get_tx_extra_fee', self, tx)
             if x_fee:
                 x_fee_address, x_fee_amount = x_fee
-                s = filter(lambda x: x[1]!=x_fee_address, s)
+                s = filter(lambda o: o.address != x_fee_address, s)
 
         # prioritize low value outputs, to get rid of dust
-        s = sorted(s, key=lambda x: x[2])
+        s = sorted(s, key=lambda o: o.value)
         for o in s:
             i = outputs.index(o)
             if o.value - delta >= self.dust_threshold():
