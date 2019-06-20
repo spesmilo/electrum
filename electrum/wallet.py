@@ -674,6 +674,33 @@ class Abstract_Wallet(AddressSynchronizer):
             return tx
         return candidate
 
+    def get_change_addresses_for_new_transaction(self, preferred_change_addr=None) -> List[str]:
+        change_addrs = []
+        if preferred_change_addr:
+            if isinstance(preferred_change_addr, (list, tuple)):
+                change_addrs = list(preferred_change_addr)
+            else:
+                change_addrs = [preferred_change_addr]
+        elif self.use_change:
+            # Recalc and get unused change addresses
+            addrs = self.calc_unused_change_addresses()
+            # New change addresses are created only after a few
+            # confirmations.
+            if addrs:
+                # if there are any unused, select all
+                change_addrs = addrs
+            else:
+                # if there are none, take one randomly from the last few
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                change_addrs = [random.choice(addrs)] if addrs else []
+        for addr in change_addrs:
+            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            # note that change addresses are not necessarily ismine
+            # in which case this is a no-op
+            self.check_address(addr)
+        max_change = self.max_change_outputs if self.multiple_change else 1
+        return change_addrs[:max_change]
+
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
@@ -694,26 +721,8 @@ class Abstract_Wallet(AddressSynchronizer):
             self.add_input_info(item)
 
         # change address
-        # if we leave it empty, coin_chooser will set it
-        change_addrs = []
-        if change_addr:
-            change_addrs = [change_addr]
-        elif self.use_change:
-            # Recalc and get unused change addresses
-            addrs = self.calc_unused_change_addresses()
-            # New change addresses are created only after a few
-            # confirmations.
-            if addrs:
-                # if there are any unused, select all
-                change_addrs = addrs
-            else:
-                # if there are none, take one randomly from the last few
-                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-                change_addrs = [random.choice(addrs)] if addrs else []
-        for addr in change_addrs:
-            # note that change addresses are not necessarily ismine
-            # in which case this is a no-op
-            self.check_address(addr)
+        # if empty, coin_chooser will set it
+        change_addrs = self.get_change_addresses_for_new_transaction(change_addr)
 
         # Fee estimator
         if fixed_fee is None:
@@ -727,7 +736,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
-            max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
@@ -751,7 +759,7 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 txi = []
                 txo = []
-            tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs[:max_change],
+            tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs,
                                       fee_estimator, self.dust_threshold())
         else:
             # FIXME?? this might spend inputs with negative effective value...
