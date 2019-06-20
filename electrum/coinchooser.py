@@ -25,6 +25,7 @@
 from collections import defaultdict
 from math import floor, log10
 from typing import NamedTuple, List, Callable
+from decimal import Decimal
 
 from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
 from .transaction import Transaction, TxOutput
@@ -74,6 +75,7 @@ class Bucket(NamedTuple):
     desc: str
     weight: int         # as in BIP-141
     value: int          # in satoshis
+    effective_value: int   # estimate of value left after subtracting fees. in satoshis
     coins: List[dict]   # UTXOs
     min_height: int     # min block height where a coin was confirmed
     witness: bool       # whether any coin uses segwit
@@ -109,11 +111,14 @@ class CoinChooserBase(Logger):
     def keys(self, coins):
         raise NotImplementedError
 
-    def bucketize_coins(self, coins):
+    def bucketize_coins(self, coins, *, fee_estimator):
         keys = self.keys(coins)
         buckets = defaultdict(list)
         for key, coin in zip(keys, coins):
             buckets[key].append(coin)
+        # fee_estimator returns fee to be paid, for given vbytes.
+        # guess whether it is just returning a constant as follows.
+        constant_fee = fee_estimator(2000) == fee_estimator(200)
 
         def make_Bucket(desc, coins):
             witness = any(Transaction.is_segwit_input(coin, guess_for_address=True) for coin in coins)
@@ -123,7 +128,23 @@ class CoinChooserBase(Logger):
                          for coin in coins)
             value = sum(coin['value'] for coin in coins)
             min_height = min(coin['height'] for coin in coins)
-            return Bucket(desc, weight, value, coins, min_height, witness)
+            # the fee estimator is typically either a constant or a linear function,
+            # so the "function:" effective_value(bucket) will be homomorphic for addition
+            # i.e. effective_value(b1) + effective_value(b2) = effective_value(b1 + b2)
+            if constant_fee:
+                effective_value = value
+            else:
+                # when converting from weight to vBytes, instead of rounding up,
+                # keep fractional part, to avoid overestimating fee
+                fee = fee_estimator(Decimal(weight) / 4)
+                effective_value = value - fee
+            return Bucket(desc=desc,
+                          weight=weight,
+                          value=value,
+                          effective_value=effective_value,
+                          coins=coins,
+                          min_height=min_height,
+                          witness=witness)
 
         return list(map(make_Bucket, buckets.keys(), buckets.values()))
 
@@ -287,8 +308,14 @@ class CoinChooserBase(Logger):
                                                             dust_threshold=dust_threshold,
                                                             base_weight=base_weight)
 
-        # Collect the coins into buckets, choose a subset of the buckets
-        all_buckets = self.bucketize_coins(coins)
+        # Collect the coins into buckets
+        all_buckets = self.bucketize_coins(coins, fee_estimator=fee_estimator)
+        # Filter some buckets out. Only keep those that have positive effective value.
+        # Note that this filtering is intentionally done on the bucket level
+        # instead of per-coin, as each bucket should be either fully spent or not at all.
+        # (e.g. CoinChooserPrivacy ensures that same-address coins go into one bucket)
+        all_buckets = list(filter(lambda b: b.effective_value > 0, all_buckets))
+        # Choose a subset of the buckets
         scored_candidate = self.choose_buckets(all_buckets, sufficient_funds,
                                                self.penalty_func(base_tx, tx_from_buckets=tx_from_buckets))
         tx = scored_candidate.tx
@@ -334,8 +361,7 @@ class CoinChooserRandom(CoinChooserBase):
                     candidates.add(tuple(sorted(permutation[:count + 1])))
                     break
             else:
-                # FIXME this assumes that the effective value of any bkt is >= 0
-                # we should make sure not to choose buckets with <= 0 eff. val.
+                # note: this assumes that the effective value of any bkt is >= 0
                 raise NotEnoughFunds()
 
         candidates = [[buckets[n] for n in c] for c in candidates]
