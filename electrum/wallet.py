@@ -732,6 +732,8 @@ class Abstract_Wallet(AddressSynchronizer):
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
             if config.get('batch_rbf', False) and base_tx:
+                # make sure we don't try to spend change from the tx-to-be-replaced:
+                coins = [c for c in coins if c['prevout_hash'] != base_tx.txid()]
                 is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
                 base_tx = Transaction(base_tx.serialize())
                 base_tx.deserialize(force_full_parse=True)
