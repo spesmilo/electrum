@@ -858,7 +858,6 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 1000000 - 5000 + 300000, 0), wallet1a.get_balance())
         self.assertEqual((0, 1000000 - 5000 - 300000, 0), wallet2.get_balance())
 
-    @unittest.skip("broken as wallet.bump_fee interface changed")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bump_fee_p2pkh(self, mock_write):
@@ -897,7 +896,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), delta=5000)  # FIXME
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
         tx.locktime = 1325501
         tx.version = 1
         self.assertFalse(tx.is_complete())
@@ -906,13 +905,13 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         tx_copy = Transaction(tx.serialize())
-        self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a473044022055b7e6b7e89a55740f7aa2ad1ffcd4b5c913f0de63cf512438921534bc9c3a8d022043b3b27bdc2da4cc6265e4cc9673a3780ccd5cd6f0ee2eaedb51720c15b7a00a012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987d0497200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
+        self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006b483045022100a30c21d1ba8cf751b1b78b5a41684cbab6e39687fa188a4295881c7b06f10a6202204ba4f56cbfdeb8ed948d8a18e34112c256c48e921db048f134819b2ca7ed85fd012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
                          str(tx_copy))
-        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', tx_copy.txid())
-        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', tx_copy.wtxid())
+        self.assertEqual('40768e1e418f8e851d496448c9627ee29f04c33f67a59ac49d2bbc66288d2077', tx_copy.txid())
+        self.assertEqual('40768e1e418f8e851d496448c9627ee29f04c33f67a59ac49d2bbc66288d2077', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
-        self.assertEqual((0, funding_output_value - 2500000 - 10000, 0), wallet.get_balance())
+        self.assertEqual((0, 7484320, 0), wallet.get_balance())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -948,7 +947,6 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
 
-    @unittest.skip("broken as wallet.bump_fee interface changed")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bump_fee_p2wpkh(self, mock_write):
@@ -987,7 +985,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), delta=5000)  # FIXME
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
         tx.locktime = 1325500
         tx.version = 1
         self.assertFalse(tx.is_complete())
@@ -996,13 +994,13 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = Transaction(tx.serialize())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987d049720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5024730440220517fed3a902b5b41fa718ffd5f229b835b8ed26f23433c4ea437d24eff66d15b0220526854a6ebcd351ab2373d0e7c4e20f17c420520b5d570c2df7ca1d773d6a55d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
+        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402202a7e412d37f7a54f7ede0f85e58c7f9dc0f7244d222a4f50a90f87b05badeed40220788d4a4a13f660de7d5464dce5e79419361fdd5d1853c7da65469cd32f7981a90121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
                          str(tx_copy))
-        self.assertEqual('9a1c0ef7e871798b86074c7f8dd1e81b6d9a758ff07e0059eee31dc6fbf4f438', tx_copy.txid())
-        self.assertEqual('59144d30c911ac33359b0a32d5a3fdd2ca806982c85838e193eb95f5d315e813', tx_copy.wtxid())
+        self.assertEqual('dad75ab7078b9ce9698a83e7a954c1c38b235d3a4ab79bcb340245e3d9b62b93', tx_copy.txid())
+        self.assertEqual('05a484c64a094724b1c58a15463c8c772a98f084cc23ee636204ad9c4d9e5b51', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
-        self.assertEqual((0, funding_output_value - 2500000 - 10000, 0), wallet.get_balance())
+        self.assertEqual((0, 7490060, 0), wallet.get_balance())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
