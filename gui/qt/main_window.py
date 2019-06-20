@@ -76,6 +76,7 @@ class StatusBarButton(QPushButton):
         self.clicked.connect(self.onPress)
         self.func = func
         self.setIconSize(QSize(25,25))
+        self.setCursor(Qt.PointingHandCursor)
 
     def onPress(self, checked=False):
         '''Drops the unwanted PyQt5 "checked" argument'''
@@ -2504,6 +2505,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             _("Toggle CashAddr Display"),
             self.toggle_cashaddr_status_bar
         )
+        self.update_cashaddr_icon()
         sb.addPermanentWidget(self.addr_converter_button)
         self.addr_converter_button.setHidden(self.gui_object.is_cashaddr_status_button_hidden())
         self.gui_object.cashaddr_status_button_hidden_signal.connect(self.addr_converter_button.setHidden)
@@ -2539,7 +2541,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_lock_icon(self):
         icon = QIcon(":icons/lock.svg") if self.wallet.has_password() else QIcon(":icons/unlock.svg")
+        tip = _('Wallet password') + ' - '
+        tip +=  _('Enabled') if self.wallet.has_password() else _('Disabled')
         self.password_button.setIcon(icon)
+        self.password_button.setStatusTip(tip)
 
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
@@ -3366,11 +3371,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             return QIcon(":icons/tab_converter_bw.svg")
 
+    def cashaddr_status_tip(self):
+        if self.gui_object.is_cashaddr():
+            return _('Address format') + ' - ' + _('CashAddr')
+        else:
+            return _('Address format') + ' - ' + _('Legacy')
+
     def update_cashaddr_icon(self):
         self.addr_converter_button.setIcon(self.cashaddr_icon())
+        self.addr_converter_button.setStatusTip(self.cashaddr_status_tip())
 
     def toggle_cashaddr_status_bar(self):
         self.gui_object.toggle_cashaddr()
+        self.statusBar().showMessage(self.cashaddr_status_tip(), 2000)
 
     def toggle_cashaddr_settings(self, state):
         self.gui_object.toggle_cashaddr(state == Qt.Checked)
