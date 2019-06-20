@@ -69,6 +69,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         self.description_textfield = QTextEdit()
         self.description_textfield.setFixedHeight(50)
+        self.description_textfield.setPlaceholderText(_("Do not enter sensitive/private information here. "
+                                                        "The report will be visible on the public issue tracker."))
         main_box.addWidget(self.description_textfield)
 
         main_box.addWidget(QLabel(BaseCrashReporter.ASK_CONFIRM_SEND))
