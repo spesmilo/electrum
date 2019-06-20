@@ -3425,19 +3425,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         tx_label = self.wallet.get_label(tx.txid())
         tx_size = tx.estimated_size()
+        old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(WWLabel(_("Increase your transaction's fee to improve its position in mempool.")))
-        vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
-        vbox.addWidget(QLabel(_('New fee' + ':')))
-        fee_e = BTCAmountEdit(self.get_decimal_point)
-        fee_e.setAmount(fee * 1.5)
-        vbox.addWidget(fee_e)
+        vbox.addWidget(QLabel(_('Current Fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
+        vbox.addWidget(QLabel(_('Current Fee rate') + ': %s' % self.format_fee_rate(1000 * old_fee_rate)))
+        vbox.addWidget(QLabel(_('New Fee rate') + ':'))
 
-        def on_rate(dyn, pos, fee_rate):
-            fee = fee_rate * tx_size / 1000
-            fee_e.setAmount(fee)
-        fee_slider = FeeSlider(self, self.config, on_rate)
+        def on_textedit_rate():
+            fee_slider.deactivate()
+        feerate_e = FeerateEdit(lambda: 0)
+        feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
+        feerate_e.textEdited.connect(on_textedit_rate)
+        vbox.addWidget(feerate_e)
+
+        def on_slider_rate(dyn, pos, fee_rate):
+            fee_slider.activate()
+            if fee_rate is not None:
+                feerate_e.setAmount(fee_rate / 1000)
+        fee_slider = FeeSlider(self, self.config, on_slider_rate)
+        fee_slider.deactivate()
         vbox.addWidget(fee_slider)
         cb = QCheckBox(_('Final'))
         vbox.addWidget(cb)
@@ -3445,13 +3453,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not d.exec_():
             return
         is_final = cb.isChecked()
-        new_fee = fee_e.get_amount()
-        delta = new_fee - fee
-        if delta < 0:
-            self.show_error("fee too low")
-            return
+        new_fee_rate = feerate_e.get_amount()
         try:
-            new_tx = self.wallet.bump_fee(tx, delta)
+            new_tx = self.wallet.bump_fee(tx=tx, new_fee_rate=new_fee_rate, config=self.config)
         except CannotBumpFee as e:
             self.show_error(str(e))
             return

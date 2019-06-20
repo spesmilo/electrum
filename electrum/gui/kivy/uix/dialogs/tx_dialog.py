@@ -15,6 +15,7 @@ from electrum.gui.kivy.i18n import _
 
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum.wallet import CannotBumpFee
 
 
 Builder.load_string('''
@@ -212,16 +213,14 @@ class TxDialog(Factory.Popup):
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
 
-    def _do_rbf(self, old_fee, new_fee, is_final):
-        if new_fee is None:
-            return
-        delta = new_fee - old_fee
-        if delta < 0:
-            self.app.show_error("fee too low")
+    def _do_rbf(self, new_fee_rate, is_final):
+        if new_fee_rate is None:
             return
         try:
-            new_tx = self.wallet.bump_fee(self.tx, delta)
-        except BaseException as e:
+            new_tx = self.wallet.bump_fee(tx=self.tx,
+                                          new_fee_rate=new_fee_rate,
+                                          config=self.app.electrum_config)
+        except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
         if is_final:
