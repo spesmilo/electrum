@@ -9,6 +9,7 @@ from electroncash.i18n import _
 from electroncash.transaction import deserialize, Transaction
 from electroncash.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electroncash.address import Address
+from electroncash.plugins import Device
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output_and_get_data
@@ -91,9 +92,23 @@ class KeepKeyPlugin(HW_PluginBase):
             self.DEVICE_IDS = (keepkeylib.transport_hid.DEVICE_IDS +
                                keepkeylib.transport_webusb.DEVICE_IDS)
             self.device_manager().register_devices(self.DEVICE_IDS)
+            self.device_manager().register_enumerate_func(self.enumerate)
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
+
+    def enumerate(self):
+        from keepkeylib.transport_webusb import WebUsbTransport
+
+        results = []
+
+        for dev in WebUsbTransport.enumerate():
+            path = ":".join(str(x) for x in ["%03i" % (dev.getBusNumber(),)] + dev.getPortNumberList())
+            usb_id = (dev.getVendorID(), dev.getProductID())
+            serial = dev.getSerialNumber()
+            results.append(Device(path=path, interface_number=-1, id_=serial, product_key=usb_id, usage_page=0))
+
+        return results
 
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport
