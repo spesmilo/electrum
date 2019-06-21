@@ -1,4 +1,4 @@
-import ecdsa, threading, time, queue
+import ecdsa, threading, time, queue, traceback, sys
 from collections import namedtuple
 from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, generator_secp256k1, number_to_string
 from electroncash.address import Address
@@ -207,13 +207,16 @@ class ProtocolThread(threading.Thread, PrintError):
                 self.logger.send(ERR_BAD_SERVER_PREFIX + ": " + str(e))
                 return
             except BaseException as e:
-                self.print_error("Exception in 'run': {}".format(str(e)))
+                self.print_error("Exception in 'run': {}".format(repr(e)))
                 self.logger.send(err)
                 return
             if not self.done.is_set():
                 self.start_protocol()
         except AbortProtocol as e:
             self.print_error(repr(e))
+            self.logger.send("Error: {}".format(e))
+        except Exception as e:
+            self.print_error("Unexpected exception in 'run'; traceback follows:\n{}".format(traceback.format_exc()))
             self.logger.send("Error: {}".format(e))
         finally:
             self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.scale, self.coin))
