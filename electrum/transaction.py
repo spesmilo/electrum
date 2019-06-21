@@ -1122,7 +1122,7 @@ class Transaction:
 
     def is_complete(self):
         s, r = self.signature_count()
-        return s >= r
+        return r == s
 
     def sign(self, keypairs) -> None:
         # keypairs:  (x_)pubkey -> secret_bytes
