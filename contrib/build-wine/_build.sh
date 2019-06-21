@@ -201,10 +201,14 @@ prepare_wine() {
         $PYTHON -m pip install -I -r $here/requirements-wine-build.txt || fail "Failed to install build requirements"
 
         info "Compiling PyInstaller bootloader with AntiVirus False-Positive Protection™ ..."
-        git clone $PYINSTALLER_REPO
+        mkdir pyinstaller
         (
             cd pyinstaller
-            git checkout -b pinned $PYINSTALLER_COMMIT
+            # Shallow clone
+            git init
+            git remote add origin $PYINSTALLER_REPO
+            git fetch --depth 1 origin $PYINSTALLER_COMMIT
+            git checkout FETCH_HEAD
             rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
             echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
             pushd bootloader
