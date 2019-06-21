@@ -572,3 +572,4 @@ and there is no warning message.
   by default, but can be disabled in Preferences -> General. In addition, the
   Preferences -> General tab has been laid out slightly differently. (cculianu)
 * Improved system tray icon and other assorted icons for high DPI. (Axel Gembe)
+* Various build system fixes and bugs fixed. (Axel Gembe)
