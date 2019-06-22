@@ -22,7 +22,7 @@ from enum import IntEnum
 cf_path = util.find_library('CoreFoundation')
 foundation_path = util.find_library('Foundation')
 objc_path = util.find_library('objc')
-if not all((cf_path, foundation_path,)):
+if not all((cf_path, foundation_path, objc_path)):
     raise ImportError("This module requires the CoreFoundation, Foundation and objc libraries")
 
 cf = cdll.LoadLibrary(cf_path)
