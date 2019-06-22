@@ -3558,13 +3558,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_help = _('Select which language is used in the GUI (after restart).')
         lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
-        from electroncash.i18n import languages
+        from electroncash.i18n import languages, get_system_language_match
+        from electroncash.utils.unicode_tools import str_to_monospace
 
         language_names = []
         language_keys = []
-        for item in languages.items():
-            language_keys.append(item[0])
-            language_names.append(item[1])
+        for (lang_code, lang_def) in languages.items():
+            language_keys.append(lang_code)
+            lang_name = []
+            if lang_code != '':
+                lang_name.append(f'({str_to_monospace(lang_code)}) ')
+            lang_name.append(lang_def.name)
+            if lang_code == '':
+                sys_lang = get_system_language_match()
+                if sys_lang != '':
+                    lang_name.append(f' ({languages[sys_lang].name})')
+            language_names.append(''.join(lang_name))
         lang_combo.addItems(language_names)
         try:
             index = language_keys.index(self.config.get("language",''))
@@ -3995,12 +4004,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
         tabs_info = [
+            (gui_widgets, _('General')),
             (fee_widgets, _('Fees')),
             (OrderedDict([
                 ( _("App-Global Options") , global_tx_widgets ),
                 ( _("Per-Wallet Options") , per_wallet_tx_widgets),
              ]), _('Transactions')),
-            (gui_widgets, _('General')),
             (fiat_widgets, _('Fiat')),
             (id_widgets, _('Identity')),
         ]
