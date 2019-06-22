@@ -43,13 +43,19 @@ def set_language(x):
     if not x:
         # User hasn't selected a language so we default to the system language
         x = get_system_language_match()
+    elif x not in languages:
+        # Attempt to match passed-in language with a known one if not exact
+        # match.
+        x = match_language(x) or x
 
     if x:
         language = gettext.translation('electron-cash', LOCALE_DIR, fallback=True, languages=[x])
+        return x  # indicate to caller what code was actually used, if anything.
 
 def get_system_language_match() -> str:
     """
-    Returns the language code best matching the systems default language or None if none match.
+    Returns the language code best matching the systems default language or None
+    if no match.
     """
     try:
         if sys.platform == 'darwin':
@@ -69,8 +75,8 @@ def get_system_language_match() -> str:
 
 def match_language(language_code: str) -> str:
     """
-    Returns the language code from the languages dictionary that most closely matches the given
-    language code or None if none match.
+    Returns the language code from the languages dictionary that most closely
+    matches the given language code or None if no match.
     """
 
     if not language_code:
@@ -88,7 +94,7 @@ LanguageDef = namedtuple(
 languages: Dict[str, LanguageDef] = {
     '':      LanguageDef(
         name=_('System'),
-        matches=lambda c: False, excludes=lambda c: False
+        matches=lambda c: False, excludes=lambda c: True  # this never fuzzy matches anything
         ),
     'ar_SA': LanguageDef(
         name='العَرَبِيَّة‎',

@@ -3558,7 +3558,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_help = _('Select which language is used in the GUI (after restart).')
         lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
-        from electroncash.i18n import languages, get_system_language_match
+        from electroncash.i18n import languages, get_system_language_match, match_language
 
         language_names = []
         language_keys = []
@@ -3566,17 +3566,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             language_keys.append(lang_code)
             lang_name = []
             lang_name.append(lang_def.name)
-            if not lang_code:
-                # System entry in languages list, get system setting
+            if lang_code == '':
+                # System entry in languages list (==''), gets system setting
                 sys_lang = get_system_language_match()
                 if sys_lang:
-                    lang_name.append(f' ({languages[sys_lang].name})')
+                    lang_name.append(f' [{languages[sys_lang].name}]')
             language_names.append(''.join(lang_name))
         lang_combo.addItems(language_names)
-        try:
-            index = language_keys.index(self.config.get("language",''))
-        except ValueError:
-            index = 0
+        conf_lang = self.config.get("language", '')
+        if conf_lang:
+            # The below code allows us to rename languages in saved config and
+            # have them still line up with languages in our languages dict.
+            # For example we used to save English as en_UK but now it's en_US
+            # and it will still match
+            conf_lang = match_language(conf_lang)
+        try: index = language_keys.index(conf_lang)
+        except ValueError: index = 0
         lang_combo.setCurrentIndex(index)
 
         if not self.config.is_modifiable('language'):
