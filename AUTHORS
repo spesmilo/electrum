@@ -25,3 +25,4 @@ imaginaryusername - UI and privacy recommendations
 emergent_reasons - Code review and uncanny bug detection
 Josh Ellithorpe - CashShuffle server
 Axel Gembe - Ledger fixes, Windows Qt woes, miscellaneous
+Alexander Schlarb - macOS ctypes bindings

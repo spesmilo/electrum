@@ -573,3 +573,10 @@ and there is no warning message.
   Preferences -> General tab has been laid out slightly differently. (cculianu)
 * Improved system tray icon and other assorted icons for high DPI. (Axel Gembe)
 * Various build system fixes and bugs fixed. (Axel Gembe)
+
+# Release 4.0.8
+
+* Localization: The app now defaults to the system language on Windows, Mac and
+  generic Unix for new installs.  The preferences dialog has also been improved
+  to bring the General tab to the front and make the language picker contain
+  translated language names. #1477 (Axel Gembe, cculianu, Alexander Schlarb)
