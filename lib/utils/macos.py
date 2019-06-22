@@ -133,10 +133,10 @@ def CFString2Str(cfstr: CFString_p) -> str:
     lossbyte = c_ubyte(ord(b'?'))
     cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, c_char_p(0), 0, byref(blen))  # find out length of utf8 string in bytes, sans nul
     buf = create_string_buffer((blen.value+1) * sizeof(c_char))  # allocate buffer + nul
-    num_bytes = cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, buf, CFIndex(blen.value+1), byref(blen))
-    if not num_bytes:
+    num_conv = cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, buf, CFIndex(blen.value+1), byref(blen))
+    if not num_conv:
         raise ValueError('Unable to convert CFString to UTF8 C string')
-    return bytes(buf)[:num_bytes].decode('utf-8')
+    return bytes(buf)[:blen.value].decode('utf-8')
 
 def CFArrayGetIndex(array: CFArray_p, idx: int, default=_Void) -> c_void_p:
     length = cf.CFArrayGetCount(array)
