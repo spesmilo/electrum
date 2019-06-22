@@ -26,6 +26,7 @@ import gettext
 import os
 import re
 import locale
+import sys
 from typing import Dict
 from collections import namedtuple
 
@@ -51,8 +52,18 @@ def get_system_language_match() -> str:
     Returns the language code best matching the systems default language or None if none match.
     """
     try:
-        default_locale = locale.getdefaultlocale()[0]
+        if sys.platform == 'darwin':
+            # Note: locale.getdefaultlocale fails a lot on Mac OSX. So we had
+            # to use ctypes to call into the OS's CoreFoundation libs to get the
+            # actual preferred language set in user preferences.
+            # See: https://bugs.python.org/issue18378
+            from .utils import macos
+            default_locale = macos.get_preferred_languages()[0]
+        else:
+            default_locale = locale.getdefaultlocale()[0]
     except Exception:
+        # Even so.. since we can't trust locale.getdefaultlocale(), we catch
+        # exceptions here and just default return out.
         return None
     return match_language(default_locale)
 
