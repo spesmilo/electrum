@@ -3559,19 +3559,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
         from electroncash.i18n import languages, get_system_language_match
-        from electroncash.utils.unicode_tools import str_to_monospace
 
         language_names = []
         language_keys = []
         for (lang_code, lang_def) in languages.items():
             language_keys.append(lang_code)
             lang_name = []
-            if lang_code != '':
-                lang_name.append(f'({str_to_monospace(lang_code)}) ')
             lang_name.append(lang_def.name)
-            if lang_code == '':
+            if not lang_code:
+                # System entry in languages list, get system setting
                 sys_lang = get_system_language_match()
-                if sys_lang != '':
+                if sys_lang:
                     lang_name.append(f' ({languages[sys_lang].name})')
             language_names.append(''.join(lang_name))
         lang_combo.addItems(language_names)
