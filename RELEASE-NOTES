@@ -580,3 +580,10 @@ and there is no warning message.
   generic Unix for new installs.  The preferences dialog has also been improved
   to bring the General tab to the front and make the language picker contain
   translated language names. #1477 (Axel Gembe, cculianu, Alexander Schlarb)
+* Fix #1473: Omit bitcoincash: prefix from legacy address in receive tab QR
+  image if no parameters are filled-in other than 'address'. This allows users
+  to quickly use the receive tab to scan a QR image from a mobile wallet that
+  doesn't know about bitcoincash:. Note that if the receive tab has parameters
+  filled in eg: description, amount, etc, then the receive request becomes a
+  URI and it will have the bitcoincash: prefix prepended, even if using legacy
+  address mode. (cculianu)
