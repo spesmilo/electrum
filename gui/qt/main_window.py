@@ -1317,7 +1317,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             opret = self.receive_opreturn_e.text()
             if opret:
                 kwargs[arg] = opret
-        uri = web.create_URI(self.receive_address, amount, message, **kwargs)
+
+        # Special case hack -- see #1473. Omit bitcoincash: prefix from
+        # legacy address if no other params present in receive request.
+        if Address.FMT_UI == Address.FMT_LEGACY and not kwargs and not amount and not message:
+            uri = self.receive_address.to_ui_string()
+        else:
+            # Otherwise proceed as normal, prepending bitcoincash: to URI
+            uri = web.create_URI(self.receive_address, amount, message, **kwargs)
+
         self.receive_qr.setData(uri)
         if self.qr_window:
             self.qr_window.set_content(self, self.receive_address_e.text(), amount,
