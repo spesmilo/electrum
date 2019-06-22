@@ -11,26 +11,61 @@
 import sys
 
 if sys.platform != 'darwin':
-    raise ImportError("This file can only be used on macOS")
+    raise ImportError("This file can only be used on macOS or iOS")
 
 from ctypes import (cdll, c_bool, c_char, c_ubyte, c_uint, c_void_p, c_char_p,
                     c_ssize_t, POINTER, util, cast, create_string_buffer, sizeof,
                     Structure, byref)
+from enum import IntEnum
 
 # macOS framework libraries used
 cf_path = util.find_library('CoreFoundation')
 foundation_path = util.find_library('Foundation')
-if not cf_path or not foundation_path:
-    raise ImportError("This module requires the macOS Foundation libraries")
+objc_path = util.find_library('objc')
+if not all((cf_path, foundation_path,)):
+    raise ImportError("This module requires the CoreFoundation, Foundation and objc libraries")
 
 cf = cdll.LoadLibrary(cf_path)
 foundation = cdll.LoadLibrary(foundation_path)
+objc = cdll.LoadLibrary(objc_path)
+
+if not all((cf, foundation, objc)):
+    raise ImportError("Could not load a required library")
 
 # macOS Framework constants used
-NSApplicationSupportDirectory = 14
-NSCachesDirectory = 13
+kCFStringEncodingUTF8 = 0x08000100  # utf8 string encoding
 NSUserDomainMask = 1
-kCFStringEncodingUTF8 = 0x08000100
+
+class NSSearchPathDirectory(IntEnum):
+    ''' Constants for retrieving paths using API function
+    NSSearchPathForDirectoriesInDomains. From NSPathUtilities.h '''
+    NSApplicationDirectory = 1  # supported applications (Applications)
+    NSDemoApplicationDirectory = 2  # unsupported applications, demonstration versions (Demos)
+    NSDeveloperApplicationDirectory = 3  # developer applications (Developer/Applications). DEPRECATED - there is no one single Developer directory.
+    NSAdminApplicationDirectory = 4  # system and network administration applications (Administration)
+    NSLibraryDirectory = 5  # various documentation, support, and configuration files, resources (Library)
+    NSDeveloperDirectory = 6  # developer resources (Developer) DEPRECATED - there is no one single Developer directory.
+    NSUserDirectory = 7  # user home directories (Users)
+    NSDocumentationDirectory = 8  # documentation (Documentation)
+    NSDocumentDirectory = 9  # documents (Documents)
+    NSCoreServiceDirectory = 10  # location of CoreServices directory (System/Library/CoreServices)
+    NSAutosavedInformationDirectory = 11  # location of autosaved documents (Documents/Autosaved)
+    NSDesktopDirectory = 12  # location of user's desktop
+    NSCachesDirectory = 13  # location of discardable cache files (Library/Caches)
+    NSApplicationSupportDirectory = 14  # location of application support files (plug-ins, etc) (Library/Application Support)
+    NSDownloadsDirectory = 15  # location of the user's "Downloads" directory
+    NSInputMethodsDirectory = 16 # input methods (Library/Input Methods)
+    NSMoviesDirectory = 17  # location of user's Movies directory (~/Movies)
+    NSMusicDirectory = 18  # location of user's Music directory (~/Music)
+    NSPicturesDirectory = 19  # location of user's Pictures directory (~/Pictures)
+    NSPrinterDescriptionDirectory = 20  # location of system's PPDs directory (Library/Printers/PPDs)
+    NSSharedPublicDirectory = 21  # location of user's Public sharing directory (~/Public)
+    NSPreferencePanesDirectory = 22  # location of the PreferencePanes directory for use with System Preferences (Library/PreferencePanes)
+    NSApplicationScriptsDirectory = 23  # location of the user scripts folder for the calling application (~/Library/Application Scripts/code-signing-id)
+    NSItemReplacementDirectory = 99  # For use with NSFileManager's URLForDirectory:inDomain:appropriateForURL:create:error:
+    NSAllApplicationsDirectory = 100  # all directories where applications can occur
+    NSAllLibrariesDirectory = 101  # all directories where resources can occur
+    NSTrashDirectory = 102  # location of Trash directory
 
 # Used for type annotation
 class _Void: pass
@@ -79,18 +114,29 @@ cf.CFArrayGetValueAtIndex.argtypes = [CFArray_p, CFIndex]
 cf.CFRelease.argtypes = [c_void_p]
 cf.CFRelease.restype = None
 
+# CFTypeRef CFRetain(CFTypeRef)
+cf.CFRetain.argtypes = [c_void_p]
+cf.CFRetain.restype = c_void_p
+
+objc.objc_autoreleasePoolPush.argtypes = []
+objc.objc_autoreleasePoolPush.restype = c_void_p
+
+objc.objc_autoreleasePoolPop.argtypes = [c_void_p]
+objc.objc_autoreleasePoolPop.restype = None
+
 def CFString2Str(cfstr: CFString_p) -> str:
     l = cf.CFStringGetLength(cfstr)
+    if l <= 0:
+        return ''  # short circuit out if empty string or other nonsense length
     r = CFRange(0, l)
     blen = CFIndex(0)
     lossbyte = c_ubyte(ord(b'?'))
-    slen = cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, c_char_p(0), 0, byref(blen))
-    buf = create_string_buffer((blen.value+1) * sizeof(c_char))
-    slen = cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, buf, CFIndex(blen.value+1), byref(blen))
-    if slen != l:
-        raise ValueError('Cannot retrieve c-string from cfstring')
-    buf = bytes(buf)
-    return buf[:blen.value].decode('utf-8')
+    cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, c_char_p(0), 0, byref(blen))  # find out length of utf8 string in bytes, sans nul
+    buf = create_string_buffer((blen.value+1) * sizeof(c_char))  # allocate buffer + nul
+    num_bytes = cf.CFStringGetBytes(cfstr, r, kCFStringEncodingUTF8, lossbyte, False, buf, CFIndex(blen.value+1), byref(blen))
+    if not num_bytes:
+        raise ValueError('Unable to convert CFString to UTF8 C string')
+    return bytes(buf)[:num_bytes].decode('utf-8')
 
 def CFArrayGetIndex(array: CFArray_p, idx: int, default=_Void) -> c_void_p:
     length = cf.CFArrayGetCount(array)
@@ -107,25 +153,33 @@ import pathlib
 foundation.NSSearchPathForDirectoriesInDomains.restype = CFArray_p
 foundation.NSSearchPathForDirectoriesInDomains.argtypes = [c_uint, c_uint, c_bool]
 
-def get_user_directory(type: str) -> pathlib.Path:
+def get_user_directory(ns_type: int) -> pathlib.Path:
     """
     Retrieve the macOS directory path for the given type
-    The `type` parameter must be one of: "application-support", "cache".
+    The `ns_type` parameter must be an NSSearchPathDirectory enum member.
+
     Example results:
-     - '/Users/calin/Library/Application Support' (for "application-support")
-     - '/Users/calin/Library/Caches' (for "cache")
+     - '/Users/calin/Library/Application Support' (for NSSearchPathDirectory.NSApplicationSupportDirectory)
+     - '/Users/calin/Library/Caches' (for NSSearchPathDirectory.NSCachesDirectory)
     Returns the discovered path on success, `None` otherwise.
     """
-    if type == 'application-support':
-        ns_type = NSApplicationSupportDirectory
-    elif type == 'cache':
-        ns_type = NSCachesDirectory
-    else:
-        raise AssertionError('Unexpected directory type name')
-    array = foundation.NSSearchPathForDirectoriesInDomains(ns_type, NSUserDomainMask, c_bool(True))
-    result = CFArrayGetIndex(array, 0, None)
-    if result is not None:
-        return pathlib.Path(CFString2Str(cast(result, CFString_p)))
+    # Note NSSearchPathForDirectoriesInDomains returns an autoreleased object,
+    # so we need to push an autorelease pool and then pop an autorelease pool
+    # to make sure this function never leaks.  This requires that at least one
+    # top-level autorelease pool exists already (which should always be the
+    # case inside a Python interpreter thread).
+    pool = objc.objc_autoreleasePoolPush()
+    if not pool:
+        raise RuntimeError('Could not push an autorelease pool')
+    try:
+        array = foundation.NSSearchPathForDirectoriesInDomains(ns_type, NSUserDomainMask, c_bool(True))
+        if not array:
+            raise ValueError('Unexpected ns_type or unable to retrieve directory from os')
+        result = CFArrayGetIndex(array, 0, None)
+        if result is not None:
+            return pathlib.Path(CFString2Str(cast(result, CFString_p)))
+    finally:
+        objc.objc_autoreleasePoolPop(pool)
 
 
 # CFBundleRef CFBundleGetMainBundle(void);
@@ -142,9 +196,20 @@ def get_bundle_identifier() -> str:
     Example result: 'org.python.python'
     Returns the bundle identifier on success, `None` otherwise.
     """
-    bundle = cf.CFBundleGetMainBundle()
+    bundle, identifier = cf.CFBundleGetMainBundle(), None
     if bundle:
-        return CFString2Str(cf.CFBundleGetIdentifier(bundle))
+        cf.CFRetain(bundle)  # get rule, retain to make sure not freed by underlying code
+        try:
+            identifier = cf.CFBundleGetIdentifier(bundle)
+            if identifier:
+                cf.CFRetain(identifier)
+                return CFString2Str(identifier)
+        finally:
+            # Undo above retains
+            if identifier:
+                cf.CFRelease(identifier)
+            cf.CFRelease(bundle)
+    raise RuntimeError('Unable to retrieve bundle identifier from os')
 
 
 # CFArray CFLocaleCopyPreferredLanguages(void) // returns a copy of the current preferred languages for this user
@@ -171,4 +236,6 @@ def get_preferred_languages():
         finally:
             # unconditional release (free) resources
             cf.CFRelease(array)
+    else:
+        raise RuntimeError('Unable to retrieve preferred languages from os')
     return ret
