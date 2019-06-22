@@ -297,15 +297,17 @@ class Network(Logger):
         self._set_status('disconnected')
 
         # lightning network
-        from . import lnwatcher
-        from . import lnworker
-        from . import lnrouter
         if self.config.get('lightning'):
-            self.channel_db = lnrouter.ChannelDB(self)
+            from . import lnwatcher
+            from . import lnworker
+            from . import lnrouter
+            from . import channel_db
+            self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lnwatcher = lnwatcher.LNWatcher(self)
             self.lngossip = lnworker.LNGossip(self)
         else:
+            self.channel_db = None
             self.lnwatcher = None
             self.lngossip = None
 
