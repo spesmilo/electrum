@@ -55,8 +55,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       --enable-shared \
       --with-threads \
       -q
-    make -j4 -s
-    make -s install > /dev/null
+    make -j4 -s || fail "Could not build Python"
+    make -s install > /dev/null || fail "Could not install Python"
     # When building in docker on macOS, python builds with .exe extension because the
     # case insensitive file system of macOS leaks into docker. This causes the build
     # to result in a different output on macOS compared to Linux. We simply patch
@@ -71,7 +71,7 @@ git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfski
 (
     cd "$BUILDDIR/squashfskit"
     git checkout "$SQUASHFSKIT_COMMIT"
-    make -C squashfs-tools mksquashfs
+    make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
 )
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
@@ -93,8 +93,8 @@ info "building libsecp256k1."
       --enable-module-ecdh \
       --disable-jni \
       -q
-    make -j4 -s
-    make -s install > /dev/null
+    make -j4 -s || fail "Could not build libsecp"
+    make -s install > /dev/null || fail "Could not install libsecp"
 )
 
 
@@ -119,8 +119,7 @@ info "preparing electrum-locale."
 
     pushd "$CONTRIB"/deterministic-build/electrum-locale
     if ! which msgfmt > /dev/null 2>&1; then
-        echo "Please install gettext"
-        exit 1
+        fail "Please install gettext"
     fi
     for i in ./locale/*; do
         dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
@@ -170,7 +169,7 @@ info "finalizing AppDir."
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
-)
+) || fail "Could not finalize AppDir"
 
 # copy libusb here because it is on the AppImage excludelist and it can cause problems if we use system libusb
 info "Copying libusb"
