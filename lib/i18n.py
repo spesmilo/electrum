@@ -130,16 +130,19 @@ languages: Dict[str, LanguageDef] = {
         ),
     'es_AR': LanguageDef(
         name='Español (S. América)',
-        matches=lambda c: re.match('^es.*', c), excludes=lambda c: re.match('^es_(ES|MX)', c)
+        matches=lambda c: re.match('^es.*', c), excludes=lambda c: re.match('^es_(ES)', c)
         ),
     'es_ES': LanguageDef(
         name='Español',
         matches=lambda c: re.match('^es_ES', c), excludes=lambda c: False
         ),
-    'es_MX': LanguageDef(
-        name='Español (México)',
-        matches=lambda c: re.match('^es_MX', c), excludes=lambda c: False
-        ),
+# This has been disabled for now as it has 0 translations in crowdin.
+# ex_MX users will end up with S. American spanish (es_AR) which has almost
+# complete coverage of the language.
+#    'es_MX': LanguageDef(
+#        name='Español (México)',
+#        matches=lambda c: re.match('^es_MX', c), excludes=lambda c: False
+#        ),
     'fa_IR': LanguageDef(
         name='فارسی',
         matches=lambda c: re.match('^fa.*', c), excludes=lambda c: False
