@@ -49,14 +49,14 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
     # Patch taken from Ubuntu python3.6_3.6.8-1~18.04.1.debian.tar.xz
-    patch -p1 < "$CONTRIB/build-linux/appimage/patches/python-3.6.8-reproducible-buildinfo.diff"
+    patch -p1 < "$CONTRIB/build-linux/appimage/patches/python-3.6.8-reproducible-buildinfo.diff" || fail "Could not patch Python build system for reproducibility"
     ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
       --enable-ipv6 \
       --enable-shared \
       --with-threads \
-      -q
+      -q || fail "Python configure failed"
     make -j 4 -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Failed to install Python"
     # When building in docker on macOS, python builds with .exe extension because the
@@ -71,8 +71,8 @@ info "Building squashfskit"
 git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfskit"
 (
     cd "$BUILDDIR/squashfskit"
-    git checkout -b pinned "$SQUASHFSKIT_COMMIT"
-    make -C squashfs-tools mksquashfs
+    git checkout -b pinned "$SQUASHFSKIT_COMMIT" || fail "Could not find squashfskit commit $SQUASHFSKIT_COMMIT"
+    make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
 )
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
@@ -240,8 +240,10 @@ info "Creating the AppImage"
 args=\$(echo "\$@" | sed -e 's/-mkfs-fixed-time 0//')
 "$MKSQUASHFS" \$args
 EOF
-    env VERSION="$VERSION" ARCH=x86_64 SOURCE_DATE_EPOCH=1530212462 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
-)
+    env VERSION="$VERSION" ARCH=x86_64 SOURCE_DATE_EPOCH=1530212462 \
+                ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE" \
+                || fail "AppRun failed"
+) || fail "Could not create the AppImage"
 
 
 info "Done"
