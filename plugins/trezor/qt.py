@@ -23,7 +23,7 @@ PASSPHRASE_HELP_SHORT =_(
     "hidden behind a particular case-sensitive passphrase.")
 PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
     "You need to create a separate Electron Cash wallet for each passphrase "
-    "you use as they each generate different addresses.  Changing "
+    "you use as they each generate different addresses. Changing "
     "your passphrase does not lose other wallets, each is still "
     "accessible behind its own passphrase.")
 RECOMMEND_PIN = _(
@@ -349,14 +349,14 @@ class SettingsDialog(WindowModalDialog):
             currently_enabled = self.features.passphrase_protection
             if currently_enabled:
                 msg = _("After disabling passphrases, you can only pair this "
-                        "Electron Cash wallet if it had an empty passphrase.  "
+                        "Electron Cash wallet if it had an empty passphrase. "
                         "If its passphrase was not empty, you will need to "
-                        "create a new wallet with the install wizard.  You "
+                        "create a new wallet with the install wizard. You "
                         "can use this wallet again at any time by re-enabling "
                         "passphrases and entering its passphrase.")
             else:
-                msg = _("Your current Electron Cash wallet can only be used with "
-                        "an empty passphrase.  You must create a separate "
+                msg = _("Your current Electron Cash wallet can only be used "
+                        "with an empty passphrase. You must create a separate "
                         "wallet with the install wizard for other passphrases "
                         "as each one generates a new set of addresses.")
             msg += "\n\n" + _("Are you sure you want to proceed?")

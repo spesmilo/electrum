@@ -1249,7 +1249,7 @@ class SendTabExtra(QFrame, PrintError):
         l.addWidget(self.titleLabel, 0, 1, 1, 4)
         self.spendButtons = QButtonGroup(self)
         # Shuffled
-        self.shufLabel = HelpLabel("Shuffled available:", self.msg)
+        self.shufLabel = HelpLabel(_("Shuffled available:"), self.msg)
         m = _("Shuffled (private) funds")
         self.shufLabel.setToolTip(m)
         self.shufLabel.setParent(self)
@@ -1262,7 +1262,7 @@ class SendTabExtra(QFrame, PrintError):
         l.addWidget(self.spendShuffled, 1, 4)
         self.spendButtons.addButton(self.spendShuffled)
         # Unshuffled
-        self.unshufLabel = HelpLabel("Unshuffled available:", self.msg2)
+        self.unshufLabel = HelpLabel(_("Unshuffled available:"), self.msg2)
         m = _("Funds that are not yet shuffled")
         self.unshufLabel.setToolTip(m)
         self.unshufLabel.setParent(self)

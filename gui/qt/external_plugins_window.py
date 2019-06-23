@@ -274,12 +274,12 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
 
         # The row of buttons under the plugin list for actions related to the plugins within it.
         hbox = QHBoxLayout()
-        self.installButton = QPushButton("Add Plugin")
+        self.installButton = QPushButton(_("Add Plugin"))
         hbox.addWidget(self.installButton)
         hbox.addStretch(1)
-        self.settingsButton = QPushButton("Settings")
+        self.settingsButton = QPushButton(_("Settings"))
         self.toggleButton = QPushButton("")
-        self.uninstallButton = QPushButton("Uninstall")
+        self.uninstallButton = QPushButton(_("Uninstall"))
         hbox.addWidget(self.settingsButton)
         hbox.addWidget(self.toggleButton)
         hbox.addWidget(self.uninstallButton)
@@ -472,7 +472,7 @@ class ExternalPluginTable(QTableWidget):
         self.setColumnWidth(1, 300)
         self.setColumnWidth(2, 60)
         self.setColumnWidth(3, 60)
-        self.setHorizontalHeaderLabels([ "Name", "Description", "Version", "Enabled" ])
+        self.setHorizontalHeaderLabels([_("Name"), _("Description"), _("Version"), _("Enabled")])
 
         self.row_keys = []
         for row_index, (package_name, metadata) in enumerate(plugin_manager.external_plugin_metadata.items()):

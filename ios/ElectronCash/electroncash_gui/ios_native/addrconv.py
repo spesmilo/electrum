@@ -82,7 +82,7 @@ class AddrConvVC(AddrConvBase):
                 gui.ElectrumGui.gui.copy_to_clipboard(self.legacy.text, 'Address')
             elif but.ptr.value == self.qrBut.ptr.value:
                 if not QRCodeReader.isAvailable:
-                    utils.show_alert(self, _("QR Not Avilable"), _("The camera is not available for reading QR codes"))
+                    utils.show_alert(self, _("QR Not Available"), _("The camera is not available for reading QR codes"))
                 else:
                     self.qr = QRCodeReader.new().autorelease() # self.qr is a weak property decalred in objc superclass.. it auto-zeros itself when the qr code reader disappears
                     self.qrvc = QRCodeReaderViewController.readerWithCancelButtonTitle_codeReader_startScanningAtLoad_showSwitchCameraButton_showTorchButton_("Cancel",self.qr,True,False,False)

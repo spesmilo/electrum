@@ -499,7 +499,7 @@ class NewContactVC(NewContactBase):
     def onQR(self) -> None:
         #print("On QR...")
         if not QRCodeReader.isAvailable:
-            utils.show_alert(self, _("QR Not Avilable"), _("The camera is not available for reading QR codes"))
+            utils.show_alert(self, _("QR Not Available"), _("The camera is not available for reading QR codes"))
         else:
             self.qr = QRCodeReader.new().autorelease()
             self.qrvc = QRCodeReaderViewController.readerWithCancelButtonTitle_codeReader_startScanningAtLoad_showSwitchCameraButton_showTorchButton_("Cancel",self.qr,True,False,False)
