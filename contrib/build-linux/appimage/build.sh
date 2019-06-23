@@ -44,14 +44,18 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 (
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
     export SOURCE_DATE_EPOCH=1530212462
-    TZ=UTC faketime -f '2019-01-01 01:01:01' ./configure \
+    LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
+    LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
+    # Patch taken from Ubuntu python3.6_3.6.8-1~18.04.1.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.6.8-reproducible-buildinfo.diff"
+    ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
       --enable-ipv6 \
       --enable-shared \
       --with-threads \
       -q
-    TZ=UTC faketime -f '2019-01-01 01:01:01' make -j4 -s
+    make -j4 -s
     make -s install > /dev/null
 )
 
