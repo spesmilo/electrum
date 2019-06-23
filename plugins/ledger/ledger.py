@@ -402,8 +402,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error(_('Transaction with more than 2 outputs not supported by {}').format(self.device))
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
-            for output in tx.outputs():
-                _type, address, amount = output
+            for _type, address, amount in tx.outputs():
                 if self.get_client_electrum().is_hw1():
                     if not _type == TYPE_ADDRESS:
                         self.give_error(_('Only address outputs are supported by {}').format(self.device))
