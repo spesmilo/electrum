@@ -5,7 +5,7 @@
 import hashlib
 from typing import List, Tuple, NamedTuple, Union, Iterable
 
-from .util import bfh, bh2u, BitcoinException
+from .util import bfh, BitcoinException
 from . import constants
 from . import ecc
 from .crypto import hash_160, hmac_oneshot

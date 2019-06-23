@@ -28,7 +28,6 @@ import json
 from collections import defaultdict
 import asyncio
 from typing import Dict, List, Tuple, TYPE_CHECKING
-import traceback
 import sys
 
 try:

@@ -3,11 +3,9 @@
 
 import os
 import sys
-import traceback
 import ctypes
-from ctypes.util import find_library
 from ctypes import (
-    byref, c_byte, c_int, c_uint, c_char_p, c_size_t, c_void_p, create_string_buffer, CFUNCTYPE, POINTER
+    byref, c_int, c_uint, c_char_p, c_size_t, c_void_p, create_string_buffer,
 )
 
 import ecdsa

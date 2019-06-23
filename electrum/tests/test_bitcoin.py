@@ -15,7 +15,7 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             normalize_bip32_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
-from electrum.ecc import number_to_string, string_to_number
+from electrum.ecc import number_to_string
 from electrum.util import bfh, bh2u, InvalidPassword
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation

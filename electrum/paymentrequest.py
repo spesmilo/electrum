@@ -25,8 +25,6 @@
 import hashlib
 import sys
 import time
-import traceback
-import json
 from typing import Optional
 
 import certifi

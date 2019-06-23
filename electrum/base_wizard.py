@@ -24,10 +24,7 @@
 # SOFTWARE.
 
 import os
-import sys
 import copy
-import traceback
-from functools import partial
 from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 
 from . import bitcoin
@@ -35,12 +32,11 @@ from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation
 from .keystore import bip44_derivation, purpose48_derivation
-from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
-                     wallet_types, Wallet, Abstract_Wallet)
+from .wallet import wallet_types
 from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
                       get_derivation_used_for_hw_device_encryption)
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException
+from .util import UserCancelled, InvalidPassword
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger

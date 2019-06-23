@@ -25,7 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Optional, Set, Tuple
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY

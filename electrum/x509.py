@@ -29,7 +29,6 @@ from datetime import datetime
 
 import ecdsa
 
-from . import util
 from .util import profiler, bh2u
 from .logging import get_logger
 

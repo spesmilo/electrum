@@ -26,8 +26,6 @@ import asyncio
 import ast
 import os
 import time
-import traceback
-import sys
 import threading
 from typing import Dict, Optional, Tuple
 

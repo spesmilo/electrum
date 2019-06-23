@@ -28,7 +28,6 @@ import ssl
 import sys
 import traceback
 import asyncio
-import socket
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
@@ -37,7 +36,7 @@ import logging
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
-from aiorpcx.curio import timeout_after, TaskTimeout
+from aiorpcx.curio import TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC
 from aiorpcx.rawsocket import RSClient
 import certifi

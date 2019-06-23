@@ -33,7 +33,6 @@ import sys
 import ipaddress
 import asyncio
 from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple
-import traceback
 
 import dns
 import dns.resolver

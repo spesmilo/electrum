@@ -34,11 +34,11 @@ from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
                     Callable, List, Dict)
 
 from . import ecc, bitcoin, constants, segwit_addr
-from .util import profiler, to_bytes, bh2u, bfh
+from .util import to_bytes, bh2u, bfh
 from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      push_script, int_to_hex, push_script, b58_address_to_hash160,
+                      int_to_hex, push_script, b58_address_to_hash160,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey

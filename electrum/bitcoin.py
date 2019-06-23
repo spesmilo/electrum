@@ -23,16 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union
+from typing import Tuple, TYPE_CHECKING, Optional, Union
 from enum import IntEnum
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
-from . import version
 from . import segwit_addr
 from . import constants
 from . import ecc
-from .crypto import sha256d, sha256, hash_160, hmac_oneshot
+from .crypto import sha256d, sha256, hash_160
 
 if TYPE_CHECKING:
     from .network import Network
