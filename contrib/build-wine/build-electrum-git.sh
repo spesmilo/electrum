@@ -50,6 +50,8 @@ $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
 $PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
+# see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
+echo "Pip installing Electrum. This might take a long time if the project folder is large."
 $PYTHON -m pip install .
 popd
 
