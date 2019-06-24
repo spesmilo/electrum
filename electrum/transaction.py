@@ -1175,8 +1175,9 @@ class Transaction:
         for o in self.outputs():
             if o.type == TYPE_SCRIPT and o.address == '':
                 return o.value
-        # if fee output has not been added it will return 0
-        return 0
+        for x in self.inputs():
+            if not 'value' in x: return 0
+        return self.input_value() - self.output_value()
 
     def is_final(self):
         return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 1 for x in self.inputs()])
