@@ -22,7 +22,8 @@ from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
 from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt, xfp2str, unpacked_xfp_path, merge_sigs_from_psbt
+from .build_psbt import (build_psbt, xfp2str, unpacked_xfp_path,
+                            merge_sigs_from_psbt, xfp_for_keystore)
 
 _logger = get_logger(__name__)
 
@@ -601,14 +602,12 @@ class ColdcardPlugin(HW_PluginBase):
         print('# Exported from Electrum', file=fp)
         print(f'Name: {name:.20s}', file=fp)
         print(f'Policy: {wallet.m} of {wallet.n}', file=fp)
+        print(f'Format: {wallet.txin_type.upper()}' , file=fp)
 
         xpubs = []
         derivs = set()
         for xp, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-            xfp = getattr(ks, 'ckcc_xfp', None)
-            if xfp is None:
-                xfp = xfp_from_xpub(ks.get_master_public_key())
-
+            xfp = xfp_for_keystore(ks)
             dd = getattr(ks, 'derivation', 'm')
 
             xpubs.append( (xfp2str(xfp), xp, dd) )
@@ -654,12 +653,9 @@ class ColdcardPlugin(HW_PluginBase):
                 path = "%s/%d/%d" % (getattr(ks, 'derivation', 'm'),
                                         *wallet.get_address_index(address))
 
-                # need master XFP for each co-signers; if it's a coldcard, easy.
-                xfp = getattr(ks, 'ckcc_xfp', None)
-                if xfp is None:
-                    xfp = xfp_from_xpub(ks.get_master_public_key())
-
-                xfps.append(unpacked_xfp_path(xfp, path))
+                # need master XFP for each co-signers
+                ks_xfp = xfp_for_keystore(ks)
+                xfps.append(unpacked_xfp_path(ks_xfp, path))
 
             # put into BIP45 (sorted) order
             pkx = list(sorted(zip(pubkeys, xfps)))
