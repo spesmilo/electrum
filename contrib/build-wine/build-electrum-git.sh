@@ -48,6 +48,7 @@ git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electr
 cp -r /tmp/electrum-build/electrum-locale/locale/ $WINEPREFIX/drive_c/electrum/
 mkdir -p $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
 chmod 777 $WINEPREFIX/drive_c/electrum/electrum/gui/qt/icons_rc.py
+ls $WINEPREFIX/drive_c/electrum/electrum/gui/qt
 pyrcc5 ../../../icons.qrc -o $WINEPREFIX/drive_c/electrum/electrum/gui/qt/icons_rc.py
 
 # Install frozen dependencies
