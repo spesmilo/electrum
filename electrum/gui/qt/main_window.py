@@ -2230,7 +2230,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if len(mpk_list) > 1:
                 # only show the combobox if multiple master keys are defined
                 def label(idx, ks):
-                    if isinstance(self.wallet, Multisig_Wallet):
+                    if isinstance(self.wallet, Multisig_Wallet) and hasattr(ks, 'label'):
                         return _("cosigner") + f' {idx+1}: {ks.get_type_text()} {ks.label}'
                     else:
                         return _("keystore") + f' {idx+1}'
