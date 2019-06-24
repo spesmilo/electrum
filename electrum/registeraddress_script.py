@@ -4,7 +4,7 @@ from .util import bh2u, bfh
 from .transaction import opcodes
 import base64
 import binascii
-from bitcoin import b58check_to_bin
+from .bitcoin import b58_address_to_hash160
                       
 class RegisterAddressScript():
 	def __init__(self, wallet):
@@ -17,7 +17,7 @@ class RegisterAddressScript():
 
 	def append(self, addrs):
 		for addr in addrs:
-			self.payload.extend(b58check_to_bin(addr))
+			self.payload.extend(b58_address_to_hash160(addr)[1])
 			pubkeybytes=bfh(self.wallet.get_public_key(addr, tweaked=False))
 			self.payload.extend(pubkeybytes)
 
