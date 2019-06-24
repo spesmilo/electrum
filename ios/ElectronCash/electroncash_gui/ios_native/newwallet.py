@@ -1196,7 +1196,7 @@ class Import2(Import2Base):
             if numvalid < len(items):
                 msg += _("%d valid item(s)"%numvalid) + " (" + _("invalid items will be discarded") + ")."
             if self.forceType == 1 and numpk:
-                msg += " " + _("This is a wathching-only wallet, so the given private keys will be converted to watching addresses.")
+                msg += " " + _("This is a watching-only wallet, so the given private keys will be converted to watching addresses.")
             elif self.forceType == 2 and numaddr:
                 msg =  _("To import addresses into a spending wallet, you must use their private key.")
                 asError = True
