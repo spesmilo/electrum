@@ -1523,7 +1523,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         rascript = registeraddress_script.RegisterAddressScript(self.wallet)
-        rascript.append(addrs_pending)
+        if isinstance(self.wallet, Multisig_Wallet):
+            rascript.append(addrs_pending, self.wallet.m)
+        else:
+            rascript.append(addrs_pending)
 
         #Register the address to the wallet's kyc pubkey
         #Generate a new ephemeral pub key for encryption from the wallet
