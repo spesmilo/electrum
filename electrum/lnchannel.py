@@ -46,7 +46,8 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script)
-from .lnsweep import create_sweeptxs_for_their_revoked_ctx, create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
+from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
+from .lnsweep import create_sweeptx_for_their_revoked_htlc
 from .lnhtlc import HTLCManager
 
 
@@ -165,7 +166,7 @@ class Channel(Logger):
         self.set_state('DISCONNECTED')
         self.local_commitment = None
         self.remote_commitment = None
-        self.sweep_info = None
+        self.sweep_info = {}
 
     def get_payments(self):
         out = {}
@@ -450,12 +451,6 @@ class Channel(Logger):
         point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         return secret, point
 
-    def process_new_revocation_secret(self, per_commitment_secret: bytes):
-        outpoint = self.funding_outpoint.to_str()
-        ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
-        sweeptxs = create_sweeptxs_for_their_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
-        return sweeptxs
-
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
 
@@ -469,16 +464,7 @@ class Channel(Logger):
         # this might break
         prev_remote_commitment = self.pending_commitment(REMOTE)
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
-
-        # be robust to exceptions raised in lnwatcher
-        try:
-            sweeptxs = self.process_new_revocation_secret(revocation.per_commitment_secret)
-        except Exception as e:
-            self.logger.info("Could not process revocation secret: {}".format(repr(e)))
-            sweeptxs = []
-
         ##### start applying fee/htlc changes
-
         if self.pending_fee is not None:
             if not self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_SIGNED] = True
@@ -501,8 +487,6 @@ class Channel(Logger):
 
         self.set_remote_commitment()
         self.remote_commitment_to_be_revoked = prev_remote_commitment
-        # return sweep transactions for watchtower
-        return sweeptxs
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """
@@ -810,19 +794,23 @@ class Channel(Logger):
         assert tx.is_complete()
         return tx
 
-    def get_sweep_info(self, ctx: Transaction):
-        if self.sweep_info is None:
+    def sweep_ctx(self, ctx: Transaction):
+        txid = ctx.txid()
+        if self.sweep_info.get(txid) is None:
             ctn = extract_ctn_from_tx_and_chan(ctx, self)
             our_sweep_info = create_sweeptxs_for_our_ctx(self, ctx, ctn, self.sweep_address)
             their_sweep_info = create_sweeptxs_for_their_ctx(self, ctx, ctn, self.sweep_address)
-            if our_sweep_info:
-                self.sweep_info = our_sweep_info
+            if our_sweep_info is not None:
+                self.sweep_info[txid] = our_sweep_info
                 self.logger.info(f'we force closed.')
-            elif their_sweep_info:
-                self.sweep_info = their_sweep_info
+            elif their_sweep_info is not None:
+                self.sweep_info[txid] = their_sweep_info
                 self.logger.info(f'they force closed.')
             else:
-                self.sweep_info = {}
+                self.sweep_info[txid] = {}
                 self.logger.info(f'not sure who closed {ctx}.')
-            self.logger.info(f'{repr(self.sweep_info)}')
-        return self.sweep_info
+        return self.sweep_info[txid]
+
+    def sweep_htlc(self, ctx:Transaction, htlc_tx: Transaction):
+        # look at the output address, check if it matches
+        return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)

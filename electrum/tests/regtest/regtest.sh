@@ -157,7 +157,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
 fi
 
 
-if [[ $1 == "breach_with_htlc" ]]; then
+if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
@@ -217,4 +217,85 @@ if [[ $1 == "breach_with_htlc" ]]; then
 	echo "htlc not redeemed."
 	exit 1
     fi
+fi
+
+
+if [[ $1 == "breach_with_spent_htlc" ]]; then
+    $bob daemon stop
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    $bob daemon load_wallet
+    while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
+	echo "waiting for alice balance"
+	sleep 1
+    done
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15)
+    new_blocks 3
+    channel_state=""
+    while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
+	echo "waiting for channel open"
+	sleep 1
+    done
+    echo "alice pays bob"
+    invoice=$($bob addinvoice 0.05 "test")
+    $alice lnpay $invoice --timeout=1 || true
+    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
+    if [[ "$settled" != "0" ]]; then
+	echo "SETTLE_DELAY did not work, $settled != 0"
+        exit 1
+    fi
+    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
+    sleep 5
+    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
+    if [[ "$settled" != "1" ]]; then
+	echo "SETTLE_DELAY did not work, $settled != 1"
+        exit 1
+    fi
+    echo $($bob getbalance)
+    echo "bob goes offline"
+    $bob daemon stop
+    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
+    echo "alice breaches with old ctx:" $ctx_id
+    new_blocks 1
+    if [[ $($bitcoin_cli gettxout $ctx_id 0 | jq '.confirmations') != "1" ]]; then
+	echo "breach tx not confirmed"
+	exit 1
+    fi
+    echo "wait for cltv_expiry blocks"
+    # note: this will let alice redeem to_local
+    # because cltv_delay is the same as csv_delay
+    new_blocks 144
+    echo "alice spends to_local and htlc outputs"
+    $alice daemon stop
+    cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
+    $alice daemon -s 127.0.0.1:51001:t start
+    $alice daemon load_wallet
+    # wait until alice has spent both ctx outputs
+    while [[ $($bitcoin_cli gettxout $ctx_id 0) ]]; do
+	echo "waiting until alice spends ctx outputs"
+	sleep 1
+    done
+    while [[ $($bitcoin_cli gettxout $ctx_id 1) ]]; do
+	echo "waiting until alice spends ctx outputs"
+	sleep 1
+    done
+    new_blocks 1
+    echo "bob comes back"
+    $bob daemon -s 127.0.0.1:51001:t start
+    $bob daemon load_wallet
+    while [[ $($bitcoin_cli getmempoolinfo | jq '.size') != "1" ]]; do
+	echo "waiting for bob's transaction"
+	sleep 1
+    done
+    echo "mempool has 1 tx"
+    new_blocks 1
+    sleep 5
+    balance=$($bob getbalance | jq '.confirmed')
+    if (( $(echo "$balance < 0.049" | bc -l) )); then
+	echo "htlc not redeemed."
+	exit 1
+    fi
+    echo "bob balance $balance"
 fi

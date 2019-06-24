@@ -40,6 +40,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY)
+from .lnsweep import create_sweeptxs_for_watchtower
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect
@@ -1261,15 +1262,20 @@ class Peer(Logger):
         self.logger.info("on_revoke_and_ack")
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
-        sweeptxs = chan.receive_revocation(RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"]))
+        ctx = chan.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
+        rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
+        chan.receive_revocation(rev)
         self._remote_changed_events[chan.channel_id].set()
         self._remote_changed_events[chan.channel_id].clear()
         self.lnworker.save_channel(chan)
         self.maybe_send_commitment(chan)
-        asyncio.ensure_future(self._on_revoke_and_ack(chan, sweeptxs))
+        asyncio.ensure_future(self._on_revoke_and_ack(chan, ctx, rev.per_commitment_secret))
 
-    async def _on_revoke_and_ack(self, chan, sweeptxs):
+    @ignore_exceptions
+    @log_exceptions
+    async def _on_revoke_and_ack(self, chan, ctx, per_commitment_secret):
         outpoint = chan.funding_outpoint.to_str()
+        sweeptxs = create_sweeptxs_for_watchtower(chan, ctx, per_commitment_secret, chan.sweep_address)
         for tx in sweeptxs:
             await self.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
 

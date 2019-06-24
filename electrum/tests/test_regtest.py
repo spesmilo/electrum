@@ -33,5 +33,8 @@ class TestLightning(unittest.TestCase):
     def test_redeem_htlcs(self):
         self.run_shell(['redeem_htlcs'])
 
-    def test_breach_with_htlc(self):
-        self.run_shell(['breach_with_htlc'])
+    def test_breach_with_unspent_htlc(self):
+        self.run_shell(['breach_with_unspent_htlc'])
+
+    def test_breach_with_spent_htlc(self):
+        self.run_shell(['breach_with_spent_htlc'])
