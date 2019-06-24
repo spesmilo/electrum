@@ -46,7 +46,9 @@ popd
 cp $WINEPREFIX/drive_c/electrum/LICENCE .
 git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electrum-locale
 cp -r /tmp/electrum-build/electrum-locale/locale/ $WINEPREFIX/drive_c/electrum/
-pyrcc5 ../../../icons.qrc -o $WINEPREFIX/drive_c/electrum/gui/qt/
+mkdir -p $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
+chmod 777 $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
+pyrcc5 ../../../icons.qrc -o $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
