@@ -84,7 +84,7 @@ class WWLabel(QLabel):
     def __init__ (self, text="", parent=None):
         QLabel.__init__(self, text, parent)
         self.setWordWrap(True)
-        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.setTextInteractionFlags(self.textInteractionFlags() | Qt.TextSelectableByMouse)
 
 
 class HelpLabel(QLabel):
