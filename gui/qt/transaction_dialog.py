@@ -111,6 +111,10 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.fee_label = QLabel()
         vbox.addWidget(self.fee_label)
 
+        for l in (self.tx_desc, self.status_label, self.date_label, self.amount_label, self.size_label, self.fee_label):
+            # make these labels selectable by mouse in case user wants to copy-paste things in tx dialog
+            l.setTextInteractionFlags(l.textInteractionFlags() | Qt.TextSelectableByMouse)
+
         def open_be_url(link):
             if link:
                 try:
