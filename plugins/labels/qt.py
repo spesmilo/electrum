@@ -60,11 +60,11 @@ class Plugin(LabelsPlugin):
             d.sigs.ok_button_disable_sig.connect(d.ok_button.setDisabled) # disable ok button while the TaskThread runs ..
             hbox = QHBoxLayout()
             hbox.addWidget(QLabel(_("LabelSync options:")))
-            upload = ThreadedButton("Force upload",
+            upload = ThreadedButton(_("Force upload"),
                                     partial(Weak(self.do_force_upload), wallet, dlgRef),
                                     partial(Weak(self.done_processing), dlgRef),
                                     partial(Weak(self.error_processing), dlgRef))
-            download = ThreadedButton("Force download",
+            download = ThreadedButton(_("Force download"),
                                       partial(Weak(self.do_force_download), wallet, dlgRef),
                                       partial(Weak(self.done_processing), dlgRef),
                                       partial(Weak(self.error_processing), dlgRef))

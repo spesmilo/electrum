@@ -409,7 +409,7 @@ def filename_field(parent, config, defaultname, select_msg):
     b1.setText(_("CSV"))
     b1.setChecked(True)
     b2 = QRadioButton(gb)
-    b2.setText(_("json"))
+    b2.setText(_("JSON"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
 

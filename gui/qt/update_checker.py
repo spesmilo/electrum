@@ -93,8 +93,8 @@ class UpdateChecker(QWidget, PrintError):
         self.content.addWidget(self.pb)
 
         versions = QHBoxLayout()
-        versions.addWidget(QLabel(_("Current version: {}".format(version.PACKAGE_VERSION))))
-        self.latest_version_label = QLabel(_("Latest version: {}".format(" ")))
+        versions.addWidget(QLabel(_("Current version: {}").format(version.PACKAGE_VERSION)))
+        self.latest_version_label = QLabel(_("Latest version: {}").format(" "))
         versions.addWidget(self.latest_version_label)
         self.content.addLayout(versions)
 
@@ -216,7 +216,7 @@ class UpdateChecker(QWidget, PrintError):
         elif latest_version:
             self.pb.hide()
             self.cancel_or_check_button.setText(_("Check Again"))
-            self.latest_version_label.setText(_("Latest version: {}".format("<b>" + latest_version + "</b>")))
+            self.latest_version_label.setText(_("Latest version: {}").format("<b>" + latest_version + "</b>"))
             if self.is_newer(latest_version):
                 self.heading_label.setText('<h2>' + _("There is a new update available") + '</h2>')
                 url = '<a href="{u}">{u}</a>'.format(u=UpdateChecker.download_url)

@@ -881,7 +881,7 @@ class Import1(Import1Base):
     def onQRBut(self) -> None:
         #print("On QR...")
         if not QRCodeReader.isAvailable:
-            utils.show_alert(self, _("QR Not Avilable"), _("The camera is not available for reading QR codes"))
+            utils.show_alert(self, _("QR Not Available"), _("The camera is not available for reading QR codes"))
         else:
             self.view.endEditing_(True)
             self.qr = QRCodeReader.new().autorelease()

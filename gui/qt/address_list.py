@@ -59,7 +59,7 @@ class AddressList(MyTreeWidget):
         super().filter(p)  # call super on chopped-off-piece
 
     def refresh_headers(self):
-        headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
+        headers = [ _('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
             headers.insert(4, '{} {}'.format(fx.get_currency(), _('Balance')))
