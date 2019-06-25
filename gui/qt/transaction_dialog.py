@@ -36,6 +36,7 @@ from electroncash.address import Address, PublicKey, ScriptOutput
 from electroncash.bitcoin import base_encode
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
+from electroncash import web
 
 from electroncash.util import bfh, Weak, PrintError
 from .util import *
@@ -80,6 +81,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.cashaddr_signal_slots = []
         self._dl_pct = None
         self._closed = False
+        self.tx_height = None
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -108,6 +110,20 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         vbox.addWidget(self.size_label)
         self.fee_label = QLabel()
         vbox.addWidget(self.fee_label)
+
+        def open_be_url(link):
+            if link:
+                try:
+                    kind, thing = link.split(':')
+                    url = web.BE_URL(self.main_window.config, kind, thing)
+                except:
+                    url = None
+                if url:
+                    webopen( url )
+                else:
+                    self.show_error(_('Unable to open in block explorer. Please be sure your block explorer is configured correctly in preferences.'))
+
+        self.status_label.linkActivated.connect(open_be_url)
 
         self.add_io(vbox)
 
@@ -313,6 +329,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
         tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        self.tx_height = height
         desc = label or desc
         size = self.tx.estimated_size()
         self.broadcast_button.setEnabled(can_broadcast)
@@ -327,7 +344,13 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         else:
             self.tx_desc.setText(_("Description") + ': ' + desc)
             self.tx_desc.show()
-        self.status_label.setText(_('Status:') + ' ' + status)
+
+        if self.tx_height and tx_hash:
+            status_extra = '&nbsp;&nbsp;( ' + _("Mined in block") + f': <a href="tx:{tx_hash}">{self.tx_height}</a>' + ' )'
+        else:
+            status_extra = ''
+
+        self.status_label.setText(_('Status:') + ' ' + status + status_extra)
 
         if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]

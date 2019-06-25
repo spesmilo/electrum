@@ -39,16 +39,16 @@ DEFAULT_EXPLORER = "Blockchair.com"
 mainnet_block_explorers = {
     'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
                     Address.FMT_CASHADDR,
-                    {'tx': 'tx', 'addr': 'address'}),
+                    {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                        Address.FMT_CASHADDR,
-                       {'tx': 'transaction', 'addr': 'address'}),
+                       {'tx': 'transaction', 'addr': 'address', 'block' : 'block'}),
     'BTC.com': ('https://bch.btc.com',
                        Address.FMT_CASHADDR,
-                       {'tx': '', 'addr': ''}),
+                       {'tx': '', 'addr': '', 'block' : 'block'}),
     'ViaBTC.com': ('https://www.viabtc.com/bch',
                    Address.FMT_CASHADDR,
-                   {'tx': 'tx', 'addr': 'address'}),
+                   {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
 }
 
 DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
@@ -56,7 +56,7 @@ DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
 testnet_block_explorers = {
     'Bitcoin.com'   : ('https://explorer.bitcoin.com/tbch',
                        Address.FMT_LEGACY,  # For some reason testnet expects legacy and fails on bchtest: addresses.
-                       {'tx': 'tx', 'addr': 'address'}),
+                       {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
 }
 
 def BE_info():
