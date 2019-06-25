@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # -*- mode: python3 -*-
+# This file (c) 2019 Mark Lundeberg & Calin Culianu
+# Part of the Electron Cash SPV Wallet
+# License: MIT
 '''
 Schnorr sign/verify uses Requries libsecp256k1 acceleration if available.
 
@@ -218,29 +221,3 @@ def verify(pubkey, signature, message_hash):
 
         return (R.x().to_bytes(32, 'big') == rbytes)
 
-
-if __name__ == "__main__":
-    # Test Schnorr implementation.
-    # duplicate the deterministic sig test from Bitcoin ABC's
-    # src/test/key_tests.cpp .
-    private_key = bytes.fromhex(
-        "12b004fff7f4b69ef8650e767f18f11ede158148b425660723b9f9a66e61f747")
-
-    pubkey = bytes.fromhex(
-        "030b4c866585dd868a9d62348a9cd008d6a312937048fff31670e7e920cfc7a744")
-
-    def sha(b):
-        return hashlib.sha256(b).digest()
-    msg = b"Very deterministic message"
-    msghash = sha(sha(msg))
-    assert msghash == bytes.fromhex(
-        "5255683da567900bfd3e786ed8836a4e7763c221bf1ac20ece2a5171b9199e8a")
-
-    sig = sign(private_key, msghash)
-    assert sig == bytes.fromhex(
-        "2c56731ac2f7a7e7f11518fc7722a166b02438924ca9d8b4d1113"
-        "47b81d0717571846de67ad3d913a8fdf9d8f3f73161a4c48ae81c"
-        "b183b214765feb86e255ce")
-
-    assert verify(pubkey, sig, msghash)
-    print("ok")
