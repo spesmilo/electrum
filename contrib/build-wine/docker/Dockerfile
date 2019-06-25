@@ -16,7 +16,7 @@ WORKDIR /opt/wine64/drive_c/electrum
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
     apt-get install git -y && \
-    git clone https://github.com/commerceblock/cb-client-wallet.git -b buildkite_debugging . && \
+    git clone -b buildkite_debugging https://github.com/commerceblock/cb-client-wallet.git . && \
     apt-get install -qy \
         wget \
         gnupg2 \
