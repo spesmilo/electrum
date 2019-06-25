@@ -355,6 +355,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.servers_list = ServerListWidget(self)
         grid.addWidget(self.servers_list, 5, 0, 1, 5)
         self.legend_label = label = WWLabel('') # will get populated with the legend by self.update()
+        label.setTextInteractionFlags(label.textInteractionFlags() & (~Qt.TextSelectableByMouse))  # disable text selection by mouse here
         self.legend_label.linkActivated.connect(self.on_view_blacklist)
         grid.addWidget(label, 6, 0, 1, 4)
         msg = ' '.join([
@@ -421,23 +422,27 @@ class NetworkChoiceLayout(QObject, PrintError):
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
         self.status_label = QLabel('')
+        self.status_label.setTextInteractionFlags(self.status_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
         grid.addWidget(self.status_label, 0, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
 
         self.server_label = QLabel('')
+        self.server_label.setTextInteractionFlags(self.server_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         msg = _("Electron Cash sends your wallet addresses to a single server, in order to receive your transaction history.")
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
         grid.addWidget(self.server_label, 1, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 1, 4)
 
         self.height_label = QLabel('')
+        self.height_label.setTextInteractionFlags(self.height_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         msg = _('This is the height of your local copy of the blockchain.')
         grid.addWidget(QLabel(_('Blockchain') + ':'), 2, 0)
         grid.addWidget(self.height_label, 2, 1)
         grid.addWidget(HelpButton(msg), 2, 4)
 
         self.split_label = QLabel('')
+        self.split_label.setTextInteractionFlags(self.split_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         grid.addWidget(self.split_label, 3, 0, 1, 3)
 
         self.nodes_list_widget = NodesListWidget(self)
