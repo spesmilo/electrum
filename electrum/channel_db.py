@@ -76,8 +76,6 @@ class ChannelInfo(NamedTuple):
     node1_id: bytes
     node2_id: bytes
     capacity_sat: int
-    msg_payload: bytes
-    trusted: bool
 
     @staticmethod
     def from_msg(payload):
@@ -87,16 +85,12 @@ class ChannelInfo(NamedTuple):
         node_id_1 = payload['node_id_1']
         node_id_2 = payload['node_id_2']
         assert list(sorted([node_id_1, node_id_2])) == [node_id_1, node_id_2]
-        msg_payload = encode_msg('channel_announcement', **payload)
         capacity_sat = None
         return ChannelInfo(
             short_channel_id = channel_id,
             node1_id = node_id_1,
             node2_id = node_id_2,
-            capacity_sat = capacity_sat,
-            msg_payload = msg_payload,
-            trusted = False)
-
+            capacity_sat = capacity_sat)
 
 
 class Policy(NamedTuple):
@@ -206,17 +200,12 @@ class ChannelInfoBase(Base):
     node1_id = Column(String(66), ForeignKey('node_info.node_id'), nullable=False)
     node2_id = Column(String(66), ForeignKey('node_info.node_id'), nullable=False)
     capacity_sat = Column(Integer)
-    msg_payload = Column(String(1024), nullable=False)
-    trusted = Column(Boolean, nullable=False)
-
     def to_nametuple(self):
         return ChannelInfo(
             short_channel_id=self.short_channel_id,
             node1_id=self.node1_id,
             node2_id=self.node2_id,
-            capacity_sat=self.capacity_sat,
-            msg_payload=self.msg_payload,
-            trusted=self.trusted
+            capacity_sat=self.capacity_sat
         )
 
 class PolicyBase(Base):
@@ -252,8 +241,8 @@ class NodeInfoBase(Base):
 class AddressBase(Base):
     __tablename__ = 'address'
     node_id = Column(String(66), primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
-    host = Column(String(256), primary_key=True)
-    port = Column(Integer, primary_key=True)
+    host = Column(String(256))
+    port = Column(Integer)
     last_connected_date = Column(Integer(), nullable=True)
 
 
@@ -331,24 +320,16 @@ class ChannelDB(SqlDB):
             except UnknownEvenFeatureBits:
                 self.logger.info("unknown feature bits")
                 continue
-            #channel_info.trusted = trusted
             added += 1
             self._channels[short_channel_id] = channel_info
             self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
             self.save_channel(channel_info)
             if not trusted:
-                self.ca_verifier.add_new_channel_info(channel_info.short_channel_id, channel_info.msg_payload)
+                self.ca_verifier.add_new_channel_info(channel_info.short_channel_id, msg)
 
         self.update_counts()
         self.logger.debug('add_channel_announcement: %d/%d'%(added, len(msg_payloads)))
-
-
-    #def add_verified_channel_info(self, short_id, capacity):
-    #    # called from lnchannelverifier
-    #    channel_info = self.DBSession.query(ChannelInfoBase).filter_by(short_channel_id = short_id).one_or_none()
-    #    channel_info.trusted = True
-    #    channel_info.capacity = capacity
 
     def print_change(self, old_policy, new_policy):
         # print what changed between policies
