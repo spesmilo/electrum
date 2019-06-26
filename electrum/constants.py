@@ -43,11 +43,11 @@ class OceanMainnet:
     TESTNET = False
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
-    WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
+    WIF_PREFIX = 0xB4
+    ADDRTYPE_P2PKH = 38
+    ADDRTYPE_P2SH = 97
     SEGWIT_HRP = "bc"
-    GENESIS = ""
+    GENESIS = "8fe2b5ce49136a9dd9052717a4dd43ebd884d599de66dde590cd13a448f5f55e"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
