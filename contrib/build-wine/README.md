@@ -1,7 +1,7 @@
 Windows Binary Builds
 =====================
 
-✓ _This binary is reproducible: you should be able to generate
+✓ _This build is reproducible: you should be able to generate
    binaries that match the official releases (i.e. with the same sha256 hash)._
 
 In order to build for Windows, you must use docker.
