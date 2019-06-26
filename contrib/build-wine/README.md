@@ -1,10 +1,10 @@
-Deterministic Windows binaries with Docker
-==========================================
+Windows binaries
+================
 
-Produced binaries are deterministic, so you should be able to generate
-binaries that match the official releases.
+✓ _These binaries should be reproducible, meaning you should be able to generate
+   binaries that match the official releases._
 
-This assumes an Ubuntu host, but it should not be too hard to adapt to another
+This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
 folder.
 
@@ -52,9 +52,6 @@ folder.
     ```
 4. The generated binaries are in `./contrib/build-wine/dist`.
 
-
-
-Note: the `setup` binary (NSIS installer) is not deterministic yet.
 
 
 Code Signing

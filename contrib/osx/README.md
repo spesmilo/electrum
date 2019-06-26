@@ -1,6 +1,9 @@
 Building Mac OS binaries
 ========================
 
+✗ _This script does not produce reproducible output (yet!).
+   Please help us remedy this._
+
 This guide explains how to build Electrum binaries for macOS systems.
 
 

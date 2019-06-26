@@ -5,7 +5,10 @@ To generate an APK file, follow these instructions.
 
 ## Android binary with Docker
 
-This assumes an Ubuntu host, but it should not be too hard to adapt to another
+✗ _This script does not produce reproducible output (yet!).
+   Please help us remedy this._
+
+This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
 folder.
 
