@@ -1,14 +1,16 @@
 Source tarballs
 ===============
 
+✗ _This script does not produce reproducible output (yet!)._
+
 1. To create the source tarball (with the libsecp library included):
 
     ```
     $ contrib/make_linux_sdist
     ```
-    
+
     Alternatively, you may use docker to build a srcdist tarball:
-    
+
     ```
     $ contrib/build-linux/srcdist_docker/build.sh COMMIT_OR_TAG
     ```
@@ -20,6 +22,9 @@ Source tarballs
 
 AppImage
 ===============
+
+✓ _This binary is reproducible: you should be able to generate
+   binaries that match the official releases (i.e. with the same sha256 hash)._
 
 1. To create a deterministic Linux AppImage (standalone bundle):
 

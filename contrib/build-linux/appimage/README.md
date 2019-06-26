@@ -1,6 +1,9 @@
 AppImage binary for Electron Cash
 ============================
 
+✓ _This binary is reproducible: you should be able to generate
+   binaries that match the official releases (i.e. with the same sha256 hash)._
+
 This assumes an Ubuntu host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
 folder.

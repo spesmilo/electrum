@@ -1,6 +1,9 @@
 Windows Binary Builds
 =====================
 
+✓ _This binary is reproducible: you should be able to generate
+   binaries that match the official releases (i.e. with the same sha256 hash)._
+
 In order to build for Windows, you must use docker.
 Don't worry! It's fast and produces 100% reproducible builds.
 You may do so by issuing the following command (from the top-level of this
