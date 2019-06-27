@@ -31,7 +31,7 @@ import urllib
 from .address import Address
 from . import bitcoin
 from . import networks
-from .util import format_satoshis_plain
+from .util import format_satoshis_plain, bh2u, print_error
 
 
 DEFAULT_EXPLORER = "Blockchair.com"
@@ -121,7 +121,7 @@ def urlencode(s):
 
 def urldecode(url):
     ''' Inverse of urlencode '''
-    return utllib.parse.unquote(url)
+    return urllib.parse.unquote(url)
 
 def parse_URI(uri, on_pr=None):
     if ':' not in uri:
