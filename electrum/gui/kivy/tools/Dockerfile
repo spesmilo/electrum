@@ -152,6 +152,8 @@ RUN cd /opt \
     && git cherry-pick d7f722e4e5d4b3e6f5b1733c95e6a433f78ee570 \
        # fix gradle "versionCode" overflow:
     && git cherry-pick ed20e196fbcdce718a180f88f23bb2d165c4c5d8 \
+       # gradle: persist debug keystore:
+    && git cherry-pick aaa0d5d0e7a334631df71e0a9bf127817e0ab9ab \
     && python3 -m pip install --user -e .
 
 # build env vars

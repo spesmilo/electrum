@@ -81,8 +81,19 @@ $ sudo docker run -it --rm \
 ```
 
 
-### How do I get more verbose logs?
+### How do I get more verbose logs for the build?
 See `log_level` in `buildozer.spec`
+
+
+### How can I see logs at runtime?
+This should work OK for most scenarios:
+```
+adb logcat | grep python
+```
+Better `grep` but fragile because of `cut`:
+```
+adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
+```
 
 
 ### Kivy can be run directly on Linux Desktop. How?
@@ -91,3 +102,13 @@ Install Kivy.
 Build atlas: `(cd electrum/gui/kivy/; make theming)`
 
 Run electrum with the `-g` switch: `electrum -g kivy`
+
+### debug vs release build
+If you just follow the instructions above, you will build the apk
+in debug mode. The most notable difference is that the apk will be
+signed using a debug keystore. If you are planning to upload
+what you build to e.g. the Play Store, you should create your own
+keystore, back it up safely, and run `./contrib/make_apk release`.
+
+See e.g. [kivy wiki](https://github.com/kivy/kivy/wiki/Creating-a-Release-APK)
+and [android dev docs](https://developer.android.com/studio/build/building-cmdline#sign_cmdline).
