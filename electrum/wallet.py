@@ -1405,7 +1405,7 @@ class Abstract_Wallet(AddressSynchronizer):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
-        #If it is a multisig wallet then we need to account for the extra byte of N
+        #If it is a multisig wallet then we need to account for the extra byte of N and an extra byte of M
         i3 = 0
         ptlen = len(data)
         addrs = []
@@ -1417,7 +1417,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         moreLeft = True
         while moreLeft is True:
-            i1 = i3 + multiSize
+            i1 = i3 + multiSize*2
             i2 = i1 + 20
             i3 = i2 + 33
             bkupI = it2
@@ -2001,8 +2001,16 @@ class Multisig_Wallet(Deterministic_Wallet):
         address_pubkey_list = []
         for addr in addrs:
             line="{} {}".format(self.m, addr)
-            tempPubKeys = self.get_public_keys(addr, self.m, False)
-            for pub in tempPubKeys:
+            untweakedKeys = self.get_public_keys(addr, self.m, False)
+            tweakedKeys = self.get_public_keys(addr, self.m, True)
+            tweakedKeysSorted = sorted(tweakedKeys)
+            sortedUntweaked = []
+            for i in range(len(tweakedKeysSorted)):
+                for j in range(len(tweakedKeys)):
+                    if tweakedKeys[j] == tweakedKeysSorted[i]:
+                        sortedUntweaked.append(untweakedKeys[j])
+                        break
+            for pub in sortedUntweaked:
                 line+=" {}".format(pub)
             address_pubkey_list.append(line)
             ss.write(line)
@@ -2051,7 +2059,6 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_public_keys(self, address, m, tweaked=True):
         sequence = self.get_address_index(address)
-        print(sequence)
         pubkeys = self.get_pubkeys(*sequence)
         if tweaked:
             tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, m)
