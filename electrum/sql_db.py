@@ -3,16 +3,9 @@ import concurrent
 import queue
 import threading
 import asyncio
-
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.orm import sessionmaker
+import sqlite3
 
 from .logging import Logger
-
-
-# https://stackoverflow.com/questions/26971050/sqlalchemy-sqlite-too-many-sql-variables
-SQLITE_LIMIT_VARIABLE_NUMBER = 999
 
 
 def sql(func):
@@ -26,9 +19,8 @@ def sql(func):
 
 class SqlDB(Logger):
     
-    def __init__(self, network, path, base, commit_interval=None):
+    def __init__(self, network, path, commit_interval=None):
         Logger.__init__(self)
-        self.base = base
         self.network = network
         self.path = path
         self.commit_interval = commit_interval
@@ -37,13 +29,10 @@ class SqlDB(Logger):
         self.sql_thread.start()
 
     def run_sql(self):
-        #return
         self.logger.info("SQL thread started")
-        engine = create_engine('sqlite:///' + self.path, pool_reset_on_return=None, poolclass=StaticPool)#, echo=True)
-        DBSession = sessionmaker(bind=engine, autoflush=False)
-        if not os.path.exists(self.path):
-            self.base.metadata.create_all(engine)
-        self.DBSession = DBSession()
+        self.conn = sqlite3.connect(self.path)
+        self.logger.info("Creating database")
+        self.create_database()
         i = 0
         while self.network.asyncio_loop.is_running():
             try:
@@ -62,7 +51,7 @@ class SqlDB(Logger):
             if self.commit_interval:
                 i = (i + 1) % self.commit_interval
                 if i == 0:
-                    self.DBSession.commit()
+                    self.conn.commit()
         # write
-        self.DBSession.commit()
+        self.conn.commit()
         self.logger.info("SQL thread terminated")

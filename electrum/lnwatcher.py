@@ -13,12 +13,7 @@ from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 import jsonrpclib
 
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Boolean
-from sqlalchemy.orm.query import Query
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import not_, or_
 from .sql_db import SqlDB, sql
-
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions
 from . import wallet
 from .storage import WalletStorage
@@ -42,80 +37,105 @@ class TxMinedDepth(IntEnum):
     FREE = auto()
 
 
-Base = declarative_base()
+create_sweep_txs="""
+CREATE TABLE IF NOT EXISTS sweep_txs (
+funding_outpoint VARCHAR(34) NOT NULL,
+"index" INTEGER NOT NULL,
+prevout VARCHAR(34),
+tx VARCHAR,
+PRIMARY KEY(funding_outpoint, "index")
+)"""
 
-class SweepTx(Base):
-    __tablename__ = 'sweep_txs'
-    funding_outpoint = Column(String(34), primary_key=True)
-    index = Column(Integer(), primary_key=True)
-    prevout = Column(String(34))
-    tx = Column(String())
-
-class ChannelInfo(Base):
-    __tablename__ = 'channel_info'
-    outpoint = Column(String(34), primary_key=True)
-    address = Column(String(32))
-
+create_channel_info="""
+CREATE TABLE IF NOT EXISTS channel_info (
+outpoint VARCHAR(34) NOT NULL,
+address VARCHAR(32),
+PRIMARY KEY(outpoint)
+)"""
 
 
 class SweepStore(SqlDB):
 
     def __init__(self, path, network):
-        super().__init__(network, path, Base)
+        super().__init__(network, path)
+
+    def create_database(self):
+        c = self.conn.cursor()
+        c.execute(create_channel_info)
+        c.execute(create_sweep_txs)
+        self.conn.commit()
 
     @sql
     def get_sweep_tx(self, funding_outpoint, prevout):
-        return [Transaction(bh2u(r.tx)) for r in self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint, SweepTx.prevout==prevout).all()]
+        c = self.conn.cursor()
+        c.execute("SELECT tx FROM sweep_txs WHERE funding_outpoint=? AND prevout=?", (funding_outpoint, prevout))
+        return [Transaction(bh2u(r[0])) for r in c.fetchall()]
 
     @sql
     def get_tx_by_index(self, funding_outpoint, index):
-        r = self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint, SweepTx.index==index).one_or_none()
-        return str(r.prevout), bh2u(r.tx)
+        c = self.conn.cursor()
+        c.execute("""SELECT prevout, tx FROM sweep_txs WHERE funding_outpoint=? AND "index"=?""", (funding_outpoint, index))
+        r = c.fetchone()[0]
+        return str(r[0]), bh2u(r[1])
 
     @sql
     def list_sweep_tx(self):
-        return set(str(r.funding_outpoint) for r in self.DBSession.query(SweepTx).all())
+        c = self.conn.cursor()
+        c.execute("SELECT funding_outpoint FROM sweep_txs")
+        return set([r[0] for r in c.fetchall()])
 
     @sql
     def add_sweep_tx(self, funding_outpoint, prevout, tx):
-        n = self.DBSession.query(SweepTx).filter(funding_outpoint==funding_outpoint).count()
-        self.DBSession.add(SweepTx(funding_outpoint=funding_outpoint, index=n, prevout=prevout, tx=bfh(tx)))
-        self.DBSession.commit()
+        c = self.conn.cursor()
+        c.execute("SELECT count(*) FROM sweep_txs WHERE funding_outpoint=?", (funding_outpoint,))
+        n = int(c.fetchone()[0])
+        c.execute("""INSERT INTO sweep_txs (funding_outpoint, "index", prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, n, prevout, bfh(str(tx))))
+        self.conn.commit()
 
     @sql
     def get_num_tx(self, funding_outpoint):
-        return int(self.DBSession.query(SweepTx).filter(funding_outpoint==funding_outpoint).count())
+        c = self.conn.cursor()
+        c.execute("SELECT count(*) FROM sweep_txs WHERE funding_outpoint=?", (funding_outpoint,))
+        return int(c.fetchone()[0])
 
     @sql
     def remove_sweep_tx(self, funding_outpoint):
-        r = self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint).all()
-        for x in r:
-            self.DBSession.delete(x)
-        self.DBSession.commit()
+        c = self.conn.cursor()
+        c.execute("DELETE FROM sweep_txs WHERE funding_outpoint=?", (funding_outpoint,))
+        self.conn.commit()
 
     @sql
     def add_channel(self, outpoint, address):
-        self.DBSession.add(ChannelInfo(address=address, outpoint=outpoint))
-        self.DBSession.commit()
+        c = self.conn.cursor()
+        c.execute("INSERT INTO channel_info (address, outpoint) VALUES (?,?)", (address, outpoint))
+        self.conn.commit()
 
     @sql
     def remove_channel(self, outpoint):
-        v = self.DBSession.query(ChannelInfo).filter(ChannelInfo.outpoint==outpoint).one_or_none()
-        self.DBSession.delete(v)
-        self.DBSession.commit()
+        c = self.conn.cursor()
+        c.execute("DELETE FROM channel_info WHERE outpoint=?", (outpoint,))
+        self.conn.commit()
 
     @sql
     def has_channel(self, outpoint):
-        return bool(self.DBSession.query(ChannelInfo).filter(ChannelInfo.outpoint==outpoint).one_or_none())
+        c = self.conn.cursor()
+        c.execute("SELECT * FROM channel_info WHERE outpoint=?", (outpoint,))
+        r = c.fetchone()
+        return r is not None
 
     @sql
     def get_address(self, outpoint):
-        r = self.DBSession.query(ChannelInfo).filter(ChannelInfo.outpoint==outpoint).one_or_none()
-        return str(r.address) if r else None
+        c = self.conn.cursor()
+        c.execute("SELECT address FROM channel_info WHERE outpoint=?", (outpoint,))
+        r = c.fetchone()
+        return r[0] if r else None
 
     @sql
     def list_channel_info(self):
-        return [(str(r.address), str(r.outpoint)) for r in self.DBSession.query(ChannelInfo).all()]
+        c = self.conn.cursor()
+        c.execute("SELECT address, outpoint FROM channel_info")
+        return [(r[0], r[1]) for r in c.fetchall()]
+
 
 
 class LNWatcher(AddressSynchronizer):
