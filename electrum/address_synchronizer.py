@@ -451,7 +451,7 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
-            self.storage.put('unassigned_kyc_pubkeys', list(self.unassigned_kyc_pubkeys))
+            self.storage.put('unassigned_kyc_pubkeys', dict.fromkeys(self.unassigned_kyc_pubkeys,0))
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
             if write:
                 self.storage.write()
@@ -694,7 +694,7 @@ class AddressSynchronizer(PrintError):
                             ba2=bytearray(payload[3:])
                             ba2.reverse()
                             data = bh2u(ba1+ba2)
-                            self.unassigned_kyc_pubkeys.remove(bfh(data))
+                            self.unassigned_kyc_pubkeys.remove(data)
 
         #Check outputs for address data (assign)
         for output in tx.outputs():
@@ -714,7 +714,7 @@ class AddressSynchronizer(PrintError):
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
-                self.unassigned_kyc_pubkeys.add(bfh(data))
+                self.unassigned_kyc_pubkeys.add(data)
 
         return (datatype==TYPE_DATA)
 

@@ -89,8 +89,8 @@ class JsonDB(PrintError):
         try:
             json.dumps(key, cls=util.MyEncoder)
             json.dumps(value, cls=util.MyEncoder)
-        except:
-            self.print_error("json error: cannot save", key)
+        except Exception as err:
+            self.print_error("{0}: json error: cannot save ".format(err), key)
             return
         with self.db_lock:
             if value is not None:
