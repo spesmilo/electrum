@@ -1172,13 +1172,17 @@ class Abstract_Wallet(AddressSynchronizer):
         raise WalletFileException('Public key not found. The corresponding '
         'address might have been derived without tweaking or incorrect tweaking.')
 
-    def get_tweaked_multi_public_keys(self, address, pubkeys, n):
+    def get_tweaked_multi_public_keys(self, address, pubkeys, m, shouldSort = True):
         for contract_hash in self.contracts + [None]:
-            tweaked_pubkeys = sorted(self.tweak_pubkeys(pubkeys, contract_hash))
-            redeem_script = multisig_script(tweaked_pubkeys, n) 
+            unsorted_tweaked_pubkeys = self.tweak_pubkeys(pubkeys, contract_hash)
+            tweaked_pubkeys = sorted(unsorted_tweaked_pubkeys)
+            redeem_script = multisig_script(tweaked_pubkeys, m) 
             tempAddr = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
             if tempAddr == address:
-                return tweaked_pubkeys
+                if shouldSort == True:
+                    return tweaked_pubkeys
+                else:
+                    return unsorted_tweaked_pubkeys
         raise WalletFileException('Public keys not found. The corresponding '
         'address might have been derived without tweaking or incorrect tweaking.')
 
@@ -2002,8 +2006,8 @@ class Multisig_Wallet(Deterministic_Wallet):
         for addr in addrs:
             line="{} {}".format(self.m, addr)
             untweakedKeys = self.get_public_keys(addr, self.m, False)
-            tweakedKeys = self.get_public_keys(addr, self.m, True)
-            tweakedKeysSorted = sorted(tweakedKeys)
+            tweakedKeys = self.get_tweaked_multi_public_keys(addr, untweakedKeys, self.m, False)
+            tweakedKeysSorted = self.get_public_keys(addr, self.m, True)
             sortedUntweaked = []
             for i in range(len(tweakedKeysSorted)):
                 for j in range(len(tweakedKeys)):
