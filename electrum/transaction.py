@@ -462,7 +462,6 @@ def parse_scriptSig(d, _bytes):
         d['data']=decoded[1][1]
         return
 
-    print(decoded)
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
                 bh2u(_bytes))
 

@@ -1380,12 +1380,12 @@ class Abstract_Wallet(AddressSynchronizer):
                     password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
                     if not password:
                         return False
-
         try: 
-            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)   
+            onboardUserKey_serialized=self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)   
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
             _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        except Exception:
+        except Exception as e:
+            print(e)
             return False
 
         i1=i2
@@ -1397,7 +1397,6 @@ class Abstract_Wallet(AddressSynchronizer):
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == _kyc_pubkey:
             return False
-        
 
         self.parse_ratx_addresses(plaintext)
 
@@ -1420,38 +1419,35 @@ class Abstract_Wallet(AddressSynchronizer):
             addrType = constants.net.ADDRTYPE_P2SH
 
         moreLeft = True
+        nBytesInSegment = 0
+        i1 = 0
         while moreLeft is True:
-            i1 = i3 + multiSize*2
+            i1 = i1 + nBytesInSegment + multiSize*2
             i2 = i1 + 20
             i3 = i2 + 33
-            bkupI = it2
+            bkupI = i2
 
-            if i3 > ptlen:
+            if i3 >= ptlen:
                 break
 
-            if multiSize != 0:
-                while True:
-                    pubkeyBytes = bytes(data[bkupI:i3])
-                    #Since pubkey is not validated anywhere, this is a hacky solution to validate it by
-                    #constructing an address with it and then checking the result
-                    tempAddr = bitcoin.pubkey_to_address('p2pkh', bh2u(pubkeyBytes))
-                    if bitcoin.is_address(tempAddr) == False:
-                        i3 = bkupI
-                        break;
-                    else:
-                        bkupI = i3
-                        i3 += 33
 
-                    if i3 > ptlen:
+            nMultisig=0
+            if multiSize != 0:
+                nMultisig = int.from_bytes(bytes(data[i1-1:i1]), "big")
+                for i in range(nMultisig):
+                    pubkeyBytes = bytes(data[bkupI:i3])
+                    bkupI = i3
+                    i3 += 33
+                        
+                    if i3 >= ptlen:
                         moreLeft = False
                         break
+
             addrbytes=bytes(data[i1:i2])
-            #head
-            #addrs.append(bin_to_b58check(addrbytes, addrType))
-            #master
-            #addrs.append(hash160_to_b58_address(addrbytes, constants.net.ADDRTYPE_P2PKH))
 
             addrs.append(hash160_to_b58_address(addrbytes, addrType))
+
+            nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
         
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
@@ -1984,7 +1980,6 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
-        print(address)
         if address == None:
             return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
