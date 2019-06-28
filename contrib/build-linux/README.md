@@ -1,6 +1,8 @@
 Source tarballs
 ===============
 
+✗ _This script does not produce reproducible output (yet!)._
+
 1. Build locale files
 
     ```

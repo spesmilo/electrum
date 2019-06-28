@@ -38,7 +38,7 @@ import logging
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
 from aiorpcx.curio import timeout_after, TaskTimeout
-from aiorpcx.jsonrpc import JSONRPC
+from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
@@ -115,6 +115,9 @@ class NotificationSession(RPCSession):
                 timeout)
         except (TaskTimeout, asyncio.TimeoutError) as e:
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
+        except CodeMessageError as e:
+            self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
+            raise
         else:
             self.maybe_log(f"--> {response} (id: {msg_id})")
             return response

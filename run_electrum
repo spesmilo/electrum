@@ -343,7 +343,6 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
-    configure_logging(config)
 
     cmdname = config.get('cmd')
 
@@ -355,6 +354,7 @@ if __name__ == '__main__':
         constants.set_simnet()
 
     if cmdname == 'gui':
+        configure_logging(config)
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
@@ -370,6 +370,7 @@ if __name__ == '__main__':
             init_daemon(config_options)
 
         if subcommand in [None, 'start']:
+            configure_logging(config)
             fd, server = daemon.get_fd_or_server(config)
             if fd is not None:
                 if subcommand == 'start':
