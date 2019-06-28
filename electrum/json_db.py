@@ -691,12 +691,14 @@ class JsonDB(Logger):
         return len(self.receiving_addresses)
 
     @locked
-    def get_change_addresses(self):
-        return list(self.change_addresses)
+    def get_change_addresses(self, *, slice_start=None, slice_stop=None):
+        # note: slicing makes a shallow copy
+        return self.change_addresses[slice_start:slice_stop]
 
     @locked
-    def get_receiving_addresses(self):
-        return list(self.receiving_addresses)
+    def get_receiving_addresses(self, *, slice_start=None, slice_stop=None):
+        # note: slicing makes a shallow copy
+        return self.receiving_addresses[slice_start:slice_stop]
 
     @modifier
     def add_change_address(self, addr):

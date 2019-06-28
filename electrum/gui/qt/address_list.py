@@ -31,7 +31,7 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
 from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
 
 from electrum.i18n import _
-from electrum.util import block_explorer_URL
+from electrum.util import block_explorer_URL, profiler
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
@@ -107,6 +107,7 @@ class AddressList(MyTreeView):
         self.show_used = state
         self.update()
 
+    @profiler
     def update(self):
         self.wallet = self.parent.wallet
         current_address = self.current_item_user_role(col=self.Columns.LABEL)

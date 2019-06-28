@@ -38,7 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence
 
 from .i18n import _
 from .util import (NotEnoughFunds, UserCancelled, profiler,
@@ -434,8 +434,15 @@ class Abstract_Wallet(AddressSynchronizer):
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
 
+    def get_receiving_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def get_change_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence:
+        raise NotImplementedError()  # implemented by subclasses
+
     def dummy_address(self):
-        return self.get_receiving_addresses()[0]
+        # first receiving address
+        return self.get_receiving_addresses(slice_start=0, slice_stop=1)[0]
 
     def get_frozen_balance(self):
         if not self.frozen_coins:  # shortcut
@@ -692,7 +699,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 change_addrs = addrs
             else:
                 # if there are none, take one randomly from the last few
-                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
             assert is_address(addr), f"not valid bitcoin address: {addr}"
@@ -1506,10 +1513,10 @@ class Imported_Wallet(Simple_Wallet):
         # note: overridden so that the history can be cleared
         return self.db.get_imported_addresses()
 
-    def get_receiving_addresses(self):
+    def get_receiving_addresses(self, **kwargs):
         return self.get_addresses()
 
-    def get_change_addresses(self):
+    def get_change_addresses(self, **kwargs):
         return []
 
     def import_addresses(self, addresses: List[str], *,
@@ -1661,16 +1668,15 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_addresses(self):
         # note: overridden so that the history can be cleared.
         # addresses are ordered based on derivation
-        out = []
-        out += self.get_receiving_addresses()
+        out = self.get_receiving_addresses()
         out += self.get_change_addresses()
         return out
 
-    def get_receiving_addresses(self):
-        return self.db.get_receiving_addresses()
+    def get_receiving_addresses(self, *, slice_start=None, slice_stop=None):
+        return self.db.get_receiving_addresses(slice_start=slice_start, slice_stop=slice_stop)
 
-    def get_change_addresses(self):
-        return self.db.get_change_addresses()
+    def get_change_addresses(self, *, slice_start=None, slice_stop=None):
+        return self.db.get_change_addresses(slice_start=slice_start, slice_stop=slice_stop)
 
     @profiler
     def try_detecting_internal_addresses_corruption(self):
@@ -1748,11 +1754,15 @@ class Deterministic_Wallet(Abstract_Wallet):
     def synchronize_sequence(self, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
-            addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
-            if len(addresses) < limit:
+            num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
+            if num_addr < limit:
                 self.create_new_address(for_change)
                 continue
-            if any(map(self.address_is_old, addresses[-limit:])):
+            if for_change:
+                last_few_addresses = self.get_change_addresses(slice_start=-limit)
+            else:
+                last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
+            if any(map(self.address_is_old, last_few_addresses)):
                 self.create_new_address(for_change)
             else:
                 break
@@ -1764,11 +1774,15 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def is_beyond_limit(self, address):
         is_change, i = self.get_address_index(address)
-        addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False
-        prev_addresses = addr_list[max(0, i - limit):max(0, i)]
+        slice_start = max(0, i - limit)
+        slice_stop = max(0, i)
+        if is_change:
+            prev_addresses = self.get_change_addresses(slice_start=slice_start, slice_stop=slice_stop)
+        else:
+            prev_addresses = self.get_receiving_addresses(slice_start=slice_start, slice_stop=slice_stop)
         for addr in prev_addresses:
             if self.db.get_addr_history(addr):
                 return False
