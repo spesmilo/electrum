@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
-                                  Buttons, CancelButton, TaskThread)
+                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit)
 
 from electrum.i18n import _
 from electrum.logging import Logger
@@ -149,7 +149,7 @@ class QtHandlerBase(QObject, Logger):
         hbox = QHBoxLayout(dialog)
         hbox.addWidget(QLabel(msg))
         text = QLineEdit()
-        text.setMaximumWidth(100)
+        text.setMaximumWidth(12 * char_width_in_lineedit())
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)

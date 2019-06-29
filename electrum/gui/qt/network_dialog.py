@@ -32,6 +32,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
                              QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
                              QTabWidget, QWidget, QLabel)
+from PyQt5.QtGui import QFontMetrics
 
 from electrum.i18n import _
 from electrum import constants, blockchain
@@ -39,7 +40,7 @@ from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
 from electrum.logging import get_logger
 
-from .util import Buttons, CloseButton, HelpButton, read_QIcon
+from .util import Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit
 
 
 _logger = get_logger(__name__)
@@ -214,14 +215,17 @@ class NetworkChoiceLayout(object):
         tabs.addTab(server_tab, _('Server'))
         tabs.addTab(proxy_tab, _('Proxy'))
 
+        fixed_width_hostname = 24 * char_width_in_lineedit()
+        fixed_width_port = 6 * char_width_in_lineedit()
+
         # server tab
         grid = QGridLayout(server_tab)
         grid.setSpacing(8)
 
         self.server_host = QLineEdit()
-        self.server_host.setFixedWidth(200)
+        self.server_host.setFixedWidth(fixed_width_hostname)
         self.server_port = QLineEdit()
-        self.server_port.setFixedWidth(60)
+        self.server_port.setFixedWidth(fixed_width_port)
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
@@ -258,15 +262,15 @@ class NetworkChoiceLayout(object):
         self.proxy_mode = QComboBox()
         self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
         self.proxy_host = QLineEdit()
-        self.proxy_host.setFixedWidth(200)
+        self.proxy_host.setFixedWidth(fixed_width_hostname)
         self.proxy_port = QLineEdit()
-        self.proxy_port.setFixedWidth(60)
+        self.proxy_port.setFixedWidth(fixed_width_port)
         self.proxy_user = QLineEdit()
         self.proxy_user.setPlaceholderText(_("Proxy user"))
         self.proxy_password = QLineEdit()
         self.proxy_password.setPlaceholderText(_("Password"))
         self.proxy_password.setEchoMode(QLineEdit.Password)
-        self.proxy_password.setFixedWidth(60)
+        self.proxy_password.setFixedWidth(fixed_width_port)
 
         self.proxy_mode.currentIndexChanged.connect(self.set_proxy)
         self.proxy_host.editingFinished.connect(self.set_proxy)
