@@ -914,7 +914,7 @@ class Abstract_Wallet(AddressSynchronizer):
             method_used = 2
 
         actual_new_fee_rate = tx_new.get_fee() / tx_new.estimated_size()
-        if actual_new_fee_rate < quantize_feerate(new_fee_rate):
+        if quantize_feerate(actual_new_fee_rate) < quantize_feerate(new_fee_rate):
             raise Exception(f"bump_fee feerate target was not met (method: {method_used}). "
                             f"got {actual_new_fee_rate}, expected >={new_fee_rate}")
 
