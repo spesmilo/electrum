@@ -26,6 +26,7 @@
 import socket
 import time
 from enum import IntEnum
+from typing import Tuple
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
@@ -521,19 +522,20 @@ class TorDetector(QThread):
         ports = [9050, 9150]
         while True:
             for p in ports:
-                if TorDetector.is_tor_port(p):
-                    self.found_proxy.emit(("127.0.0.1", p))
+                net_addr = ("127.0.0.1", p)
+                if TorDetector.is_tor_port(net_addr):
+                    self.found_proxy.emit(net_addr)
                     break
             else:
                 self.found_proxy.emit(None)
             time.sleep(10)
 
     @staticmethod
-    def is_tor_port(port):
+    def is_tor_port(net_addr: Tuple[str, int]) -> bool:
         try:
-            s = (socket._socketobject if hasattr(socket, "_socketobject") else socket.socket)(socket.AF_INET, socket.SOCK_STREAM)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.1)
-            s.connect(("127.0.0.1", port))
+            s.connect(net_addr)
             # Tor responds uniquely to HTTP-like requests
             s.send(b"GET\n")
             if b"Tor is not an HTTP Proxy" in s.recv(1024):
