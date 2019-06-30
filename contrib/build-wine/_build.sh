@@ -162,23 +162,14 @@ prepare_wine() {
 
         cd tmp
 
-        #NB: Use NOPGP=1 env var to skip this verify pgp keys stuff (for developer testing without having to wait)
-        if [ -z "$NOPGP" ]; then
-            # note: you might need "sudo apt-get install dirmngr" for the following
-            # keys from https://www.python.org/downloads/#pubkeys
-            info "Downloading Python dev keyring (may take a few minutes)..."
-            KEYRING_PYTHON_DEV=keyring-electroncash-build-python-dev.gpg
-            KEY_SERVERS="keyserver.ubuntu.com keyserver.pgp.com pgp.mit.edu"
-            got1=""
-            # Try a bunch of PGP servers. The fastest one is usually the ubuntu one...
-            for key_server in $KEY_SERVERS; do
-                info "Downloading from ${key_server}..."
-                gpg -v --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver $key_server --recv-keys 531F072D39700991925FED0C0EDDC5F26A45C816 26DEA9D4613391EF3E25C9FF0A5B101836580288 CBC547978A3964D14B9AB36A6AF053F07D9DC8D2 C01E1CAD5EA2C4F0B8E3571504C367C218ADD4FF 12EF3DC38047DA382D18A5B999CDEA9DA4135B38 8417157EDBE73D9EAC1E539B126EB563A74B06BF DBBF2EEBF925FAADCF1F3FFFD9866941EA5BBD71 2BA0DB82515BBB9EFFAC71C5C9BE28DEE6DF025C 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D C9B104B3DD3AA72D7CCB1066FB9921286F5E1540 97FC712E4C024BBEA48A61ED3A5CA953F73C700D 7ED10B6531D7C8E1BC296021FC624643487034E5 && got1=1 && break
-            done
-            if [ -z "$got1" ]; then
-                fail "Failed to download PGP keys."
-            fi
-        fi
+        # note: you might need "sudo apt-get install dirmngr" for the following
+        # if the verification fails you might need to get more keys from python.org
+        # keys from https://www.python.org/downloads/#pubkeys
+        info "Importing Python dev keyring (may take a few minutes)..."
+        KEYRING_PYTHON_DEV=keyring-electroncash-build-python-dev.gpg
+        gpg -v --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import \
+            "$here"/pgp/7ed10b6531d7c8e1bc296021fc624643487034e5.asc \
+            || fail "Failed to import Python release signing keys"
 
         info "Installing Python ..."
         # Install Python
@@ -186,7 +177,7 @@ prepare_wine() {
             info "Installing $msifile..."
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
-            [ -z "$NOPGP" ] && verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
+            verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
             wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION || fail "Failed to install Python component: ${msifile}"
         done
 
