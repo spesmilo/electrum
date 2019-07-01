@@ -65,6 +65,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += collect_submodules('ehsm')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 # safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
@@ -91,6 +92,7 @@ datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.a
 # Add libusb so Trezor and Safe-T mini will work
 binaries = [(electrum + "contrib/osx/libusb-1.0.dylib", ".")]
 binaries += [(electrum + "contrib/osx/libsecp256k1.0.dylib", ".")]
+binaries += [(electrum + "contrib/osx/libehsm.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]

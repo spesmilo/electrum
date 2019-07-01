@@ -81,6 +81,13 @@ cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
 echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/osx/libusb-1.0.dylib" | \
     shasum -a 256 -c || fail "libusb checksum mismatched"
 
+info "Downloading libehsm..."
+curl https://ellipticsecure.com/downloads/eHSM-pkcs11-2.1.tar.gz | \
+tar xz --directory $BUILDDIR
+cp $BUILDDIR/eHSM-pkcs11-2.1/lib/libehsm.dylib contrib/osx
+echo "30e642cd8d2707a02469677758afcdd46ac5a05d1be34e2245416af2574e2b2e  contrib/osx/libehsm.dylib" | \
+    shasum -a 256 -c || fail "libehsm checksum mismatched"
+
 info "Building libsecp256k1"
 brew install autoconf automake libtool
 git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
