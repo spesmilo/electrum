@@ -55,4 +55,5 @@ RUN dpkg --add-architecture i386 && \
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
-RUN ./build.sh && ./release.sh
+RUN pyrcc5 ../../icons.qrc -o electrum/gui/qt/icons_rc.py \
+    && ./build.sh && ./release.sh
