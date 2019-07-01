@@ -2071,31 +2071,36 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def change_gap_limit(self, value):
         '''This method is not called in the code, it is kept for console use'''
-        if value >= self.gap_limit:
-            self.gap_limit = value
-            self.storage.put('gap_limit', self.gap_limit)
-            return True
-        elif value >= self.min_acceptable_gap():
-            addresses = self.get_receiving_addresses()
-            k = self.num_unused_trailing_addresses(addresses)
-            n = len(addresses) - k + value
-            self.receiving_addresses = self.receiving_addresses[0:n]
-            self.gap_limit = value
-            self.storage.put('gap_limit', self.gap_limit)
-            self.save_addresses()
-            return True
-        else:
-            return False
+        with self.lock:
+            if value >= self.gap_limit:
+                self.gap_limit = value
+                self.storage.put('gap_limit', self.gap_limit)
+                return True
+            elif value >= self.min_acceptable_gap():
+                addresses = self.get_receiving_addresses()
+                k = self.num_unused_trailing_addresses(addresses)
+                n = len(addresses) - k + value
+                self.receiving_addresses = self.receiving_addresses[0:n]
+                self.gap_limit = value
+                self.storage.put('gap_limit', self.gap_limit)
+                self.save_addresses()
+                return True
+            else:
+                return False
 
     def num_unused_trailing_addresses(self, addresses):
-        k = 0
-        for addr in reversed(addresses):
-            if addr in self._history:
-                break
-            k = k + 1
-        return k
+        '''This method isn't called anywhere. Perhaps it is here for console use.
+        Can't be sure. -Calin '''
+        with self.lock:
+            k = 0
+            for addr in reversed(addresses):
+                if addr in self._history:
+                    break
+                k = k + 1
+            return k
 
     def min_acceptable_gap(self):
+        ''' Caller needs to hold self.lock otherwise bad things may happen. '''
         # fixme: this assumes wallet is synchronized
         n = 0
         nmax = 0
@@ -2110,7 +2115,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         return nmax + 1
 
     def create_new_address(self, for_change=False):
-        assert type(for_change) is bool
+        for_change = bool(for_change)
         with self.lock:
             addr_list = self.change_addresses if for_change else self.receiving_addresses
             n = len(addr_list)
@@ -2139,19 +2144,20 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.synchronize_sequence(True)
 
     def is_beyond_limit(self, address, is_change):
-        if is_change:
-            addr_list = self.get_change_addresses()
-            limit = self.gap_limit_for_change
-        else:
-            addr_list = self.get_receiving_addresses()
-            limit = self.gap_limit
-        idx = addr_list.index(address)
-        if idx < limit:
-            return False
-        for addr in addr_list[-limit:]:
-            if addr in self._history:
+        with self.lock:
+            if is_change:
+                addr_list = self.get_change_addresses()
+                limit = self.gap_limit_for_change
+            else:
+                addr_list = self.get_receiving_addresses()
+                limit = self.gap_limit
+            idx = addr_list.index(address)
+            if idx < limit:
                 return False
-        return True
+            for addr in addr_list[-limit:]:
+                if addr in self._history:
+                    return False
+            return True
 
     def get_master_public_keys(self):
         return [self.get_master_public_key()]
