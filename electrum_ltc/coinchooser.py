@@ -266,6 +266,10 @@ class CoinChooserBase(Logger):
         the transaction) it is kept, otherwise none is sent and it is
         added to the transaction fee.
 
+        `inputs` and `outputs` are guaranteed to be a subset of the
+        inputs and outputs of the resulting transaction.
+        `coins` are further UTXOs we can choose from.
+
         Note: fee_estimator_vb expects virtual bytes
         """
 

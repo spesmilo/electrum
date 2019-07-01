@@ -10,7 +10,7 @@ from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
 
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
-                         QPalette, QIcon)
+                         QPalette, QIcon, QFontMetrics)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
                           QSortFilterProxyModel, QSize, QLocale)
@@ -127,7 +127,7 @@ class HelpButton(QPushButton):
         QPushButton.__init__(self, '?')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(20)
+        self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
         self.clicked.connect(self.onclick)
 
     def onclick(self):
@@ -143,7 +143,7 @@ class InfoButton(QPushButton):
         QPushButton.__init__(self, 'Info')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(60)
+        self.setFixedWidth(6 * char_width_in_lineedit())
         self.clicked.connect(self.onclick)
 
     def onclick(self):
@@ -870,6 +870,12 @@ class FromList(QTreeWidget):
         sm = QHeaderView.ResizeToContents
         self.header().setSectionResizeMode(0, sm)
         self.header().setSectionResizeMode(1, sm)
+
+
+def char_width_in_lineedit() -> int:
+    char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()
+    # 'averageCharWidth' seems to underestimate on Windows, hence 'max()'
+    return max(9, char_width)
 
 
 if __name__ == "__main__":
