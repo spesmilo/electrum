@@ -227,7 +227,7 @@ class LNWatcher(AddressSynchronizer):
         if not self.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
-        if not self.synchronizer.is_up_to_date():
+        if not self.up_to_date:
             return
         for address, outpoint in await self.sweepstore.list_channel_info():
             await self.check_onchain_situation(address, outpoint)
