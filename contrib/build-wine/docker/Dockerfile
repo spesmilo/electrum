@@ -51,7 +51,10 @@ RUN dpkg --add-architecture i386 && \
     apt-get clean && \
     go get github.com/google/go-github/github && \
     go get github.com/oleiade/reflections && \
-    go get golang.org/x/oauth2
+    go get golang.org/x/oauth2 && \
+    pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py && \
+    git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electrum-locale && \
+    cp -r /tmp/electrum-build/electrum-locale/locale/ electrum/
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 

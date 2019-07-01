@@ -22,31 +22,14 @@ cd tmp
 pushd $WINEPREFIX/drive_c/electrum
 
 # Load electrum-icons and electrum-locale for this release
-git submodule init
-git submodule update
 
 VERSION=`git describe --tags --dirty || printf 'custom'`
 echo "Last commit: $VERSION"
-
-pushd ./contrib/deterministic-build/electrum-locale
-if ! which msgfmt > /dev/null 2>&1; then
-    echo "Please install gettext"
-    exit 1
-fi
-for i in ./locale/*; do
-    dir=$i/LC_MESSAGES
-    mkdir -p $dir
-    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
-done
-popd
 
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 cp $WINEPREFIX/drive_c/electrum/LICENCE .
-git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electrum-locale
-cp -r /tmp/electrum-build/electrum-locale/locale/ $WINEPREFIX/drive_c/electrum/
-pyrcc5 ../../../icons.qrc -o $WINEPREFIX/drive_c/electrum/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
