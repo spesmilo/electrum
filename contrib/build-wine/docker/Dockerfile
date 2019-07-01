@@ -16,7 +16,7 @@ WORKDIR /opt/wine64/drive_c/electrum
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
     apt-get install git -y && \
-    git clone -b buildkite_debugging https://github.com/commerceblock/cb-client-wallet.git . && \
+    git clone https://github.com/commerceblock/cb-client-wallet.git . && \
     apt-get install -qy \
         wget \
         gnupg2 \
@@ -54,7 +54,7 @@ RUN dpkg --add-architecture i386 && \
     go get golang.org/x/oauth2 && \
     pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py && \
     git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electrum-locale && \
-    cp -r /tmp/electrum-build/electrum-locale/locale/ .
+    cp -r /tmp/electrum-build/electrum-locale/locale/ electrum/
 
 WORKDIR /opt/wine64/drive_c/electrum/contrib/build-wine
 
