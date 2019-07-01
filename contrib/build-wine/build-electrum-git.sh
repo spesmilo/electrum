@@ -12,11 +12,11 @@ PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
 # Let's begin!
-cd `dirname $0`
 set -e
 
-mkdir -p tmp
-cd tmp
+here="$(dirname "$(readlink -e "$0")")"
+
+. "$CONTRIB"/build_tools_util.sh
 
 pushd $WINEPREFIX/drive_c/electrum
 
@@ -25,12 +25,11 @@ git submodule init
 git submodule update
 
 VERSION=`git describe --tags --dirty --always`
-echo "Last commit: $VERSION"
+info "Last commit: $VERSION"
 
 pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
-    echo "Please install gettext"
-    exit 1
+    fail "Please install gettext"
 fi
 for i in ./locale/*; do
     dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
@@ -42,24 +41,23 @@ popd
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-cp $WINEPREFIX/drive_c/electrum/LICENCE .
 
 # Install frozen dependencies
-$PYTHON -m pip install -r ../../deterministic-build/requirements.txt
+$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements.txt
 
-$PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
+$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
-echo "Pip installing Electrum. This might take a long time if the project folder is large."
+info "Pip installing Electrum. This might take a long time if the project folder is large."
 $PYTHON -m pip install .
 popd
 
-cd ..
 
 rm -rf dist/
 
 # build standalone and portable versions
+info "Running pyinstaller..."
 wine "$PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
 
 # set timestamps in dist, in order to make the installer reproducible
@@ -67,7 +65,7 @@ pushd dist
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-# build NSIS installer
+info "building NSIS installer"
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
@@ -75,5 +73,4 @@ cd dist
 mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
-echo "Done."
-sha256sum dist/electrum*exe
+sha256sum dist/electrum*.exe

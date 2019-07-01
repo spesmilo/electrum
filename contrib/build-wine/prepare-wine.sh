@@ -25,53 +25,57 @@ PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
 # Let's begin!
-here="$(dirname "$(readlink -e "$0")")"
 set -e
 
-. "$here"/../build_tools_util.sh
+here="$(dirname "$(readlink -e "$0")")"
 
+. "$CONTRIB"/build_tools_util.sh
+
+info "Booting wine."
 wine 'wineboot'
 
 
-cd /tmp/electrum-build
+cd "$CACHEDIR"
 
-# Install Python
+info "Installing Python."
 # note: you might need "sudo apt-get install dirmngr" for the following
 # keys from https://www.python.org/downloads/#pubkeys
 KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import "$here"/gpg_keys/7ED10B6531D7C8E1BC296021FC624643487034E5.asc
+PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION"
+mkdir -p "$PYTHON_DOWNLOADS"
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
-    wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
-    verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-    wine msiexec /i "${msifile}.msi" /qb TARGETDIR=$PYHOME
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
+    verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
+    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
 
-# Install dependencies specific to binaries
+info "Installing dependencies specific to binaries."
 # note that this also installs pinned versions of both pip and setuptools
-$PYTHON -m pip install -r "$here"/../deterministic-build/requirements-binaries.txt
+$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 
-# Install PyInstaller
+info "Installing PyInstaller."
 $PYTHON -m pip install pyinstaller==3.4 --no-use-pep517
 
-# Install ZBar
-download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"
-verify_hash $ZBAR_FILENAME "$ZBAR_SHA256"
-wine "$PWD/$ZBAR_FILENAME" /S
+info "Installing ZBar."
+download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
+verify_hash "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_SHA256"
+wine "$CACHEDIR/$ZBAR_FILENAME" /S
 
-# Install NSIS installer
-download_if_not_exist $NSIS_FILENAME "$NSIS_URL"
-verify_hash $NSIS_FILENAME "$NSIS_SHA256"
-wine "$PWD/$NSIS_FILENAME" /S
+info "Installing NSIS."
+download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
+verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
+wine "$CACHEDIR/$NSIS_FILENAME" /S
 
-download_if_not_exist $LIBUSB_FILENAME "$LIBUSB_URL"
-verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
-7z x -olibusb $LIBUSB_FILENAME -aoa
-
+info "Installing libusb."
+download_if_not_exist "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_URL"
+verify_hash "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_SHA256"
+7z x -olibusb "$CACHEDIR/$LIBUSB_FILENAME" -aoa
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/$PYTHON_FOLDER/
 
 mkdir -p $WINEPREFIX/drive_c/tmp
-cp secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/
+cp "$CACHEDIR/secp256k1/libsecp256k1.dll" $WINEPREFIX/drive_c/tmp/
 
-echo "Wine is configured."
+info "Wine is configured."
