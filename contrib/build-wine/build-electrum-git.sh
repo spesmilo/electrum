@@ -44,8 +44,6 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 cp $WINEPREFIX/drive_c/electrum/LICENCE .
-git clone https://github.com/spesmilo/electrum-locale /tmp/electrum-build/electrum-locale
-cp -r /tmp/electrum-build/electrum-locale/locale/ $WINEPREFIX/drive_c/electrum/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
