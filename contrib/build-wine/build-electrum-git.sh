@@ -28,18 +28,6 @@ git submodule update
 VERSION=`git describe --tags --dirty || printf 'custom'`
 echo "Last commit: $VERSION"
 
-pushd ./contrib/deterministic-build/electrum-locale
-if ! which msgfmt > /dev/null 2>&1; then
-    echo "Please install gettext"
-    exit 1
-fi
-for i in ./locale/*; do
-    dir=$i/LC_MESSAGES
-    mkdir -p $dir
-    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
-done
-popd
-
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
