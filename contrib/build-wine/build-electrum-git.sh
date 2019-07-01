@@ -22,8 +22,6 @@ cd tmp
 pushd $WINEPREFIX/drive_c/electrum
 
 # Load electrum-icons and electrum-locale for this release
-git submodule init
-git submodule update
 
 VERSION=`git describe --tags --dirty || printf 'custom'`
 echo "Last commit: $VERSION"
