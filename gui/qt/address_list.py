@@ -104,8 +104,20 @@ class AddressList(MyTreeWidget):
         expanded_item_names = remember_expanded_items(self.invisibleRootItem())
         del sels  # avoid keeping reference to about-to-be delete C++ objects
         self.clear()
-        receiving_addresses = self.wallet.get_receiving_addresses()
-        change_addresses = self.wallet.get_change_addresses()
+        # Note we take a shallow list-copy because we want to avoid
+        # race conditions with the wallet while iterating here. The wallet may
+        # touch/grow the returned lists at any time if a history comes (it
+        # basically returns a reference to its own internal lists). The wallet
+        # may then, in another thread such as the Synchronizer thread, grow
+        # the receiving or change addresses on Deterministic wallets.  While
+        # probably safe in a language like Python -- and especially since
+        # the lists only grow at the end, we want to avoid bad habits.
+        # The performance cost of the shallow copy below is negligible for 10k+
+        # addresses even on huge wallets because, I suspect, internally CPython
+        # does this type of operation extremely cheaply (probably returning
+        # some copy-on-write-semantics handle to the same list).
+        receiving_addresses = list(self.wallet.get_receiving_addresses())
+        change_addresses = list(self.wallet.get_change_addresses())
 
         if self.parent.fx and self.parent.fx.get_fiat_address_config():
             fx = self.parent.fx
