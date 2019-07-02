@@ -1,0 +1,136 @@
+# Electron Cash - lightweight Bitcoin client
+# Copyright (C) 2019 Axel Gembe <derago@gmail.com>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# List of emojis that get included into our emojis.ttf file
+# Every line starting with # is ignored
+# List of Unicode codepoints or ranges as hex numbers, optionally prefixed with 'U+', 'u', etc
+
+# CashAccount emojis
+
+U+1F47B
+U+1F412
+U+1F415
+U+1F408
+U+1F40E
+U+1F404
+U+1F416
+U+1F410
+U+1F42A
+U+1F418
+U+1F400
+U+1F407
+U+1F43F
+U+1F987
+U+1F413
+U+1F427
+U+1F986
+U+1F989
+U+1F422
+U+1F40D
+U+1F41F
+U+1F419
+U+1F40C
+U+1F98B
+U+1F41D
+U+1F41E
+U+1F577
+U+1F33B
+U+1F332
+U+1F334
+U+1F335
+U+1F341
+U+1F340
+U+1F347
+U+1F349
+U+1F34B
+U+1F34C
+U+1F34E
+U+1F352
+U+1F353
+U+1F95D
+U+1F965
+U+1F955
+U+1F33D
+U+1F336
+U+1F344
+U+1F9C0
+U+1F95A
+U+1F980
+U+1F36A
+U+1F382
+U+1F36D
+U+1F3E0
+U+1F697
+U+1F6B2
+U+26F5
+U+2708
+U+1F681
+U+1F680
+U+231A
+U+2600
+U+2B50
+U+1F308
+U+2602
+U+1F388
+U+1F380
+U+26BD
+U+2660
+U+2665
+U+2666
+U+2663
+U+1F453
+U+1F451
+U+1F3A9
+U+1F514
+U+1F3B5
+U+1F3A4
+U+1F3A7
+U+1F3B8
+U+1F3BA
+U+1F941
+U+1F50D
+U+1F56F
+U+1F4A1
+U+1F4D6
+U+2709
+U+1F4E6
+U+270F
+U+1F4BC
+U+1F4CB
+U+2702
+U+1F511
+U+1F512
+U+1F528
+U+1F527
+U+2696
+U+262F
+U+1F6A9
+U+1F463
+U+1F35E
+
+# Network dialog server symbols
+
+U+2605
+U+26D4
+U+26AC
+U+2716
