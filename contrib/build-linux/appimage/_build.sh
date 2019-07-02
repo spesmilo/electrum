@@ -128,10 +128,10 @@ info "Preparing electrum-locale"
 
 info "Installing Electron Cash and its dependencies"
 mkdir -p "$CACHEDIR/pip_cache"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
 
 
 info "Installing missing libQt5MultimediaGstTools for PyQt5 5.11.3"
@@ -161,7 +161,7 @@ info "Finalizing AppDir"
     # note: temporarily move PyQt5 out of the way so
     # we don't try to bundle its system dependencies.
     mv "$APPDIR/usr/lib/python3.6/site-packages/PyQt5" "$BUILDDIR"
-    copy_deps; copy_deps; copy_deps
+    copy_deps
     move_lib
     mv "$BUILDDIR/PyQt5" "$APPDIR/usr/lib/python3.6/site-packages"
 
