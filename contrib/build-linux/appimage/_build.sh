@@ -147,12 +147,8 @@ info "Finalizing AppDir"
 
     cd "$APPDIR"
     # copy system dependencies
-    # note: temporarily move PyQt5 out of the way so
-    # we don't try to bundle its system dependencies.
-    mv "$APPDIR/usr/lib/python3.6/site-packages/PyQt5" "$BUILDDIR"
     copy_deps
     move_lib
-    mv "$BUILDDIR/PyQt5" "$APPDIR/usr/lib/python3.6/site-packages"
 
     # apply global appimage blacklist to exclude stuff
     # move usr/include out of the way to preserve usr/include/python3.6m.
@@ -161,9 +157,11 @@ info "Finalizing AppDir"
     mv usr/include.tmp usr/include
 ) || fail "Could not finalize AppDir"
 
-# We copy libusb here because it is on the AppImage excludelist and it can cause problems if we use system libusb
-info "Copying libusb"
-cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
+# We copy some libraries here that are on the AppImage excludelist
+info "Copying additional libraries"
+
+# On some systems it can cause problems to use the system libusb
+cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libusb"
 
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
