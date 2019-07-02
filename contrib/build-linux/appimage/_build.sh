@@ -161,7 +161,7 @@ info "Finalizing AppDir"
     # note: temporarily move PyQt5 out of the way so
     # we don't try to bundle its system dependencies.
     mv "$APPDIR/usr/lib/python3.6/site-packages/PyQt5" "$BUILDDIR"
-    copy_deps; copy_deps; copy_deps
+    copy_deps
     move_lib
     mv "$BUILDDIR/PyQt5" "$APPDIR/usr/lib/python3.6/site-packages"
 
