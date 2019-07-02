@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
 from electrum.i18n import _
 from electrum.base_crash_reporter import BaseCrashReporter
 from electrum.logging import Logger
-from .util import MessageBoxMixin, read_QIcon
+from .util import MessageBoxMixin, read_QIcon, WaitingDialog
 
 
 class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
@@ -96,17 +96,23 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.show()
 
     def send_report(self):
-        try:
-            proxy = self.main_window.network.proxy
-            response = BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
-        except BaseException as e:
-            self.logger.exception('There was a problem with the automatic reporting')
-            self.main_window.show_critical(_('There was a problem with the automatic reporting:') + '\n' +
-                                           str(e) + '\n' +
-                                           _("Please report this issue manually."))
-            return
-        QMessageBox.about(self, _("Crash report"), response)
-        self.close()
+        def on_success(response):
+            self.show_message(parent=self,
+                              title=_("Crash report"),
+                              msg=response)
+            self.close()
+        def on_failure(exc_info):
+            e = exc_info[1]
+            self.logger.error('There was a problem with the automatic reporting', exc_info=exc_info)
+            self.show_critical(parent=self,
+                               msg=(_('There was a problem with the automatic reporting:') + '\n' +
+                                    str(e) + '\n' +
+                                    _("Please report this issue manually.")))
+
+        proxy = self.main_window.network.proxy
+        task = lambda: BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
+        msg = _('Sending crash report...')
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def on_close(self):
         Exception_Window._active_window = None

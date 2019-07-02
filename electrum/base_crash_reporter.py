@@ -31,10 +31,10 @@ from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session
-from .logging import describe_os_version
+from .logging import describe_os_version, Logger
 
 
-class BaseCrashReporter:
+class BaseCrashReporter(Logger):
     report_server = "https://crashhub.electrum.org"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
@@ -59,9 +59,10 @@ class BaseCrashReporter:
     ASK_CONFIRM_SEND = _("Do you want to send this report?")
 
     def __init__(self, exctype, value, tb):
+        Logger.__init__(self)
         self.exc_args = (exctype, value, tb)
 
-    def send_report(self, asyncio_loop, proxy, endpoint="/crash"):
+    def send_report(self, asyncio_loop, proxy, endpoint="/crash", *, timeout=None):
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
@@ -69,7 +70,7 @@ class BaseCrashReporter:
         report.update(self.get_additional_info())
         report = json.dumps(report)
         coro = self.do_post(proxy, BaseCrashReporter.report_server + endpoint, data=report)
-        response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(5)
+        response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(timeout)
         return response
 
     async def do_post(self, proxy, url, data):
