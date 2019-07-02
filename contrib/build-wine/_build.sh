@@ -238,11 +238,6 @@ prepare_wine() {
         cp "$here"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
         cp "$here"/../zbar/libzbar-0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
-
-        info "Copying DLLs needed by Pyinstaller ..."
-        # add dlls needed for pyinstaller:
-        cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-
         popd
 
     ) || fail "Could not prepare Wine"

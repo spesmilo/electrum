@@ -28,6 +28,11 @@
 # SOFTWARE.
 import os, sys
 
+# Workaround for PyQt5 5.12.3
+# see https://github.com/pyinstaller/pyinstaller/issues/4293
+if sys.platform == "win32" and hasattr(sys, 'frozen') and hasattr(sys, '_MEIPASS'):
+    os.environ['PATH'] = sys._MEIPASS + ";" + os.environ['PATH']
+
 # Note CashShuffle's .proto files have namespace conflicts with keepkey
 # This is a workaround to force the python implementation versus the C++
 # implementation which does more intelligent things with protobuf namespaces
