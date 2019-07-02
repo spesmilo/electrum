@@ -163,6 +163,15 @@ info "Copying additional libraries"
 # On some systems it can cause problems to use the system libusb
 cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libusb"
 
+# Ubuntu 14.04 lacks a recent enough libfreetype / libfontconfig, so we include one here
+mkdir "$APPDIR"/usr/lib/fonts
+cp -f /usr/lib/x86_64-linux-gnu/libfreetype.so.6 "$APPDIR"/usr/lib/fonts || fail "Could not copy libfreetype"
+cp -f /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 "$APPDIR"/usr/lib/fonts || fail "Could not copy libfontconfig"
+cp "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR"
+
+# libfreetype needs a recent enough zlib
+cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
+
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
 strip_binaries()
