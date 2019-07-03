@@ -298,14 +298,16 @@ class BaseWizard(Logger):
         if not debug_msg:
             debug_msg = '  {}'.format(_('No exceptions encountered.'))
         if not devices:
-            msg = ''.join([
-                _('No hardware device detected.') + '\n',
-                _('To trigger a rescan, press \'Next\'.') + '\n\n',
-                _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
-                _('On Linux, you might have to add a new permission to your udev rules.') + '\n\n',
-                _('Debug message') + '\n',
-                debug_msg
-            ])
+            msg = (_('No hardware device detected.') + '\n' +
+                   _('To trigger a rescan, press \'Next\'.') + '\n\n')
+            if sys.platform == 'win32':
+                msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
+                         'and do "Remove device". Then, plug your device again.') + '\n'
+                msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
+            else:
+                msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
+            msg += '\n\n'
+            msg += _('Debug message') + '\n' + debug_msg
             self.confirm_dialog(title=title, message=msg,
                                 run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
             return
