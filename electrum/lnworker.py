@@ -173,7 +173,7 @@ class LNWorker(Logger):
                 addrs = self.channel_db.get_node_addresses(node_id)
                 if not addrs:
                     continue
-                host, port, timestamp = self.choose_preferred_address(addrs)
+                host, port, timestamp = self.choose_preferred_address(list(addrs))
                 peer = LNPeerAddr(host, port, node_id)
                 if peer in self._last_tried_peer:
                     continue
