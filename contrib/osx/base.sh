@@ -21,3 +21,7 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     info "Code signing ${infoName}..."
     codesign -f -v $deep -s "$identity" "$file" || fail "Could not code sign ${infoName}"
 }
+
+function realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
