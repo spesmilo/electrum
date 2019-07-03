@@ -25,7 +25,7 @@ see [issue #5159](https://github.com/spesmilo/electrum/issues/5159).
 2. Build image
 
     ```
-    $ sudo docker build --no-cache -t electrum-appimage-builder-img contrib/build-linux/appimage
+    $ sudo docker build -t electrum-appimage-builder-img contrib/build-linux/appimage
     ```
 
 3. Build binary
