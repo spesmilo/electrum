@@ -36,9 +36,6 @@ verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
-download_if_not_exist "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz" "https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libQt5MultimediaGstTools.so.5.11.3.xz"
-verify_hash "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz" "12fbf50f7f5f3fd6b49a8e757846253ae658e96f132956fdcd7107c81b55d819"
-
 
 
 info "Building Python"
@@ -132,14 +129,6 @@ mkdir -p "$CACHEDIR/pip_cache"
 "$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
 "$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 "$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
-
-
-info "Installing missing libQt5MultimediaGstTools for PyQt5 5.11.3"
-# Packaging bug in PyQt5 5.11.3, fixed in 5.12.2, see:
-# https://www.riverbankcomputing.com/pipermail/pyqt/2019-April/041670.html
-xz -k -d "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3.xz"
-mv "$CACHEDIR/libQt5MultimediaGstTools.so.5.11.3" \
-  "$APPDIR/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5MultimediaGstTools.so.5"
 
 
 info "Copying desktop integration"
