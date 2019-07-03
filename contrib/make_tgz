@@ -25,6 +25,7 @@ git submodule update --init
         dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
         mkdir -p $dir
         msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+        cp $i/electrum.po "$ROOT_FOLDER"/electrum/$i/electrum.po
     done
 )
 

@@ -20,12 +20,11 @@ here="$(dirname "$(readlink -e "$0")")"
 
 pushd $WINEPREFIX/drive_c/electrum
 
-# Load electrum-locale for this release
-git submodule init
-git submodule update
-
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
+
+# Load electrum-locale for this release
+git submodule update --init
 
 pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
