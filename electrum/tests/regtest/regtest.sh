@@ -15,6 +15,22 @@ function new_blocks()
     $bitcoin_cli generatetoaddress $1 $($bitcoin_cli getnewaddress) > /dev/null
 }
 
+function wait_until_funded()
+{
+    while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
+	echo "waiting for alice balance"
+	sleep 1
+    done
+}
+
+function wait_until_channel_open()
+{
+    while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
+	echo "waiting for channel open"
+	sleep 1
+    done
+}
+
 if [[ $# -eq 0 ]]; then
     echo "syntax: init|start|open|status|pay|close|stop"
     exit 1
@@ -87,8 +103,8 @@ fi
 if [[ $1 == "breach" ]]; then
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
-    new_blocks 6
-    sleep 10
+    new_blocks 3
+    wait_until_channel_open
     request=$($bob addinvoice 0.01 "blah")
     echo "alice pays"
     $alice lnpay $request
@@ -161,19 +177,12 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
-    while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
-	echo "waiting for alice balance"
-	sleep 1
-    done
+    wait_until_funded
     echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
-    channel_state=""
-    while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
-	echo "waiting for channel open"
-	sleep 1
-    done
+    wait_until_channel_open
     echo "alice pays bob"
     invoice=$($bob addinvoice 0.05 "test")
     $alice lnpay $invoice --timeout=1 || true
@@ -224,19 +233,12 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
-    while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
-	echo "waiting for alice balance"
-	sleep 1
-    done
+    wait_until_funded
     echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
-    channel_state=""
-    while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
-	echo "waiting for channel open"
-	sleep 1
-    done
+    wait_until_channel_open
     echo "alice pays bob"
     invoice=$($bob addinvoice 0.05 "test")
     $alice lnpay $invoice --timeout=1 || true
