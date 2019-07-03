@@ -28,7 +28,7 @@ import signal, sys, traceback, gc, os
 try:
     import PyQt5
 except Exception:
-    sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
+    sys.exit("Error: Could not import PyQt5, on Linux systems you may try 'sudo apt-get install python3-pyqt5'")
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
