@@ -28,7 +28,25 @@ import signal, sys, traceback, gc, os
 try:
     import PyQt5
 except Exception:
-    sys.exit("Error: Could not import PyQt5, on Linux systems you may try 'sudo apt-get install python3-pyqt5'")
+    if sys.platform.startswith('win'):
+        msg = ("\n\nError: Could not import PyQt5.\n"
+               "If you are running the release .exe, this is a bug (please"
+               " contact the developers in that case).\n"
+               "If you are running from source, then you may try this from the command-line:\n\n"
+               "    python -m pip install pyqt5\n\n")
+    elif sys.platform.startswith('darw'):
+        msg = ("\n\nError: Could not import PyQt5.\n"
+               "If you are running the release .app, this is a bug (please"
+               " contact the developers in that case).\n"
+               "If you are running from source, then you may try this from the command-line:\n\n"
+               "    python3 -m pip install --user -I pyqt5\n\n")
+    else:
+        msg = ("\n\nError: Could not import PyQt5.\n"
+               "You may try:\n\n"
+               "    python3 -m pip install --user -I pyqt5\n\n"
+               "Or, if on Linux Ubuntu, Debian, etc:\n\n"
+               "    sudo apt-get install python3-pyqt5\n\n")
+    sys.exit(msg)
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
