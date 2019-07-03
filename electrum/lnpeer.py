@@ -67,7 +67,6 @@ class Peer(Logger):
         self.localfeatures = self.lnworker.localfeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
-        self.lnwatcher = lnworker.network.lnwatcher
         self.channel_db = lnworker.network.channel_db
         self.ping_time = 0
         self.reply_channel_range = asyncio.Queue()
@@ -550,7 +549,6 @@ class Peer(Logger):
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker)
-        chan.lnwatcher = self.lnwatcher
         sig_64, _ = chan.sign_next_commitment()
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -638,7 +636,6 @@ class Peer(Logger):
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker)
-        chan.lnwatcher = self.lnwatcher
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
@@ -648,7 +645,7 @@ class Peer(Logger):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.save_channel(chan)
-        await self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
         while True:
             try:
@@ -1277,7 +1274,7 @@ class Peer(Logger):
         outpoint = chan.funding_outpoint.to_str()
         sweeptxs = create_sweeptxs_for_watchtower(chan, ctx, per_commitment_secret, chan.sweep_address)
         for tx in sweeptxs:
-            await self.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
+            await self.lnworker.lnwatcher.add_sweep_tx(outpoint, tx.prevout(0), str(tx))
 
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]

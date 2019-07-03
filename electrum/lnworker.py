@@ -47,6 +47,7 @@ from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnsweep import create_sweeptxs_for_their_ctx, create_sweeptxs_for_our_ctx
+from .lnwatcher import LNWatcher
 
 if TYPE_CHECKING:
     from .network import Network
@@ -317,19 +318,20 @@ class LNWallet(LNWorker):
         self.pending_payments = defaultdict(asyncio.Future)
 
     def start_network(self, network: 'Network'):
+        self.lnwatcher = LNWatcher(network)
         self.network = network
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_open, ['channel_open'])
         self.network.register_callback(self.on_channel_closed, ['channel_closed'])
 
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.add_address(chan.get_funding_address())
+            self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
         super().start_network(network)
         for coro in [
                 self.maybe_listen(),
                 self.on_network_update('network_updated'),  # shortcut (don't block) if funding tx locked and verified
-                self.network.lnwatcher.on_network_update('network_updated'),  # ping watcher to check our channels
+                self.lnwatcher.on_network_update('network_updated'),  # ping watcher to check our channels
                 self.reestablish_peers_and_channels()
         ]:
             asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
@@ -468,13 +470,13 @@ class LNWallet(LNWorker):
         if it's also deep enough, also save to disk.
         Returns tuple (mined_deep_enough, num_confirmations).
         """
-        lnwatcher = self.network.lnwatcher
-        conf = lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
+        conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
         if conf > 0:
-            block_height, tx_pos = lnwatcher.get_txpos(chan.funding_outpoint.txid)
+            block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
             assert tx_pos >= 0
             chan.short_channel_id_predicted = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
         if conf >= chan.constraints.funding_txn_minimum_depth > 0:
+            self.logger.info(f"save_short_channel_id")
             chan.short_channel_id = chan.short_channel_id_predicted
             self.save_channel(chan)
             self.on_channels_updated()
@@ -492,7 +494,7 @@ class LNWallet(LNWorker):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        #self.logger.debug(f'on_channel_open {funding_outpoint}')
+        self.logger.debug(f'on_channel_open {funding_outpoint}')
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, None, None, None
         self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(False)
@@ -550,7 +552,7 @@ class LNWallet(LNWorker):
                                  .format(name, local_height, cltv_expiry, prevout))
                 broadcast = False
         if csv_delay:
-            prev_height = self.network.lnwatcher.get_tx_height(prev_txid)
+            prev_height = self.lnwatcher.get_tx_height(prev_txid)
             remaining = csv_delay - prev_height.conf
             if remaining > 0:
                 self.logger.info('waiting for {}: CSV ({} >= {}), prevout: {}'
@@ -593,9 +595,8 @@ class LNWallet(LNWorker):
         # since short_channel_id could be changed while saving.
         with self.lock:
             channels = list(self.channels.values())
-        lnwatcher = self.network.lnwatcher
         if event in ('verified', 'wallet_updated'):
-            if args[0] != lnwatcher:
+            if args[0] != self.lnwatcher:
                 return
         for chan in channels:
             if chan.is_closed():
@@ -615,11 +616,11 @@ class LNWallet(LNWorker):
                     return
                 if event == 'fee':
                     await peer.bitcoin_fee_update(chan)
-                conf = lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
+                conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
             elif chan.force_closed and chan.get_state() != 'CLOSED':
                 txid = chan.force_close_tx().txid()
-                height = lnwatcher.get_tx_height(txid).height
+                height = self.lnwatcher.get_tx_height(txid).height
                 self.logger.info(f"force closing tx {txid}, height {height}")
                 if height == TX_HEIGHT_LOCAL:
                     self.logger.info('REBROADCASTING CLOSING TX')
@@ -635,8 +636,7 @@ class LNWallet(LNWorker):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.save_channel(chan)
-        self.network.lnwatcher.add_address(chan.get_funding_address())
-        await self.network.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.on_channels_updated()
         return chan
 
