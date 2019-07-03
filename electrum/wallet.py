@@ -243,6 +243,10 @@ class Abstract_Wallet(AddressSynchronizer):
         super().set_up_to_date(b)
         if b: self.storage.write()
 
+    def clear_history(self):
+        super().clear_history()
+        self.storage.write()
+
     def load_and_cleanup(self):
         self.load_keystore()
         self.test_addresses_sanity()

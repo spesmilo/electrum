@@ -39,6 +39,7 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
+    from .json_db import JsonDB
 
 
 TX_HEIGHT_LOCAL = -2
@@ -59,7 +60,7 @@ class AddressSynchronizer(Logger):
     inherited by wallet
     """
 
-    def __init__(self, db):
+    def __init__(self, db: JsonDB):
         self.db = db
         self.network = None  # type: Network
         Logger.__init__(self)
