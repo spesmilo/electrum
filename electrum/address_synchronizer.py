@@ -60,7 +60,7 @@ class AddressSynchronizer(Logger):
     inherited by wallet
     """
 
-    def __init__(self, db: JsonDB):
+    def __init__(self, db: 'JsonDB'):
         self.db = db
         self.network = None  # type: Network
         Logger.__init__(self)
