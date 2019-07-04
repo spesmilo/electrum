@@ -84,6 +84,13 @@ class ElectrumGui(QObject, PrintError):
         assert __class__.instance is None, "ElectrumGui is a singleton, yet an instance appears to already exist! FIXME!"
         __class__.instance = self
         set_language(config.get('language'))
+
+        if sys.platform == 'win32':
+            # TODO: Make using FreeType on Windows configurable
+            # Use FreeType for font rendering on Windows. This fixes rendering of the Schnorr
+            # sigil and allows us to load the Noto Color Emoji font if needed.
+            os.environ['QT_QPA_PLATFORM'] = 'windows:fontengine=freetype'
+
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #if daemon.network:
@@ -272,9 +279,12 @@ class ElectrumGui(QObject, PrintError):
             self.app.setWindowIcon(icon)
 
     def _load_fonts(self):
-        # Only load fonts on AppImage for now
-        if sys.platform != 'linux' or not os.environ.get('APPIMAGE'):
+        # Only load the emoji font on Linux and Windows
+        if sys.platform not in ('linux', 'win32'):
             return
+
+        # TODO: Check if we already have the needed emojis
+        # TODO: Allow the user to download a full color emoji set
 
         emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', 'emojis.ttf')
 

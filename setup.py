@@ -148,6 +148,9 @@ setup(
             'libzbar*',
             'locale/*/LC_MESSAGES/electron-cash.mo',
         ],
+        'electroncash_gui.qt' : [
+            'data/*.ttf'
+        ],
         'electroncash_plugins.shuffle' : [
             'servers.json',
             'protobuf/*.proto'

@@ -48,6 +48,7 @@ datas = [
     (home+'lib/servers_testnet.json', 'electroncash'),
     (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'lib/locale', 'electroncash/locale'),
+    (home+'gui/qt/data', 'electroncash_gui/qt/data'),
     (home+'plugins', 'electroncash_plugins'),
 ]
 datas += collect_data_files('trezorlib')

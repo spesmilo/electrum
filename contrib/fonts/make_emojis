@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 set -e
-set -x
 
 here=$(dirname $(realpath "$0"))
 . "$here"/../base.sh # functions we use below (fail, et al)
@@ -48,6 +47,25 @@ fi
 
 SRCTTF="$here"/unzipped/NotoColorEmoji.ttf
 
+info "Building subset of the souce file"
 pyftsubset "$SRCTTF" --unicodes-file="$here"/emojis.txt --output-file="$here"/emojis.ttf
 
 rm -rf "$here"/unzipped
+
+# We name the font 'Segoe UI Emoji' because that will override the emoji
+# font on Windows. Sadly Qt has no way to override font fallback so this
+# is the only way to do this other than binary patching or recompiling Qt.
+info "Renaming font to Segoe UI Emoji"
+ttx "$here"/emojis.ttf
+sed -i \
+    -e 's/Noto Color Emoji/Segoe UI Emoji/' \
+    -e 's/NotoColorEmoji/SegoeUIEmoji/'\
+    -e 's/noto-emoji/segoe-ui-emoji/' \
+    "$here"/emojis.ttx
+# Make reproducible
+touch -h -d '2000-11-11T11:11:11+00:00' emojis.ttx
+ttx -f -o "$here"/emojis.ttf "$here"/emojis.ttx
+rm "$here"/emojis.ttx
+
+info "Copying font to the GUI data directory"
+mv "$here"/emojis.ttf "$here"/../../gui/qt/data/emojis.ttf
