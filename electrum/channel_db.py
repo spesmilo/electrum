@@ -477,7 +477,7 @@ class ChannelDB(SqlDB):
     def prune_orphaned_channels(self):
         l = self.get_orphaned_channels()
         for k in l:
-            self._channels.pop(k)
+            self.remove_channel(k)
         self.update_counts()
         if l:
             self.logger.info(f'Deleting {len(l)} orphaned channels')
@@ -490,7 +490,10 @@ class ChannelDB(SqlDB):
         self._channel_updates_for_private_channels[(start_node_id, short_channel_id)] = msg_payload
 
     def remove_channel(self, short_channel_id):
-        self._channels.pop(short_channel_id, None)
+        channel_info = self._channels.pop(short_channel_id, None)
+        if channel_info:
+            self._channels_for_node[channel_info.node1_id].remove(channel_info.short_channel_id)
+            self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
 
     def get_node_addresses(self, node_id):
         return self._addresses.get(node_id)
