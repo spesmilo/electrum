@@ -65,9 +65,9 @@ class ExchangeBase(Logger):
                 # set content_type to None to disable checking MIME type
                 return await response.json(content_type=None)
 
-    async def get_csv(self, site, get_string):
+    async def get_csv(self, site, get_string, *, fieldnames=None):
         raw = await self.get_raw(site, get_string)
-        reader = csv.DictReader(raw.split('\n'))
+        reader = csv.DictReader(raw.split('\n'), fieldnames=fieldnames)
         return list(reader)
 
     def name(self):
@@ -129,7 +129,18 @@ class ExchangeBase(Logger):
         return []
 
     def historical_rate(self, ccy, d_t):
-        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'), 'NaN')
+        # there might not be data for every day.
+        # if there is no data for given day, use latest data point that is older
+        can_use_spot = FxThread.can_use_spot_price_for_date(d_t)
+        max_days_to_go_back = 0 if can_use_spot else 3
+        orig_timestamp = d_t.timestamp()
+        for i in range(max_days_to_go_back + 1):
+            ts = orig_timestamp - i * 86400
+            string = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+            price = self.history.get(ccy, {}).get(string)
+            if price:
+                return price
+        return 'NaN'
 
     async def request_history(self, ccy):
         raise NotImplementedError()  # implemented by subclasses
@@ -235,6 +246,17 @@ class BlockchainInfo(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+    def history_ccys(self):
+        return ['USD']
+
+    async def request_history(self, ccy):
+        # note: only one data point per three days
+        csv = await self.get_csv('blockchain.info',
+                                 '/charts/market-price?timespan=all&daysAverageString=1&format=csv',
+                                 fieldnames=['date', 'price'])
+        data = {data_point['date'].split()[0]: data_point['price'] for data_point in csv}
+        return data
 
 
 class Bylls(ExchangeBase):
@@ -608,13 +630,17 @@ class FxThread(ThreadJob):
             return _("No data")
         return "%s" % (self.ccy_amount_str(value, True))
 
+    @classmethod
+    def can_use_spot_price_for_date(cls, d_t) -> bool:
+        return (datetime.today().date() - d_t.date()).days <= 2
+
     def history_rate(self, d_t):
         if d_t is None:
             return Decimal('NaN')
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate == 'NaN' and (datetime.today().date() - d_t.date()).days <= 2:
+        if rate == 'NaN' and self.can_use_spot_price_for_date(d_t):
             rate = self.exchange.quotes.get(self.ccy, 'NaN')
             self.history_used_spot = True
         return Decimal(rate)
