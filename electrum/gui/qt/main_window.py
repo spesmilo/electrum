@@ -490,6 +490,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
         wallet_menu.addAction(_("&Register"), self.register_wallet_dialog)
         wallet_menu.addAction(_("&Contract"), self.termsandconditions_dialog)
+        wallet_menu.addAction(_("&Onboard Key"), self.dumponboardkey_dialog)
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -2650,6 +2651,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 3, 0)
         d.exec_()
 
+    def dumponboardkey_dialog(self):
+
+        onboardAddress = self.wallet.get_onboard_address()
+        _onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self)
+
+        if _onboardUserKey is None:
+            self.show_message('Failed to retrieve the onboarding private key from the stored onboarding address')
+            return False
+
+        d = WindowModalDialog(self, _('Onboard Private Key'))
+        d.setMinimumWidth(660)
+        onboardkey_e = QTextEdit()
+
+        layout = QGridLayout(d)
+        onboardkey_e.setText(_onboardUserKey)
+        onboardkey_e.setReadOnly(True)
+        layout.addWidget(QLabel(_('Share and import this onboarding private key via console (importprivkey) on other Multisig cosigner wallets to see whitelisted addresses.')), 1, 0)
+        layout.addWidget(onboardkey_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("OK"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
 
     @protected
     def export_privkeys_dialog(self, password):

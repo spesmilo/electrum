@@ -68,6 +68,7 @@ class AddressSynchronizer(PrintError):
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
         self.unassigned_kyc_pubkeys = set(storage.get('unassigned_kyc_pubkeys', set()))
         self.kyc_pubkey = storage.get('kyc_pubkey', None)
+        self.onboard_address = storage.get('onboard_address', None)
         self.history = storage.get('addr_history',{})
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
@@ -91,6 +92,12 @@ class AddressSynchronizer(PrintError):
         
     def get_kyc_pubkey(self):
         return self.kyc_pubkey
+
+    def set_onboard_address(self, address):
+        self.onboard_address=address
+        
+    def get_onboard_address(self):
+        return self.onboard_address
 
     def get_unassigned_kyc_pubkey(self):
         if len(self.unassigned_kyc_pubkeys) is 0:
@@ -453,6 +460,7 @@ class AddressSynchronizer(PrintError):
             self.storage.put('spent_outpoints', self.spent_outpoints)
             self.storage.put('unassigned_kyc_pubkeys', list(self.unassigned_kyc_pubkeys))
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
+            self.storage.put('onboard_address', self.onboard_address)
             if write:
                 self.storage.write()
 

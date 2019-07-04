@@ -23,9 +23,9 @@ class RegisterAddressScript():
 
 	def append(self, addrs, nMultisig):
 		for addr in addrs:
-			self.payload.extend(nMultisig)
-			pubkeyList = self.wallet.get_public_keys(address, nMultisig, tweaked=False)
-			self.payload.extend(len(pubkeyList))
+			self.payload.append(nMultisig)
+			pubkeyList = self.wallet.get_public_keys(addr, nMultisig, tweaked=False)
+			self.payload.append(len(pubkeyList))
 			self.payload.extend(b58_address_to_hash160(addr)[1]) 
 			for pubkeyIt in pubkeyList:
 				pubkeybytes=bfh(pubkeyIt)

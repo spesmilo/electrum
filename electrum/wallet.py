@@ -50,7 +50,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 
 from .bitcoin import *
 from .version import *
-from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address
+from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address, xpubkey_to_pubkey
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
@@ -308,7 +308,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Go through all contracts and no contract to find the
         # private key that corresponds to the address in our wallet
-        pk, compressed = self.get_tweaked_private_key(address, index, password)
+        pk, compressed = self.get_tweaked_private_key(address, index, password, self.get_txin_type(address))
 
         txin_type = self.get_txin_type(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
@@ -1153,6 +1153,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
                 if address == self.pubkeys_to_address(pubkey_from_priv):
                     return pk, compressed
+        #May need to somehow modify this code to check p2sh validity in the case where there are several contracts
         elif aType == 'p2sh':
             for contract_hash in self.contracts + [None]:
                 pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
@@ -1283,6 +1284,32 @@ class Abstract_Wallet(AddressSynchronizer):
             input_addresses.add(self.get_txin_address(txin))
         return input_addresses
 
+    def derive_onboard_priv_key(self, onboardAddress, parent_window):
+        #Check that this wallet holds the onboard user private key
+        if not self.is_mine(onboardAddress):
+            return None
+
+        password=None
+
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sort out what to do for encrypted wallets.
+                return None
+            else:
+                if self.has_keystore_encryption():
+                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return None
+        try: 
+            onboardUserKey_serialized=self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)   
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+            return _onboardUserKey
+        except Exception as e:
+            print(e)
+            return None
+
     def parse_registeraddress_data(self, data, tx, parent_window):
         # We must have already been assigned a kyc public key
         if self.kyc_pubkey == None:
@@ -1365,27 +1392,10 @@ class Abstract_Wallet(AddressSynchronizer):
 
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
-        if not self.is_mine(onboardAddress):
-            return False
+        _onboardUserKey = self.derive_onboard_priv_key(onboardAddress, parent_window)
 
-        password=None
-
-        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
-            if self.storage.is_encrypted_with_hw_device():
-                #TODO - sort out what to do for encrypted wallets.
-                return False
-            else:
-                if self.has_keystore_encryption():
-                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
-                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
-                    if not password:
-                        return False
-        try: 
-            onboardUserKey_serialized=self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)   
-            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        except Exception as e:
-            print(e)
+        if _onboardUserKey is None:
+            print('Failed to retrieve the onboarding private key from the address')
             return False
 
         i1=i2
@@ -1401,6 +1411,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.parse_ratx_addresses(plaintext)
 
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
+        self.set_onboard_address(onboardAddress)
         
         return True
 
@@ -2168,9 +2179,11 @@ class Multisig_Wallet(Deterministic_Wallet):
         # otherwise we might delete signatures
         if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
             return
-        pubkeys = self.get_public_keys(address, self.m)
-        txin['x_pubkeys'] = x_pubkeys_expected
-        txin['pubkeys'] = pubkeys
+        pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys_expected]
+        pubkeys = self.tweak_pubkeys(pubkeys, self.contracts[-1])
+        pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys_expected)))
+        txin['x_pubkeys'] = list(x_pubkeys)
+        txin['pubkeys'] = list(pubkeys)
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
