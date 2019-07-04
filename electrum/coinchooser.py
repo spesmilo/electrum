@@ -151,7 +151,7 @@ class CoinChooserBase(Logger):
     def penalty_func(self, base_tx, *, tx_from_buckets) -> Callable[[List[Bucket]], ScoredCandidate]:
         raise NotImplementedError
 
-    def _change_amounts(self, tx, count, fee_estimator_numchange):
+    def _change_amounts(self, tx, count, fee_estimator_numchange) -> List[int]:
         # Break change up if bigger than max_change
         output_amounts = [o.value for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
@@ -197,7 +197,7 @@ class CoinChooserBase(Logger):
         # no more than 10**max_dp_to_round_for_privacy
         # e.g. a max of 2 decimal places means losing 100 satoshis to fees
         max_dp_to_round_for_privacy = 2 if self.enable_output_value_rounding else 0
-        N = pow(10, min(max_dp_to_round_for_privacy, zeroes[0]))
+        N = int(pow(10, min(max_dp_to_round_for_privacy, zeroes[0])))
         amount = (remaining // N) * N
         amounts.append(amount)
 
@@ -209,6 +209,7 @@ class CoinChooserBase(Logger):
         amounts = self._change_amounts(tx, len(change_addrs), fee_estimator_numchange)
         assert min(amounts) >= 0
         assert len(change_addrs) >= len(amounts)
+        assert all([isinstance(amt, int) for amt in amounts])
         # If change is above dust threshold after accounting for the
         # size of the change output, add it to the transaction.
         amounts = [amount for amount in amounts if amount >= dust_threshold]

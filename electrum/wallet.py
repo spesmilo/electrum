@@ -993,18 +993,20 @@ class Abstract_Wallet(AddressSynchronizer):
         # prioritize low value outputs, to get rid of dust
         s = sorted(s, key=lambda o: o.value)
         for o in s:
-            target_fee = tx.estimated_size() * new_fee_rate
+            target_fee = int(round(tx.estimated_size() * new_fee_rate))
             delta = target_fee - tx.get_fee()
             i = outputs.index(o)
             if o.value - delta >= self.dust_threshold():
-                outputs[i] = o._replace(value=o.value - delta)
+                new_output_value = o.value - delta
+                assert isinstance(new_output_value, int)
+                outputs[i] = o._replace(value=new_output_value)
                 delta = 0
                 break
             else:
                 del outputs[i]
                 delta -= o.value
-                if delta > 0:
-                    continue
+                # note: delta might be negative now, in which case
+                # the value of the next output will be increased
         if delta > 0:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
 

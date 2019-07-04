@@ -1039,13 +1039,13 @@ class Transaction:
         self.raw = None
         self.BIP69_sort(inputs=False)
 
-    def input_value(self):
+    def input_value(self) -> int:
         return sum(x['value'] for x in self.inputs())
 
-    def output_value(self):
+    def output_value(self) -> int:
         return sum(o.value for o in self.outputs())
 
-    def get_fee(self):
+    def get_fee(self) -> int:
         return self.input_value() - self.output_value()
 
     def is_final(self):
