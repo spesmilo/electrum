@@ -86,6 +86,9 @@ android.ndk_path = /opt/android/android-ndk
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 android.sdk_path = /opt/android/android-sdk
 
+# (str) ANT directory (if empty, it will be automatically downloaded.)
+#android.ant_path =
+
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity
 
@@ -128,6 +131,9 @@ android.manifest.launch_mode = singleTask
 # Don't forget to add the WAKE_LOCK permission if you set this to True
 #android.wakelock = False
 
+# (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+android.arch = armeabi-v7a
+
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
 
@@ -137,8 +143,26 @@ android.manifest.launch_mode = singleTask
 
 android.whitelist = lib-dynload/_csv.so
 
-# local version that merges branch 866
+
+#
+# Python for android (p4a) specific
+#
+
+# (str) python-for-android git clone directory (if empty, it will be automatically cloned from github)
 p4a.source_dir = /opt/python-for-android
+
+# (str) The directory in which python-for-android should look for your own build recipes (if any)
+#p4a.local_recipes =
+
+# (str) Filename to the hook for p4a
+#p4a.hook =
+
+# (str) Bootstrap to use for android builds
+# p4a.bootstrap = sdl2
+
+# (int) port number to specify an explicit --port= p4a argument (eg for bootstrap flask)
+#p4a.port =
+
 
 #
 # iOS specific
