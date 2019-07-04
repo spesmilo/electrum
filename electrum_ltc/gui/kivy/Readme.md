@@ -30,7 +30,7 @@ folder.
 3. Build locale files
 
     ```
-    $ ./contrib/make_locale
+    $ ./contrib/pull_locale
     ```
 
 4. Prepare pure python dependencies

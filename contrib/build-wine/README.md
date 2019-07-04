@@ -32,7 +32,7 @@ folder.
 
     ```
     $ FRESH_CLONE=contrib/build-wine/fresh_clone && \
-        rm -rf $FRESH_CLONE && \
+        sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
         git clone https://github.com/pooler/electrum-ltc.git && \
