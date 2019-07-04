@@ -8,6 +8,7 @@ DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB/build-linux/appimage/build/appimage"
 APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
+PYDIR="$APPDIR"/usr/lib/python3.6
 
 # pinned versions
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
@@ -61,7 +62,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # to result in a different output on macOS compared to Linux. We simply patch
     # sysconfigdata to remove the extension.
     # Some more info: https://bugs.python.org/issue27631
-    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.6/_sysconfigdata*
+    sed -i -e 's/\.exe//g' "$PYDIR"/_sysconfigdata*
 )
 
 info "Building squashfskit"
@@ -172,6 +173,12 @@ cp "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR"
 # libfreetype needs a recent enough zlib
 cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
 
+
+info "Copying emoji font"
+mkdir -p "$PYDIR"/site-packages/electroncash_gui/qt/data
+cp "$CONTRIB/fonts/emojis.ttf" "$PYDIR"/site-packages/electroncash_gui/qt/data || fail "Could not copy emoji font"
+
+
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
 strip_binaries()
@@ -193,7 +200,6 @@ remove_emptydirs
 
 info "Removing some unneeded files to decrease binary size"
 rm -rf "$APPDIR"/usr/{share,include}
-PYDIR="$APPDIR"/usr/lib/python3.6
 rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
 rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}

@@ -126,6 +126,7 @@ class ElectrumGui(QObject, PrintError):
         self.new_version_available = None
         self._set_icon()
         self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules.
+        self._load_fonts()
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
@@ -269,6 +270,16 @@ class ElectrumGui(QObject, PrintError):
             icon = QIcon(":icons/electron.svg")
         if icon:
             self.app.setWindowIcon(icon)
+
+    def _load_fonts(self):
+        # Only load fonts on AppImage for now
+        if sys.platform != 'linux' or not os.environ.get('APPIMAGE'):
+            return
+
+        emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', 'emojis.ttf')
+
+        if QFontDatabase.addApplicationFont(emojis_ttf_path) < 0:
+            self.print_error('failed to add unicode emoji font to application fonts')
 
     def eventFilter(self, obj, event):
         ''' This event filter allows us to open bitcoincash: URIs on macOS '''
