@@ -21,7 +21,7 @@ PYTHON_VERSION=3.6.8
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
-#export WINEARCH='win32'
+export WINEDEBUG=-all
 
 PYTHON_FOLDER="python3"
 PYHOME="c:/$PYTHON_FOLDER"
@@ -58,7 +58,7 @@ done
 
 info "Installing dependencies specific to binaries."
 # note that this also installs pinned versions of both pip and setuptools
-$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
+$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 
 info "Installing ZBar."
 download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
@@ -107,6 +107,6 @@ info "Building PyInstaller."
     [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$PYTHON -m pip install ./pyinstaller
+$PYTHON -m pip install --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."

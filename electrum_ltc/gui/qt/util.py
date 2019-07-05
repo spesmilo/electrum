@@ -5,6 +5,8 @@ import sys
 import platform
 import queue
 import traceback
+import os
+import webbrowser
 
 from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
@@ -876,6 +878,19 @@ def char_width_in_lineedit() -> int:
     char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()
     # 'averageCharWidth' seems to underestimate on Windows, hence 'max()'
     return max(9, char_width)
+
+
+def webopen(url: str):
+    if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
+        # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.
+        # We just fork the process and unset LD_LIBRARY_PATH before opening the URL.
+        # See #5425
+        if os.fork() == 0:
+            del os.environ['LD_LIBRARY_PATH']
+            webbrowser.open(url)
+            sys.exit(0)
+    else:
+        webbrowser.open(url)
 
 
 if __name__ == "__main__":

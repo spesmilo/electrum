@@ -4,6 +4,7 @@ NAME_ROOT=electrum-ltc
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
+export WINEDEBUG=-all
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONHASHSEED=22
 
@@ -41,14 +42,14 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 # Install frozen dependencies
-$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements.txt
+$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements.txt
 
-$PYTHON -m pip install -r "$CONTRIB"/deterministic-build/requirements-hw.txt
+$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
-$PYTHON -m pip install .
+$PYTHON -m pip install --no-warn-script-location .
 popd
 
 

@@ -824,7 +824,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70.0, config=self.config)
         tx.locktime = 1325501
         tx.version = 1
         self.assertFalse(tx.is_complete())
@@ -913,7 +913,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70.0, config=self.config)
         tx.locktime = 1325500
         tx.version = 1
         self.assertFalse(tx.is_complete())
@@ -967,7 +967,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, 0, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70.0, config=self.config)
         tx.locktime = 1325500
         tx.version = 1
         self.assertFalse(tx.is_complete())
@@ -1030,7 +1030,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, 5_000_000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70, config=self.config)
+        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), new_fee_rate=70.0, config=self.config)
         tx.locktime = 1325500
         tx.version = 1
         self.assertFalse(tx.is_complete())
