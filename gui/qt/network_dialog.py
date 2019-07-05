@@ -486,8 +486,9 @@ class NetworkChoiceLayout(QObject, PrintError):
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         preferred_only = self.network.is_whitelist_only()
-        self.server_host.setText(host)
-        self.server_port.setText(port)
+        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
+            self.server_host.setText(host)
+            self.server_port.setText(port)
         self.ssl_cb.setChecked(protocol=='s')
         ssl_disable = self.ssl_cb.isChecked() and not self.tor_cb.isChecked() and not host.lower().endswith('.onion')
         for w in [self.ssl_cb]:#, self.ssl_help]:
