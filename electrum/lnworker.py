@@ -28,6 +28,7 @@ from .transaction import Transaction
 from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
+from .util import ignore_exceptions
 from .util import timestamp_to_datetime
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
@@ -46,7 +47,6 @@ from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnsweep import create_sweeptxs_for_their_ctx, create_sweeptxs_for_our_ctx
 from .lnwatcher import LNWatcher
 
 if TYPE_CHECKING:
@@ -300,7 +300,7 @@ class LNWallet(LNWorker):
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             xprv = node.to_xprv()
             self.storage.put('lightning_privkey2', xprv)
-        super().__init__(xprv)
+        LNWorker.__init__(self, xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
@@ -317,13 +317,59 @@ class LNWallet(LNWorker):
         self.channel_timestamps = self.storage.get('lightning_channel_timestamps', {})
         self.pending_payments = defaultdict(asyncio.Future)
 
+    @ignore_exceptions
+    @log_exceptions
+    async def sync_with_local_watchtower(self):
+        watchtower = self.network.local_watchtower
+        if watchtower:
+            while True:
+                for chan in self.channels.values():
+                    await self.sync_channel_with_watchtower(chan, watchtower.sweepstore, True)
+                await asyncio.sleep(5)
+
+    @ignore_exceptions
+    @log_exceptions
+    async def sync_with_remote_watchtower(self):
+        # FIXME: jsonrpclib blocks the asyncio loop.
+        # we should use aiohttp instead
+        import jsonrpclib
+        while True:
+            watchtower_url = self.config.get('watchtower_url')
+            if watchtower_url:
+                watchtower = jsonrpclib.Server(watchtower_url)
+                for chan in self.channels.values():
+                    try:
+                        await self.sync_channel_with_watchtower(chan, watchtower, False)
+                    except ConnectionRefusedError:
+                        self.logger.info(f'could not contact watchtower {watchtower_url}')
+                        break
+            await asyncio.sleep(5)
+
+    async def sync_channel_with_watchtower(self, chan, watchtower, is_local):
+        outpoint = chan.funding_outpoint.to_str()
+        addr = chan.get_funding_address()
+        current_ctn = chan.get_current_ctn(REMOTE)
+        if is_local:
+            watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
+        else:
+            watchtower_ctn = watchtower.get_ctn(outpoint, addr)
+        for ctn in range(watchtower_ctn + 1, current_ctn):
+            sweeptxs = chan.create_sweeptxs(ctn)
+            self.logger.info(f'sync with watchtower: {outpoint}, {ctn}, {len(sweeptxs)}')
+            for tx in sweeptxs:
+                if is_local:
+                    await watchtower.add_sweep_tx(outpoint, addr, ctn, tx.prevout(0), str(tx))
+                else:
+                    watchtower.add_sweep_tx(outpoint, addr, ctn, tx.prevout(0), str(tx))
+
     def start_network(self, network: 'Network'):
+        self.config = network.config
         self.lnwatcher = LNWatcher(network)
+        self.lnwatcher.start_network(network)
         self.network = network
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_open, ['channel_open'])
         self.network.register_callback(self.on_channel_closed, ['channel_closed'])
-
         for chan_id, chan in self.channels.items():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
@@ -332,7 +378,9 @@ class LNWallet(LNWorker):
                 self.maybe_listen(),
                 self.on_network_update('network_updated'),  # shortcut (don't block) if funding tx locked and verified
                 self.lnwatcher.on_network_update('network_updated'),  # ping watcher to check our channels
-                self.reestablish_peers_and_channels()
+                self.reestablish_peers_and_channels(),
+                self.sync_with_local_watchtower(),
+                self.sync_with_remote_watchtower(),
         ]:
             asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
 

@@ -301,3 +301,30 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     fi
     echo "bob balance $balance"
 fi
+
+if [[ $1 == "watchtower" ]]; then
+    # carol is a watchtower of alice
+    $alice daemon stop
+    $carol daemon stop
+    $alice setconfig watchtower_url http://127.0.0.1:12345
+    $carol setconfig watchtower_host 127.0.0.1
+    $carol setconfig watchtower_port 12345
+    $carol daemon -s 127.0.0.1:51001:t start
+    $alice daemon -s 127.0.0.1:51001:t start
+    $alice daemon load_wallet
+    echo "waiting until alice funded"
+    wait_until_funded
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.5)
+    new_blocks 3
+    wait_until_channel_open
+    echo "alice pays bob"
+    invoice1=$($bob addinvoice 0.05 "invoice1")
+    $alice lnpay $invoice1
+    invoice2=$($bob addinvoice 0.05 "invoice2")
+    $alice lnpay $invoice2
+    invoice3=$($bob addinvoice 0.05 "invoice3")
+    $alice lnpay $invoice3
+
+fi

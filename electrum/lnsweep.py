@@ -77,7 +77,6 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
             is_revocation=True)
 
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    assert ctn == chan.config[REMOTE].ctn - 1
     # received HTLCs, in their ctx
     received_htlcs = chan.included_htlcs(REMOTE, RECEIVED, ctn)
     for htlc in received_htlcs:

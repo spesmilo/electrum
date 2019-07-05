@@ -133,12 +133,6 @@ class Channel(Logger):
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
         self.force_closed = state.get('force_closed')
 
-        # FIXME this is a tx serialised in the custom electrum partial tx format.
-        # we should not persist txns in this format. we should persist htlcs, and be able to derive
-        # any past commitment transaction and use that instead; until then...
-        self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
-        self.remote_commitment_to_be_revoked.deserialize(True)
-
         log = state.get('log')
         self.hm = HTLCManager(local_ctn=self.config[LOCAL].ctn,
                               remote_ctn=self.config[REMOTE].ctn,
@@ -187,7 +181,6 @@ class Channel(Logger):
         self.remote_commitment = self.current_commitment(REMOTE)
 
     def open_with_first_pcp(self, remote_pcp, remote_sig):
-        self.remote_commitment_to_be_revoked = self.pending_commitment(REMOTE)
         self.config[REMOTE] = self.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_pcp, next_per_commitment_point=None)
         self.config[LOCAL] = self.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.hm.channel_open_finished()
@@ -450,7 +443,6 @@ class Channel(Logger):
             next_per_commitment_point=revocation.next_per_commitment_point,
         )
         self.set_remote_commitment()
-        self.remote_commitment_to_be_revoked = prev_remote_commitment
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """
@@ -540,6 +532,15 @@ class Channel(Logger):
         feerate = self.get_feerate(subject, ctn)
         return self.make_commitment(subject, this_point, ctn, feerate, False)
 
+    def create_sweeptxs(self, ctn):
+        from .lnsweep import create_sweeptxs_for_watchtower
+        their_conf = self.config[REMOTE]
+        feerate = self.get_feerate(REMOTE, ctn)
+        secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
+        ctx = self.make_commitment(REMOTE, point, ctn, feerate, False)
+        return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
+
     def get_current_ctn(self, subject):
         return self.config[subject].ctn
 
@@ -609,7 +610,6 @@ class Channel(Logger):
                 "constraints": self.constraints,
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
-                "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
                 "log": self.hm.to_save(),
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "force_closed": self.force_closed,

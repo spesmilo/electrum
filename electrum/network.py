@@ -304,12 +304,12 @@ class Network(Logger):
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-            self.lnwatcher = lnwatcher.LNWatcher(self)
             self.lngossip = lnworker.LNGossip(self)
+            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', True) else None
         else:
             self.channel_db = None
-            self.lnwatcher = None
             self.lngossip = None
+            self.local_watchtower = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -1152,10 +1152,11 @@ class Network(Logger):
         self._set_oneserver(self.config.get('oneserver', False))
         self._start_interface(self.default_server)
 
-        if self.lnwatcher:
-            self._jobs.append(self.lnwatcher.watchtower_task)
         if self.lngossip:
             self.lngossip.start_network(self)
+        if self.local_watchtower:
+            self.local_watchtower.start_network(self)
+            await self.local_watchtower.start_watching()
 
         async def main():
             try:

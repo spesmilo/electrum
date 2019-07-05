@@ -38,3 +38,6 @@ class TestLightning(unittest.TestCase):
 
     def test_breach_with_spent_htlc(self):
         self.run_shell(['breach_with_spent_htlc'])
+
+    def test_watchtower(self):
+        self.run_shell(['watchtower'])

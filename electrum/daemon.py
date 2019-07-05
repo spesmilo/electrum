@@ -122,12 +122,12 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     return rpc_user, rpc_password
 
 
-class WatchTower(DaemonThread):
+class WatchTowerServer(DaemonThread):
 
-    def __init__(self, config, lnwatcher):
+    def __init__(self, network):
         DaemonThread.__init__(self)
-        self.config = config
-        self.lnwatcher = lnwatcher
+        self.config = network.config
+        self.lnwatcher = network.local_watchtower
         self.start()
 
     def run(self):
@@ -136,6 +136,7 @@ class WatchTower(DaemonThread):
         server = SimpleJSONRPCServer((host, port), logRequests=True)
         server.register_function(self.lnwatcher.add_sweep_tx, 'add_sweep_tx')
         server.register_function(self.lnwatcher.add_channel, 'add_channel')
+        server.register_function(self.lnwatcher.get_ctn, 'get_ctn')
         server.register_function(self.lnwatcher.get_num_tx, 'get_num_tx')
         server.timeout = 0.1
         while self.is_running():
@@ -165,7 +166,7 @@ class Daemon(DaemonThread):
         if listen_jsonrpc:
             self.init_server(config, fd)
         # server-side watchtower
-        self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
+        self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
         if self.network:
             self.network.start([
                 self.fx.run,
