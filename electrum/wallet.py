@@ -2051,10 +2051,10 @@ def restore_wallet_from_text(text, *, path, network=None,
         if not good_inputs:
             raise Exception("None of the given privkeys can be imported")
     else:
-        if keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
-        elif keystore.is_master_key(text):
+        if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
+        elif keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase)
         else:
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())
