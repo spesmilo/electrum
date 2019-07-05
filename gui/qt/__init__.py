@@ -85,7 +85,7 @@ class ElectrumGui(QObject, PrintError):
         __class__.instance = self
         set_language(config.get('language'))
 
-        if sys.platform == 'win32':
+        if sys.platform in ('win32', 'cygwin'):
             # TODO: Make using FreeType on Windows configurable
             # Use FreeType for font rendering on Windows. This fixes rendering of the Schnorr
             # sigil and allows us to load the Noto Color Emoji font if needed.
@@ -280,7 +280,7 @@ class ElectrumGui(QObject, PrintError):
 
     def _load_fonts(self):
         # Only load the emoji font on Linux and Windows
-        if sys.platform not in ('linux', 'win32'):
+        if sys.platform not in ('linux', 'win32', 'cygwin'):
             return
 
         # TODO: Check if we already have the needed emojis

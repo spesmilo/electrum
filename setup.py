@@ -101,6 +101,16 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
             0==os.system("contrib/make_zbar") or sys.exit("Could not build libzbar")
         super().run()
 
+
+platform_package_data = {}
+
+if sys.platform in ('linux', 'win32', 'cygwin'):
+    platform_package_data = {
+        'electroncash_gui.qt' : [
+            'data/*.ttf'
+        ],
+    }
+
 setup(
     cmdclass={
         'sdist': MakeAllBeforeSdist,
@@ -148,13 +158,13 @@ setup(
             'libzbar*',
             'locale/*/LC_MESSAGES/electron-cash.mo',
         ],
-        'electroncash_gui.qt' : [
-            'data/*.ttf'
-        ],
         'electroncash_plugins.shuffle' : [
             'servers.json',
             'protobuf/*.proto'
-        ]
+        ],
+        # On Linux and Windows this means adding gui/qt/data/*.ttf
+        # On Darwin we don't use that font, so we don't add it to save space.
+        **platform_package_data
     },
     scripts=['electron-cash'],
     data_files=data_files,
