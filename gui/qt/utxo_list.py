@@ -30,9 +30,10 @@ from electroncash.plugins import run_hook
 class UTXOList(MyTreeWidget):
     filter_columns = [0, 2]  # Address, Label
     col_output_point = 4  # <-- index of the 'Output point' column. make sure to update this if you modify the header below...
+    default_sort = MyTreeWidget.SortSpec(2, Qt.DescendingOrder)
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1, deferred_updates=True)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1, deferred_updates=True, save_sort_settings=True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         # force attributes to always be defined, even if None, at construction.

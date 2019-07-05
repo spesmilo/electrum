@@ -46,13 +46,12 @@ TX_ICONS = [
 class HistoryList(MyTreeWidget):
     filter_columns = [2, 3, 4]  # Date, Description, Amount
     statusIcons = {}
+    default_sort = MyTreeWidget.SortSpec(0, Qt.AscendingOrder)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super().__init__(parent, self.create_menu, [], 3, deferred_updates=True)
         self.refresh_headers()
         self.setColumnHidden(1, True)
-        self.setSortingEnabled(True)
-        self.sortByColumn(0, Qt.AscendingOrder)
         # force attributes to always be defined, even if None, at construction.
         self.wallet = self.parent.wallet
 

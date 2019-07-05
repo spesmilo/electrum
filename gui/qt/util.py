@@ -12,6 +12,7 @@ from functools import partial, wraps
 from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.util import print_error, PrintError, Weak
+from electroncash.wallet import Abstract_Wallet
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -449,8 +450,17 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 
 class MyTreeWidget(QTreeWidget):
 
+    class SortSpec(namedtuple("SortSpec", "column, qt_sort_order")):
+        ''' Used to specify member: default_sort '''
+
+    # Specify this in subclasses to apply a default sort order to the widget
+    # If None, nothing is applied (items are presented in the order they are
+    # added).
+    default_sort : SortSpec = None
+
     def __init__(self, parent, create_menu, headers, stretch_column=None,
-                 editable_columns=None, *, deferred_updates=False):
+                 editable_columns=None,
+                 *, deferred_updates=False, save_sort_settings=False):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
         self.config = self.parent.config
@@ -463,6 +473,7 @@ class MyTreeWidget(QTreeWidget):
         self.insertChild = self.insertTopLevelItem
         self.deferred_updates = deferred_updates
         self.deferred_update_ct, self._forced_update = 0, False
+        self._save_sort_settings = save_sort_settings
 
         # Control which columns are editable
         self.editor = None
@@ -474,6 +485,31 @@ class MyTreeWidget(QTreeWidget):
         self.itemDoubleClicked.connect(self.on_doubleclick)
         self.update_headers(headers)
         self.current_filter = ""
+
+        self._setup_save_sort_mechanism()
+
+    def _setup_save_sort_mechanism(self):
+        if (self._save_sort_settings
+                and isinstance(getattr(self.parent, 'wallet', None), Abstract_Wallet)):
+            storage = self.parent.wallet.storage
+            key = f'mytreewidget_default_sort_{type(self).__name__}'
+            default = (storage and storage.get(key, None)) or self.default_sort
+            if default and isinstance(default, (tuple, list)) and len(default) >= 2 and all(isinstance(i, int) for i in default):
+                self.setSortingEnabled(True)
+                self.sortByColumn(default[0], default[1])
+            if storage:
+                # Paranoia; hold a weak reference just in case subclass code
+                # does unusual things.
+                weakStorage = Weak.ref(storage)
+                def save_sort(column, qt_sort_order):
+                    storage = weakStorage()
+                    if storage:
+                        storage.put(key, [column, qt_sort_order])
+                self.header().sortIndicatorChanged.connect(save_sort)
+        elif self.default_sort:
+            self.setSortingEnabled(True)
+            self.sortByColumn(self.default_sort[0], self.default_sort[1])
+
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -575,11 +611,14 @@ class MyTreeWidget(QTreeWidget):
             scroll_pos_val = self.verticalScrollBar().value() # save previous scroll bar position
             self.on_update()
             self.deferred_update_ct = 0
+            weakSelf = Weak.ref(self)
             def restoreScrollBar():
-                self.updateGeometry()
-                self.verticalScrollBar().setValue(scroll_pos_val) # restore scroll bar to previous
-                self.setUpdatesEnabled(True)
-            QTimer.singleShot(1.0, restoreScrollBar) # need to do this from a timer some time later due to Qt quirks
+                slf = weakSelf()
+                if slf:
+                    slf.updateGeometry()
+                    slf.verticalScrollBar().setValue(scroll_pos_val) # restore scroll bar to previous
+                    slf.setUpdatesEnabled(True)
+            QTimer.singleShot(0, restoreScrollBar) # need to do this from a timer some time later due to Qt quirks
         if self.current_filter:
             self.filter(self.current_filter)
 
