@@ -43,7 +43,7 @@ from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
-if sys.platform.lower().startswith('win'):
+if False:
     # NB: on Qt for Windows the 'ⓢ' symbol looks aliased and bad. So we do this
     # for windows.
     SCHNORR_SIGIL = "(S)"

@@ -174,11 +174,6 @@ cp "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR"
 cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
 
 
-info "Copying emoji font"
-mkdir -p "$PYDIR"/site-packages/electroncash_gui/qt/data
-cp "$CONTRIB/fonts/emojis.ttf" "$PYDIR"/site-packages/electroncash_gui/qt/data || fail "Could not copy emoji font"
-
-
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
 strip_binaries()
