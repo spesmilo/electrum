@@ -491,6 +491,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addAction(_("&Register"), self.register_wallet_dialog)
         wallet_menu.addAction(_("&Contract"), self.termsandconditions_dialog)
         wallet_menu.addAction(_("&Onboard Key"), self.dumponboardkey_dialog)
+        wallet_menu.addAction(_("&Rescan Blockchain"), self.rescan_blockchain_dialog)
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -2651,12 +2652,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 3, 0)
         d.exec_()
 
+    def rescan_blockchain_dialog(self):
+        self.network.rescan_blockchain()
+
     def dumponboardkey_dialog(self):
 
         onboardAddress = self.wallet.get_onboard_address()
-        _onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self)
+        onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self, False)
 
-        if _onboardUserKey is None:
+        if onboardUserKey is None:
             self.show_message('Failed to retrieve the onboarding private key from the stored onboarding address')
             return False
 
@@ -2665,7 +2669,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         onboardkey_e = QTextEdit()
 
         layout = QGridLayout(d)
-        onboardkey_e.setText(_onboardUserKey)
+        onboardkey_e.setText(onboardUserKey)
         onboardkey_e.setReadOnly(True)
         layout.addWidget(QLabel(_('Share and import this onboarding private key via console (importprivkey) on other Multisig cosigner wallets to see whitelisted addresses.')), 1, 0)
         layout.addWidget(onboardkey_e, 2, 0)

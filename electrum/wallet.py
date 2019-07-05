@@ -1284,7 +1284,7 @@ class Abstract_Wallet(AddressSynchronizer):
             input_addresses.add(self.get_txin_address(txin))
         return input_addresses
 
-    def derive_onboard_priv_key(self, onboardAddress, parent_window):
+    def derive_onboard_priv_key(self, onboardAddress, parent_window, return_serialized=True):
         #Check that this wallet holds the onboard user private key
         if not self.is_mine(onboardAddress):
             return None
@@ -1297,15 +1297,21 @@ class Abstract_Wallet(AddressSynchronizer):
                 return None
             else:
                 if self.has_keystore_encryption():
-                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    if return_serialized == True:
+                        msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    else:
+                        msg = _('Exporting the onboarding private key.') + '\n' + _('Please enter your password.')
                     password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
                     if not password:
                         return None
         try: 
-            onboardUserKey_serialized=self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)   
-            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-            return _onboardUserKey
+            onboardUserKey_serialized=self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)  
+            if return_serialized == True: 
+                txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+                _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+                return _onboardUserKey
+            else:
+                return onboardUserKey_serialized
         except Exception as e:
             print(e)
             return None
