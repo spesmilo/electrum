@@ -25,7 +25,13 @@
 
 set -e
 
-here=$(dirname $(realpath "$0"))
+if [ `uname` == "Darwin" ]; then
+	realpath=grealpath
+else
+	realpath=realpath
+fi
+
+here=$(dirname $($realpath "$0"))
 . "$here"/../base.sh # functions we use below (fail, et al)
 
 SRCURL="https://noto-website-2.storage.googleapis.com/pkgs/NotoColorEmoji-unhinted.zip"
