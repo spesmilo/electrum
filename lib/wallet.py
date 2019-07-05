@@ -184,6 +184,10 @@ class Abstract_Wallet(PrintError):
         # Python's GIL makes thread-safe implicitly).
         self._addr_bal_cache = {}
 
+        # We keep a set of the wallet and receiving addresses so that is_mine()
+        # checks are O(logN) rather than O(N). This creates/resets that cache.
+        self.invalidate_address_set_cache()
+
         self.gap_limit_for_change = 20 # constant
         # saved fields
         self.use_change            = storage.get('use_change', True)
@@ -409,13 +413,49 @@ class Abstract_Wallet(PrintError):
 
             return changed
 
+    def invalidate_address_set_cache(self):
+        ''' This should be called from functions that add/remove addresses
+        from the wallet to ensure the address set caches are empty, in
+        particular from ImportedWallets which may add/delete addresses
+        thus the length check in is_mine() may not be accurate.
+        Deterministic wallets can neglect to call this function since their
+        address sets only grow and never shrink and thus the length check
+        of is_mine below is sufficient.'''
+        self._recv_address_set_cached, self._change_address_set_cached = frozenset(), frozenset()
+
     def is_mine(self, address):
+        ''' Note this method assumes that the entire address set is
+        composed of self.get_change_addresses() + self.get_receiving_addresses().
+        In subclasses, if that is not the case -- REIMPLEMENT this method! '''
         assert not isinstance(address, str)
-        return address in self.get_addresses()
+        # assumption here is get_receiving_addresses and get_change_addresses
+        # are cheap constant-time operations returning a list reference.
+        # If that is not the case -- reimplement this function.
+        ra, ca = self.get_receiving_addresses(), self.get_change_addresses()
+        # Detect if sets changed (addresses added/removed).
+        # Note the functions that add/remove addresses should invalidate this
+        # cache using invalidate_address_set_cache() above.
+        if len(ra) != len(self._recv_address_set_cached):
+            # re-create cache if lengths don't match
+            self._recv_address_set_cached = frozenset(ra)
+        if len(ca) != len(self._change_address_set_cached):
+            # re-create cache if lengths don't match
+            self._change_address_set_cached = frozenset(ca)
+        # Do a 2 x O(logN) lookup using sets rather than 2 x O(N) lookups
+        # if we were to use the address lists (this was the previous way).
+        # For small wallets it doesn't matter -- but for wallets with 5k or 10k
+        # addresses, it starts to add up siince is_mine() is called frequently
+        # especially while downloading address history.
+        return (address in self._recv_address_set_cached
+                    or address in self._change_address_set_cached)
 
     def is_change(self, address):
         assert not isinstance(address, str)
-        return address in self.change_addresses
+        ca = self.get_change_addresses()
+        if len(ca) != len(self._change_address_set_cached):
+            # re-create cache if lengths don't match
+            self._change_address_set_cached = frozenset(ca)
+        return address in self._change_address_set_cached
 
     def get_address_index(self, address):
         try:
@@ -1681,6 +1721,7 @@ class Abstract_Wallet(PrintError):
     def add_address(self, address):
         assert isinstance(address, Address)
         self._addr_bal_cache.pop(address, None)  # paranoia, not really necessary -- just want to maintain the invariant that when we modify address history below we invalidate cache.
+        self.invalidate_address_set_cache()
         if address not in self._history:
             self._history[address] = []
         if self.synchronizer:
@@ -1720,6 +1761,7 @@ class Abstract_Wallet(PrintError):
                 # reset the address list to default too, just in case. New synchronizer will pick up the addresses again.
                 self.receiving_addresses, self.change_addresses = self.receiving_addresses[:self.gap_limit], self.change_addresses[:self.gap_limit_for_change]
                 do_addr_save = True
+            self.invalidate_address_set_cache()
         if do_addr_save:
             self.save_addresses()
         self.save_transactions()

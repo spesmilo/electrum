@@ -199,7 +199,13 @@ class WalletStorage(PrintError):
             f.flush()
             os.fsync(f.fileno())
 
-        mode = os.stat(self.path).st_mode if self.file_exists() else stat.S_IREAD | stat.S_IWRITE
+        default_mode = stat.S_IREAD | stat.S_IWRITE
+        try:
+            mode = os.stat(self.path).st_mode if self.file_exists() else default_mode
+        except FileNotFoundError:
+            mode = default_mode
+            self._file_exists = False
+
         if not self.file_exists():
             # See: https://github.com/spesmilo/electrum/issues/5082
             assert not os.path.exists(self.path)
