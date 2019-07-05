@@ -688,7 +688,10 @@ class Transaction:
     def remove_signatures(self):
         for txin in self.inputs():
             txin['signatures'] = [None] * len(txin['signatures'])
+            txin['scriptSig'] = None
+            txin['witness'] = None
         assert not self.is_complete()
+        self.raw = None
 
     def deserialize(self, force_full_parse=False):
         if self.raw is None:
