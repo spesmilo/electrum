@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.address import Address, PublicKey, ScriptOutput
 from electroncash.bitcoin import base_encode
-from electroncash.i18n import _
+from electroncash.i18n import _, ngettext
 from electroncash.plugins import run_hook
 from electroncash import web
 
@@ -372,11 +372,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
-        size_str = _("Size:") + ' %d bytes'% size
+        size_str = _("Size: {size} bytes").format(size=size)
         fee_str = _("Fee") + ": "
         if fee is not None:
-            fee_str += format_amount(fee) + ' ' + base_unit
-            fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
+            fee_str = _("Fee: {fee_amount} {fee_unit} ( {fee_rate} )")
+            fee_str = fee_str.format(fee_amount=format_amount(fee), fee_unit=base_unit,
+                                     fee_rate=self.main_window.format_fee_rate(fee/size*1000))
             dusty_fee = self.tx.ephemeral.get('dust_to_fee', 0)
             if dusty_fee:
                 fee_str += ' <font color=#999999>' + (_("( %s in dust was added to fee )") % format_amount(dusty_fee)) + '</font>'
@@ -409,7 +410,11 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
 
-        hbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
+        num_inputs = len(self.tx.inputs())
+        inputs_lbl_text = ngettext("Input", "Inputs ({num_inputs})", num_inputs)
+        if num_inputs > 1:
+            inputs_lbl_text = inputs_lbl_text.format(num_inputs=num_inputs)
+        hbox.addWidget(QLabel(inputs_lbl_text))
 
 
         hbox.addSpacerItem(QSpacerItem(20, 0))  # 20 px padding
@@ -450,7 +455,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
         vbox.addLayout(hbox)
-        hbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
+
+        num_outputs = len(self.tx.outputs())
+        outputs_lbl_text = ngettext("Output", "Outputs ({num_outputs})", num_outputs)
+        if num_outputs > 1:
+            outputs_lbl_text = outputs_lbl_text.format(num_outputs=num_outputs)
+        hbox.addWidget(QLabel(outputs_lbl_text))
 
         box_char = "█"
         self.recv_legend = QLabel("<font color=" + ColorScheme.GREEN.as_color(background=True).name() + ">" + box_char + "</font> = " + _("Receiving Address"))
