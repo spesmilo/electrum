@@ -402,7 +402,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error(_('Transaction with more than 2 outputs not supported by {}').format(self.device))
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
-            for _type, address, amount in tx.outputs():
+            for o in tx.outputs():
+                _type, address, amount = o
                 if self.get_client_electrum().is_hw1():
                     if not _type == TYPE_ADDRESS:
                         self.give_error(_('Only address outputs are supported by {}').format(self.device))
@@ -414,7 +415,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                             # Ledger has a maximum output size of 200 bytes:
                             # https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
                             # which gives us a maximum OP_RETURN payload size of 187 bytes.
-                            validate_op_return_output_and_get_data(output, max_size=187)
+                            validate_op_return_output_and_get_data(o, max_size=187)
                         except RuntimeError as e:
                             self.give_error('{}: {}'.format(self.device, str(e)))
                 info = tx.output_info.get(address)
