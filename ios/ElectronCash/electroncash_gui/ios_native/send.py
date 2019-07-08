@@ -580,7 +580,12 @@ class SendVC(SendBase):
     def getPayToAddress(self) -> ObjCInstance:
         pr = get_PR(self)
         if pr:
-            return ns_from_py(pr.get_address())
+            try:
+                return ns_from_py(pr.get_address())
+            except AttributeError as e:
+                # invalid/expired payment requests sometimes have no outputs Attribute
+                # See #1503.
+                print("Invalid payment request:", repr(e))
         return ns_from_py(self.payTo.text)
 
 
