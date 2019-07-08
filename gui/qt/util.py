@@ -11,7 +11,7 @@ from functools import partial, wraps
 
 from electroncash.i18n import _
 from electroncash.address import Address
-from electroncash.util import print_error, PrintError, Weak
+from electroncash.util import print_error, PrintError, Weak, finalization_print_error
 from electroncash.wallet import Abstract_Wallet
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -256,7 +256,7 @@ class MessageBoxMixin:
         if informative_text and isinstance(informative_text, str):
             d.setInformativeText(informative_text)
         if rich_text:
-            d.setTextInteractionFlags(Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse)
+            d.setTextInteractionFlags(d.textInteractionFlags()|Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse)
             d.setTextFormat(Qt.RichText)
         else:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -304,19 +304,31 @@ class AppModalDialog(MessageBoxMixin, QDialog):
 
 class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst runnning a task.  It is not
-    necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_success=None, on_error=None, auto_cleanup=True):
+    necessary to maintain a reference to this dialog.
+
+    Note if disable_escape_key is not set, user can hit cancel to prematurely
+    close the dialog. Sometimes this is desirable, and sometimes it isn't, hence
+    why the option is offered.'''
+    def __init__(self, parent, message, task, on_success=None, on_error=None, auto_cleanup=True,
+                 *, auto_show=True, auto_exec=False, title=None, disable_escape_key=False):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
-        WindowModalDialog.__init__(self, parent, _("Please wait"))
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(QLabel(message))
+        WindowModalDialog.__init__(self, parent, title or _("Please wait"))
+        self.auto_cleanup = auto_cleanup
+        self.disable_escape_key = disable_escape_key
+        self._vbox = vbox = QVBoxLayout(self)
+        self._label = label = QLabel(message)
+        vbox.addWidget(label)
         self.accepted.connect(self.on_accepted)
-        self.show() # Bug here -- user can hit ESC key and kill the dialog before it's done. TODO: FIX!
+        self.rejected.connect(self.on_rejected)
+        if auto_show and not auto_exec:
+            self.open()
         self.thread = TaskThread(self)
         self.thread.add(task, on_success, self.accept, on_error)
-        self.auto_cleanup = auto_cleanup
+        if auto_exec:
+            self.exec_()
+        finalization_print_error(self)  # track object lifecycle
 
     def wait(self):
         self.thread.wait()
@@ -327,18 +339,58 @@ class WaitingDialog(WindowModalDialog):
             self.wait() # wait for thread to complete so that we can get cleaned up
             self.setParent(None) # this causes GC to happen sooner rather than later. Before this call was added the WaitingDialogs would stick around in memory until the ElectrumWindow was closed and would never get GC'd before then. (as of PyQt5 5.11.3)
 
+    def on_rejected(self):
+        if self.auto_cleanup:
+            self.setParent(None)
 
-def line_dialog(parent, title, label, ok_label, default=None):
+    def keyPressEvent(self, e):
+        ''' The user can hit Cancel to close the dialog before the task is done.
+        If self.disable_escape_key, then we suppress this unwanted behavior.
+        Note: Do not enable self.disable_escape_key for extremely long
+        operations.'''
+        if e.matches(QKeySequence.Cancel) and self.disable_escape_key:
+            e.ignore()
+        else:
+            super().keyPressEvent(e)
+
+
+
+def line_dialog(parent, title, label, ok_label, default=None,
+                *, linkActivated=None, placeholder=None, disallow_empty=False,
+                icon=None):
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(500)
     l = QVBoxLayout()
     dialog.setLayout(l)
-    l.addWidget(QLabel(label))
+    if isinstance(icon, QIcon):
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(0,0,0,0)
+        ic_lbl = QLabel()
+        ic_lbl.setPixmap(icon.pixmap(50))
+        hbox.addWidget(ic_lbl)
+        hbox.addItem(QSpacerItem(10, 1))
+        t_lbl = QLabel("<font size=+1><b>" + title + "</b></font>")
+        hbox.addWidget(t_lbl, 0, Qt.AlignLeft)
+        hbox.addStretch(1)
+        l.addLayout(hbox)
+    lbl = WWLabel(label)
+    l.addWidget(lbl)
+    if linkActivated:
+        lbl.linkActivated.connect(linkActivated)
+        lbl.setTextInteractionFlags(lbl.textInteractionFlags()|Qt.LinksAccessibleByMouse)
     txt = QLineEdit()
     if default:
         txt.setText(default)
+    if placeholder:
+        txt.setPlaceholderText(placeholder)
     l.addWidget(txt)
-    l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
+    okbut = OkButton(dialog, ok_label)
+    l.addLayout(Buttons(CancelButton(dialog), okbut))
+    if disallow_empty:
+        def on_text_changed():
+            okbut.setEnabled(bool(txt.text()))
+        txt.textChanged.connect(on_text_changed)
+        on_text_changed() # initially enable/disable it.
     if dialog.exec_():
         return txt.text()
 
@@ -634,10 +686,15 @@ class MyTreeWidget(QTreeWidget):
             self._forced_update = False
             # self.deferred_update_ct will be set right after on_update is called because some subclasses use @rate_limiter on the update() method
 
-    def get_leaves(self, root):
+    def get_leaves(self, root=None):
+        if root is None:
+            root = self.invisibleRootItem()
         child_count = root.childCount()
         if child_count == 0:
-            yield root
+            if root is not self.invisibleRootItem():
+                yield root
+            else:
+                return
         for i in range(child_count):
             item = root.child(i)
             for x in self.get_leaves(item):

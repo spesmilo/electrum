@@ -3,7 +3,7 @@ import curses, datetime, locale
 from decimal import Decimal as PyDecimal
 import getpass
 
-import electrum
+import electroncash
 from electroncash.address import Address
 from electroncash.util import format_satoshis, set_verbosity
 from electroncash.bitcoin import COIN, TYPE_ADDRESS
@@ -21,8 +21,7 @@ class ElectrumGui:
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists():
-            print("Wallet not found. try 'electron-cash create'")
-            exit()
+            sys.exit("Wallet not found. try 'electron-cash create'")
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
@@ -155,11 +154,13 @@ class ElectrumGui:
         self.print_qr(addr)
 
     def print_contacts(self):
-        messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
-        self.print_list(messages, "%19s  %15s "%("Key", "Value"))
+        def print_contact(contact):
+            return "%-20s   %-45s "%(contact.name, contact.address)
+        messages = [print_contact(x) for x in self.contacts.get_all()]
+        self.print_list(messages, "%-20s   %-45s "%("Name", "Address"))
 
     def print_addresses(self):
-        fmt = "%-35s  %-30s"
+        fmt = "%-45s  %-30s"
         messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
         self.print_list(messages,   fmt % ("Address", "Label"))
 
@@ -281,15 +282,16 @@ class ElectrumGui:
     def run_contacts_tab(self, c):
         if c == 10 and self.contacts:
             out = self.run_popup('Address', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
-            key = list(self.contacts.keys())[self.pos%len(self.contacts.keys())]
+            contacts = self.contacts.get_all(nocopy=True)
+            contact = contacts[self.pos%len(contacts)]
             if out == "Pay to":
                 self.tab = 1
-                self.str_recipient = key
+                self.str_recipient = contact.address
                 self.pos = 2
             elif out == "Edit label":
                 s = self.get_string(6 + self.pos, 18)
                 if s:
-                    self.wallet.labels[key] = s
+                    self.wallet.labels[contact.address] = s
 
     def run_banner_tab(self, c):
         self.show_message(repr(c))

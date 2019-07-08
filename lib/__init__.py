@@ -11,3 +11,5 @@ from . import daemon
 from .transaction import Transaction
 from .plugins import BasePlugin
 from .commands import Commands, known_commands
+from . import address
+from . import cashacct  # has a side-effect: registers itself with ScriptOut protocol system

@@ -125,8 +125,10 @@ class ElectrumGui:
 
 
     def print_contacts(self):
-        messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
-        self.print_list(messages, "%19s  %25s "%("Key", "Value"))
+        def print_contact(contact):
+            return "%-20s   %-45s "%(contact.name, contact.address)
+        messages = [print_contact(x) for x in self.contacts.get_all()]
+        self.print_list(messages, "%-20s   %-45s "%("Name", "Address"))
 
     def print_addresses(self):
         messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
@@ -203,8 +205,6 @@ class ElectrumGui:
 
         if status:
             print(_('Payment sent.'))
-            #self.do_clear()
-            #self.update_contacts_tab()
         else:
             print(_('Error'))
 

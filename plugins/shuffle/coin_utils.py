@@ -348,7 +348,7 @@ class CoinUtils(PrintError):
 
     @staticmethod
     def unfreeze_frozen_by_shuffling(wallet, *, write=False):
-        with wallet.lock, wallet.transaction_lock:
+        with wallet.lock:
             coins_frozen_by_shuffling = wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list())
             if coins_frozen_by_shuffling:
                 l = len(coins_frozen_by_shuffling)
@@ -500,7 +500,7 @@ class CoinUtils(PrintError):
             return
         if not isinstance(addr_set, set):
             addr_set = set(addr_set)
-        with wallet.lock, wallet.transaction_lock:
+        with wallet.lock:
             wallet._shuffled_address_cache.difference_update(addr_set)
 
     @staticmethod
@@ -512,7 +512,7 @@ class CoinUtils(PrintError):
         cache = getattr(wallet, '_is_shuffled_cache', dict())
         if not cache:
             return
-        with wallet.lock, wallet.transaction_lock:
+        with wallet.lock:
             for name in utxo_names:
                 cache.pop(name, None)
 
@@ -536,7 +536,7 @@ class CoinUtils(PrintError):
     @staticmethod
     def get_new_change_address_safe(wallet, for_shufflethread=0):
         for_shufflethread = int(for_shufflethread or 0) # coerce to int in case it was a bool or None
-        with wallet.lock, wallet.transaction_lock:
+        with wallet.lock:
             if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
                 # if they keep hitting preview on the same tx, give them the same change each time
                 return wallet._last_change
@@ -573,7 +573,7 @@ class CoinUtils(PrintError):
         unshuffled_but_spend_as_shuffled '''
         shuf, unshuf, uprog, usas = [], [], [], []  # shuffled, unshuffled, unshuffled_in_progress, unshuffled_spend_as_shuffled
         if hasattr(wallet, 'is_coin_shuffled'):
-            with wallet.lock, wallet.transaction_lock:
+            with wallet.lock:
                 coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list())) if not no_in_progress_check else set()
                 utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
                 txs = wallet.transactions

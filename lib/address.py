@@ -234,17 +234,26 @@ def hash160(x):
     Used to make bitcoin addresses from pubkeys.'''
     return ripemd160(sha256(x))
 
+class UnknownAddress(namedtuple("UnknownAddress", "meta")):
 
-class UnknownAddress(object):
+    def __new__(cls, meta=None):
+        return super(UnknownAddress, cls).__new__(cls, meta)
 
     def to_ui_string(self):
+        if self.meta is not None:
+            meta = self.meta
+            meta = (isinstance(meta, (bytes, bytearray)) and meta.hex()) or meta
+            if isinstance(meta, str) and len(meta) > 10:
+                l = len(meta) // 2
+                meta = "…" + meta[l-4:l+4] + "…"
+            return f'<UnknownAddress meta={meta}>'
         return '<UnknownAddress>'
 
     def __str__(self):
         return self.to_ui_string()
 
     def __repr__(self):
-        return '<UnknownAddress>'
+        return self.to_ui_string()
 
 
 class PublicKey(namedtuple("PublicKeyTuple", "pubkey")):
@@ -369,7 +378,7 @@ class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
             else:
                 import binascii
                 script.extend(Script.push_data(binascii.unhexlify(word)))
-        return ScriptOutput(bytes(script))
+        return ScriptOutput.protocol_factory(bytes(script))
 
     def to_ui_string(self,ignored=None):
         '''Convert to user-readable OP-codes (plus pushdata as text if possible)
@@ -411,11 +420,52 @@ class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
     def to_script(self):
         return self.script
 
+    def is_opreturn(self):
+        ''' Returns True iff this script is an OP_RETURN script (starts with
+        the OP_RETURN byte)'''
+        return bool(self.script and self.script[0] == OpCodes.OP_RETURN)
+
     def __str__(self):
         return self.to_ui_string(True)
 
     def __repr__(self):
         return '<ScriptOutput {}>'.format(self.__str__())
+
+
+    ###########################################
+    # Protocol system methods and class attrs #
+    ###########################################
+
+    # subclasses of ScriptOutput that handle protocols. Currently this will
+    # contain a cashacct.ScriptOutput instance.
+    #
+    # NOTE: All subclasses of this class must be hashable. Please implement
+    # __hash__ for any subclasses. (This is because our is_mine cache in
+    # wallet.py assumes all possible types that pass through it are hashable).
+    #
+    protocol_classes = set()
+
+    def make_complete(self, block_height=None, block_hash=None, txid=None):
+        ''' Subclasses implement this, noop here. '''
+        pass
+
+    def is_complete(self):
+        ''' Subclasses implement this, noop here. '''
+        return True
+
+    @classmethod
+    def find_protocol_class(cls, script_bytes):
+        ''' Scans the protocol_classes set, and if the passed-in script matches
+        a known protocol, returns that class, otherwise returns our class. '''
+        for c in cls.protocol_classes:
+            if c.protocol_match(script_bytes):
+                return c
+        return __class__
+
+    @staticmethod
+    def protocol_factory(script):
+        ''' One shot -- find the right class and construct object based on script '''
+        return __class__.find_protocol_class(script)(script)
 
 
 # A namedtuple for easy comparison and unique hashing

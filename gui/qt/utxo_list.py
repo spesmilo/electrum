@@ -44,6 +44,10 @@ class UTXOList(MyTreeWidget):
         self.lightBlue = QColor('lightblue') if not ColorScheme.dark_scheme else QColor('blue')
         self.blue = ColorScheme.BLUE.as_color(True)
         self.cyanBlue = QColor('#3399ff')
+        self.cleaned_up = False
+
+    def clean_up(self):
+        self.cleaned_up = True
 
     def get_name(self, x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
@@ -53,7 +57,7 @@ class UTXOList(MyTreeWidget):
 
     @rate_limited(1.0, ts_after=True) # performance tweak -- limit updates to no more than oncer per second
     def update(self):
-        if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
+        if self.cleaned_up:
             # short-cut return if window was closed and wallet is stopped
             return
         super().update()

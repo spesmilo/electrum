@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="/" >
+    <file>icons/cashacct-logo.png</file>
+    <file>icons/cashacct-button-darkmode.png</file>
     <file>icons/electron.svg</file>
     <file>icons/electron-cash-update.svg</file>
     <file>icons/clock1.svg</file>
@@ -15,6 +17,8 @@
     <file>icons/electron_light_icon.svg</file>
     <file>icons/electron_dark_icon.svg</file>
     <file>icons/file.png</file>
+    <file>icons/import.svg</file>
+    <file>icons/import_dark_theme.svg</file>
     <file>icons/keepkey.png</file>
     <file>icons/keepkey_unpaired.png</file>
     <file>icons/key.png</file>
@@ -26,6 +30,8 @@
     <file>icons/qrcode_white.svg</file>
     <file>icons/qr_finder.svg</file>
     <file>icons/preferences.svg</file>
+    <file>icons/save.svg</file>
+    <file>icons/save_dark_theme.svg</file>
     <file>icons/seed.png</file>
     <file>icons/status_connected.svg</file>
     <file>icons/status_connected_fork.svg</file>

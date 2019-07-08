@@ -438,7 +438,7 @@ def bh2u(x):
 
     >>> x = bytes((1, 2, 10))
     >>> bh2u(x)
-    '01020A'
+    '01020a'
 
     :param x: bytes
     :rtype: str

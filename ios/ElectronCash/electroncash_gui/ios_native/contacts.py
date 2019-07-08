@@ -10,6 +10,7 @@ from electroncash import WalletStorage, Wallet
 from electroncash.util import timestamp_to_datetime
 from electroncash.i18n import _, language
 from electroncash.address import Address, PublicKey
+from electroncash.contacts import Contact
 from .uikit_bindings import *
 from .custom_objc import *
 from collections import namedtuple
@@ -714,10 +715,10 @@ def get_contacts(wallet = None, sort = True) -> list:
     if wallet is None:
         utils.NSLog("get_contacts: wallent was None, returning early")
         return list()
-    c = wallet.contacts
+    wc = wallet.contacts
     contacts = list()
-    for addr,tupl in c.copy().items():
-        typ, name = tupl
+    for c in wc.get_all():
+        typ, name, addr = c.type, c.name, c.address
         if typ == 'address' and Address.is_valid(addr):
             address = Address.from_string(addr)
             entry = ContactsEntry(name, address, addr)
@@ -733,17 +734,17 @@ def delete_contact(entry : ContactsEntry, do_write = True) -> int:
     if wallet is None:
         utils.NSLog("delete_contacts: wallent was None, returning early")
         return None
-    c = wallet.contacts
-    if not c:
+    wc = wallet.contacts
+    if not wc:  # paranoia
         return None
-    n = len(c)
-    c.pop(entry.address_str)
+    n = wc.num
+    wc.remove(Contact(name=entry.name, address=entry.address_str, type='address'))
     history.delete_contact_history(entry.address)
-    n2 = len(c)
+    n2 = wc.num
     if n2 < n:
-        c.save()
+        wc.save()
         if do_write:
-            c.storage.write()
+            wc.storage.write()
     ret = n - n2
     utils.NSLog("deleted %d contact(s)", ret)
     return ret
@@ -758,9 +759,9 @@ def add_contact(entry : ContactsEntry, do_write = True) -> bool:
     if c is None:
         utils.NSLog("add_contact: contacts was None, returning early")
         return False
-    n = len(c)
-    c[entry.address_str] = ("address", entry.name)
-    n2 = len(c)
+    n = c.num
+    c.add(Contact(name=entry.name, address=entry.address_str, type="address"), unique=True)
+    n2 = c.num
     c.save()
     if do_write:
         c.storage.write()

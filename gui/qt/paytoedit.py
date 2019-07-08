@@ -34,11 +34,12 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from electroncash import bitcoin
 from electroncash.address import Address, ScriptOutput
 from electroncash import networks
-from electroncash.util import print_error
+from electroncash.util import PrintError
+from electroncash.contacts import Contact
 
 from . import util
 
-RE_ALIAS = '^(.*?)\s*\<([0-9A-Za-z:]{26,})\>$'
+RE_ALIAS = r'^(.*?)\s*<\s*([0-9A-Za-z:]{26,})\s*>$'
 RE_COINTEXT = r'^\s*cointext:([-+() 0-9]+)\s*$'
 
 RX_ALIAS = re.compile(RE_ALIAS)
@@ -47,7 +48,7 @@ RX_COINTEXT = re.compile(RE_COINTEXT, re.I)
 frozen_style = "PayToEdit { border:none;}"
 normal_style = "PayToEdit { }"
 
-class PayToEdit(ScanQRTextEdit):
+class PayToEdit(PrintError, ScanQRTextEdit):
 
     def __init__(self, win):
         ScanQRTextEdit.__init__(self)
@@ -326,7 +327,7 @@ class PayToEdit(ScanQRTextEdit):
         try:
             data = self.win.contacts.resolve(key)
         except Exception as e:
-            print_error(f'error resolving alias: {repr(e)}')
+            self.print_error(f'error resolving alias: {repr(e)}')
             return
         if not data:
             return
@@ -347,8 +348,7 @@ class PayToEdit(ScanQRTextEdit):
         self.setText(new_url)
         self.previous_payto = new_url
 
-        #if self.win.config.get('openalias_autoadd') == 'checked':
-        self.win.contacts[key] = ('openalias', name)
+        self.win.contacts.add(Contact(name=name, address=key, type='openalias'), unique=True)
         self.win.contact_list.on_update()
 
         self.setFrozen(True)

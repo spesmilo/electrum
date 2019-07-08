@@ -1059,7 +1059,7 @@ class Network(util.DaemonThread):
         if index in self.requested_chunks:
             self.requested_chunks.remove(index)
 
-        header_hexsize = 80 * 2
+        header_hexsize = blockchain.HEADER_SIZE * 2
         hexdata = result['hex']
         actual_header_count = len(hexdata) // header_hexsize
         # We accept less headers than we asked for, to cover the case where the distance to the tip was unknown.
@@ -1167,10 +1167,10 @@ class Network(util.DaemonThread):
         handling for the 'default' mode.
 
         A server interface does not get associated with a blockchain
-        until it gets handled in the response to it's first header
+        until it gets handled in the response to its first header
         request.
         '''
-        interface.print_error("requesting header %d" % height)
+        interface.print_error(f"requesting header {height}")
         if height > networks.net.VERIFICATION_BLOCK_HEIGHT:
             params = [height]
         else:
@@ -1401,7 +1401,8 @@ class Network(util.DaemonThread):
     def init_headers_file(self):
         b = self.blockchains[0]
         filename = b.path()
-        length = 80 * (networks.net.VERIFICATION_BLOCK_HEIGHT + 1)
+        # NB: HEADER_SIZE = 80 bytes
+        length = blockchain.HEADER_SIZE * (networks.net.VERIFICATION_BLOCK_HEIGHT + 1)
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
                 if length>0:

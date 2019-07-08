@@ -748,6 +748,11 @@ class Plugin(BasePlugin):
             self._hide_history_txs = not self._hide_history_txs
             Plugin.gui.config.set_key(ConfKeys.Global.HIDE_TXS_FROM_HISTORY, self._hide_history_txs, save=True)
             action.setChecked(self._hide_history_txs)
+            if self._hide_history_txs:
+                tip = _("Shuffle transactions are now hidden")
+            else:
+                tip = _("Shuffle transactions are now shown")
+            QToolTip.showText(QCursor.pos(), tip, history_list)
             history_list.update() # unconditionally update this history list as it may be embedded in the address_detail window and not a global history list..
             for w in Plugin.gui.windows:
                 # Need to update all the other open windows.

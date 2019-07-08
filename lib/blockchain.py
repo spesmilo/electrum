@@ -77,7 +77,9 @@ HEADER_SIZE = 80 # bytes
 MAX_BITS = 0x1d00ffff
 MAX_TARGET = bits_to_target(MAX_BITS)
 # indicates no header in data file
-_NULL_HEADER = bytes([0]) * HEADER_SIZE
+NULL_HEADER = bytes([0]) * HEADER_SIZE
+NULL_HASH_BYTES = bytes([0]) * 32
+NULL_HASH_HEX = NULL_HASH_BYTES.hex()
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -99,13 +101,15 @@ def deserialize_header(s, height):
     h['block_height'] = height
     return h
 
+def hash_header_hex(header_hex):
+    return hash_encode(Hash(bfh(header_hex)))
+
 def hash_header(header):
     if header is None:
-        return '0' * 64
+        return NULL_HASH_HEX
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(bfh(serialize_header(header))))
-
+    return hash_header_hex(serialize_header(header))
 
 blockchains = {}
 
@@ -374,13 +378,13 @@ class Blockchain(util.PrintError):
                 f.seek(delta * HEADER_SIZE)
                 h = f.read(HEADER_SIZE)
             # Is it a pre-checkpoint header that has never been requested?
-            if h == _NULL_HEADER:
+            if h == NULL_HEADER:
                 return None
             return deserialize_header(h, height)
 
     def get_hash(self, height):
         if height == -1:
-            return '0000000000000000000000000000000000000000000000000000000000000000'
+            return NULL_HASH_HEX
         elif height == 0:
             return networks.net.GENESIS
         return hash_header(self.read_header(height))

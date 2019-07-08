@@ -56,7 +56,11 @@ class Synchronizer(ThreadJob):
         self.requested_hashes = set()
         self.h2addr = {}
         self.lock = Lock()
+        self._tick_ct = 0
         self.initialize()
+
+    def diagnostic_name(self):
+        return f"{__class__.__name__}/{self.wallet.diagnostic_name()}"
 
     def parse_response(self, response):
         error = True
@@ -231,6 +235,11 @@ class Synchronizer(ThreadJob):
             self._release()
         if self.cleaned_up:
             return
+
+        if not self._tick_ct:
+            self.print_error("started")
+        self._tick_ct += 1
+
         try:
             # 1. Create new addresses
             self.wallet.synchronize()

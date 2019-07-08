@@ -20,18 +20,75 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from abc import ABC, abstractmethod
 from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
 from . import networks
 from .transaction import Transaction
 
 class InnerNodeOfSpvProofIsValidTx(Exception): pass
+class BadResponse(Exception): pass
+
+class SPVDelegate(ABC):
+    ''' Abstract base class for an object that is SPV-able, such as a wallet.
+    wallet.py 'Abstract_Wallet' implements this interface, as does the
+    CashAccount subsystem which also has its own private SPV verifier running.
+
+    The verifier (SPV) class later in this file relies on this interface to
+    know what to verify. '''
+
+    @abstractmethod
+    def get_unverified_txs(self) -> dict:
+        ''' Return a dict of tx_hash (hex encoded) -> height (int)'''
+
+    @abstractmethod
+    def add_verified_tx(self, tx_hash : str, height_ts_pos_tup : tuple, header : dict) -> None:
+        ''' Called when a verification is successful.
+        Params:
+            #1 tx_hash - hex string
+            #2 tuple of: (tx_height: int, timestamp: int, pos : int)
+            #3 the header - dict. This can be subsequently serialized using
+               blockchain.serialize_header if so desiered, or it can be ignored.
+        '''
+
+    @abstractmethod
+    def is_up_to_date(self) -> bool:
+        ''' Called periodically to determine if more verifications are forth-
+        coming.
+
+        If True is returned:
+                1. save_verified_tx will then be called,
+                2. and the network 'wallet_updated' callback will fire.
+
+        Return False if you do not want the above to happen and/or if you
+        have more work for the SPV to do in the near future. '''
+
+    @abstractmethod
+    def save_verified_tx(self, write : bool = False):
+        ''' Called if is_up_to_date returns True to tell wallet to save verified
+        tx's '''
+
+    @abstractmethod
+    def undo_verifications(self, blkchain : object, height : int) -> set:
+        ''' Called when the blockchain has changed to tell the wallet to undo
+        verifications when a reorg has happened. Returns a set of tx_hashes that
+        were undone.'''
+
+    @abstractmethod
+    def verification_failed(self, tx_hash : str, reason : str):
+        ''' Called by verifier when server did return a response but the tx
+        in question could not be verified. Reason is one of SPV.failure_reasons'''
+
+    @abstractmethod
+    def diagnostic_name(self):
+        ''' Make sure delegate classes have this method (PrintError interface). '''
 
 class SPV(ThreadJob):
     """ Simple Payment Verification """
 
     def __init__(self, network, wallet):
-        self.wallet = wallet
+        assert isinstance(wallet, SPVDelegate), "Verifier instance needs to be passed a wallet that is an object implementing the SPVDelegate interface."
+        self.wallet = wallet  # despite the name, might not always be a wallet instance, may be SPVDelete (CashAcct)
         self.network = network
         self.blockchain = network.blockchain()
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
@@ -39,6 +96,10 @@ class SPV(ThreadJob):
         self.qbusy = False
         self.cleaned_up = False
         self._need_release = False
+        self._tick_ct = 0
+
+    def diagnostic_name(self):
+        return f"{__class__.__name__}/{self.wallet.diagnostic_name()}"
 
     def _release(self):
         ''' Called from the Network (DaemonThread) -- to prevent race conditions
@@ -59,6 +120,11 @@ class SPV(ThreadJob):
             self._release()
         if self.cleaned_up:
             return
+
+        if not self._tick_ct:
+            self.print_error("started")
+        self._tick_ct += 1
+
         interface = self.network.interface
         if not interface:
             self.print_error("v.no interface")
@@ -104,25 +170,51 @@ class SPV(ThreadJob):
             self.blockchain = self.network.blockchain()
             self.undo_verifications()
 
+    failure_reasons = (
+        'inner_node_tx', 'missing_header', 'merkle_mismatch', 'error_response',
+        'misc_failure', 'tx_not_found'
+    )
+
     def verify_merkle(self, response):
         if self.cleaned_up:
-            return  # we have been killed, this was just an orphan callback
-        if response.get('error'):
-            # FIXME: tx will never verify now until server reconnect.
-            self.print_error('received an error:', response)
-            return
-        params = response['params']
-        merkle = response['result']
-        # Verify the hash of the server-provided merkle branch to a
-        # transaction matches the merkle root of its block
-        tx_hash = params[0]
-        tx_height = merkle.get('block_height')
-        pos = merkle.get('pos')
+            return  # we have been killed, this was just a delayed callback
         try:
+            params = response.get('params')
+            tx_hash = params and params[0]
+            if response.get('error'):
+                e = str(response.get('error'))
+                if 'not in block' in e.lower():
+                    raise BadResponse(self.failure_reasons[5], str(response))
+                raise BadResponse('received an error response: ' + str(response))
+            merkle = response.get('result')
+            if (not isinstance(merkle, dict) or not tx_hash
+                    or any(k not in merkle for k in ('block_height', 'merkle', 'pos'))):
+                raise BadResponse(f"missing data in response {response}")
+        except BadResponse as e:
+            freason = self.failure_reasons[3]
+            if len(e.args) == 2:
+                freason = e.args[0]
+             # FIXME: tx will never verify now until switching blockchains or
+             # app restart
+            if tx_hash:
+                self.wallet.verification_failed(tx_hash, freason)
+            self.print_error("verify_merkle:", str(e))
+            return
+
+        try:
+            # Verify the hash of the server-provided merkle branch to a
+            # transaction matches the merkle root of its block
+            tx_height = merkle['block_height']
+            pos = merkle['pos']
             merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
         except InnerNodeOfSpvProofIsValidTx:
             self.print_error("merkle verification failed for {} (inner node looks like tx)"
                              .format(tx_hash))
+            self.wallet.verification_failed(tx_hash, self.failure_reasons[0])
+            return
+        except Exception as e:
+            self.print_error(f"exception while verifying tx {tx_hash}: {repr(e)}")
+            self.wallet.verification_failed(tx_hash, self.failure_reasons[4])
             return
 
         header = self.network.blockchain().read_header(tx_height)
@@ -133,11 +225,13 @@ class SPV(ThreadJob):
             self.print_error(
                 "merkle verification failed for {} (missing header {})"
                 .format(tx_hash, tx_height))
+            self.wallet.verification_failed(tx_hash, self.failure_reasons[1])
             return
         if header.get('merkle_root') != merkle_root:
             self.print_error(
                 "merkle verification failed for {} (merkle root mismatch {} != {})"
                 .format(tx_hash, header.get('merkle_root'), merkle_root))
+            self.wallet.verification_failed(tx_hash, self.failure_reasons[2])
             return
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
@@ -145,7 +239,7 @@ class SPV(ThreadJob):
         # this proof again in case of verification failure from the same server
         self.requested_merkle.discard(tx_hash)
         self.print_error("verified %s" % tx_hash)
-        self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
+        self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos), header)
         if self.is_up_to_date() and self.wallet.is_up_to_date() and not self.qbusy:
             self.wallet.save_verified_tx(write=True)
             self.network.trigger_callback('wallet_updated', self.wallet)  # This callback will happen very rarely.. mostly right as the last tx is verified. It's to ensure GUI is updated fully.

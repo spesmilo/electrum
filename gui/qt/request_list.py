@@ -71,6 +71,7 @@ class RequestList(MyTreeWidget):
         self.parent.receive_opreturn_rawhex_cb.setChecked(opr_is_raw)
         self.parent.receive_opreturn_e.setText(opr or '')
         self.parent.save_request_button.setEnabled(False)
+        self.parent.cash_account_e.set_cash_acct()
 
     def select_item_by_address(self, address):
         self.setCurrentItem(None)

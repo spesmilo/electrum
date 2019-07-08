@@ -24,29 +24,54 @@
 # SOFTWARE.
 
 from functools import partial
+from collections import defaultdict
 
 from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem, rate_limited, webopen
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QColor, QKeySequence
-from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont, QColor, QKeySequence, QCursor, QIcon
+from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu, QToolTip
 from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.plugins import run_hook
 import electroncash.web as web
 from electroncash.util import profiler
 from electroncash import networks
-
+from enum import IntEnum
 
 class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
+
+    _ca_minimal_chash_updated_signal = pyqtSignal(object, str)
+    _cashacct_icon = None
+
+    class DataRoles(IntEnum):
+        address        = Qt.UserRole + 0
+        can_edit_label = Qt.UserRole + 1
+        cash_accounts  = Qt.UserRole + 2
 
     def __init__(self, parent=None):
         super().__init__(parent, self.create_menu, [], 2, deferred_updates=True)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
-        # force attributes to always be defined, even if None, at construction.
         self.wallet = self.parent.wallet
+        self.monospace_font = QFont(MONOSPACE_FONT)
+        assert self.wallet
+        self.cleaned_up = False
+
+        # Cash Accounts support
+        self._ca_cb_registered = False
+        self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
+
+        if not __class__._cashacct_icon:
+            # lazy init the icon
+            __class__._cashacct_icon = QIcon(":icons/cashacct-logo.png")  # TODO: make this an SVG
+
+    def clean_up(self):
+        self.cleaned_up = True
+        if self.wallet.network:
+            self.wallet.network.unregister_callback(self._ca_updated_minimal_chash_callback)
+            self._ca_cb_registered = False
 
     def filter(self, p):
         ''' Reimplementation from superclass filter.  Chops off the
@@ -67,7 +92,7 @@ class AddressList(MyTreeWidget):
 
     @rate_limited(1.0, ts_after=True) # We rate limit the address list refresh no more than once every second
     def update(self):
-        if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
+        if self.cleaned_up:
             # short-cut return if window was closed and wallet is stopped
             return
         super().update()
@@ -97,10 +122,12 @@ class AddressList(MyTreeWidget):
                     new = bool(item_path(it) in expanded_item_names)
                     if old != new:
                         it.setExpanded(new)
-        self.wallet = self.parent.wallet
+        if not self._ca_cb_registered and self.wallet.network:
+            self.wallet.network.register_callback(self._ca_updated_minimal_chash_callback, ['ca_updated_minimal_chash'])
+            self._ca_cb_registered = True
         had_item_count = self.topLevelItemCount()
         sels = self.selectedItems()
-        addresses_to_re_select = {item.data(0, Qt.UserRole) for item in sels}
+        addresses_to_re_select = {item.data(0, self.DataRoles.address) for item in sels}
         expanded_item_names = remember_expanded_items(self.invisibleRootItem())
         del sels  # avoid keeping reference to about-to-be delete C++ objects
         self.clear()
@@ -139,11 +166,31 @@ class AddressList(MyTreeWidget):
             used_item = QTreeWidgetItem( [ _("Used"), '', '', '', '', ''] )
             used_flag = False
             addr_list = change_addresses if is_change else receiving_addresses
+            # Cash Account support - we do this here with the already-prepared addr_list for performance reasons
+            ca_list_all = self.wallet.cashacct.get_cashaccounts(addr_list)
+            ca_by_addr = defaultdict(list)
+            for info in ca_list_all:
+                ca_by_addr[info.address].append(info)
+            del ca_list_all
+            # / cash account
             for n, address in enumerate(addr_list):
                 num = len(self.wallet.get_address_history(address))
                 is_used = self.wallet.is_used(address)
                 balance = sum(self.wallet.get_addr_balance(address))
                 address_text = address.to_ui_string()
+                # Cash Accounts
+                ca_info, ca_list = None, ca_by_addr.get(address)
+                if ca_list:
+                    # Add Cash Account emoji -- the emoji used is the most
+                    # recent cash account registration for said address
+                    ca_list.sort(key=lambda x: ((x.number or 0), str(x.collision_hash)))
+                    for ca in ca_list:
+                        # grab minimal_chash and stash in an attribute. this may kick off the network
+                        ca.minimal_chash = self.wallet.cashacct.get_minimal_chash(ca.name, ca.number, ca.collision_hash)
+                    ca_info = self._ca_get_default(ca_list)
+                    if ca_info:
+                        address_text = ca_info.emoji + " " + address_text
+                # /Cash Accounts
                 label = self.wallet.labels.get(address.to_storage_string(), '')
                 balance_text = self.parent.format_amount(balance, whitespaces=True)
                 columns = [address_text, str(n), label, balance_text, str(num)]
@@ -152,15 +199,25 @@ class AddressList(MyTreeWidget):
                     fiat_balance = fx.value_str(balance, rate)
                     columns.insert(4, fiat_balance)
                 address_item = SortableTreeWidgetItem(columns)
+                if ca_info:
+                    # Set Cash Accounts: tool tip.. this will read the minimal_chash attribute we added to this object above
+                    self._ca_set_item_tooltip(address_item, ca_info)
                 address_item.setTextAlignment(3, Qt.AlignRight)
-                address_item.setFont(3, QFont(MONOSPACE_FONT))
+                address_item.setFont(3, self.monospace_font)
                 if fx:
                     address_item.setTextAlignment(4, Qt.AlignRight)
-                    address_item.setFont(4, QFont(MONOSPACE_FONT))
+                    address_item.setFont(4, self.monospace_font)
 
-                address_item.setFont(0, QFont(MONOSPACE_FONT))
-                address_item.setData(0, Qt.UserRole, address)
-                address_item.setData(0, Qt.UserRole+1, True) # label can be edited
+                # Set col0 address font to monospace
+                address_item.setFont(0, self.monospace_font)
+
+                # Set UserRole data items:
+                address_item.setData(0, self.DataRoles.address, address)
+                address_item.setData(0, self.DataRoles.can_edit_label, True) # label can be edited
+                if ca_list:
+                    # Save the list of cashacct infos, if any
+                    address_item.setData(0, self.DataRoles.cash_accounts, ca_list)
+
                 if self.wallet.is_frozen(address):
                     address_item.setBackground(0, QColor('lightblue'))
                 if self.wallet.is_beyond_limit(address, is_change):
@@ -184,13 +241,14 @@ class AddressList(MyTreeWidget):
         # Now, at the very end, enforce previous UI state with respect to what was expanded or not. See #1042
         restore_expanded_items(self.invisibleRootItem(), expanded_item_names)
 
+
     def create_menu(self, position):
         from electroncash.wallet import Multisig_Wallet
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [item.data(0, Qt.UserRole) for item in selected]
+        addrs = [item.data(0, self.DataRoles.address) for item in selected]
         if not addrs:
             return
         addrs = [addr for addr in addrs if isinstance(addr, Address)]
@@ -224,7 +282,7 @@ class AddressList(MyTreeWidget):
             if alt_copy_text and alt_column_title:
                 # Add 'Copy Legacy Address' and 'Copy Cash Address' alternates if right-click is on column 0
                 menu.addAction(_("Copy {}").format(alt_column_title), lambda: doCopy(alt_copy_text))
-            menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
+            menu.addAction(_('Details') + "...", lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
                 menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(self.itemAt(position), # NB: C++ item may go away if this widget is refreshed while menu is up -- so need to re-grab and not store in lamba. See #953
                                                                                         col))
@@ -251,12 +309,44 @@ class AddressList(MyTreeWidget):
             menu.addAction(_("Spend from"),
                            partial(self.parent.spend_coins, coins))
 
+        # Add Cash Accounts section at the end, if relevant
+        if not multi_select:
+            ca_list = item.data(0, self.DataRoles.cash_accounts)
+            menu.addSeparator()
+            a1 = menu.addAction(_("Cash Accounts"), lambda: None)
+            a1.setDisabled(True)
+            if ca_list:
+                ca_default = self._ca_get_default(ca_list)
+                for ca_info in ca_list:
+                    ca_text = self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash)
+                    m = menu.addMenu(ca_info.emoji + " " + ca_text)
+                    #a = menu.addAction(ca_info.emoji + " " + self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash), lambda: None)
+                    a = m.addAction(_("Copy Cash Account"), lambda x=None, text=ca_text: doCopy(text))
+                    a = m.addAction(_("Details") + "...", lambda: self.parent.show_address(addr))
+                    a = m.addAction(_("View registration tx") + "...", lambda x=None, ca=ca_info: self.parent.do_process_from_txid(txid=ca.txid))
+                    a = a_def = m.addAction(_("Make default for address"), lambda x=None, ca=ca_info: self._ca_set_default(ca, True))
+                    if ca_info == ca_default:
+                        m.setTitle(m.title() + "    " + "★")
+                        a_def.setDisabled(True)
+                        a_def.setCheckable(True)
+                        a_def.setChecked(True)
+                        a_def.setText(_("Is default for address"))
+            else:
+                a1.setText(_("No Cash Accounts"))
+            a_new = menu.addAction(_("Register new..."), lambda x=None, addr=addr: self.parent.register_new_cash_account(addr))
+            if not ca_list and __class__._cashacct_icon:
+                # we only add an icon if there are no cashaccounts
+                # for this address. This is because the icon alongside the emojis
+                # made the ui look too "busy"...
+                a_new.setIcon(__class__._cashacct_icon)
+
+
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy) and self.currentColumn() == 0:
-            addrs = [i.data(0, Qt.UserRole) for i in self.selectedItems()]
+            addrs = [i.data(0, self.DataRoles.address) for i in self.selectedItems()]
             if addrs and isinstance(addrs[0], Address):
                 text = addrs[0].to_full_ui_string()
                 self.parent.app.clipboard().setText(text)
@@ -270,10 +360,66 @@ class AddressList(MyTreeWidget):
             child_count = root.childCount()
             for i in range(child_count):
                 item = root.child(i)
-                addr = item.data(0, Qt.UserRole)
+                addr = item.data(0, self.DataRoles.address)
                 if isinstance(addr, Address):
                     label = self.wallet.labels.get(addr.to_storage_string(), '')
                     item.setText(2, label)
                 if item.childCount():
                     update_recurse(item)
         update_recurse(self.invisibleRootItem())
+
+    def on_doubleclick(self, item, column):
+        if self.permit_edit(item, column):
+            super(AddressList, self).on_doubleclick(item, column)
+        else:
+            addr = item.data(0, self.DataRoles.address)
+            if isinstance(addr, Address):
+                self.parent.show_address(addr)
+
+    #########################
+    # Cash Accounts related #
+    #########################
+    def _ca_set_item_tooltip(self, item, ca_info):
+        minimal_chash = getattr(ca_info, 'minimal_chash', None)
+        info_str = self.wallet.cashacct.fmt_info(ca_info, minimal_chash)
+        item.setToolTip(0, "<i>" + _("Cash Account:") + "</i><p>&nbsp;&nbsp;<b>"
+                           + f"{info_str}</b>")
+
+    def _ca_update_chash(self, ca_info, minimal_chash):
+        ''' Called in GUI thread as a result of the cash account subsystem
+        figuring out that a collision_hash can be represented shorter.
+        Kicked off by a get_minimal_chash() call. '''
+        if self.cleaned_up:
+            return
+        items = self.findItems(ca_info.address.to_ui_string(), Qt.MatchContains|Qt.MatchWrap|Qt.MatchRecursive, 0) or []
+        for item in items:  # really items should contain just 1 element...
+            ca_list = item.data(0, self.DataRoles.cash_accounts) or []
+            ca_info_default = self._ca_get_default(ca_list)
+            for ca_info_saved in ca_list:
+                if ( (ca_info_saved.name.lower(), ca_info_saved.number, ca_info_saved.collision_hash)
+                        == (ca_info.name.lower(), ca_info.number, ca_info.collision_hash) ):
+                    ca_info_saved.minimal_chash = minimal_chash  # save minimal_chash as a property
+                    if ca_info_saved == ca_info_default:
+                        # this was the default one, also set the tooltip
+                        self._ca_set_item_tooltip(item, ca_info)
+
+    def _ca_updated_minimal_chash_callback(self, event, *args):
+        ''' Called from the cash accounts minimal_chash thread after a network
+        round-trip determined that the minimal collision hash can be shorter.'''
+        if (event == 'ca_updated_minimal_chash'
+                and not self.cleaned_up
+                and len(args) >= 3
+                and args[0] is self.wallet.cashacct):
+            self._ca_minimal_chash_updated_signal.emit(args[1], args[2])
+
+    def _ca_get_default(self, ca_list):
+        ''' Alias for self.wallet.cashacct.get_address_default '''
+        return self.wallet.cashacct.get_address_default(ca_list)
+
+    def _ca_set_default(self, ca_info, show_tip = False):
+        ''' Similar to self.wallet.cashacct.set_address_default, but also
+        shows a tooltip optionally, and updates self. '''
+        self.wallet.cashacct.set_address_default(ca_info)
+        if show_tip:
+            QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), self)
+        self.update()

@@ -25,6 +25,7 @@
 
 from electroncash.i18n import _
 from electroncash.address import Address
+from electroncash.util import PrintError
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -33,9 +34,13 @@ from PyQt5.QtWidgets import *
 from .util import *
 from .history_list import HistoryList
 from .qrtextedit import ShowQRTextEdit
+from . import cashacctqt
 
 
-class AddressDialog(WindowModalDialog):
+class AddressDialog(PrintError, WindowModalDialog):
+
+    MIN_WIDTH_NO_FX_HIST = 700
+    MIN_WIDTH_FX_HIST = MIN_WIDTH_NO_FX_HIST + 75
 
     def __init__(self, parent, address, *, windowParent=None):
         assert isinstance(address, Address)
@@ -48,7 +53,7 @@ class AddressDialog(WindowModalDialog):
         self.app = parent.app
         self.saved = True
 
-        self.setMinimumWidth(700)
+        self.setMinimumWidth(self.MIN_WIDTH_FX_HIST if self.parent.fx and self.parent.fx.show_history() else self.MIN_WIDTH_NO_FX_HIST)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
@@ -89,6 +94,22 @@ class AddressDialog(WindowModalDialog):
             redeem_e.addCopyButton()
             vbox.addWidget(redeem_e)
 
+        # Cash Accounts
+        ca_infos = self.wallet.cashacct.get_cashaccounts(self.get_domain())
+        vbox.addSpacing(10)
+        self.cashacct_gb = gb = cashacctqt.InfoGroupBox(self, self.parent, show_addresses=False)
+        self.update_cash_accounts(ca_infos)
+        def on_button_click():
+            item = gb.selectedItem()
+            if item:
+                info, ch, mch = item
+                self.wallet.cashacct.set_address_default(info)
+                QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), gb)
+                self.parent.address_list.update()
+        gb.buttonGroup().buttonClicked.connect(on_button_click)
+        vbox.addWidget(gb)
+        # /Cash Accounts
+
         vbox.addWidget(QLabel(_("History")))
         self.hw = HistoryList(self.parent)
         self.hw.get_domain = self.get_domain
@@ -116,11 +137,29 @@ class AddressDialog(WindowModalDialog):
         except TypeError: pass
 
     def got_verified_tx(self, event, args):
-        if event == 'verified':
-            self.hw.update_item(*args)
+        if event == 'verified2' and args[0] is self.wallet:
+            self.hw.update_item(*args[1:])
+        elif event in ('ca_verified_tx', 'ca_verification_failed') and args[0] == self.wallet.cashacct and args[1].address == self.address:
+            self.update_cash_accounts()
 
     def update_addr(self):
         self.addr_e.setText(self.address.to_full_ui_string())
+
+    def update_cash_accounts(self, ca_infos=None):
+        gb = self.cashacct_gb
+        ca_infos = ca_infos or self.wallet.cashacct.get_cashaccounts(self.get_domain())
+        tups = []
+        for info in ca_infos:
+            tups.append((info, self.wallet.cashacct.get_minimal_chash(info.name, info.number, info.collision_hash)))
+        default = self.wallet.cashacct.get_address_default(ca_infos)
+        gb.setItems(tups)
+        if tups:
+            gb.checkItemWithInfo(default)
+            if not gb.selectedItem():
+                gb.checkItemWithInfo(ca_infos[-1])
+            gb.setHidden(False)
+        else:
+            gb.setHidden(True)
 
     def get_domain(self):
         return [self.address]
