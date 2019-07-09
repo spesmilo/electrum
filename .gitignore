@@ -25,3 +25,6 @@ electrum/gui/kivy/theming/light.atlas
 .cache/
 .coverage
 .pytest_cache
+
+# satochip
+contrib/build-osx/
