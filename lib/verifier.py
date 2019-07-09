@@ -275,9 +275,10 @@ class SPV(ThreadJob):
             return
 
         # Txes can be at most 1 MB and and each output requires >= 9 bytes;
-        # Thus prevout_n must <= 111111 for a real spend; it may also be
-        # max uint32 for a coinbase.
-        if 111111 < txin['prevout_n'] < 0xff_ff_ff_ff:
+        # Thus prevout_n must <= 111111 for a normal transaction.
+        # If prevout_n is larger it still could in principle be a coinbase
+        # transaction, but then the input txid must be zeroed out.
+        if txin['prevout_n'] > 111111 and txin['prevout_hash'] != '00'*32:
             return
 
         # Output amount can't possibly be more than 21 million bitcoin, ie 21e14.
