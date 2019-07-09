@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
 from . import networks
-from .transaction import Transaction
+from .transaction import Transaction, SerializationError
 
 class InnerNodeOfSpvProofIsValidTx(Exception): pass
 class BadResponse(Exception): pass
@@ -262,9 +262,34 @@ class SPV(ThreadJob):
         try:
             tx.deserialize()
         except:
-            pass
-        else:
-            raise InnerNodeOfSpvProofIsValidTx()
+            return
+
+        # Besides deserializing, we perfom additional checks to reduce the
+        # chance that a legitimate merkle node give false positive.
+
+        # A legitimate txn of 64 bytes can only have 1 input and 1 output.
+        try:
+            (txin,) = tx.inputs()
+            (txout,) = tx.outputs()
+        except ValueError:
+            return
+
+        # Txes can be at most 1 MB and and each output requires >= 9 bytes;
+        # Thus prevout_n must <= 111111 for a real spend; it may also be
+        # max uint32 for a coinbase.
+        if 111111 < txin['prevout_n'] < 0xff_ff_ff_ff:
+            return
+
+        # Output amount can't possibly be more than 21 million bitcoin, ie 21e14.
+        if txout['value'] > 2_100_000_000_000_000:
+            return
+
+        # The chance of reaching this point with a random 64-byte node is 3e-18.
+        # This could be reduced further, but only, slightly by:
+        #  - restricting locktime.
+        #  - ensuring scriptSig is nontruncated.
+        #  - restricting version (if a version consensus rule is ever introduced)
+        raise InnerNodeOfSpvProofIsValidTx()
 
     def undo_verifications(self):
         height = self.blockchain.get_base_height()
