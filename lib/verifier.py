@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
 from . import networks
-from .transaction import Transaction, SerializationError
+from .transaction import Transaction
 
 class InnerNodeOfSpvProofIsValidTx(Exception): pass
 class BadResponse(Exception): pass
@@ -281,7 +281,7 @@ class SPV(ThreadJob):
             return
 
         # Output amount can't possibly be more than 21 million bitcoin, ie 21e14.
-        if txout['value'] > 2_100_000_000_000_000:
+        if txout[2] > 2_100_000_000_000_000:
             return
 
         # The chance of reaching this point with a random 64-byte node is 3e-18.
