@@ -360,7 +360,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
         if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
+            raise Exception(f"Invalid groestlcoin address: {address}")
         if not self.is_mine(address):
             raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
@@ -714,7 +714,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
-            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            assert is_address(addr), f"not valid groestlcoin address: {addr}"
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
             self.check_address(addr)
@@ -898,7 +898,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def bump_fee(self, *, tx, new_fee_rate, config) -> Transaction:
         """Increase the miner fee of 'tx'.
-        'new_fee_rate' is the target min rate in sat/vbyte
+        'new_fee_rate' is the target min rate in gro/vbyte
         """
         if tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
