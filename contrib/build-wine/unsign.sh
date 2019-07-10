@@ -24,28 +24,8 @@ for mine in $(ls dist/*.exe); do
     echo "Downloading https://download.electrum.org/$version/$f"
     wget -q https://download.electrum.org/$version/$f -O signed/$f
     out="signed/stripped/$f"
-    size=$( wc -c < $mine )
-    # Step 1: Remove PE signature from signed binary
+    # Remove PE signature from signed binary
     osslsigncode remove-signature -in signed/$f -out $out > /dev/null 2>&1
-    # Step 2: Remove checksum and padding from signed binary
-    python3 <<EOF
-pe_file = "$out"
-size= $size
-with open(pe_file, "rb") as f:
-    binary = bytearray(f.read())
-pe_offset = int.from_bytes(binary[0x3c:0x3c+4], byteorder="little")
-checksum_offset = pe_offset + 88
-for b in range(4):
-    binary[checksum_offset + b] = 0
-l = len(binary)
-n = l - size
-if n > 0:
-   if binary[-n:] != bytearray(n):
-       print('expecting failure for', str(pe_file))
-   binary = binary[:size]
-with open(pe_file, "wb") as f:
-    f.write(binary)
-EOF
     chmod +x $out
     if cmp -s $out $mine; then
 	echo "Success: $f"
