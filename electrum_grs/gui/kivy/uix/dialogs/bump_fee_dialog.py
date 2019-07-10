@@ -24,8 +24,8 @@ Builder.load_string('''
                 text: _('Current Fee')
                 value: ''
             BoxLabel:
-                id: new_fee
-                text: _('New Fee')
+                id: old_feerate
+                text: _('Current Fee rate')
                 value: ''
         Label:
             id: tooltip1
@@ -78,15 +78,14 @@ class BumpFeeDialog(Factory.Popup):
         self.mempool = self.config.use_mempool_fees()
         self.dynfees = self.config.is_dynfee() and bool(self.app.network) and self.config.has_dynamic_fees_ready()
         self.ids.old_fee.value = self.app.format_amount_and_units(self.init_fee)
+        self.ids.old_feerate.value = self.app.format_fee_rate(fee / self.tx_size * 1000)
         self.update_slider()
         self.update_text()
 
     def update_text(self):
-        fee = self.get_fee()
-        self.ids.new_fee.value = self.app.format_amount_and_units(fee)
         pos = int(self.ids.slider.value)
-        fee_rate = self.get_fee_rate()
-        text, tooltip = self.config.get_fee_text(pos, self.dynfees, self.mempool, fee_rate)
+        new_fee_rate = self.get_fee_rate()
+        text, tooltip = self.config.get_fee_text(pos, self.dynfees, self.mempool, new_fee_rate)
         self.ids.tooltip1.text = text
         self.ids.tooltip2.text = tooltip
 
@@ -103,16 +102,12 @@ class BumpFeeDialog(Factory.Popup):
             fee_rate = self.config.depth_to_fee(pos) if self.mempool else self.config.eta_to_fee(pos)
         else:
             fee_rate = self.config.static_fee(pos)
-        return fee_rate
-
-    def get_fee(self):
-        fee_rate = self.get_fee_rate()
-        return int(fee_rate * self.tx_size // 1000)
+        return fee_rate  # sat/kbyte
 
     def on_ok(self):
-        new_fee = self.get_fee()
+        new_fee_rate = self.get_fee_rate() / 1000
         is_final = self.ids.final_cb.active
-        self.callback(self.init_fee, new_fee, is_final)
+        self.callback(new_fee_rate, is_final)
 
     def on_slider(self, value):
         self.update_text()

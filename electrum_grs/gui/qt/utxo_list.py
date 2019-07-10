@@ -124,6 +124,8 @@ class UTXOList(MyTreeView):
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
             # "Copy ..."
             idx = self.indexAt(position)
+            if not idx.isValid():
+                return
             col = idx.column()
             column_title = self.model().horizontalHeaderItem(col).text()
             copy_text = self.model().itemFromIndex(idx).text() if col != self.Columns.OUTPOINT else selected[0]

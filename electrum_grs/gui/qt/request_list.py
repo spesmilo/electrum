@@ -105,9 +105,10 @@ class RequestList(MyTreeView):
         except InternalAddressCorruption as e:
             self.parent.show_error(str(e))
             addr = ''
-        if not current_address in domain and addr:
+        if current_address not in domain and addr:
             self.parent.set_receive_address(addr)
         self.parent.new_request_button.setEnabled(addr != current_address)
+        self.parent.update_receive_address_styling()
 
         self.model().clear()
         self.update_headers(self.__class__.headers)
