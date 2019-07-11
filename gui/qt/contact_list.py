@@ -337,6 +337,12 @@ class ContactList(PrintError, MyTreeWidget):
         edited = self._edited_item_cur_sel
         for contact in self.get_full_contacts(include_pseudo=self.show_my_cashaccts):
             _type, name, address = contact.type, contact.name, contact.address
+            if _type in ('cashacct', 'cashacct_W', 'address'):
+                try:
+                    # try and re-parse and re-display the address based on current UI string settings
+                    address = Address.from_string(address).to_ui_string()
+                except:
+                    ''' This may happen because we may not have always enforced this as strictly as we could have in legacy code. Just move on.. '''
             item = QTreeWidgetItem(["", name, address, type_names[_type]])
             item.setData(0, self.DataRoles.Contact, contact)
             item.DataRole = self.DataRoles.Contact
