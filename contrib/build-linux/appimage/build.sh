@@ -132,10 +132,10 @@ info "preparing electrum-grs-locale."
 
 info "installing electrum-GRS and its dependencies."
 mkdir -p "$CACHEDIR/pip_cache"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
-"$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
+"$python" -m pip install --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
 
 
 info "copying zbar"
@@ -157,12 +157,8 @@ info "finalizing AppDir."
 
     cd "$APPDIR"
     # copy system dependencies
-    # note: temporarily move PyQt5 out of the way so
-    # we don't try to bundle its system dependencies.
-    mv "$APPDIR/usr/lib/python3.6/site-packages/PyQt5" "$BUILDDIR"
     copy_deps; copy_deps; copy_deps
     move_lib
-    mv "$BUILDDIR/PyQt5" "$APPDIR/usr/lib/python3.6/site-packages"
 
     # apply global appimage blacklist to exclude stuff
     # move usr/include out of the way to preserve usr/include/python3.6m.
@@ -171,10 +167,12 @@ info "finalizing AppDir."
     mv usr/include.tmp usr/include
 ) || fail "Could not finalize AppDir"
 
-# copy libusb here because it is on the AppImage excludelist and it can cause problems if we use system libusb
-info "Copying libusb"
-cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
-
+# We copy some libraries here that are on the AppImage excludelist
+info "Copying additional libraries"
+(
+    # On some systems it can cause problems to use the system libusb
+    cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
+)
 
 info "stripping binaries from debug symbols."
 # "-R .note.gnu.build-id" also strips the build id
@@ -231,8 +229,11 @@ find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 info "creating the AppImage."
 (
     cd "$BUILDDIR"
-    chmod +x "$CACHEDIR/appimagetool"
-    "$CACHEDIR/appimagetool" --appimage-extract
+    cp "$CACHEDIR/appimagetool" "$CACHEDIR/appimagetool_copy"
+    # zero out "appimage" magic bytes, as on some systems they confuse the linker
+    sed -i 's|AI\x02|\x00\x00\x00|' "$CACHEDIR/appimagetool_copy"
+    chmod +x "$CACHEDIR/appimagetool_copy"
+    "$CACHEDIR/appimagetool_copy" --appimage-extract
     # We build a small wrapper for mksquashfs that removes the -mkfs-fixed-time option
     # that mksquashfs from squashfskit does not support. It is not needed for squashfskit.
     cat > ./squashfs-root/usr/lib/appimagekit/mksquashfs << EOF

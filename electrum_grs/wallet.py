@@ -902,6 +902,7 @@ class Abstract_Wallet(AddressSynchronizer):
         """
         if tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
+        new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         old_tx_size = tx.estimated_size()
         old_fee = self.get_tx_fee(tx)
         if old_fee is None:
@@ -925,10 +926,12 @@ class Abstract_Wallet(AddressSynchronizer):
                 tx=tx, new_fee_rate=new_fee_rate)
             method_used = 2
 
-        actual_new_fee_rate = tx_new.get_fee() / tx_new.estimated_size()
-        if quantize_feerate(actual_new_fee_rate) < quantize_feerate(new_fee_rate):
-            raise Exception(f"bump_fee feerate target was not met (method: {method_used}). "
-                            f"got {actual_new_fee_rate}, expected >={new_fee_rate}")
+        target_min_fee = new_fee_rate * tx_new.estimated_size()
+        actual_fee = tx_new.get_fee()
+        if actual_fee + 1 < target_min_fee:
+            raise Exception(f"bump_fee fee target was not met (method: {method_used}). "
+                            f"got {actual_fee}, expected >={target_min_fee}. "
+                            f"target rate was {new_fee_rate}")
 
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
         return tx_new
@@ -2051,10 +2054,10 @@ def restore_wallet_from_text(text, *, path, network=None,
         if not good_inputs:
             raise Exception("None of the given privkeys can be imported")
     else:
-        if keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
-        elif keystore.is_master_key(text):
+        if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
+        elif keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase)
         else:
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())

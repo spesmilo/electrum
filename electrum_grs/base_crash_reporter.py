@@ -131,3 +131,20 @@ class BaseCrashReporter(Logger):
 
     def get_wallet_type(self):
         raise NotImplementedError
+
+
+def trigger_crash():
+    # note: do not change the type of the exception, the message,
+    # or the name of this method. All reports generated through this
+    # method will be grouped together by the crash reporter, and thus
+    # don't spam the issue tracker.
+
+    class TestingException(Exception):
+        pass
+
+    def crash_test():
+        raise TestingException("triggered crash for testing purposes")
+
+    import threading
+    t = threading.Thread(target=crash_test)
+    t.start()

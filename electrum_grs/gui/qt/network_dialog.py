@@ -359,8 +359,9 @@ class NetworkChoiceLayout(object):
         net_params = self.network.get_parameters()
         host, port, protocol = net_params.host, net_params.port, net_params.protocol
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        self.server_host.setText(host)
-        self.server_port.setText(str(port))
+        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
+            self.server_host.setText(host)
+            self.server_port.setText(str(port))
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
