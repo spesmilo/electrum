@@ -32,7 +32,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-version = 3.3.7
+version = 3.3.8
 
 # (list) Application requirements
 requirements =
