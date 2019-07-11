@@ -382,7 +382,8 @@ class ChannelDB(SqlDB):
         c.execute("""REPLACE INTO policy (key, cltv_expiry_delta, htlc_minimum_msat, htlc_maximum_msat, fee_base_msat, fee_proportional_millionths, channel_flags, timestamp) VALUES (?,?,?,?,?,?, ?, ?)""", list(policy))
 
     @sql
-    def delete_policy(self, short_channel_id, node_id):
+    def delete_policy(self, node_id, short_channel_id):
+        key = short_channel_id + node_id
         c = self.conn.cursor()
         c.execute("""DELETE FROM policy WHERE key=?""", (key,))
 
@@ -390,6 +391,11 @@ class ChannelDB(SqlDB):
     def save_channel(self, channel_info):
         c = self.conn.cursor()
         c.execute("REPLACE INTO channel_info (short_channel_id, node1_id, node2_id, capacity_sat) VALUES (?,?,?,?)", list(channel_info))
+
+    @sql
+    def delete_channel(self, short_channel_id):
+        c = self.conn.cursor()
+        c.execute("""DELETE FROM channel_info WHERE short_channel_id=?""", (short_channel_id,))
 
     @sql
     def save_node(self, node_info):
@@ -467,6 +473,7 @@ class ChannelDB(SqlDB):
         l = self.get_old_policies(delta)
         for k in l:
             self._policies.pop(k)
+            self.delete_policy(*k)
         if l:
             self.logger.info(f'Deleting {len(l)} old policies')
 
@@ -476,8 +483,9 @@ class ChannelDB(SqlDB):
 
     def prune_orphaned_channels(self):
         l = self.get_orphaned_channels()
-        for k in l:
-            self.remove_channel(k)
+        for short_channel_id in l:
+            self.remove_channel(short_channel_id)
+            self.delete_channel(short_channel_id)
         self.update_counts()
         if l:
             self.logger.info(f'Deleting {len(l)} orphaned channels')

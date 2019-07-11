@@ -109,8 +109,6 @@ class LNWorker(Logger):
 
     @log_exceptions
     async def main_loop(self):
-        # fixme: only lngossip should do that
-        await self.channel_db.load_data()
         while True:
             await asyncio.sleep(1)
             now = time.time()
@@ -265,11 +263,13 @@ class LNGossip(LNWorker):
         self.network.trigger_callback('ln_status', num_peers, num_nodes, known, unknown)
 
     async def maintain_db(self):
-        self.channel_db.prune_orphaned_channels()
+        await self.channel_db.load_data()
         while True:
-            self.channel_db.prune_old_policies(self.max_age)
+            if len(self.unknown_ids) == 0:
+                self.channel_db.prune_old_policies(self.max_age)
+                self.channel_db.prune_orphaned_channels()
             self.refresh_gui()
-            await asyncio.sleep(5)
+            await asyncio.sleep(120)
 
     async def add_new_ids(self, ids):
         known = self.channel_db.get_channel_ids()
@@ -277,7 +277,7 @@ class LNGossip(LNWorker):
         self.unknown_ids.update(new)
 
     def get_ids_to_query(self):
-        N = 100
+        N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
         return l[0:N]
