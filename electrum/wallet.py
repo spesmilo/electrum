@@ -1271,7 +1271,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
         if self.parse_registeraddress_tx(tx, parent_window):
-                return True
+            return True
         if self.parse_whitelist_tx(tx):
             return True
         return False
@@ -1373,10 +1373,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
         i1=0
         i2=33
-
         if(len(data)<2*pubKeySize+minPayloadSize):
             return False
-        
         kyc_pubkey=data[i1:i2]
         #Check if this is a onboarding TX
         try:
@@ -1385,7 +1383,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         except ValueError:
             return False
-        
         i1=i2
         i2+=33
         userOnboardPubKey = data[i1:i2]         
@@ -1395,15 +1392,12 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         except ValueError:
             return False
-
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
         _onboardUserKey = self.derive_onboard_priv_key(onboardAddress, parent_window)
-
         if _onboardUserKey is None:
             print('Failed to retrieve the onboarding private key from the address')
             return False
-
         i1=i2
         ciphertext=data[i1:]
         try:
@@ -1413,7 +1407,6 @@ class Abstract_Wallet(AddressSynchronizer):
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == _kyc_pubkey:
             return False
-
         self.parse_ratx_addresses(plaintext)
 
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
@@ -1444,7 +1437,7 @@ class Abstract_Wallet(AddressSynchronizer):
             i3 = i2 + 33
             bkupI = i2
 
-            if i3 >= ptlen:
+            if i3 > ptlen:
                 break
 
 
@@ -1456,7 +1449,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     bkupI = i3
                     i3 += 33
                         
-                    if i3 >= ptlen:
+                    if i3 > ptlen:
                         moreLeft = False
                         break
 
@@ -1478,6 +1471,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if len(decoded) is not 0:
                 txtype=decoded['type']
                 if txtype == 'registeraddress':
+                    print('reached reg')
                     data=decoded['data']
                     break
                 else:

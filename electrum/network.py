@@ -1169,6 +1169,7 @@ class Network(util.DaemonThread):
             offset_path = b.offset_path()
             if os.path.exists(offset_path):
                 os.remove(offset_path)
+            self.sub_cache = {} 
             self.blockchains = blockchain.read_blockchains(self.config)
             self.blockchain_index = 0
             self.init_headers_file()
