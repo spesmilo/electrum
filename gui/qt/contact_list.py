@@ -365,9 +365,11 @@ class ContactList(PrintError, MyTreeWidget):
                     tt_warn = tt = _('Warning: This Cash Account is not verified')
                 item.setToolTip(0, tt)
                 if tt_warn: item.setToolTip(1, tt_warn)
-                item.setFont(2, self.monospace_font)
             if _type in type_icons:
                 item.setIcon(3, type_icons[_type])
+            # always give the "Address" field a monospace font even if it's
+            # not strictly an address such as openalias...
+            item.setFont(2, self.monospace_font)
             self.addTopLevelItem(item)
             if contact == current_contact or (contact == edited[0] and edited[1]):
                 current_item = item  # this key was the current item before and it hasn't gone away
