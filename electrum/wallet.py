@@ -1348,7 +1348,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return False
 
-
         try: 
             fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)

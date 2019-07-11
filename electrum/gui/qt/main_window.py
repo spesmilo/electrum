@@ -2658,9 +2658,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
     def rescan_blockchain_dialog(self):
-        self.wallet.stop_threads()
-        self.network.rescan_blockchain()
-        self.wallet.start_threads(self.network)
+        with self.lock:
+            self.wallet.stop_threads()
+            self.wallet.registered_addresses = set()
+            self.wallet.storage.put('registered_addresses', [])
+            self.wallet.frozen_addresses = set()
+            self.wallet.storage.put('frozen_addresses', [])
+            historyBackup = self.wallet.history
+            self.wallet.clear_history()
+            for it in historyBackup:
+                historyBackup[it] = []
+            self.wallet.history = historyBackup
+            self.wallet.start_threads(self.network)
+            self.network.rescan_blockchain()
 
     def dumpkyckey_dialog(self):
         kycPubKey = self.wallet.get_kyc_pubkey()
