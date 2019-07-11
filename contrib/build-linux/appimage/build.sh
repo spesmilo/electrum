@@ -229,8 +229,11 @@ find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 info "creating the AppImage."
 (
     cd "$BUILDDIR"
-    chmod +x "$CACHEDIR/appimagetool"
-    "$CACHEDIR/appimagetool" --appimage-extract
+    cp "$CACHEDIR/appimagetool" "$CACHEDIR/appimagetool_copy"
+    # zero out "appimage" magic bytes, as on some systems they confuse the linker
+    sed -i 's|AI\x02|\x00\x00\x00|' "$CACHEDIR/appimagetool_copy"
+    chmod +x "$CACHEDIR/appimagetool_copy"
+    "$CACHEDIR/appimagetool_copy" --appimage-extract
     # We build a small wrapper for mksquashfs that removes the -mkfs-fixed-time option
     # that mksquashfs from squashfskit does not support. It is not needed for squashfskit.
     cat > ./squashfs-root/usr/lib/appimagekit/mksquashfs << EOF
