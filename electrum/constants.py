@@ -86,6 +86,7 @@ class OceanTestnet(OceanMainnet):
     TESTNET = True
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = []
+    WIF_PREFIX = 0xEF
     ADDRTYPE_P2PKH = 235
     ADDRTYPE_P2SH = 75
     WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
