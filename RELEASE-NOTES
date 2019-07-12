@@ -1,3 +1,12 @@
+# Release 3.3.8 - (July 11, 2019)
+
+ * fix some bugs with recent bump fee (RBF) improvements (#5483, #5502)
+ * fix #5491: watch-only wallets could not bump fee in some cases
+ * appimage: URLs could not be opened on some desktop environments (#5425)
+ * faster tx signing for segwit inputs for really large txns (#5494)
+ * A few other minor bugfixes and usability improvements.
+
+
 # Release 3.3.7 - (July 3, 2019)
 
  * The AppImage Linux x86_64 binary and the Windows setup.exe
