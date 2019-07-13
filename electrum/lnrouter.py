@@ -129,6 +129,10 @@ class LNPathFinder(Logger):
         self.channel_db = channel_db
         self.blacklist = set()
 
+    def add_to_blacklist(self, short_channel_id):
+        self.logger.info(f'blacklisting channel {bh2u(short_channel_id)}')
+        self.blacklist.add(short_channel_id)
+
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
                    payment_amt_msat: int, ignore_costs=False) -> Tuple[float, int]:
         """Heuristic cost of going through a channel.
@@ -140,7 +144,11 @@ class LNPathFinder(Logger):
         channel_policy = self.channel_db.get_policy_for_node(short_channel_id, start_node)
         if channel_policy is None:
             return float('inf'), 0
-        if channel_policy.is_disabled(): return float('inf'), 0
+        # channels that did not publish both policies often return temporary channel failure
+        if self.channel_db.get_policy_for_node(short_channel_id, end_node) is None:
+            return float('inf'), 0
+        if channel_policy.is_disabled():
+            return float('inf'), 0
         route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
         if payment_amt_msat < channel_policy.htlc_minimum_msat:
             return float('inf'), 0  # payment amount too little

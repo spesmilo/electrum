@@ -527,6 +527,16 @@ class ChannelDB(SqlDB):
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
         self.logger.info(f'load data {len(self._channels)} {len(self._policies)} {len(self._channels_for_node)}')
         self.update_counts()
+        self.count_incomplete_channels()
+
+    def count_incomplete_channels(self):
+        out = set()
+        for short_channel_id, ci in self._channels.items():
+            p1 = self.get_policy_for_node(short_channel_id, ci.node1_id)
+            p2 = self.get_policy_for_node(short_channel_id, ci.node2_id)
+            if p1 is None or p2 is not None:
+                out.add(short_channel_id)
+        self.logger.info(f'semi-orphaned: {len(out)}')
 
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes) -> Optional['Policy']:
         return self._policies.get((node_id, short_channel_id))

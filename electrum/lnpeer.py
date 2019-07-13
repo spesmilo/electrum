@@ -1019,8 +1019,7 @@ class Peer(Logger):
             except IndexError:
                 self.logger.info("payment destination reported error")
             else:
-                self.logger.info(f'blacklisting channel {bh2u(short_chan_id)}')
-                self.network.path_finder.blacklist.add(short_chan_id)
+                self.network.path_finder.add_to_blacklist(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
         ctn_to_sign = chan.get_current_ctn(REMOTE) + 1
