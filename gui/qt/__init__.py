@@ -193,7 +193,7 @@ class ElectrumGui(QObject, PrintError):
         except ImportError:
             # Closes #1436 -- Some "Run from source" Linux users lack QtSvg
             # (partial PyQt5 install)
-            msg = _("A required Qt module, QtSvg was not found. Please fully install all of PyQt5 5.11 or above to resolve this issue.")
+            msg = _("A required Qt module, QtSvg was not found. Please fully install all of PyQt5 5.12 or above to resolve this issue.")
             if sys.platform == 'linux':
                 msg += "\n\n" + _("On Linux, you may try:\n\n    python3 -m pip install --user -I pyqt5")
                 if shutil.which('apt'):
