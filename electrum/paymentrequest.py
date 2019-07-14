@@ -27,6 +27,7 @@ import sys
 import time
 import traceback
 import json
+from typing import Optional
 
 import certifi
 import urllib.parse
@@ -39,11 +40,15 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
 from .network import Network
+from .logging import get_logger, Logger
+
+
+_logger = get_logger(__name__)
 
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
@@ -86,11 +91,21 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                     else:
                         data = resp_content
                     data_len = len(data) if data is not None else None
-                    print_error('fetched payment request', url, data_len)
+                    _logger.info(f'fetched payment request {url} {data_len}')
         except aiohttp.ClientError as e:
-            error = f"Error while contacting payment URL:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Error while contacting payment URL: {url}.\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             data = None
     elif u.scheme == 'file':
         try:
@@ -102,15 +117,15 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
     else:
         data = None
         error = f"Unknown scheme for payment request. URL: {url}"
-    pr = PaymentRequest(data, error)
+    pr = PaymentRequest(data, error=error)
     return pr
 
 
 class PaymentRequest:
 
-    def __init__(self, data, error=None):
+    def __init__(self, data, *, error=None):
         self.raw = data
-        self.error = error
+        self.error = error  # FIXME overloaded and also used when 'verify' succeeds
         self.parse(data)
         self.requestor = None # known after verify
         self.tx = None
@@ -119,6 +134,7 @@ class PaymentRequest:
         return str(self.raw)
 
     def parse(self, r):
+        self.outputs = []
         if self.error:
             return
         self.id = bh2u(sha256(r)[0:16])
@@ -130,7 +146,6 @@ class PaymentRequest:
             return
         self.details = pb2.PaymentDetails()
         self.details.ParseFromString(self.data.serialized_payment_details)
-        self.outputs = []
         for o in self.details.outputs:
             type_, addr = transaction.get_address_from_output_script(o.script)
             if type_ != TYPE_ADDRESS:
@@ -180,7 +195,7 @@ class PaymentRequest:
         try:
             x, ca = verify_cert_chain(cert.certificate)
         except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
+            _logger.exception('')
             self.error = str(e)
             return False
         # get requestor name
@@ -231,7 +246,9 @@ class PaymentRequest:
             self.error = "unknown algo"
             return False
 
-    def has_expired(self):
+    def has_expired(self) -> Optional[bool]:
+        if not hasattr(self, 'details'):
+            return None
         return self.details.expires and self.details.expires < int(time.time())
 
     def get_expiration_date(self):
@@ -298,9 +315,19 @@ class PaymentRequest:
                     print(f"PaymentACK message received: {paymntack.memo}")
                     return True, paymntack.memo
         except aiohttp.ClientError as e:
-            error = f"Payment Message/PaymentACK Failed:\n{repr(e)}"
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
-                error += "\n" + resp_content.decode("utf8")
+            error = f"Payment Message/PaymentACK Failed:\nerror type: {type(e)}"
+            if isinstance(e, aiohttp.ClientResponseError):
+                error += f"\nGot HTTP status code {e.status}."
+                if resp_content:
+                    try:
+                        error_text_received = resp_content.decode("utf8")
+                    except UnicodeDecodeError:
+                        error_text_received = "(failed to decode error)"
+                    else:
+                        error_text_received = error_text_received[:400]
+                    error_oneline = ' -- '.join(error.split('\n'))
+                    _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
+                                 f"{repr(e)} text: {error_text_received}")
             return False, error
 
 
@@ -454,9 +481,10 @@ def make_request(config, req):
 
 
 
-class InvoiceStore(object):
+class InvoiceStore(Logger):
 
     def __init__(self, storage):
+        Logger.__init__(self)
         self.storage = storage
         self.invoices = {}
         self.paid = {}
@@ -511,7 +539,7 @@ class InvoiceStore(object):
     def get_status(self, key):
         pr = self.get(key)
         if pr is None:
-            print_error("[InvoiceStore] get_status() can't find pr for", key)
+            self.logger.info(f"get_status() can't find pr for {key}")
             return
         if pr.tx is not None:
             return PR_PAID
@@ -537,4 +565,7 @@ class InvoiceStore(object):
         return self.invoices.values()
 
     def unpaid_invoices(self):
-        return [ self.invoices[k] for k in filter(lambda x: self.get_status(x)!=PR_PAID, self.invoices.keys())]
+        return [self.invoices[k] for k in
+                filter(lambda x: self.get_status(x) not in (PR_PAID, None),
+                       self.invoices.keys())
+                ]

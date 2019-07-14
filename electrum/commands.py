@@ -35,17 +35,16 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
+from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from .bip32 import BIP32Node
 from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .storage import WalletStorage
-from . import keystore
-from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
-from .mnemonic import Mnemonic
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
+from .address_synchronizer import TX_HEIGHT_LOCAL
 
 if TYPE_CHECKING:
     from .network import Network
@@ -135,79 +134,37 @@ class Commands:
 
     @command('')
     def create(self, passphrase=None, password=None, encrypt_file=True, segwit=False):
-        """Create a new wallet"""
-        storage = WalletStorage(self.config.get_wallet_path())
-        if storage.file_exists():
-            raise Exception("Remove the existing wallet first!")
-
-        seed_type = 'segwit' if segwit else 'standard'
-        seed = Mnemonic('en').make_seed(seed_type)
-        k = keystore.from_seed(seed, passphrase)
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
-        wallet = Wallet(storage)
-        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
-        wallet.synchronize()
-        msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
-
-        wallet.storage.write()
-        return {'seed': seed, 'path': wallet.storage.path, 'msg': msg}
+        """Create a new wallet.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
+        d = create_new_wallet(path=self.config.get_wallet_path(),
+                              passphrase=passphrase,
+                              password=password,
+                              encrypt_file=encrypt_file,
+                              segwit=segwit)
+        return {
+            'seed': d['seed'],
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
     @command('')
     def restore(self, text, passphrase=None, password=None, encrypt_file=True):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
-        or bitcoin private keys. If you want to be prompted for your
-        seed, type '?' or ':' (concealed) """
-        storage = WalletStorage(self.config.get_wallet_path())
-        if storage.file_exists():
-            raise Exception("Remove the existing wallet first!")
-
-        text = text.strip()
-        if keystore.is_address_list(text):
-            wallet = Imported_Wallet(storage)
-            addresses = text.split()
-            good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
-            # FIXME tell user about bad_inputs
-            if not good_inputs:
-                raise Exception("None of the given addresses can be imported")
-        elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
-            k = keystore.Imported_KeyStore({})
-            storage.put('keystore', k.dump())
-            wallet = Imported_Wallet(storage)
-            keys = keystore.get_private_keys(text)
-            good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
-            # FIXME tell user about bad_inputs
-            if not good_inputs:
-                raise Exception("None of the given privkeys can be imported")
-        else:
-            if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase)
-            elif keystore.is_master_key(text):
-                k = keystore.from_master_key(text)
-            else:
-                raise Exception("Seed or key not recognized")
-            storage.put('keystore', k.dump())
-            storage.put('wallet_type', 'standard')
-            wallet = Wallet(storage)
-
-        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
-        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
-        wallet.synchronize()
-
-        if self.network:
-            wallet.start_network(self.network)
-            print_error("Recovering wallet...")
-            wallet.wait_until_synchronized()
-            wallet.stop_threads()
-            # note: we don't wait for SPV
-            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-        else:
-            msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
-                   "Start a daemon (not offline) to sync history.")
-
-        wallet.storage.write()
-        return {'path': wallet.storage.path, 'msg': msg}
+        or bitcoin private keys.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
+        d = restore_wallet_from_text(text,
+                                     path=self.config.get_wallet_path(),
+                                     passphrase=passphrase,
+                                     password=password,
+                                     encrypt_file=encrypt_file,
+                                     network=self.network)
+        return {
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -218,6 +175,11 @@ class Commands:
         self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()
         return {'password':self.wallet.has_password()}
+
+    @command('w')
+    def get(self, key):
+        """Return item from wallet storage"""
+        return self.wallet.storage.get(key)
 
     @command('')
     def getconfig(self, key):
@@ -329,7 +291,8 @@ class Commands:
     def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         tx = Transaction(tx)
-        return self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        return tx.txid()
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -342,12 +305,12 @@ class Commands:
     @command('w')
     def freeze(self, address):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
-        return self.wallet.set_frozen_state([address], True)
+        return self.wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
     def unfreeze(self, address):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
-        return self.wallet.set_frozen_state([address], False)
+        return self.wallet.set_frozen_state_of_addresses([address], False)
 
     @command('wp')
     def getprivatekeys(self, address, password=None):
@@ -427,6 +390,15 @@ class Commands:
     def getmasterprivate(self, password=None):
         """Get master private key. Return your wallet\'s master private key"""
         return str(self.wallet.keystore.get_master_private_key(password))
+
+    @command('')
+    def convert_xkey(self, xkey, xtype):
+        """Convert xtype of a master key. e.g. xpub -> ypub"""
+        try:
+            node = BIP32Node.from_xkey(xkey)
+        except:
+            raise Exception('xkey should be a master public/private key')
+        return node._replace(xtype=xtype).to_xkey()
 
     @command('wp')
     def getseed(self, password=None):
@@ -520,11 +492,14 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False):
+    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False,
+                from_height=None, to_height=None):
         """Wallet history. Returns the transaction history of your wallet."""
         kwargs = {
             'show_addresses': show_addresses,
             'show_fees': show_fees,
+            'from_height': from_height,
+            'to_height': to_height,
         }
         if year:
             import time
@@ -568,7 +543,7 @@ class Commands:
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in self.wallet.get_addresses():
-            if frozen and not self.wallet.is_frozen(addr):
+            if frozen and not self.wallet.is_frozen_address(addr):
                 continue
             if receiving and self.wallet.is_change(addr):
                 continue
@@ -591,9 +566,10 @@ class Commands:
     @command('n')
     def gettransaction(self, txid):
         """Retrieve a transaction. """
-        if self.wallet and txid in self.wallet.transactions:
-            tx = self.wallet.transactions[txid]
-        else:
+        tx = None
+        if self.wallet:
+            tx = self.wallet.db.get_transaction(txid)
+        if tx is None:
             raw = self.network.run_from_another_thread(self.network.get_transaction(txid))
             if raw:
                 tx = Transaction(raw)
@@ -602,16 +578,27 @@ class Commands:
         return tx.as_dict()
 
     @command('')
-    def encrypt(self, pubkey, message):
+    def encrypt(self, pubkey, message) -> str:
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
+        if not is_hex_str(pubkey):
+            raise Exception(f"pubkey must be a hex string instead of {repr(pubkey)}")
+        try:
+            message = to_bytes(message)
+        except TypeError:
+            raise Exception(f"message must be a string-like object instead of {repr(message)}")
         public_key = ecc.ECPubkey(bfh(pubkey))
         encrypted = public_key.encrypt_message(message)
-        return encrypted
+        return encrypted.decode('utf-8')
 
     @command('wp')
-    def decrypt(self, pubkey, encrypted, password=None):
+    def decrypt(self, pubkey, encrypted, password=None) -> str:
         """Decrypt a message encrypted with a public key."""
-        return self.wallet.decrypt_message(pubkey, encrypted, password)
+        if not is_hex_str(pubkey):
+            raise Exception(f"pubkey must be a hex string instead of {repr(pubkey)}")
+        if not isinstance(encrypted, (str, bytes, bytearray)):
+            raise Exception(f"encrypted must be a string-like object instead of {repr(encrypted)}")
+        decrypted = self.wallet.decrypt_message(pubkey, encrypted, password)
+        return decrypted.decode('utf-8')
 
     def _format_request(self, out):
         pr_str = {
@@ -688,7 +675,7 @@ class Commands:
         tx = Transaction(tx)
         if not self.wallet.add_transaction(tx.txid(), tx):
             return False
-        self.wallet.save_transactions()
+        self.wallet.storage.write()
         return tx.txid()
 
     @command('wp')
@@ -742,6 +729,36 @@ class Commands:
         if fee_level is not None:
             fee_level = Decimal(fee_level)
         return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
+
+    @command('w')
+    def removelocaltx(self, txid):
+        """Remove a 'local' transaction from the wallet, and its dependent
+        transactions.
+        """
+        if not is_hash256_str(txid):
+            raise Exception(f"{repr(txid)} is not a txid")
+        height = self.wallet.get_tx_height(txid).height
+        to_delete = {txid}
+        if height != TX_HEIGHT_LOCAL:
+            raise Exception(f'Only local transactions can be removed. '
+                            f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
+        to_delete |= self.wallet.get_depending_transactions(txid)
+        for tx_hash in to_delete:
+            self.wallet.remove_transaction(tx_hash)
+        self.wallet.storage.write()
+
+    @command('wn')
+    def get_tx_status(self, txid):
+        """Returns some information regarding the tx. For now, only confirmations.
+        The transaction must be related to the wallet.
+        """
+        if not is_hash256_str(txid):
+            raise Exception(f"{repr(txid)} is not a txid")
+        if not self.wallet.db.get_transaction(txid):
+            raise Exception("Transaction not in wallet.")
+        return {
+            "confirmations": self.wallet.get_tx_height(txid).conf,
+        }
 
     @command('')
     def help(self):
@@ -814,7 +831,9 @@ command_options = {
     'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
+    'from_height': (None, "Only show transactions that confirmed after given block height"),
+    'to_height':   (None, "Only show transactions that confirmed before given block height"),
 }
 
 
@@ -826,6 +845,8 @@ arg_types = {
     'nbits': int,
     'imax': int,
     'year': int,
+    'from_height': int,
+    'to_height': int,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
@@ -909,12 +930,12 @@ def add_network_options(parser):
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
     parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_argument("--noonion", action="store_true", dest="noonion", default=None, help="do not try to connect to onion servers")
+    parser.add_argument("--skipmerklecheck", action="store_true", dest="skipmerklecheck", default=False, help="Tolerate invalid merkle proofs from server")
 
 def add_global_options(parser):
     group = parser.add_argument_group('global options')
-    # const is for when no argument is given to verbosity
-    # default is for when the flag is missing
-    group.add_argument("-v", dest="verbosity", help="Set verbosity filter", default='', const='*', nargs='?')
+    group.add_argument("-v", dest="verbosity", help="Set verbosity (log levels)", default='')
+    group.add_argument("-V", dest="verbosity_shortcuts", help="Set verbosity (shortcut-filter list)", default='')
     group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")

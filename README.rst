@@ -66,14 +66,6 @@ Run install (this should install dependencies)::
 
     python3 -m pip install .[fast]
 
-Render the SVG icons to PNGs (optional)::
-
-    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
-
-Compile the icons file for Qt::
-
-    sudo apt-get install pyqt5-dev-tools
-    pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py
 
 Compile the protobuf description file::
 
@@ -83,7 +75,7 @@ Compile the protobuf description file::
 Create translations (optional)::
 
     sudo apt-get install python-requests gettext
-    ./contrib/make_locale
+    ./contrib/pull_locale
 
 
 
@@ -91,25 +83,31 @@ Create translations (optional)::
 Creating Binaries
 =================
 
+Linux (tarball)
+---------------
 
-To create binaries, create the 'packages' directory::
+See :code:`contrib/build-linux/README.md`.
 
-    ./contrib/make_packages
 
-This directory contains the python dependencies used by Electrum.
+Linux (AppImage)
+----------------
+
+See :code:`contrib/build-linux/appimage/README.md`.
+
 
 Mac OS X / macOS
---------
+----------------
 
-See `contrib/osx/`.
+See :code:`contrib/osx/README.md`.
+
 
 Windows
 -------
 
-See `contrib/build-wine/`.
+See :code:`contrib/build-wine/README.md`.
 
 
 Android
 -------
 
-See `electrum/gui/kivy/Readme.md` file.
+See :code:`electrum/gui/kivy/Readme.md`.

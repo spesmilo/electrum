@@ -26,9 +26,9 @@
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
-from electrum.bitcoin import is_address, TYPE_SCRIPT
+from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import opcodes, TxOutput, Transaction
+from electrum.transaction import TxOutput, Transaction
 
 
 class HW_PluginBase(BasePlugin):
@@ -44,6 +44,7 @@ class HW_PluginBase(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.keystore_class.device
         self.keystore_class.plugin = self
+        self._ignore_outdated_fw = False
 
     def is_enabled(self):
         return True
@@ -111,7 +112,7 @@ class HW_PluginBase(BasePlugin):
                     _("Library version for '{}' is incompatible.").format(self.name)
                     + '\nInstalled: {}, Needed: {} <= x < {}'
                     .format(library_version, version_str(self.minimum_library), max_version_str))
-            self.print_stderr(self.libraries_available_message)
+            self.logger.warning(self.libraries_available_message)
             return False
 
         return True
@@ -123,6 +124,12 @@ class HW_PluginBase(BasePlugin):
             message = _("Missing libraries for {}.").format(self.name)
         message += '\n' + _("Make sure you install it with python3")
         return message
+
+    def set_ignore_outdated_fw(self):
+        self._ignore_outdated_fw = True
+
+    def is_outdated_fw_ignored(self) -> bool:
+        return self._ignore_outdated_fw
 
 
 def is_any_tx_output_on_change_branch(tx: Transaction):
@@ -160,3 +167,16 @@ def only_hook_if_libraries_available(func):
 class LibraryFoundButUnusable(Exception):
     def __init__(self, library_version='unknown'):
         self.library_version = library_version
+
+
+class OutdatedHwFirmwareException(UserFacingException):
+
+    def text_ignore_old_fw_and_continue(self) -> str:
+        suffix = (_("The firmware of your hardware device is too old. "
+                    "If possible, you should upgrade it. "
+                    "You can ignore this error and try to continue, however things are likely to break.") + "\n\n" +
+                  _("Ignore and continue?"))
+        if str(self):
+            return str(self) + "\n\n" + suffix
+        else:
+            return suffix

@@ -25,18 +25,24 @@
 # SOFTWARE.
 
 import threading
+from functools import partial
 
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
+                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit)
 
 from electrum.i18n import _
-from electrum.util import PrintError
+from electrum.logging import Logger
+
+from .plugin import OutdatedHwFirmwareException
+
 
 # The trickiest thing about this handler was getting windows properly
 # parented on macOS.
-class QtHandlerBase(QObject, PrintError):
+class QtHandlerBase(QObject, Logger):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.'''
 
@@ -50,7 +56,8 @@ class QtHandlerBase(QObject, PrintError):
     status_signal = pyqtSignal(object)
 
     def __init__(self, win, device):
-        super(QtHandlerBase, self).__init__()
+        QObject.__init__(self)
+        Logger.__init__(self)
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
         self.message_signal.connect(self.message_dialog)
@@ -73,8 +80,8 @@ class QtHandlerBase(QObject, PrintError):
     def _update_status(self, paired):
         if hasattr(self, 'button'):
             button = self.button
-            icon = button.icon_paired if paired else button.icon_unpaired
-            button.setIcon(QIcon(icon))
+            icon_name = button.icon_paired if paired else button.icon_unpaired
+            button.setIcon(read_QIcon(icon_name))
 
     def query_choice(self, msg, labels):
         self.done.clear()
@@ -142,7 +149,7 @@ class QtHandlerBase(QObject, PrintError):
         hbox = QHBoxLayout(dialog)
         hbox.addWidget(QLabel(msg))
         text = QLineEdit()
-        text.setMaximumWidth(100)
+        text.setMaximumWidth(12 * char_width_in_lineedit())
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
@@ -200,17 +207,33 @@ class QtPluginBase(object):
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self.show_settings_dialog, window, keystore)
-            button = StatusBarButton(QIcon(self.icon_unpaired), tooltip, cb)
+            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb)
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
             window.statusBar().addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
-            keystore.thread = TaskThread(window, window.on_error)
+            keystore.thread = TaskThread(window, on_error=partial(self.on_task_thread_error, window, keystore))
             self.add_show_address_on_hw_device_button_for_receive_addr(wallet, keystore, window)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
+
+    def on_task_thread_error(self, window, keystore, exc_info):
+        e = exc_info[1]
+        if isinstance(e, OutdatedHwFirmwareException):
+            if window.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
+                self.set_ignore_outdated_fw()
+                # will need to re-pair
+                devmgr = self.device_manager()
+                def re_pair_device():
+                    device_id = self.choose_device(window, keystore)
+                    devmgr.unpair_id(device_id)
+                    self.get_client(keystore)
+                keystore.thread.add(re_pair_device)
+            return
+        else:
+            window.on_error(exc_info)
 
     def choose_device(self, window, keystore):
         '''This dialog box should be usable even if the user has
@@ -234,4 +257,4 @@ class QtPluginBase(object):
         def show_address():
             addr = receive_address_e.text()
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
-        receive_address_e.addButton(":icons/eye1.png", show_address, _("Show on {}").format(plugin.device))
+        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(plugin.device))

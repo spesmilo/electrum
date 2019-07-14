@@ -23,23 +23,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import platform
-
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QWidget
 
 from .qrcodewidget import QRCodeWidget
+
 from electrum.i18n import _
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
-
-column_index = 4
 
 
 class QR_Window(QWidget):
@@ -48,43 +37,9 @@ class QR_Window(QWidget):
         QWidget.__init__(self)
         self.win = win
         self.setWindowTitle('Electrum - '+_('Payment Request'))
-        self.setMinimumSize(800, 250)
-        self.address = ''
-        self.label = ''
-        self.amount = 0
+        self.setMinimumSize(800, 800)
         self.setFocusPolicy(Qt.NoFocus)
-
         main_box = QHBoxLayout()
-
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)
-
-        vbox = QVBoxLayout()
-        main_box.addLayout(vbox)
-
-        self.address_label = QLabel("")
-        #self.address_label.setFont(QFont(MONOSPACE_FONT))
-        vbox.addWidget(self.address_label)
-
-        self.label_label = QLabel("")
-        vbox.addWidget(self.label_label)
-
-        self.amount_label = QLabel("")
-        vbox.addWidget(self.amount_label)
-
-        vbox.addStretch(1)
         self.setLayout(main_box)
-
-
-    def set_content(self, address, amount, message, url):
-        address_text = "<span style='font-size: 18pt'>%s</span>" % address if address else ""
-        self.address_label.setText(address_text)
-        if amount:
-            amount = self.win.format_amount(amount)
-            amount_text = "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>%s</span> " % (amount, self.win.base_unit())
-        else:
-            amount_text = ''
-        self.amount_label.setText(amount_text)
-        label_text = "<span style='font-size: 21pt'>%s</span>" % message if message else ""
-        self.label_label.setText(label_text)
-        self.qrw.setData(url)

@@ -23,7 +23,7 @@ cache:
 script:
     - tox
 after_success:
-    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/make_locale; fi
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
     - coveralls
 jobs:
   include:
@@ -37,7 +37,7 @@ jobs:
       services:
         - docker
       install:
-        - sudo docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/docker/
+        - sudo docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
       script:
         - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       after_success: true
@@ -47,6 +47,7 @@ jobs:
       services:
         - docker
       install:
+        - pip install requests && ./contrib/pull_locale
         - ./contrib/make_packages
         - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
       script:
@@ -69,6 +70,17 @@ jobs:
         - git fetch --all --tags
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
+      after_success: true
+    - name: "AppImage build"
+      sudo: true
+      language: c
+      python: false
+      services:
+        - docker
+      install:
+        - sudo docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
+      script:
+        - sudo docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
       after_success: true
     - stage: release check
       install:

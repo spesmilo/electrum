@@ -22,26 +22,37 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import webbrowser
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import (
-    QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
+from enum import IntEnum
+
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
+from PyQt5.QtWidgets import (QAbstractItemView, QMenu)
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeView, import_meta_gui, export_meta_gui
+from .util import MyTreeView, import_meta_gui, export_meta_gui, webopen
 
 
 class ContactList(MyTreeView):
-    filter_columns = [0, 1]  # Key, Value
+
+    class Columns(IntEnum):
+        NAME = 0
+        ADDRESS = 1
+
+    headers = {
+        Columns.NAME: _('Name'),
+        Columns.ADDRESS: _('Address'),
+    }
+    filter_columns = [Columns.NAME, Columns.ADDRESS]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[0])
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.NAME,
+                         editable_columns=[self.Columns.NAME])
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -60,20 +71,20 @@ class ContactList(MyTreeView):
 
     def create_menu(self, position):
         menu = QMenu()
-        selected = self.selected_in_column(0)
-        selected_keys = []
-        for idx in selected:
-            sel_key = self.model().itemFromIndex(idx).data(Qt.UserRole)
-            selected_keys.append(sel_key)
         idx = self.indexAt(position)
-        if not selected or not idx.isValid():
+        column = idx.column() or self.Columns.NAME
+        selected_keys = []
+        for s_idx in self.selected_in_column(self.Columns.NAME):
+            sel_key = self.model().itemFromIndex(s_idx).data(Qt.UserRole)
+            selected_keys.append(sel_key)
+        if not selected_keys or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
             menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
-            column = idx.column()
             column_title = self.model().horizontalHeaderItem(column).text()
-            column_data = '\n'.join(self.model().itemFromIndex(idx).text() for idx in selected)
+            column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
+                                    for s_idx in self.selected_in_column(column))
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
                 item = self.model().itemFromIndex(idx)
@@ -85,26 +96,29 @@ class ContactList(MyTreeView):
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(selected_keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, selected_keys)]
             if URLs:
-                menu.addAction(_("View on block explorer"), lambda: map(webbrowser.open, URLs))
+                menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
 
         run_hook('create_contact_menu', menu, selected_keys)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
-        current_key = self.current_item_user_role(col=0)
+        current_key = self.current_item_user_role(col=self.Columns.NAME)
         self.model().clear()
-        self.update_headers([_('Name'), _('Address')])
+        self.update_headers(self.__class__.headers)
         set_current = None
         for key in sorted(self.parent.contacts.keys()):
             contact_type, name = self.parent.contacts[key]
             items = [QStandardItem(x) for x in (name, key)]
-            items[0].setEditable(contact_type != 'openalias')
-            items[1].setEditable(False)
-            items[0].setData(key, Qt.UserRole)
+            items[self.Columns.NAME].setEditable(contact_type != 'openalias')
+            items[self.Columns.ADDRESS].setEditable(False)
+            items[self.Columns.NAME].setData(key, Qt.UserRole)
             row_count = self.model().rowCount()
             self.model().insertRow(row_count, items)
             if key == current_key:
-                idx = self.model().index(row_count, 0)
+                idx = self.model().index(row_count, self.Columns.NAME)
                 set_current = QPersistentModelIndex(idx)
         self.set_current_idx(set_current)
+        # FIXME refresh loses sort order; so set "default" here:
+        self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
+        self.filter()
         run_hook('update_contacts_tab', self)

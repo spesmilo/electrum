@@ -37,8 +37,6 @@ import os
 import math
 import hashlib
 
-from .pem import *
-
 
 def SHA1(x):
     return hashlib.sha1(x).digest()

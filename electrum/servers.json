@@ -16,11 +16,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "MEADS.hopto.org": {
-        "pruning": "-",
-        "s": "50002",
-        "version": "1.4"
-    },
     "VPS.hsmiths.com": {
         "pruning": "-",
         "s": "50002",
@@ -69,18 +64,7 @@
         "t": "50001",
         "version": "1.4"
     },
-    "btc.smsys.me": {
-        "pruning": "-",
-        "s": "995",
-        "version": "1.4"
-    },
     "btc.xskyx.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "cashyes.zapto.org": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
@@ -98,10 +82,10 @@
         "t": "50001",
         "version": "1.4"
     },
-    "dedi.jochen-hoenicke.de": {
+    "electrum.jochen-hoenicke.de": {
         "pruning": "-",
-        "s": "50002",
-        "t": "50001",
+        "s": "50005",
+        "t": "50003",
         "version": "1.4"
     },
     "dragon085.startdedicated.de": {
@@ -119,11 +103,6 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
-    },
-    "elec.luggs.co": {
-        "pruning": "-",
-        "s": "443",
         "version": "1.4"
     },
     "electrum-server.ninja": {
@@ -195,12 +174,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrum3.hachre.de": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrumx.bot.nu": {
         "pruning": "-",
         "s": "50002",
@@ -224,12 +197,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electrumx.nmdps.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrumx.soon.it": {
         "pruning": "-",
         "s": "50002",
@@ -248,12 +215,6 @@
         "version": "1.4"
     },
     "enode.duckdns.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "erbium1.sytes.net": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
@@ -295,15 +256,10 @@
         "t": "50001",
         "version": "1.4"
     },
-    "kirsche.emzy.de": {
+    "electrum.emzy.de": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
-    },
-    "luggscoqbymhvnkp.onion": {
-        "pruning": "-",
-        "t": "80",
         "version": "1.4"
     },
     "ndnd.selfhost.eu": {
@@ -314,12 +270,6 @@
     },
     "ndndword5lpb7eex.onion": {
         "pruning": "-",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "oneweek.duckdns.org": {
-        "pruning": "-",
-        "s": "50002",
         "t": "50001",
         "version": "1.4"
     },
@@ -374,12 +324,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "us.electrum.be": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "vmd27610.contaboserver.net": {
         "pruning": "-",
         "s": "50002",
@@ -404,6 +348,67 @@
         "version": "1.4"
     },
     "yuio.top": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoin.dragon.zone": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.4"
+    },
+    "ecdsa.net" : {
+        "pruning": "-",
+        "s": "110",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "btc.usebsv.com": {
+        "pruning": "-",
+        "s": "50006",
+        "version": "1.4"
+    },
+    "e2.keff.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum3.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum5.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrumx.electricnewyear.net": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "fortress.qtornado.com": {
+        "pruning": "-",
+        "s": "443",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "green-gold.westeurope.cloudapp.azure.com": {
+        "pruning": "-",
+        "s": "56002",
+        "t": "56001",
+        "version": "1.4"
+    },
+    "electrumx.erbium.eu": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",

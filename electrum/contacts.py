@@ -27,12 +27,14 @@ from dns.exception import DNSException
 
 from . import bitcoin
 from . import dnssec
-from .util import export_meta, import_meta, print_error, to_string
+from .util import export_meta, import_meta, to_string
+from .logging import Logger
 
 
-class Contacts(dict):
+class Contacts(dict, Logger):
 
     def __init__(self, storage):
+        Logger.__init__(self)
         self.storage = storage
         d = self.storage.get('contacts', {})
         try:
@@ -99,7 +101,7 @@ class Contacts(dict):
         try:
             records, validated = dnssec.query(url, dns.rdatatype.TXT)
         except DNSException as e:
-            print_error(f'Error resolving openalias: {repr(e)}')
+            self.logger.info(f'Error resolving openalias: {repr(e)}')
             return None
         prefix = 'btc'
         for record in records:

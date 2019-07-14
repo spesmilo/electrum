@@ -1,11 +1,15 @@
 from functools import partial
 import threading
 
-from PyQt5.Qt import Qt
-from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal, QRegExp
+from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+                             QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
+                             QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
+                             QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton)
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import bh2u
@@ -295,8 +299,8 @@ class QtPlugin(QtPluginBase):
 
 
 class Plugin(KeepKeyPlugin, QtPlugin):
-    icon_paired = ":icons/keepkey.png"
-    icon_unpaired = ":icons/keepkey_unpaired.png"
+    icon_paired = "keepkey.png"
+    icon_unpaired = "keepkey_unpaired.png"
 
     @classmethod
     def pin_matrix_widget_class(self):
@@ -318,7 +322,6 @@ class SettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         thread = keystore.thread
-        hs_rows, hs_cols = (64, 128)
 
         def invoke_client(method, *args, **kw_args):
             unpair_after = kw_args.pop('unpair_after', False)
@@ -392,27 +395,6 @@ class SettingsDialog(WindowModalDialog):
                 return
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
-        def change_homescreen():
-            from PIL import Image  # FIXME
-            dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename, __ = dialog.getOpenFileName()
-            if filename:
-                im = Image.open(str(filename))
-                if im.size != (hs_cols, hs_rows):
-                    raise Exception('Image must be 64 x 128 pixels')
-                im = im.convert('1')
-                pix = im.load()
-                img = ''
-                for j in range(hs_rows):
-                    for i in range(hs_cols):
-                        img += '1' if pix[i, j] else '0'
-                img = ''.join(chr(int(img[i:i + 8], 2))
-                              for i in range(0, len(img), 8))
-                invoke_client('change_homescreen', img)
-
-        def clear_homescreen():
-            invoke_client('change_homescreen', '\x00')
-
         def set_pin():
             invoke_client('set_pin', remove=False)
 
@@ -432,7 +414,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)

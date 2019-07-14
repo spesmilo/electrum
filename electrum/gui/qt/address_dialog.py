@@ -25,11 +25,9 @@
 
 from electrum.i18n import _
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
-from .util import *
+from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
@@ -59,7 +57,7 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Address:")))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
-        icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
+        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)

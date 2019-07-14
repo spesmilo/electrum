@@ -24,6 +24,7 @@ string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
     'tgz': "Electrum-%s.tar.gz" % version,
+    'appimage': "electrum-%s-x86_64.AppImage" % version,
     'zip': "Electrum-%s.zip" % version,
     'mac': "electrum-%s.dmg" % version_mac,
     'win': "electrum-%s.exe" % version_win,

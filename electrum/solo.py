@@ -1,9 +1,18 @@
 
-import pyscrypt as scrypt
 import hashlib
 from functools import reduce
 from operator import mul
 from electrum import bitcoin
+
+try: 
+    from hashlib import scrypt
+    def scrypt_func(data):
+        return scrypt(data.encode("ascii"),salt=b"",n=16384,r=8,p=8,dklen=32)
+
+except:
+    import pyscrypt as scrypt
+    def scrypt_func(data):
+        scrypt.hash(data.encode("ascii"),salt=b"",N=16384,r=8,p=8,dkLen=32)
 
 bitcoin_b58chars = bitcoin.__b58chars
 bitcoin_b58chars_values = dict((chr(c), val) for val, c in enumerate(bitcoin_b58chars))
@@ -11,8 +20,8 @@ bitcoin_b58chars_values = dict((chr(c), val) for val, c in enumerate(bitcoin_b58
 N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
 def compute_privatekey_sec256k1(secret1_b58, secret2_b58):
-    hashed_secret1 = scrypt.hash(secret1_b58,"",N=16384,r=8,p=8,buflen=32)
-    hashed_secret2 = scrypt.hash(secret2_b58,"",N=16384,r=8,p=8,buflen=32)
+    hashed_secret1 = scrypt_func(secret1_b58)
+    hashed_secret2 = scrypt_func(secret2_b58)
 
     n1 = int.from_bytes(hashed_secret1, 'big')
     n2 = int.from_bytes(hashed_secret2, 'big')

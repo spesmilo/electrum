@@ -5,25 +5,27 @@ from io import BytesIO
 import sys
 import platform
 
-from electrum.plugin import BasePlugin, hook
-from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog
-from electrum.util import print_msg, print_error
-from electrum.i18n import _
-
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
+
+from electrum.plugin import BasePlugin, hook
+from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
+from electrum.i18n import _
+from electrum.logging import get_logger
+
+
+_logger = get_logger(__name__)
+
 
 try:
     import amodem.audio
     import amodem.main
     import amodem.config
-    print_error('Audio MODEM is available.')
+    _logger.info('Audio MODEM is available.')
     amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
     amodem.log.setLevel(amodem.logging.INFO)
 except ImportError:
     amodem = None
-    print_error('Audio MODEM is not found.')
+    _logger.info('Audio MODEM is not found.')
 
 
 class Plugin(BasePlugin):
@@ -71,7 +73,7 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog(self, dialog):
         b = QPushButton()
-        b.setIcon(QIcon(":icons/speaker.png"))
+        b.setIcon(read_QIcon("speaker.png"))
 
         def handler():
             blob = json.dumps(dialog.tx.as_dict())
@@ -81,7 +83,7 @@ class Plugin(BasePlugin):
 
     @hook
     def scan_text_edit(self, parent):
-        parent.addButton(':icons/microphone.png', partial(self._recv, parent),
+        parent.addButton('microphone.png', partial(self._recv, parent),
                          _("Read from microphone"))
 
     @hook
@@ -89,7 +91,7 @@ class Plugin(BasePlugin):
         def handler():
             blob = str(parent.toPlainText())
             self._send(parent=parent, blob=blob)
-        parent.addButton(':icons/speaker.png', handler, _("Send to speaker"))
+        parent.addButton('speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)
@@ -102,7 +104,7 @@ class Plugin(BasePlugin):
                 dst = interface.player()
                 amodem.main.send(config=self.modem_config, src=src, dst=dst)
 
-        print_msg('Sending:', repr(blob))
+        _logger.info(f'Sending: {repr(blob)}')
         blob = zlib.compress(blob.encode('ascii'))
 
         kbps = self.modem_config.modem_bps / 1e3
@@ -120,7 +122,7 @@ class Plugin(BasePlugin):
         def on_finished(blob):
             if blob:
                 blob = zlib.decompress(blob).decode('ascii')
-                print_msg('Received:', repr(blob))
+                _logger.info(f'Received: {repr(blob)}')
                 parent.setText(blob)
 
         kbps = self.modem_config.modem_bps / 1e3

@@ -26,27 +26,30 @@
 import re
 from decimal import Decimal
 
-from PyQt5.QtGui import *
+from PyQt5.QtGui import QFontMetrics
 
 from electrum import bitcoin
-from electrum.util import bfh, PrintError
-from electrum.transaction import TxOutput
+from electrum.util import bfh
+from electrum.transaction import TxOutput, push_script
+from electrum.bitcoin import opcodes
+from electrum.logging import Logger
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
 
-RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
+RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win):
         CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
+        Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
@@ -91,12 +94,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             return bitcoin.TYPE_SCRIPT, script
 
     def parse_script(self, x):
-        from electrum.transaction import opcodes, push_script
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':
-                assert word in opcodes.lookup
-                opcode_int = opcodes.lookup[word]
+                opcode_int = opcodes[word]
                 assert opcode_int < 256  # opcode is single-byte
                 script += bitcoin.int_to_hex(opcode_int)
             else:
@@ -153,11 +154,11 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             else:
                 total += output.value
 
-        self.win.is_max = is_max
+        self.win.max_button.setChecked(is_max)
         self.outputs = outputs
         self.payto_address = None
 
-        if self.win.is_max:
+        if self.win.max_button.isChecked():
             self.win.do_update_fee()
         else:
             self.amount_edit.setAmount(total if outputs else None)
@@ -195,9 +196,9 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
         h = docHeight * lineHeight + 11
-        if self.heightMin <= h <= self.heightMax:
-            self.setMinimumHeight(h)
-            self.setMaximumHeight(h)
+        h = min(max(h, self.heightMin), self.heightMax)
+        self.setMinimumHeight(h)
+        self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
 
     def qr_input(self):
@@ -227,7 +228,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         try:
             data = self.win.contacts.resolve(key)
         except Exception as e:
-            self.print_error(f'error resolving address/alias: {repr(e)}')
+            self.logger.info(f'error resolving address/alias: {repr(e)}')
             return
         if not data:
             return

@@ -27,13 +27,13 @@ import re
 import math
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
 
-from .util import *
+from .util import icon_path, WindowModalDialog, OkButton, CancelButton, Buttons
 
 
 def check_password_strength(password):
@@ -103,10 +103,11 @@ class PasswordLayout(object):
             if wallet and wallet.has_password():
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
                 grid.addWidget(self.pw, 0, 1)
-                lockfile = ":icons/lock.png"
+                lockfile = "lock.png"
             else:
-                lockfile = ":icons/unlock.png"
-            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+                lockfile = "unlock.png"
+            logo.setPixmap(QPixmap(icon_path(lockfile))
+                           .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -195,10 +196,11 @@ class PasswordLayoutForHW(object):
         vbox.addLayout(logo_grid)
 
         if wallet and wallet.has_storage_encryption():
-            lockfile = ":icons/lock.png"
+            lockfile = "lock.png"
         else:
-            lockfile = ":icons/unlock.png"
-        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+            lockfile = "unlock.png"
+        logo.setPixmap(QPixmap(icon_path(lockfile))
+                       .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         vbox.addLayout(grid)
 

@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from enum import IntEnum
+
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import Qt
@@ -33,23 +35,42 @@ from electrum.plugin import run_hook
 from electrum.paymentrequest import PR_UNKNOWN
 from electrum.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, pr_tooltips, pr_icons
+from .util import MyTreeView, pr_tooltips, pr_icons, read_QIcon
+
 
 class RequestList(MyTreeView):
-    filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
 
+    class Columns(IntEnum):
+        DATE = 0
+        ADDRESS = 1
+        SIGNATURE = 2
+        DESCRIPTION = 3
+        AMOUNT = 4
+        STATUS = 5
+
+    headers = {
+        Columns.DATE: _('Date'),
+        Columns.ADDRESS: _('Address'),
+        Columns.SIGNATURE: '',
+        Columns.DESCRIPTION: _('Description'),
+        Columns.AMOUNT: _('Amount'),
+        Columns.STATUS: _('Status'),
+    }
+    filter_columns = [Columns.DATE, Columns.ADDRESS, Columns.SIGNATURE, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, 3, editable_columns=[])
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.DESCRIPTION,
+                         editable_columns=[])
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
-        self.setColumnWidth(0, 180)
+        self.setColumnWidth(self.Columns.DATE, 180)
         self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
 
     def item_changed(self, idx):
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        addr = self.model().itemFromIndex(idx.sibling(idx.row(), 1)).text()
+        addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS)).text()
         req = self.wallet.receive_requests.get(addr)
         if req is None:
             self.update()
@@ -84,13 +105,14 @@ class RequestList(MyTreeView):
         except InternalAddressCorruption as e:
             self.parent.show_error(str(e))
             addr = ''
-        if not current_address in domain and addr:
+        if current_address not in domain and addr:
             self.parent.set_receive_address(addr)
         self.parent.new_request_button.setEnabled(addr != current_address)
+        self.parent.update_receive_address_styling()
 
         self.model().clear()
-        self.update_headers([_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')])
-        self.hideColumn(1) # hide address column
+        self.update_headers(self.__class__.headers)
+        self.hideColumn(self.Columns.ADDRESS)
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
             if address not in domain:
@@ -108,20 +130,22 @@ class RequestList(MyTreeView):
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
-                items[2].setIcon(self.icon_cache.get(":icons/seal.png"))
-                items[2].setToolTip('signed by '+ requestor)
+                items[self.Columns.SIGNATURE].setIcon(read_QIcon("seal.png"))
+                items[self.Columns.SIGNATURE].setToolTip(f'signed by {requestor}')
             if status is not PR_UNKNOWN:
-                items[5].setIcon(self.icon_cache.get(pr_icons.get(status)))
-            items[3].setData(address, Qt.UserRole)
+                items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+            items[self.Columns.DESCRIPTION].setData(address, Qt.UserRole)
             self.model().insertRow(self.model().rowCount(), items)
+        self.filter()
 
     def create_menu(self, position):
         idx = self.indexAt(position)
+        item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), 1))
-        if not item:
+        item_addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS))
+        if not item_addr:
             return
-        addr = item.text()
+        addr = item_addr.text()
         req = self.wallet.receive_requests.get(addr)
         if req is None:
             self.update()
@@ -130,7 +154,9 @@ class RequestList(MyTreeView):
         column_title = self.model().horizontalHeaderItem(column).text()
         column_data = item.text()
         menu = QMenu(self)
-        if column != 2:
+        if column != self.Columns.SIGNATURE:
+            if column == self.Columns.AMOUNT:
+                column_data = column_data.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))

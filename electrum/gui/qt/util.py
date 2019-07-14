@@ -1,17 +1,30 @@
+import asyncio
 import os.path
 import time
 import sys
 import platform
 import queue
-from functools import partial
-from typing import NamedTuple, Callable, Optional, TYPE_CHECKING
+import traceback
+import os
+import webbrowser
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
+from functools import partial, lru_cache
+from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
+
+from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
+                         QPalette, QIcon, QFontMetrics)
+from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
+                          QCoreApplication, QItemSelectionModel, QThread,
+                          QSortFilterProxyModel, QSize, QLocale)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
+                             QAbstractItemView, QVBoxLayout, QLineEdit,
+                             QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
+                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
 
 from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed
+from electrum.util import (FileImportFailed, FileExportFailed,
+                           resource_path)
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 if TYPE_CHECKING:
@@ -29,9 +42,9 @@ else:
 dialogs = []
 
 pr_icons = {
-    PR_UNPAID:":icons/unpaid.png",
-    PR_PAID:":icons/confirmed.png",
-    PR_EXPIRED:":icons/expired.png"
+    PR_UNPAID:"unpaid.png",
+    PR_PAID:"confirmed.png",
+    PR_EXPIRED:"expired.png"
 }
 
 pr_tooltips = {
@@ -81,6 +94,7 @@ class WWLabel(QLabel):
     def __init__ (self, text="", parent=None):
         QLabel.__init__(self, text, parent)
         self.setWordWrap(True)
+        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
 
 class HelpLabel(QLabel):
@@ -92,7 +106,10 @@ class HelpLabel(QLabel):
         self.font = QFont()
 
     def mouseReleaseEvent(self, x):
-        QMessageBox.information(self, 'Help', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Help'),
+                           text=self.help_text)
 
     def enterEvent(self, event):
         self.font.setUnderline(True)
@@ -112,11 +129,15 @@ class HelpButton(QPushButton):
         QPushButton.__init__(self, '?')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(20)
+        self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
         self.clicked.connect(self.onclick)
 
     def onclick(self):
-        QMessageBox.information(self, 'Help', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Help'),
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class InfoButton(QPushButton):
@@ -124,11 +145,15 @@ class InfoButton(QPushButton):
         QPushButton.__init__(self, 'Info')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(60)
+        self.setFixedWidth(6 * char_width_in_lineedit())
         self.clicked.connect(self.onclick)
 
     def onclick(self):
-        QMessageBox.information(self, 'Info', self.help_text)
+        custom_message_box(icon=QMessageBox.Information,
+                           parent=self,
+                           title=_('Info'),
+                           text=self.help_text,
+                           rich_text=True)
 
 
 class Buttons(QHBoxLayout):
@@ -184,11 +209,15 @@ class MessageBoxMixin(object):
     def top_level_window(self, test_func=None):
         return self.top_level_window_recurse(test_func)
 
-    def question(self, msg, parent=None, title=None, icon=None):
+    def question(self, msg, parent=None, title=None, icon=None, **kwargs) -> bool:
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return self.msg_box(icon or QMessageBox.Question,
-                            parent, title or '',
-                            msg, buttons=Yes|No, defaultButton=No) == Yes
+        return Yes == self.msg_box(icon=icon or QMessageBox.Question,
+                                   parent=parent,
+                                   title=title or '',
+                                   text=msg,
+                                   buttons=Yes|No,
+                                   defaultButton=No,
+                                   **kwargs)
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
@@ -206,23 +235,44 @@ class MessageBoxMixin(object):
         return self.msg_box(QMessageBox.Information, parent,
                             title or _('Information'), msg, **kwargs)
 
-    def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, rich_text=False):
+    def msg_box(self, icon, parent, title, text, *, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton, rich_text=False,
+                checkbox=None):
         parent = parent or self.top_level_window()
-        if type(icon) is QPixmap:
-            d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
-            d.setIconPixmap(icon)
-        else:
-            d = QMessageBox(icon, title, str(text), buttons, parent)
-        d.setWindowModality(Qt.WindowModal)
-        d.setDefaultButton(defaultButton)
-        if rich_text:
-            d.setTextInteractionFlags(Qt.TextSelectableByMouse| Qt.LinksAccessibleByMouse)
-            d.setTextFormat(Qt.RichText)
-        else:
-            d.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            d.setTextFormat(Qt.PlainText)
-        return d.exec_()
+        return custom_message_box(icon=icon,
+                                  parent=parent,
+                                  title=title,
+                                  text=text,
+                                  buttons=buttons,
+                                  defaultButton=defaultButton,
+                                  rich_text=rich_text,
+                                  checkbox=checkbox)
+
+
+def custom_message_box(*, icon, parent, title, text, buttons=QMessageBox.Ok,
+                       defaultButton=QMessageBox.NoButton, rich_text=False,
+                       checkbox=None):
+    if type(icon) is QPixmap:
+        d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
+        d.setIconPixmap(icon)
+    else:
+        d = QMessageBox(icon, title, str(text), buttons, parent)
+    d.setWindowModality(Qt.WindowModal)
+    d.setDefaultButton(defaultButton)
+    if rich_text:
+        d.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        # set AutoText instead of RichText
+        # AutoText lets Qt figure out whether to render as rich text.
+        # e.g. if text is actually plain text and uses "\n" newlines;
+        #      and we set RichText here, newlines would be swallowed
+        d.setTextFormat(Qt.AutoText)
+    else:
+        d.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        d.setTextFormat(Qt.PlainText)
+    if checkbox is not None:
+        d.setCheckBox(checkbox)
+    return d.exec_()
+
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
     '''Handy wrapper; window modal dialogs are better for our multi-window
@@ -422,8 +472,6 @@ class MyTreeView(QTreeView):
         self.customContextMenuRequested.connect(create_menu)
         self.setUniformRowHeights(True)
 
-        self.icon_cache = IconCache()
-
         # Control which columns are editable
         if editable_columns is None:
             editable_columns = {stretch_column}
@@ -464,13 +512,17 @@ class MyTreeView(QTreeView):
             assert set_current.isValid()
             self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
 
-    def update_headers(self, headers):
+    def update_headers(self, headers: Union[List[str], Dict[int, str]]):
+        # headers is either a list of column names, or a dict: (col_idx->col_name)
+        if not isinstance(headers, dict):  # convert to dict
+            headers = dict(enumerate(headers))
+        col_names = [headers[col_idx] for col_idx in sorted(headers.keys())]
         model = self.model()
-        model.setHorizontalHeaderLabels(headers)
+        model.setHorizontalHeaderLabels(col_names)
         self.header().setStretchLastSection(False)
-        for col in range(len(headers)):
-            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
-            self.header().setSectionResizeMode(col, sm)
+        for col_idx in headers:
+            sm = QHeaderView.Stretch if col_idx == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setSectionResizeMode(col_idx, sm)
 
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:
@@ -534,9 +586,10 @@ class MyTreeView(QTreeView):
             # we did not find the filter in any columns, hide the item
             self.setRowHidden(row_num, QModelIndex(), True)
 
-    def filter(self, p):
-        p = p.lower()
-        self.current_filter = p
+    def filter(self, p=None):
+        if p is not None:
+            p = p.lower()
+            self.current_filter = p
         self.hide_rows()
 
     def hide_rows(self):
@@ -592,8 +645,9 @@ class ButtonsWidget(QWidget):
 
     def addButton(self, icon_name, on_click, tooltip):
         button = QToolButton(self)
-        button.setIcon(QIcon(icon_name))
+        button.setIcon(read_QIcon(icon_name))
         button.setIconSize(QSize(25,25))
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
         button.setVisible(True)
         button.setToolTip(tooltip)
@@ -603,7 +657,7 @@ class ButtonsWidget(QWidget):
 
     def addCopyButton(self, app):
         self.app = app
-        self.addButton(":icons/copy.png", self.on_copy, _("Copy to clipboard"))
+        self.addButton("copy.png", self.on_copy, _("Copy to clipboard"))
 
     def on_copy(self):
         self.app.clipboard().setText(self.text())
@@ -701,6 +755,7 @@ class ColorScheme:
     YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    PURPLE = ColorSchemeItem("#8A2BE2", "#8A2BE2")
     DEFAULT = ColorSchemeItem("black", "white")
 
     @staticmethod
@@ -788,15 +843,14 @@ def get_parent_main_window(widget):
             return widget
     return None
 
-class IconCache:
 
-    def __init__(self):
-        self.__cache = {}
+def icon_path(icon_basename):
+    return resource_path('gui', 'icons', icon_basename)
 
-    def get(self, file_name):
-        if file_name not in self.__cache:
-            self.__cache[file_name] = QIcon(file_name)
-        return self.__cache[file_name]
+
+@lru_cache(maxsize=1000)
+def read_QIcon(icon_basename):
+    return QIcon(icon_path(icon_basename))
 
 
 def get_default_language():
@@ -818,6 +872,26 @@ class FromList(QTreeWidget):
         sm = QHeaderView.ResizeToContents
         self.header().setSectionResizeMode(0, sm)
         self.header().setSectionResizeMode(1, sm)
+
+
+def char_width_in_lineedit() -> int:
+    char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()
+    # 'averageCharWidth' seems to underestimate on Windows, hence 'max()'
+    return max(9, char_width)
+
+
+def webopen(url: str):
+    if sys.platform == 'linux' and os.environ.get('APPIMAGE'):
+        # When on Linux webbrowser.open can fail in AppImage because it can't find the correct libdbus.
+        # We just fork the process and unset LD_LIBRARY_PATH before opening the URL.
+        # See #5425
+        if os.fork() == 0:
+            del os.environ['LD_LIBRARY_PATH']
+            webbrowser.open(url)
+            sys.exit(0)
+    else:
+        webbrowser.open(url)
+
 
 if __name__ == "__main__":
     app = QApplication([])

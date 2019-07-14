@@ -7,17 +7,19 @@ from binascii import hexlify, unhexlify
 
 import websocket
 
-from PyQt5.Qt import QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel
-import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
+                             QWidget, QHBoxLayout, QComboBox, QPushButton)
+from PyQt5.QtCore import QThread, pyqtSignal
 
-from btchip.btchip import *
+from btchip.btchip import BTChipException
 
-from electrum.i18n import _
-from electrum.util import print_msg
-from electrum import constants, bitcoin
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
-from electrum.gui.qt.util import *
+from electrum.i18n import _
+from electrum import constants, bitcoin
+from electrum.logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 DEBUG = False
@@ -355,4 +357,5 @@ class LedgerWebSocket(QThread):
 
 def debug_msg(*args):
     if DEBUG:
-        print_msg(*args)        
+        str_ = " ".join([str(item) for item in args])
+        _logger.debug(str_)

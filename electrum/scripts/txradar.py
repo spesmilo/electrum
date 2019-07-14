@@ -5,8 +5,6 @@ import asyncio
 from electrum.network import filter_protocol, Network
 from electrum.util import create_and_start_event_loop, log_exceptions
 
-import util
-
 
 try:
     txid = sys.argv[1]
@@ -22,9 +20,9 @@ network.start()
 @log_exceptions
 async def f():
     try:
-        peers = await util.get_peers(network)
+        peers = await network.get_peers()
         peers = filter_protocol(peers, 's')
-        results = await util.send_request(network, peers, 'blockchain.transaction.get', [txid])
+        results = await network.send_multiple_requests(peers, 'blockchain.transaction.get', [txid])
         r1, r2 = [], []
         for k, v in results.items():
             (r1 if not isinstance(v, Exception) else r2).append(k)

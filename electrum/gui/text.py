@@ -5,15 +5,17 @@ import datetime
 import locale
 from decimal import Decimal
 import getpass
+import logging
 
 import electrum
-from electrum.util import format_satoshis, set_verbosity
+from electrum.util import format_satoshis
 from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum.transaction import TxOutput
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
-from electrum.network import NetworkParameters
+from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import deserialize_server
+from electrum.logging import console_stderr_handler
 
 _ = lambda x:x  # i18n
 
@@ -52,7 +54,7 @@ class ElectrumGui:
         self.set_cursor(0)
         self.w = curses.newwin(10, 50, 5, 5)
 
-        set_verbosity(False)
+        console_stderr_handler.setLevel(logging.CRITICAL)
         self.tab = 0
         self.pos = 0
         self.popup_pos = 0
@@ -369,10 +371,12 @@ class ElectrumGui:
         self.show_message(_("Please wait..."), getchar=False)
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-        except Exception as e:
-            display_msg = _('The server returned an error when broadcasting the transaction.')
-            display_msg += '\n' + repr(e)
-            self.show_message(display_msg)
+        except TxBroadcastError as e:
+            msg = e.get_message_for_gui()
+            self.show_message(msg)
+        except BestEffortRequestFailed as e:
+            msg = repr(e)
+            self.show_message(msg)
         else:
             self.show_message(_('Payment sent.'))
             self.do_clear()
