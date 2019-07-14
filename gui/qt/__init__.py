@@ -24,7 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import signal, sys, traceback, gc, os
+import signal, sys, traceback, gc, os, shutil
 
 try:
     import PyQt5
@@ -187,8 +187,7 @@ class ElectrumGui(QObject, PrintError):
         This is because some Linux systems break up PyQt5 into multiple
         subpackages, and for instance PyQt5 QtSvg is its own package, and it
         may be missing.
-
-        This happens on Linux mint.  See #1436. '''
+        '''
         try:
             from PyQt5 import QtSvg
         except ImportError:
@@ -196,7 +195,10 @@ class ElectrumGui(QObject, PrintError):
             # (partial PyQt5 install)
             msg = _("A required Qt module, QtSvg was not found. Please fully install all of PyQt5 5.11 or above to resolve this issue.")
             if sys.platform == 'linux':
-                msg += "\n\n" + _("On Linux, you may try:\n\npython3 -m pip install --user -I pyqt5")
+                msg += "\n\n" + _("On Linux, you may try:\n\n    python3 -m pip install --user -I pyqt5")
+                if shutil.which('apt'):
+                    msg += "\n\n" + _("On Debian-based distros, you can run:\n\n    sudo apt install python3-pyqt5.qtsvg")
+
             QMessageBox.critical(None, _("QtSvg Missing"), msg)  # this works even if app is not exec_() yet.
             self.app.exit(1)
             sys.exit(msg)
