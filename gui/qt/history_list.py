@@ -183,11 +183,25 @@ class HistoryList(MyTreeWidget):
         if not self.wallet: return # can happen on startup if this is called before self.on_update()
         item = self._item_cache.get(tx_hash)
         if item:
+            idx = self.invisibleRootItem().indexOfChild(item)
+            was_cur = False
+            if idx > -1:
+                # We must take the child out of the view when updating.
+                # This is because otherwise for widgets with many thousands of
+                # items, this method becomes *horrendously* slow (500ms per
+                # call!)... but doing this hack makes it fast (~1ms per call).
+                was_cur = self.currentItem() is item
+                self.invisibleRootItem().takeChild(idx)
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             icon = self._get_icon_for_status(status)
             if icon: item.setIcon(0, icon)
             item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             item.setText(2, status_str)
+            if idx > -1:
+                # Now, put the item back again
+                self.invisibleRootItem().insertChild(idx, item)
+                if was_cur:
+                    self.setCurrentItem(item)
         elif self.should_defer_update_incr():
             return False
         return bool(item)  # indicate to client code whether an actual update occurred

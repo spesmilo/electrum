@@ -4827,13 +4827,19 @@ class TxUpdateMgr(QObject, PrintError):
             return
         items = self.verifs_get_and_clear()
         if items:
+            t0 = time.time()
             parent.history_list.setUpdatesEnabled(False)
+            had_sorting = parent.history_list.isSortingEnabled()
+            if had_sorting:
+                parent.history_list.setSortingEnabled(False)
             n_updates = 0
             for item in items:
                 did_update = parent.history_list.update_item(*item)
                 n_updates += 1 if did_update else 0
-            self.print_error("Updated {}/{} verified txs in GUI"
-                             .format(n_updates, len(items)))
+            self.print_error("Updated {}/{} verified txs in GUI in {:0.2f} ms"
+                             .format(n_updates, len(items), (time.time()-t0)*1e3))
+            if had_sorting:
+                parent.history_list.setSortingEnabled(True)
             parent.history_list.setUpdatesEnabled(True)
             parent.update_status()
 
