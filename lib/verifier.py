@@ -26,7 +26,6 @@ from .bitcoin import Hash, hash_decode, hash_encode
 from . import networks
 from .transaction import Transaction
 
-class InnerNodeOfSpvProofIsValidTx(Exception): pass
 class BadResponse(Exception): pass
 
 class SPVDelegate(ABC):
@@ -207,11 +206,6 @@ class SPV(ThreadJob):
             tx_height = merkle['block_height']
             pos = merkle['pos']
             merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
-        except InnerNodeOfSpvProofIsValidTx:
-            self.print_error("merkle verification failed for {} (inner node looks like tx)"
-                             .format(tx_hash))
-            self.wallet.verification_failed(tx_hash, self.failure_reasons[0])
-            return
         except Exception as e:
             self.print_error(f"exception while verifying tx {tx_hash}: {repr(e)}")
             self.wallet.verification_failed(tx_hash, self.failure_reasons[4])
@@ -249,48 +243,28 @@ class SPV(ThreadJob):
         h = hash_decode(target_hash)
         for i, item in enumerate(merkle_s):
             h = Hash(hash_decode(item) + h) if ((pos >> i) & 1) else Hash(h + hash_decode(item))
-            cls._raise_if_valid_tx(bh2u(h))
+            # An attack was once upon a time possible for SPV, before Nov. 2018
+            # which is described here:
+            #
+            # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+            # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
+            # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
+            #
+            # As such, at this point we used to verify the inner node didn't
+            # "look" like a tx using some heuristics (which had a very small
+            # chance of returning false positives, about 1 in quadrillion).
+            #
+            # We no longer need do the "inner node looks like tx" check here,
+            # however, since no such attack has occurred on the BTC or BCH chain
+            # before Nov. 2018. After Nov. 2018 the tx size is now required to
+            # be >= 100 bytes which is larger than the 64 byte size of inner
+            # nodes.  Thus, the check is rendered superfluous as the attack
+            # itself is now no longer even possible after Nov. 2018's hard fork,
+            # and so was removed.
+            #
+            # TL;DR: There used to be some strange check here. It's gone now.
+            # Check git history if you're really curious. :)
         return hash_encode(h)
-
-    @classmethod
-    def _raise_if_valid_tx(cls, raw_tx: str):
-        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
-        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
-        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
-        # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
-        tx = Transaction(raw_tx)
-        try:
-            tx.deserialize()
-        except:
-            return
-
-        # Besides deserializing, we perfom additional checks to reduce the
-        # chance that a legitimate merkle node give false positive.
-
-        # A legitimate txn of 64 bytes can only have 1 input and 1 output.
-        try:
-            (txin,) = tx.inputs()
-            (txout,) = tx.outputs()
-        except ValueError:
-            return
-
-        # Txes can be at most 1 MB and and each output requires >= 9 bytes;
-        # Thus prevout_n must <= 111111 for a normal transaction.
-        # If prevout_n is larger it still could in principle be a coinbase
-        # transaction, but then the input txid must be zeroed out.
-        if txin['prevout_n'] > 111111 and txin['prevout_hash'] != '00'*32:
-            return
-
-        # Output amount can't possibly be more than 21 million bitcoin, ie 21e14.
-        if txout[2] > 2_100_000_000_000_000:
-            return
-
-        # The chance of reaching this point with a random 64-byte node is 3e-18.
-        # This could be reduced further, but only, slightly by:
-        #  - restricting locktime.
-        #  - ensuring scriptSig is nontruncated.
-        #  - restricting version (if a version consensus rule is ever introduced)
-        raise InnerNodeOfSpvProofIsValidTx()
 
     def undo_verifications(self):
         height = self.blockchain.get_base_height()
