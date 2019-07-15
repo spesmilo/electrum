@@ -478,7 +478,7 @@ def parse_redeemScript_multisig(redeem_script: bytes, hasXPubs=True):
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
         raise NotRecognizedRedeemScript()
-    if hasXPubs == True:
+    if hasXPubs:
         x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
         pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
         redeem_script2 = bfh(multisig_script(x_pubkeys, m))
@@ -486,13 +486,13 @@ def parse_redeemScript_multisig(redeem_script: bytes, hasXPubs=True):
             raise NotRecognizedRedeemScript()
         redeem_script_sanitized = multisig_script(pubkeys, m)
         return m, n, x_pubkeys, pubkeys, redeem_script_sanitized
-    else: 
-        pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
-        redeem_script2 = bfh(multisig_script(pubkeys, m))
-        if redeem_script2 != redeem_script:
-            raise NotRecognizedRedeemScript()
-        redeem_script_sanitized = multisig_script(pubkeys, m)
-        return m, n, pubkeys, pubkeys, redeem_script_sanitized
+    #Does not have XPubs, the keys contained are pubkeys
+    pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
+    redeem_script2 = bfh(multisig_script(pubkeys, m))
+    if redeem_script2 != redeem_script:
+        raise NotRecognizedRedeemScript()
+    redeem_script_sanitized = multisig_script(pubkeys, m)
+    return m, n, pubkeys, pubkeys, redeem_script_sanitized
 
 def get_data_from_policy_output_script(_bytes, *, net=None):
     decoded = [x for x in script_GetOp(_bytes)]

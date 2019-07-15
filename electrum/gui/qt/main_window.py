@@ -2726,7 +2726,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def dumponboardkey_dialog(self):
 
         onboardAddress = self.wallet.get_onboard_address()
-        onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self, False)
+        onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self, True)
 
         if onboardUserKey is None:
             self.show_message('Failed to retrieve the onboarding private key from the stored onboarding address')
