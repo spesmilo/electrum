@@ -1154,6 +1154,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 if address == self.pubkeys_to_address(pubkey_from_priv):
                     return pk, compressed
         #May need to somehow modify this code to check p2sh validity in the case where there are several contracts
+        #TODO: if multiple contracts are used this code needs to be changed to verify that the private key is valid instead of returning the first one
         elif aType == 'p2sh':
             for contract_hash in self.contracts + [None]:
                 pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
@@ -1189,13 +1190,13 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
-        priv, compressed = self.get_tweaked_private_key(address, index, password)
+        priv, compressed = self.get_tweaked_private_key(address, index, password, self.get_txin_type(address))
         return self.keystore.sign_message(priv, compressed, message)
 
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        priv, compressed = self.get_tweaked_private_key(addr, index, password)
+        priv, compressed = self.get_tweaked_private_key(addr, index, password, self.get_txin_type(address))
         return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):
@@ -2097,7 +2098,6 @@ class Multisig_Wallet(Deterministic_Wallet):
             return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
-        #TODO likely broken for multisig
         pubkeys = self.get_public_keys(address, self.m)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script

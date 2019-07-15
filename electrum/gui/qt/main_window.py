@@ -304,9 +304,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
         elif event == 'new_transaction':
-            with self.lock:
-                self.tx_notifications.append(args[0])
-                self.notify_transactions_signal.emit()
+            self.tx_notifications.append(args[0])
+            self.notify_transactions_signal.emit()
         elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -600,37 +599,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.network or not self.network.is_connected():
             return
 
-        with self.lock:
-            self.print_error("Notifying GUI")
-            if len(self.tx_notifications) > 0:
-                # Combine the transactions if there are at least three
-                tx_processing=self.tx_notifications
-                self.tx_notifications=[]
-                num_txns = len(tx_processing)
-                itest=0
-                for test in tx_processing:
-                    itest = itest + 1
-                if num_txns >= 3:
-                    total_amount = 0
-                    for tx in tx_processing:
+        self.print_error("Notifying GUI")
+        if len(self.tx_notifications) > 0:
+            # Combine the transactions if there are at least three
+            tx_processing=self.tx_notifications
+            self.tx_notifications=[]
+            num_txns = len(tx_processing)
+            if num_txns >= 3:
+                total_amount = 0
+                for tx in tx_processing:
+                    if self.wallet.parse_policy_tx(tx, self):
+                        continue
+                    is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+                    if v > 0:
+                        total_amount += v
+                if total_amount > 0:
+                    self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                        .format(num_txns, self.format_amount_and_units(total_amount)))
+                tx_processing = []
+            else:
+                for tx in tx_processing:
+                    if tx:
                         if self.wallet.parse_policy_tx(tx, self):
                             continue
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
-                            total_amount += v
-                    if total_amount > 0:
-                        self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
-                    tx_processing = []
-                else:
-                    for tx in tx_processing:
-                        if tx:
-                            if self.wallet.parse_policy_tx(tx, self):
-                                continue
-                            is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                            if v > 0:
-                                self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
-                    tx_processing = []
+                            self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                tx_processing = []
 
     def notify(self, message):
         if self.tray:
@@ -1529,7 +1524,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         rascript = registeraddress_script.RegisterAddressScript(self.wallet)
-        #if isinstance(self.wallet, Multisig_Wallet):
         if "of" in self.wallet.wallet_type:
             rascript.appendmulti(addrs_pending, self.wallet.m)
         else:
