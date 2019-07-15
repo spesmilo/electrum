@@ -1425,6 +1425,7 @@ class Abstract_Wallet(AddressSynchronizer):
         addrs = []
         multiSize = 0
         addrType = constants.net.ADDRTYPE_P2PKH
+        #string of is contained in multisig addresses (e.g.: 2of2)
         if "of" in self.wallet_type:
             multiSize = 1
             addrType = constants.net.ADDRTYPE_P2SH
@@ -1433,8 +1434,11 @@ class Abstract_Wallet(AddressSynchronizer):
         nBytesInSegment = 0
         i1 = 0
         while moreLeft is True:
+            #2 bytes for n and m of multisig if the wallet is multisig type
             i1 = i1 + nBytesInSegment + multiSize*2
+            #address key id
             i2 = i1 + 20
+            #first public key of the address (the only if its p2pkh)
             i3 = i2 + 33
             bkupI = i2
 
@@ -1443,6 +1447,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
 
             nMultisig=0
+            #if it is a multisig wallet get the remaining public keys (N)
             if multiSize != 0:
                 nMultisig = int.from_bytes(bytes(data[i1-1:i1]), "big")
                 for i in range(nMultisig):
@@ -1458,6 +1463,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
             addrs.append(hash160_to_b58_address(addrbytes, addrType))
 
+            #Calculate the number of bytes in the current segment so we know where to read the next address
             nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
         
         self.set_pending_state(addrs, False)
