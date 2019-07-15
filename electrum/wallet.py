@@ -2171,20 +2171,18 @@ class Multisig_Wallet(Deterministic_Wallet):
         return ''.join(sorted(self.get_master_public_keys()))
 
     def add_input_sig_info(self, txin, address):
-        # x_pubkeys are not sorted here because it would be too slow
-        # they are sorted in transaction.get_sorted_pubkeys
-        # pubkeys is set to None to signal that x_pubkeys are unsorted
         derivation = self.get_address_index(address)
         x_pubkeys_expected = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
-        x_pubkeys_actual = txin.get('x_pubkeys')
-        # if 'x_pubkeys' is already set correctly (ignoring order, as above), leave it.
-        # otherwise we might delete signatures
-        if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
-            return
         pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys_expected]
         pubkeys = self.tweak_pubkeys(pubkeys, self.contracts[-1])
-        pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys_expected)))
-        txin['x_pubkeys'] = list(x_pubkeys)
+        pubkeys, x_pubkeys_expected = zip(*sorted(zip(pubkeys, x_pubkeys_expected)))
+        x_pubkeys_actual = txin.get('x_pubkeys')
+        pubkeys_actual =  txin.get('pubkeys')
+        # if 'x_pubkeys' is already set correctly (ignoring order, as above), leave it.
+        # otherwise we might delete signatures
+        if x_pubkeys_actual and pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
+            return
+        txin['x_pubkeys'] = list(x_pubkeys_expected)
         txin['pubkeys'] = list(pubkeys)
         # we need n place holders
         txin['signatures'] = [None] * self.n
