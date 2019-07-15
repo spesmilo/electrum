@@ -1014,9 +1014,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             def __init__(slf, *args):
                 super().__init__(*args)
                 slf.font_default_size = slf.font().pointSize()
-                slf.ca_copy_b = slf.addCopyButton()
                 icon = ":icons/cashacct-button-darkmode.png" if ColorScheme.dark_scheme else ":icons/cashacct-logo.png"
                 slf.ca_but = slf.addButton(icon, self.register_new_cash_account, _("Register a new Cash Account for this address"))
+                slf.ca_copy_b = slf.addCopyButton()
                 slf.setReadOnly(True)
                 slf.info = None
                 slf.cleaned_up = False
