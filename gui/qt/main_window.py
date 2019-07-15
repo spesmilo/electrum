@@ -1434,7 +1434,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter a Bitcoin Cash address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin Cash address)') + ".\n\n" \
-              + _('You may also enter cointext:(NUMBER) to send a CoinText.')
+              + _('You may also enter cointext:(NUMBER) to send a CoinText.')  + "\n\n" \
+              + _('You may also enter a Cash Account e.g. John#123 (requires network access).')
         self.payto_label = payto_label = HelpLabel(_('Pay &to'), msg)
         payto_label.setBuddy(self.payto_e)
         grid.addWidget(payto_label, 1, 0)
