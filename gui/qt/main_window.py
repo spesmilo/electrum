@@ -2310,6 +2310,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payment_request = None
         self.payto_e.cointext = None
         self.payto_e.is_pr = False
+        self.payto_e.is_alias, self.payto_e.validated = False, False  # clear flags to avoid bad things
         for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e, self.message_opreturn_e]:
             e.setText('')
             e.setFrozen(False)
