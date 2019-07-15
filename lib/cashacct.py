@@ -1070,7 +1070,6 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         is needed.'''
         self._init_data()
         dd = self.wallet.storage.get('cash_accounts_data', {})
-        #self.print_error("LOADED:", dd)
         wat_d = dd.get('wallet_reg_tx', {})
         eat_d = dd.get('ext_reg_tx', {})
         vtx_d = dd.get('verified_tx', {})
@@ -1084,14 +1083,19 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             if script.is_complete():
                 # sanity check
                 seen_scripts[txid] = script
-            # note we allow incomplete scripts in the wallet_reg_tx dict because the user may close wallet and restart and then verifier will see the tx as verified as it synchs
+            # Note we allow incomplete scripts in the wallet_reg_tx dict because
+            # the user may close wallet and restart and then verifier will see
+            # the tx as verified as it synchs, thus completing it.
+            # This is safe since by default _find_script() only returns complete
+            # scripts unless incomplete=True is specified.
             self.wallet_reg_tx[txid] = self.RegTx(txid, script)
         for txid, script_dict in eat_d.items():
             script = ScriptOutput.from_dict(script_dict)
             if script.is_complete() and txid not in seen_scripts:
                 # sanity check
                 seen_scripts[txid] = script
-            # allow incomplete scripts to be loaded here too, in case verification comes in later
+            # allow incomplete scripts to be loaded here too, in case
+            # verification comes in later.
             self.ext_reg_tx[txid] = self.RegTx(txid, script)
         for txid, info in vtx_d.items():
             block_height, block_hash = info
@@ -1103,14 +1107,11 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             key = item[:-1]
             self.minimal_ch_cache.put(tuple(key), value)  # re-populate the cache
 
-        # re-enqueue previously unverified for verification.
+        # Re-enqueue previously unverified for verification.
         # they may come from either wallet or external source, but we
         # enqueue them with the private verifier here.
-        # FIXME: This means that failed/bad verifications will forever retry
-        # on wallet restart. TODO: handle this situation.
-        # FIXME2: Figure out how to deal with actual chain reorgs and detecting
-        # when a cash account no longer belongs to the best chain.  The situation
-        # now is we will forever try and verify them each wallet startup...
+        # Note that verification failures will cause the tx's to get popped
+        # and thus they shouldn't forever verify (see verification_failed et al).
         d = self.ext_reg_tx.copy()
         d.update(self.wallet_reg_tx)
         for txid, item in d.items():
@@ -1163,8 +1164,6 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
                 }
 
         self.wallet.storage.put('cash_accounts_data', data)
-
-        #self.print_error("SAVED:", data)
 
         if write:
             self.wallet.storage.write()
@@ -1529,8 +1528,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         if item:
             # Note the giveto with incomplete=True is fragile and requires
             # a call to _add_verified_tx_common right after this
-            # _find_script call. We want to maintain the invariant that
-            # wallet_reg_tx and ext_reg_tx both contain *complete* scripts.
+            # _find_script call.
             # Also note: we intentionally don't pop the ext_incomplete_tx
             # dict here as perhaps client code is maintaining a reference
             # and we want to update that reference later in add_verified_common.
