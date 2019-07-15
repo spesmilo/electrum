@@ -275,7 +275,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 e.ignore()
                 return
 
-        if e.key() in [Qt.Key_Tab]:
+        if e.key() in [Qt.Key_Tab, Qt.Key_Backtab]:
             e.ignore()
             return
 
