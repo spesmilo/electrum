@@ -1084,13 +1084,15 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             if script.is_complete():
                 # sanity check
                 seen_scripts[txid] = script
-                self.wallet_reg_tx[txid] = self.RegTx(txid, script)
+            # note we allow incomplete scripts in the wallet_reg_tx dict because the user may close wallet and restart and then verifier will see the tx as verified as it synchs
+            self.wallet_reg_tx[txid] = self.RegTx(txid, script)
         for txid, script_dict in eat_d.items():
             script = ScriptOutput.from_dict(script_dict)
             if script.is_complete() and txid not in seen_scripts:
                 # sanity check
                 seen_scripts[txid] = script
-                self.ext_reg_tx[txid] = self.RegTx(txid, script)
+            # allow incomplete scripts to be loaded here too, in case verification comes in later
+            self.ext_reg_tx[txid] = self.RegTx(txid, script)
         for txid, info in vtx_d.items():
             block_height, block_hash = info
             script = seen_scripts.get(txid)
@@ -1514,9 +1516,16 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
 
     def _find_script(self, txid, print_if_missing=True, *, incomplete=False, giveto=None):
         ''' lock should be held by caller '''
-        item = self.wallet_reg_tx.get(txid) or self.ext_reg_tx.get(txid)
+        maybes = (self.wallet_reg_tx.get(txid), self.ext_reg_tx.get(txid))
+        item = None
+        for maybe in maybes:
+            if maybe and (not item or (not item.script.is_complete() and maybe.script.is_complete())):
+                item = maybe
+        del maybe, maybes
         if not item and incomplete:
             item = self.ext_incomplete_tx.get(txid)
+        if item and not item.script.is_complete() and not incomplete:
+            item = None # refuse to return an incomplete tx unless incomplete=True
         if item:
             # Note the giveto with incomplete=True is fragile and requires
             # a call to _add_verified_tx_common right after this
@@ -1696,7 +1705,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         in anticipation of a possible future verification coming in. '''
         with self.lock:
             self._rm_vtx(txid)
-            self._find_script(txid, False, giveto='w')
+            self._find_script(txid, False, giveto='w', incomplete=True)
 
     def on_address_addition(self, address):
         ''' Called by wallet when a new address is added in imported wallet.'''
