@@ -2017,9 +2017,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         address_pubkey_list = []
         for addr in addrs:
             line="{} {}".format(self.m, addr)
-            untweakedKeys = self.get_public_keys(addr, self.m, False)
+            untweakedKeys = self.get_public_keys(addr, False)
             tweakedKeys = self.get_tweaked_multi_public_keys(addr, untweakedKeys, self.m, False)
-            tweakedKeysSorted = self.get_public_keys(addr, self.m, True)
+            tweakedKeysSorted = self.get_public_keys(addr, True)
             sortedUntweaked = []
             for i in range(len(tweakedKeysSorted)):
                 for j in range(len(tweakedKeys)):
@@ -2073,11 +2073,11 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
-    def get_public_keys(self, address, m, tweaked=True):
+    def get_public_keys(self, address, tweaked=True):
         sequence = self.get_address_index(address)
         pubkeys = self.get_pubkeys(*sequence)
         if tweaked:
-            tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, m)
+            tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, self.m)
             return tweaked_pubkeys
         return pubkeys
 
@@ -2100,7 +2100,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
-        pubkeys = self.get_public_keys(address, self.m)
+        pubkeys = self.get_public_keys(address)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script
 
