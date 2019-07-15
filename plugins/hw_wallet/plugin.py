@@ -25,7 +25,7 @@
 # SOFTWARE.
 
 from electroncash.plugins import BasePlugin, hook
-from electroncash.i18n import _
+from electroncash.i18n import _, ngettext
 from electroncash import Transaction
 from electroncash.bitcoin import TYPE_SCRIPT
 from electroncash.util import bfh, finalization_print_error
@@ -88,27 +88,44 @@ def is_any_tx_output_on_change_branch(tx: Transaction) -> bool:
                 return True
     return False
 
-def validate_op_return_output_and_get_data(output, max_size=220) -> bytes:
+def validate_op_return_output_and_get_data(output: tuple,        # tuple(typ, 'address', amount)
+                                           max_size: int = 220,  # in bytes
+                                           max_pushes: int = 1   # number of pushes supported after the OP_RETURN, most HW wallets support only 1 push, some more than 1.  Specify None to omit the number-of-pushes check.
+                                           ) -> bytes:  # will return address.script[2:] (everyting after the first OP_RETURN & PUSH bytes)
     _type, address, _amount = output
+
+    if max_pushes is None:
+        # Caller says "no limit", so just to keep the below code simple, we
+        # do this and effectively sets the limit on pushes to "unlimited",
+        # since there can never be more pushes than bytes in the payload!
+        max_pushes = max_size
+
+    assert max_pushes >= 1
 
     if _type != TYPE_SCRIPT:
         raise Exception("Unexpected output type: {}".format(_type))
 
     ops = Script.get_ops(address.script)
 
+    num_pushes = len(ops) - 1
+
     if len(ops) < 1 or ops[0][0] != OpCodes.OP_RETURN:
         raise RuntimeError(_("Only OP_RETURN scripts are supported."))
 
-    if len(ops) != 2 or ops[1][1] is None:
-        raise RuntimeError(_("OP_RETURN is limited to a single data push."))
+    if num_pushes < 1 or num_pushes > max_pushes or any(ops[i+1][1] is None for i in range(num_pushes)):
+        raise RuntimeError(ngettext("OP_RETURN is limited to {max_pushes} data push.",
+                                    "OP_RETURN is limited to {max_pushes} data pushes.",
+                                    max_pushes).format(max_pushes=max_pushes))
 
-    if len(ops[1][1]) > max_size:
+    data = address.script[2:]  # caller expects everything after the OP_RETURN and PUSHDATA op
+
+    if len(data) > max_size:
         raise RuntimeError(_("OP_RETURN data size exceeds the maximum of {} bytes.".format(max_size)))
 
     if _amount != 0:
         raise RuntimeError(_("Amount for OP_RETURN output must be zero."))
 
-    return ops[1][1]
+    return data
 
 def only_hook_if_libraries_available(func):
     # note: this decorator must wrap @hook, not the other way around,

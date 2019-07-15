@@ -414,8 +414,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         try:
                             # Ledger has a maximum output size of 200 bytes:
                             # https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
-                            # which gives us a maximum OP_RETURN payload size of 187 bytes.
-                            validate_op_return_output_and_get_data(o, max_size=187)
+                            # which gives us a maximum OP_RETURN payload size of
+                            # 187 bytes. It also apparently has no limit on
+                            # max_pushes, so we specify max_pushes=None so as
+                            # to bypass that check.
+                            validate_op_return_output_and_get_data(o, max_size=187, max_pushes=None)
                         except RuntimeError as e:
                             self.give_error('{}: {}'.format(self.device, str(e)))
                 info = tx.output_info.get(address)
