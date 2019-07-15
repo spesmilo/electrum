@@ -266,7 +266,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         return tc.selectedText().strip()
 
     def keyPressEvent(self, e):
-        if self.isReadOnly():
+        if self.isReadOnly() or not self.hasFocus():
+            e.ignore()
             return
 
         if self.c.popup().isVisible():
@@ -274,7 +275,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
                 e.ignore()
                 return
 
-        if e.key() in [Qt.Key_Tab]:
+        if e.key() in [Qt.Key_Tab, Qt.Key_Backtab]:
             e.ignore()
             return
 
@@ -282,7 +283,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             e.ignore()
             return
 
-        QPlainTextEdit.keyPressEvent(self, e)
+        super().keyPressEvent(e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
         if self.c is None or (ctrlOrShift and not e.text()):
