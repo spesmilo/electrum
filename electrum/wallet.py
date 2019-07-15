@@ -2082,26 +2082,22 @@ class Multisig_Wallet(Deterministic_Wallet):
         return pubkeys
 
     def pubkeys_to_address(self, pubkeys):
-        if(sys.getsizeof(pubkeys[0]) < 55):
-            if(self.txin_type == "p2sh"):
-                return bitcoin.pubkey_to_address('p2pkh', pubkeys)
-            else:
-                return bitcoin.pubkey_to_address(self.txin_type, pubkeys)
+        #Case when only a singular pubkey is passed that is not inside a list (encryption) it is a string
+        if(len(pubkeys) >= 33):
+            return bitcoin.pubkey_to_address('p2pkh', pubkeys)
         else:
             if len(pubkeys) != 1 and self.txin_type == 'p2sh':
                 redeem_script = self.pubkeys_to_redeem_script(pubkeys)
                 return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+            #Case when a singular pubkey is passed but it is inside a list (encryption)
             else:
-                if(self.txin_type == "p2sh"):
-                    return bitcoin.pubkey_to_address('p2pkh', pubkeys[0])
-                else:
-                    return bitcoin.pubkey_to_address(self.txin_type, pubkeys[0])
+                return bitcoin.pubkey_to_address('p2pkh', pubkeys[0])
 
     def pubkeys_to_redeem_script(self, pubkeys):
-        if(sys.getsizeof(pubkeys[0]) < 55):
+        #Edge case when a single pubkey is passed to create a redeem script(should not theorhetically happen in our wallet)
+        if(len(pubkeys) >= 33):
             return multisig_script([pubkeys], self.m)
-        else:
-            return multisig_script(sorted(pubkeys), self.m)
+        return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
         pubkeys = self.get_public_keys(address, self.m)
@@ -2115,7 +2111,8 @@ class Multisig_Wallet(Deterministic_Wallet):
         return [k.derive_pubkey(c, i, e) for k in self.get_keystores()]
 
     def tweak_pubkeys(self, c, t):
-        if sys.getsizeof(c[0]) < 55 :
+        #Only a single pubkey is passed (string)
+        if len(c) >= 33 :
             return [self.keystore.tweak_pubkey(c, t)]
         else:
             return [self.keystore.tweak_pubkey(cv, t) for cv in c]
