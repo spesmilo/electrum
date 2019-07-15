@@ -772,6 +772,19 @@ class OverlayControlMixin:
         QApplication.instance().clipboard().setText(self.text())
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
+    def keyPressEvent(self, e):
+        if not self.hasFocus():
+            # Ignore keypress when we're not focused like when the focus is on a button
+            e.ignore()
+            return
+        super().keyPressEvent(e)
+
+    def keyReleaseEvent(self, e):
+        if not self.hasFocus():
+            e.ignore()
+            return
+        super().keyReleaseEvent(e)
+
 class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
