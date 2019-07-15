@@ -338,8 +338,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         if _type != 'openalias':
             return
 
-        self.is_alias = True
-
         address_str = None
         if isinstance(address, str):
             address_str = address
@@ -347,6 +345,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             address_str = address.to_ui_string()
         else:
             raise RuntimeError('unknown address type')
+
+        self.is_alias = True
 
         new_url = key + ' <' + address_str + '>'
         self.setText(new_url)
