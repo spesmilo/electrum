@@ -134,7 +134,7 @@ class LNPathFinder(Logger):
         self.blacklist.add(short_channel_id)
 
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
-                   payment_amt_msat: int, ignore_costs=False) -> Tuple[float, int]:
+                   payment_amt_msat: int, ignore_costs=False, is_mine=False) -> Tuple[float, int]:
         """Heuristic cost of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
         """
@@ -145,7 +145,7 @@ class LNPathFinder(Logger):
         if channel_policy is None:
             return float('inf'), 0
         # channels that did not publish both policies often return temporary channel failure
-        if self.channel_db.get_policy_for_node(short_channel_id, end_node) is None:
+        if self.channel_db.get_policy_for_node(short_channel_id, end_node) is None and not is_mine:
             return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
@@ -195,7 +195,8 @@ class LNPathFinder(Logger):
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
 
         def inspect_edge():
-            if edge_channel_id in my_channels:
+            is_mine = edge_channel_id in my_channels
+            if is_mine:
                 if edge_startnode == nodeA:  # payment outgoing, on our channel
                     if not my_channels[edge_channel_id].can_pay(amount_msat):
                         return
@@ -207,7 +208,8 @@ class LNPathFinder(Logger):
                 start_node=edge_startnode,
                 end_node=edge_endnode,
                 payment_amt_msat=amount_msat,
-                ignore_costs=(edge_startnode == nodeA))
+                ignore_costs=(edge_startnode == nodeA),
+                is_mine=is_mine)
             alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
             if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                 distance_from_start[edge_startnode] = alt_dist_to_neighbour
