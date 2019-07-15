@@ -74,7 +74,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.outputs = []
         self.errors = []
         self.is_pr = False
-        self.is_alias = False
+        self.is_alias = self.validated = False
         self.scan_f = win.pay_to_URI
         self.update_size()
         self.payto_address = None
@@ -256,8 +256,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
 
     def textUnderCursor(self):
         tc = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
-        return tc.selectedText()
+        tc.select(QTextCursor.LineUnderCursor)
+        return tc.selectedText().strip()
 
 
     def keyPressEvent(self, e):
@@ -283,11 +283,10 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         if self.c is None or (ctrlOrShift and not e.text()):
             return
 
-        eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
         hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
         completionPrefix = self.textUnderCursor()
 
-        if hasModifier or not e.text() or len(completionPrefix) < 1 or eow.find(e.text()[-1]) >= 0:
+        if hasModifier or not e.text() or len(completionPrefix) < 1:
             self.c.popup().hide()
             return
 
@@ -307,7 +306,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         super(PayToEdit,self).qr_input(_on_qr_success)
 
     def resolve(self):
-        self.is_alias = False
+        self.is_alias, self.validated = False, False
         if self.hasFocus():
             return
         if self.is_multiline():  # only supports single line entries atm
@@ -331,10 +330,15 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             return
         if not data:
             return
-        self.is_alias = True
 
         address = data.get('address')
         name = data.get('name')
+        _type = data.get('type')
+
+        if _type != 'openalias':
+            return
+
+        self.is_alias = True
 
         address_str = None
         if isinstance(address, str):
@@ -349,14 +353,12 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.previous_payto = new_url
 
         self.win.contacts.add(Contact(name=name, address=key, type='openalias'), unique=True)
-        self.win.contact_list.on_update()
+        self.win.contact_list.update()
 
         self.setFrozen(True)
-        if data.get('type') == 'openalias':
-            self.validated = data.get('validated')
-            if self.validated:
-                self.setGreen()
-            else:
-                self.setExpired()
+
+        self.validated = bool(data.get('validated'))
+        if self.validated:
+            self.setGreen()
         else:
-            self.validated = None
+            self.setExpired()

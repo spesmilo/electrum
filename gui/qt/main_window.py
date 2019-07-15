@@ -1896,7 +1896,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
 
-            if self.payto_e.is_alias and self.payto_e.validated is False:
+            if self.payto_e.is_alias and not self.payto_e.validated:
                 alias = self.payto_e.toPlainText()
                 msg = _('WARNING: the alias "{}" could not be validated via an additional '
                         'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
