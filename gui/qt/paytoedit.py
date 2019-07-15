@@ -84,6 +84,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.update_size()
         self.payto_address = None
         self.cointext = None
+        self._ca_busy = False
 
         self.previous_payto = ''
         self.preivous_ca_could_not_verify = set()
@@ -413,6 +414,13 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         if (need_verif and not skip_verif
                 and need_verif != self.preivous_ca_could_not_verify  # this makes it so we don't keep retrying when verif fails due to bad cashacct spec
                 and wallet.network and wallet.network.is_connected()):
+            # Note: verify_multiple_blocks here throws up a waiting dialog
+            # and spawns a local event loop, so this call path may block for
+            # up to 10 seconds. The waiting dialog is however cancellable with
+            # the ESC key, so it's not too bad UX-wise. Just bear in mind that
+            # the local event loop can cause this code path to execute again
+            # if not careful (see the self._ca_busy flag documented inside
+            # function `resolve` below).
             res = cashacctqt.verify_multiple_blocks(list(need_verif), self.win, wallet)
             if res is None:
                 # user abort
@@ -458,6 +466,10 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         it is since it requires the progremmer to spend considerable time
         reading this code to modfy/enhance it.  But we will work with that
         we have for now. -Calin '''
+        if self._ca_busy:
+            # See the comment at the end of this function about why this flag is
+            # here.
+            return
         if self._resolve_open_alias():
             # it was an openalias -- abort and don't proceed to cash account
             # resolve
@@ -467,4 +479,14 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             # user is still editing.
             return
 
-        self._resolve_cash_accounts()
+        # self._ca_busy is a reentrancy prevention flag, needed because
+        # _resolve_cash_acconts causes a local event loop to happen in some
+        # cases as it resolves cash accounts by throwing up a WaitingDialog,
+        # which may cause the timer that calls this function to fire again.
+        # The below mechanism prevents that situation as it may lead to
+        # multiple "Verifying, please wait... " dialogs on top of each other.
+        try:
+            self._ca_busy = True
+            self._resolve_cash_accounts()
+        finally:
+            self._ca_busy = False
