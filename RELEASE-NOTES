@@ -576,6 +576,44 @@ and there is no warning message.
 
 # Release 4.0.8
 
+* Cash Accounts support has been added to Electron Cash!  Most of the UI for it
+  is in the "Contacts" tab (View -> Show Contacts), there are also UI bits to it
+  in the Addresses tab, in the Tools menu, and of course, the Send tab (where
+  you can enter any Cash Account and it will get auto-resolved for you!)
+  #1505 (cculianu with massive platform work from Axel Gembe)
+* Fixups to allow Digital Bitbox and Ledger to sign more types of OP_RETURN
+  outputs. (imaginaryusername, Axel Gembe, cculianu)
+* "Button" Editor: Fix keypress events going to the editor when the buttons are
+  focused and other nits. #1518 (Axel Gembe)
+* More help for "QtSvg Missing" error; #1516 (Mark Lundeberg)
+* Qt: Performance fix to History tab for wallets with many txs when verifying.
+  The performance when verifying for wallets with a huge history was not optimal
+  and the UI would periodically hang. This has been fixed. (cculianu)
+* SPV: Make the merkle node checker no longer care whether "inner node looks
+  like a tx" because this check is no longer need after the Nov. 2018 hard-fork.
+  (cculianu, Mark Lundeberg)
+* Fix #1502 - Intermittent iOS Crash Reporter on bad/expired BIP70 Payment
+  (cculianu)
+* Translations: Add support for plural forms #1500 (Axel Gembe)
+* Coins Tab: Added default sort order of Amount, Descending. The Coins tab now
+  also remebers whatever sort order you gave it. This should be good for
+  CashShuffle users with many coins in their coins tab. (cculianu)
+* Fonts: Improve color emoji support on Windows and Linux #1498 (Axel Gembe)
+* Wallet: Improve performance of is_mine() check from O(N) to O(logN) (cculianu)
+* Qt Network Dialog: Let the user edit the host/port in peace (SomberNight,
+  cculiau)
+* Fonts: Add Google Noto Color Emoji font subset #1496 - This is bundled in
+  Windows and AppImage and loaded at runtime if the user lacks a suitable color
+  emoji font (Axel Gembe).
+* AppImage: Bundle more binaries to increase compatibility & other fixes #1492
+  (Axel Gembe)
+* Updated "Error, Could not import PyQt5" message to be more helpful (cculianu)
+* Qt: Update to 5.12.3 for Windows and AppImage builds #1490 (Axel Gembe)
+* AppImage: Upgrade to Ubuntu 16.04 as base #1489 (Axel Gembe)
+* Build: Protect against PGP keyserver poisoning attack #1487 (Axel Gembe)
+* Added electroncash.se server to servers.json (Georg Engelman)
+* TxDialog: Allow various fields to be selected by mouse. (cculianu)
+* TxDialog: Added the "Mined in block" field to the dialog. (cculianu)
 * Localization: The app now defaults to the system language on Windows, Mac and
   generic Unix for new installs.  The preferences dialog has also been improved
   to bring the General tab to the front and make the language picker contain
@@ -589,3 +627,4 @@ and there is no warning message.
   address mode. (cculianu)
 * Ledger: Fix #1479: 2FA Dialog with Legacy devices and multiple outputs was
   crashy due to a small programming error. Fixed. (Axel Gembe)
+* Minor UI bugfixes. (Axel Gembe, cculianu)
