@@ -99,6 +99,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             # for all textChanged events. -Calin
             self.textChanged.connect(self.repaint)
 
+        self.verticalScrollBar().valueChanged.connect(self._vertical_scroll_bar_changed)
+
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
@@ -242,6 +244,14 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         # The scrollbar visibility can have changed so we update the overlay position here
         self._updateOverlayPos()
 
+    def _vertical_scroll_bar_changed(self, value):
+        ''' Fix for bug #1521 -- Contents of payto edit can disappear
+        unexpectedly when selecting with mouse on a single-liner. '''
+        vb = self.verticalScrollBar()
+        docLineCount = self.document().lineCount()
+        if docLineCount == 1 and vb.maximum()-vb.minimum() == 1 and value != vb.minimum():
+            self.print_error(f"Workaround #1521: forcing scrollbar value back to {vb.minimum()} for single line payto_e.")
+            vb.setValue(vb.minimum())
 
     def setCompleter(self, completer):
         self.c = completer
