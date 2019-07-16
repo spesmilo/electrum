@@ -171,6 +171,8 @@ class ElectrumGui(QObject, PrintError):
         # again here just in case some plugin modified the color scheme.
         ColorScheme.update_from_widget(QWidget())
 
+        self._check_and_warn_qt_version()
+
     def __del__(self):
         stale = True
         if __class__.instance is self:
@@ -281,6 +283,13 @@ class ElectrumGui(QObject, PrintError):
         if icon:
             self.app.setWindowIcon(icon)
 
+    @staticmethod
+    def qt_version() -> tuple:
+        ''' Returns a 3-tuple of the form (major, minor, revision) eg
+        (5, 12, 4) for the current Qt version derived from the QT_VERSION
+        global provided by Qt. '''
+        return ( (QT_VERSION >> 16) & 0xff,  (QT_VERSION >> 8) & 0xff, QT_VERSION & 0xff )
+
     def _load_fonts(self):
         # Only load the emoji font on Linux and Windows
         if sys.platform not in ('linux', 'win32', 'cygwin'):
@@ -288,15 +297,14 @@ class ElectrumGui(QObject, PrintError):
 
         # TODO: Check if we already have the needed emojis
         # TODO: Allow the user to download a full color emoji set
-        def QVER():
-            return ( (QT_VERSION >> 16) & 0xff,  (QT_VERSION >> 8) & 0xff, QT_VERSION & 0xff )
+
         linux_font_config_file = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
 
         if (sys.platform == 'linux'
                 and not os.environ.get('FONTCONFIG_FILE')
                 and os.path.exists('/etc/fonts/fonts.conf')
                 and os.path.exists(linux_font_config_file)
-                and QVER() >= (5, 12)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
+                and self.qt_version() >= (5, 12)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
             # On Linux, we override some fontconfig rules by loading our own
             # font config XML file. This makes it so that our custom emojis and
             # other needed glyphs are guaranteed to get picked up first,
@@ -315,6 +323,16 @@ class ElectrumGui(QObject, PrintError):
 
         if QFontDatabase.addApplicationFont(emojis_ttf_path) < 0:
             self.print_error('failed to add unicode emoji font to application fonts')
+
+    def _check_and_warn_qt_version(self):
+        if sys.platform == 'linux' and self.qt_version() < (5, 12):
+            msg = _("Electron Cash on Linux requires PyQt5 5.12+.\n\n"
+                    "You have version {version_string} installed.\n\n"
+                    "Please upgrade otherwise you may experience "
+                    "font rendering issues with emojis and other unicode "
+                    "characters used by Electron Cash.").format(version_string=QT_VERSION_STR)
+            QMessageBox.warning(None, _("PyQt5 Upgrade Needed"), msg)  # this works even if app is not exec_() yet.
+
 
     def eventFilter(self, obj, event):
         ''' This event filter allows us to open bitcoincash: URIs on macOS '''
