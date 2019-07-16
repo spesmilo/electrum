@@ -36,6 +36,11 @@ import ctypes
 import sys
 import os
 
+# On CentOS we always use the systems font libraries
+if os.path.isfile('/etc/centos-release'):
+    sys.exit(0)
+
+
 TOO_NEW_VERSION = 21207  # 2.12.7 is "too new" since we use 2.12.6
 
 try:
