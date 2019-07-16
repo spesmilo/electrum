@@ -10,7 +10,10 @@ export PATH="${APPDIR}/usr/bin:${PATH}"
 export LDFLAGS="-L${APPDIR}/usr/lib/x86_64-linux-gnu -L${APPDIR}/usr/lib"
 
 if ! "$PYTHON" -s "${APPDIR}/test-freetype.py" ; then
-    export LD_LIBRARY_PATH="${APPDIR}/usr/lib/fonts${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${APPDIR}/usr/lib/fonts/freetype${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}"
+fi
+if ! "$PYTHON" -s "${APPDIR}/test-fontconfig.py" ; then
+    export LD_LIBRARY_PATH="${APPDIR}/usr/lib/fonts/fontconfig${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}"
 fi
 
 exec "$PYTHON" -s "${APPDIR}/usr/bin/electron-cash" "$@"

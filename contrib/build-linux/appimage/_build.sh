@@ -133,13 +133,13 @@ mkdir -p "$CACHEDIR/pip_cache"
 
 
 info "Copying desktop integration"
-cp "$PROJECT_ROOT/electron-cash.desktop" "$APPDIR/electron-cash.desktop"
-cp "$PROJECT_ROOT/icons/electron-cash.png" "$APPDIR/electron-cash.png"
+cp -fp "$PROJECT_ROOT/electron-cash.desktop" "$APPDIR/electron-cash.desktop"
+cp -fp "$PROJECT_ROOT/icons/electron-cash.png" "$APPDIR/electron-cash.png"
 
 
 # add launcher
 info "Adding launcher"
-cp "$CONTRIB/build-linux/appimage/apprun.sh" "$APPDIR/AppRun"
+cp -fp "$CONTRIB/build-linux/appimage/apprun.sh" "$APPDIR/AppRun" || fail "Could not copy AppRun"
 
 info "Finalizing AppDir"
 (
@@ -162,13 +162,15 @@ info "Finalizing AppDir"
 info "Copying additional libraries"
 
 # On some systems it can cause problems to use the system libusb
-cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libusb"
+cp -fp /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gnu/. || fail "Could not copy libusb"
 
 # Ubuntu 14.04 lacks a recent enough libfreetype / libfontconfig, so we include one here
-mkdir "$APPDIR"/usr/lib/fonts
-cp -f /usr/lib/x86_64-linux-gnu/libfreetype.so.6 "$APPDIR"/usr/lib/fonts || fail "Could not copy libfreetype"
-cp -f /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 "$APPDIR"/usr/lib/fonts || fail "Could not copy libfontconfig"
-cp "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR"
+mkdir -p "$APPDIR"/usr/lib/fonts/freetype
+mkdir -p "$APPDIR"/usr/lib/fonts/fontconfig
+cp -fp /usr/lib/x86_64-linux-gnu/libfreetype.so.6 "$APPDIR"/usr/lib/fonts/freetype/. || fail "Could not copy libfreetype"
+cp -fp /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 "$APPDIR"/usr/lib/fonts/fontconfig/. || fail "Could not copy libfontconfig"
+cp -f "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR" || fail "Could not copy test-freetype.py"
+cp -f "$CONTRIB/build-linux/appimage/test-fontconfig.py" "$APPDIR" || fail "Could not copy test-fontconfig.py"
 
 # libfreetype needs a recent enough zlib
 cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
