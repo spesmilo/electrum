@@ -34,7 +34,7 @@ import os
 from ctypes import POINTER, c_int, c_void_p
 
 
-MIN_OK_VERSION = (2,8,0)  # We bundle 2.8 -- if system is older we use our bundled version.
+MIN_OK_VERSION = (2,8,1)  # We bundle 2.8.1 -- if system is older we use our bundled version.
 
 try:
     freetype = ctypes.CDLL('libfreetype.so.6')
@@ -73,4 +73,3 @@ if (major, minor, rev) < MIN_OK_VERSION:
 
 # system lib ok -- do not use bundled lib
 sys.exit(0)
-
