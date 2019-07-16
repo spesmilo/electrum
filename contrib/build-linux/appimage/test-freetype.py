@@ -30,6 +30,11 @@ has a newer freetype library than we bundle and we should use that instead.
 
 import ctypes
 import sys
+import os
+
+# On CentOS we always use the systems font libraries
+if os.path.isfile('/etc/centos-release'):
+    sys.exit(0)
 
 try:
     freetype = ctypes.CDLL('libfreetype.so.6')

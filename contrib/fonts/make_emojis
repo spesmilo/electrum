@@ -54,24 +54,38 @@ fi
 SRCTTF="$here"/unzipped/NotoColorEmoji.ttf
 
 info "Building subset of the souce file"
-pyftsubset "$SRCTTF" --unicodes-file="$here"/emojis.txt --output-file="$here"/emojis.ttf
+pyftsubset "$SRCTTF" --unicodes-file="$here"/glyphs.txt --output-file="$here"/ecsupplemental.ttf
 
 rm -rf "$here"/unzipped
+
+info "Converting font to ttx format"
+ttx "$here"/ecsupplemental.ttf
 
 # We name the font 'Segoe UI Emoji' because that will override the emoji
 # font on Windows. Sadly Qt has no way to override font fallback so this
 # is the only way to do this other than binary patching or recompiling Qt.
-info "Renaming font to Segoe UI Emoji"
-ttx "$here"/emojis.ttf
-sed -i \
-    -e 's/Noto Color Emoji/Segoe UI Emoji/' \
+info "Renaming font to Segoe UI Emoji for Windows"
+sed -e 's/Noto Color Emoji/Segoe UI Emoji/' \
     -e 's/NotoColorEmoji/SegoeUIEmoji/'\
     -e 's/noto-emoji/segoe-ui-emoji/' \
-    "$here"/emojis.ttx
+    < "$here"/ecsupplemental.ttx \
+    > "$here"/ecsupplemental_win.ttx
 # Make reproducible
-touch -h -d '2000-11-11T11:11:11+00:00' emojis.ttx
-ttx -f -o "$here"/emojis.ttf "$here"/emojis.ttx
-rm "$here"/emojis.ttx
+touch -h -d '2000-11-11T11:11:11+00:00' ecsupplemental_win.ttx
+ttx -f -o "$here"/../../gui/qt/data/ecsupplemental_win.ttf "$here"/ecsupplemental_win.ttx
+rm "$here"/ecsupplemental_win.ttx
 
-info "Copying font to the GUI data directory"
-mv "$here"/emojis.ttf "$here"/../../gui/qt/data/emojis.ttf
+# We make another font for Linux to prioritise it with fontconfig
+info "Renaming font to EC Supplemental for Linux"
+sed -e 's/Noto Color Emoji/EC Supplemental/' \
+    -e 's/NotoColorEmoji/ECSupplemental/'\
+    -e 's/noto-emoji/ec-supplemental/' \
+    < "$here"/ecsupplemental.ttx \
+    > "$here"/ecsupplemental_lnx.ttx
+# Make reproducible
+touch -h -d '2000-11-11T11:11:11+00:00' ecsupplemental_lnx.ttx
+ttx -f -o "$here"/../../gui/qt/data/ecsupplemental_lnx.ttf "$here"/ecsupplemental_lnx.ttx
+rm "$here"/ecsupplemental_lnx.ttx
+
+rm "$here"/ecsupplemental.ttx
+rm "$here"/ecsupplemental.ttf

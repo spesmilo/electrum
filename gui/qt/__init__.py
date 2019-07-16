@@ -289,7 +289,14 @@ class ElectrumGui(QObject, PrintError):
         # TODO: Check if we already have the needed emojis
         # TODO: Allow the user to download a full color emoji set
 
-        emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', 'emojis.ttf')
+        if sys.platform == 'linux' and not 'FONTCONFIG_FILE' in os.environ and os.path.exists('/etc/fonts/fonts.conf'):
+            os.environ['FONTCONFIG_FILE'] = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
+
+        emojis_ttf_name = 'ecsupplemental_lnx.ttf'
+        if sys.platform in ('win32', 'cygwin'):
+            emojis_ttf_name = 'ecsupplemental_win.ttf'
+
+        emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', emojis_ttf_name)
 
         if QFontDatabase.addApplicationFont(emojis_ttf_path) < 0:
             self.print_error('failed to add unicode emoji font to application fonts')
