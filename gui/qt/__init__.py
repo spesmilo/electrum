@@ -131,10 +131,10 @@ class ElectrumGui(QObject, PrintError):
         self.plugins = plugins
         self.windows = []
         self.app = QApplication(sys.argv)
+        self._load_fonts()  # this needs to be done very early, before the font engine loads fonts.. out of paranoia
+        self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules, so it should also be done early.
         self.new_version_available = None
         self._set_icon()
-        self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules.
-        self._load_fonts()
         self.app.installEventFilter(self)
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(500) #msec
@@ -289,7 +289,15 @@ class ElectrumGui(QObject, PrintError):
         # TODO: Check if we already have the needed emojis
         # TODO: Allow the user to download a full color emoji set
 
-        if sys.platform == 'linux' and not 'FONTCONFIG_FILE' in os.environ and os.path.exists('/etc/fonts/fonts.conf'):
+        if sys.platform == 'linux' and not os.environ.get('FONTCONFIG_FILE') and os.path.exists('/etc/fonts/fonts.conf'):
+            # On Linux, we override some fontconfig rules by loading our own
+            # font config XML file. This makes it so that our custom emojis and
+            # other needed glyphs are guaranteed to get picked up first,
+            # regardless of user font config.  Without this some Linux systems
+            # had black and white or missing emoji glyphs.  We only do this if
+            # the user doesn't have their own fontconfig file in env and
+            # also as a sanity check, if they have the system
+            # /etc/fonts/fonts.conf file in the right place.
             os.environ['FONTCONFIG_FILE'] = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
 
         emojis_ttf_name = 'ecsupplemental_lnx.ttf'
