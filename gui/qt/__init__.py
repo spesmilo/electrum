@@ -296,7 +296,7 @@ class ElectrumGui(QObject, PrintError):
                 and not os.environ.get('FONTCONFIG_FILE')
                 and os.path.exists('/etc/fonts/fonts.conf')
                 and os.path.exists(linux_font_config_file)
-                and QVER() > (5, 11)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
+                and QVER() >= (5, 12)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
             # On Linux, we override some fontconfig rules by loading our own
             # font config XML file. This makes it so that our custom emojis and
             # other needed glyphs are guaranteed to get picked up first,
