@@ -288,8 +288,15 @@ class ElectrumGui(QObject, PrintError):
 
         # TODO: Check if we already have the needed emojis
         # TODO: Allow the user to download a full color emoji set
+        def QVER():
+            return ( (QT_VERSION >> 16) & 0xff,  (QT_VERSION >> 8) & 0xff, QT_VERSION & 0xff )
+        linux_font_config_file = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
 
-        if sys.platform == 'linux' and not os.environ.get('FONTCONFIG_FILE') and os.path.exists('/etc/fonts/fonts.conf'):
+        if (sys.platform == 'linux'
+                and not os.environ.get('FONTCONFIG_FILE')
+                and os.path.exists('/etc/fonts/fonts.conf')
+                and os.path.exists(linux_font_config_file)
+                and QVER() > (5, 11)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
             # On Linux, we override some fontconfig rules by loading our own
             # font config XML file. This makes it so that our custom emojis and
             # other needed glyphs are guaranteed to get picked up first,
@@ -298,7 +305,7 @@ class ElectrumGui(QObject, PrintError):
             # the user doesn't have their own fontconfig file in env and
             # also as a sanity check, if they have the system
             # /etc/fonts/fonts.conf file in the right place.
-            os.environ['FONTCONFIG_FILE'] = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
+            os.environ['FONTCONFIG_FILE'] = linux_font_config_file
 
         emojis_ttf_name = 'ecsupplemental_lnx.ttf'
         if sys.platform in ('win32', 'cygwin'):
