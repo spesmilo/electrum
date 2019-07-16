@@ -24,12 +24,12 @@
 
 """
 Tests if the system has libfontconfig.so.1 and if its version is
-< 2.12.7, exit(1).  If version >= 2.12.7, exit 0.  Exit 2 on
+< 2.12.6, exit(1).  If version >= 2.12.6, exit 0.  Exit 2 on
 library load error.
 
 In other words, if this script returns success it means the system
-has a newer fontconfig library than we bundle and we should use that
-instead.
+has a new enough fontconfig library and we should use that instead
+of the bundled version.
 """
 
 import ctypes
