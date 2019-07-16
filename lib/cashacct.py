@@ -439,6 +439,8 @@ def _ensure_bytes(arg, argname='Arg'):
             raise ArgumentError(f'{argname} could not be binhex decoded', arg) from e
     if not isinstance(arg, (bytes, bytearray)):
         raise ArgumentError(f'{argname} argument not a bytes-like-object', arg)
+    if isinstance(arg, bytearray):
+        arg = bytes(arg)  # ensure actual bytes so hash() works.
     return arg
 
 def _collision_hash(block_hash, txid):
@@ -803,10 +805,10 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
 
         self.ext_incomplete_tx = dict() # ephemeral (not saved) dict of txid -> RegTx (all regtx's are incomplete here)
 
-        # minimal collision hash encodings cache. keyed off (name.lower(), number, collision_hash) -> '03' string or '' string
+        # minimal collision hash encodings cache. keyed off (name.lower(), number, collision_hash) -> '03' string or '' string, serialized to disk for good UX on startup.
         self.minimal_ch_cache = caches.ExpiringCache(name=f"{self.wallet.diagnostic_name()} - CashAcct minimal collision_hash cache", timeout=3600.0)
 
-        # Dict of block_height -> ProcessedBlock
+        # Dict of block_height -> ProcessedBlock (not serialized to disk)
         self.processed_blocks = caches.ExpiringCache(name=f"{self.wallet.diagnostic_name()} - CashAcct processed block cache", maxlen=5000, timeout=3600.0)
 
     def diagnostic_name(self):
@@ -982,10 +984,24 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         def call_success_cb(min_ch):
             ''' Inform caller if they supplied a callback that the process is done. '''
             if success_cb: success_cb((name, number, collision_hash), min_ch)
-        found = None
+        found, pb_cached = None, None
         if not skip_caches:
             with self.lock:
                 found = self.minimal_ch_cache.get(key)
+                if found is None:
+                    # See if we have the block cached
+                    pb_cached = self.processed_blocks.get(num2bh(number))
+        if found is None and pb_cached is not None:
+            # We didn't have the chash but we do have the block, use that
+            # immediately without going out to network
+            tup = self._calc_minimal_chash(name, collision_hash, pb_cached)
+            if tup:
+                found = tup[1]
+                with self.lock:
+                    # Cache result
+                    self.minimal_ch_cache.put(key, found)
+            # clean up after ourselves
+            del tup
         if found is not None:
             call_success_cb(found)
             return found
