@@ -46,29 +46,31 @@ try:
     freetype.FT_Done_FreeType.restype = c_int
     freetype.FT_Done_FreeType.argtypes = [ c_void_p ]
 
+    freetype.FT_Library_Version.restype = None
     freetype.FT_Library_Version.argtypes = [ c_void_p, POINTER(c_int), POINTER(c_int), POINTER(c_int) ]
-    freetype.FT_Library_Version.restype=None
 
 
-    # allocate FT_Library object -- required to query version.
+    # allocate FT_Library object -- required to query version
     lib_handle = c_void_p()
-    freetype.FT_Init_FreeType(lib_handle)
-    if not lib_handle:
+    err = freetype.FT_Init_FreeType(lib_handle)
+    if err or not lib_handle:
         raise RuntimeError()
 
     major, minor, rev = c_int(), c_int(), c_int()
 
-    # Query version: FT_Library_Version(void *, int *, int *, int *)
+    # Query version: void FT_Library_Version(void *, int *, int *, int *)
     freetype.FT_Library_Version(lib_handle, major, minor, rev)
     major, minor, rev = int(major.value), int(minor.value), int(rev.value)
 
-    # destroy library instance, freeing its resources and memory.
+    # destroy library instance, freeing its resources and memory
     freetype.FT_Done_FreeType(lib_handle)
     del lib_handle
 except Exception:
     sys.exit(2)  # error talking to library, use bundled lib
 
 if (major, minor, rev) < MIN_OK_VERSION:
-    sys.exit(1) # indicate system not new enough, use bundled lib
+    sys.exit(1)  # indicate system not new enough, use bundled lib
 
-sys.exit(0)  # system lib ok -- do not use bundled lib
+# system lib ok -- do not use bundled lib
+sys.exit(0)
+
