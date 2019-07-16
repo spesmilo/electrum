@@ -82,7 +82,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.cashaddr_signal_slots = []
         self._dl_pct = None
         self._closed = False
-        self.tx_hash = self.tx._txid(self.tx.raw) if self.tx.raw else None
+        self.tx_hash = self.tx.txid_fast() if self.tx.raw and self.tx.is_complete() else None
         self.tx_height = self.wallet.get_tx_height(self.tx_hash)[0] or None
         self.block_hash = None
 

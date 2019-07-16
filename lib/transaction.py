@@ -719,6 +719,18 @@ class Transaction:
         ser = self.serialize()
         return self._txid(ser)
 
+    def txid_fast(self):
+        ''' Returns the txid by immediately calculating it from self.raw,
+        which is faster than calling txid() which does a full re-serialize
+        each time.  Note this should only be used for tx's that you KNOW are
+        complete and that don't contain our funny serialization hacks.
+
+        (The is_complete check is also not performed here because that
+        potentially can lead to unwanted tx deserialization). '''
+        if self.raw:
+            return self._txid(self.raw)
+        return self.txid()
+
     @staticmethod
     def _txid(raw_hex : str) -> str:
         return bh2u(Hash(bfh(raw_hex))[::-1])
