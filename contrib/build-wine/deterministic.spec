@@ -48,7 +48,7 @@ datas = [
     (home+'lib/servers_testnet.json', 'electroncash'),
     (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'lib/locale', 'electroncash/locale'),
-    (home+'gui/qt/data', 'electroncash_gui/qt/data'),
+    (home+'gui/qt/data/ecsupplemental_win.ttf', 'electroncash_gui/qt/data'),
     (home+'plugins', 'electroncash_plugins'),
 ]
 datas += collect_data_files('trezorlib')
@@ -83,13 +83,15 @@ a = Analysis([home+'electron-cash',
              hookspath=[])
 
 
+rm_misc_datas = []
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
+rm_misc_datas.append('pyconfig.h')
+print("Removing Misc. datas:", *rm_misc_datas)
 for d in a.datas.copy():
     lcase_d0 = d[0].lower()
-    if 'pyconfig' in lcase_d0:
+    if any(x in lcase_d0 for x in rm_misc_datas):
         a.datas.remove(d)
         print("----> Removed d =", d)
-        break
 
 # Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
 qt_bins2remove=('qt5web', 'qt53d', 'qt5game', 'qt5designer', 'qt5quick',
@@ -108,7 +110,7 @@ qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales',
 print("Removing Qt datas:", *qt_data2remove)
 for x in a.datas.copy():
     for r in qt_data2remove:
-        if x[0].lower().startswith(r):
+        if r in x[1].lower():
             a.datas.remove(x)
             print('----> Removed x =', x)
 
