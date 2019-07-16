@@ -360,6 +360,7 @@ class InfoGroupBox(PrintError, QGroupBox):
             if not col:
                 row += 1
             info, min_chash, ca_string = item
+            ca_string_em = f"{ca_string} {info.emoji}"
             # Radio button (by itself in colum 0)
             rb = BUTTON_CLASS()
             rb.setObjectName("InfoGroupBoxButton")
@@ -417,9 +418,9 @@ class InfoGroupBox(PrintError, QGroupBox):
 
             if isinstance(parent, ElectrumWindow):
                 view_tx_lbl.linkActivated.connect(view_tx_link_activated)
-                copy_but.clicked.connect(lambda ignored=None, ca_string=ca_string, copy_but=copy_but:
-                                             parent.copy_to_clipboard(text=ca_string, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
-                copy_but.setToolTip(_("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string))
+                copy_but.clicked.connect(lambda ignored=None, ca_string_em=ca_string_em, copy_but=copy_but:
+                                             parent.copy_to_clipboard(text=ca_string_em, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
+                copy_but.setToolTip(_("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em))
             else:
                 view_tx_lbl.setHidden(True)
                 copy_but.setHidden(True)

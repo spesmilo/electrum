@@ -179,10 +179,12 @@ class ContactList(PrintError, MyTreeWidget):
             typ = i2c(item).type if item else 'unknown'
             ca_info = None
             if item and typ in ('cashacct', 'cashacct_W'):
+                ca_info = self.wallet.cashacct.get_verified(i2c(item).name)
                 if column == 1 and len(selected) == 1:
                     # hack .. for Cash Accounts just say "Copy Cash Account"
                     column_title = _('Cash Account')
-                ca_info = self.wallet.cashacct.get_verified(i2c(item).name)
+                    if ca_info:
+                        column_data = self.wallet.cashacct.fmt_info(ca_info, emoji=True)
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if item and column in self.editable_columns and self.on_permit_edit(item, column):
                 key = item.data(0, self.DataRoles.Contact)

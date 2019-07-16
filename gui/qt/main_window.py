@@ -1045,7 +1045,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 slf.info = info
             def on_copy(slf):
                 ''' overrides super class '''
-                QApplication.instance().clipboard().setText(slf.text()[3:]) # cut off the leading emoji
+                QApplication.instance().clipboard().setText(slf.text()[3:] + ' ' + slf.text()[:1]) # cut off the leading emoji, and add it to the end
                 QToolTip.showText(QCursor.pos(), _("Cash Account copied to clipboard"), slf)
             def on_network_qt(slf, event, args=None):
                 ''' pick up cash account changes and update receive tab. Called

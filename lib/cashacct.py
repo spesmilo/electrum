@@ -840,9 +840,9 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         name2#100;
         name3#101.1234567890;
 
-        If emoji=True, then we will prepend the emoji character like so:
+        If emoji=True, then we will append the emoji character like so:
 
-        "🌶 NilacTheGrim#123.45"
+        "NilacTheGrim#123.45; 🌶"
 
         (Note that the returned string will always end in a semicolon.)
 
@@ -853,12 +853,16 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         if minimal_chash is None:
             minimal_chash = self.get_minimal_chash(name, number, chash)
         if minimal_chash: minimal_chash = '.' + minimal_chash
-        emojipart = f'{info.emoji} ' if emoji and info.emoji else ''
-        return f"{emojipart}{name}#{number}{minimal_chash};"
+        emojipart = f' {info.emoji}' if emoji and info.emoji else ''
+        return f"{name}#{number}{minimal_chash};{emojipart}"
 
 
     _number_re = re.compile(r'^[0-9]{3,}$')
     _collision_re = re.compile(r'^[0-9]{0,10}$')
+
+    @staticmethod
+    def strip_emoji(s : str) -> str:
+        return ''.join(filter(lambda x: x not in emoji_set, s))
 
     @classmethod
     def parse_string(cls, s : str) -> tuple:
@@ -876,6 +880,8 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
 
         Does not raise, merely returns None on all errors.'''
         s = s.strip()
+        while s and s[-1] in emoji_set:
+            s = s[:-1].strip() # strip trailing "<space><emoji>"
         while s.endswith(';'):
             s = s[:-1]  # strip trailing ;
         parts = s.split('#')

@@ -319,9 +319,10 @@ class AddressList(MyTreeWidget):
                 ca_default = self._ca_get_default(ca_list)
                 for ca_info in ca_list:
                     ca_text = self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash)
+                    ca_text_em = self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash, emoji=True)
                     m = menu.addMenu(ca_info.emoji + " " + ca_text)
                     #a = menu.addAction(ca_info.emoji + " " + self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash), lambda: None)
-                    a = m.addAction(_("Copy Cash Account"), lambda x=None, text=ca_text: doCopy(text))
+                    a = m.addAction(_("Copy Cash Account"), lambda x=None, text=ca_text_em: doCopy(text))
                     a = m.addAction(_("Details") + "...", lambda: self.parent.show_address(addr))
                     a = m.addAction(_("View registration tx") + "...", lambda x=None, ca=ca_info: self.parent.do_process_from_txid(txid=ca.txid))
                     a = a_def = m.addAction(_("Make default for address"), lambda x=None, ca=ca_info: self._ca_set_default(ca, True))
