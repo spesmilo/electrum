@@ -36,12 +36,8 @@ import ctypes
 import sys
 import os
 
-# On CentOS we always use the systems font libraries
-if os.path.isfile('/etc/centos-release'):
-    sys.exit(0)
 
-
-TOO_NEW_VERSION = 21207  # 2.12.7 is "too new" since we use 2.12.6
+MIN_OK_VERSION = 21206  # we bundle 2.12.6
 
 try:
     fontconfig = ctypes.CDLL('libfontconfig.so.1')
@@ -51,7 +47,7 @@ try:
 except Exception:
     sys.exit(2)  # error exit indicates to caller to use bundled fontconfig
 
-if ver < TOO_NEW_VERSION:
+if ver < MIN_OK_VERSION:
     sys.exit(1) # error exit indicates to caller to use bundled fontconfig
 
 # Success exit -- do not use bundled fontconfig
