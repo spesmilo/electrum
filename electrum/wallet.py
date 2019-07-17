@@ -1306,7 +1306,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return None
         try: 
-            onboardUserKey_serialized, _ = self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)  
+            onboardUserKey_serialized, redeem_script = self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)  
             if return_serialized: 
                 return onboardUserKey_serialized
             #Deserialize it
@@ -1478,7 +1478,6 @@ class Abstract_Wallet(AddressSynchronizer):
             if len(decoded) is not 0:
                 txtype=decoded['type']
                 if txtype == 'registeraddress':
-                    print('reached reg')
                     data=decoded['data']
                     break
                 else:
@@ -2002,7 +2001,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
-        onboardUserKey_serialized, _ = self.export_private_key(address, password, False)   
+        onboardUserKey_serialized, redeem_script = self.export_private_key(address, password, False)   
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
         onboardUserKey=ecc.ECPrivkey(secret_bytes)
       
