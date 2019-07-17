@@ -141,6 +141,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
         self.is_schnorr_enabled = self.wallet.is_schnorr_enabled  # This is a function -- Support for plugins that may be using the 4.0.3 & 4.0.4 API -- this function used to live in this class, before being moved to Abstract_Wallet.
         self.send_tab_opreturn_widgets, self.receive_tab_opreturn_widgets = [], []  # defaults to empty list
+        self._shortcuts = []  # keep track of shortcuts and disable them on close
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -189,15 +190,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.init_menubar()
 
         wrtabs = Weak(tabs)
-        QShortcut(QKeySequence("Ctrl+W"), self, self.close)
-        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+W"), self, self.close) )
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+Q"), self, self.close) )
         # Below is now addded to the menu as Ctrl+R but we'll also support F5 like browsers do
-        QShortcut(QKeySequence("F5"), self, self.update_wallet)
-        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() - 1)%wrtabs.count()))
-        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() + 1)%wrtabs.count()))
+        self._shortcuts.append( QShortcut(QKeySequence("F5"), self, self.update_wallet) )
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() - 1)%wrtabs.count())) )
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() + 1)%wrtabs.count())) )
 
         for i in range(wrtabs.count()):
-            QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
+            self._shortcuts.append( QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i)) )
 
         self.gui_object.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
@@ -4311,14 +4312,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def clean_up_children(self):
         # status bar holds references to self, so clear it to help GC this window
-        # Note that due to quirks on macOS and the shared menu bar, we do *NOT* clear
-        # the menuBar.  But I've found it goes away anyway on its own after window deletion.
         self.setStatusBar(None)
+        # Note that due to quirks on macOS and the shared menu bar, we do *NOT*
+        # clear the menuBar. Instead, doing this causes the object to get
+        # deleted and/or its actions (and more importantly menu action hotkeys)
+        # to go away immediately.
+        self.setMenuBar(None)
+
+        # disable shortcuts immediately to prevent them from accidentally firing
+        # on us after we are closed.  They will get deleted when this QObject
+        # is finally deleted by Qt.
+        for shortcut in self._shortcuts:
+            shortcut.setEnabled(False)
+            del shortcut
+        self._shortcuts.clear()
+
         # Reparent children to 'None' so python GC can clean them up sooner rather than later.
         # This also hopefully helps accelerate this window's GC.
         children = [c for c in self.children()
-                    if (isinstance(c, (QWidget,QAction,QShortcut,TaskThread))
-                        and not isinstance(c, (QStatusBar, QMenuBar, QFocusFrame)))]
+                    if (isinstance(c, (QWidget, QAction, TaskThread))
+                        and not isinstance(c, (QStatusBar, QMenuBar, QFocusFrame, QShortcut)))]
         for c in children:
             try: c.disconnect()
             except TypeError: pass
