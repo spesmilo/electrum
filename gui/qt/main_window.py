@@ -191,7 +191,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wrtabs = Weak(tabs)
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
-        QShortcut(QKeySequence("Ctrl+R"), self, self.update_wallet)
+        # Below is now addded to the menu as Ctrl+R but we'll also support F5 like browsers do
+        QShortcut(QKeySequence("F5"), self, self.update_wallet)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() - 1)%wrtabs.count()))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() + 1)%wrtabs.count()))
 
@@ -588,7 +589,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
+        wallet_menu.addAction(_("&Information"), self.show_master_public_keys, QKeySequence("Ctrl+I"))
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -617,7 +618,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hist_menu.addAction(_("Export"), self.export_history_dialog)
 
         wallet_menu.addSeparator()
-        wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
+        wallet_menu.addAction(_("Find"), self.toggle_search, QKeySequence("Ctrl+F"))
+        wallet_menu.addAction(_("&Refresh GUI"), self.update_wallet, QKeySequence("Ctrl+R"))
+
 
         def add_toggle_action(view_menu, tab):
             is_shown = self.tabs.indexOf(tab) > -1
@@ -635,13 +638,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu = menubar.addMenu(_("&Tools"))
 
         # Settings / Preferences are all reserved keywords in OSX using this as work around
-        tools_menu.addAction(_("Electron Cash preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
+        prefs_tit = _("Electron Cash preferences") if sys.platform == 'darwin' else _("Preferences")
+        tools_menu.addAction(prefs_tit, self.settings_dialog, QKeySequence("Ctrl+,") )
         gui_object = self.gui_object
         weakSelf = Weak.ref(self)
-        tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()))
-        tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog)
-        tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog)
-        if sys.platform in ('linux', 'linux2', 'linux3'):
+        tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()), QKeySequence("Ctrl+K"))
+        tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog, QKeySequence("Shift+Ctrl+P"))
+        tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog, QKeySequence("Ctrl+P"))
+        if sys.platform.startswith('linux'):
             tools_menu.addSeparator()
             tools_menu.addAction(_("&Hardware wallet support..."), self.hardware_wallet_support)
         tools_menu.addSeparator()
@@ -649,12 +653,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
         tools_menu.addSeparator()
 
-        paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
+        paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany, QKeySequence("Ctrl+M"))
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("From &file"), self.do_process_from_file)
-        raw_transaction_menu.addAction(_("From &text"), self.do_process_from_text)
-        raw_transaction_menu.addAction(_("From the &blockchain"), self.do_process_from_txid)
+        raw_transaction_menu.addAction(_("From &text"), self.do_process_from_text, QKeySequence("Ctrl+T"))
+        raw_transaction_menu.addAction(_("From the &blockchain"), self.do_process_from_txid, QKeySequence("Ctrl+B"))
         raw_transaction_menu.addAction(_("From &QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
         tools_menu.addSeparator()
@@ -662,11 +666,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             icon = QIcon(":icons/cashacct-button-darkmode.png")
         else:
             icon = QIcon(":icons/cashacct-logo.png")
-        tools_menu.addAction(icon, _("Lookup &Cash Account..."), self.lookup_cash_account_dialog)
+        tools_menu.addAction(icon, _("Lookup &Cash Account..."), self.lookup_cash_account_dialog, QKeySequence("Ctrl+L"))
         run_hook('init_menubar_tools', self, tools_menu)
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
+        help_menu.addAction(_("About Qt"), self.app.aboutQt)
         help_menu.addAction(_("&Check for updates..."), lambda: self.gui_object.show_update_checker(self))
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electroncash.org"))
         help_menu.addSeparator()
@@ -688,9 +693,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_about(self):
         QMessageBox.about(self, "Electron Cash",
-            _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" +
-                _("Electron Cash's focus is speed, with low resource usage and simplifying Bitcoin Cash. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin Cash system."  + "\n\n" +
-                _("Uses icons from the Icons8 icon pack (icons8.com).")))
+            "<p><font size=+3><b>Electron Cash</b></font></p><p>" + _("Version") + f" {self.wallet.electrum_version}" + "</p>" +
+            '<p><span style="font-size:11pt; font-weight:500;">' + "Copyright © 2017-2019<br>Electron Cash LLC &amp; The Electron Cash Developers" + "</span></p>" +
+            '<p><span style="font-weight:200;">' +
+            _("Electron Cash's focus is speed, with low resource usage and simplifying Bitcoin Cash. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin Cash system.") +
+            "</span></p>"
+        )
 
     def show_report_bug(self):
         msg = ' '.join([
