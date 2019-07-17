@@ -52,25 +52,28 @@ def parse_servers(result):
     """ parse servers list into dict format"""
     servers = {}
     for item in result:
-        host = item[1]
-        out = {}
-        version = None
-        pruning_level = '-'
-        if len(item) > 2:
-            for v in item[2]:
-                if re.match(r"[st]\d*", v):
-                    protocol, port = v[0], v[1:]
-                    if port == '': port = networks.net.DEFAULT_PORTS[protocol]
-                    out[protocol] = port
-                elif re.match(r"v(.?)+", v):
-                    version = v[1:]
-                elif re.match(r"p\d*", v):
-                    pruning_level = v[1:]
-                if pruning_level == '': pruning_level = '0'
-        if out:
-            out['pruning'] = pruning_level
-            out['version'] = version
-            servers[host] = out
+        try:
+            host = item[1]
+            out = {}
+            version = None
+            pruning_level = '-'
+            if len(item) > 2:
+                for v in item[2]:
+                    if re.match(r"[st]\d*", v):
+                        protocol, port = v[0], v[1:]
+                        if port == '': port = networks.net.DEFAULT_PORTS[protocol]
+                        out[protocol] = port
+                    elif re.match(r"v(.?)+", v):
+                        version = v[1:]
+                    elif re.match(r"p\d*", v):
+                        pruning_level = v[1:]
+                    if pruning_level == '': pruning_level = '0'
+            if out:
+                out['pruning'] = pruning_level
+                out['version'] = version
+                servers[host] = out
+        except (TypeError, ValueError, IndexError, KeyError) as e:
+            util.print_error("parse_servers:", item, repr(e))
     return servers
 
 def filter_version(servers):
@@ -728,29 +731,38 @@ class Network(util.DaemonThread):
         method = response.get('method')
         params = response.get('params')
 
+        # FIXME:
+        # Do more to enforce result correctness, has the right data type, etc.
+        # This code as it stands has been superficially audited for that but I
+        # suspect it's still possible for  a malicious server to cause clients
+        # to throw up a crash reporter by sending unexpected JSON data types
+        # or garbage data in the server response.
+
         # We handle some responses; return the rest to the client.
         if method == 'server.version':
-            self.on_server_version(interface, result)
+            if isinstance(result, list):
+                self.on_server_version(interface, result)
         elif method == 'blockchain.headers.subscribe':
             if error is None:
+                # on_notify_header below validates result is right type or format
                 self.on_notify_header(interface, result)
         elif method == 'server.peers.subscribe':
-            if error is None:
+            if error is None and isinstance(result, list):
                 self.irc_servers = parse_servers(result)
                 self.notify('servers')
         elif method == 'server.banner':
-            if error is None:
+            if error is None and isinstance(result, str):
                 # limit banner results to 16kb to avoid minor DoS vector whereby
                 # server sends a huge block of slow-to-render emojis which
                 # brings some platforms to thier knees for a few minutes.
-                self.banner = result and result[:16384]
+                self.banner = result[:16384]
                 self.notify('banner')
         elif method == 'server.donation_address':
-            if error is None:
+            if error is None and isinstance(result, str):
                 self.donation_address = result
         elif method == 'blockchain.estimatefee':
             try:
-                if error is None and result > 0:
+                if error is None and isinstance(result, (int, float)) and result > 0:
                     i = params[0]
                     fee = int(result*COIN)
                     self.config.update_fee_estimates(i, fee)
@@ -760,15 +772,23 @@ class Network(util.DaemonThread):
                 self.print_error("bad server data in blockchain.estimatefee:", result, "error:", repr(e))
         elif method == 'blockchain.relayfee':
             try:
-                if error is None:
+                if error is None and isinstance(result, (int, float)):
                     self.relay_fee = int(result * COIN)
                     self.print_error("relayfee", self.relay_fee)
             except (TypeError, ValueError) as e:
                 self.print_error("bad server data in blockchain.relayfee:", result, "error:", repr(e))
         elif method == 'blockchain.block.headers':
-            self.on_block_headers(interface, request, response)
+            try:
+                self.on_block_headers(interface, request, response)
+            except Exception as e:
+                self.print_error(f"bad server response for {method}: {repr(e)} / {response}")
+                self.connection_down(interface.server)
         elif method == 'blockchain.block.header':
-            self.on_header(interface, request, response)
+            try:
+                self.on_header(interface, request, response)
+            except Exception as e:
+                self.print_error(f"bad server response for {method}: {repr(e)} / {response}")
+                self.connection_down(interface.server)
 
         for callback in callbacks:
             callback(response)
