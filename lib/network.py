@@ -202,6 +202,7 @@ class Network(util.DaemonThread):
     # override these at any time (iOS sets these to lower values).
     NODES_RETRY_INTERVAL = 60  # How often to retry a node we know about in secs, if we are connected to less than 10 nodes
     SERVER_RETRY_INTERVAL = 10  # How often to reconnect when server down in secs
+    MAX_MESSAGE_BYTES = 1024*1024*32 # = 32MB. The message size limit in bytes. This is to prevent a DoS vector whereby the server can fill memory with garbage data.
 
     def __init__(self, config=None):
         if config is None:
@@ -739,7 +740,10 @@ class Network(util.DaemonThread):
                 self.notify('servers')
         elif method == 'server.banner':
             if error is None:
-                self.banner = result
+                # limit banner results to 16kb to avoid minor DoS vector whereby
+                # server sends a huge block of slow-to-render emojis which
+                # brings some platforms to thier knees for a few minutes.
+                self.banner = result and result[:16384]
                 self.notify('banner')
         elif method == 'server.donation_address':
             if error is None:
@@ -933,7 +937,7 @@ class Network(util.DaemonThread):
     def new_interface(self, server_key, socket):
         self.add_recent_server(server_key)
 
-        interface = Interface(server_key, socket)
+        interface = Interface(server_key, socket, max_message_bytes=self.MAX_MESSAGE_BYTES)
         interface.blockchain = None
         interface.tip_header = None
         interface.tip = 0

@@ -267,12 +267,12 @@ class Interface(util.PrintError):
     MODE_CATCH_UP = 'catch_up'
     MODE_VERIFICATION = 'verification'
 
-    def __init__(self, server, socket):
+    def __init__(self, server, socket, *, max_message_bytes=0):
         self.server = server
         self.host, self.port, _ = server.rsplit(':', 2)
         self.socket = socket
 
-        self.pipe = util.SocketPipe(socket)
+        self.pipe = util.SocketPipe(socket, max_message_bytes=max_message_bytes)
         self.pipe.set_timeout(0.0)  # Don't wait for data
         # Dump network messages.  Set at runtime from the console.
         self.debug = False
@@ -307,6 +307,7 @@ class Interface(util.PrintError):
             except socket.error:
                 pass
         self.socket.close()
+        self.pipe.clean_up()
 
     def queue_request(self, *args):  # method, params, _id
         '''Queue a request, later to be send with send_requests when the
@@ -365,6 +366,10 @@ class Interface(util.PrintError):
             try:
                 response = self.pipe.get()
             except util.timeout:
+                break
+            except self.pipe.MessageSizeExceeded as e:
+                self.print_error(repr(e))
+                responses.append((None, None))  # signals Network class to close this connection
                 break
             if not type(response) is dict:
                 responses.append((None, None))
