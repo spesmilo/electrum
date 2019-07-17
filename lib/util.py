@@ -34,6 +34,7 @@ import inspect, weakref
 import itertools
 import subprocess
 from locale import localeconv
+from abc import ABC, abstractmethod
 
 from .i18n import _
 
@@ -98,14 +99,14 @@ class PrintError:
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
 
-class ThreadJob(PrintError):
+class ThreadJob(ABC, PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
     called from that thread's context.
     """
 
+    @abstractmethod
     def run(self):
         """Called periodically from the thread"""
-        pass
 
 class DebugMem(ThreadJob):
     '''A handy class for debugging GC memory leaks'''

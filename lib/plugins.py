@@ -574,7 +574,7 @@ class DeviceUnpairableError(Exception):
 Device = namedtuple("Device", "path interface_number id_ product_key usage_page")
 DeviceInfo = namedtuple("DeviceInfo", "device label initialized")
 
-class DeviceMgr(ThreadJob, PrintError):
+class DeviceMgr(ThreadJob):
     '''Manages hardware clients.  A client communicates over a hardware
     channel with the device.
 
