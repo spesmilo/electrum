@@ -189,16 +189,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.init_menubar()
 
-        wrtabs = Weak(tabs)
+        wrtabs = Weak.ref(tabs)  # We use a weak reference here to help along python gc of QShortcut children: prevent the lambdas below from holding a strong ref to self.
         self._shortcuts.append( QShortcut(QKeySequence("Ctrl+W"), self, self.close) )
         self._shortcuts.append( QShortcut(QKeySequence("Ctrl+Q"), self, self.close) )
         # Below is now addded to the menu as Ctrl+R but we'll also support F5 like browsers do
         self._shortcuts.append( QShortcut(QKeySequence("F5"), self, self.update_wallet) )
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() - 1)%wrtabs.count())) )
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs.setCurrentIndex((wrtabs.currentIndex() + 1)%wrtabs.count())) )
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() - 1)%wrtabs().count())) )
+        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() + 1)%wrtabs().count())) )
 
-        for i in range(wrtabs.count()):
-            self._shortcuts.append( QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i)) )
+        for i in range(tabs.count()):
+            self._shortcuts.append( QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs() and wrtabs().setCurrentIndex(i)) )
 
         self.gui_object.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
