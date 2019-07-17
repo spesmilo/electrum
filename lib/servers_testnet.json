@@ -19,7 +19,11 @@
         "s": "50004",
         "t": "50003"
     },
-    "testnet.electroncash.de": {
+    "jktsologn7uprtwn7gsgmwuddj6rxsqmwc2vaug7jwcwzm2bxqnfpwad.onion": {
+        "s": "50004",
+        "t": "50003"
+    },
+    "electroncash.de": {
         "s": "50004",
         "t": "50003"
     }
