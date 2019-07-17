@@ -629,4 +629,8 @@ and there is no warning message.
   address mode. (cculianu)
 * Ledger: Fix #1479: 2FA Dialog with Legacy devices and multiple outputs was
   crashy due to a small programming error. Fixed. (Axel Gembe)
+* Added various hotkeys to the GUI Ctrl+K, Ctrl+M, etc. You will see them in
+  the various in-app menus (such as Tools, Wallet, etc). (cculianu)
+* Made the network layer more resilient to malformed server responses.
+  (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
