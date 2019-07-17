@@ -598,17 +598,19 @@ and there is no warning message.
 * Coins Tab: Added default sort order of Amount, Descending. The Coins tab now
   also remebers whatever sort order you gave it. This should be good for
   CashShuffle users with many coins in their coins tab. (cculianu)
-* Fonts: Improve color emoji support on Windows and Linux #1498 (Axel Gembe)
 * Wallet: Improve performance of is_mine() check from O(N) to O(logN) (cculianu)
 * Qt Network Dialog: Let the user edit the host/port in peace (SomberNight,
-  cculiau)
-* Fonts: Add Google Noto Color Emoji font subset #1496 - This is bundled in
-  Windows and AppImage and loaded at runtime if the user lacks a suitable color
-  emoji font (Axel Gembe).
+  cculianu)
+* Fonts: Improve color emoji support on Windows and Linux #1498 (Axel Gembe)
+* Fonts: Add Google Noto Color Emoji font subset #1496, #1523 - This is bundled
+  in Windows and AppImage and loaded at runtime if the user lacks a suitable
+  color emoji font (Axel Gembe).
 * AppImage: Bundle more binaries to increase compatibility & other fixes #1492
   (Axel Gembe)
 * Updated "Error, Could not import PyQt5" message to be more helpful (cculianu)
 * Qt: Update to 5.12.3 for Windows and AppImage builds #1490 (Axel Gembe)
+* Linux Qt: Warn user if running Qt < 5.12 (this has terrible font support
+  which causes EC to render fonts badly if using emojis or unicode) (cculianu)
 * AppImage: Upgrade to Ubuntu 16.04 as base #1489 (Axel Gembe)
 * Build: Protect against PGP keyserver poisoning attack #1487 (Axel Gembe)
 * Added electroncash.se server to servers.json (Georg Engelman)
