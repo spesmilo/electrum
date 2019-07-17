@@ -222,7 +222,7 @@ class TrezorPlugin(HW_PluginBase):
             exit_code = 1
         except BaseException as e:
             self.logger.exception('')
-            handler.show_error(str(e))
+            handler.show_error(repr(e))
             exit_code = 1
         finally:
             wizard.loop.exit(exit_code)

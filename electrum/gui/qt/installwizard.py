@@ -265,7 +265,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         continue
                     except BaseException as e:
                         self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=str(e))
+                        self.show_message(title=_('Error'), msg=repr(e))
                         raise UserCancelled()
                 elif self.temp_storage.is_encrypted_with_hw_device():
                     try:
@@ -278,7 +278,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         return self.select_storage(path, get_wallet_from_daemon)
                     except BaseException as e:
                         self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=str(e))
+                        self.show_message(title=_('Error'), msg=repr(e))
                         raise UserCancelled()
                     if self.temp_storage.is_past_initial_decryption():
                         break

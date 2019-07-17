@@ -345,7 +345,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.logger.error("on_error", exc_info=exc_info)
             except OSError:
                 pass  # see #4418
-            self.show_error(str(e))
+            self.show_error(repr(e))
 
     def on_network(self, event, *args):
         if event == 'wallet_updated':
@@ -1026,7 +1026,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     try:
                         self.wallet.sign_payment_request(addr, alias, alias_addr, password)
                     except Exception as e:
-                        self.show_error(str(e))
+                        self.show_error(repr(e))
                         return
                 else:
                     return
@@ -1045,7 +1045,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.wallet.add_payment_request(req, self.config)
         except Exception as e:
             self.logger.exception('Error adding payment request')
-            self.show_error(_('Error adding payment request') + ':\n' + str(e))
+            self.show_error(_('Error adding payment request') + ':\n' + repr(e))
         else:
             self.sign_payment_request(addr)
             self.save_request_button.setEnabled(False)
@@ -2151,7 +2151,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 return
             except BaseException as e:
                 self.logger.exception('')
-                self.show_error(str(e))
+                self.show_error(repr(e))
                 return
             old_password = hw_dev_pw if self.wallet.has_password() else None
             new_password = hw_dev_pw if encrypt_file else None
@@ -2288,7 +2288,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             seed = keystore.get_seed(password)
             passphrase = keystore.get_passphrase(password)
         except BaseException as e:
-            self.show_error(str(e))
+            self.show_error(repr(e))
             return
         from .seed_dialog import SeedDialog
         d = SeedDialog(self, seed, passphrase)
@@ -2308,7 +2308,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             pk, redeem_script = self.wallet.export_private_key(address, password)
         except Exception as e:
             self.logger.exception('')
-            self.show_message(str(e))
+            self.show_message(repr(e))
             return
         xtype = bitcoin.deserialize_privkey(pk)[0]
         d = WindowModalDialog(self, _("Private key"))
@@ -2502,7 +2502,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tx = tx_from_str(txt)
             return Transaction(tx)
         except BaseException as e:
-            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + str(e))
+            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
 
     def read_tx_from_qrcode(self):
@@ -2510,7 +2510,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             data = qrscanner.scan_barcode(self.config.get_video_device())
         except BaseException as e:
-            self.show_error(str(e))
+            self.show_error(repr(e))
             return
         if not data:
             return
@@ -2563,7 +2563,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(txid, timeout=10))
             except Exception as e:
-                self.show_message(_("Error getting transaction from network") + ":\n" + str(e))
+                self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
                 return
             tx = transaction.Transaction(raw_tx)
             self.show_transaction(tx)
@@ -2655,7 +2655,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_critical(txt, title=_("Unable to create csv"))
 
         except Exception as e:
-            self.show_message(str(e))
+            self.show_message(repr(e))
             return
 
         self.show_message(_("Private keys exported."))
@@ -2732,7 +2732,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             try:
                 valid_privkeys = get_pk(raise_on_error=True) is not None
             except Exception as e:
-                button.setToolTip(f'{_("Error")}: {str(e)}')
+                button.setToolTip(f'{_("Error")}: {repr(e)}')
             else:
                 button.setToolTip('')
             button.setEnabled(get_address() is not None and valid_privkeys)
@@ -2753,7 +2753,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             coins, keypairs = sweep_preparations(get_pk(), self.network)
         except Exception as e:  # FIXME too broad...
-            self.show_message(str(e))
+            self.show_message(repr(e))
             return
         self.do_clear()
         self.tx_external_keypairs = keypairs
@@ -2946,7 +2946,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 SSL_error = None
             except BaseException as e:
                 SSL_identity = "error"
-                SSL_error = str(e)
+                SSL_error = repr(e)
         else:
             SSL_identity = ""
             SSL_error = None

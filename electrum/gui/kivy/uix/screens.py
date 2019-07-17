@@ -290,7 +290,7 @@ class SendScreen(CScreen):
             return
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            self.app.show_error(str(e))
+            self.app.show_error(repr(e))
             return
         if rbf:
             tx.set_rbf(True)
@@ -410,7 +410,7 @@ class ReceiveScreen(CScreen):
             self.app.wallet.add_payment_request(req, self.app.electrum_config)
             added_request = True
         except Exception as e:
-            self.app.show_error(_('Error adding payment request') + ':\n' + str(e))
+            self.app.show_error(_('Error adding payment request') + ':\n' + repr(e))
             added_request = False
         finally:
             self.app.update_tab('requests')

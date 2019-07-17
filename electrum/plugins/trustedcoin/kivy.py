@@ -74,7 +74,7 @@ class Plugin(TrustedCoinPlugin):
 
     def accept_terms_of_use(self, wizard):
         def handle_error(msg, e):
-            wizard.show_error(msg + ':\n' + str(e))
+            wizard.show_error(msg + ':\n' + repr(e))
             wizard.terminate()
         try:
             tos = server.get_terms_of_service()

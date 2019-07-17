@@ -68,10 +68,10 @@ class VerifyingJSONRPCServer(SimpleJSONRPCServer, Logger):
                         return True
                     except (RPCAuthCredentialsInvalid, RPCAuthCredentialsMissing,
                             RPCAuthUnsupportedType) as e:
-                        myself.send_error(401, str(e))
+                        myself.send_error(401, repr(e))
                     except BaseException as e:
                         self.logger.exception('')
-                        myself.send_error(500, str(e))
+                        myself.send_error(500, repr(e))
                 return False
 
         SimpleJSONRPCServer.__init__(
