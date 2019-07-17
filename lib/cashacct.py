@@ -535,9 +535,10 @@ servers = [
     "https://electrum.imaginary.cash"   # Runs alternative server software: https://gitlab.com/paOol/lookup-server
 ]
 
-debug = False
+debug = False  # network debug setting. Set to True when developing to see more verbose information about network operations.
+timeout = 12.5  # default timeout used in various network functions, in seconds.
 
-def lookup(server, number, name=None, collision_prefix=None, timeout=10.0, exc=[], debug=debug) -> tuple:
+def lookup(server, number, name=None, collision_prefix=None, timeout=timeout, exc=[], debug=debug) -> tuple:
     ''' Synchronous lookup, returns a tuple of:
 
             block_hash, List[ RegTx(txid, script) namedtuples ]
@@ -625,7 +626,7 @@ def lookup(server, number, name=None, collision_prefix=None, timeout=10.0, exc=[
             exc.append(e)
 
 def lookup_asynch(server, number, success_cb, error_cb=None,
-                  name=None, collision_prefix=None, timeout=10.0, debug=debug):
+                  name=None, collision_prefix=None, timeout=timeout, debug=debug):
     ''' Like lookup() above, but spawns a thread and does its lookup
     asynchronously.
 
@@ -661,7 +662,7 @@ def lookup_asynch(server, number, success_cb, error_cb=None,
     t.start()
 
 def lookup_asynch_all(number, success_cb, error_cb=None, name=None,
-                      collision_prefix=None, timeout=10.0, debug=debug):
+                      collision_prefix=None, timeout=timeout, debug=debug):
     ''' Like lookup_asynch above except it tries *all* the hard-coded servers
     from `servers` and if all fail, then calls the error_cb exactly once.
     If any succeed, calls success_cb exactly once.
@@ -913,7 +914,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             return None
         return name, number, collision_prefix
 
-    def resolve_verify(self, ca_string : str, timeout: float = 10.0) -> List[Tuple[Info, str]]:
+    def resolve_verify(self, ca_string : str, timeout: float = timeout, exc: list = None) -> List[Tuple[Info, str]]:
         ''' Blocking resolver for Cash Account names. Given a ca_string of the
         form: name#number[.123], will verify the block it is on and do other
         magic. It will return a list of tuple of (Info, minimal_chash).
@@ -925,7 +926,10 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
 
         timeout is a timeout in seconds. If timer expires None is returned.
 
-        It will return None on failure or nothing found. '''
+        It will return None on failure or nothing found.
+
+        Optional arg `exc` is where to put the exception on network or other
+        failure. '''
         tup = self.parse_string(ca_string)
         if not tup:
             return
@@ -937,6 +941,8 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             nonlocal pb
             if isinstance(thing, ProcessedBlock) and thing.reg_txs:
                 pb = thing
+            elif isinstance(thing, Exception) and isinstance(exc, list):
+                exc.append(thing)
             done.set()
         self.verify_block_asynch(number, success_cb=done_cb, error_cb=done_cb, timeout=timeout)
         if not done.wait(timeout=timeout) or not pb:
@@ -1269,7 +1275,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             return False
         return True
 
-    def verify_block_asynch(self, number : int, success_cb=None, error_cb=None, timeout=10.0, debug=debug):
+    def verify_block_asynch(self, number : int, success_cb=None, error_cb=None, timeout=timeout, debug=debug):
         ''' Tries all servers. Calls success_cb with the verified ProcessedBlock
         as the single argument on first successful retrieval of the block.
         Calls error_cb with the exc as the only argument on failure. Guaranteed
@@ -1311,7 +1317,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             else:
                 if debug: self.print_error(f"verify_block_asynch: #{number} already in-flight, will just enqueue callbacks")
 
-    def verify_block_synch(self, server : str, number : int, verify_txs=True, timeout=10.0, exc=[], debug=debug) -> ProcessedBlock:
+    def verify_block_synch(self, server : str, number : int, verify_txs=True, timeout=timeout, exc=[], debug=debug) -> ProcessedBlock:
         ''' Processes a whole block from the lookup server and returns it.
         Returns None on failure, and puts the Exception in the exc parameter.
 
@@ -1845,7 +1851,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
     # Experimental Methods (stuff we may not use) #
     ###############################################
 
-    def scan_servers_for_registrations(self, start=100, stop=None, progress_cb=None, error_cb=None, timeout=10.0,
+    def scan_servers_for_registrations(self, start=100, stop=None, progress_cb=None, error_cb=None, timeout=timeout,
                                        add_only_mine=True, debug=debug):
         ''' This is slow and not particularly useful.  Will maybe delete this
         code soon. I used it for testing to populate wallet.

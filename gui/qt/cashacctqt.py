@@ -33,6 +33,8 @@ from PyQt5.QtWidgets import *
 from .util import *
 
 import queue
+import time
+import requests
 from typing import Tuple, List, Callable
 from enum import IntEnum
 from electroncash import cashacct
@@ -639,9 +641,11 @@ def lookup_cash_account_dialog(
         if tup:
             ca_msg(_("Searching for <b>{cash_account_name}</b> please wait ...").format(cash_account_name=name), True)
             results = None
+            exc = []
+            t0 = time.time()
             def resolve_verify():
                 nonlocal results
-                results = wallet.cashacct.resolve_verify(name)
+                results = wallet.cashacct.resolve_verify(name, exc=exc)
             code = VerifyingDialog(parent.top_level_window(),
                                    _("Verifying Cash Account {name} please wait ...").format(name=name),
                                    resolve_verify, auto_show=False).exec_()
@@ -653,6 +657,18 @@ def lookup_cash_account_dialog(
                 ca.setItems(results, auto_resize_parent=False, title='', button_type = button_type)  # suppress groupbox title
             else:
                 ca_msg(_("The specified Cash Account does not appear to be associated with any address"), True)
+                if time.time()-t0 >= cashacct.timeout:
+                    if (wallet.verifier and wallet.synchronizer and  # check these are still alive: these could potentially go away from under us if wallet is stopped when we get here.
+                            (not wallet.verifier.is_up_to_date() or not wallet.synchronizer.is_up_to_date())):
+                        parent.show_message(_("No results found. However, your wallet is busy updating."
+                                              " This can interfere with Cash Account lookups."
+                                              " You may want to try again when it is done."))
+                    else:
+                        parent.show_message(_("A network timeout occurred while looking up this Cash Account. "
+                                              "You may want to check that your internet connection is up and "
+                                              "not saturated processing other requests."))
+                elif exc and isinstance(exc[-1], requests.ConnectionError):
+                    parent.show_error(_("A network connectivity error occured. Please check your internet connection and try again."))
             nres = len(results or [])
             title =  "<b>" + name + "</b> - " + ngettext("{number} Cash Account", "{number} Cash Accounts", nres).format(number=nres)
             tit_lbl.setText(title)
