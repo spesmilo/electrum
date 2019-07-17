@@ -76,13 +76,12 @@ class CosignWidget(QWidget):
 def wizard_dialog(func):
     def func_wrapper(*args, **kwargs):
         run_next = kwargs['run_next']
-        back_cancels = bool(kwargs.get('back_cancels'))
         wizard = args[0]
-        wizard.back_button.setText(_('Back') if wizard.can_go_back() and not back_cancels else _('Cancel'))
+        wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
         try:
             out = func(*args, **kwargs)
         except GoBack:
-            wizard.go_back() if wizard.can_go_back() and not back_cancels else wizard.close()
+            wizard.go_back() if wizard.can_go_back() else wizard.close()
             return
         except UserCancelled:
             return
@@ -408,9 +407,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return playout.new_password(), playout.encrypt_cb.isChecked()
 
     @wizard_dialog
-    def request_password(self, run_next, *, back_cancels):
+    def request_password(self, run_next):
         """Request the user enter a new password and confirm it.  Return
-        the password or None for no password."""
+        the password or None for no password.  Note that this dialog screen
+        cannot go back, and instead the user can only cancel."""
         return self.pw_layout(MSG_ENTER_PASSWORD, PW_NEW)
 
     def _add_extra_button_to_layout(self, extra_button, layout):

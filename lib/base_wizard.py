@@ -161,7 +161,8 @@ class BaseWizard(object):
             self.wallet = ImportedPrivkeyWallet.from_text(self.storage, text,
                                                           None)
             self.keystores = self.wallet.get_keystores()
-            self.request_password(run_next=self.on_password, back_cancels=True)
+            self.stack = []  # 'Back' button wasn't working anyway at this point, so we just force it to read 'Cancel' and this proceeds with no password set.
+            self.request_password(run_next=self.on_password)
         self.terminate()
 
     def restore_from_key(self):
@@ -379,7 +380,8 @@ class BaseWizard(object):
 
     def create_wallet(self):
         if any(k.may_have_password() for k in self.keystores):
-            self.request_password(run_next=self.on_password, back_cancels=True)
+            self.stack = []  # 'Back' button wasn't working anyway at this point, so we just force it to read 'Cancel' and quit the wizard by doing this.
+            self.request_password(run_next=self.on_password)
         else:
             self.on_password(None, False)
 
