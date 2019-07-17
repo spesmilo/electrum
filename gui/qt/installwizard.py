@@ -9,7 +9,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from electroncash import Wallet, WalletStorage
-from electroncash.util import UserCancelled, InvalidPassword
+from electroncash.util import UserCancelled, InvalidPassword, finalization_print_error
 from electroncash.base_wizard import BaseWizard
 from electroncash.i18n import _
 
@@ -76,17 +76,17 @@ class CosignWidget(QWidget):
 def wizard_dialog(func):
     def func_wrapper(*args, **kwargs):
         run_next = kwargs['run_next']
+        back_cancels = bool(kwargs.get('back_cancels'))
         wizard = args[0]
-        wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
+        wizard.back_button.setText(_('Back') if wizard.can_go_back() and not back_cancels else _('Cancel'))
         try:
             out = func(*args, **kwargs)
         except GoBack:
-            wizard.go_back() if wizard.can_go_back() else wizard.close()
+            wizard.go_back() if wizard.can_go_back() and not back_cancels else wizard.close()
             return
         except UserCancelled:
             return
-        #if out is None:
-        #    out = ()
+
         if type(out) is not tuple:
             out = (out,)
         run_next(*out)
@@ -150,7 +150,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_icon(':icons/electron.svg')
         self.show()
         self.raise_()
-        self.refresh_gui()  # Need for QT on MacOSX.  Lame.
+
+        # Track object lifecycle
+        finalization_print_error(self)
 
     def run_and_get_wallet(self):
 
@@ -406,31 +408,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return playout.new_password(), playout.encrypt_cb.isChecked()
 
     @wizard_dialog
-    def request_password(self, run_next):
+    def request_password(self, run_next, *, back_cancels):
         """Request the user enter a new password and confirm it.  Return
         the password or None for no password."""
         return self.pw_layout(MSG_ENTER_PASSWORD, PW_NEW)
-
-    def show_restore(self, wallet, network):
-        # FIXME: these messages are shown after the install wizard is
-        # finished and the window closed.  On MacOSX they appear parented
-        # with a re-appeared ghost install wizard window...
-        if network:
-            def task():
-                wallet.wait_until_synchronized()
-                if wallet.is_found():
-                    msg = _("Recovery successful")
-                else:
-                    msg = _("No transactions found for this seed")
-                self.synchronized_signal.emit(msg)
-            self.synchronized_signal.connect(self.show_message)
-            t = threading.Thread(target = task)
-            t.daemon = True
-            t.start()
-        else:
-            msg = _("This wallet was restored offline. It may "
-                    "contain more addresses than displayed.")
-            self.show_message(msg)
 
     def _add_extra_button_to_layout(self, extra_button, layout):
         if (not isinstance(extra_button, (list, tuple))
