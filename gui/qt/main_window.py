@@ -141,7 +141,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
         self.is_schnorr_enabled = self.wallet.is_schnorr_enabled  # This is a function -- Support for plugins that may be using the 4.0.3 & 4.0.4 API -- this function used to live in this class, before being moved to Abstract_Wallet.
         self.send_tab_opreturn_widgets, self.receive_tab_opreturn_widgets = [], []  # defaults to empty list
-        self._shortcuts = []  # keep track of shortcuts and disable them on close
+        self._shortcuts = Weak.Set()  # keep track of shortcuts and disable them on close
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -190,15 +190,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.init_menubar()
 
         wrtabs = Weak.ref(tabs)  # We use a weak reference here to help along python gc of QShortcut children: prevent the lambdas below from holding a strong ref to self.
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+W"), self, self.close) )
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+Q"), self, self.close) )
+        self._shortcuts.add( QShortcut(QKeySequence("Ctrl+W"), self, self.close) )
+        self._shortcuts.add( QShortcut(QKeySequence("Ctrl+Q"), self, self.close) )
         # Below is now addded to the menu as Ctrl+R but we'll also support F5 like browsers do
-        self._shortcuts.append( QShortcut(QKeySequence("F5"), self, self.update_wallet) )
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() - 1)%wrtabs().count())) )
-        self._shortcuts.append( QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() + 1)%wrtabs().count())) )
+        self._shortcuts.add( QShortcut(QKeySequence("F5"), self, self.update_wallet) )
+        self._shortcuts.add( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() - 1)%wrtabs().count())) )
+        self._shortcuts.add( QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() + 1)%wrtabs().count())) )
 
         for i in range(tabs.count()):
-            self._shortcuts.append( QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs() and wrtabs().setCurrentIndex(i)) )
+            self._shortcuts.add( QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs() and wrtabs().setCurrentIndex(i)) )
 
         self.gui_object.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
@@ -4311,7 +4311,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         disconnect_signals()
 
     def clean_up_children(self):
-        # status bar holds references to self, so clear it to help GC this window
+        # Status bar holds references to self, so clear it to help GC this window
         self.setStatusBar(None)
         # Note that due to quirks on macOS and the shared menu bar, we do *NOT*
         # clear the menuBar. Instead, doing this causes the object to get
@@ -4319,7 +4319,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # to go away immediately.
         self.setMenuBar(None)
 
-        # disable shortcuts immediately to prevent them from accidentally firing
+        # Disable shortcuts immediately to prevent them from accidentally firing
         # on us after we are closed.  They will get deleted when this QObject
         # is finally deleted by Qt.
         for shortcut in self._shortcuts:
