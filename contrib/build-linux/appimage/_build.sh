@@ -139,7 +139,9 @@ cp -fp "$PROJECT_ROOT/icons/electron-cash.png" "$APPDIR/electron-cash.png"
 
 # add launcher
 info "Adding launcher"
-cp -fp "$CONTRIB/build-linux/appimage/apprun.sh" "$APPDIR/AppRun" || fail "Could not copy AppRun"
+cp -fp "$CONTRIB/build-linux/appimage/scripts/common.conf" "$APPDIR/common.conf" || fail "Could not copy python script"
+cp -fp "$CONTRIB/build-linux/appimage/scripts/apprun.sh" "$APPDIR/AppRun" || fail "Could not copy AppRun script"
+cp -fp "$CONTRIB/build-linux/appimage/scripts/python.sh" "$APPDIR/python" || fail "Could not copy python script"
 
 info "Finalizing AppDir"
 (
@@ -169,8 +171,8 @@ mkdir -p "$APPDIR"/usr/lib/fonts/freetype
 mkdir -p "$APPDIR"/usr/lib/fonts/fontconfig
 cp -fp /usr/lib/x86_64-linux-gnu/libfreetype.so.6 "$APPDIR"/usr/lib/fonts/freetype/. || fail "Could not copy libfreetype"
 cp -fp /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 "$APPDIR"/usr/lib/fonts/fontconfig/. || fail "Could not copy libfontconfig"
-cp -f "$CONTRIB/build-linux/appimage/test-freetype.py" "$APPDIR" || fail "Could not copy test-freetype.py"
-cp -f "$CONTRIB/build-linux/appimage/test-fontconfig.py" "$APPDIR" || fail "Could not copy test-fontconfig.py"
+cp -f "$CONTRIB/build-linux/appimage/scripts/test-freetype.py" "$APPDIR" || fail "Could not copy test-freetype.py"
+cp -f "$CONTRIB/build-linux/appimage/scripts/test-fontconfig.py" "$APPDIR" || fail "Could not copy test-fontconfig.py"
 
 # libfreetype needs a recent enough zlib
 cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
