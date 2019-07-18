@@ -69,6 +69,7 @@ class VerifyingDialog(WaitingDialog):
             self.open()
         elif auto_exec:
             self.exec_()
+        destroyed_print_error(self)
 
 
 def verify_multiple_blocks(blocks : List[int], parent : MessageBoxMixin, wallet : Abstract_Wallet, timeout=10.0) -> int:

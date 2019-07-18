@@ -689,35 +689,63 @@ def lookup_asynch_all(number, success_cb, error_cb=None, name=None,
     my_servers = servers.copy()
     random.shuffle(my_servers)
     N = len(my_servers)
+    q = queue.Queue()
     lock = threading.Lock()
     n_ok, n_err = 0, 0
     def on_succ(res, server):
         nonlocal n_ok
+        q.put(None)
         with lock:
-            #util.print_error("success", n_ok+n_err)
+            if debug: util.print_error("success", n_ok+n_err, server)
             if n_ok:
                 return
             n_ok += 1
         success_cb(res, server)
-    def on_err(exc):
+    def on_err(exc, server):
         nonlocal n_err
+        q.put(None)
         with lock:
-            #util.print_error("error", n_ok+n_err)
+            if debug: util.print_error("error", n_ok+n_err, server, exc)
             if n_ok:
                 return
             n_err += 1
             if n_err < N:
                 return
         if error_cb:
-            #util.print_error("calling err")
             error_cb(exc)
-    for server in my_servers:
-        #util.print_error("server:", server)
-        lookup_asynch(server, number = number,
-                      success_cb = lambda res,_server=server: on_succ(res,_server),
-                      error_cb = on_err,
-                      name = name, collision_prefix = collision_prefix, timeout = timeout,
-                      debug = debug)
+    def do_lookup_all_staggered():
+        ''' Send req. out to all servers, staggering the requests every 200ms,
+        and stopping early after the first success.  The goal here is to
+        maximize the chance of successful results returned, with tolerance for
+        some servers being unavailable, while also conserving on bandwidth a
+        little bit and not unconditionally going out to ALL servers.'''
+        t0 = time.time()
+        for i, server in enumerate(my_servers):
+            if debug: util.print_error("server:", server, i)
+            lookup_asynch(server, number = number,
+                          success_cb = lambda res, _server=server: on_succ(res, _server),
+                          error_cb = lambda exc, _server=server: on_err(exc, _server),
+                          name = name, collision_prefix = collision_prefix, timeout = timeout,
+                          debug = debug)
+            try:
+                # wait on the last server's queue
+                q.get(timeout=0.200)
+                while True:
+                    # Drain queue in case previous iteration's servers also
+                    # wrote to it while we were sleeping, so that next iteration
+                    # the queue is hopefully empty, to increase the chances
+                    # we get to sleep.
+                    q.get_nowait()
+            except queue.Empty:
+                ''' We slept the full amount of time with no results '''
+            with lock:
+                if n_ok:  # check for success
+                    if debug:
+                        util.print_error(f"do_lookup_all_staggered: returning "
+                                         f"early on server {i} of {len(my_servers)} after {(time.time()-t0)*1e3} msec")
+                    return
+    t = threading.Thread(daemon=True, target=do_lookup_all_staggered)
+    t.start()
 
 class ProcessedBlock:
     __slots__ = ( 'hash',  # str binhex block header hash
