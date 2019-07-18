@@ -37,12 +37,15 @@ import electroncash.web as web
 from electroncash.util import profiler
 from electroncash import networks
 from enum import IntEnum
+from . import cashacctqt
 
 class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
 
     _ca_minimal_chash_updated_signal = pyqtSignal(object, str)
     _cashacct_icon = None
+
+    ca_address_default_changed = pyqtSignal(object)  # passes cashacct.Info object to slot, which is the new default
 
     class DataRoles(IntEnum):
         address        = Qt.UserRole + 0
@@ -62,6 +65,8 @@ class AddressList(MyTreeWidget):
         # Cash Accounts support
         self._ca_cb_registered = False
         self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
+
+        self.ca_address_default_changed.connect(self._ca_on_address_default_change)
 
         if not __class__._cashacct_icon:
             # lazy init the icon
@@ -325,9 +330,8 @@ class AddressList(MyTreeWidget):
                     ca_text = self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash)
                     ca_text_em = self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash, emoji=True)
                     m = menu.addMenu(ca_info.emoji + " " + ca_text)
-                    #a = menu.addAction(ca_info.emoji + " " + self.wallet.cashacct.fmt_info(ca_info, ca_info.minimal_chash), lambda: None)
                     a_ca_copy = m.addAction(_("Copy Cash Account"), lambda x=None, text=ca_text_em: doCopy(text))
-                    a = m.addAction(_("Details") + "...", lambda: self.parent.show_address(addr))
+                    a = m.addAction(_("Details") + "...", lambda x=None,ca_text=ca_text: cashacctqt.cash_account_detail_dialog(self.parent, ca_text))
                     a = m.addAction(_("View registration tx") + "...", lambda x=None, ca=ca_info: self.parent.do_process_from_txid(txid=ca.txid))
                     a = a_def = m.addAction(_("Make default for address"), lambda x=None, ca=ca_info: self._ca_set_default(ca, True))
                     if ca_info == ca_default:
@@ -430,4 +434,7 @@ class AddressList(MyTreeWidget):
         self.wallet.cashacct.set_address_default(ca_info)
         if show_tip:
             QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), self)
+        self.ca_address_default_changed.emit(ca_info)  # eventually calls self.update
+
+    def _ca_on_address_default_change(self, ignored):
         self.update()

@@ -207,6 +207,8 @@ class ContactList(PrintError, MyTreeWidget):
                 a.setDisabled(True)
             if ca_info:
                 menu.addAction(_("View registration tx..."), lambda: self.parent.do_process_from_txid(txid=ca_info.txid, tx_desc=self.wallet.get_label(ca_info.txid)))
+                if typ in ('cashacct_W', 'cashacct'):
+                    menu.addAction(_("Details..."), lambda: cashacctqt.cash_account_detail_dialog(self.parent, i2c(item).name))
             menu.addSeparator()
 
         menu.addAction(self.icon_cashacct,

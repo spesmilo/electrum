@@ -31,6 +31,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from .util import *
+from .qrcodewidget import QRCodeWidget
 
 import queue
 import time
@@ -39,6 +40,7 @@ from typing import Tuple, List, Callable
 from enum import IntEnum
 from electroncash import cashacct
 from electroncash import util
+from electroncash import web
 from electroncash.address import Address, UnknownAddress
 from electroncash.i18n import _, ngettext
 from electroncash.wallet import Abstract_Wallet
@@ -191,6 +193,23 @@ class ButtonAssociatedLabel(QLabel):
             elif self.but.toolTip() and not self.hasSelectedText():
                 QToolTip.showText(QCursor.pos(), self.but.toolTip(), self)
 
+
+def naked_button_style() -> str:
+    ''' Returns a stylesheet for a small 'naked' (flat) QPushButton button which
+    is used in the lookup results and other associated widgets in this file '''
+    but_style_sheet = 'QPushButton { border-width: 1px; padding: 0px; margin: 0px; }'
+    if not ColorScheme.dark_scheme:
+        but_style_sheet += ''' QPushButton { border: 1px solid transparent; }
+        QPushButton:hover { border: 1px solid #3daee9; }'''
+    return but_style_sheet
+
+def button_make_naked(but: QAbstractButton) -> QAbstractButton:
+    ''' Just applied a bunch of things to a button to "make it naked"
+    which is the look we use for the lookup results and various other odds and
+    ends. Returns the button passed to it. '''
+    but.setStyleSheet(naked_button_style())
+    but.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    return but
 
 class InfoGroupBox(PrintError, QGroupBox):
 
@@ -358,11 +377,6 @@ class InfoGroupBox(PrintError, QGroupBox):
             grid.addWidget(label, 0, 0, -1, -1)
 
 
-        but_style_sheet = 'QPushButton { border-width: 1px; padding: 0px; margin: 0px; }'
-        if not ColorScheme.dark_scheme:
-            but_style_sheet += ''' QPushButton { border: 1px solid transparent; }
-            QPushButton:hover { border: 1px solid #3daee9; }'''
-
         for i, item in enumerate(items):
             col = col % cols
             if not col:
@@ -409,13 +423,11 @@ class InfoGroupBox(PrintError, QGroupBox):
                 if callable(func):
                     ab = func(item)
                     if isinstance(ab, QAbstractButton):
-                        ab.setStyleSheet(but_style_sheet)
-                        ab.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                        button_make_naked(ab)
                         hbox.addWidget(ab)
             # copy button
             copy_but = QPushButton(QIcon(":icons/copy.png"), "")
-            copy_but.setStyleSheet(but_style_sheet)
-            copy_but.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            button_make_naked(copy_but)
             hbox.addWidget(copy_but)
             grid.addLayout(hbox, row*3, col*5+3, 1, 1)
             # end button bar
@@ -713,3 +725,198 @@ def lookup_cash_account_dialog(
     if d.exec_() == QDialog.Accepted:
         return ca.selectedItems()
     return None
+
+
+def cash_account_detail_dialog(parent : MessageBoxMixin,  # Should be an ElectrumWindow instance
+                               ca_string : str,  # Cash acount string eg: "satoshi#123.1
+                               *, title : str = None  # The modal dialog window title
+    ) -> bool:  # returns True on success, False on failure
+    ''' Shows the Cash Account details for any cash account.
+    Note that parent should be a ElectrumWindow instance.
+    `ca_string` is just a Cash Account string of the form:
+        name#number[.collision_hash_prefix]
+    Returns False on failure or True on success. User is presented with an error
+    message box on False return.'''
+    from .main_window import ElectrumWindow
+    assert isinstance(parent, ElectrumWindow)
+    wallet = parent.wallet
+    assert isinstance(wallet, Abstract_Wallet)
+
+    if not wallet.cashacct.parse_string(ca_string):
+        parent.show_error(_("Invalid Cash Account:") + f" {ca_string}")
+        return False
+
+    ca_string = wallet.cashacct.strip_emoji(ca_string)
+
+    # validate ca_string arg & resolve if need be
+    info = wallet.cashacct.get_verified(ca_string)
+    if not info:
+        # need to look it up
+        tup = resolve_cashacct(parent, wallet)
+        if not tup:
+            # Error window was provided by resolve_cashacct, just return
+            return False
+        info, ca_string = tup
+    ca_string_em = ca_string + f" {info.emoji}"
+    parsed = wallet.cashacct.parse_string(ca_string)
+    assert parsed
+    minimal_chash = parsed[-1]
+
+    # at this point we have a verified cash account to display
+    assert isinstance(info.address, Address)
+
+    title = title or _("Cash Account Details")
+    # create dialog window
+    d = WindowModalDialog(parent.top_level_window(), title)
+    d.setObjectName("WindowModalDialog - " + title)
+    finalization_print_error(d)
+    destroyed_print_error(d)
+
+    grid = QGridLayout(d)
+    em_lbl = QLabel(f'<span style="white-space:nowrap; font-size:75pt;">{info.emoji}</span>')
+    em_lbl.setToolTip(f'<span style="white-space:nowrap;">{ca_string_em}</span>')
+    grid.addWidget(em_lbl, 0, 0, 3, 1)
+    fsize = 26
+    if len(info.name) > 20:
+        fsize = 15
+    if len(info.name) > 30:
+        fsize = 12
+    if len(info.name) > 50:
+        fsize = 10
+    if len(info.name) > 90:
+        fsize = 8
+    name_txt = f'<span style="white-space:nowrap; font-size:{fsize}pt; font-weight:bold;">{info.name}<span style="font-size:18pt;">#{info.number}.'
+    if minimal_chash:
+        name_txt += f'{minimal_chash}'
+    name_txt += '</span></span>'
+    if len(minimal_chash) < len(info.collision_hash):
+        if not info.collision_hash.startswith(minimal_chash):
+            parent.print_error(f"WARNING: {ca_string} minimal_chash {minimal_chash} and collision_hash {info.collision_hash} mismatch!")
+        else:
+            extra = info.collision_hash[len(minimal_chash):]
+            name_txt += f'<span style="white-space:nowrap; font-size:11pt; font-weight:200;"><i>{extra}</i></span>'
+
+    def open_link(link):
+        if Address.is_valid(link):
+            addr = Address.from_string(link)
+            if wallet.is_mine(addr):
+                parent.show_address(addr)
+            else:
+                addr_URL = web.BE_URL(parent.config, 'addr', addr)
+                if addr_URL:
+                    webopen(addr_URL)
+            return
+        if link.startswith('http'):
+            webopen(link)
+        elif len(link) == 64:  # 64 character txid
+            tx = wallet.transactions.get(link)
+            if tx:
+                parent.show_transaction(tx, tx_desc=wallet.get_label(link))
+            else:
+                parent.do_process_from_txid(txid=link, tx_desc=wallet.get_label(link))
+            return
+
+    # name
+    name_lbl = QLabel(name_txt)
+    grid.addWidget(name_lbl, 0, 1, 1, 1)
+    # copy name
+    copy_name_but = QPushButton()
+    copy_name_but.setIcon(QIcon(":icons/copy.png"))
+    button_make_naked(copy_name_but)
+    copy_name_but.setToolTip('<span style="white-space:nowrap">'
+                                + _("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em)
+                                + '</span>')
+    copy_name_but.clicked.connect(lambda ignored=None, ca_string_em=ca_string_em, copy_but=copy_name_but:
+                                    parent.copy_to_clipboard(text=ca_string_em, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
+    grid.addWidget(copy_name_but, 0, 2, 1, 1)
+    # address label
+    addr_lbl = QLabel(f'<span style="white-space:nowrap; font-size:15pt;"><a href="{info.address.to_ui_string()}"><pre>{info.address.to_ui_string()}</pre></a></span>')
+    addr_lbl.linkActivated.connect(open_link)
+    grid.addWidget(addr_lbl, 1, 1, 1, 1)
+    # copy address label
+    copy_addr_but = QPushButton()
+    copy_addr_but.setIcon(QIcon(":icons/copy.png"))
+    button_make_naked(copy_addr_but)
+    copy_addr_but.setToolTip(_("Copy {}").format(_("Address")))
+    copy_addr_but.clicked.connect(lambda ignored=None, text=info.address.to_ui_string(), copy_but=copy_addr_but:
+                                    parent.copy_to_clipboard(text=text, tooltip=_('Address copied to clipboard'), widget=copy_but) )
+    grid.addWidget(copy_addr_but, 1, 2, 1, 1)
+
+    if not wallet.is_mine(info.address):
+        ismine_txt = _("External Address") + ', '
+    else:
+        ismine_txt = ''
+
+    # Mined in block
+    viewtx_txt = _("Mined in block")
+    view_tx_lbl = QLabel(f'<span style="white-space:nowrap; font-size:11pt;">{ismine_txt}{viewtx_txt}: <a href="{info.txid}">{cashacct.num2bh(info.number)}</a></span>')
+    view_tx_lbl.setToolTip(_("View Registration Transaction"))
+    view_tx_lbl.linkActivated.connect(open_link)
+    grid.addWidget(view_tx_lbl, 2, 1, 1, 1, Qt.AlignTop | Qt.AlignRight)
+
+    grid.setRowStretch(2, 1)
+
+    # QR
+    tabs = QTabWidget()
+    full_addr_str = info.address.to_full_ui_string()
+    qr_address = QRCodeWidget(full_addr_str, fixedSize=True)
+    qr_address.setToolTip(full_addr_str)
+    tabs.addTab(qr_address, _("Address"))
+    qr_ca_string = QRCodeWidget(ca_string, fixedSize=True)
+    qr_ca_string.setToolTip(ca_string)
+    tabs.addTab(qr_ca_string, _("Cash Account"))
+    qr_address.setMinimumSize(300, 300)
+    qr_ca_string.setMinimumSize(300, 300)
+
+    grid.addWidget(tabs, 3, 0, 1, -1, Qt.AlignTop | Qt.AlignHCenter)
+
+    def_but = QPushButton()
+    mk_def_txt = _("Make default for address")
+    is_def_txt = _("Is default for address")
+    mk_def_tt = _("Make this Cash Account the default for this address")
+    is_def_tt = _("Cash Account has been made the default for this address")
+    def make_default():
+        wallet.cashacct.set_address_default(info)
+        parent.address_list.ca_address_default_changed.emit(info)  # updates all concerned widgets, including self
+        tt = is_def_txt
+        QToolTip.showText(QCursor.pos(), tt, def_but)
+    def update_def_but(new_def):
+        if new_def and new_def.address != info.address:
+            # not related, abort
+            return
+        if new_def != info:
+            def_but.setDisabled(False)
+            def_but.setText(mk_def_txt)
+            def_but.setToolTip(mk_def_tt)
+        else:
+            def_but.setDisabled(True)
+            def_but.setText(is_def_txt)
+            def_but.setToolTip(is_def_tt)
+    def_but.clicked.connect(make_default)
+    infos = wallet.cashacct.get_cashaccounts([info.address])
+    def_now = infos and wallet.cashacct.get_address_default(infos)
+    if wallet.is_mine(info.address):
+        update_def_but(def_now)
+    else:
+        def_but.setHidden(True)  # not related to wallet, hide the button
+    del infos, def_now
+
+    # Bottom buttons
+    buttons = Buttons(def_but, OkButton(d))
+    grid.addLayout(buttons, 4, 0, -1, -1)
+
+
+    # make all labels allow select text & click links
+    for c in d.children():
+        if isinstance(c, QLabel):
+            c.setTextInteractionFlags(c.textInteractionFlags() | Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+
+    try:
+        parent.address_list.ca_address_default_changed.connect(update_def_but)
+        d.exec_()
+    finally:
+        # Unconditionally detach slot to help along Python GC
+        try: parent.address_list.ca_address_default_changed.disconnect(update_def_but)
+        except TypeError: pass
+
+    return True

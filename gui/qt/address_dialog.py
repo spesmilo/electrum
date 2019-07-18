@@ -105,7 +105,7 @@ class AddressDialog(PrintError, WindowModalDialog):
                 info, ch, mch = item
                 self.wallet.cashacct.set_address_default(info)
                 QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), gb)
-                self.parent.address_list.update()
+                self.parent.address_list.ca_address_default_changed.emit(info)
         gb.buttonGroup().buttonClicked.connect(on_button_click)
         vbox.addWidget(gb)
         # /Cash Accounts
@@ -119,12 +119,17 @@ class AddressDialog(PrintError, WindowModalDialog):
         self.format_amount = self.parent.format_amount
         self.hw.update()
 
+    def _ca_on_address_default_change(self, info):
+        if info.address == self.address:
+            self.update_cash_accounts()
+
     def connect_signals(self):
         # connect slots so the embedded history list gets updated whenever the history changes
         self.parent.gui_object.cashaddr_toggled_signal.connect(self.update_addr)
         self.parent.history_updated_signal.connect(self.hw.update)
         self.parent.labels_updated_signal.connect(self.hw.update_labels)
         self.parent.network_signal.connect(self.got_verified_tx)
+        self.parent.address_list.ca_address_default_changed.connect(self._ca_on_address_default_change)
 
     def disconnect_signals(self):
         try: self.parent.history_updated_signal.disconnect(self.hw.update)
@@ -134,6 +139,8 @@ class AddressDialog(PrintError, WindowModalDialog):
         try: self.parent.gui_object.cashaddr_toggled_signal.disconnect(self.update_addr)
         except TypeError: pass
         try: self.parent.labels_updated_signal.disconnect(self.hw.update_labels)
+        except TypeError: pass
+        try: self.parent.address_list.ca_address_default_changed.disconnect(self._ca_on_address_default_change)
         except TypeError: pass
 
     def got_verified_tx(self, event, args):

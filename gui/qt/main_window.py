@@ -967,7 +967,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return l
 
     def show_address(self, addr, *, parent=None):
-        parent = parent or self
+        parent = parent or self.top_level_window()
         from . import address_dialog
         d = address_dialog.AddressDialog(self,  addr, windowParent=parent)
         d.exec_()
