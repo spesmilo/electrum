@@ -62,10 +62,14 @@ collision_hash_accept_re = re.compile(f'^[0-9]{{{collision_hash_length}}}$')
 
 # mapping of Address.kind -> cash account data types
 _addr_kind_data_types = { Address.ADDR_P2PKH : 0x1, Address.ADDR_P2SH : 0x2 }
-_unsupported_types = { 0x03, 0x04, 0x81, 0x82, 0x83, 0x84 }
+_unsupported_types = { 0x03, 0x04, 0x83, 0x84 }
 # negative lengths here indicate advisory and not enforced.
 _data_type_lengths = { 0x1 : 20, 0x2 : 20, 0x3 : 80, 0x4 : -66, 0x81 : 20, 0x82 : 20, 0x83 : 80, 0x84 : -66 }
-_data_types_addr_kind = util.inv_dict(_addr_kind_data_types)
+_data_types_addr_kind = {
+    0x1  : Address.ADDR_P2PKH,  0x2 : Address.ADDR_P2SH,
+    0x81 : Address.ADDR_P2PKH, 0x82 : Address.ADDR_P2SH,  # FIXME: These should really map to SLP addresses, but this works too.
+}
+_preferred_types = { 0x1, 0x2 }  # these take precedence over 0x81, 0x82 in the case of multi registrations containing more than 1 type
 
 assert set(_unsupported_types) | set(_data_types_addr_kind) == set(_data_type_lengths)
 
@@ -293,6 +297,7 @@ class ScriptOutput(ScriptOutputBase):
         except UnicodeError as e:
             raise ArgumentError('CashAcct names must be ascii encoded', name_bytes) from e
         addresses = []
+        addresses_preferred = []  # subset of above with types either 0x1 or 0x2, all valid Address instances (may be empty if registration contained no 0x1/0x2)
         try:
             # parse the list of payment data (more than 1), and try and grab
             # the first address we understand (type 1 or 2)
@@ -309,7 +314,7 @@ class ScriptOutput(ScriptOutputBase):
                                 raise AssertionError('hash160 had wrong length')
                             else:
                                 util.print_error(f"parse_script: type 0x{type_byte:02x} had length {len(hash160_bytes)} != expected length of {req_len}, will proceed anyway")
-                        return Address(hash160_bytes, _data_types_addr_kind[type_byte])
+                        return Address(hash160_bytes, _data_types_addr_kind[type_byte]), type_byte
                     elif type_byte in _unsupported_types:
                         # unsupported type, just acknowledge this registration but
                         # mark the address as unknown
@@ -318,13 +323,17 @@ class ScriptOutput(ScriptOutputBase):
                             util.print_error(msg)
                             if strict:
                                 raise AssertionError(msg)
-                        return UnknownAddress(hash160_bytes)
+                        return UnknownAddress(hash160_bytes), type_byte
                     else:
                         raise ValueError(f'unknown cash address type 0x{type_byte:02x}')
                 # / get_address
-                addresses.append(get_address(op))
+                adr, type_byte = get_address(op)
+                addresses.append(adr)
+                if type_byte in _preferred_types and isinstance(adr, Address):
+                    addresses_preferred.append(adr)
+                del adr, type_byte  # defensive programming
             assert addresses
-            maybes = [a for a in addresses if isinstance(a, Address)]
+            maybes = [a for a in (addresses_preferred or addresses) if isinstance(a, Address)]
             address = (maybes and maybes[0]) or addresses[0]
         except Exception as e:
             # Paranoia -- this branch should never be reached at this point
