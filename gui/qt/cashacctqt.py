@@ -762,8 +762,15 @@ def cash_account_detail_dialog(parent : MessageBoxMixin,  # Should be an Electru
     assert parsed
     minimal_chash = parsed[-1]
 
-    # at this point we have a verified cash account to display
-    assert isinstance(info.address, Address)
+    # . <-- at this point we have a verified cash account to display
+
+    # Make sure it's not an unsupported type as the code at the end of this
+    # file assumes info.address is an Address.
+    if not isinstance(info.address, Address):
+        parent.show_error(_("Unsupported payment data type.") + "\n\n"
+                          + _("The Cash Account {name} uses an account type that "
+                              "is not supported by Electron Cash.").format(name=ca_string))
+        return False
 
     title = title or _("Cash Account Details")
     # create dialog window
