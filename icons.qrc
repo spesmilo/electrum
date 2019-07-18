@@ -29,6 +29,8 @@
     <file>icons/qrcode.svg</file>
     <file>icons/qrcode_white.svg</file>
     <file>icons/qr_finder.svg</file>
+    <file>icons/paper-plane.svg</file>
+    <file>icons/paper-plane_dark_theme.svg</file>
     <file>icons/preferences.svg</file>
     <file>icons/save.svg</file>
     <file>icons/save_dark_theme.svg</file>

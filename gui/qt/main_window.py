@@ -2495,12 +2495,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for contact in contacts:
             s = self.get_contact_payto(contact)
             if s is not None: paytos.append(s)
+        self.payto_payees(paytos)
+
+    def payto_payees(self, payees : List[str]):
+        ''' Like payto_contacts except it accepts a list of free-form strings
+        rather than requiring a list of Contacts objects '''
         self.show_send_tab()
-        if len(paytos) == 1:
-            self.payto_e.setText(paytos[0])
+        if len(payees) == 1:
+            self.payto_e.setText(payees[0])
             self.amount_e.setFocus()
         else:
-            text = "\n".join([payto + ", 0" for payto in paytos])
+            text = "\n".join([payee + ", 0" for payee in payees])
             self.payto_e.setText(text)
             self.payto_e.setFocus()
 
@@ -2836,7 +2841,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def lookup_cash_account_dialog(self):
         blurb = "<br><br>" + _('Enter a string of the form <b>name#<i>number</i></b>')
-        cashacctqt.lookup_cash_account_dialog(self, self.wallet, blurb=blurb, add_to_contacts_button=True)
+        cashacctqt.lookup_cash_account_dialog(self, self.wallet, blurb=blurb,
+                                              add_to_contacts_button = True, pay_to_button = True)
 
     def show_master_public_keys(self):
         dialog = WindowModalDialog(self.top_level_window(), _("Wallet Information"))
@@ -4276,7 +4282,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         run_hook('close_settings_dialog')
         if self.need_restart:
-            self.show_warning(_('Please restart Electron Cash to activate the new GUI settings'), title=_('Success'))
+            self.show_message(_('Please restart Electron Cash to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
         # It seems in some rare cases this closeEvent() is called twice

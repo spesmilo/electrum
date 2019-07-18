@@ -340,12 +340,13 @@ class InfoGroupBox(PrintError, QGroupBox):
                     parent.print_error(repr(e))
 
 
-
+        # We do it this way with BUTTON_FACTORY in case we want to expand
+        # this facility later to generate even more dynamic buttons.
         if button_type == __class__.ButtonType.CheckBox:
-            BUTTON_CLASS = QCheckBox
+            BUTTON_FACTORY = lambda *args: QCheckBox()
             but_grp.setExclusive(False)
         else:
-            BUTTON_CLASS = QRadioButton
+            BUTTON_FACTORY = lambda *args: QRadioButton()
             but_grp.setExclusive(True)
         hide_but = button_type == __class__.ButtonType.NoButton
 
@@ -357,6 +358,11 @@ class InfoGroupBox(PrintError, QGroupBox):
             grid.addWidget(label, 0, 0, -1, -1)
 
 
+        but_style_sheet = 'QPushButton { border-width: 1px; padding: 0px; margin: 0px; }'
+        if not ColorScheme.dark_scheme:
+            but_style_sheet += ''' QPushButton { border: 1px solid transparent; }
+            QPushButton:hover { border: 1px solid #3daee9; }'''
+
         for i, item in enumerate(items):
             col = col % cols
             if not col:
@@ -364,7 +370,7 @@ class InfoGroupBox(PrintError, QGroupBox):
             info, min_chash, ca_string = item
             ca_string_em = f"{ca_string} {info.emoji}"
             # Radio button (by itself in colum 0)
-            rb = BUTTON_CLASS()
+            rb = BUTTON_FACTORY(info, min_chash, ca_string, ca_string_em)
             rb.setObjectName("InfoGroupBoxButton")
             rb.setHidden(hide_but)
             rb.setDisabled(hide_but)  # hidden buttons also disabled to prevent user clicking their labels to select them
@@ -396,10 +402,6 @@ class InfoGroupBox(PrintError, QGroupBox):
             view_tx_lbl.setToolTip(_("View Registration Transaction"))
 
             # misc buttons
-            but_style_sheet = 'QPushButton { border-width: 1px; padding: 0px; margin: 0px; }'
-            if not ColorScheme.dark_scheme:
-                but_style_sheet += ''' QPushButton { border: 1px solid transparent; }
-                QPushButton:hover { border: 1px solid #3daee9; }'''
             hbox = QHBoxLayout()
             hbox.setContentsMargins(0,0,0,0)
             hbox.setSpacing(4)
@@ -422,7 +424,9 @@ class InfoGroupBox(PrintError, QGroupBox):
                 view_tx_lbl.linkActivated.connect(view_tx_link_activated)
                 copy_but.clicked.connect(lambda ignored=None, ca_string_em=ca_string_em, copy_but=copy_but:
                                              parent.copy_to_clipboard(text=ca_string_em, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
-                copy_but.setToolTip(_("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em))
+                copy_but.setToolTip('<span style="white-space:nowrap">'
+                                    + _("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em)
+                                    + '</span>')
             else:
                 view_tx_lbl.setHidden(True)
                 copy_but.setHidden(True)
@@ -517,7 +521,8 @@ def lookup_cash_account_dialog(
         blurb: str = None,  # will appear in the same label, can be rich text, will get concatenated to title.
         title_label_link_activated_slot: Callable[[str], None] = None,  # if you embed links in the blub, pass a callback to handle them
         button_type: InfoGroupBox.ButtonType = InfoGroupBox.ButtonType.NoButton,  #  see InfoGroupBox
-        add_to_contacts_button: bool = False  # if true, the button bar will include an add to contacts button
+        add_to_contacts_button: bool = False,  # if true, the button bar will include an add to contacts button
+        pay_to_button: bool = False  # if true, the button bar will include a "pay to" button
 ) -> List[Tuple[cashacct.Info, str, str]]:  # Returns a list of tuples
     ''' Shows the generic Cash Account lookup interface. '''
     from .main_window import ElectrumWindow
@@ -571,22 +576,28 @@ def lookup_cash_account_dialog(
     tit_lbl = QLabel()
     vbox.addWidget(tit_lbl)
     extra_buttons = []
+    # Extra Buttons
     if add_to_contacts_button:
         def create_add_to_contacts_button_callback(item: tuple) -> QPushButton:
-            but = QPushButton()
-            but.setIcon(QIcon(":icons/tab_contacts.png"))
-            if isinstance(item[0].address, Address):
-                if item[2] in all_cashacct_contacts or wallet.is_mine(item[0].address):
+            info, min_chash, ca_string = item
+            ca_string_em = wallet.cashacct.fmt_info(info, min_chash, emoji=True)
+            but = QPushButton(QIcon(":icons/tab_contacts.png"), "")
+            if isinstance(info.address, Address):
+                if ca_string in all_cashacct_contacts or wallet.is_mine(info.address):
                     but.setDisabled(True)
-                    but.setToolTip(_("<b>{cash_account}</b> already in Contacts").format(cash_account=item[2]))
+                    but.setToolTip(_('<span style="white-space:nowrap"><b>{cash_account}</b> already in Contacts</span>').format(cash_account=ca_string_em))
                 else:
-                    but.setToolTip(_("Add <b>{cash_account}</b> to Contacts").format(cash_account=item[2]))
+                    add_str = _("Add to Contacts")
+                    but.setToolTip(f'<span style="white-space:nowrap">{add_str}<br>&nbsp;&nbsp;&nbsp;<b>{ca_string_em}</b></span>')
+                    del add_str
                     def add_contact_slot(ign=None, but=but, item=item):
                         # label, address, typ='address') -> str:
-                        if parent.set_contact(label=item[2], address=item[0].address, typ='cashacct'):
-                            msg = _("<b>{cash_account}</b> added to Contacts").format(cash_account=item[2])
+                        new_contact = parent.set_contact(label=ca_string, address=info.address, typ='cashacct')
+                        if new_contact:
+                            msg = _('<span style="white-space:nowrap"><b>{cash_account}</b> added to Contacts</span>').format(cash_account=ca_string_em)
                             but.setDisabled(True)
                             but.setToolTip(msg)
+                            all_cashacct_contacts.add(new_contact.name)
                         else:
                             msg = _("Error occurred adding to Contacts")
                         QToolTip.showText(QCursor.pos(), msg, frame, QRect(), 5000)
@@ -597,6 +608,23 @@ def lookup_cash_account_dialog(
                 but.setToolTip("<i>" + _("Unsupported Account Type") + "</i>")
             return but
         extra_buttons.append(create_add_to_contacts_button_callback)
+    if pay_to_button:
+        def create_payto_but(item):
+            info, min_chash, ca_string = item
+            ca_string_em = wallet.cashacct.fmt_info(info, min_chash, emoji=True)
+            icon_file = ":icons/paper-plane.svg" if not ColorScheme.dark_scheme else ":icons/paper-plane_dark_theme.svg"
+            but = QPushButton(QIcon(icon_file), "")
+            if isinstance(info.address, Address):
+                payto_str = _("Pay to")
+                but.setToolTip(f'<span style="white-space:nowrap">{payto_str}<br>&nbsp;&nbsp;&nbsp;<b>{ca_string_em}</b></span>')
+                but.clicked.connect(lambda: parent.is_alive() and parent.payto_payees([ca_string_em]))
+                but.clicked.connect(d.reject)
+            else:
+                but.setDisabled(True)
+                but.setToolTip("<i>" + _("Unsupported Account Type") + "</i>")
+            return but
+        extra_buttons.append(create_payto_but)
+    # /Extra Buttons
     ca = InfoGroupBox(frame, parent, button_type = button_type, title = '', extra_buttons=extra_buttons)
     ca.refresh()
     frame.setMinimumWidth(765)
