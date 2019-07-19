@@ -45,14 +45,12 @@ class AddressList(MyTreeWidget):
     _ca_minimal_chash_updated_signal = pyqtSignal(object, str)
     _cashacct_icon = None
 
-    ca_address_default_changed = pyqtSignal(object)  # passes cashacct.Info object to slot, which is the new default
-
     class DataRoles(IntEnum):
         address        = Qt.UserRole + 0
         can_edit_label = Qt.UserRole + 1
         cash_accounts  = Qt.UserRole + 2
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super().__init__(parent, self.create_menu, [], 2, deferred_updates=True)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -66,7 +64,7 @@ class AddressList(MyTreeWidget):
         self._ca_cb_registered = False
         self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
 
-        self.ca_address_default_changed.connect(self._ca_on_address_default_change)
+        parent.ca_address_default_changed_signal.connect(self._ca_on_address_default_change)
 
         if not __class__._cashacct_icon:
             # lazy init the icon
@@ -434,7 +432,7 @@ class AddressList(MyTreeWidget):
         self.wallet.cashacct.set_address_default(ca_info)
         if show_tip:
             QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), self)
-        self.ca_address_default_changed.emit(ca_info)  # eventually calls self.update
+        self.parent.ca_address_default_changed_signal.emit(ca_info)  # eventually calls self.update
 
     def _ca_on_address_default_change(self, ignored):
         self.update()

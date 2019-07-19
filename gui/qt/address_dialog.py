@@ -105,7 +105,7 @@ class AddressDialog(PrintError, WindowModalDialog):
                 info, ch, mch = item
                 self.wallet.cashacct.set_address_default(info)
                 QToolTip.showText(QCursor.pos(), _("Cash Account has been made the default for this address"), gb)
-                self.parent.address_list.ca_address_default_changed.emit(info)
+                self.parent.ca_address_default_changed_signal.emit(info)
         gb.buttonGroup().buttonClicked.connect(on_button_click)
         vbox.addWidget(gb)
         # /Cash Accounts
@@ -129,7 +129,7 @@ class AddressDialog(PrintError, WindowModalDialog):
         self.parent.history_updated_signal.connect(self.hw.update)
         self.parent.labels_updated_signal.connect(self.hw.update_labels)
         self.parent.network_signal.connect(self.got_verified_tx)
-        self.parent.address_list.ca_address_default_changed.connect(self._ca_on_address_default_change)
+        self.parent.ca_address_default_changed_signal.connect(self._ca_on_address_default_change)
 
     def disconnect_signals(self):
         try: self.parent.history_updated_signal.disconnect(self.hw.update)
@@ -140,7 +140,7 @@ class AddressDialog(PrintError, WindowModalDialog):
         except TypeError: pass
         try: self.parent.labels_updated_signal.disconnect(self.hw.update_labels)
         except TypeError: pass
-        try: self.parent.address_list.ca_address_default_changed.disconnect(self._ca_on_address_default_change)
+        try: self.parent.ca_address_default_changed_signal.disconnect(self._ca_on_address_default_change)
         except TypeError: pass
 
     def got_verified_tx(self, event, args):
@@ -159,7 +159,12 @@ class AddressDialog(PrintError, WindowModalDialog):
         for info in ca_infos:
             tups.append((info, self.wallet.cashacct.get_minimal_chash(info.name, info.number, info.collision_hash)))
         default = self.wallet.cashacct.get_address_default(ca_infos)
-        gb.setItems(tups)
+        saved_tups = getattr(self, '_ca_saved_tups', None)
+        if tups != saved_tups:
+            # setItems is a bit slow so we only do it if things have changed...
+            # also, on macOS, it can sometimes cause a bit of extra UI flicker.
+            gb.setItems(tups)
+        self._ca_saved_tups = tups
         if tups:
             gb.checkItemWithInfo(default)
             if not gb.selectedItem():

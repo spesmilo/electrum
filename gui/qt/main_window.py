@@ -106,6 +106,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     history_updated_signal = pyqtSignal()
     labels_updated_signal = pyqtSignal() # note this signal occurs when an explicit update_labels() call happens. Interested GUIs should also listen for history_updated_signal as well which also indicates labels may have changed.
     on_timer_signal = pyqtSignal()  # functions wanting to be executed from timer_actions should connect to this signal, preferably via Qt.DirectConnection
+    ca_address_default_changed_signal = pyqtSignal(object)  # passes cashacct.Info object to slot, which is the new default. Mainly emitted by address_list and address_dialog
 
     status_icon_dict = dict()  # app-globel cache of "status_*" -> QIcon instances (for update_status() speedup)
 

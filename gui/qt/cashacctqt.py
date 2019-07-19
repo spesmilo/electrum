@@ -885,7 +885,7 @@ def cash_account_detail_dialog(parent : MessageBoxMixin,  # Should be an Electru
     is_def_tt = _("Cash Account has been made the default for this address")
     def make_default():
         wallet.cashacct.set_address_default(info)
-        parent.address_list.ca_address_default_changed.emit(info)  # updates all concerned widgets, including self
+        parent.ca_address_default_changed_signal.emit(info)  # updates all concerned widgets, including self
         tt = is_def_txt
         QToolTip.showText(QCursor.pos(), tt, def_but)
     def update_def_but(new_def):
@@ -920,11 +920,11 @@ def cash_account_detail_dialog(parent : MessageBoxMixin,  # Should be an Electru
             c.setTextInteractionFlags(c.textInteractionFlags() | Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
 
     try:
-        parent.address_list.ca_address_default_changed.connect(update_def_but)
+        parent.ca_address_default_changed_signal.connect(update_def_but)
         d.exec_()
     finally:
         # Unconditionally detach slot to help along Python GC
-        try: parent.address_list.ca_address_default_changed.disconnect(update_def_but)
+        try: parent.ca_address_default_changed_signal.disconnect(update_def_but)
         except TypeError: pass
 
     return True

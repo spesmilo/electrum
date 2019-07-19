@@ -1492,7 +1492,9 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
             self.print_error("Warning: Info object does not have an Address", info)
             return
         d = self.wallet.storage.get('cash_accounts_address_defaults', {})
-        d[info.address.to_storage_string()] = [info.name, info.number, info.collision_hash]
+        addr_str = info.address.to_storage_string()
+        new_value = [info.name, info.number, info.collision_hash]
+        d[addr_str] = new_value
         self.wallet.storage.put('cash_accounts_address_defaults', d)
 
 

@@ -71,7 +71,7 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
         return
 
     prog = utxo_list.in_progress.get(name, "")
-    frozenstring = item.data(0, Qt.UserRole+1) or ""
+    frozenstring = item.data(0, utxo_list.DataRoles.frozen_flags) or ""
     is_reshuffle = name in utxo_list.wallet._reshuffles
 
     u_value = utxo['value']
