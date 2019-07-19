@@ -25,12 +25,14 @@
 from .util import *
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
+from electroncash.address import Address
 
 
 class UTXOList(MyTreeWidget):
     filter_columns = [0, 2]  # Address, Label
     col_output_point = 4  # <-- index of the 'Output point' column. make sure to update this if you modify the header below...
-    default_sort = MyTreeWidget.SortSpec(2, Qt.DescendingOrder)
+    col_address = 0
+    default_sort = MyTreeWidget.SortSpec(2, Qt.DescendingOrder)  # sort by amount, descending
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1, deferred_updates=True, save_sort_settings=True)
@@ -136,13 +138,30 @@ class UTXOList(MyTreeWidget):
 
             col = self.currentColumn()
             column_title = self.headerItem().text(col)
+            alt_column_title, alt_copy_text = None, None
             if col == self.col_output_point:
                 copy_text = item.data(0, Qt.UserRole)
+            elif col == self.col_address:
+                # Determine the "alt copy text" "Legacy Address" or "Cash Address"
+                copy_text = item.text(col).strip()
+                try:
+                    addr = Address.from_string(copy_text)
+                except:
+                    addr = None
+                if addr:
+                    copy_text = addr.to_full_ui_string()
+                    if Address.FMT_UI == Address.FMT_LEGACY:
+                        alt_copy_text, alt_column_title = addr.to_full_string(Address.FMT_CASHADDR), _('Cash Address')
+                    else:
+                        alt_copy_text, alt_column_title = addr.to_full_string(Address.FMT_LEGACY), _('Legacy Address')
+                del addr
             else:
                 copy_text = item.text(col)
             if copy_text:
                 copy_text = copy_text.strip()  # make sure formatted amount is not whitespaced
             menu.addAction(_("Copy {}").format(column_title), lambda: QApplication.instance().clipboard().setText(copy_text))
+            if alt_copy_text and alt_column_title:
+                menu.addAction(_("Copy {}").format(alt_column_title), lambda: QApplication.instance().clipboard().setText(alt_copy_text))
 
             # single selection, offer them the "Details" option and also coin/address "freeze" status, if any
             txid = list(selected.keys())[0].split(':')[0]
