@@ -2697,10 +2697,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.balance_label = QLabel("")
         sb.addWidget(self.balance_label)
 
+        self._search_box_spacer = QWidget()
+        self._search_box_spacer.setFixedWidth(6)  # 6 px spacer
         self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText(_("Search wallet, {key}-F to hide").format(key='Ctrl' if sys.platform != 'darwin' else '⌘'))
         self.search_box.textChanged.connect(self.do_search)
         self.search_box.hide()
-        sb.addPermanentWidget(self.search_box)
+        sb.addPermanentWidget(self.search_box, 1)
 
         self.update_available_button = StatusBarButton(QIcon(":icons/electron-cash-update.svg"), _("Update available, click for details"), lambda: self.gui_object.show_update_checker(self, skip_check=True))
         self.update_available_button.setStatusTip(_("An Electron Cash update is available"))
@@ -2808,14 +2811,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_search(self):
         self.search_box.setHidden(not self.search_box.isHidden())
         if not self.search_box.isHidden():
+            self.balance_label.setHidden(True)
+            self.statusBar().insertWidget(0, self._search_box_spacer)
+            self._search_box_spacer.show()
             self.search_box.setFocus(1)
+            if self.search_box.text():
+                self.do_search(self.search_box.text())
         else:
+            self._search_box_spacer.hide()
+            self.statusBar().removeWidget(self._search_box_spacer)
+            self.balance_label.setHidden(False)
             self.do_search('')
 
     def do_search(self, t):
-        tab = self.tabs.currentWidget()
-        if hasattr(tab, 'searchable_list'):
-            tab.searchable_list.filter(t)
+        '''Apply search text to all tabs. FIXME: if a plugin later is loaded
+        it will not receive the search filter -- but most plugins I know about
+        do not support searchable_list anyway, so hopefully it's a non-issue.'''
+        for i in range(self.tabs.count()):
+            tab = self.tabs.widget(i)
+            if hasattr(tab, 'searchable_list'):
+                tab.searchable_list.filter(t)
 
     def new_contact_dialog(self):
         d = WindowModalDialog(self.top_level_window(), _("New Contact"))
