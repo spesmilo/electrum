@@ -20,11 +20,13 @@ SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 VERSION=`git describe --tags --dirty --always`
 APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
 
+. "$CONTRIB"/build_tools_util.sh
+
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
 
-
-. "$CONTRIB"/build_tools_util.sh
+# potential leftover from setuptools that might make pip put garbage in binary
+rm -rf "$PROJECT_ROOT/build"
 
 
 info "downloading some dependencies."
