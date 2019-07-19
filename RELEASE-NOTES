@@ -633,4 +633,9 @@ and there is no warning message.
   the various in-app menus (such as Tools, Wallet, etc). (cculianu)
 * Made the network layer more resilient to malformed server responses.
   (cculianu)
+* Search box has been fixed to not get crushed by the balance label and to also
+  work better and have placeholder text. Closes #1493 (cculianu)
+* Coins tab: Offer alternate address format copy (eg "Copy Legacy Address" if
+  in CashAddr mode, and vice versa). This was already available in the Addresses
+  tab but wasn't in the Coins tab. Closes #1476 (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
