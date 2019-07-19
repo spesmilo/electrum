@@ -780,31 +780,6 @@ class ElectrumGui(QObject, PrintError):
             self.config.set_key('hide_cashaddr_button', bool(b))
             self.cashaddr_status_button_hidden_signal.emit(b)
 
-    def test_emoji_fonts(self) -> bool:
-        ''' Returns True if we can render all of the emoji fonts we need,
-        False otherwise. This needs to be called after the QApplication has
-        already been instantiated, which is why it's an instance method. Even
-        though this contains a loop over many characters we need, it ends up
-        having the following performance: first run is ~130 msec, subsequent
-        runs are ~10 msec total (on moderate hardware).'''
-        from electroncash import cashacct
-        #from . import network_dialog as nd
-
-        fontm = QFontMetrics(QFont())
-        fontm_mono = QFontMetrics(QFont(MONOSPACE_FONT))
-
-        emojis = set(cashacct.emoji_list)
-        # Note the below characters are not emojis, so they do not need to
-        # be included in this test. The rationale is these characters for
-        # the network dialog are not 100% critical to the UI, and they also
-        # are not in the solution we will recommend:install NotoColorEmoji.ttf.
-        # Uncomment if you wish to also check for these characters, however.
-        #emojis |= set(ord(ch) for ch in nd.ServerFlag.Symbol + nd.ServerFlag.UnSymbol if ch)
-        for uval in emojis:
-            if not fontm.inFontUcs4(uval) or not fontm_mono.inFontUcs4(uval):
-                return False
-        return True
-
     def main(self):
         try:
             self.init_network()
