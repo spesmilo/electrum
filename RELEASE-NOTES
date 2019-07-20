@@ -645,4 +645,7 @@ and there is no warning message.
 * Added better help for the Pay to edit in the send tab. The help text has been
   improved to clarify this advanced widget's capabilities, and a '?' help button
   has been added in the tool buttons for the line edit. (cculianu)
+* App icon has been updated to be a little more rectangular and render better
+  across resolutions and platforms. #1526 (cculianu, Axel Gembe, fyoookball,
+  BeltranLeo)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
