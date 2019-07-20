@@ -638,4 +638,6 @@ and there is no warning message.
 * Coins tab: Offer alternate address format copy (eg "Copy Legacy Address" if
   in CashAddr mode, and vice versa). This was already available in the Addresses
   tab but wasn't in the Coins tab. Closes #1476 (cculianu)
+* Address tab: Allow multi-select and copy of data items such as Addresses,
+  Address & Balance, etc. Closes #1475 (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
