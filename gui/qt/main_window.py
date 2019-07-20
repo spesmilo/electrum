@@ -4751,34 +4751,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             vbox.addLayout(hbox)
         vbox.addWidget(QLabel(_('Choose an address') + ':'))
         l = AddressList(self, picker=True)
-        l.setObjectName("AddressList - " + d.windowTitle())
-        destroyed_print_error(l)  # track object lifecycle
-        l.update()
-        self.gui_object.cashaddr_toggled_signal.connect(l.update)
-        vbox.addWidget(l)
+        try:
+            l.setObjectName("AddressList - " + d.windowTitle())
+            destroyed_print_error(l)  # track object lifecycle
+            l.update()
+            self.gui_object.cashaddr_toggled_signal.connect(l.update)
+            vbox.addWidget(l)
 
-        ok = OkButton(d)
-        ok.setDisabled(True)
+            ok = OkButton(d)
+            ok.setDisabled(True)
 
-        addr = None
-        def on_item_changed(current, previous):
-            nonlocal addr
-            addr = current and current.data(0, l.DataRoles.address)
-            ok.setEnabled(addr is not None)
-        def on_selection_changed():
-            items = l.selectedItems()
-            if items: on_item_changed(items[0], None)
-            else: on_item_changed(None, None)
-        l.currentItemChanged.connect(on_item_changed)
+            addr = None
+            def on_item_changed(current, previous):
+                nonlocal addr
+                addr = current and current.data(0, l.DataRoles.address)
+                ok.setEnabled(addr is not None)
+            def on_selection_changed():
+                items = l.selectedItems()
+                if items: on_item_changed(items[0], None)
+                else: on_item_changed(None, None)
+            l.currentItemChanged.connect(on_item_changed)
 
-        cancel = CancelButton(d)
+            cancel = CancelButton(d)
 
-        vbox.addLayout(Buttons(cancel, ok))
+            vbox.addLayout(Buttons(cancel, ok))
 
-        res = d.exec_()
-        if res == QDialog.Accepted:
-            return addr
-        return None
+            res = d.exec_()
+            if res == QDialog.Accepted:
+                return addr
+            return None
+        finally:
+            l.clean_up()  # required to unregister network callback
 
     def register_new_cash_account(self, addr = None):
         ''' Initiates the "Register a new cash account" dialog.
