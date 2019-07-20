@@ -87,41 +87,53 @@ class WWLabel(QLabel):
         self.setWordWrap(True)
         self.setTextInteractionFlags(self.textInteractionFlags() | Qt.TextSelectableByMouse)
 
+# --- Help widgets
+class HelpMixin:
+    def __init__(self, help_text):
+        assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
+        self.help_text = help_text
+        if isinstance(self, QLabel):
+            self.setTextInteractionFlags(
+                (self.textInteractionFlags() | Qt.TextSelectableByMouse)
+                & ~Qt.TextSelectableByKeyboard)
 
-class HelpLabel(QLabel):
+    def show_help(self):
+        QMessageBox.information(self, _('Help'), self.help_text)
 
+class HelpLabel(HelpMixin, QLabel):
     def __init__(self, text, help_text):
         QLabel.__init__(self, text)
-        self.help_text = help_text
-        self.app = QCoreApplication.instance()
-        self.font = QFont()
+        HelpMixin.__init__(self, help_text)
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        self.font = self.font()
 
     def mouseReleaseEvent(self, x):
-        QMessageBox.information(self, 'Help', self.help_text)
+        self.show_help()
 
     def enterEvent(self, event):
         self.font.setUnderline(True)
         self.setFont(self.font)
-        self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
         return QLabel.enterEvent(self, event)
 
     def leaveEvent(self, event):
         self.font.setUnderline(False)
         self.setFont(self.font)
-        self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
         return QLabel.leaveEvent(self, event)
 
-
-class HelpButton(QPushButton):
+class HelpButton(HelpMixin, QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
-        self.help_text = text
+        HelpMixin.__init__(self, text)
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.clicked.connect(self.onclick)
+        self.clicked.connect(self.show_help)
+        # The below is for older plugins that may have relied on the existence
+        # of this method.  The older version of this class provided this method.
+        # Delete this line some day.
+        self.onclick = self.show_help
 
-    def onclick(self):
-        QMessageBox.information(self, 'Help', self.help_text)
+# --- /Help widgets
+
 
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):
@@ -753,16 +765,32 @@ class OverlayControlMixin:
             x -= scrollbar_width
         self.overlay_widget.move(x, y)
 
-    def addWidget(self, widget: QWidget):
-        self.overlay_layout.addWidget(widget)
+    def addWidget(self, widget: QWidget, index: int = None):
+        if index is not None:
+            self.overlay_layout.insertWidget(index, widget)
+        else:
+            self.overlay_layout.addWidget(widget)
 
-    def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
+    def addButton(self, icon_name: str, on_click, tooltip: str, index : int = None,
+                  *, text : str = None) -> QAbstractButton:
+        ''' icon_name may be None but then you must define text (which is
+        hopefully then some nice Unicode character). Both cannot be None.
+
+        `on_click` is the callable to connect to the button.clicked signal.
+
+        Use `index` to insert it not at the end of the layout by anywhere in the
+        layout. If None, it will be appended to the right of the layout. '''
         button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
         button.setCursor(QCursor(Qt.PointingHandCursor))
-        button.setIcon(QIcon(icon_name))
+        if icon_name:
+            button.setIcon(QIcon(icon_name))
+        elif text:
+            button.setText(text)
+        if not icon_name and not text:
+            raise AssertionError('OverlayControlMixin.addButton: Button must have either icon_name or text defined!')
         button.clicked.connect(on_click)
-        self.addWidget(button)
+        self.addWidget(button, index)
         return button
 
     def addCopyButton(self) -> QAbstractButton:
