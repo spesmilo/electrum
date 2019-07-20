@@ -845,7 +845,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
         self.ext_incomplete_tx = dict() # ephemeral (not saved) dict of txid -> RegTx (all regtx's are incomplete here)
 
         # minimal collision hash encodings cache. keyed off (name.lower(), number, collision_hash) -> '03' string or '' string, serialized to disk for good UX on startup.
-        self.minimal_ch_cache = caches.ExpiringCache(name=f"{self.wallet.diagnostic_name()} - CashAcct minimal collision_hash cache", timeout=3600.0)
+        self.minimal_ch_cache = caches.ExpiringCache(name=f"{self.wallet.diagnostic_name()} - CashAcct minimal collision_hash cache")
 
         # Dict of block_height -> ProcessedBlock (not serialized to disk)
         self.processed_blocks = caches.ExpiringCache(name=f"{self.wallet.diagnostic_name()} - CashAcct processed block cache", maxlen=5000, timeout=3600.0)
