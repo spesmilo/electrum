@@ -292,6 +292,6 @@ class Notifier(SynchronizerBase):
                     async with session.post(url, json=data, headers=headers) as resp:
                         await resp.text()
             except Exception as e:
-                self.logger.info(str(e))
+                self.logger.info(repr(e))
             else:
                 self.logger.info(f'Got Response for {addr}')

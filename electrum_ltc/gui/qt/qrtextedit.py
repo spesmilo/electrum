@@ -49,7 +49,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
             with open(fileName, "r") as f:
                 data = f.read()
         except BaseException as e:
-            self.show_error(_('Error opening file') + ':\n' + str(e))
+            self.show_error(_('Error opening file') + ':\n' + repr(e))
         else:
             self.setText(data)
 
@@ -58,7 +58,7 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         try:
             data = qrscanner.scan_barcode(get_config().get_video_device())
         except BaseException as e:
-            self.show_error(str(e))
+            self.show_error(repr(e))
             data = ''
         if not data:
             data = ''

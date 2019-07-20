@@ -199,7 +199,7 @@ class ElectrumGui:
             tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
                                   password, self.config, fee)
         except Exception as e:
-            print(str(e))
+            print(repr(e))
             return
 
         if self.str_description:

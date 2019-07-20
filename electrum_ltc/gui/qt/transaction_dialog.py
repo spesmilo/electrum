@@ -191,7 +191,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))
         except Exception as e:
-            self.show_error(_('Failed to display QR code.') + '\n' + str(e))
+            self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
     def sign(self):
         def sign_done(success):

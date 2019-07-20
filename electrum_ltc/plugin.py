@@ -606,7 +606,7 @@ class DeviceMgr(ThreadJob):
                 new_devices = f()
             except BaseException as e:
                 self.logger.error('custom device enum failed. func {}, error {}'
-                                  .format(str(f), str(e)))
+                                  .format(str(f), repr(e)))
             else:
                 devices.extend(new_devices)
 
