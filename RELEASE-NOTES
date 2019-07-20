@@ -640,4 +640,6 @@ and there is no warning message.
   tab but wasn't in the Coins tab. Closes #1476 (cculianu)
 * Address tab: Allow multi-select and copy of data items such as Addresses,
   Address & Balance, etc. Closes #1475 (cculianu)
+* Contacts tab: All contacts can now also get an optional label. The label is
+  keyed off the address and is saved in wallet.labels. Closes #1508 (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
