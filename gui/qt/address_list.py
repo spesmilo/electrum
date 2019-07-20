@@ -260,9 +260,15 @@ class AddressList(MyTreeWidget):
 
         where_to_insert_dupe_copy_cash_account = None
 
+        def doCopy(txt):
+            txt = txt.strip()
+            self.parent.copy_to_clipboard(txt)
+
+        col = self.currentColumn()
+        column_title = self.headerItem().text(col)
+
         if not multi_select:
             item = self.itemAt(position)
-            col = self.currentColumn()
             if not item:
                 return
             if not addrs:
@@ -270,7 +276,6 @@ class AddressList(MyTreeWidget):
                 return
             addr = addrs[0]
 
-            column_title = self.headerItem().text(col)
             alt_copy_text, alt_column_title = None, None
             if col == 0:
                 copy_text = addr.to_full_ui_string()
@@ -280,9 +285,6 @@ class AddressList(MyTreeWidget):
                     alt_copy_text, alt_column_title = addr.to_full_string(Address.FMT_LEGACY), _('Legacy Address')
             else:
                 copy_text = item.text(col)
-            def doCopy(txt):
-                txt = txt.strip()
-                self.parent.copy_to_clipboard(txt)
             menu.addAction(_("Copy {}").format(column_title), lambda: doCopy(copy_text))
             if alt_copy_text and alt_column_title:
                 # Add 'Copy Legacy Address' and 'Copy Cash Address' alternates if right-click is on column 0
@@ -304,6 +306,24 @@ class AddressList(MyTreeWidget):
             addr_URL = web.BE_URL(self.config, 'addr', addr)
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
+        else:
+            # multi-select
+            if col > -1:
+                texts, alt_copy, alt_copy_text = None, None, None
+                if col == 0: # address column
+                    texts = [a.to_ui_string() for a in addrs]
+                    # Add additional copy option: "Address, Balance (n)"
+                    alt_copy = _("Copy {}").format(_("Address") + ", " + _("Balance")) + f" ({len(addrs)})"
+                    alt_copy_text = "\n".join([a.to_ui_string() + ", " + self.parent.format_amount(sum(self.wallet.get_addr_balance(a)))
+                                              for a in addrs])
+                else:
+                    texts = [i.text(col).strip() for i in selected]
+                    texts = [t for t in texts if t]  # omit empty items
+                if texts:
+                    copy_text = '\n'.join(texts)
+                    menu.addAction(_("Copy {}").format(column_title) + f" ({len(texts)})", lambda: doCopy(copy_text))
+                if alt_copy and alt_copy_text:
+                    menu.addAction(alt_copy, lambda: doCopy(alt_copy_text))
 
         freeze = self.parent.set_frozen_state
         if any(self.wallet.is_frozen(addr) for addr in addrs):
