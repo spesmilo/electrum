@@ -1442,10 +1442,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        msg = _('Recipient of the funds.') + '\n\n'\
-              + _('You may enter a Bitcoin Cash address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin Cash address)') + ".\n\n" \
-              + _('You may also enter cointext:(NUMBER) to send a CoinText.')  + "\n\n" \
-              + _('You may also enter a Cash Account e.g. John#123 (requires network access).')
+        # NB: the translators hopefully will not have too tough a time with this
+        # *fingers crossed* :)
+        msg = "<span style=\"font-weight:400;\">" + _('Recipient of the funds.') + " " + \
+              _("You may enter:"
+                "<ul>"
+                "<li> Bitcoin Cash <b>Address</b> <b>★</b>"
+                "<li> Bitcoin Legacy <b>Address</b> <b>★</b>"
+                "<li> <b>Cash Account</b> <b>★</b> e.g. <i>satoshi#123</i>"
+                "<li> <b>Contact name</b> <b>★</b> from the Contacts tab"
+                "<li> <b>CoinText</b> e.g. <i>cointext:+1234567</i>"
+                "<li> <b>OpenAlias</b> e.g. <i>satoshi@domain.com</i>"
+                "</ul><br>"
+                "&nbsp;&nbsp;&nbsp;<b>★</b> = Supports <b>pay-to-many</b>, where"
+                " you may optionally enter multiple lines of the form:"
+                "</span><br><pre>"
+                "    recipient1, amount1 \n"
+                "    recipient2, amount2 \n"
+                "    etc..."
+                "</pre>")
         self.payto_label = payto_label = HelpLabel(_('Pay &to'), msg)
         payto_label.setBuddy(self.payto_e)
         grid.addWidget(payto_label, 1, 0)
