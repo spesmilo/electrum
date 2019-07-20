@@ -642,4 +642,7 @@ and there is no warning message.
   Address & Balance, etc. Closes #1475 (cculianu)
 * Contacts tab: All contacts can now also get an optional label. The label is
   keyed off the address and is saved in wallet.labels. Closes #1508 (cculianu)
+* Added better help for the Pay to edit in the send tab. The help text has been
+  improved to clarify this advanced widget's capabilities, and a '?' help button
+  has been added in the tool buttons for the line edit. (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)

@@ -639,9 +639,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
-        # Settings / Preferences are all reserved keywords in OSX using this as work around
-        prefs_tit = _("Electron Cash preferences") if sys.platform == 'darwin' else _("Preferences")
-        tools_menu.addAction(prefs_tit, self.settings_dialog, QKeySequence("Ctrl+,") )
+        prefs_tit = _("Preferences")
+        a = tools_menu.addAction(prefs_tit, self.settings_dialog, QKeySequence("Ctrl+,") )  # Note: on macOS this hotkey sequence won't be shown in the menu (since it's reserved by the system), but will still work. :/
+        if sys.platform == 'darwin':
+            # This turns off the heuristic matching based on name and keeps the
+            # "Preferences" action out of the application menu and into the
+            # actual menu we specified on macOS.
+            a.setMenuRole(QAction.NoRole)
         gui_object = self.gui_object
         weakSelf = Weak.ref(self)
         tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()), QKeySequence("Ctrl+K"))
@@ -669,6 +673,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             icon = QIcon(":icons/cashacct-logo.png")
         tools_menu.addAction(icon, _("Lookup &Cash Account..."), self.lookup_cash_account_dialog, QKeySequence("Ctrl+L"))
+        tools_menu.addAction(icon, _("&Register Cash Account..."), lambda: self.register_new_cash_account(addr='pick'), QKeySequence("Ctrl+G"))
         run_hook('init_menubar_tools', self, tools_menu)
 
         help_menu = menubar.addMenu(_("&Help"))
@@ -1464,8 +1469,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_label = payto_label = HelpLabel(_('Pay &to'), msg)
         payto_label.setBuddy(self.payto_e)
         qmark = ":icons/question-mark-dark.svg" if ColorScheme.dark_scheme else ":icons/question-mark-light.svg"
-        self.payto_e.addButton(icon_name = qmark, on_click = payto_label.show_help,
-                               tooltip = _('Show help'), index = 0)
+        qmark_help_but = HelpButton(msg, button_text='', fixed_size=False, icon=QIcon(qmark), custom_parent=self)
+        self.payto_e.addWidget(qmark_help_but, index=0)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
 
@@ -4722,27 +4727,105 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qApp.clipboard().setText(text)
         QToolTip.showText(QCursor.pos(), tooltip, widget)
 
+    def _pick_address(self, *, title=None, icon=None) -> Address:
+        ''' Returns None on user cancel, or a valid is_mine Address object
+        from the Address list. '''
+        from .address_list import AddressList
+
+        # Show user address picker
+        d = WindowModalDialog(self.top_level_window(), title or _('Choose an address'))
+        d.setObjectName("Window Modal Dialog - " + d.windowTitle())
+        destroyed_print_error(d)  # track object lifecycle
+        d.setMinimumWidth(self.width()-150)
+        vbox = QVBoxLayout(d)
+        if icon:
+            hbox = QHBoxLayout()
+            hbox.setContentsMargins(0,0,0,0)
+            ic_lbl = QLabel()
+            ic_lbl.setPixmap(icon.pixmap(50))
+            hbox.addWidget(ic_lbl)
+            hbox.addItem(QSpacerItem(10, 1))
+            t_lbl = QLabel("<font size=+1><b>" + (title or '') + "</b></font>")
+            hbox.addWidget(t_lbl, 0, Qt.AlignLeft)
+            hbox.addStretch(1)
+            vbox.addLayout(hbox)
+        vbox.addWidget(QLabel(_('Choose an address') + ':'))
+        l = AddressList(self, picker=True)
+        l.setObjectName("AddressList - " + d.windowTitle())
+        destroyed_print_error(l)  # track object lifecycle
+        l.update()
+        self.gui_object.cashaddr_toggled_signal.connect(l.update)
+        vbox.addWidget(l)
+
+        ok = OkButton(d)
+        ok.setDisabled(True)
+
+        addr = None
+        def on_item_changed(current, previous):
+            nonlocal addr
+            addr = current and current.data(0, l.DataRoles.address)
+            ok.setEnabled(addr is not None)
+        def on_selection_changed():
+            items = l.selectedItems()
+            if items: on_item_changed(items[0], None)
+            else: on_item_changed(None, None)
+        l.currentItemChanged.connect(on_item_changed)
+
+        cancel = CancelButton(d)
+
+        vbox.addLayout(Buttons(cancel, ok))
+
+        res = d.exec_()
+        if res == QDialog.Accepted:
+            return addr
+        return None
+
     def register_new_cash_account(self, addr = None):
         ''' Initiates the "Register a new cash account" dialog.
-        If addr is none, will use self.receive_address. '''
+        If addr is none, will use self.receive_address.
+
+        Alternatively, you may pass the string 'pick' in lieu of an address
+        if you want this function to present the user with a UI for choosing
+        an address to register.'''
+        if addr == 'pick':
+            addr = self._pick_address(title=_("Register A New Cash Account"), icon=QIcon(":icons/cashacct-logo.png"))
+            if addr is None:
+                return  # user cancel
         addr = addr or self.receive_address or self.wallet.get_receiving_address()
         if not addr:
             self.print_error("register_new_cash_account: no receive address specified")
             return
-        def on_link(ignored):
-            webopen('https://www.cashaccount.info/')
+        def on_link(link):
+            if link == 'ca':
+                webopen('https://www.cashaccount.info/')
+            elif link == 'addr':
+                if self.wallet.is_mine(addr):
+                    self.show_address(addr)
+                else:
+                    url = web.BE_URL(self.config, 'addr', addr)
+                    if url:  webopen(url)
         name, placeholder = '', 'Satoshi_Nakamoto'
         while True:
             lh = self.wallet.get_local_height()
-            name = line_dialog(self, _("Register A New Cash Account"),
-                               (_("You are registering a new <a href='ca'>Cash Account</a> for your address <b><pre>{address}</pre></b>").format(address=addr.to_ui_string())
-                                + "<<br>" + _("How it works: <a href='ca'>Cash Accounts</a> registrations work by issuing an <b>OP_RETURN</b> transaction to yourself, costing fractions of a penny. "
-                                              "You will be offered the opportunity to review the generated transaction before broadcasting it to the blockchain.")
-                                + "<br><br>" + _("The current block height is <b><i>{block_height}</i></b>, so the new cash account will likely look like: <b><u><i>AccountName<i>#{number}</u></b>.")
+            le = ButtonsLineEdit()
+            help_msg = '<span style="font-weight:400;">' + \
+                       _('<p>How it works: <b>Cash Accounts</b> registrations work by issuing an <b>OP_RETURN</b> transaction to yourself, costing fractions of a penny.</p>'
+                         '<p>The registrations are permanently written to the blockchain and associate a human-friendly name with your address.</p>'
+                         '<p>After the registration transaction receives <i>1 confirmation</i>, you can use your new <b>Cash Account name</b> as if it were an address and give it out to other people (Electron Cash or another Cash Account enabled wallet is required).</p>'
+                         '<p><span style="font-weight:100;">You will be offered the opportunity to review the generated transaction before broadcasting it to the blockchain.</span></p>') + \
+                       '</span>'
+            qmark = ":icons/question-mark-dark.svg" if ColorScheme.dark_scheme else ":icons/question-mark-light.svg"
+            help_but = HelpButton(help_msg, button_text='', fixed_size=False, icon=QIcon(qmark), custom_parent=self)
+            le.addWidget(help_but)
+            name = line_dialog(self.top_level_window(),
+                               _("Register A New Cash Account"),
+                               (_("You are registering a new <a href='ca'>Cash Account</a> for your address <a href='addr'><b><pre>{address}</pre></b></a>").format(address=addr.to_ui_string())
+                                + _("The current block height is <b><i>{block_height}</i></b>, so the new cash account will likely look like: <b><u><i>AccountName<i>#{number}</u></b>.")
                                 .format(block_height=lh or '???', number=max(cashacct.bh2num(lh or 0)+1, 0) or '???')
-                                + "<br><br>" + _("Specify the <b>account name</b> below (limited to 99 characters):") ),
+                                + "<br><br><br>" + _("Specify the <b>account name</b> below (limited to 99 characters):") ),
                                _("Proceed to Send Tab"), default=name, linkActivated=on_link,
                                placeholder=placeholder, disallow_empty=True,
+                               line_edit_widget = le,
                                icon=QIcon(":icons/cashacct-logo.png"))
             if name is None:
                 # user cancel

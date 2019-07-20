@@ -50,10 +50,15 @@ class AddressList(MyTreeWidget):
         can_edit_label = Qt.UserRole + 1
         cash_accounts  = Qt.UserRole + 2
 
-    def __init__(self, parent):
+    def __init__(self, parent, *, picker=False):
         super().__init__(parent, self.create_menu, [], 2, deferred_updates=True)
         self.refresh_headers()
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.picker = picker
+        if self.picker:
+            self.setSelectionMode(QAbstractItemView.SingleSelection)
+            self.editable_columns = []
+        else:
+            self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.wallet = self.parent.wallet
         self.monospace_font = QFont(MONOSPACE_FONT)
@@ -246,6 +251,9 @@ class AddressList(MyTreeWidget):
 
 
     def create_menu(self, position):
+        if self.picker:
+            # picker mode has no menu
+            return
         from electroncash.wallet import Multisig_Wallet
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
         can_delete = self.wallet.can_delete_address()
@@ -364,11 +372,7 @@ class AddressList(MyTreeWidget):
             else:
                 a1.setText(_("No Cash Accounts"))
             a_new = menu.addAction(_("Register new..."), lambda x=None, addr=addr: self.parent.register_new_cash_account(addr))
-            if not ca_list and __class__._cashacct_icon:
-                # we only add an icon if there are no cashaccounts
-                # for this address. This is because the icon alongside the emojis
-                # made the ui look too "busy"...
-                a_new.setIcon(__class__._cashacct_icon)
+            a_new.setIcon(__class__._cashacct_icon)
 
 
         run_hook('receive_menu', menu, addrs, self.wallet)

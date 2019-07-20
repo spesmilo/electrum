@@ -89,21 +89,22 @@ class WWLabel(QLabel):
 
 # --- Help widgets
 class HelpMixin:
-    def __init__(self, help_text):
+    def __init__(self, help_text, *, custom_parent=None):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
+        self.custom_parent = custom_parent
         if isinstance(self, QLabel):
             self.setTextInteractionFlags(
                 (self.textInteractionFlags() | Qt.TextSelectableByMouse)
                 & ~Qt.TextSelectableByKeyboard)
 
     def show_help(self):
-        QMessageBox.information(self, _('Help'), self.help_text)
+        QMessageBox.information(self.custom_parent or self, _('Help'), self.help_text)
 
 class HelpLabel(HelpMixin, QLabel):
-    def __init__(self, text, help_text):
+    def __init__(self, text, help_text, *, custom_parent=None):
         QLabel.__init__(self, text)
-        HelpMixin.__init__(self, help_text)
+        HelpMixin.__init__(self, help_text, custom_parent=custom_parent)
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.font = self.font()
 
@@ -121,11 +122,17 @@ class HelpLabel(HelpMixin, QLabel):
         return QLabel.leaveEvent(self, event)
 
 class HelpButton(HelpMixin, QPushButton):
-    def __init__(self, text):
-        QPushButton.__init__(self, '?')
-        HelpMixin.__init__(self, text)
+    def __init__(self, text, *, button_text='?', fixed_size=True, icon=None,
+                 tool_tip=None, custom_parent=None):
+        QPushButton.__init__(self, button_text or '')
+        HelpMixin.__init__(self, text, custom_parent=custom_parent)
+        self.setToolTip(tool_tip or _("Show help"))
+        self.setCursor(QCursor(Qt.PointingHandCursor))
         self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(20)
+        if fixed_size:
+            self.setFixedWidth(20)
+        if icon:
+            self.setIcon(icon)
         self.clicked.connect(self.show_help)
         # The below is for older plugins that may have relied on the existence
         # of this method.  The older version of this class provided this method.
@@ -369,8 +376,10 @@ class WaitingDialog(WindowModalDialog):
 
 def line_dialog(parent, title, label, ok_label, default=None,
                 *, linkActivated=None, placeholder=None, disallow_empty=False,
-                icon=None):
+                icon=None, line_edit_widget=None):
     dialog = WindowModalDialog(parent, title)
+    dialog.setObjectName('WindowModalDialog - ' + title)
+    destroyed_print_error(dialog)  # track object lifecycle
     dialog.setMinimumWidth(500)
     l = QVBoxLayout()
     dialog.setLayout(l)
@@ -390,7 +399,7 @@ def line_dialog(parent, title, label, ok_label, default=None,
     if linkActivated:
         lbl.linkActivated.connect(linkActivated)
         lbl.setTextInteractionFlags(lbl.textInteractionFlags()|Qt.LinksAccessibleByMouse)
-    txt = QLineEdit()
+    txt = line_edit_widget or QLineEdit()
     if default:
         txt.setText(default)
     if placeholder:
