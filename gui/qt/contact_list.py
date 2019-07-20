@@ -43,7 +43,7 @@ from typing import List, Set, Dict, Tuple
 from . import cashacctqt
 
 class ContactList(PrintError, MyTreeWidget):
-    filter_columns = [1, 2]  # Name, Address
+    filter_columns = [1, 2, 3]  # Name, Label, Address
     default_sort = MyTreeWidget.SortSpec(1, Qt.AscendingOrder)
 
     do_update_signal = pyqtSignal()
@@ -53,7 +53,7 @@ class ContactList(PrintError, MyTreeWidget):
 
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu,
-                              ["", _('Name'), _('Address'), _('Type') ], 1, [1],  # headers, stretch_column, editable_columns
+                              ["", _('Name'), _('Label'), _('Address'), _('Type') ], 2, [1,2],  # headers, stretch_column, editable_columns
                               deferred_updates=True, save_sort_settings=True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -86,13 +86,23 @@ class ContactList(PrintError, MyTreeWidget):
 
     def on_permit_edit(self, item, column):
         # openalias items shouldn't be editable
+        if column == 2: # Label, always editable
+            return True
         return item.data(0, self.DataRoles.Contact).type in ('address', 'cashacct')
 
     def on_edited(self, item, column, prior_value):
         contact = item.data(0, self.DataRoles.Contact)
+        if column == 2: # Label
+            label_key = contact.address
+            try: label_key = Address.from_string(label_key).to_storage_string()
+            except: pass
+            self.wallet.set_label(label_key, item.text(2))
+            self.update() # force refresh in case 2 contacts use the same address
+            return
+        # else.. Name
         typ = contact.type
         was_cur, was_sel = bool(self.currentItem()), item.isSelected()
-        name, value = item.text(1), item.text(2)
+        name, value = item.text(1), item.text(3)
         del item  # paranoia
 
         # On success, parent.set_contact returns the new key (address text)
@@ -185,6 +195,8 @@ class ContactList(PrintError, MyTreeWidget):
                     column_title = _('Cash Account')
                     if ca_info:
                         column_data = self.wallet.cashacct.fmt_info(ca_info, emoji=True)
+            if len(selected) > 1:
+                column_title += f" ({len(selected)})"
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if item and column in self.editable_columns and self.on_permit_edit(item, column):
                 key = item.data(0, self.DataRoles.Contact)
@@ -369,13 +381,18 @@ class ContactList(PrintError, MyTreeWidget):
         edited = self._edited_item_cur_sel
         for contact in self.get_full_contacts(include_pseudo=self.show_my_cashaccts):
             _type, name, address = contact.type, contact.name, contact.address
+            label_key = address
             if _type in ('cashacct', 'cashacct_W', 'cashacct_T', 'address'):
                 try:
                     # try and re-parse and re-display the address based on current UI string settings
-                    address = Address.from_string(address).to_ui_string()
+                    addy = Address.from_string(address)
+                    address = addy.to_ui_string()
+                    label_key = addy.to_storage_string()
+                    del addy
                 except:
                     ''' This may happen because we may not have always enforced this as strictly as we could have in legacy code. Just move on.. '''
-            item = QTreeWidgetItem(["", name, address, type_names[_type]])
+            label = self.wallet.get_label(label_key)
+            item = QTreeWidgetItem(["", name, label, address, type_names[_type]])
             item.setData(0, self.DataRoles.Contact, contact)
             item.DataRole = self.DataRoles.Contact
             if _type in ('cashacct', 'cashacct_W', 'cashacct_T'):
@@ -401,10 +418,10 @@ class ContactList(PrintError, MyTreeWidget):
                 item.setToolTip(0, tt)
                 if tt_warn: item.setToolTip(1, tt_warn)
             if _type in type_icons:
-                item.setIcon(3, type_icons[_type])
+                item.setIcon(4, type_icons[_type])
             # always give the "Address" field a monospace font even if it's
             # not strictly an address such as openalias...
-            item.setFont(2, self.monospace_font)
+            item.setFont(3, self.monospace_font)
             self.addTopLevelItem(item)
             if contact == current_contact or (contact == edited[0] and edited[1]):
                 current_item = item  # this key was the current item before and it hasn't gone away
