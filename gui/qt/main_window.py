@@ -2718,7 +2718,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self._search_box_spacer = QWidget()
         self._search_box_spacer.setFixedWidth(6)  # 6 px spacer
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText(_("Search wallet, {key}+F to hide").format(key='Ctrl' if sys.platform != 'darwin' else '⌘'))
+        self.search_box.setPlaceholderText(_("Search wallet, {key}F to hide").format(key='Ctrl+' if sys.platform != 'darwin' else '⌘'))
         self.search_box.textChanged.connect(self.do_search)
         self.search_box.hide()
         sb.addPermanentWidget(self.search_box, 1)
