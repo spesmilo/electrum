@@ -279,7 +279,7 @@ class ElectrumGui(QObject, PrintError):
         else:
             # Unconditionally set this on all other platforms as it can only
             # help and never harm, and is always available.
-            icon = QIcon(":icons/electron.svg")
+            icon = QIcon(":icons/electron-cash.svg")
         if icon:
             self.app.setWindowIcon(icon)
 
@@ -752,7 +752,7 @@ class ElectrumGui(QObject, PrintError):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron.svg"), 20000)
+                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron-cash.svg"), 20000)
             except TypeError:
                 self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
 
