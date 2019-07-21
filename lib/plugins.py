@@ -40,13 +40,14 @@ from .util import print_error, user_dir, make_dir
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
 from . import version
+from enum import IntEnum
 
 plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
 
-class ExternalPluginCodes:
+class ExternalPluginCodes(IntEnum):
     SUCCESS = 0
     MISSING_MANIFEST = 1
     NAME_ALREADY_IN_USE = 2
@@ -60,6 +61,7 @@ class ExternalPluginCodes:
     INVALID_MAMIFEST_VERSION = 10
     INVALID_MAMIFEST_MINIMUM_EC_VERSION = 11
     INVALID_MAMIFEST_PACKAGE_NAME = 12
+    UNSPECIFIED_ERROR = 13
 
 INTERNAL_USE_PREFIX = 'use_'
 EXTERNAL_USE_PREFIX = 'use_external_'
@@ -293,15 +295,17 @@ class Plugins(DaemonThread):
         file_name = os.path.basename(plugin_file_path)
         try:
             zipfile = zipimport.zipimporter(plugin_file_path)
+            metadata_text = zipfile.get_data("manifest.json")
         except zipimport.ZipImportError:
             self.print_error("unable to load zip plugin for %s" % file_name)
             return None, ExternalPluginCodes.INCOMPATIBLE_ZIP_FORMAT
-
-        try:
-            metadata_text = zipfile.get_data("manifest.json")
         except OSError:
             self.print_error("missing 'manifest.json' (zip plugin %s)" % file_name)
             return None, ExternalPluginCodes.MISSING_MANIFEST
+        except Exception as e:
+            self.print_error(f"Exception opening {file_name}: {repr(e)}")
+            return None, ExternalPluginCodes.UNSPECIFIED_ERROR
+
 
         # START: json.loads for Python < 3.6 does not support bytes.  Delete this when we upgrade to 3.6.
         if not (sys.version_info.major > 3 or sys.version_info.major == 3 and sys.version_info.minor >= 6):

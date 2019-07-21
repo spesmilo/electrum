@@ -49,6 +49,7 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.INVALID_MAMIFEST_VERSION: _("The plugin manifest lacks a valid version."),
     ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION: _("The plugin manifest lacks a valid minimum Electron Cash version."),
     ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME: _("The plugin manifest lacks a valid package name."),
+    ExternalPluginCodes.UNSPECIFIED_ERROR: _("An unspecified exception was raised. Cannot open plugin.")
 }
 
 
