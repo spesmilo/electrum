@@ -101,8 +101,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     new_fx_history_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
     alias_received_signal = pyqtSignal()
-    computing_privkeys_signal = pyqtSignal()
-    show_privkeys_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
     labels_updated_signal = pyqtSignal() # note this signal occurs when an explicit update_labels() call happens. Interested GUIs should also listen for history_updated_signal as well which also indicates labels may have changed.
     on_timer_signal = pyqtSignal()  # functions wanting to be executed from timer_actions should connect to this signal, preferably via Qt.DirectConnection
@@ -1041,6 +1039,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.wallet.network.register_callback(slf.on_network, ['ca_updated_minimal_chash'])
             def clean_up(slf):
                 slf.cleaned_up = True
+                try: self.network_signal.disconnect(slf.on_network_qt)  # need to disconnect parent signals due to PyQt bugs, see #1531
+                except TypeError: pass
                 if self.wallet.network:
                     self.wallet.network.unregister_callback(slf.on_network)
             def set_cash_acct(slf, info: cashacct.Info = None, minimal_chash = None):
@@ -3281,7 +3281,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('WARNING: This is a multi-signature wallet.') + '\n' +
                               _('It can not be "backed up" by simply exporting these private keys.'))
 
-        d = WindowModalDialog(self.top_level_window(), _('Private keys'))
+        class MyWindowModalDialog(WindowModalDialog):
+            computing_privkeys_signal = pyqtSignal()
+            show_privkeys_signal = pyqtSignal()
+
+        d = MyWindowModalDialog(self.top_level_window(), _('Private keys'))
+        weak_d = Weak.ref(d)
+        d.setObjectName('WindowModalDialog - Private Key Export')
+        destroyed_print_error(d)  # track object lifecycle
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
 
@@ -3291,6 +3298,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(msg))
 
         e = QTextEdit()
+        e.setFont(QFont(MONOSPACE_FONT))
+        e.setWordWrapMode(QTextOption.NoWrap)
         e.setReadOnly(True)
         vbox.addWidget(e)
 
@@ -3305,50 +3314,70 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         private_keys = {}
         addresses = self.wallet.get_addresses()
-        done = False
-        cancelled = False
+        stop = False
         def privkeys_thread():
             for addr in addresses:
-                time.sleep(0.1)
-                if done or cancelled:
-                    break
+                time.sleep(0.100)  # this artificial sleep is likely a security / paranoia measure to allow user to cancel or to make the process "feel expensive"
+                if stop:
+                    return
                 try:
                     privkey = self.wallet.export_private_key(addr, password)
                 except InvalidPassword:
                     # See #921 -- possibly a corrupted wallet or other strangeness
                     privkey = 'INVALID_PASSWORD'
                 private_keys[addr.to_ui_string()] = privkey
-                self.computing_privkeys_signal.emit()
-            if not cancelled:
-                self.computing_privkeys_signal.disconnect()
-                self.show_privkeys_signal.emit()
+                strong_d = weak_d()
+                try:
+                    if strong_d and not stop:
+                        strong_d.computing_privkeys_signal.emit()
+                    else:
+                        return
+                finally:
+                    del strong_d
+            if stop:
+                return
+            strong_d = weak_d()
+            if strong_d:
+                strong_d.show_privkeys_signal.emit()
 
         def show_privkeys():
-            s = "\n".join('{}\t{}'.format(addr, privkey)
+            nonlocal stop
+            if stop:
+                return
+            s = "\n".join('{:45} {}'.format(addr, privkey)
                           for addr, privkey in private_keys.items())
             e.setText(s)
             b.setEnabled(True)
-            self.show_privkeys_signal.disconnect()
-            nonlocal done
-            done = True
+            stop = True
+
+        thr = None
 
         def on_dialog_closed(*args):
-            nonlocal done
-            nonlocal cancelled
-            if not done:
-                cancelled = True
-                self.computing_privkeys_signal.disconnect()
-                self.show_privkeys_signal.disconnect()
+            nonlocal stop
+            stop = True
+            try: d.computing_privkeys_signal.disconnect()
+            except TypeError: pass
+            try: d.show_privkeys_signal.disconnect()
+            except TypeError: pass
+            try: d.finished.disconnect()
+            except TypeError: pass
+            if thr and thr.is_alive():
+                thr.join(timeout=1.0)  # wait for thread to end for maximal GC mojo
 
-        self.computing_privkeys_signal.connect(lambda: e.setText(_("Please wait... {num}/{total}").format(num=len(private_keys),total=len(addresses))))
-        self.show_privkeys_signal.connect(show_privkeys)
+        def computing_privkeys_slot():
+            if stop:
+                return
+            e.setText(_("Please wait... {num}/{total}").format(num=len(private_keys),total=len(addresses)))
+
+        d.computing_privkeys_signal.connect(computing_privkeys_slot)
+        d.show_privkeys_signal.connect(show_privkeys)
         d.finished.connect(on_dialog_closed)
-        threading.Thread(target=privkeys_thread).start()
+        thr = threading.Thread(target=privkeys_thread, daemon=True)
+        thr.start()
 
         res = d.exec_()
-        d.setParent(None) # for python GC
         if not res:
-            done = True
+            stop = True
             return
 
         filename = filename_e.text()
@@ -3797,6 +3826,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def settings_dialog(self):
         self.need_restart = False
         d = WindowModalDialog(self.top_level_window(), _('Preferences'))
+        d.setObjectName('WindowModalDialog - Preferences')
+        destroyed_print_error(d)
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
@@ -3910,6 +3941,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.fetch_alias()
         set_alias_color()
         self.alias_received_signal.connect(set_alias_color)
+        # this ensures that even if exception occurs or we exit function early,
+        # the signal is disconnected
+        disconnect_alias_received_signal = Weak.finalize(d, self.alias_received_signal.disconnect, set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
         id_widgets.append((alias_label, alias_e))
 
@@ -4314,7 +4348,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.fx:
             self.fx.timeout = 0
 
-        self.alias_received_signal.disconnect(set_alias_color)
+        disconnect_alias_received_signal()  # aka self.alias_received_signal.disconnect(set_alias_color)
 
         run_hook('close_settings_dialog')
         if self.need_restart:
@@ -4395,8 +4429,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         self.wallet.thread.wait() # Join the thread to make sure it's really dead.
 
-        for w in [self.address_list, self.history_list, self.utxo_list, self.cash_account_e, self.contact_list]:
-            if w: w.clean_up()  # tell relevant widget to clean itself up, unregister callbacks, etc
+        for w in [self.address_list, self.history_list, self.utxo_list, self.cash_account_e, self.contact_list,
+                  self.tx_update_mgr]:
+            if w: w.clean_up()  # tell relevant object to clean itself up, unregister callbacks, disconnect signals, etc
 
         # We catch these errors with the understanding that there is no recovery at
         # this point, given user has likely performed an action we cannot recover
@@ -4913,6 +4948,7 @@ class TxUpdateMgr(QObject, PrintError):
     def __init__(self, main_window_parent):
         assert isinstance(main_window_parent, ElectrumWindow), "TxUpdateMgr must be constructed with an ElectrumWindow as its parent"
         super().__init__(main_window_parent)
+        self.cleaned_up = False
         self.lock = threading.Lock()  # used to lock thread-shared attrs below
         # begin thread-shared attributes
         self.notif_q = []
@@ -4925,6 +4961,15 @@ class TxUpdateMgr(QObject, PrintError):
 
     def diagnostic_name(self):
         return ((self.weakParent() and self.weakParent().diagnostic_name()) or "???") + "." + __class__.__name__
+
+    def clean_up(self):
+        self.cleaned_up = True
+        main_window_parent = self.weakParent()  # weak -> strong ref
+        if main_window_parent:
+            try: main_window_parent.history_updated_signal.disconnect(self.verifs_get_and_clear)
+            except TypeError: pass
+            try: main_window_parent.on_timer_signal.disconnect(self.do_check)
+            except TypeError: pass
 
     def do_check(self):
         ''' Called from timer_actions in main_window to check if notifs or
