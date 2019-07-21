@@ -264,17 +264,19 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         if self.c.widget() != self:
             return
         tc = self.textCursor()
-        extra = len(completion) - len(self.c.completionPrefix())
-        tc.movePosition(QTextCursor.Left)
-        tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion[-extra:])
+        # new! because of the way Cash Accounts works we must delete the whole
+        # line under cursor and insert the full completion. This ends up
+        # working reasonably well.
+        tc.select(QTextCursor.LineUnderCursor)
+        tc.removeSelectedText()
+        tc.insertText(completion + " ")
         self.setTextCursor(tc)
 
 
     def textUnderCursor(self):
         tc = self.textCursor()
         tc.select(QTextCursor.LineUnderCursor)
-        return tc.selectedText().strip()
+        return tc.selectedText()
 
     def keyPressEvent(self, e):
         if self.isReadOnly() or not self.hasFocus():
