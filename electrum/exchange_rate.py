@@ -190,13 +190,6 @@ class BitFlyer(ExchangeBase):
         return {'JPY': Decimal(json['mid'])}
 
 
-class Bitmarket(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
-        return {'PLN': Decimal(json['last'])}
-
-
 class BitPay(ExchangeBase):
 
     async def get_rates(self, ccy):
