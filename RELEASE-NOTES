@@ -648,4 +648,8 @@ and there is no warning message.
 * App icon has been updated to be a little more rectangular and render better
   across resolutions and platforms. #1526 (cculianu, Axel Gembe, fyoookball,
   BeltranLeo)
+* Update checker: Use a longer timeout to not time out when using a proxy
+  server. #1509 (cculianu)
+* External Plugins: Be more resilient to a bad plugin file. #1533 (cculianu)
+* Updated translations (Axel Gembe)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
