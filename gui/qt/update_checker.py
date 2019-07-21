@@ -328,7 +328,7 @@ class _Req(threading.Thread, PrintError):
             self.checker._req_finished.emit(self)
 
     def _do_request(self, url):
-        response = requests.get(url, allow_redirects=True, timeout=5.0) # will raise requests.exceptions.Timeout on timeout
+        response = requests.get(url, allow_redirects=True, timeout=30.0) # will raise requests.exceptions.Timeout on timeout
 
         if response.status_code != 200:
             raise RuntimeError(response.status_code, response.text)
