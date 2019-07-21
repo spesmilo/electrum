@@ -422,7 +422,7 @@ class AddressList(MyTreeWidget):
     def _ca_update_chash(self, ca_info, minimal_chash):
         ''' Called in GUI thread as a result of the cash account subsystem
         figuring out that a collision_hash can be represented shorter.
-        Kicked off by a get_minimal_chash() call. '''
+        Kicked off by a get_minimal_chash() call that results in a cache miss. '''
         if self.cleaned_up:
             return
         items = self.findItems(ca_info.address.to_ui_string(), Qt.MatchContains|Qt.MatchWrap|Qt.MatchRecursive, 0) or []
@@ -442,7 +442,6 @@ class AddressList(MyTreeWidget):
         round-trip determined that the minimal collision hash can be shorter.'''
         if (event == 'ca_updated_minimal_chash'
                 and not self.cleaned_up
-                and len(args) >= 3
                 and args[0] is self.wallet.cashacct):
             self._ca_minimal_chash_updated_signal.emit(args[1], args[2])
 

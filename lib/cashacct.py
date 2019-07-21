@@ -1426,7 +1426,7 @@ class CashAcct(util.PrintError, verifier.SPVDelegate):
                 if event == 'ca_verified_tx':
                     if not num_needed():  # this implcititly checks if the tx's we care about are ready
                         q.put('done')
-                elif event == 'ca_verification_failed' and len(args) >= 3 and args[1] in pb.reg_txs:
+                elif event == 'ca_verification_failed' and args[1] in pb.reg_txs:
                     q.put(('failed', args[1], args[2]))
                     if args[2] == 'tx_not_found':
                         ctr = 0

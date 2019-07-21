@@ -36,7 +36,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from .util import (MyTreeWidget, webopen, WindowModalDialog, Buttons,
                    CancelButton, OkButton, HelpLabel, WWLabel,
-                   destroyed_print_error, webopen, ColorScheme, MONOSPACE_FONT)
+                   destroyed_print_error, webopen, ColorScheme, MONOSPACE_FONT,
+                   rate_limited)
 from enum import IntEnum
 from collections import defaultdict
 from typing import List, Set, Dict, Tuple
@@ -47,6 +48,7 @@ class ContactList(PrintError, MyTreeWidget):
     default_sort = MyTreeWidget.SortSpec(1, Qt.AscendingOrder)
 
     do_update_signal = pyqtSignal()
+    _ca_minimal_chash_updated_signal = pyqtSignal(object, str)
 
     class DataRoles(IntEnum):
         Contact     = Qt.UserRole + 0
@@ -71,18 +73,17 @@ class ContactList(PrintError, MyTreeWidget):
         self._ca_pending_conf : Dict[str, Tuple[str, Address]] = dict()  #  "txid" -> ("name", Address)
 
         if self.wallet.network:
-            self.wallet.network.register_callback(self._ca_callback, ['ca_verified_tx'])
+            self.wallet.network.register_callback(self._ca_callback, ['ca_verified_tx', 'ca_updated_minimal_chash'] )
+        self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
 
     def clean_up(self):
         self.cleaned_up = True
+        try: self._ca_minimal_chash_updated_signal.disconnect(self._ca_update_chash)
+        except TypeError: pass
+        try: self.do_update_signal.disconnect(self.update)
+        except TypeError: pass
         if self.wallet.network:
             self.wallet.network.unregister_callback(self._ca_callback)
-
-    def _ca_callback(self, e, *args):
-        if e == 'ca_verified_tx' and len(args) >= 2 and args[0] == self.wallet.cashacct:
-            # it's relevant to us when a verification comes in, so we need to
-            # schedule an update then
-            self.do_update_signal.emit()
 
     def on_permit_edit(self, item, column):
         # openalias items shouldn't be editable
@@ -354,6 +355,13 @@ class ContactList(PrintError, MyTreeWidget):
             ))
         return wallet_cashaccts
 
+    @rate_limited(0.333, ts_after=True) # We rate limit the contact list refresh no more 3 per second
+    def update(self):
+        if self.cleaned_up:
+            # short-cut return if window was closed and wallet is stopped
+            return
+        super().update()
+
     def on_update(self):
         if self.cleaned_up:
             return
@@ -465,3 +473,32 @@ class ContactList(PrintError, MyTreeWidget):
                 added += 1
         if added:
             self.update()
+
+    def _ca_callback(self, e, *args):
+        ''' Called from the network thread '''
+        if self.cleaned_up or not args or args[0] != self.wallet.cashacct:
+            # not for us or we are cleaned_up
+            return
+        if e == 'ca_verified_tx':
+            # it's relevant to us when a verification comes in, so we need to
+            # schedule an update then. We don't check if the info object
+            # is "one of ours" because at this point it may be a NEW relevant
+            # contact.
+            self.do_update_signal.emit()
+        elif e == 'ca_updated_minimal_chash':
+            # In this case we do check if the update object is "one of ours"
+            # in the slot that this signal targets.
+            self._ca_minimal_chash_updated_signal.emit(args[1], args[2])
+
+    def _ca_update_chash(self, ca_info, ignored):
+        ''' Called in GUI thread as a result of the cash account subsystem
+        figuring out that a collision_hash can be represented shorter.
+        Kicked off by a get_minimal_chash() call that results in a cache miss. '''
+        if self.cleaned_up:
+            return
+        # performance -- don't update unless the new minimal_chash is one
+        # we care about
+        key = f'{ca_info.name}#{ca_info.number}'
+        items = self.findItems(key, Qt.MatchContains|Qt.MatchWrap|Qt.MatchRecursive, 1) or []
+        if items:
+            self.do_update_signal.emit()
