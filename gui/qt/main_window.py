@@ -2461,19 +2461,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_addresses_tab(self):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
-        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
         self.utxo_list = l = UTXOList(self)
-        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
         from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
-        self.gui_object.cashaddr_toggled_signal.connect(l.update)
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
@@ -4334,8 +4331,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def clean_up_connections(self):
         def disconnect_signals():
+            del self.cashaddr_toggled_signal  # delete alias so it doesn interfere with below
             for attr_name in dir(self):
-                if attr_name.endswith("_signal") and attr_name != "cashaddr_toggled_signal":
+                if attr_name.endswith("_signal"):
                     sig = getattr(self, attr_name)
                     if isinstance(sig, pyqtBoundSignal):
                         try: sig.disconnect()
@@ -4344,6 +4342,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     rl_obj = getattr(self, attr_name)
                     if isinstance(rl_obj, RateLimiter):
                         rl_obj.kill_timer()
+            # The below shouldn't even be needed, since Qt should take care of this,
+            # but Axel Gembe got a crash related to this on Python 3.7.3, PyQt 5.12.3
+            # so here we are. See #1531
+            try: self.gui_object.cashaddr_toggled_signal.disconnect(self.update_cashaddr_icon)
+            except TypeError: pass
+            try: self.gui_object.cashaddr_toggled_signal.disconnect(self.update_receive_address_widget)
+            except TypeError: pass
+            try: self.gui_object.cashaddr_status_button_hidden_signal.disconnect(self.addr_converter_button.setHidden)
+            except TypeError: pass
+            try: self.gui_object.update_available_signal.disconnect(self.on_update_available)
+            except TypeError: pass
             try: self.disconnect()
             except TypeError: pass
         def disconnect_network_callbacks():
@@ -4755,7 +4764,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             l.setObjectName("AddressList - " + d.windowTitle())
             destroyed_print_error(l)  # track object lifecycle
             l.update()
-            self.gui_object.cashaddr_toggled_signal.connect(l.update)
             vbox.addWidget(l)
 
             ok = OkButton(d)

@@ -69,7 +69,8 @@ class AddressList(MyTreeWidget):
         self._ca_cb_registered = False
         self._ca_minimal_chash_updated_signal.connect(self._ca_update_chash)
 
-        parent.ca_address_default_changed_signal.connect(self._ca_on_address_default_change)
+        self.parent.gui_object.cashaddr_toggled_signal.connect(self.update)
+        self.parent.ca_address_default_changed_signal.connect(self._ca_on_address_default_change)
 
         if not __class__._cashacct_icon:
             # lazy init the icon
@@ -80,6 +81,11 @@ class AddressList(MyTreeWidget):
         if self.wallet.network:
             self.wallet.network.unregister_callback(self._ca_updated_minimal_chash_callback)
             self._ca_cb_registered = False
+        # paranoia -- we have seen Qt not clean up the signal before the object is destroyed on Python 3.7.3 PyQt 5.12.3, see #1531
+        try: self.parent.gui_object.cashaddr_toggled_signal.disconnect(self.update)
+        except TypeError: pass
+        try: self.parent.ca_address_default_changed_signal.disconnect(self._ca_on_address_default_change)
+        except TypeError: pass
 
     def filter(self, p):
         ''' Reimplementation from superclass filter.  Chops off the
