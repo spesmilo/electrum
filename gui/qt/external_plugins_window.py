@@ -405,11 +405,10 @@ class ExternalPluginTable(QTableWidget):
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSortingEnabled(False)
 
-        self.horizontalHeader().setStretchLastSection(True)
         verticalHeader = self.verticalHeader()
         verticalHeader.setVisible(False)
-        verticalHeader.setSectionResizeMode(QHeaderView.Fixed)
-        verticalHeader.setDefaultSectionSize(80)
+        verticalHeader.setSectionResizeMode(QHeaderView.Fixed)  # FIXME: won't look good on all platforms with all fonts
+        verticalHeader.setDefaultSectionSize(80)  # FIXME: won't look good on all platforms with all fonts
         self.setStyleSheet("QTableWidget::item { padding: 10px; }")
 
         self.itemSelectionChanged.connect(self.on_item_selection_changed)
