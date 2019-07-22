@@ -652,4 +652,5 @@ and there is no warning message.
   server. #1509 (cculianu)
 * External Plugins: Be more resilient to a bad plugin file. #1533 (cculianu)
 * Updated translations (Axel Gembe)
+* Email plugin crash fix #1534 (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
