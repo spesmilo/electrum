@@ -30,6 +30,7 @@ import csv
 from decimal import Decimal as Decimalf
 import base64
 from functools import partial
+from pathlib import Path
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -2469,6 +2470,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = PasswordDialog(parent, msg)
         return d.run()
 
+    def file_overwrite_dialog(self, msg=None, parent=None):
+        from .file_overwrite_dialog import FileOverwriteDialog
+        parent = parent or self
+        d = FileOverwriteDialog(parent, msg)
+        return d.run()
+
     def tx_from_text(self, txt):
         from electrum.transaction import tx_from_str
         try:
@@ -2555,28 +2562,39 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                             _('Registration is not currently supported.'))
         
 
-        kycfileString=self.wallet.get_kyc_string(password)
-        if kycfileString == None:
-            self.show_critical(txt, title=_("Unable to encrypt kyc data"))
-
+        kycSuccess, kycfileString=self.wallet.get_kyc_string(password)
+        if not kycSuccess:
+            txt = "\n".join([
+                _("Unable to export KYC file."),
+                str(kycfileString)
+            ])
+            self.show_critical(txt, title=_("Unable to export KYC file"))
+            return
 
         d = WindowModalDialog(self, _('Register wallet'))
         d.setMinimumSize(980, 300)
         vbox = QVBoxLayout(d)
 
-        msg = "%s\n%s\n%s\n%s\n%s\n%s" % (_("Your addresses and public keys will be exported to an encrypted KYC file, readable only by DGLD and this wallet."),
-                              _("Your private keys will not be exported."),
+        msg = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (_("Your addresses and public keys will be exported to an encrypted KYC file, readable only by DGLD and this wallet."),
+                                          _("Your private keys will not be exported."),
                               _(""),
                               _("You agree to the terms and conditions, the SHA256 hash of which will be embedded in the exported addresses"),
                               _(""),
-                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."))
-        
+                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."),
+                              _(""),
+                              _("Click \'Export\' to save the file.")
+        )
+
         vbox.addWidget(QLabel(msg))
 
-        defaultname = 'kycfile.dat'
-        select_msg = _('Select file to export your encrypted addresses and public keys to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg, b_csv_select=False)
+        
+        defaultfilename = 'kycfile.dat'
+
+        select_msg = _('Select a filename for the kycfile')
+        hbox, filename_e, csv_button, file_button = filename_field(self, self.config, defaultfilename, select_msg, b_csv_select=False)
         vbox.addLayout(hbox)
+
+        defaultfilepath=filename_e.text();
 
         e = QTextEdit()
         e.setReadOnly(True)
@@ -2589,9 +2607,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
         def show_kycaddresses():
-            #s = "\n".join( map( lambda x: x[0], addressList.items()))
             e.setText(kycfileString)
-            b.setEnabled(True)
+            if kycSuccess:
+                b.setEnabled(True)
             nonlocal done
             done = True
 
@@ -2606,19 +2624,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         filename = filename_e.text()
+
         if not filename:
             return
 
+        if os.path.isfile(filename):
+            msg = [
+                    _('Warning: file exists: ' + filename),
+                    _('Overwrite?'),
+                ]
+            if not self.question(' '.join(msg)):
+                self.show_message(_("Cancelled."))
+                return
         try:
             f=open(filename, 'w')
             f.write(kycfileString)
             f.close()
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Unable to export kyc file."),
+                _("Unable to export KYC file."),
                 str(reason)
             ])
-            self.show_critical(txt, title=_("Unable to create kycfile"))
+            self.show_critical(txt, title=_("Unable to export KYC file"))
+            return
 
         except Exception as e:
             self.show_message(str(e))
@@ -2641,6 +2669,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contract_e.setReadOnly(True)
         layout.addWidget(QLabel(_('All wallet keys will include the SHA256 hash of the following terms and conditions via the pay-to-contact protocol')), 1, 0)
         layout.addWidget(contract_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("OK"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
+
+    def overwritefile_dialog(self):
+
+        d = WindowModalDialog(self, _('Overwrite File?'))
+        d.setMinimumWidth(660)
+
+        layout = QGridLayout(d)
+
+        layout.addWidget(QLabel(_('File exists. Overwrite?')), 1, 0)
         layout.setRowStretch(2,3)
 
         hbox = QHBoxLayout()
