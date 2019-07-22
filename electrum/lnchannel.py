@@ -406,33 +406,26 @@ class Channel(Logger):
 
     def revoke_current_commitment(self):
         self.logger.info("revoke_current_commitment")
-
-        new_feerate = self.constraints.feerate
-        if self.pending_fee is not None:
-            if not self.constraints.is_initiator and self.pending_fee[FUNDEE_SIGNED]:
-                new_feerate = self.pending_fee.rate
-                self.pending_fee = None
-                print("FEERATE CHANGE COMPLETE (non-initiator)")
-            if self.constraints.is_initiator and self.pending_fee[FUNDER_SIGNED]:
-                new_feerate = self.pending_fee.rate
-                self.pending_fee = None
-                print("FEERATE CHANGE COMPLETE (initiator)")
-
         assert self.config[LOCAL].got_sig_for_next
-        self.constraints=self.constraints._replace(
-            feerate=new_feerate
-        )
-        self.set_local_commitment(self.pending_commitment(LOCAL))
-        ctx = self.pending_commitment(LOCAL)
+        new_ctn = self.config[LOCAL].ctn + 1
+        new_ctx = self.pending_commitment(LOCAL)
+        assert self.signature_fits(new_ctx)
+        self.set_local_commitment(new_ctx)
+
+        if self.pending_fee is not None:
+            if (not self.constraints.is_initiator and self.pending_fee[FUNDEE_SIGNED])\
+               or (self.constraints.is_initiator and self.pending_fee[FUNDER_SIGNED]):
+                self.constraints = self.constraints._replace(feerate=self.pending_fee.rate)
+                self.pending_fee = None
+                self.logger.info(f"Feerate change complete (initiator: {self.constraints.is_initiator})")
+
         self.hm.send_rev()
         self.config[LOCAL]=self.config[LOCAL]._replace(
-            ctn=self.config[LOCAL].ctn + 1,
+            ctn=new_ctn,
             got_sig_for_next=False,
         )
-        assert self.signature_fits(ctx)
-
-        received = self.hm.received_in_ctn(self.config[LOCAL].ctn)
-        sent = self.hm.sent_in_ctn(self.config[LOCAL].ctn)
+        received = self.hm.received_in_ctn(new_ctn)
+        sent = self.hm.sent_in_ctn(new_ctn)
         if self.lnworker:
             for htlc in received:
                 self.lnworker.payment_completed(self, RECEIVED, htlc)
@@ -440,7 +433,6 @@ class Channel(Logger):
                 self.lnworker.payment_completed(self, SENT, htlc)
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
-
         last_secret, last_point = self.local_points(offset=-1)
         next_secret, next_point = self.local_points(offset=1)
         return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
