@@ -49,7 +49,7 @@ class InvoiceList(MyTreeWidget):
             requestor = pr.get_requestor()
             exp = pr.get_expiration_date()
             date_str = format_time(exp) if exp else _('Never')
-            item = QTreeWidgetItem([date_str, requestor, pr.memo, self.parent.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date_str, requestor, pr.memo, self.parent.format_amount(pr.get_amount(), whitespaces=True), _(pr_tooltips.get(status,''))])
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))

@@ -9,7 +9,6 @@ import webbrowser
 from collections import namedtuple
 from functools import partial, wraps
 
-from electroncash.i18n import _
 from electroncash.address import Address
 from electroncash.util import print_error, PrintError, Weak, finalization_print_error
 from electroncash.wallet import Abstract_Wallet
@@ -35,6 +34,8 @@ pr_icons = {
     PR_EXPIRED:":icons/expired.svg"
 }
 
+def _(message): return message
+
 pr_tooltips = {
     PR_UNPAID:_('Pending'),
     PR_PAID:_('Paid'),
@@ -47,6 +48,10 @@ expiration_values = [
     (_('1 week'), 7*24*60*60),
     (_('Never'), None)
 ]
+
+del _
+from electroncash.i18n import _
+
 
 
 class EnterButton(QPushButton):

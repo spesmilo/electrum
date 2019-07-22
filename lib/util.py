@@ -36,8 +36,6 @@ import subprocess
 from locale import localeconv
 from abc import ABC, abstractmethod
 
-from .i18n import _
-
 import queue
 
 def inv_dict(d):
@@ -48,7 +46,12 @@ base_units = {'BCH':8, 'mBCH':5, 'bits':2}
 inv_base_units = inv_dict(base_units)
 base_unit_labels = tuple(inv_base_units[dp] for dp in sorted(inv_base_units.keys(), reverse=True))  # ('BCH', 'mBCH', 'bits')
 
+def _(message): return message
+
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
+
+del _
+from .i18n import _
 
 class NotEnoughFunds(Exception): pass
 

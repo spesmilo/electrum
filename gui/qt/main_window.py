@@ -1123,7 +1123,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
 
         self.expires_combo = QComboBox()
-        self.expires_combo.addItems([i[0] for i in expiration_values])
+        self.expires_combo.addItems([_(i[0]) for i in expiration_values])
         self.expires_combo.setCurrentIndex(3)
         self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         msg = ' '.join([
