@@ -244,8 +244,9 @@ class _decrypt_thread(threading.Thread, util.PrintError):
         self.start()
 
     def decrypt(self):
+        result = bitcoin.bip38_decrypt(self.key, self.pw)  # Potentially slow-ish operation. Note: result may be None or empty; client code's slot checks for that condition, so no need to check result here.
         parent = self.w()  # grab strong ref from weak ref if weak ref still alive
         if parent:
-            parent.decrypted_sig.emit(self, bitcoin.bip38_decrypt(self.key, self.pw))
+            parent.decrypted_sig.emit(self, result)
         else:
             self.print_error("parent widget was no longer alive, silently ignoring...")
