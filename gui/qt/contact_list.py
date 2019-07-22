@@ -66,6 +66,7 @@ class ContactList(PrintError, MyTreeWidget):
         self.cleaned_up = False
         self.do_update_signal.connect(self.update)
         self.icon_cashacct = QIcon(":icons/cashacct-logo.png" if not ColorScheme.dark_scheme else ":icons/cashacct-button-darkmode.png")
+        self.icon_openalias = QIcon(":icons/openalias-logo.svg")
         self.icon_contacts = QIcon(":icons/tab_contacts.png")
         self.icon_unverif = QIcon(":/icons/unconfirmed.svg")
         # the below dict is ephemeral and goes away on wallet close --
@@ -385,6 +386,7 @@ class ContactList(PrintError, MyTreeWidget):
             'address'    : _('Address'),
         })
         type_icons = {
+            'openalias'  : self.icon_openalias,
             'cashacct'   : self.icon_cashacct,
             'cashacct_W' : self.icon_cashacct,
             'cashacct_T' : self.icon_unverif,
