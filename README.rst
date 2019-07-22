@@ -78,6 +78,7 @@ Pyscard is required to connect to the smartcard::
     sudo apt-get install pcscd
     sudo apt-get install python3-pyscard
 (For alternatives, see https://github.com/LudovicRousseau/pyscard/blob/master/INSTALL.md for more detailed installation instructions)
+
  
 To run Electrum use::
  python3 electrum -v --testnet 

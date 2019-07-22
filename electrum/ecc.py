@@ -33,13 +33,15 @@ from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
-from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
+from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
 from . import constants
+from .logging import get_logger
 
 
+_logger = get_logger(__name__)
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
 
 CURVE_ORDER = SECP256k1.order
@@ -229,6 +231,9 @@ class ECPubkey(object):
     def point(self) -> Tuple[int, int]:
         return self._pubkey.point.x(), self._pubkey.point.y()
 
+    def __repr__(self):
+        return f"<ECPubkey {self.get_public_key_hex()}>"
+
     def __mul__(self, other: int):
         if not isinstance(other, int):
             raise TypeError('multiplication not defined for ECPubkey and {}'.format(type(other)))
@@ -269,7 +274,7 @@ class ECPubkey(object):
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
         verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
 
-    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1'):
+    def encrypt_message(self, message: bytes, magic: bytes = b'BIE1') -> bytes:
         """
         ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
         """
@@ -329,7 +334,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, n
         public_key.verify_message_hash(sig65[1:], h)
         return True
     except Exception as e:
-        print_error(f"Verification error: {repr(e)}")
+        _logger.info(f"Verification error: {repr(e)}")
         return False
 
 
@@ -374,6 +379,12 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid EC private key scalar: zero')
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
         return privkey_32bytes
+
+    def __repr__(self):
+        return f"<ECPrivkey {self.get_public_key_hex()}>"
+
+    def get_secret_bytes(self) -> bytes:
+        return number_to_string(self.secret_scalar, CURVE_ORDER)
 
     def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
         if sigencode is None:

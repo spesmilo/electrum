@@ -22,7 +22,7 @@
 # SOFTWARE.
 import os
 import threading
-from typing import Optional, Dict
+from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
@@ -30,7 +30,10 @@ from .crypto import sha256d
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
+from .logging import get_logger, Logger
 
+
+_logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
@@ -96,7 +99,7 @@ def read_blockchains(config: 'SimpleConfig'):
     if best_chain.height() > constants.net.max_checkpoint():
         header_after_cp = best_chain.read_header(constants.net.max_checkpoint()+1)
         if not header_after_cp or not best_chain.can_connect(header_after_cp, check_height=False):
-            util.print_error("[blockchain] deleting best chain. cannot connect header after last cp to last cp.")
+            _logger.info("[blockchain] deleting best chain. cannot connect header after last cp to last cp.")
             os.unlink(best_chain.path())
             best_chain.update_size()
     # forks
@@ -107,7 +110,7 @@ def read_blockchains(config: 'SimpleConfig'):
     l = sorted(l, key=lambda x: int(x.split('_')[1]))  # sort by forkpoint
 
     def delete_chain(filename, reason):
-        util.print_error(f"[blockchain] deleting chain {filename}: {reason}")
+        _logger.info(f"[blockchain] deleting chain {filename}: {reason}")
         os.unlink(os.path.join(fdir, filename))
 
     def instantiate_chain(filename):
@@ -156,7 +159,7 @@ _CHAINWORK_CACHE = {
 }  # type: Dict[str, int]
 
 
-class Blockchain(util.PrintError):
+class Blockchain(Logger):
     """
     Manages blockchain headers and their verification
     """
@@ -168,6 +171,7 @@ class Blockchain(util.PrintError):
         # assert (parent is None) == (forkpoint == 0)
         if 0 < forkpoint <= constants.net.max_checkpoint():
             raise Exception(f"cannot fork below max checkpoint. forkpoint: {forkpoint}")
+        Logger.__init__(self)
         self.config = config
         self.forkpoint = forkpoint  # height of first header
         self.parent = parent
@@ -187,8 +191,7 @@ class Blockchain(util.PrintError):
         return constants.net.CHECKPOINTS
 
     def get_max_child(self) -> Optional[int]:
-        with blockchains_lock: chains = list(blockchains.values())
-        children = list(filter(lambda y: y.parent==self, chains))
+        children = self.get_direct_children()
         return max([x.forkpoint for x in children]) if children else None
 
     def get_max_forkpoint(self) -> int:
@@ -197,6 +200,32 @@ class Blockchain(util.PrintError):
         """
         mc = self.get_max_child()
         return mc if mc is not None else self.forkpoint
+
+    def get_direct_children(self) -> Sequence['Blockchain']:
+        with blockchains_lock:
+            return list(filter(lambda y: y.parent==self, blockchains.values()))
+
+    def get_parent_heights(self) -> Mapping['Blockchain', int]:
+        """Returns map: (parent chain -> height of last common block)"""
+        with blockchains_lock:
+            result = {self: self.height()}
+            chain = self
+            while True:
+                parent = chain.parent
+                if parent is None: break
+                result[parent] = chain.forkpoint - 1
+                chain = parent
+            return result
+
+    def get_height_of_last_common_block_with_chain(self, other_chain: 'Blockchain') -> int:
+        last_common_block_height = 0
+        our_parents = self.get_parent_heights()
+        their_parents = other_chain.get_parent_heights()
+        for chain in our_parents:
+            if chain in their_parents:
+                h = min(our_parents[chain], their_parents[chain])
+                last_common_block_height = max(last_common_block_height, h)
+        return last_common_block_height
 
     @with_lock
     def get_branch_size(self) -> int:
@@ -318,14 +347,21 @@ class Blockchain(util.PrintError):
         self.swap_with_parent()
 
     def swap_with_parent(self) -> None:
-        parent_lock = self.parent.lock if self.parent is not None else threading.Lock()
-        with parent_lock, self.lock, blockchains_lock:  # this order should not deadlock
+        with self.lock, blockchains_lock:
             # do the swap; possibly multiple ones
             cnt = 0
-            while self._swap_with_parent():
+            while True:
+                old_parent = self.parent
+                if not self._swap_with_parent():
+                    break
+                # make sure we are making progress
                 cnt += 1
-                if cnt > len(blockchains):  # make sure we are making progress
+                if cnt > len(blockchains):
                     raise Exception(f'swapping fork with parent too many times: {cnt}')
+                # we might have become the parent of some of our former siblings
+                for old_sibling in old_parent.get_direct_children():
+                    if self.check_hash(old_sibling.forkpoint - 1, old_sibling._prev_hash):
+                        old_sibling.parent = self
 
     def _swap_with_parent(self) -> bool:
         """Check if this chain became stronger than its parent, and swap
@@ -336,7 +372,7 @@ class Blockchain(util.PrintError):
             return False
         if self.parent.get_chainwork() >= self.get_chainwork():
             return False
-        self.print_error("swap", self.forkpoint, self.parent.forkpoint)
+        self.logger.info(f"swapping {self.forkpoint} {self.parent.forkpoint}")
         parent_branch_size = self.parent.height() - self.forkpoint + 1
         forkpoint = self.forkpoint  # type: Optional[int]
         parent = self.parent  # type: Optional[Blockchain]
@@ -350,6 +386,8 @@ class Blockchain(util.PrintError):
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         self.assert_headers_file_available(parent.path())
+        assert forkpoint > parent.forkpoint, (f"forkpoint of parent chain ({parent.forkpoint}) "
+                                              f"should be at lower height than children's ({forkpoint})")
         with open(parent.path(), 'rb') as f:
             f.seek((forkpoint - parent.forkpoint)*HEADER_SIZE)
             parent_data = f.read(parent_branch_size*HEADER_SIZE)
@@ -536,7 +574,6 @@ class Blockchain(util.PrintError):
             return False
         height = header['block_height']
         if check_height and self.height() != height - 1:
-            #self.print_error("cannot connect at height", height)
             return False
         if height == 0:
             return hash_header(header) == constants.net.GENESIS
@@ -561,11 +598,10 @@ class Blockchain(util.PrintError):
         try:
             data = bfh(hexdata)
             self.verify_chunk(idx, data)
-            #self.print_error("validated chunk %d" % idx)
             self.save_chunk(idx, data)
             return True
         except BaseException as e:
-            self.print_error(f'verify_chunk idx {idx} failed: {repr(e)}')
+            self.logger.info(f'verify_chunk idx {idx} failed: {repr(e)}')
             return False
 
     def get_checkpoints(self):

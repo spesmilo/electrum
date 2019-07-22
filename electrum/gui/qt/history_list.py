@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 import os
-import webbrowser
 import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
@@ -41,20 +40,25 @@ from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
-from electrum.util import (block_explorer_URL, profiler, print_error, TxMinedInfo,
-                           OrderedDictWithIndex, PrintError, timestamp_to_datetime)
+from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
+                           OrderedDictWithIndex, timestamp_to_datetime)
+from electrum.logging import get_logger, Logger
 
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
                    filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
-                   CloseButton)
+                   CloseButton, webopen)
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
 
+
+_logger = get_logger(__name__)
+
+
 try:
     from electrum.plot import plot_history, NothingToPlotException
 except:
-    print_error("qt/history_list: could not import electrum.plot. This feature needs matplotlib to be installed.")
+    _logger.info("could not import electrum.plot. This feature needs matplotlib to be installed.")
     plot_history = None
 
 # note: this list needs to be kept in sync with another in kivy
@@ -97,10 +101,11 @@ class HistorySortModel(QSortFilterProxyModel):
         except:
             return False
 
-class HistoryModel(QAbstractItemModel, PrintError):
+class HistoryModel(QAbstractItemModel, Logger):
 
     def __init__(self, parent):
-        super().__init__(parent)
+        QAbstractItemModel.__init__(self, parent)
+        Logger.__init__(self)
         self.parent = parent
         self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
@@ -143,7 +148,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                 HistoryColumns.STATUS_ICON:
                     # height breaks ties for unverified txns
                     # txpos breaks ties for verified same block txns
-                    (status, conf, -height, -txpos),
+                    (conf, -status, -height, -txpos),
                 HistoryColumns.STATUS_TEXT: status_str,
                 HistoryColumns.DESCRIPTION: tx_item['label'],
                 HistoryColumns.COIN_VALUE:  tx_item['value'].value,
@@ -224,7 +229,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
 
     @profiler
     def refresh(self, reason: str):
-        self.print_error(f"refreshing... reason: {reason}")
+        self.logger.info(f"refreshing... reason: {reason}")
         assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         assert self.view, 'view not set'
         selected = self.view.selectionModel().currentIndex()
@@ -249,9 +254,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         self.endInsertRows()
         if selected_row:
             self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
-        f = self.view.current_filter
-        if f:
-            self.view.filter(f)
+        self.view.filter()
         # update summary
         self.summary = r['summary']
         if not self.view.years and self.transactions:
@@ -482,26 +485,26 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Start")), 0, 0)
         grid.addWidget(QLabel(self.format_date(start_date)), 0, 1)
-        grid.addWidget(QLabel(str(h.get('start_fiat_value')) + '/BTC'), 0, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_start_value')) + '/BTC'), 0, 2)
         grid.addWidget(QLabel(_("Initial balance")), 1, 0)
         grid.addWidget(QLabel(format_amount(h['start_balance'])), 1, 1)
-        grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 1, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_start_balance'))), 1, 2)
         grid.addWidget(QLabel(_("End")), 2, 0)
         grid.addWidget(QLabel(self.format_date(end_date)), 2, 1)
-        grid.addWidget(QLabel(str(h.get('end_fiat_value')) + '/BTC'), 2, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_end_value')) + '/BTC'), 2, 2)
         grid.addWidget(QLabel(_("Final balance")), 4, 0)
         grid.addWidget(QLabel(format_amount(h['end_balance'])), 4, 1)
-        grid.addWidget(QLabel(str(h.get('end_fiat_balance'))), 4, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_end_balance'))), 4, 2)
         grid.addWidget(QLabel(_("Income")), 5, 0)
-        grid.addWidget(QLabel(format_amount(h.get('income'))), 5, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_income'))), 5, 2)
+        grid.addWidget(QLabel(format_amount(h.get('incoming'))), 5, 1)
+        grid.addWidget(QLabel(str(h.get('fiat_incoming'))), 5, 2)
         grid.addWidget(QLabel(_("Expenditures")), 6, 0)
-        grid.addWidget(QLabel(format_amount(h.get('expenditures'))), 6, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_expenditures'))), 6, 2)
+        grid.addWidget(QLabel(format_amount(h.get('outgoing'))), 6, 1)
+        grid.addWidget(QLabel(str(h.get('fiat_outgoing'))), 6, 2)
         grid.addWidget(QLabel(_("Capital gains")), 7, 0)
-        grid.addWidget(QLabel(str(h.get('capital_gains'))), 7, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_capital_gains'))), 7, 2)
         grid.addWidget(QLabel(_("Unrealized gains")), 8, 0)
-        grid.addWidget(QLabel(str(h.get('unrealized_gains', ''))), 8, 2)
+        grid.addWidget(QLabel(str(h.get('fiat_unrealized_gains', ''))), 8, 2)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
@@ -547,7 +550,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.show_transaction(tx_item['txid'])
 
     def show_transaction(self, tx_hash):
-        tx = self.wallet.transactions.get(tx_hash)
+        tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
@@ -568,7 +571,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             column_data = self.hm.data(idx, Qt.DisplayRole).value()
         tx_hash = tx_item['txid']
-        tx = self.wallet.transactions[tx_hash]
+        tx = self.wallet.db.get_transaction(tx_hash)
+        if not tx:
+            return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         height = self.wallet.get_tx_height(tx_hash).height
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
@@ -577,7 +582,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu = QMenu()
         if height == TX_HEIGHT_LOCAL:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
+
+        amount_columns = [HistoryColumns.COIN_VALUE, HistoryColumns.RUNNING_COIN_BALANCE, HistoryColumns.FIAT_VALUE, HistoryColumns.FIAT_ACQ_PRICE, HistoryColumns.FIAT_CAP_GAINS]
+        if column in amount_columns:
+            column_data = column_data.strip()
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
@@ -597,7 +607,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if pr_key:
             menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
-            menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
+            menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, delete_tx):
@@ -605,15 +615,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         to_delete |= self.wallet.get_depending_transactions(delete_tx)
         question = _("Are you sure you want to remove this transaction?")
         if len(to_delete) > 1:
-            question = _(
-                "Are you sure you want to remove this transaction and {} child transactions?".format(len(to_delete) - 1)
-            )
-        answer = QMessageBox.question(self.parent, _("Please confirm"), question, QMessageBox.Yes, QMessageBox.No)
-        if answer == QMessageBox.No:
+            question = (_("Are you sure you want to remove this transaction and {} child transactions?")
+                        .format(len(to_delete) - 1))
+        if not self.parent.question(msg=question,
+                                    title=_("Please confirm")):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
-        self.wallet.save_transactions(write=True)
+        self.wallet.storage.write()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
 

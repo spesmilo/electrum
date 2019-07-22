@@ -30,9 +30,11 @@ import string
 
 import ecdsa
 
-from .util import print_error, resource_path
-from .bitcoin import is_old_seed, is_new_seed
+from .util import resource_path, bfh, bh2u
+from .crypto import hmac_oneshot
 from . import version
+from .logging import Logger
+
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -114,19 +116,20 @@ filenames = {
 
 # FIXME every time we instantiate this class, we read the wordlist from disk
 # and store a new copy of it in memory
-class Mnemonic(object):
+class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
+        Logger.__init__(self)
         lang = lang or 'en'
-        print_error('language', lang)
+        self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
         self.wordlist = load_wordlist(filename)
-        print_error("wordlist has %d words"%len(self.wordlist))
+        self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
-    def mnemonic_to_seed(self, mnemonic, passphrase):
+    def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
         passphrase = passphrase or ''
@@ -163,7 +166,7 @@ class Mnemonic(object):
         bpw = math.log(len(self.wordlist), 2)
         # rounding
         n = int(math.ceil(num_bits/bpw) * bpw)
-        print_error("make_seed. prefix: '%s'"%prefix, "entropy: %d bits"%n)
+        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {n} bits")
         entropy = 1
         while entropy < pow(2, n - bpw):
             # try again if seed would not contain enough words
@@ -179,5 +182,51 @@ class Mnemonic(object):
                 continue
             if is_new_seed(seed, prefix):
                 break
-        print_error('%d words'%len(seed.split()))
+        self.logger.info(f'{len(seed.split())} words')
         return seed
+
+
+def is_new_seed(x: str, prefix=version.SEED_PREFIX) -> bool:
+    x = normalize_text(x)
+    s = bh2u(hmac_oneshot(b"Seed version", x.encode('utf8'), hashlib.sha512))
+    return s.startswith(prefix)
+
+
+def is_old_seed(seed: str) -> bool:
+    from . import old_mnemonic
+    seed = normalize_text(seed)
+    words = seed.split()
+    try:
+        # checks here are deliberately left weak for legacy reasons, see #3149
+        old_mnemonic.mn_decode(words)
+        uses_electrum_words = True
+    except Exception:
+        uses_electrum_words = False
+    try:
+        seed = bfh(seed)
+        is_hex = (len(seed) == 16 or len(seed) == 32)
+    except Exception:
+        is_hex = False
+    return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
+
+
+def seed_type(x: str) -> str:
+    if is_old_seed(x):
+        return 'old'
+    elif is_new_seed(x):
+        return 'standard'
+    elif is_new_seed(x, version.SEED_PREFIX_SW):
+        return 'segwit'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA):
+        return '2fa'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA_SW):
+        return '2fa_segwit'
+    return ''
+
+
+def is_seed(x: str) -> bool:
+    return bool(seed_type(x))
+
+
+def is_any_2fa_seed_type(seed_type: str) -> bool:
+    return seed_type in ['2fa', '2fa_segwit']

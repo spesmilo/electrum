@@ -27,7 +27,11 @@ class QRCodeWidget(QWidget):
         if self.data != data:
             self.data = data
         if self.data:
-            self.qr = qrcode.QRCode()
+            self.qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=0,
+            )
             self.qr.add_data(self.data)
             if not self.fixedSize:
                 k = len(self.qr.get_matrix())
@@ -89,7 +93,6 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -104,12 +107,12 @@ class QRDialog(WindowModalDialog):
             filename = os.path.join(config.path, "qrcode.png")
 
             def print_qr():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()  # FIXME also grabs neutral colored padding
                 p.save(filename, 'png')
                 self.show_message(_("QR code saved to file") + " " + filename)
 
             def copy_to_clipboard():
-                p = qscreen.grabWindow(qrw.winId())
+                p = qrw.grab()
                 QApplication.clipboard().setPixmap(p)
                 self.show_message(_("QR code copied to clipboard"))
 

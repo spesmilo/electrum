@@ -41,7 +41,10 @@ from electrum.gui.qt.main_window import StatusBarButton
 from electrum.gui.qt.installwizard import InstallWizard
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.util import PrintError, is_valid_email
+from electrum.util import is_valid_email
+from electrum.logging import Logger
+from electrum.base_wizard import GoBack
+
 from .trustedcoin import TrustedCoinPlugin, server
 
 
@@ -50,12 +53,13 @@ class TOS(QTextEdit):
     error_signal = pyqtSignal(object)
 
 
-class HandlerTwoFactor(QObject, PrintError):
+class HandlerTwoFactor(QObject, Logger):
 
     def __init__(self, plugin, window):
-        super().__init__()
+        QObject.__init__(self)
         self.plugin = plugin
         self.window = window
+        Logger.__init__(self)
 
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
         if not isinstance(wallet, self.plugin.wallet_class):
@@ -63,16 +67,16 @@ class HandlerTwoFactor(QObject, PrintError):
         if wallet.can_sign_without_server():
             return
         if not wallet.keystores['x3/'].get_tx_derivations(tx):
-            self.print_error("twofactor: xpub3 not needed")
+            self.logger.info("twofactor: xpub3 not needed")
             return
         window = self.window.top_level_window()
         auth_code = self.plugin.auth_dialog(window)
-        try:
-            wallet.on_otp(tx, auth_code)
-        except:
-            on_failure(sys.exc_info())
-            return
-        on_success(tx)
+        WaitingDialog(parent=window,
+                      message=_('Waiting for TrustedCoin server to sign transaction...'),
+                      task=lambda: wallet.on_otp(tx, auth_code),
+                      on_success=lambda *args: on_success(tx),
+                      on_error=on_failure)
+
 
 class Plugin(TrustedCoinPlugin):
 
@@ -121,10 +125,20 @@ class Plugin(TrustedCoinPlugin):
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
         wallet.handler_2fa.prompt_user_for_otp(wallet, tx, on_success, on_failure)
 
-    def waiting_dialog(self, window, on_finished=None):
-        task = partial(self.request_billing_info, window.wallet)
-        return WaitingDialog(window, 'Getting billing information...', task,
-                             on_finished)
+    def waiting_dialog_for_billing_info(self, window, *, on_finished=None):
+        def task():
+            return self.request_billing_info(window.wallet, suppress_connection_error=False)
+        def on_error(exc_info):
+            e = exc_info[1]
+            window.show_error("{header}\n{exc}\n\n{tor}"
+                              .format(header=_('Error getting TrustedCoin account info.'),
+                                      exc=str(e),
+                                      tor=_('If you keep experiencing network problems, try using a Tor proxy.')))
+        return WaitingDialog(parent=window,
+                             message=_('Requesting account info from TrustedCoin server...'),
+                             task=task,
+                             on_success=on_finished,
+                             on_error=on_error)
 
     @hook
     def abort_send(self, window):
@@ -134,14 +148,13 @@ class Plugin(TrustedCoinPlugin):
         if wallet.can_sign_without_server():
             return
         if wallet.billing_info is None:
-            self.start_request_thread(wallet)
-            window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
-                                _('Please try again.'))
+            self.waiting_dialog_for_billing_info(window)
             return True
         return False
 
     def settings_dialog(self, window):
-        self.waiting_dialog(window, partial(self.show_settings_dialog, window))
+        self.waiting_dialog_for_billing_info(window,
+                                             on_finished=partial(self.show_settings_dialog, window))
 
     def show_settings_dialog(self, window, success):
         if not success:
@@ -200,7 +213,7 @@ class Plugin(TrustedCoinPlugin):
 
     def go_online_dialog(self, wizard: InstallWizard):
         msg = [
-            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
+            _("Your wallet file is: {}.").format(os.path.abspath(wizard.path)),
             _("You need to be online in order to complete the creation of "
               "your wallet.  If you generated your seed on an offline "
               'computer, click on "{}" to close this window, move your '
@@ -210,7 +223,12 @@ class Plugin(TrustedCoinPlugin):
         ]
         msg = '\n\n'.join(msg)
         wizard.reset_stack()
-        wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
+        try:
+            wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
+        except GoBack:
+            # user clicked 'Cancel' and decided to move wallet file manually
+            wizard.create_storage(wizard.path)
+            raise
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()
@@ -233,8 +251,7 @@ class Plugin(TrustedCoinPlugin):
             try:
                 tos = server.get_terms_of_service()
             except Exception as e:
-                import traceback
-                traceback.print_exc(file=sys.stderr)
+                self.logger.exception('Could not retrieve Terms of Service')
                 tos_e.error_signal.emit(_('Could not retrieve Terms of Service:')
                                         + '\n' + str(e))
                 return

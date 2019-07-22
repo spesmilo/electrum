@@ -1,6 +1,12 @@
 from electrum.plugin import hook
+from electrum.util import print_msg, raw_input, print_stderr
+from electrum.logging import get_logger
+
 from .coldcard import ColdcardPlugin
-from electrum.util import print_msg, print_error, raw_input, print_stderr
+
+
+_logger = get_logger(__name__)
+
 
 class ColdcardCmdLineHandler:
 
@@ -24,10 +30,10 @@ class ColdcardCmdLineHandler:
         print_stderr(msg)
 
     def show_error(self, msg, blocking=False):
-        print_error(msg)
+        print_stderr(msg)
 
     def update_status(self, b):
-        print_error('hw device status', b)
+        _logger.info(f'hw device status {b}')
 
     def finished(self):
         pass

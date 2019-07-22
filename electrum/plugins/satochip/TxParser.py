@@ -19,8 +19,6 @@
 '''
 import hashlib
 from enum import Enum, auto
-from electrum.util import print_stderr, print_error
-import time #debugSatochip
 
 class TxState(Enum):
     TX_START= auto()
@@ -52,8 +50,6 @@ class TxParser:
         self.doubleHash=None
 
         self.txChunk=b''
-        
-        #print_error('[TxParser] TxParser: __init__(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
         
     def set_remaining_output(self, nb_outputs):
         self.txRemainingOutput=nb_outputs
@@ -136,8 +132,6 @@ class TxParser:
             self.txDigest.update(self.singleHash)
             self.doubleHash= self.txDigest.digest() 
         
-        #print_error('[TxParser] TxParser: parse_transaction(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
-        #time.sleep(0.1) #debugSatochip
         return self.txChunk
 
     def parse_outputs(self):
@@ -174,8 +168,6 @@ class TxParser:
             self.txDigest.update(self.singleHash)
             self.doubleHash= self.txDigest.digest() 
         
-        #print_error('[TxParser] TxParser: parse_transaction(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
-        #time.sleep(0.1) #debugSatochip
         return self.txChunk
     
     def parse_segwit_transaction(self):
@@ -221,15 +213,12 @@ class TxParser:
             self.txDigest.update(self.singleHash)
             self.doubleHash= self.txDigest.digest() 
         
-        #print_error('[TxParser] TxParser: parse_transaction(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
-        #time.sleep(0.1) #debugSatochip
         return self.txChunk
         
     def parse_byte(self, length):
         self.txChunk+=self.txData[self.txOffset:(self.txOffset+length)]
         self.txOffset+=length
         self.txRemaining-=length
-        #print_error('[TxParser] TxParser: parse_byte(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
         
     def parse_var_int(self):
         

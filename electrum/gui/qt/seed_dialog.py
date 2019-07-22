@@ -24,16 +24,16 @@
 # SOFTWARE.
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QPalette
 from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
-                             QLabel, QCompleter, QDialog)
+                             QLabel, QCompleter, QDialog, QStyledItemDelegate)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic
+from electrum.mnemonic import Mnemonic, seed_type
 import electrum.old_mnemonic
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
-                   EnterButton, CloseButton, WindowModalDialog)
+                   EnterButton, CloseButton, WindowModalDialog, ColorScheme)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -149,11 +149,26 @@ class SeedLayout(QVBoxLayout):
         self.addWidget(self.seed_warning)
 
     def initialize_completer(self):
-        english_list = Mnemonic('en').wordlist
+        bip39_english_list = Mnemonic('en').wordlist
         old_list = electrum.old_mnemonic.words
-        self.wordlist = english_list + list(set(old_list) - set(english_list)) #concat both lists
+        only_old_list = set(old_list) - set(bip39_english_list)
+        self.wordlist = bip39_english_list + list(only_old_list)  # concat both lists
         self.wordlist.sort()
+
+        class CompleterDelegate(QStyledItemDelegate):
+            def initStyleOption(self, option, index):
+                super().initStyleOption(option, index)
+                # Some people complained that due to merging the two word lists,
+                # it is difficult to restore from a metal backup, as they planned
+                # to rely on the "4 letter prefixes are unique in bip39 word list" property.
+                # So we color words that are only in old list.
+                if option.text in only_old_list:
+                    # yellow bg looks ~ok on both light/dark theme, regardless if (un)selected
+                    option.backgroundBrush = ColorScheme.YELLOW.as_color(background=True)
+
         self.completer = QCompleter(self.wordlist)
+        delegate = CompleterDelegate(self.seed_e)
+        self.completer.popup().setItemDelegate(delegate)
         self.seed_e.set_completer(self.completer)
 
     def get_seed(self):
@@ -161,7 +176,6 @@ class SeedLayout(QVBoxLayout):
         return ' '.join(text.split())
 
     def on_edit(self):
-        from electrum.bitcoin import seed_type
         s = self.get_seed()
         b = self.is_seed(s)
         if not self.is_bip39:
@@ -175,7 +189,7 @@ class SeedLayout(QVBoxLayout):
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
 
-        # to account for bip39 seeds
+        # disable suggestions if user already typed an unknown word
         for word in self.get_seed().split(" ")[:-1]:
             if word not in self.wordlist:
                 self.seed_e.disable_suggestions()
@@ -199,8 +213,14 @@ class KeysLayout(QVBoxLayout):
         return self.text_e.text()
 
     def on_edit(self):
-        b = self.is_valid(self.get_text())
-        self.parent.next_button.setEnabled(b)
+        valid = False
+        try:
+            valid = self.is_valid(self.get_text())
+        except Exception as e:
+            self.parent.next_button.setToolTip(f'{_("Error")}: {str(e)}')
+        else:
+            self.parent.next_button.setToolTip('')
+        self.parent.next_button.setEnabled(valid)
 
 
 class SeedDialog(WindowModalDialog):

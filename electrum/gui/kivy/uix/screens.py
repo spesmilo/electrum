@@ -20,11 +20,12 @@ from kivy.utils import platform
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum import bitcoin
-from electrum.transaction import TxOutput
-from electrum.util import send_exception_to_crash_reporter
+from electrum.transaction import TxOutput, Transaction, tx_from_str
+from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
+from electrum import simple_config
 
 from .context_menu import ContextMenu
 
@@ -118,7 +119,7 @@ class HistoryScreen(CScreen):
 
     def show_tx(self, obj):
         tx_hash = obj.tx_hash
-        tx = self.app.wallet.transactions.get(tx_hash)
+        tx = self.app.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         self.app.tx_dialog(tx)
@@ -152,7 +153,7 @@ class HistoryScreen(CScreen):
                 fx = self.app.fx
                 fiat_value = value / Decimal(bitcoin.COIN) * self.app.wallet.price_at_timestamp(tx_hash, fx.timestamp_rate)
                 fiat_value = Fiat(fiat_value, fx.ccy)
-                ri['quote_text'] = str(fiat_value)
+                ri['quote_text'] = fiat_value.to_ui_string()
         return ri
 
     def update(self, see_all=False):
@@ -173,11 +174,10 @@ class SendScreen(CScreen):
         if not self.app.wallet:
             self.payment_request_queued = text
             return
-        import electrum
         try:
-            uri = electrum.util.parse_URI(text, self.app.on_pr)
-        except:
-            self.app.show_info(_("Not a Bitcoin URI"))
+            uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
+        except InvalidBitcoinURI as e:
+            self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return
         amount = uri.get('amount')
         self.screen.address = uri.get('address', '')
@@ -233,11 +233,22 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        contents = self.app._clipboard.paste()
-        if not contents:
+        data = self.app._clipboard.paste()
+        if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.set_URI(contents)
+        # try to decode as transaction
+        try:
+            raw_tx = tx_from_str(data)
+            tx = Transaction(raw_tx)
+            tx.deserialize()
+        except:
+            tx = None
+        if tx:
+            self.app.tx_dialog(tx)
+            return
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def do_send(self):
         if self.screen.is_pr:
@@ -293,8 +304,9 @@ class SendScreen(CScreen):
             x_fee_address, x_fee_amount = x_fee
             msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
 
-        if fee >= config.get('confirm_fee', 100000):
-            msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
+        feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
+        if fee > feerate_warning * tx.estimated_size() / 1000:
+            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
         self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
 
@@ -363,13 +375,13 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
-        from electrum.util import create_URI
+        from electrum.util import create_bip21_uri
         amount = self.screen.amount
         if amount:
             a, u = self.screen.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_URI(self.screen.address, amount, self.screen.message)
+        return create_bip21_uri(self.screen.address, amount, self.screen.message)
 
     @profiler
     def update_qr(self):

@@ -27,6 +27,7 @@ from electrum import transaction
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.util import bh2u, bfh
+from electrum.logging import get_logger
 
 from electrum.gui.qt.transaction_dialog import show_transaction
 from electrum.gui.qt.util import WaitingDialog
@@ -38,6 +39,7 @@ import base64
 import time
 from xmlrpc.client import ServerProxy
 
+_logger = get_logger(__name__)
 server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
 
 class Plugin(BasePlugin):
@@ -69,11 +71,11 @@ class Plugin(BasePlugin):
             try:
                 reply = server.get(replyhash)
             except Exception as e:
-                self.print_error("cannot contact server")
+                _logger.info(f"Exception: cannot contact server - error: {str(e)}")
                 continue
             if reply:
-                self.print_error("received response from", replyhash)
-                self.print_error("response received", reply)
+                _logger.info(f"received response from {replyhash}")
+                _logger.info(f"response received: {reply}")
                 d['reply_encrypt']=base64.b64decode(reply)
                 server.delete(replyhash)
                 break
@@ -82,6 +84,6 @@ class Plugin(BasePlugin):
             timeout-=period
         
         if reply is None:
-            self.print_error("Error: Time-out without server reply...")
+            _logger.info(f"Error: Time-out without server reply...")
             d['reply_encrypt']= None #default 
     

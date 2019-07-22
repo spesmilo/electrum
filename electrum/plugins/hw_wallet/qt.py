@@ -32,14 +32,17 @@ from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
-                                  Buttons, CancelButton, TaskThread)
+                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit)
 
 from electrum.i18n import _
-from electrum.util import PrintError
+from electrum.logging import Logger
+
+from .plugin import OutdatedHwFirmwareException
+
 
 # The trickiest thing about this handler was getting windows properly
 # parented on macOS.
-class QtHandlerBase(QObject, PrintError):
+class QtHandlerBase(QObject, Logger):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.'''
 
@@ -53,7 +56,8 @@ class QtHandlerBase(QObject, PrintError):
     status_signal = pyqtSignal(object)
 
     def __init__(self, win, device):
-        super(QtHandlerBase, self).__init__()
+        QObject.__init__(self)
+        Logger.__init__(self)
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
         self.message_signal.connect(self.message_dialog)
@@ -145,7 +149,7 @@ class QtHandlerBase(QObject, PrintError):
         hbox = QHBoxLayout(dialog)
         hbox.addWidget(QLabel(msg))
         text = QLineEdit()
-        text.setMaximumWidth(100)
+        text.setMaximumWidth(12 * char_width_in_lineedit())
         text.returnPressed.connect(dialog.accept)
         hbox.addWidget(text)
         hbox.addStretch(1)
@@ -173,7 +177,9 @@ class QtHandlerBase(QObject, PrintError):
 
     def clear_dialog(self):
         if self.dialog:
-            self.dialog.accept()
+            try: self.dialog.accept()
+            except RuntimeError: 
+                pass #see https://github.com/Electron-Cash/Electron-Cash/issues/1437
             self.dialog = None
 
     def win_query_choice(self, msg, labels):
@@ -210,10 +216,26 @@ class QtPluginBase(object):
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
-            keystore.thread = TaskThread(window, window.on_error)
+            keystore.thread = TaskThread(window, on_error=partial(self.on_task_thread_error, window, keystore))
             self.add_show_address_on_hw_device_button_for_receive_addr(wallet, keystore, window)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
+
+    def on_task_thread_error(self, window, keystore, exc_info):
+        e = exc_info[1]
+        if isinstance(e, OutdatedHwFirmwareException):
+            if window.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
+                self.set_ignore_outdated_fw()
+                # will need to re-pair
+                devmgr = self.device_manager()
+                def re_pair_device():
+                    device_id = self.choose_device(window, keystore)
+                    devmgr.unpair_id(device_id)
+                    self.get_client(keystore)
+                keystore.thread.add(re_pair_device)
+            return
+        else:
+            window.on_error(exc_info)
 
     def choose_device(self, window, keystore):
         '''This dialog box should be usable even if the user has

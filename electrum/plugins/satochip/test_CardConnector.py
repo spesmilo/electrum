@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 #imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 # electrum
-from electrum.util import print_error
 from electrum.crypto import hash_160, sha256d
 from electrum.bip32 import serialize_xpub
 
@@ -16,26 +15,6 @@ from .CardConnector import CardConnector
 from .CardConnector import UninitializedSeedError
 from .CardDataParser import CardDataParser
 from .satochip import bip32path2bytes, SatochipClient
-
-
-# def get_xpub(cc, parser, bip32_path):
-    # # bip32_path is of the form 44'/0'/1'
-    # print_error("[test_CardConnector] get_xpub(): bip32_path="+bip32_path)#debugSatochip
-    # (depth, bytepath)= bip32path2bytes(bip32_path)
-    # print_error("[test_CardConnector] get_xpub(): depth="+str(depth))#debugSatochip
-    # (childkey, childchaincode)= cc.card_bip32_get_extendedkey(bytepath)
-    # if depth == 0: #masterkey
-        # fingerprint= bytes([0,0,0,0])
-        # child_number= bytes([0,0,0,0])
-    # else: #get parent info
-        # print_error("[test_CardConnector] SatochipClient: get_xpub(): get xpub for parent")#debugSatochip
-        # (parentkey, parentchaincode)= cc.card_bip32_get_extendedkey(bytepath[0:-4])
-        # fingerprint= hash_160(parentkey.get_public_key_bytes(compressed=True))[0:4]
-        # child_number= bytepath[-4:]
-    # xpub= serialize_xpub('standard', childchaincode, childkey.get_public_key_bytes(compressed=True), depth, fingerprint, child_number)
-    
-    # print_error("[test_CardConnector] SatochipClient: get_xpub(): xpub="+str(xpub))#debugSatochip
-    # return xpub        
 
 class TestCardConnectorMethods(unittest.TestCase):
 
@@ -49,9 +28,8 @@ class TestCardConnectorMethods(unittest.TestCase):
         self.parser= self.client.parser
         self.cc= self.client.cc
         
-        print_error("[SetUp] SatochipClient: __init__(): cc.card_get_ATR()")#debugSatochip
-        print_error(self.cc.card_get_ATR())
-        print_error("[SetUp] SatochipClient: __init__(): cc.card_select()")#debugSatochip
+        print(f"[SetUp] SatochipClient: __init__(): cc.card_get_ATR(): {self.cc.card_get_ATR()}")#debugSatochip
+        print(f"[SetUp] SatochipClient: __init__(): cc.card_select()")#debugSatochip
         (response, sw1, sw2)=self.cc.card_select()
     
         (response, sw1, sw2, d)=self.cc.card_get_status()
@@ -59,8 +37,8 @@ class TestCardConnectorMethods(unittest.TestCase):
             v_supported= (CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION<<8)+CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION
             v_applet= (d["protocol_major_version"]<<8)+d["protocol_minor_version"] 
             if (v_supported!=v_applet):
-                print("version_satochip="+str(CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION)+"."+str(CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION))
-                print("version-electrum="+str(d["protocol_major_version"])+"."+str(d["protocol_minor_version"]))
+                print(f"version_satochip= {str(CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION)}.{str(CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION)}")
+                print(f"version-electrum= {str(d['protocol_major_version'])}.{str(d['protocol_minor_version'])}")
         # setup device (done only once)
         elif (sw1==0x9c and sw2==0x04):
             pin_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
@@ -88,10 +66,10 @@ class TestCardConnectorMethods(unittest.TestCase):
                     #,option_flags, key, amount_limit
                 )
             if sw1!=0x90 or sw2!=0x00:                 
-                print("[satochip] SatochipPlugin: setup_device(): unable to set up applet!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
+                print(f"[satochip] SatochipPlugin: setup_device(): unable to set up applet!  sw12={hex(sw1)} {hex(sw2)}")#debugSatochip
                 raise RuntimeError('Unable to setup the device with error code:'+hex(sw1)+' '+hex(sw2))
         else:
-            print("[satochip] SatochipPlugin: unknown get-status() error! sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
+            print(f"[satochip] SatochipPlugin: unknown get-status() error! sw12={hex(sw1)} {hex(sw2)}")#debugSatochip
             raise RuntimeError('Unknown get-status() error code:'+hex(sw1)+' '+hex(sw2))
             
         # verify pin:

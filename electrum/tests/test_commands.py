@@ -1,7 +1,10 @@
 import unittest
+from unittest import mock
 from decimal import Decimal
 
 from electrum.commands import Commands, eval_bool
+from electrum import storage
+from electrum.wallet import restore_wallet_from_text
 
 from . import TestCaseForTestnet
 
@@ -61,6 +64,53 @@ class TestCommands(unittest.TestCase):
         for xkey1, xtype1 in xprvs:
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, cmds.convert_xkey(xkey1, xtype2))
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_encrypt_decrypt(self, mock_write):
+        wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN',
+                                          path='if_this_exists_mocking_failed_648151893')['wallet']
+        cmds = Commands(config=None, wallet=wallet, network=None)
+        cleartext = "asdasd this is the message"
+        pubkey = "021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da"
+        ciphertext = cmds.encrypt(pubkey, cleartext)
+        self.assertEqual(cleartext, cmds.decrypt(pubkey, ciphertext))
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_export_private_key_imported(self, mock_write):
+        wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
+                                          path='if_this_exists_mocking_failed_648151893')['wallet']
+        cmds = Commands(config=None, wallet=wallet, network=None)
+        # single address tests
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys("asdasd")  # invalid addr, though might raise "not in wallet"
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys("bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23")  # not in wallet
+        self.assertEqual("p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL",
+                         cmds.getprivatekeys("bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw"))
+        # list of addresses tests
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys(['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'])
+        self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
+                         cmds.getprivatekeys(['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n']))
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_export_private_key_deterministic(self, mock_write):
+        wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893')['wallet']
+        cmds = Commands(config=None, wallet=wallet, network=None)
+        # single address tests
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys("asdasd")  # invalid addr, though might raise "not in wallet"
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys("bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23")  # not in wallet
+        self.assertEqual("p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2",
+                         cmds.getprivatekeys("bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af"))
+        # list of addresses tests
+        with self.assertRaises(Exception):
+            cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'])
+        self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
+                         cmds.getprivatekeys(['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n']))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):

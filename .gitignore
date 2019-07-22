@@ -4,7 +4,6 @@
 build/
 dist/
 *.egg/
-contrib/pyinstaller/
 Electrum.egg-info/
 electrum/locale/
 .devlocaltmp/
@@ -26,5 +25,9 @@ electrum/gui/kivy/theming/light.atlas
 .coverage
 .pytest_cache
 
-# satochip
-contrib/build-osx/
+# build workspaces
+contrib/build-wine/tmp/
+contrib/build-wine/fresh_clone/
+contrib/build-linux/appimage/build/
+contrib/build-linux/appimage/.cache/
+contrib/android_debug.keystore

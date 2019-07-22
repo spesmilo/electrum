@@ -19,10 +19,12 @@
 """  
 import hashlib
 from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException
-from electrum.util import to_bytes, print_error
+from electrum.util import to_bytes
 #from electrum.bitcoin import var_int
 from electrum.crypto import sha256d
+from electrum.logging import get_logger
 
+_logger = get_logger(__name__)
 
 class CardDataParser:
     
@@ -66,7 +68,7 @@ class CardDataParser:
         
         # double signature: first is self-signed, second by authentikey
         # firs self-signed sig: data= coordx
-        print_error('[CardDataParser] parse_bip32_get_extendedkey: first signature recovery')
+        #_logger.info(f'parse_bip32_get_extendedkey: first signature recovery')
         self.chaincode= bytearray(response[0:32])
         data_size = ((response[32] & 0x7f)<<8) + (response[33] & 0xff) # (response[32] & 0x80) is ignored (optimization flag)
         data= response[34:(32+2+data_size)]
@@ -82,7 +84,7 @@ class CardDataParser:
         self.pubkey_coordx= coordx
         
         # second signature by authentikey
-        print_error('[CardDataParser] parse_bip32_get_extendedkey: second signature recovery')
+        #_logger.info(f'parse_bip32_get_extendedkey: second signature recovery')
         msg2_size= msg_size+2+sig_size
         msg2= response[0:msg2_size]
         sig2_size = ((response[msg2_size] & 0xff)<<8) + (response[msg2_size+1] & 0xff)  
@@ -100,13 +102,10 @@ class CardDataParser:
         message = to_bytes(message, 'utf8')
         hash = sha256d(msg_magic(message))
         coordx= pubkey.get_public_key_bytes()
-        #print_error('[CardDataParser] parse_message_signature: coordx='+coordx.hex())
         
         recid=-1
         for id in range(4):
-            #print_error('[CardDataParser] parse_message_signature: id='+str(id))
             compsig=self.parse_to_compact_sig(response, id, compressed=True)
-            #print_error('    Compact sig:'+compsig.hex())
             # remove header byte
             compsig2= compsig[1:]
             
@@ -115,9 +114,6 @@ class CardDataParser:
                 pkbytes= pk.get_public_key_bytes(compressed=True)
             except InvalidECPointException:
                 continue
-                
-            #print_error("    pkbytes:"+pkbytes.hex())
-            #print_error("    coordx:"+coordx.hex())
             
             if coordx==pkbytes:
                 recid=id
@@ -142,9 +138,7 @@ class CardDataParser:
         recid=-1
         pubkey=None
         for id in range(4):
-            #print_error('[CardDataParser] get_pubkey_from_signature: id='+str(id))
             compsig=self.parse_to_compact_sig(sig, id, compressed=True)
-            #print_error('    Compact sig:'+compsig.hex())
             # remove header byte
             compsig= compsig[1:]
             
@@ -155,8 +149,6 @@ class CardDataParser:
                 continue
             
             pkbytes= pkbytes[1:]
-            #print_error("    pkbytes:"+pkbytes.hex())
-            #print_error("    coordx:"+coordx.hex())
             
             if coordx==pkbytes:
                 recid=id

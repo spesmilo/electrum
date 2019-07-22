@@ -25,11 +25,16 @@
 
 import hashlib
 import time
+from datetime import datetime
 
 import ecdsa
 
 from . import util
 from .util import profiler, bh2u
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 # algo OIDs
@@ -304,7 +309,8 @@ class X509(object):
         if self.notBefore > now:
             raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
         if self.notAfter <= now:
-            raise CertificateError('Certificate has expired. (%s)' % self.get_common_name())
+            dt = datetime.utcfromtimestamp(time.mktime(self.notAfter))
+            raise CertificateError(f'Certificate ({self.get_common_name()}) has expired (at {dt} UTC).')
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()
@@ -326,7 +332,7 @@ def load_certificates(ca_path):
         except BaseException as e:
             # with open('/tmp/tmp.txt', 'w') as f:
             #     f.write(pem.pem(b, 'CERTIFICATE').decode('ascii'))
-            util.print_error("cert error:", e)
+            _logger.info(f"cert error: {e}")
             continue
 
         fp = x.getFingerprint()
@@ -339,6 +345,5 @@ def load_certificates(ca_path):
 if __name__ == "__main__":
     import certifi
 
-    util.set_verbosity(True)
     ca_path = certifi.where()
     ca_list, ca_keyID = load_certificates(ca_path)
