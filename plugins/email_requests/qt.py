@@ -25,6 +25,7 @@
 
 import time
 import threading
+import queue
 import base64
 from functools import partial
 
@@ -61,6 +62,7 @@ class Processor(threading.Thread, PrintError):
         self.imap_server = imap_server
         self.on_receive = callback
         self.on_error = error_callback
+        self.q = queue.Queue()
 
     def diagnostic_name(self): return "Email.Processor"
 
@@ -97,7 +99,11 @@ class Processor(threading.Thread, PrintError):
         try:
             while Processor.instance is self:
                 self.poll()
-                time.sleep(self.polling_interval)
+                try:
+                    self.q.get(timeout=self.polling_interval)  # sleep for polling_interval seconds
+                    return # if we get here, we were stopped
+                except queue.Empty:
+                    ''' If we get here, we slept for polling_interval seconds '''
             self.M.close()
             self.M.logout()
         except Exception as e:
@@ -147,6 +153,13 @@ class Plugin(BasePlugin):
         self.obj = EmailSignalObject()
         self.obj.email_new_invoice_signal.connect(self.new_invoice)
         self.obj.email_error.connect(self.on_error_qt)
+
+    def on_close(self):
+        ''' called on plugin close '''
+        Processor.instance = None  # tells thread that it is defunct
+        if self.processor.is_alive():
+            self.processor.q.put(None)  # signal stop
+            self.processor.join(timeout=1.0)
 
     def on_receive(self, pr_str):
         self.print_error('received payment request')
