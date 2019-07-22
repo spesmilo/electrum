@@ -1862,7 +1862,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
         if address == None:
-            return "No wallet encryption keys available."
+            return False, "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
         onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
@@ -1873,7 +1873,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
       
         onboardPubKey=self.get_unassigned_kyc_pubkey()
         if onboardPubKey is None:
-            return "No unassigned KYC public keys available."
+            return False, "No unassigned KYC public keys available. Please ensure that the wallet is connected to the network."
 
         ss = StringIO()
 
@@ -1898,7 +1898,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         ss2.write(str_encrypted)
         kyc_string=ss2.getvalue()
 
-        return kyc_string
+        return True, kyc_string
 
     def dumpkycfile(self, filename=None, password=None):
         kycfile_string = self.get_kyc_string(password)
