@@ -39,7 +39,7 @@ from collections import defaultdict
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 
-from .i18n import _, ngettext
+from .i18n import ngettext
 from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, finalization_print_error
 
 from .address import Address, Script, ScriptOutput, PublicKey, OpCodes
@@ -67,6 +67,8 @@ from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 from . import cashacct
 
+def _(message): return message
+
 TX_STATUS = [
     _('Unconfirmed parent'),
     _('Low fee'),
@@ -74,7 +76,8 @@ TX_STATUS = [
     _('Not Verified'),
 ]
 
-
+del _
+from .i18n import _
 
 def relayfee(network):
     RELAY_FEE = 5000
@@ -1186,7 +1189,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         else:
             status = 3 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 4 else time_str
+        status_str = _(TX_STATUS[status]) if status < 4 else time_str
         return status, status_str
 
     def relayfee(self):

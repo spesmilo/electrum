@@ -129,7 +129,7 @@ class RequestList(MyTreeWidget):
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
             item = QTreeWidgetItem([date, address.to_ui_string(), '', message,
-                                    amount_str, pr_tooltips.get(status,'')])
+                                    amount_str, _(pr_tooltips.get(status,''))])
             item.setData(0, Qt.UserRole, address)
             if signature is not None:
                 item.setIcon(2, QIcon(":icons/seal.svg"))

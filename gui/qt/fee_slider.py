@@ -29,7 +29,7 @@ class FeeSlider(QSlider):
         if self.config.has_custom_fee_rate():
             tooltip = _('Custom rate: ') + rate_str
         elif self.dyn:
-            tooltip = fee_levels[pos] + '\n' + rate_str
+            tooltip = _(fee_levels[pos]) + '\n' + rate_str
         else:
             tooltip = _('Fixed rate: ') + rate_str
             if self.config.has_fee_estimates():
