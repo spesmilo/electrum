@@ -10,6 +10,8 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 PYDIR="$APPDIR"/usr/lib/python3.6
 
+. "$CONTRIB"/base.sh
+
 # pinned versions
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
@@ -21,8 +23,6 @@ APPIMAGE="$DISTDIR/Electron-Cash-$VERSION-x86_64.AppImage"
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
 
-
-. "$CONTRIB"/base.sh
 
 info "Refreshing submodules ..."
 git submodule update --init

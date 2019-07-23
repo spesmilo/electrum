@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Set a fixed umask as this leaks into the docker container
+umask 0022
+
 # First, some functions that build scripts may use for pretty printing
 RED='\033[0;31m'
 BLUE='\033[0,34m'
