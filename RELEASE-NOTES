@@ -654,3 +654,9 @@ and there is no warning message.
 * Updated translations (Axel Gembe)
 * Email plugin crash fix #1534 (cculianu)
 * Minor UI bugfixes. (Axel Gembe, cculianu)
+
+# Release 4.0.9
+
+* Fixed remaining (rare, hopefully) font & emoji rendering issues on some Linux
+  distributions. (Axel Gembe)
+
