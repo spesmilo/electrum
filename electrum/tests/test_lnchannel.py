@@ -31,6 +31,7 @@ from electrum import lnchannel
 from electrum import lnutil
 from electrum import bip32 as bip32_utils
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
+from electrum.lnutil import FeeUpdate
 from electrum.ecc import sig_string_from_der_sig
 from electrum.logging import console_stderr_handler
 
@@ -92,8 +93,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 capacity=funding_sat,
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,
-                feerate=local_feerate,
             ),
+            "fee_updates": [FeeUpdate(rate=local_feerate, ctn={LOCAL:0, REMOTE:0})],
             "node_id":other_node_id,
             "remote_commitment_to_be_revoked": None,
             'onion_keys': {},
@@ -527,31 +528,34 @@ class TestChannel(unittest.TestCase):
         return fee
 
     def test_UpdateFeeSenderCommits(self):
-        old_feerate = self.alice_channel.pending_feerate(LOCAL)
-        fee = self.alice_to_bob_fee_update()
-
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
 
-        self.assertEqual(self.alice_channel.pending_feerate(LOCAL), old_feerate)
+        old_feerate = alice_channel.get_next_feerate(LOCAL)
+
+        fee = self.alice_to_bob_fee_update()
+        self.assertEqual(alice_channel.get_next_feerate(LOCAL), old_feerate)
+
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
-        self.assertEqual(self.alice_channel.pending_feerate(LOCAL), old_feerate)
+        #self.assertEqual(alice_channel.get_next_feerate(LOCAL), old_feerate)
 
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.constraints.feerate)
+        self.assertNotEqual(fee, bob_channel.get_current_feerate(LOCAL))
         rev, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.constraints.feerate)
+        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
 
-        bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(rev)
+
+        
+        bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.constraints.feerate)
+        self.assertNotEqual(fee, alice_channel.get_current_feerate(LOCAL))
         rev, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.constraints.feerate)
+        self.assertEqual(fee, alice_channel.get_current_feerate(LOCAL))
 
         bob_channel.receive_revocation(rev)
-        self.assertEqual(fee, bob_channel.constraints.feerate)
+        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
 
 
     def test_UpdateFeeReceiverCommits(self):
@@ -567,20 +571,20 @@ class TestChannel(unittest.TestCase):
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.constraints.feerate)
+        self.assertNotEqual(fee, bob_channel.get_current_feerate(LOCAL))
         bob_revocation, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.constraints.feerate)
+        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(bob_revocation)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.constraints.feerate)
+        self.assertNotEqual(fee, alice_channel.get_current_feerate(LOCAL))
         alice_revocation, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.constraints.feerate)
+        self.assertEqual(fee, alice_channel.get_current_feerate(LOCAL))
 
         bob_channel.receive_revocation(alice_revocation)
-        self.assertEqual(fee, bob_channel.constraints.feerate)
+        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
 
     @unittest.skip("broken probably because we havn't implemented detecting when we come out of a situation where we violate reserve")
     def test_AddHTLCNegativeBalance(self):
@@ -798,7 +802,7 @@ class TestDust(unittest.TestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.constraints.feerate
+        fee_per_kw = alice_channel.get_current_feerate(LOCAL)
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)

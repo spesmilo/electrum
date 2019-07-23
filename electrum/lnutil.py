@@ -78,7 +78,9 @@ class RemoteConfig(NamedTuple):
     current_per_commitment_point: Optional[bytes]
 
 
-ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth", "feerate"])
+FeeUpdate = namedtuple("FeeUpdate", ["rate", "ctn"])
+
+ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 
 ScriptHtlc = namedtuple('ScriptHtlc', ['redeem_script', 'htlc'])
 
@@ -359,7 +361,7 @@ def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
     is_htlc_success = for_us == we_receive
     script, htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
-        local_feerate = chan.pending_feerate(LOCAL if for_us else REMOTE), # uses pending feerate..
+        local_feerate = chan.get_next_feerate(LOCAL if for_us else REMOTE),
         revocationpubkey=other_revocation_pubkey,
         local_delayedpubkey=delayedpubkey,
         success = is_htlc_success,

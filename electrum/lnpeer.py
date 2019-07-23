@@ -40,6 +40,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY)
+from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_watchtower
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -537,14 +538,15 @@ class Peer(Logger):
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         chan_dict = {
-                "node_id": self.pubkey,
-                "channel_id": channel_id,
-                "short_channel_id": None,
-                "funding_outpoint": Outpoint(funding_txid, funding_index),
-                "remote_config": remote_config,
-                "local_config": local_config,
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth, feerate=feerate),
-                "remote_commitment_to_be_revoked": None,
+            "node_id": self.pubkey,
+            "channel_id": channel_id,
+            "short_channel_id": None,
+            "funding_outpoint": Outpoint(funding_txid, funding_index),
+            "remote_config": remote_config,
+            "local_config": local_config,
+            "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
+            "fee_updates": [FeeUpdate(rate=feerate, ctn={LOCAL:0, REMOTE:0})],
+            "remote_commitment_to_be_revoked": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -630,8 +632,9 @@ class Peer(Logger):
                     revocation_store=their_revocation_store,
                 ),
                 "local_config": local_config,
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth, feerate=feerate),
+                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
                 "remote_commitment_to_be_revoked": None,
+                "fee_updates": [FeeUpdate(feerate, ctn={LOCAL:0, REMOTE:0})],
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -1026,7 +1029,7 @@ class Peer(Logger):
         # if there are no changes, we will not (and must not) send a new commitment
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
         if (next_htlcs == latest_htlcs
-                and chan.pending_feerate(REMOTE) == chan.constraints.feerate) \
+                and chan.get_next_feerate(REMOTE) == chan.get_current_feerate(REMOTE)) \
                 or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
         self.logger.info(f'send_commitment. old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
@@ -1088,7 +1091,7 @@ class Peer(Logger):
         chan = self.channels[channel_id]
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         if (chan.hm.get_htlcs_in_next_ctx(LOCAL) == chan.hm.get_htlcs_in_latest_ctx(LOCAL)
-                and chan.pending_feerate(LOCAL) == chan.constraints.feerate):
+                and chan.get_next_feerate(LOCAL) == chan.get_current_feerate(LOCAL)):
             raise RemoteMisbehaving('received commitment_signed without pending changes')
         # make sure ctn is new
         ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
@@ -1289,7 +1292,7 @@ class Peer(Logger):
             # TODO force close if initiator does not update_fee enough
             return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
-        chan_fee = chan.pending_feerate(REMOTE)
+        chan_fee = chan.get_next_feerate(REMOTE)
         self.logger.info(f"current pending feerate {chan_fee}")
         self.logger.info(f"new feerate {feerate_per_kw}")
         if feerate_per_kw < chan_fee / 2:
