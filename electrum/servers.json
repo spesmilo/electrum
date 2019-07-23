@@ -220,12 +220,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "erbium1.sytes.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "fedaykin.goip.de": {
         "pruning": "-",
         "s": "50002",
@@ -404,7 +398,7 @@
     },
     "fortress.qtornado.com": {
         "pruning": "-",
-        "s": "50002",
+        "s": "443",
         "t": "50001",
         "version": "1.4"
     },
@@ -412,6 +406,12 @@
         "pruning": "-",
         "s": "56002",
         "t": "56001",
+        "version": "1.4"
+    },
+    "electrumx.erbium.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
         "version": "1.4"
     }
 }

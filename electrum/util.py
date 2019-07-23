@@ -652,7 +652,7 @@ mainnet_block_explorers = {
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
                         {'tx': 'Transaction/', 'addr': 'Address/'}),
-    'Blockchain.info': ('https://blockchain.info/',
+    'Blockchain.info': ('https://blockchain.com/btc/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -660,8 +660,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Bitaps.com': ('https://btc.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://chain.btc.com/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://btc.com/',
+                        {'tx': '', 'addr': ''}),
     'Chain.so': ('https://www.chain.so/',
                         {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
     'Insight.is': ('https://insight.bitpay.com/',
@@ -687,12 +687,10 @@ testnet_block_explorers = {
                        {'tx': '', 'addr': ''}),
     'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchain.info': ('https://testnet.blockchain.info/',
+    'Blockchain.info': ('https://www.blockchain.com/btctest/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'BTC.com': ('https://tchain.btc.com/',
-                       {'tx': '', 'addr': ''}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
@@ -800,6 +798,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     sig = out.get('sig')
     name = out.get('name')
     if on_pr and (r or (name and sig)):
+        @log_exceptions
         async def get_payment_request():
             from . import paymentrequest as pr
             if name and sig:

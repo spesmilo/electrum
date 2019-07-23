@@ -26,11 +26,13 @@
 import socket
 import time
 from enum import IntEnum
+from typing import Tuple
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
                              QLineEdit, QDialog, QVBoxLayout, QHeaderView, QCheckBox,
                              QTabWidget, QWidget, QLabel)
+from PyQt5.QtGui import QFontMetrics
 
 from electrum.i18n import _
 from electrum import constants, blockchain
@@ -38,7 +40,7 @@ from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
 from electrum.logging import get_logger
 
-from .util import Buttons, CloseButton, HelpButton, read_QIcon
+from .util import Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit
 
 
 _logger = get_logger(__name__)
@@ -213,14 +215,17 @@ class NetworkChoiceLayout(object):
         tabs.addTab(server_tab, _('Server'))
         tabs.addTab(proxy_tab, _('Proxy'))
 
+        fixed_width_hostname = 24 * char_width_in_lineedit()
+        fixed_width_port = 6 * char_width_in_lineedit()
+
         # server tab
         grid = QGridLayout(server_tab)
         grid.setSpacing(8)
 
         self.server_host = QLineEdit()
-        self.server_host.setFixedWidth(200)
+        self.server_host.setFixedWidth(fixed_width_hostname)
         self.server_port = QLineEdit()
-        self.server_port.setFixedWidth(60)
+        self.server_port.setFixedWidth(fixed_width_port)
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
@@ -257,15 +262,15 @@ class NetworkChoiceLayout(object):
         self.proxy_mode = QComboBox()
         self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
         self.proxy_host = QLineEdit()
-        self.proxy_host.setFixedWidth(200)
+        self.proxy_host.setFixedWidth(fixed_width_hostname)
         self.proxy_port = QLineEdit()
-        self.proxy_port.setFixedWidth(60)
+        self.proxy_port.setFixedWidth(fixed_width_port)
         self.proxy_user = QLineEdit()
         self.proxy_user.setPlaceholderText(_("Proxy user"))
         self.proxy_password = QLineEdit()
         self.proxy_password.setPlaceholderText(_("Password"))
         self.proxy_password.setEchoMode(QLineEdit.Password)
-        self.proxy_password.setFixedWidth(60)
+        self.proxy_password.setFixedWidth(fixed_width_port)
 
         self.proxy_mode.currentIndexChanged.connect(self.set_proxy)
         self.proxy_host.editingFinished.connect(self.set_proxy)
@@ -354,8 +359,9 @@ class NetworkChoiceLayout(object):
         net_params = self.network.get_parameters()
         host, port, protocol = net_params.host, net_params.port, net_params.protocol
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        self.server_host.setText(host)
-        self.server_port.setText(str(port))
+        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
+            self.server_host.setText(host)
+            self.server_port.setText(str(port))
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
@@ -521,19 +527,20 @@ class TorDetector(QThread):
         ports = [9050, 9150]
         while True:
             for p in ports:
-                if TorDetector.is_tor_port(p):
-                    self.found_proxy.emit(("127.0.0.1", p))
+                net_addr = ("127.0.0.1", p)
+                if TorDetector.is_tor_port(net_addr):
+                    self.found_proxy.emit(net_addr)
                     break
             else:
                 self.found_proxy.emit(None)
             time.sleep(10)
 
     @staticmethod
-    def is_tor_port(port):
+    def is_tor_port(net_addr: Tuple[str, int]) -> bool:
         try:
-            s = (socket._socketobject if hasattr(socket, "_socketobject") else socket.socket)(socket.AF_INET, socket.SOCK_STREAM)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.1)
-            s.connect(("127.0.0.1", port))
+            s.connect(net_addr)
             # Tor responds uniquely to HTTP-like requests
             s.send(b"GET\n")
             if b"Tor is not an HTTP Proxy" in s.recv(1024):

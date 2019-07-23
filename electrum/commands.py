@@ -415,7 +415,7 @@ class Commands:
             addr = self.wallet.import_private_key(privkey, password)
             out = "Keypair imported: " + addr
         except Exception as e:
-            out = "Error: " + str(e)
+            out = "Error: " + repr(e)
         return out
 
     def _resolver(self, x):

@@ -35,12 +35,15 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 if sys.version_info[:3] < _min_python_version_tuple:
     sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
 
-warnings.simplefilter('default', DeprecationWarning)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
+
+if is_local:  # running from source
+    # developers should probably see all deprecation warnings.
+    warnings.simplefilter('default', DeprecationWarning)
 
 # move this back to gui/kivy/__init.py once plugins are moved
 os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/electrum/gui/kivy/data/'
@@ -340,7 +343,6 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
-    configure_logging(config)
 
     cmdname = config.get('cmd')
 
@@ -352,6 +354,7 @@ if __name__ == '__main__':
         constants.set_simnet()
 
     if cmdname == 'gui':
+        configure_logging(config)
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
@@ -367,6 +370,7 @@ if __name__ == '__main__':
             init_daemon(config_options)
 
         if subcommand in [None, 'start']:
+            configure_logging(config)
             fd, server = daemon.get_fd_or_server(config)
             if fd is not None:
                 if subcommand == 'start':

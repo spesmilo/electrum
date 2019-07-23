@@ -33,7 +33,9 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
 from electrum.i18n import _
 from electrum.base_crash_reporter import BaseCrashReporter
 from electrum.logging import Logger
-from .util import MessageBoxMixin, read_QIcon
+from electrum import constants
+
+from .util import MessageBoxMixin, read_QIcon, WaitingDialog
 
 
 class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
@@ -69,6 +71,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
         self.description_textfield = QTextEdit()
         self.description_textfield.setFixedHeight(50)
+        self.description_textfield.setPlaceholderText(_("Do not enter sensitive/private information here. "
+                                                        "The report will be visible on the public issue tracker."))
         main_box.addWidget(self.description_textfield)
 
         main_box.addWidget(QLabel(BaseCrashReporter.ASK_CONFIRM_SEND))
@@ -94,17 +98,28 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.show()
 
     def send_report(self):
-        try:
-            proxy = self.main_window.network.proxy
-            response = BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
-        except BaseException as e:
-            self.logger.exception('There was a problem with the automatic reporting')
-            self.main_window.show_critical(_('There was a problem with the automatic reporting:') + '\n' +
-                                           str(e) + '\n' +
-                                           _("Please report this issue manually."))
-            return
-        QMessageBox.about(self, _("Crash report"), response)
-        self.close()
+        def on_success(response):
+            # note: 'response' coming from (remote) crash reporter server.
+            # It contains a URL to the GitHub issue, so we allow rich text.
+            self.show_message(parent=self,
+                              title=_("Crash report"),
+                              msg=response,
+                              rich_text=True)
+            self.close()
+        def on_failure(exc_info):
+            e = exc_info[1]
+            self.logger.error('There was a problem with the automatic reporting', exc_info=exc_info)
+            self.show_critical(parent=self,
+                               msg=(_('There was a problem with the automatic reporting:') + '<br/>' +
+                                    repr(e)[:120] + '<br/>' +
+                                    _("Please report this issue manually") +
+                                    f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.'),
+                               rich_text=True)
+
+        proxy = self.main_window.network.proxy
+        task = lambda: BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
+        msg = _('Sending crash report...')
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def on_close(self):
         Exception_Window._active_window = None

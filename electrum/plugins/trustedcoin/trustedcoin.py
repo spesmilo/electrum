@@ -485,7 +485,7 @@ class TrustedCoinPlugin(BasePlugin):
             billing_info = server.get(wallet.get_user_id()[1])
         except ErrorConnectingServer as e:
             if suppress_connection_error:
-                self.logger.info(str(e))
+                self.logger.info(repr(e))
                 return
             raise
         billing_index = billing_info['billing_index']
@@ -709,7 +709,7 @@ class TrustedCoinPlugin(BasePlugin):
                 wizard.show_message(str(e))
                 wizard.terminate()
         except Exception as e:
-            wizard.show_message(str(e))
+            wizard.show_message(repr(e))
             wizard.terminate()
         else:
             k3 = keystore.from_xpub(xpub3)

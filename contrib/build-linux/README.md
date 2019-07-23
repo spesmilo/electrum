@@ -1,19 +1,15 @@
 Source tarballs
 ===============
 
-1. Build locale files
+✗ _This script does not produce reproducible output (yet!)._
 
-    ```
-    contrib/make_locale
-    ```
-
-2. Prepare python dependencies used by Electrum.
+1. Prepare python dependencies used by Electrum.
 
     ```
     contrib/make_packages
     ```
 
-3. Create source tarball.
+2. Create source tarball.
 
     ```
     contrib/make_tgz

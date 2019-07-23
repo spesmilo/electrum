@@ -160,7 +160,7 @@ class LabelsPlugin(BasePlugin):
         try:
             await self.pull_thread(wallet, force)
         except ErrorConnectingServer as e:
-            self.logger.info(str(e))
+            self.logger.info(repr(e))
 
     def pull(self, wallet, force):
         if not wallet.network: raise Exception(_('You are offline.'))

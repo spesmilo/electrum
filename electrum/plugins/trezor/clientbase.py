@@ -7,6 +7,7 @@ from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum.logging import Logger
+from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
@@ -29,6 +30,8 @@ MESSAGES = {
 
 class TrezorClientBase(Logger):
     def __init__(self, transport, handler, plugin):
+        if plugin.is_outdated_fw_ignored():
+            TrezorClient.is_outdated = lambda *args, **kwargs: False
         self.client = TrezorClient(transport, ui=self)
         self.plugin = plugin
         self.device = plugin.device
@@ -62,15 +65,15 @@ class TrezorClientBase(Logger):
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, e, traceback):
         self.end_flow()
-        if exc_value is not None:
-            if issubclass(exc_type, Cancelled):
-                raise UserCancelled from exc_value
-            elif issubclass(exc_type, TrezorFailure):
-                raise RuntimeError(str(exc_value)) from exc_value
-            elif issubclass(exc_type, OutdatedFirmwareError):
-                raise UserFacingException(exc_value) from exc_value
+        if e is not None:
+            if isinstance(e, Cancelled):
+                raise UserCancelled from e
+            elif isinstance(e, TrezorFailure):
+                raise RuntimeError(str(e)) from e
+            elif isinstance(e, OutdatedFirmwareError):
+                raise OutdatedHwFirmwareException(e) from e
             else:
                 return False
         return True
