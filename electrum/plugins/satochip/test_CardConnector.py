@@ -1,15 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
 
-# required hack since electrum imports do not correspond to electrum folder structure 
-#import imp
-#imp.load_module('electrum', *imp.find_module('lib'))
-#imp.load_module('electrum_gui', *imp.find_module('gui'))
-
-# electrum
-from electrum.crypto import hash_160, sha256d
-from electrum.bip32 import serialize_xpub
-
 #satochip
 from .CardConnector import CardConnector
 from .CardConnector import UninitializedSeedError
@@ -112,6 +103,7 @@ class TestCardConnectorMethods(unittest.TestCase):
     #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector1(self):  
         # Bip32 test vectors 1 (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test_Vectors)
+        print("\n\n[test_CardConnector] test_card_bip32_get_extendedkey_seed_vector1:") #debugSatochip
         seed= [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
         authentikey= self.cc.card_bip32_import_seed(seed) 
         paths=[ "m",
@@ -135,6 +127,7 @@ class TestCardConnectorMethods(unittest.TestCase):
     
     #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector2(self):
+        print("\n\n[test_CardConnector] test_card_bip32_get_extendedkey_seed_vector2:") #debugSatochip
         seed= list(bytes.fromhex("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542"))
         authentikey= self.cc.card_bip32_import_seed(seed) 
         paths=[ "m",
@@ -158,6 +151,7 @@ class TestCardConnectorMethods(unittest.TestCase):
 
     #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector3(self):
+        print("\n\n[test_CardConnector] test_card_bip32_get_extendedkey_seed_vector3:") #debugSatochip
         seed= list(bytes.fromhex("4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c51c73235be"))
         authentikey= self.cc.card_bip32_import_seed(seed) 
         paths=[ "m",
@@ -172,6 +166,7 @@ class TestCardConnectorMethods(unittest.TestCase):
                 self.assertEqual(xpub, xpubs[i])
     
     def test_card_sign_message(self):
+        print("\n\n[test_CardConnector] test_card_sign_message:") #debugSatochip
         msgs=[  "",
                 " ",
                 "Hello World",
