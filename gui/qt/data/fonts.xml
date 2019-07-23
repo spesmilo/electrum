@@ -4,42 +4,66 @@
     <include ignore_missing="no">/etc/fonts/fonts.conf</include>
 
     <match target="pattern">
-        <test qual="any" name="family"><string>sans</string></test>
-        <edit name="family" mode="prepend" binding="same"><string>EC Supplemental</string></edit>
+        <test name="family"><string>sans</string></test>
+        <edit name="family" mode="prepend_first"><string>EC Supplemental</string></edit>
     </match>
 
     <match target="pattern">
-        <test qual="any" name="family"><string>sans-serif</string></test>
-        <edit name="family" mode="prepend" binding="same"><string>EC Supplemental</string></edit>
+        <test name="family"><string>serif</string></test>
+        <edit name="family" mode="prepend_first"><string>EC Supplemental</string></edit>
     </match>
 
     <match target="pattern">
-        <test qual="any" name="family"><string>serif</string></test>
-        <edit name="family" mode="prepend" binding="same"><string>EC Supplemental</string></edit>
+        <test name="family"><string>sans-serif</string></test>
+        <edit name="family" mode="prepend_first"><string>EC Supplemental</string></edit>
     </match>
 
     <match target="pattern">
-        <test qual="any" name="family"><string>monospace</string></test>
-        <edit name="family" mode="prepend" binding="same"><string>EC Supplemental</string></edit>
+        <test name="family"><string>monospace</string></test>
+        <edit name="family" mode="prepend_first"><string>EC Supplemental</string></edit>
     </match>
 
-    <match target="pattern">
-        <test qual="any" name="family"><string>sans</string></test>
-        <edit name="family" mode="prepend_first" binding="same"><string>EC Supplemental</string></edit>
-    </match>
+    <!-- DejaVu has bad emojis and interferes, so we blacklist it. Bitstream Vera should be installed instead. -->
+    <selectfont>
+        <rejectfont>
+            <pattern>
+                <patelt name="family">
+                    <string>DejaVu Sans</string>
+                </patelt>
+            </pattern>
+            <pattern>
+                <patelt name="family">
+                    <string>DejaVu Serif</string>
+                </patelt>
+            </pattern>
+            <pattern>
+                <patelt name="family">
+                    <string>DejaVu Sans Mono</string>
+                </patelt>
+            </pattern>
+        </rejectfont>
+    </selectfont>
 
-    <match target="pattern">
-        <test qual="any" name="family"><string>sans-serif</string></test>
-        <edit name="family" mode="prepend_first" binding="same"><string>EC Supplemental</string></edit>
-    </match>
-
-    <match target="pattern">
-        <test qual="any" name="family"><string>serif</string></test>
-        <edit name="family" mode="prepend_first" binding="same"><string>EC Supplemental</string></edit>
-    </match>
-
-    <match target="pattern">
-        <test qual="any" name="family"><string>monospace</string></test>
-        <edit name="family" mode="prepend_first" binding="same"><string>EC Supplemental</string></edit>
+    <!-- This should remove the emoji characters from most other fonts -->
+    <match target="scan">
+        <test name="family" compare="not_eq">
+            <string>EC Supplemental</string>
+        </test>
+        <edit name="charset" mode="assign">
+            <minus>
+                <name>charset</name>
+                <charset>
+                    <int>0x0023</int>
+                    <int>0x0026</int>
+                    <int>0x0027</int>
+                    <int>0x002b</int>
+                    <int>0x01f3</int>
+                    <int>0x01f4</int>
+                    <int>0x01f5</int>
+                    <int>0x01f6</int>
+                    <int>0x01f9</int>
+                </charset>
+            </minus>
+        </edit>
     </match>
 </fontconfig>
