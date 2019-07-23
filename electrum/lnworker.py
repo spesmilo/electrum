@@ -643,7 +643,7 @@ class LNWallet(LNWorker):
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
 
-    async def add_peer(self, connect_str, timeout=20):
+    async def add_peer(self, connect_str: str) -> Peer:
         node_id, rest = extract_nodeid(connect_str)
         peer = self.peers.get(node_id)
         if not peer:

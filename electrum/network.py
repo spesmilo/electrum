@@ -311,10 +311,10 @@ class Network(Logger):
             self.lnwatcher = None
             self.lngossip = None
 
-    def run_from_another_thread(self, coro):
+    def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
-        return fut.result()
+        return fut.result(timeout)
 
     @staticmethod
     def get_instance() -> Optional["Network"]:

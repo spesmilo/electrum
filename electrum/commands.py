@@ -776,7 +776,9 @@ class Commands:
     # lightning network commands
     @command('wn')
     def add_peer(self, connection_string, timeout=20):
-        return self.lnworker.add_peer(connection_string)
+        coro = self.lnworker.add_peer(connection_string)
+        self.network.run_from_another_thread(coro, timeout=timeout)
+        return True
 
     @command('wpn')
     def open_channel(self, connection_string, amount, channel_push=0, password=None):
