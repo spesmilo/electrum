@@ -659,4 +659,5 @@ and there is no warning message.
 
 * Fixed remaining (rare, hopefully) font & emoji rendering issues on some Linux
   distributions. (Axel Gembe)
-
+* Added preferences options for "Use FreeType" (Windows) and "fontconfig
+  overrides" (Linux).  (cculianu)
