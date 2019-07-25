@@ -24,7 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import signal, sys, traceback, gc, os, shutil
+import gc, os, platform, shutil, signal, sys, traceback
 
 try:
     import PyQt5
@@ -86,10 +86,15 @@ class ElectrumGui(QObject, PrintError):
         __class__.instance = self
         set_language(config.get('language'))
 
-        if sys.platform in ('win32', 'cygwin'):
-            # TODO: Make using FreeType on Windows configurable
-            # Use FreeType for font rendering on Windows. This fixes rendering of the Schnorr
-            # sigil and allows us to load the Noto Color Emoji font if needed.
+        self.config = config
+        self.daemon = daemon
+        self.plugins = plugins
+        self.windows = []
+
+        if self.windows_qt_use_freetype:
+            # Use FreeType for font rendering on Windows. This fixes rendering
+            # of the Schnorr sigil and allows us to load the Noto Color Emoji
+            # font if needed.
             os.environ['QT_QPA_PLATFORM'] = 'windows:fontengine=freetype'
 
         # Uncomment this call to verify objects are being properly
@@ -126,10 +131,6 @@ class ElectrumGui(QObject, PrintError):
             QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electron-cash.desktop')
-        self.config = config
-        self.daemon = daemon
-        self.plugins = plugins
-        self.windows = []
         self.app = QApplication(sys.argv)
         self._load_fonts()  # this needs to be done very early, before the font engine loads fonts.. out of paranoia
         self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules, so it should also be done early.
@@ -295,6 +296,8 @@ class ElectrumGui(QObject, PrintError):
         return ( (QT_VERSION >> 16) & 0xff,  (QT_VERSION >> 8) & 0xff, QT_VERSION & 0xff )
 
     def _load_fonts(self):
+        ''' All apologies for the contorted nature of this platform code.
+        Fonts on Windows & Linux are .. a sensitive situation. :) '''
         # Only load the emoji font on Linux and Windows
         if sys.platform not in ('linux', 'win32', 'cygwin'):
             return
@@ -303,11 +306,16 @@ class ElectrumGui(QObject, PrintError):
         # TODO: Allow the user to download a full color emoji set
 
         linux_font_config_file = os.path.join(os.path.dirname(__file__), 'data', 'fonts.xml')
+        emojis_ttf_name = 'ecsupplemental_lnx.ttf'
+        emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', emojis_ttf_name)
+        did_set_custom_fontconfig = False
 
         if (sys.platform == 'linux'
+                and self.linux_qt_use_custom_fontconfig  # method-backed property, checks config settings
                 and not os.environ.get('FONTCONFIG_FILE')
                 and os.path.exists('/etc/fonts/fonts.conf')
                 and os.path.exists(linux_font_config_file)
+                and os.path.exists(emojis_ttf_path)
                 and self.qt_version() >= (5, 12)):  # doing this on Qt < 5.12 causes harm and makes the whole app render fonts badly
             # On Linux, we override some fontconfig rules by loading our own
             # font config XML file. This makes it so that our custom emojis and
@@ -318,15 +326,24 @@ class ElectrumGui(QObject, PrintError):
             # also as a sanity check, if they have the system
             # /etc/fonts/fonts.conf file in the right place.
             os.environ['FONTCONFIG_FILE'] = linux_font_config_file
+            did_set_custom_fontconfig = True
 
-        emojis_ttf_name = 'ecsupplemental_lnx.ttf'
         if sys.platform in ('win32', 'cygwin'):
+            env_var = os.environ.get('QT_QPA_PLATFORM')
+            if not env_var or 'windows:fontengine=freetype' not in env_var.lower():
+                # not set up to use freetype, so loading the .ttf would fail.
+                # abort early.
+                return
+            del env_var
+            # use a different .ttf file on Windows
             emojis_ttf_name = 'ecsupplemental_win.ttf'
-
-        emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', emojis_ttf_name)
+            emojis_ttf_path = os.path.join(os.path.dirname(__file__), 'data', emojis_ttf_name)
 
         if QFontDatabase.addApplicationFont(emojis_ttf_path) < 0:
-            self.print_error('failed to add unicode emoji font to application fonts')
+            self.print_error('Failed to add unicode emoji font to application fonts:', emojis_ttf_path)
+            if did_set_custom_fontconfig:
+                self.print_error('Deleting custom (fonts.xml) FONTCONFIG_FILE env. var')
+                del os.environ['FONTCONFIG_FILE']
 
     def _check_and_warn_qt_version(self):
         if sys.platform == 'linux' and self.qt_version() < (5, 12):
@@ -783,6 +800,44 @@ class ElectrumGui(QObject, PrintError):
         if was != b:
             self.config.set_key('hide_cashaddr_button', bool(b))
             self.cashaddr_status_button_hidden_signal.emit(b)
+
+    @property
+    def windows_qt_use_freetype(self):
+        ''' Returns True iff we are windows and we are set to use freetype as
+        the font engine.  This will always return false on platforms where the
+        question doesn't apply. This config setting defaults to True for
+        Windows < Win10 and False otherwise. It is only relevant when
+        using the Qt GUI, however. '''
+        if sys.platform not in ('win32', 'cygwin'):
+            return False
+        try:
+            winver = float(platform.win32_ver()[0])  # '7', '8', '8.1', '10', etc
+        except (AttributeError, ValueError, IndexError):
+            # We can get here if cygwin, which has an empty win32_ver tuple
+            # in some cases.
+            # In that case "assume windows 10" and just proceed.  Cygwin users
+            # can always manually override this setting from GUI prefs.
+            winver = 10
+        # setting defaults to on for Windows < Win10
+        return bool(self.config.get('windows_qt_use_freetype', winver < 10))
+
+    @windows_qt_use_freetype.setter
+    def windows_qt_use_freetype(self, b):
+        if self.config.is_modifiable('windows_qt_use_freetype') and sys.platform in ('win32', 'cygwin'):
+            self.config.set_key('windows_qt_use_freetype', bool(b))
+
+    @property
+    def linux_qt_use_custom_fontconfig(self):
+        ''' Returns True iff we are Linux and we are set to use the fonts.xml
+        fontconfig override, False otherwise.  This config setting defaults to
+        True for all Linux, but only is relevant to Qt GUI. '''
+        return bool(sys.platform in ('linux',) and self.config.get('linux_qt_use_custom_fontconfig', True))
+
+    @linux_qt_use_custom_fontconfig.setter
+    def linux_qt_use_custom_fontconfig(self, b):
+        if self.config.is_modifiable('linux_qt_use_custom_fontconfig') and sys.platform in ('linux',):
+            self.config.set_key('linux_qt_use_custom_fontconfig', bool(b))
+
 
     def main(self):
         try:
