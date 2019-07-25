@@ -84,7 +84,7 @@ for name in zfobj.namelist():
 # Convert .po to .mo
 print('Installing')
 for lang in os.listdir('locale'):
-    if not isdir(join('locale', lang)):
+    if not isdir(join('locale', lang)) or lang == "__pycache__":
         continue
     # Check LC_MESSAGES folder
     msg_dir = 'locale/{}/LC_MESSAGES'.format(lang)
