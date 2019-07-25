@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/filterAll"
+        android:title="@string/all"/>
+
+    <!-- Because addresses are listed oldest-first, they will appear roughly in this order. -->
+
+    <item
+        android:id="@+id/filterUsed"
+        android:title="@string/used"/>
+
+    <item
+        android:id="@+id/filterFunded"
+        android:title="@string/funded"/>
+
+    <item
+        android:id="@+id/filterUnused"
+        android:title="@string/unused"/>
+
+</menu>

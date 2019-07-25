@@ -209,12 +209,7 @@ class WalletStorage(PrintError):
         if not self.file_exists():
             # See: https://github.com/spesmilo/electrum/issues/5082
             assert not os.path.exists(self.path)
-        # perform atomic write on POSIX systems
-        try:
-            os.rename(temp_path, self.path)
-        except:
-            os.remove(self.path)
-            os.rename(temp_path, self.path)
+        os.replace(temp_path, self.path)
         os.chmod(self.path, mode)
         self.raw = s
         self._file_exists = True

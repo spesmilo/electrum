@@ -6,15 +6,46 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <Button
+        android:id="@+id/btnType"
+        style="@style/FilterButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toStartOf="@+id/btnStatus"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintHorizontal_chainStyle="spread"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Type: All"/>
+
+    <Button
+        android:id="@+id/btnStatus"
+        style="@style/FilterButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="8dp"
+        android:layout_marginStart="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/btnType"
+        app:layout_constraintTop_toTopOf="@+id/btnType"
+        tools:text="Status: Unused"/>
+
     <android.support.v7.widget.RecyclerView
         android:id="@+id/rvAddresses"
+        style="@style/List"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        style="@style/List"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnType"
         tools:itemCount="3"
-        tools:listitem="@layout/address"/>
+        tools:listitem="@layout/address_list"/>
+
 </android.support.constraint.ConstraintLayout>

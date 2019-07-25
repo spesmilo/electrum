@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group
+        android:id="@+id/navWallets">
+        <item
+            android:id="@+id/navNewWallet"
+            android:icon="@drawable/ic_add_24dp"
+            android:title="@string/New_wallet"/>
+    </group>
+
+</menu>

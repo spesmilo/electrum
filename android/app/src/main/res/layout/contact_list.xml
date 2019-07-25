@@ -6,7 +6,7 @@
     <data>
         <variable
             name="model"
-            type="org.electroncash.electroncash3.AddressModel"/>
+            type="org.electroncash.electroncash3.ContactModel"/>
     </data>
 
     <android.support.constraint.ConstraintLayout
@@ -15,8 +15,7 @@
         style="@style/Clickable">
 
         <TextView
-            android:id="@+id/tvAddress"
-            style="@style/Address"
+            android:id="@+id/tvName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
@@ -24,24 +23,30 @@
             android:layout_marginRight="16dp"
             android:layout_marginStart="16dp"
             android:layout_marginTop="8dp"
-            android:singleLine="true"
-            android:text="@{model.addrString}"
-            android:textAppearance="@style/Medium"
+            android:text="@{model.name}"
+            android:textAppearance="@style/Heavy"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            tools:text="@string/test_address"/>
+            tools:text="@string/test_contact"/>
 
         <TextView
-            android:id="@+id/tvType"
-            android:layout_width="wrap_content"
+            android:id="@+id/tvAddress"
+            style="@style/Address"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="4dp"
-            android:text="@{@stringArray/address_type[model.type]}"
+            android:singleLine="true"
+            android:text="@{model.addrUiString}"
+            android:textAppearance="@style/Medium"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="@+id/tvAddress"
-            app:layout_constraintTop_toBottomOf="@+id/tvAddress"
-            tools:text="@string/receiving"/>
+            app:layout_constraintEnd_toEndOf="@+id/tvName"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/tvName"
+            app:layout_constraintTop_toBottomOf="@+id/tvName"
+            tools:text="@string/test_address"/>
+
     </android.support.constraint.ConstraintLayout>
 </layout>

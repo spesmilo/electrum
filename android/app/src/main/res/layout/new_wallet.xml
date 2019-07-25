@@ -35,7 +35,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="@string/Wallet_name"
+            android:text="@string/wallet_name"
             app:layout_constraintStart_toStartOf="@+id/spnType"
             app:layout_constraintTop_toBottomOf="@+id/spnType"/>
 
@@ -50,7 +50,7 @@
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/textView3"
             app:layout_constraintTop_toBottomOf="@+id/textView3"
-            tools:text="alpha"/>
+            tools:text="@string/test_wallet"/>
 
         <TextView
             android:id="@+id/textView6"

@@ -5,9 +5,12 @@
         android:title="@string/create_a_new"/>
 
     <item android:id="@+id/menuRestoreSeed"
-        android:title="@string/restore_from"/>
+        android:title="@string/Restore_from_seed"/>
 
     <item android:id="@+id/menuImport"
-        android:title="@string/import_addresses_or"/>
+        android:title="@string/Import_addresses"/>
+
+    <item android:id="@+id/menuImportMaster"
+        android:title="@string/Use_a_master"/>
 
 </menu>

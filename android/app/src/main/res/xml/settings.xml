@@ -17,18 +17,32 @@
             android:dependency="auto_connect"/>
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="@string/transactions">
+        <SwitchPreference
+            android:key="confirmed_only"
+            android:title="@string/spend_only_confirmed_coins"/>
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="@string/appearance">
+        <SwitchPreference
+            android:key="cashaddr_format"
+            android:title="@string/cashaddr_address"
+            android:defaultValue="true"/>
+        <ListPreference
+            android:key="base_unit"
+            android:title="@string/base_unit"
+            android:defaultValue="BCH"
+            tools:summary="BCH"/>
         <ListPreference
             android:key="block_explorer"
-            android:title="@string/online_block"
+            android:title="@string/block_explorer"
             tools:summary="Blockchair.com"/>
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/fiat">
         <SwitchPreference
             android:key="use_exchange_rate"
-            android:title="@string/enabled"
-            tools:defaultValue="true"/>
+            android:title="@string/enable"/>
         <ListPreference
             android:dependency="use_exchange_rate"
             android:key="currency"
@@ -39,12 +53,6 @@
             android:key="use_exchange"
             android:title="@string/source"
             tools:summary="BitStamp"/>
-    </PreferenceCategory>
-
-    <PreferenceCategory android:title="@string/advanced">
-        <Preference
-            android:key="console"
-            android:title="@string/console"/>
     </PreferenceCategory>
 
 </PreferenceScreen>

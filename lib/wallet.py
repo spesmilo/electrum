@@ -79,6 +79,8 @@ TX_STATUS = [
 del _
 from .i18n import _
 
+DEFAULT_CONFIRMED_ONLY = False
+
 def relayfee(network):
     RELAY_FEE = 5000
     MAX_RELAY_FEE = 50000
@@ -837,7 +839,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return result
 
     def get_spendable_coins(self, domain, config, isInvoice = False):
-        confirmed_only = config.get('confirmed_only', False)
+        confirmed_only = config.get('confirmed_only', DEFAULT_CONFIRMED_ONLY)
         if (isInvoice):
             confirmed_only = True
         return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
@@ -1090,7 +1092,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
         return h2
 
-    def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
+    def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None,
+                       show_addresses=False, decimal_point=8):
         from .util import timestamp_to_datetime
         h = self.get_history(domain, reverse=True)
         out = []
@@ -1104,8 +1107,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 'height':height,
                 'confirmations':conf,
                 'timestamp':timestamp,
-                'value': format_satoshis(value, is_diff=True) if value is not None else '--',
-                'balance': format_satoshis(balance)
+                'value': (format_satoshis(value, decimal_point=decimal_point, is_diff=True)
+                          if value is not None else '--'),
+                'balance': format_satoshis(balance, decimal_point=decimal_point)
             }
             if item['height']>0:
                 date_str = format_time(timestamp) if timestamp is not None else _("unverified")
@@ -1929,7 +1933,7 @@ class Simple_Wallet(Abstract_Wallet):
     def update_password(self, old_pw, new_pw, encrypt=False):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
-        if self.keystore is not None:
+        if self.keystore is not None and self.keystore.can_change_password():
             self.keystore.update_password(old_pw, new_pw)
             self.save_keystore()
         self.storage.set_password(new_pw, encrypt)

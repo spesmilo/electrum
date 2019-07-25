@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+        <import type="android.view.View"/>
+        <import type="org.electroncash.electroncash3.UtilKt"/>
+        <variable
+            name="model"
+            type="org.electroncash.electroncash3.AddressModel"/>
+    </data>
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Clickable">
+
+        <TextView
+            android:id="@+id/tvAddress"
+            style="@style/Address"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:singleLine="true"
+            android:text="@{model.toString(`ui`)}"
+            android:textAppearance="@style/Medium"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="@string/test_address"/>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{model.status}"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
+            app:layout_constraintStart_toStartOf="@+id/tvAddress"
+            tools:text="@string/balance"/>
+
+        <TextView
+            android:id="@+id/tvBalance"
+            style="@style/Value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginLeft="6dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:text="@{model.balance > 0 ? UtilKt.formatSatoshis(model.balance) : ``}"
+            android:textAppearance="@style/Medium"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/tvType"
+            app:layout_constraintStart_toEndOf="@+id/tvStatus"
+            app:layout_constraintTop_toBottomOf="@+id/tvAddress"
+            app:layout_constraintVertical_bias="0.0"
+            tools:text="@string/test_value"/>
+
+        <TextView
+            android:id="@+id/tvType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{model.type}"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
+            app:layout_constraintEnd_toEndOf="@+id/tvAddress"
+            tools:text="@string/receiving"/>
+
+        <TextView
+            android:id="@+id/tvDescription"
+            style="@style/Description"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="4dp"
+            android:text="@{model.description}"
+            android:textAppearance="@style/Medium"
+            android:visibility="@{model.description.isEmpty() ? View.GONE: View.VISIBLE}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@+id/tvType"
+            app:layout_constraintStart_toStartOf="@+id/tvStatus"
+            app:layout_constraintTop_toBottomOf="@+id/tvStatus"
+            tools:text="@string/lorem"/>
+
+    </android.support.constraint.ConstraintLayout>
+</layout>

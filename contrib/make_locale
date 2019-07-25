@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+from os.path import isdir, join
 import subprocess
 import sys
 import io
@@ -12,8 +13,15 @@ original_dir = os.getcwd()
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-code_directories = 'gui plugins lib ios/ElectronCash/electroncash_gui/ios_native'
-cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
+code_directories = [
+    'android/app/src/main/python',
+    'gui',
+    'ios/ElectronCash/electroncash_gui',  # ios/ElectronCash could contain duplicate files
+                                          # copied by make_ios_project.sh.
+    'lib',
+    'plugins',
+]
+cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(" ".join(code_directories))
 
 files = subprocess.check_output(cmd, shell=True)
 
@@ -76,7 +84,7 @@ for name in zfobj.namelist():
 # Convert .po to .mo
 print('Installing')
 for lang in os.listdir('locale'):
-    if lang.startswith('messages'):
+    if not isdir(join('locale', lang)):
         continue
     # Check LC_MESSAGES folder
     msg_dir = 'locale/{}/LC_MESSAGES'.format(lang)

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<android.support.constraint.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/tvPrompt"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="24dp"
+        android:layout_marginLeft="24dp"
+        android:layout_marginRight="24dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="@string/please_enter_your_seed_phrase"/>
+
+    <EditText
+        android:id="@+id/etInput"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif"
+        android:inputType="textMultiLine|textVisiblePassword"
+        app:layout_constraintEnd_toEndOf="@+id/tvPrompt"
+        app:layout_constraintStart_toStartOf="@+id/tvPrompt"
+        app:layout_constraintTop_toBottomOf="@+id/tvPrompt"
+        tools:text="@string/test_seed"/>
+
+    <android.support.constraint.ConstraintLayout
+        android:id="@+id/passphrasePanel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/etInput"
+        app:layout_constraintStart_toStartOf="@+id/etInput"
+        app:layout_constraintTop_toBottomOf="@+id/etInput"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/tvPassphrasePrompt"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="@string/please_enter_your_seed_derivation"/>
+
+        <EditText
+            android:id="@+id/etPassphrase"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:inputType="textVisiblePassword"
+            app:layout_constraintEnd_toEndOf="@+id/tvPassphrasePrompt"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvPassphrasePrompt"/>
+
+    </android.support.constraint.ConstraintLayout>
+
+    <android.support.constraint.ConstraintLayout
+        android:id="@+id/bip39Panel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/passphrasePanel"
+        app:layout_constraintStart_toStartOf="@+id/passphrasePanel"
+        app:layout_constraintTop_toBottomOf="@+id/passphrasePanel"
+        tools:visibility="visible">
+
+        <CheckBox
+            android:id="@+id/swBip39"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/bip39_seed"
+            app:layout_constraintBaseline_toBaselineOf="@+id/etDerivation"
+            app:layout_constraintStart_toStartOf="parent"/>
+
+        <EditText
+            android:id="@+id/etDerivation"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:layout_marginStart="8dp"
+            android:enabled="false"
+            android:fontFamily="sans-serif"
+            android:hint="@string/derivation"
+            android:inputType="textVisiblePassword"
+            android:text="@string/default_bip39_derivation"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/swBip39"
+            app:layout_constraintTop_toTopOf="parent"/>
+
+        <TextView
+            android:id="@+id/textView21"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/if_you_are"
+            app:layout_constraintEnd_toEndOf="@+id/etDerivation"
+            app:layout_constraintStart_toStartOf="@+id/swBip39"
+            app:layout_constraintTop_toBottomOf="@+id/etDerivation"/>
+
+    </android.support.constraint.ConstraintLayout>
+
+</android.support.constraint.ConstraintLayout>
+
+</ScrollView>

@@ -2,9 +2,13 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/navWallets"
-        android:icon="@drawable/ic_wallet_24dp"
-        android:title="@string/wallets"/>
+        android:id="@+id/navNoWallet"
+        android:visible="false"/>
+
+    <item
+        android:id="@+id/navTransactions"
+        android:icon="@drawable/ic_swap_horiz_24dp"
+        android:title="@string/transactions"/>
 
     <item
         android:id="@+id/navRequests"
@@ -17,13 +21,8 @@
         android:title="@string/addresses"/>
 
     <item
-        android:id="@+id/navNetwork"
-        android:icon="@drawable/ic_network_24dp"
-        android:title="@string/network"/>
-
-    <item
-        android:id="@+id/navSettings"
-        android:icon="@drawable/ic_settings_24dp"
-        android:title="@string/settings"/>
+        android:id="@+id/navContacts"
+        android:icon="@drawable/ic_person_24dp"
+        android:title="@string/contacts"/>
 
 </menu>

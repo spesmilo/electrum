@@ -69,7 +69,7 @@
                 android:id="@+id/textView18"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ID"
+                android:text="@string/id"
                 app:layout_constraintBaseline_toBaselineOf="@+id/tvTxid"
                 app:layout_constraintStart_toStartOf="parent"/>
 
@@ -134,7 +134,7 @@
                 android:id="@+id/textView16"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/size_nocolon"
+                android:text="@string/size"
                 app:layout_constraintBaseline_toBaselineOf="@+id/tvSize"
                 app:layout_constraintStart_toStartOf="@+id/textView12"/>
 
@@ -173,6 +173,26 @@
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvSize"
                 tools:text="@string/test_fee"/>
+
+            <TextView
+                android:id="@+id/textView22"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/description"
+                app:layout_constraintStart_toStartOf="@+id/textView17"
+                app:layout_constraintTop_toBottomOf="@+id/textView17"/>
+
+            <EditText
+                android:id="@+id/etDescription"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:singleLine="true"
+                app:layout_constraintEnd_toEndOf="@+id/tvFee"
+                app:layout_constraintHorizontal_bias="1.0"
+                app:layout_constraintStart_toStartOf="@+id/textView22"
+                app:layout_constraintTop_toBottomOf="@+id/textView22"
+                tools:text="@string/lorem"/>
 
             <android.support.constraint.Barrier
                 android:id="@+id/barrier5"

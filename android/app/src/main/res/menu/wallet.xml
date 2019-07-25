@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menuClose"
+        android:icon="@drawable/ic_close_24dp"
+        android:title="@string/close_wallet"/>
+
+    <item
+        android:id="@+id/menuUseChange"
+        android:title="@string/use_change"
+        android:checkable="true"/>
+
+    <item
+        android:id="@+id/menuChangePassword"
+        android:title="@string/Change_password"/>
+
+    <item
+        android:id="@+id/menuShowSeed"
+        android:icon="@drawable/ic_key_24dp"
+        android:title="@string/show_seed"/>
+
+    <item
+        android:id="@+id/menuDelete"
+        android:icon="@drawable/ic_delete_24dp"
+        android:title="@string/Delete_wallet"/>
+
+</menu>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".TransactionsFragment"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Use match_parent, otherwise the list goes to zero height when used in
+         AddressTransactionsDialog. -->
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/rvTransactions"
+        style="@style/List.WithFAB"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:itemCount="3"
+        tools:listitem="@layout/transaction_list"/>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/btnSend"
+        style="@style/FAB.Main"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_send_24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/btnRequest"
+        style="@style/FAB.Main.Inner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_request_24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnSend"/>
+
+</android.support.constraint.ConstraintLayout>

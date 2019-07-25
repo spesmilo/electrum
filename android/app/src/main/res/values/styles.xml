@@ -5,8 +5,16 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
 
+        <!-- Make subtitle more prominent. -->
+        <item name="subtitleTextColor">@android:color/white</item>
+
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="spinnerStyle">@style/Widget.AppCompat.Spinner.Underlined</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
     </style>
 
     <!-- See https://plus.google.com/+AndroidDevelopers/posts/Z1Wwainpjhd -->
@@ -39,8 +47,15 @@
         <item name="android:layout_marginBottom">@dimen/fab_main_margin_bottom</item>
         <item name="fabSize">normal</item>
     </style>
+    <style name="FAB.Main.Inner">
+        <item name="android:layout_marginRight">@dimen/fab_inner_margin_right</item>
+    </style>
     <style name="FAB.Dialog">
         <item name="fabSize">mini</item>
+    </style>
+
+    <style name="FilterButton">
+        <item name="android:textAllCaps">false</item>
     </style>
 
     <!-- Field importances (use with `textAppearance`). -->
@@ -66,6 +81,10 @@
     </style>
     <style name="Description">
         <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
     </style>
-
+    <style name="Value">
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+    </style>
 </resources>

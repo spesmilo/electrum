@@ -17,6 +17,10 @@ android {
     defaultConfig {
         applicationId "org.electroncash.wallet"
         minSdkVersion 16
+
+        // Before increasing this to 28, all layouts must be reviewed to see whether they need
+        // <requestFocus/> tags
+        // (https://developer.android.com/about/versions/pie/android-9.0-changes-28#focus).
         targetSdkVersion 26
 
         def ecVersion = null
@@ -29,7 +33,7 @@ android {
         if (ecVersion == null) {
             throw new GradleException("Couldn't find version number")
         }
-        def BUILD_NUM = 1
+        def BUILD_NUM = 0
         versionName "$ecVersion-$BUILD_NUM"
         def verParsed = ecVersion.split(/\./).collect { Integer.parseInt(it) }
         versionCode((verParsed[0] * 1000000) + (verParsed[1] * 10000) + (verParsed[2] * 100) +
@@ -42,9 +46,10 @@ android {
                 install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
                 install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements-android.txt"
             }
+            extractPackages "electroncash.locale"
         }
         ndk {
-            abiFilters "x86", "armeabi-v7a"
+            abiFilters "x86", "armeabi-v7a", "arm64-v8a"
         }
     }
 

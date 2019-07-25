@@ -28,12 +28,25 @@
         android:id="@+id/etAddress"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:layout_marginRight="4dp"
         android:inputType="textNoSuggestions"
         android:singleLine="true"
-        app:layout_constraintEnd_toEndOf="@+id/textView4"
+        app:layout_constraintEnd_toStartOf="@+id/btnContacts"
         app:layout_constraintStart_toStartOf="@+id/textView4"
         app:layout_constraintTop_toBottomOf="@+id/textView4"
         tools:text="@string/test_address"/>
+
+    <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/btnContacts"
+        style="@style/FAB.Dialog"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@+id/etAddress"
+        app:layout_constraintEnd_toEndOf="@+id/textView4"
+        app:layout_constraintTop_toTopOf="@+id/etAddress"
+        app:srcCompat="@drawable/ic_person_24dp"/>
 
     <include
         android:id="@+id/incAmount"
@@ -56,7 +69,7 @@
         android:textOff="@string/max"
         android:textOn="@string/max"
         app:layout_constraintBottom_toBottomOf="@+id/incAmount"
-        app:layout_constraintEnd_toEndOf="@+id/etAddress"
+        app:layout_constraintEnd_toEndOf="@+id/btnContacts"
         app:layout_constraintTop_toBottomOf="@+id/etAddress"/>
 
     <TextView
@@ -95,6 +108,26 @@
         app:layout_constraintStart_toEndOf="@+id/textView7"
         app:layout_constraintTop_toTopOf="@+id/textView7"
         tools:text="@string/test_fee"/>
+
+    <TextView
+        android:id="@+id/textView22"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/description"
+        app:layout_constraintStart_toStartOf="@+id/sbFee"
+        app:layout_constraintTop_toBottomOf="@+id/sbFee"/>
+
+    <EditText
+        android:id="@+id/etDescription"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        app:layout_constraintEnd_toEndOf="@+id/sbFee"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/textView22"
+        app:layout_constraintTop_toBottomOf="@+id/textView22"
+        tools:text="@string/lorem"/>
 
 </android.support.constraint.ConstraintLayout>
 

@@ -1,13 +1,13 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.Observer
 import android.content.Context
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentActivity
 import android.support.v7.app.AlertDialog
+import android.support.v7.app.AppCompatActivity
 import android.support.v7.preference.EditTextPreference
 import android.support.v7.preference.EditTextPreferenceDialogFragmentCompat
 import android.text.InputType
@@ -19,6 +19,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Toast
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.network.*
@@ -40,11 +41,16 @@ private fun updateNetwork() {
 }
 
 
-class NetworkFragment : Fragment(), MainFragment {
-    override val title = MutableLiveData<String>().apply {
-        value = app.getString(R.string.network)
+class NetworkActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        supportFragmentManager.beginTransaction()
+            .replace(android.R.id.content, NetworkFragment()).commit()
     }
+}
 
+
+class NetworkFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.network, container, false)
@@ -52,45 +58,39 @@ class NetworkFragment : Fragment(), MainFragment {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         setupVerticalList(rvIfaces)
-        daemonUpdate.observe(viewLifecycleOwner, Observer {
-            val ifaceLock = daemonModel.network.get("interface_lock")!!
-            ifaceLock.callAttr("acquire")
-            val ifaces = ArrayList(daemonModel.network.get("interfaces")!!.asMap().values)
-            ifaces.sortBy { it.get("server").toString() }
-            ifaceLock.callAttr("release")
+        rvIfaces.adapter = IfacesAdapter(activity!!)
+        daemonUpdate.observe(viewLifecycleOwner, Observer { refresh() })
+    }
 
-            var status = getString(R.string.connected_to, ifaces.size)
-            val isSplit = daemonModel.network.callAttr("get_blockchains").asMap().size > 1
-            if (isSplit) {
-                val curChain = daemonModel.network.callAttr("blockchain")
-                status += "\n" + getString(R.string.chain_split,
-                                           curChain.callAttr("get_base_height").toInt())
-            }
-            tvStatus.text = status
+    fun refresh() {
+        val ifaceLock = daemonModel.network.get("interface_lock")!!
+        ifaceLock.callAttr("acquire")
+        val ifaces = ArrayList(daemonModel.network.get("interfaces")!!.asMap().values)
+        ifaces.sortBy { it.get("server").toString() }
+        ifaceLock.callAttr("release")
 
-            val serverIface = daemonModel.network.get("interface")
-            if (serverIface != null) {
-                tvServer.text = serverIface.callAttr("format_address").toString()
-            } else {
-                tvServer.setText(R.string.not_connected)
-            }
-            rvIfaces.adapter = IfacesAdapter(activity!!, ifaces, isSplit)
-        })
+        var status = getString(R.string.connected_to, ifaces.size)
+        val isSplit = daemonModel.network.callAttr("get_blockchains").asMap().size > 1
+        if (isSplit) {
+            val curChain = daemonModel.network.callAttr("blockchain")
+            status += "\n" + getString(R.string.chain_split,
+                                       curChain.callAttr("get_base_height").toInt())
+        }
+        tvStatus.text = status
+
+        val serverIface = daemonModel.network.get("interface")
+        if (serverIface != null) {
+            tvServer.text = serverIface.callAttr("format_address").toString()
+        } else {
+            tvServer.setText(R.string.not_connected)
+        }
+        (rvIfaces.adapter as IfacesAdapter).submitList(ifaces.map { IfaceModel(it, isSplit) })
     }
 }
 
 
-class IfacesAdapter(val activity: FragmentActivity, val ifaces: List<PyObject>,
-                    val isSplit: Boolean)
+class IfacesAdapter(val activity: FragmentActivity)
     : BoundAdapter<IfaceModel>(R.layout.iface) {
-
-    override fun getItemCount(): Int {
-        return ifaces.size
-    }
-
-    override fun getItem(position: Int): IfaceModel {
-        return IfaceModel(ifaces.get(position), isSplit)
-    }
 
     override fun onBindViewHolder(holder: BoundViewHolder<IfaceModel>, position: Int) {
         super.onBindViewHolder(holder, position)
@@ -116,10 +116,9 @@ class IfaceDialog() : MenuDialog() {
     }
     val address by lazy { arguments!!.getString("address")!! }
 
-    override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu,
-                               inflater: MenuInflater) {
+    override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
         builder.setTitle(address)
-        inflater.inflate(R.menu.iface, menu)
+        MenuInflater(app).inflate(R.menu.iface, menu)
     }
 
     override fun onMenuItemSelected(item: MenuItem) {
@@ -199,7 +198,7 @@ class ServerPreferenceDialog: EditTextPreferenceDialogFragmentCompat() {
                     onClick(dialog, AlertDialog.BUTTON_POSITIVE)
                     dismiss()
                 } catch (e: InvalidServerException) {
-                    toast(R.string.invalid_address)
+                    toast(R.string.Invalid_address, Toast.LENGTH_SHORT)
                 }
             }
         }

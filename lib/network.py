@@ -321,9 +321,9 @@ class Network(util.DaemonThread):
             # Translate the blockchain_updated and wallet_updated events
             # into the legacy 'updated' event for old external plugins that
             # still rely on this event existing. There are some external
-            # electron cash plugins that still use this event, as does android,
-            # and we need to keep this hack here so they don't break
-            # on new EC versions.  "Technical debt" :)
+            # electron cash plugins that still use this event, and we need
+            # to keep this hack here so they don't break on new EC
+            # versions.  "Technical debt" :)
             self.trigger_callback('updated')  # we will re-enter this function with event == 'updated' (triggering the warning in the elif clause below)
         elif event == 'verified2' and 'verified' in self.callbacks:
             # pop off the 'wallet' arg as the old bad 'verified' callback lacked it.

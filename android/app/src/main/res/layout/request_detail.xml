@@ -59,6 +59,7 @@
                 android:layout_marginLeft="8dp"
                 android:layout_marginRight="8dp"
                 android:layout_marginStart="8dp"
+                android:layout_marginTop="4dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
@@ -75,7 +76,6 @@
 
             <TextView
                 android:id="@+id/tvAddress"
-                style="@style/Address"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
@@ -113,7 +113,8 @@
                 app:layout_constraintEnd_toEndOf="@+id/incAmount"
                 app:layout_constraintHorizontal_bias="1.0"
                 app:layout_constraintStart_toStartOf="@+id/textView13"
-                app:layout_constraintTop_toBottomOf="@+id/textView13"/>
+                app:layout_constraintTop_toBottomOf="@+id/textView13"
+                tools:text="@string/lorem"/>
 
         </android.support.constraint.ConstraintLayout>
     </ScrollView>

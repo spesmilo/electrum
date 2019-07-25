@@ -1,12 +1,12 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android" android:opacity="opaque">
 
-    <item android:drawable="@android:color/white"/>
+    <item android:drawable="@color/colorPrimary"/>
 
     <!-- I couldn't get a vector XML drawable to work reliably on all API levels, so this is an
     old-fashioned bitmap (https://stackoverflow.com/q/9788726,
     https://stackoverflow.com/q/42691452). -->
     <item>
-        <bitmap android:src="@drawable/logo_circle" android:gravity="center"/>
+        <bitmap android:src="@drawable/logo_splash" android:gravity="center"/>
     </item>
 
 </layer-list>

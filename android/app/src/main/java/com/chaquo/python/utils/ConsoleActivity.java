@@ -18,6 +18,15 @@ import android.widget.*;
 public abstract class ConsoleActivity extends AppCompatActivity
 implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollChangedListener {
 
+    // Because tvOutput has freezesText enabled, letting it get too large can cause a
+    // TransactionTooLargeException. The limit isn't in the saved state itself, but in the
+    // Binder transaction which transfers it to the system server. So it doesn't happen if
+    // you're rotating the screen, but it does happen when you press Back.
+    //
+    // The exception message shows the size of the failed transaction, so I can determine from
+    // experiment that the limit is about 500 KB, and each character consumes 4 bytes.
+    private final int MAX_SCROLLBACK_LEN = 100000;
+
     private EditText etInput;
     private ScrollView svOutput;
     private TextView tvOutput;
@@ -194,9 +203,14 @@ implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollCha
 
     private void restoreScroll() {
         removeCursor();
+
+        // getLayout sometimes returns null even when called from onGlobalLayout, but I haven't
+        // been able to reproduce this (Electron Cash issue #1330, Chaquopy issue #5443).
         Layout layout = tvOutput.getLayout();
-        int line = layout.getLineForOffset(consoleModel.scrollChar);
-        svOutput.scrollTo(0, layout.getLineTop(line) + consoleModel.scrollAdjust);
+        if (layout != null) {
+            int line = layout.getLineForOffset(consoleModel.scrollChar);
+            svOutput.scrollTo(0, layout.getLineTop(line) + consoleModel.scrollAdjust);
+        }
 
         // If we are now scrolled to the bottom, we should stick there. (scrollTo probably won't
         // trigger onScrollChanged unless the scroll actually changed.)
@@ -255,6 +269,11 @@ implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollCha
             consoleModel.pendingNewline = true;
         } else {
             tvOutput.append(text);
+        }
+
+        Editable scrollback = (Editable) tvOutput.getText();
+        if (scrollback.length() > MAX_SCROLLBACK_LEN) {
+            scrollback.delete(0, MAX_SCROLLBACK_LEN / 10);
         }
 
         // Changes to the TextView height won't be reflected by getHeight until after the

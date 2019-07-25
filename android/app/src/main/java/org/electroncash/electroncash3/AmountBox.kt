@@ -1,11 +1,14 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
+import android.widget.Toast
 import kotlinx.android.synthetic.main.amount_box.*
 
 
 fun amountBoxGet(dialog: Dialog): Long {
-    return toSatoshis(dialog.etAmount.text.toString())
+    val amount = toSatoshis(dialog.etAmount.text.toString())
+    if (amount <= 0) throw ToastException(R.string.Invalid_amount, Toast.LENGTH_SHORT)
+    return amount
 }
 
 

@@ -2,8 +2,9 @@
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context=".WalletsFragment">
+    tools:context=".TransactionsFragment">
     <data>
+        <import type="android.view.View"/>
         <variable
             name="model"
             type="org.electroncash.electroncash3.TransactionModel"/>
@@ -23,9 +24,9 @@
             android:layout_marginStart="16dp"
             android:layout_marginTop="8dp"
             android:src="@{model.icon}"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toBottomOf="@+id/textView"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/textView2"
             tools:src="@drawable/ic_add_24dp"/>
 
         <TextView
@@ -48,6 +49,7 @@
 
         <TextView
             android:id="@+id/tvValue"
+            style="@style/Value"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
@@ -55,7 +57,7 @@
             android:layout_marginRight="8dp"
             android:layout_marginStart="6dp"
             android:layout_marginTop="8dp"
-            android:text="@{model.get(`value`).toString().substring(1)}"
+            android:text="@{model.get(`value`).substring(1)}"
             android:textAppearance="@style/Heavy"
             app:layout_constraintEnd_toStartOf="@+id/tvTimestamp"
             app:layout_constraintStart_toEndOf="@+id/barrier2"
@@ -64,18 +66,20 @@
 
         <TextView
             android:id="@+id/tvBalance"
+            style="@style/Value"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:layout_marginEnd="8dp"
             android:layout_marginRight="8dp"
             android:layout_marginTop="4dp"
-            android:text="@{model.get(`balance`).toString()}"
+            android:text="@{model.get(`balance`)}"
             android:textAppearance="@style/Medium"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/tvStatus"
             app:layout_constraintStart_toStartOf="@+id/tvValue"
             app:layout_constraintTop_toBottomOf="@+id/tvValue"
+            app:layout_constraintVertical_bias="0.0"
             tools:text="@string/test_value"/>
 
         <TextView
@@ -84,7 +88,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
             android:layout_marginRight="16dp"
-            android:text="@{model.get(`date`).toString()}"
+            android:text="@{model.get(`date`)}"
             android:textAppearance="@style/Medium"
             app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
             app:layout_constraintEnd_toEndOf="parent"
@@ -94,10 +98,26 @@
             android:id="@+id/tvStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text='@{model.confirmationsStr}'
             app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
             app:layout_constraintEnd_toEndOf="@+id/tvTimestamp"
-            android:text='@{model.confirmationsStr}'
-            tools:text="3 confirmations"/>
+            tools:text="1234 confirmations"/>
+
+        <TextView
+            android:id="@+id/tvDescription"
+            style="@style/Description"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="4dp"
+            android:text="@{model.get(`label`)}"
+            android:textAppearance="@style/Medium"
+            android:visibility="@{model.get(`label`).isEmpty() ? View.GONE: View.VISIBLE}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@+id/tvStatus"
+            app:layout_constraintStart_toStartOf="@+id/textView"
+            app:layout_constraintTop_toBottomOf="@+id/textView"
+            tools:text="@string/lorem"/>
 
         <android.support.constraint.Barrier
             android:id="@+id/barrier2"
