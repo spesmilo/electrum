@@ -2304,7 +2304,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except Exception as e:
             self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
             return
-        self.do_clear()
         self.show_send_tab()
         r = out.get('r')
         sig = out.get('sig')
