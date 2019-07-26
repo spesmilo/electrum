@@ -112,3 +112,10 @@ fi
 GIT_DIR_NAME=`basename $GIT_REPO`
 PACKAGE=$GIT_DIR_NAME  # Modify this if you like -- Windows and MacOS build scripts read this
 PYI_SKIP_TAG="${PYI_SKIP_TAG:-0}" # Set this to non-zero to make PyInstaller skip tagging the bootloader
+
+# Build a command line argument for docker, enabling interactive mode if stdin
+# is a tty and enabling tty in docker if stdout is a tty.
+DOCKER_RUN_TTY=""
+if [ -t 0 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}i" ; fi
+if [ -t 1 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}t" ; fi
+if [ -n "$DOCKER_RUN_TTY" ] ; then DOCKER_RUN_TTY="-${DOCKER_RUN_TTY}" ; fi
