@@ -50,29 +50,33 @@ $SUDO docker build -t electroncash-wine-builder-img contrib/build-wine/docker \
 
 # This is the place where we checkout and put the exact revision we want to work
 # on. Docker will run mapping this directory to /opt/wine64/drive_c/electroncash
-# which inside wine will look lik c:\electroncash
-FRESH_CLONE=`pwd`/contrib/build-wine/fresh_clone
-FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
+# which inside wine will look like c:\electroncash
+WINE_PREFIX=`pwd`/contrib/build-wine/wine_prefix
+FRESH_CLONE="$WINE_PREFIX/drive_c/electroncash"
 
 (
-    $SUDO rm -fr $FRESH_CLONE && \
+    $SUDO rm -fr $WINE_PREFIX && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone $GIT_REPO && \
-        cd $GIT_DIR_NAME && \
-        git checkout $REV
+        git clone $GIT_REPO $FRESH_CLONE && \
+        cd $FRESH_CLONE && \
+        git checkout -b fresh $REV
 ) || fail "Could not create a fresh clone from git"
+
+mkdir "$WINE_PREFIX/home" || fail "Failed to create home directory"
 
 (
     # NOTE: We propagate forward the GIT_REPO override to the container's env,
     # just in case it needs to see it.
     $SUDO docker run $DOCKER_RUN_TTY \
+    -e HOME="/opt/wine64/home" \
     -e GIT_REPO="$GIT_REPO" \
     -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
     --name electroncash-wine-builder-cont \
-    -v $FRESH_CLONE_DIR:/opt/wine64/drive_c/electroncash \
+    -v $WINE_PREFIX:/opt/wine64 \
     --rm \
     --workdir /opt/wine64/drive_c/electroncash/contrib/build-wine \
+    -u $(id -u $USER):$(id -g $USER) \
     electroncash-wine-builder-img \
     ./_build.sh $REV
 ) || fail "Build inside docker container failed"
@@ -81,15 +85,15 @@ popd
 
 info "Copying .exe files out of our build directory ..."
 mkdir -p dist/
-files=$FRESH_CLONE_DIR/contrib/build-wine/dist/*.exe
+files=$FRESH_CLONE/contrib/build-wine/dist/*.exe
 for f in $files; do
     bn=`basename $f`
     cp -fpv $f dist/$bn || fail "Failed to copy $bn"
     touch dist/$bn || fail "Failed to update timestamp on $bn"
 done
 
-info "Removing $FRESH_CLONE ..."
-$SUDO rm -fr $FRESH_CLONE
+info "Removing $WINE_PREFIX ..."
+$SUDO rm -fr $WINE_PREFIX
 
 echo ""
 info "Done. Built .exe files have been placed in dist/"

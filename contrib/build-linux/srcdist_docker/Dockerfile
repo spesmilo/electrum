@@ -24,6 +24,7 @@ RUN apt-get update -q && \
         faketime \
         python3 \
         python3-pip \
+        python3-venv \
         pkg-config \
         libjpeg-dev \
         && \

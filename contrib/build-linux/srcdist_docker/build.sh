@@ -65,15 +65,19 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
         git checkout $REV
 ) || fail "Could not create a fresh clone from git"
 
+mkdir "$FRESH_CLONE_DIR/contrib/build-linux/home" || fail "Failed to create home directory"
+
 (
     # NOTE: We propagate forward the GIT_REPO override to the container's env,
     # just in case it needs to see it.
     $SUDO docker run $DOCKER_RUN_TTY \
+    -e HOME="/opt/electroncash/contrib/build-linux/home" \
     -e GIT_REPO="$GIT_REPO" \
     --name electroncash-srcdist-builder-cont \
     -v $FRESH_CLONE_DIR:/opt/electroncash \
     --rm \
     --workdir /opt/electroncash/contrib/build-linux/srcdist_docker \
+    -u $(id -u $USER):$(id -g $USER) \
     electroncash-srcdist-builder-img \
     ./_build.sh $REV
 ) || fail "Build inside docker container failed"
