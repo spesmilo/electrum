@@ -545,12 +545,12 @@ class Peer(Logger):
             "remote_config": remote_config,
             "local_config": local_config,
             "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
-            "fee_updates": [FeeUpdate(rate=feerate, ctn={LOCAL:0, REMOTE:0})],
             "remote_commitment_to_be_revoked": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
-                       lnworker=self.lnworker)
+                       lnworker=self.lnworker,
+                       initial_feerate=feerate)
         sig_64, _ = chan.sign_next_commitment()
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -634,11 +634,11 @@ class Peer(Logger):
                 "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
                 "remote_commitment_to_be_revoked": None,
-                "fee_updates": [FeeUpdate(feerate, ctn={LOCAL:0, REMOTE:0})],
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
-                       lnworker=self.lnworker)
+                       lnworker=self.lnworker,
+                       initial_feerate=feerate)
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
@@ -1029,7 +1029,7 @@ class Peer(Logger):
         # if there are no changes, we will not (and must not) send a new commitment
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
         if (next_htlcs == latest_htlcs
-                and chan.get_next_feerate(REMOTE) == chan.get_current_feerate(REMOTE)) \
+                and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE)) \
                 or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
         self.logger.info(f'send_commitment. old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
@@ -1091,7 +1091,7 @@ class Peer(Logger):
         chan = self.channels[channel_id]
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         if (chan.hm.get_htlcs_in_next_ctx(LOCAL) == chan.hm.get_htlcs_in_latest_ctx(LOCAL)
-                and chan.get_next_feerate(LOCAL) == chan.get_current_feerate(LOCAL)):
+                and chan.get_next_feerate(LOCAL) == chan.get_latest_feerate(LOCAL)):
             raise RemoteMisbehaving('received commitment_signed without pending changes')
         # make sure ctn is new
         ctn_to_recv = chan.get_current_ctn(LOCAL) + 1

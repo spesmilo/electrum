@@ -7,13 +7,13 @@ from .util import bh2u
 
 class HTLCManager:
 
-    def __init__(self, *, local_ctn=0, remote_ctn=0, log=None):
+    def __init__(self, *, local_ctn=0, remote_ctn=0, log=None, initial_feerate=None):
         # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
         self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
         # ctx_pending[sub] is True iff sub has received commitment_signed but did not send revoke_and_ack (sub has multiple unrevoked ctxs)
         self.ctx_pending = {LOCAL:False, REMOTE: False} # FIXME does this need to be persisted?
         if log is None:
-            initial = {'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}}
+            initial = {'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}, 'fee_updates': []}
             log = {LOCAL: deepcopy(initial), REMOTE: deepcopy(initial)}
         else:
             assert type(log) is dict
@@ -25,6 +25,14 @@ class HTLCManager:
                 log[sub]['locked_in'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['locked_in'].items()}
                 log[sub]['settles'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['settles'].items()}
                 log[sub]['fails'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['fails'].items()}
+                # "side who initiated fee update" -> action -> list of FeeUpdates
+                log[sub]['fee_updates'] = [FeeUpdate.from_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
+        # maybe bootstrap fee_updates if initial_feerate was provided
+        if initial_feerate is not None:
+            assert type(initial_feerate) is int
+            for sub in (LOCAL, REMOTE):
+                if not log[sub]['fee_updates']:
+                    log[sub]['fee_updates'].append(FeeUpdate(initial_feerate, ctns={LOCAL:0, REMOTE:0}))
         self.log = log
 
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -39,7 +47,11 @@ class HTLCManager:
             for htlc_id, htlc in log[sub]['adds'].items():
                 d[htlc_id] = (htlc[0], bh2u(htlc[1])) + htlc[2:]
             log[sub]['adds'] = d
+            # fee_updates
+            log[sub]['fee_updates'] = [FeeUpdate.to_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
         return log
+
+    ##### Actions on channel:
 
     def channel_open_finished(self):
         self.ctn = {LOCAL: 0, REMOTE: 0}
@@ -68,6 +80,25 @@ class HTLCManager:
     def recv_fail(self, htlc_id: int) -> None:
         self.log[LOCAL]['fails'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None}
 
+    def send_update_fee(self, feerate: int) -> None:
+        fee_update = FeeUpdate(rate=feerate,
+                               ctns={LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1})
+        self._new_feeupdate(fee_update, subject=LOCAL)
+
+    def recv_update_fee(self, feerate: int) -> None:
+        fee_update = FeeUpdate(rate=feerate,
+                               ctns={LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None})
+        self._new_feeupdate(fee_update, subject=REMOTE)
+
+    def _new_feeupdate(self, fee_update: FeeUpdate, subject: HTLCOwner) -> None:
+        # overwrite last fee update if not yet committed to by anyone; otherwise append
+        last_fee_update = self.log[subject]['fee_updates'][-1]
+        if (last_fee_update.ctns[LOCAL] is None or last_fee_update.ctns[LOCAL] > self.ctn_latest(LOCAL)) \
+                and (last_fee_update.ctns[REMOTE] is None or last_fee_update.ctns[REMOTE] > self.ctn_latest(REMOTE)):
+            self.log[subject]['fee_updates'][-1] = fee_update
+        else:
+            self.log[subject]['fee_updates'].append(fee_update)
+
     def send_ctx(self) -> None:
         assert self.ctn_latest(REMOTE) == self.ctn[REMOTE], (self.ctn_latest(REMOTE), self.ctn[REMOTE])
         self.ctx_pending[REMOTE] = True
@@ -79,6 +110,7 @@ class HTLCManager:
     def send_rev(self) -> None:
         self.ctn[LOCAL] += 1
         self.ctx_pending[LOCAL] = False
+        # htlcs
         for ctns in self.log[REMOTE]['locked_in'].values():
             if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                 ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
@@ -86,10 +118,15 @@ class HTLCManager:
             for ctns in self.log[LOCAL][log_action].values():
                 if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                     ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
+        # fee updates
+        for fee_update in self.log[REMOTE]['fee_updates']:
+            if fee_update.ctns[REMOTE] is None and fee_update.ctns[LOCAL] <= self.ctn_latest(LOCAL):
+                fee_update.ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
 
     def recv_rev(self) -> None:
         self.ctn[REMOTE] += 1
         self.ctx_pending[REMOTE] = False
+        # htlcs
         for ctns in self.log[LOCAL]['locked_in'].values():
             if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                 ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
@@ -97,6 +134,12 @@ class HTLCManager:
             for ctns in self.log[REMOTE][log_action].values():
                 if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                     ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+        # fee updates
+        for fee_update in self.log[LOCAL]['fee_updates']:
+            if fee_update.ctns[LOCAL] is None and fee_update.ctns[REMOTE] <= self.ctn_latest(REMOTE):
+                fee_update.ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+
+    ##### Queries re HTLCs:
 
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Sequence[UpdateAddHtlc]:
@@ -186,3 +229,40 @@ class HTLCManager:
         return [self.log[LOCAL]['adds'][htlc_id]
                 for htlc_id, ctns in self.log[LOCAL]['settles'].items()
                 if ctns[LOCAL] == ctn]
+
+    ##### Queries re Fees:
+
+    def get_feerate(self, subject: HTLCOwner, ctn: int) -> int:
+        """Return feerate used in subject's commitment txn at ctn."""
+        ctn = max(0, ctn)  # FIXME rm this
+        # only one party can update fees; use length of logs to figure out which:
+        assert not (len(self.log[LOCAL]['fee_updates']) > 1 and len(self.log[REMOTE]['fee_updates']) > 1)
+        fee_log = self.log[LOCAL]['fee_updates']  # type: Sequence[FeeUpdate]
+        if len(self.log[REMOTE]['fee_updates']) > 1:
+            fee_log = self.log[REMOTE]['fee_updates']
+        # binary search
+        left = 0
+        right = len(fee_log)
+        while True:
+            i = (left + right) // 2
+            ctn_at_i = fee_log[i].ctns[subject]
+            if right - left <= 1:
+                break
+            if ctn_at_i is None:  # Nones can only be on the right end
+                right = i
+                continue
+            if ctn_at_i <= ctn:  # among equals, we want the rightmost
+                left = i
+            else:
+                right = i
+        assert ctn_at_i <= ctn
+        return fee_log[i].rate
+
+    def get_feerate_in_oldest_unrevoked_ctx(self, subject: HTLCOwner) -> int:
+        return self.get_feerate(subject=subject, ctn=self.ctn[subject])
+
+    def get_feerate_in_latest_ctx(self, subject: HTLCOwner) -> int:
+        return self.get_feerate(subject=subject, ctn=self.ctn_latest(subject))
+
+    def get_feerate_in_next_ctx(self, subject: HTLCOwner) -> int:
+        return self.get_feerate(subject=subject, ctn=self.ctn_latest(subject) + 1)

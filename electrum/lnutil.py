@@ -5,7 +5,7 @@
 from enum import IntFlag, IntEnum
 import json
 from collections import namedtuple
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union
+from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict
 import re
 
 from .util import bfh, bh2u, inv_dict
@@ -78,7 +78,21 @@ class RemoteConfig(NamedTuple):
     current_per_commitment_point: Optional[bytes]
 
 
-FeeUpdate = namedtuple("FeeUpdate", ["rate", "ctn"])
+class FeeUpdate(NamedTuple):
+    rate: int  # in sat/kw
+    ctns: Dict['HTLCOwner', Optional[int]]
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'FeeUpdate':
+        return FeeUpdate(rate=d['rate'],
+                         ctns={LOCAL: d['ctns'][str(int(LOCAL))],
+                               REMOTE: d['ctns'][str(int(REMOTE))]})
+
+    def to_dict(self) -> dict:
+        return {'rate': self.rate,
+                'ctns': {int(LOCAL): self.ctns[LOCAL],
+                         int(REMOTE): self.ctns[REMOTE]}}
+
 
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 

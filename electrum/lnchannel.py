@@ -91,11 +91,6 @@ def str_bytes_dict_from_save(x):
 def str_bytes_dict_to_save(x):
     return {str(k): bh2u(v) for k, v in x.items()}
 
-def deserialize_feeupdate(x):
-    return FeeUpdate(rate=x['rate'], ctn={LOCAL:x['ctn'][str(int(LOCAL))], REMOTE:x['ctn'][str(int(REMOTE))]})
-
-def serialize_feeupdate(x):
-    return {'rate':x.rate, 'ctn': {int(LOCAL):x.ctn[LOCAL], int(REMOTE):x.ctn[REMOTE]}}
 
 class Channel(Logger):
     # note: try to avoid naming ctns/ctxs/etc as "current" and "pending".
@@ -110,7 +105,7 @@ class Channel(Logger):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, *, sweep_address=None, name=None, lnworker=None):
+    def __init__(self, state, *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         Logger.__init__(self)
         self.lnworker = lnworker
@@ -137,7 +132,6 @@ class Channel(Logger):
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
         self.force_closed = state.get('force_closed')
-        self.fee_updates = [deserialize_feeupdate(x) if type(x) is not FeeUpdate else x for x in state.get('fee_updates')] # populated with initial fee
 
         # FIXME this is a tx serialised in the custom electrum partial tx format.
         # we should not persist txns in this format. we should persist htlcs, and be able to derive
@@ -148,7 +142,8 @@ class Channel(Logger):
         log = state.get('log')
         self.hm = HTLCManager(local_ctn=self.config[LOCAL].ctn,
                               remote_ctn=self.config[REMOTE].ctn,
-                              log=log)
+                              log=log,
+                              initial_feerate=initial_feerate)
 
 
         self._is_funding_txo_spent = None  # "don't know"
@@ -158,42 +153,17 @@ class Channel(Logger):
         self.remote_commitment = None
         self.sweep_info = {}
 
-    def pending_fee(self):
-        """ return FeeUpdate that has not been commited on any side"""
-        for f in self.fee_updates:
-            if f.ctn[LOCAL] is None and f.ctn[REMOTE] is None:
-                return f
+    def get_feerate(self, subject, ctn):
+        return self.hm.get_feerate(subject, ctn)
 
-    def locally_pending_fee(self):
-        """ return FeeUpdate that been commited remotely and is still pending locally (should used if we are initiator)"""
-        for f in self.fee_updates:
-            if f.ctn[LOCAL] is None and f.ctn[REMOTE] is not None:
-                return f
+    def get_oldest_unrevoked_feerate(self, subject):
+        return self.hm.get_feerate_in_oldest_unrevoked_ctx(subject)
 
-    def remotely_pending_fee(self):
-        """ return FeeUpdate that been commited locally and is still pending remotely (should be used if we are not initiator)"""
-        for f in self.fee_updates:
-            if f.ctn[LOCAL] is not None and f.ctn[REMOTE] is None:
-                return f
-
-    def get_feerate(self, subject, target_ctn):
-        next_ctn = self.config[subject].ctn + 1
-        assert target_ctn <= next_ctn
-        result = self.fee_updates[0]
-        for f in self.fee_updates[1:]:
-            ctn = f.ctn[subject]
-            if ctn is None:
-                ctn = next_ctn
-            if ctn > result.ctn[subject] and ctn <= target_ctn:
-                best_ctn = ctn
-                result = f
-        return result.rate
-
-    def get_current_feerate(self, subject):
-        return self.get_feerate(subject, self.config[subject].ctn)
+    def get_latest_feerate(self, subject):
+        return self.hm.get_feerate_in_latest_ctx(subject)
 
     def get_next_feerate(self, subject):
-        return self.get_feerate(subject, self.config[subject].ctn + 1)
+        return self.hm.get_feerate_in_next_ctx(subject)
 
     def get_payments(self):
         out = {}
@@ -398,10 +368,6 @@ class Channel(Logger):
             current_htlc_signatures=htlc_sigs_string,
             got_sig_for_next=True)
 
-        # if a fee update was acked, then we add it locally
-        f = self.locally_pending_fee()
-        if f: f.ctn[LOCAL] = next_local_ctn
-
         self.set_local_commitment(pending_local_commitment)
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool, ctx) -> int:
@@ -476,8 +442,6 @@ class Channel(Logger):
         prev_remote_commitment = self.pending_commitment(REMOTE)
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         ##### start applying fee/htlc changes
-        f = self.pending_fee()
-        if f: f.ctn[REMOTE] = next_ctn
         next_point = self.config[REMOTE].next_per_commitment_point
         self.hm.recv_rev()
         self.config[REMOTE]=self.config[REMOTE]._replace(
@@ -540,7 +504,7 @@ class Channel(Logger):
                 - calc_onchain_fees(
                       # TODO should we include a potential new htlc, when we are called from receive_htlc?
                       len(self.included_htlcs(subject, SENT) + self.included_htlcs(subject, RECEIVED)),
-                      self.get_current_feerate(subject),
+                      self.get_latest_feerate(subject),
                       self.constraints.is_initiator,
                   )[subject]
 
@@ -627,13 +591,14 @@ class Channel(Logger):
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x[2] for x in self.pending_commitment(LOCAL).outputs())
 
-    def update_fee(self, feerate, initiator):
-        f = self.pending_fee()
-        if f:
-            f.rate = feerate
-            return
-        f = FeeUpdate(rate=feerate, ctn={LOCAL:None, REMOTE:None})
-        self.fee_updates.append(f)
+    def update_fee(self, feerate: int, from_us: bool):
+        # feerate uses sat/kw
+        if self.constraints.is_initiator != from_us:
+            raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
+        if from_us:
+            self.hm.send_update_fee(feerate)
+        else:
+            self.hm.recv_update_fee(feerate)
 
     def to_save(self):
         to_save = {
@@ -645,7 +610,6 @@ class Channel(Logger):
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
-                "fee_updates": self.fee_updates,
                 "log": self.hm.to_save(),
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "force_closed": self.force_closed,
@@ -659,8 +623,6 @@ class Channel(Logger):
         for k, v in to_save_ref.items():
             if isinstance(v, tuple):
                 serialized_channel[k] = namedtuples_to_dict(v)
-            elif k == 'fee_updates':
-                serialized_channel[k] = [serialize_feeupdate(x) for x in v]
             else:
                 serialized_channel[k] = v
         dumped = ChannelJsonEncoder().encode(serialized_channel)

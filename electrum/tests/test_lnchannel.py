@@ -37,7 +37,7 @@ from electrum.logging import console_stderr_handler
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
-def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
+def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
     assert local_amount > 0
     assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
@@ -94,7 +94,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,
             ),
-            "fee_updates": [FeeUpdate(rate=local_feerate, ctn={LOCAL:0, REMOTE:0})],
             "node_id":other_node_id,
             "remote_commitment_to_be_revoked": None,
             'onion_keys': {},
@@ -126,11 +125,16 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX), "big"))
     bob_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX), "big"))
 
-    alice, bob = \
+    alice, bob = (
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, feerate, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), name="alice"), \
+            create_channel_state(funding_txid, funding_index, funding_sat, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4),
+            name="alice",
+            initial_feerate=feerate),
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, feerate, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), name="bob")
+            create_channel_state(funding_txid, funding_index, funding_sat, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5),
+            name="bob",
+            initial_feerate=feerate)
+    )
 
     alice.set_state('OPEN')
     bob.set_state('OPEN')
@@ -540,22 +544,25 @@ class TestChannel(unittest.TestCase):
 
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
         rev, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         alice_channel.receive_revocation(rev)
 
-        
+
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.get_current_feerate(LOCAL))
+        self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
         rev, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(rev)
-        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
 
 
     def test_UpdateFeeReceiverCommits(self):
@@ -571,20 +578,23 @@ class TestChannel(unittest.TestCase):
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
         bob_revocation, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(bob_revocation)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.get_current_feerate(LOCAL))
+        self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
         alice_revocation, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(alice_revocation)
-        self.assertEqual(fee, bob_channel.get_current_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
+        self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
 
     @unittest.skip("broken probably because we havn't implemented detecting when we come out of a situation where we violate reserve")
     def test_AddHTLCNegativeBalance(self):
@@ -802,7 +812,7 @@ class TestDust(unittest.TestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.get_current_feerate(LOCAL)
+        fee_per_kw = alice_channel.get_next_feerate(LOCAL)
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
