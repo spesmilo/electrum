@@ -47,6 +47,10 @@ from . import verifier
 from . import blockchain
 from . import caches
 
+# 'cashacct:' URI scheme. Used by Crescent Cash and Electron Cash and
+# other wallets in the future.
+URI_SCHEME = 'cashacct'
+
 # Cash Accounts protocol code prefix is 0x01010101
 # See OP_RETURN prefix guideline: https://github.com/bitcoincashorg/bitcoincash.org/blob/master/spec/op_return-prefix-guideline.md
 protocol_code = bytes.fromhex("01010101")

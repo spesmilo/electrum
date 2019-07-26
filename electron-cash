@@ -377,7 +377,8 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.lower().startswith(networks.net.CASHADDR_PREFIX + ':'):
+        lc_uri = uri.lower()
+        if not any(lc_uri.startswith(scheme + ':') for scheme in web.parseable_schemes()):
             print_stderr('unknown command:', uri)
             sys.exit(1)
         config_options['url'] = uri

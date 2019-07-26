@@ -142,6 +142,11 @@ Section
   WriteRegStr HKCU "Software\Classes\bitcoincash" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\bitcoincash" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
   WriteRegStr HKCU "Software\Classes\bitcoincash\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe$\" $\"%1$\""
+  ;Links cashacct: URI's to Electron Cash
+  WriteRegStr HKCU "Software\Classes\cashacct" "" "URL:cashacct Protocol"
+  WriteRegStr HKCU "Software\Classes\cashacct" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\cashacct" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
+  WriteRegStr HKCU "Software\Classes\cashacct\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe$\" $\"%1$\""
 
   ;Adds an uninstaller possibilty to Windows Uninstall or change a program section
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
@@ -187,6 +192,7 @@ Section "Uninstall"
   RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"
 
   DeleteRegKey HKCU "Software\Classes\bitcoincash"
+  DeleteRegKey HKCU "Software\Classes\cashacct"
   DeleteRegKey HKCU "Software\${PRODUCT_NAME}"
   DeleteRegKey HKCU "${PRODUCT_UNINST_KEY}"
 SectionEnd

@@ -36,6 +36,7 @@ from electroncash.address import Address, ScriptOutput
 from electroncash import networks
 from electroncash.util import PrintError
 from electroncash.contacts import Contact
+from electroncash import web
 
 from . import util
 from . import cashacctqt
@@ -160,7 +161,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.cointext = None
         if len(lines) == 1:
             data = lines[0]
-            if data.lower().startswith(networks.net.CASHADDR_PREFIX + ":"):
+            lc_data = data.lower()
+            if any(lc_data.startswith(scheme + ":") for scheme in web.parseable_schemes()):
                 self.scan_f(data)
                 return
             try:

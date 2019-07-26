@@ -175,9 +175,24 @@ else
     pyinstaller --clean --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 fi
 
-info "Adding bitcoincash URI types to Info.plist"
+info "Adding bitcoincash & cashacct URI types to Info.plist"
+# NB: Make sure there are no trailing spaces after the '\' characters here
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoincash</string> <key>CFBundleURLSchemes</key> <array><string>bitcoincash</string></array> </dict></array>' \
+	-xml \
+'<array> '\
+'<dict> '\
+'  <key>CFBundleURLName</key> '\
+'  <string>bitcoincash</string> '\
+'  <key>CFBundleURLSchemes</key> '\
+'    <array><string>bitcoincash</string></array> '\
+'</dict> '\
+'<dict> '\
+'  <key>CFBundleURLName</key> '\
+'  <string>CashAccount</string> '\
+'  <key>CFBundleURLSchemes</key> '\
+'    <array><string>cashacct</string></array> '\
+'</dict> '\
+'</array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component type="desktop">
-	<id>electron-cash.desktop</id>
+<component type="desktop-application">
+	<id>org.electroncash.ElectronCash</id>
 	<name>Electron Cash</name>
 	<developer_name>Jonald Fyookball</developer_name>
 	<summary>Lightweight Bitcoin Cash Client</summary>
@@ -8,13 +8,22 @@
 		<p>Electron Cash is an SPV wallet for Bitcoin Cash</p>
 		<p>Control your own private keys. Easily back up your wallet with a mnemonic seed phrase. Enjoy high security without downloading the blockchain or running a full node.</p>
 	</description>
+	<keywords>
+		<keyword>cryptocurrency</keyword>
+		<keyword>finance</keyword>
+		<keyword>bitcoin</keyword>
+		<keyword>bitcoincash</keyword>
+		<keyword>wallet</keyword>
+		<keyword>SPV</keyword>
+		<keyword>crypto</keyword>
+	</keywords>
 	<metadata_license>CC0-1.0</metadata_license>
 	<project_license>MIT</project_license>
 	<url type="homepage">https://www.electroncash.org/</url>
 	<url type="help">https://github.com/Electron-Cash/Electron-Cash/issues?q=is%3Aissue</url>
 	<screenshots>
 		<screenshot type="default">
-			<image type="source">https://www.electroncash.org/images/shot4.png</image>
+			<image type="source">https://www.electroncash.org/images/wallet-shot-3.png</image>
 			<caption>Main application window</caption>
 		</screenshot>
 	</screenshots>
@@ -25,5 +34,8 @@
 		<python3>electroncash_gui</python3>
 		<python3>electroncash_plugins</python3>
 	</provides>
-	<update_contact>alexander-fp@ninetailed.ninja</update_contact>
+	<mimetypes>
+		<mimetype>x-scheme-handler/bitcoincash</mimetype>
+		<mimetype>x-scheme-handler/cashacct</mimetype>
+	</mimetypes>
 </component>

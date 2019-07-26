@@ -13,7 +13,7 @@ StartupNotify=true
 StartupWMClass=Electron Cash
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/bitcoincash;
+MimeType=x-scheme-handler/bitcoincash;x-scheme-handler/cashacct;
 Actions=Testnet;
 
 [Desktop Action Testnet]

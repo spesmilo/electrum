@@ -2292,6 +2292,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except Exception as e:
             self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
             return
+        self.do_clear()
         self.show_send_tab()
         r = out.get('r')
         sig = out.get('sig')
@@ -2337,6 +2338,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.message_opreturn_e.setHidden(True)
             self.opreturn_rawhex_cb.setHidden(True)
             self.opreturn_label.setHidden(True)
+
+        if address:
+            # this is important so that cashacct: URIs get insta-resolved
+            # (they only get resolved when payto_e loses focus)
+            self.message_e.setFocus()
+        elif not self.payto_e.isReadOnly() and self.payto_e.isVisible():
+            # otherwise, if the address field is empty, jump focus to the
+            # payto_e to indicate to the user that's what they need to
+            # fill in next.
+            self.payto_e.setFocus()
 
     def do_clear(self):
         ''' Clears the send tab, reseting its UI state to its initiatial state.'''
