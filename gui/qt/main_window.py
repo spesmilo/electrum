@@ -2350,15 +2350,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.opreturn_rawhex_cb.setHidden(True)
             self.opreturn_label.setHidden(True)
 
-        if address:
+        if address and URI.lower().startswith(cashacct.URI_SCHEME + ':'):
             # this is important so that cashacct: URIs get insta-resolved
             # (they only get resolved when payto_e loses focus)
             self.message_e.setFocus()
-        elif not self.payto_e.isReadOnly() and self.payto_e.isVisible():
-            # otherwise, if the address field is empty, jump focus to the
-            # payto_e to indicate to the user that's what they need to
-            # fill in next.
-            self.payto_e.setFocus()
 
     def do_clear(self):
         ''' Clears the send tab, reseting its UI state to its initiatial state.'''
