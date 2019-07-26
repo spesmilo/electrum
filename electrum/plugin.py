@@ -596,7 +596,7 @@ class DeviceMgr(ThreadJob):
 
     def scan_devices(self):
         self.logger.info("scanning devices...")
-        
+
         # First see what's connected that we know about
         devices = self._scan_devices_with_hid()
 
@@ -606,7 +606,7 @@ class DeviceMgr(ThreadJob):
                 new_devices = f()
             except BaseException as e:
                 self.logger.error('custom device enum failed. func {}, error {}'
-                                  .format(str(f), str(e)))
+                                  .format(str(f), repr(e)))
             else:
                 devices.extend(new_devices)
 
@@ -625,5 +625,5 @@ class DeviceMgr(ThreadJob):
         # Unpair disconnected devices
         for id_ in disconnected_ids:
             self.unpair_id(id_)
-        
+
         return devices

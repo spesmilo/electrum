@@ -1,18 +1,13 @@
-from struct import pack, unpack
 from os import urandom
 import hashlib
-import hmac
-import sys
-import traceback
 
 #electrum
 from electrum import mnemonic
-#from electrum import bitcoin
 from electrum import constants
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
-from electrum.plugin import BasePlugin, Device
-from electrum.keystore import Hardware_KeyStore
+from electrum.plugin import BasePlugin, Device, run_hook
+from electrum.keystore import Hardware_KeyStore, bip39_to_seed
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.util import bfh, bh2u, versiontuple
@@ -20,15 +15,12 @@ from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
 from electrum.mnemonic import Mnemonic
-from electrum.keystore import bip39_to_seed
-from electrum.plugin import run_hook
-from electrum.bip32 import BIP32Node
+from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
 from electrum.logging import get_logger
 
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 
 #pysatochip
 from .CardConnector import CardConnector, UninitializedSeedError
@@ -49,21 +41,28 @@ SATOCHIP_PID= 0 #0x0503
 
 MSG_USE_2FA= _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. First you have to install the Satochip-2FA android app on google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. Warning: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!")
 
-def bip32path2bytes(bip32path:str) -> (int, bytes):
-    splitPath = bip32path.split('/')
-    splitPath=[x for x in splitPath if x] # removes empty values
-    if splitPath[0] == 'm':
-        splitPath = splitPath[1:]
-        #bip32path = bip32path[2:]
+# def bip32path2bytes(bip32path:str) -> (int, bytes):
+    # splitPath = bip32path.split('/')
+    # splitPath=[x for x in splitPath if x] # removes empty values
+    # if splitPath[0] == 'm':
+        # splitPath = splitPath[1:]
     
-    bytePath=b''
-    depth= len(splitPath)    
-    for index in splitPath:
-        if index.endswith("'"):
-           bytePath+= pack( ">I", int(index.rstrip("'"))+0x80000000 )   
-        else:
-           bytePath+=pack( ">I", int(index) )
+    # bytePath=b''
+    # depth= len(splitPath)    
+    # for index in splitPath:
+        # if index.endswith("'"):
+           # bytePath+= pack( ">I", int(index.rstrip("'"))+0x80000000 )   
+        # else:
+           # bytePath+=pack( ">I", int(index) )
         
+    # return (depth, bytePath)
+
+def bip32path2bytes(bip32path:str) -> (int, bytes):
+    intPath= convert_bip32_path_to_list_of_uint32(bip32path)
+    depth= len(intPath)    
+    bytePath=b''
+    for index in intPath:
+        bytePath+= index.to_bytes(4, byteorder='big', signed=False)
     return (depth, bytePath)
 
 class SatochipClient():
@@ -97,15 +96,15 @@ class SatochipClient():
         pass
 
     def is_initialized(self):
-        _logger.info(f"[SatochipClient] is_initialized(): TODO - currently set to true!")#debugSatochip
+        # TODO - currently set to true #debugSatochip
         return True
 
     def label(self):
-        _logger.info(f"[SatochipClient] label(): TODO - currently empty")#debugSatochip
+        # TODO - currently empty #debugSatochip
         return ""
 
-    def i4b(self, x):
-        return pack('>I', x)
+    # def i4b(self, x):
+        # return pack('>I', x)
 
     def has_usable_connection_with_device(self):
         try:
@@ -118,14 +117,6 @@ class SatochipClient():
     def get_xpub(self, bip32_path, xtype):
         assert xtype in SatochipPlugin.SUPPORTED_XTYPES
         
-        # try:
-            # hex_authentikey= self.handler.win.wallet.storage.get('authentikey')
-            # _logger.info(f"[SatochipClient] get_xpub(): self.handler.win.wallet.storage.authentikey:{str(hex_authentikey)}")#debugSatochip
-            # if hex_authentikey is not None:
-                # self.parser.authentikey_from_storage= ECPubkey(bytes.fromhex(hex_authentikey))
-        # except Exception as e: #attributeError?
-            # _logger.exception(f"Exception when getting authentikey from self.handler.win.wallet.storage:{str(e)}")#debugSatochip
-        
         # bip32_path is of the form 44'/0'/1'
         _logger.info(f"[SatochipClient] get_xpub(): bip32_path={bip32_path}")#debugSatochip
         (depth, bytepath)= bip32path2bytes(bip32_path)
@@ -137,7 +128,6 @@ class SatochipClient():
             (parentkey, parentchaincode)= self.cc.card_bip32_get_extendedkey(bytepath[0:-4])
             fingerprint= hash_160(parentkey.get_public_key_bytes(compressed=True))[0:4]
             child_number= bytepath[-4:]
-        #xpub= serialize_xpub(xtype, childchaincode, childkey.get_public_key_bytes(compressed=True), depth, fingerprint, child_number)
         xpub= BIP32Node(xtype=xtype,
                          eckey=childkey,
                          chaincode=childchaincode,
@@ -155,16 +145,16 @@ class SatochipClient():
             _logger.exception(f"Exception: {str(e)}")
             raise RuntimeError("Communication issue with Satochip")
         
-    def perform_hw1_preflight(self):
-        pass
+    # def perform_hw1_preflight(self):
+        # pass
 
-    def checkDevice(self):
-        if not self.preflightDone:
-            try:
-                self.perform_hw1_preflight()
-            except Exception as e:
-                print(e)
-            self.preflightDone = True
+    # def checkDevice(self):
+        # if not self.preflightDone:
+            # try:
+                # self.perform_hw1_preflight()
+            # except Exception as e:
+                # print(e)
+            # self.preflightDone = True
 
     def PIN_dialog(self, msg):
         while True:
@@ -312,8 +302,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
                         d={}
                         d['msg_encrypt']= msg_out
                         d['id_2FA']= id_2FA
-                        # _logger.info(f"encrypted message: {msg_out}")
-                        _logger.info(f"id_2FA: {id_2FA}")
+                        #_logger.info(f"encrypted message: {msg_out}")
+                        #_logger.info(f"id_2FA: {id_2FA}")
                         
                         #do challenge-response with 2FA device...
                         client.handler.show_message('2FA request sent! Approve or reject request on your second device.')
@@ -332,7 +322,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
                             break
                         chalresponse=reply_decrypt[1]
                         if chalresponse=="00"*20:
-                            #todo: abort tx?
+                            #todo: abort tx
                             break
                         chalresponse= list(bytes.fromhex(chalresponse))
                     else:
@@ -376,11 +366,6 @@ class SatochipPlugin(HW_PluginBase):
         _logger.info(f"[SatochipPlugin] init()")#debugSatochip
         HW_PluginBase.__init__(self, parent, config, name)
 
-        #self.libraries_available = self.check_libraries_available() #debugSatochip
-        #if not self.libraries_available:
-        #    return
-
-        #self.device_manager().register_devices(self.DEVICE_IDS)
         self.device_manager().register_enumerate_func(self.detect_smartcard_reader)
         
     def get_library_version(self):
@@ -437,11 +422,12 @@ class SatochipPlugin(HW_PluginBase):
             if (sw1==0x90 and sw2==0x00):
                 v_supported= (CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION<<8)+CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION
                 v_applet= (d["protocol_major_version"]<<8)+d["protocol_minor_version"] 
-                strcmp= 'lower' if (v_applet<v_supported) else 'higher'   
                 _logger.info(f"[SatochipPlugin] setup_device(): Satochip version={hex(v_applet)} Electrum supported version= {hex(v_supported)}")#debugSatochip
-                if (v_supported!=v_applet):
-                    msg=_('The version of your Satochip (v{v_applet_maj:x}.{v_applet_min:x}) is {strcmp} than supported by Electrum (v{v_supported_maj:x}.{v_supported_min:x}). You should update Electrum to ensure correct function!').format(strcmp=strcmp, v_applet_maj=d["protocol_major_version"], v_applet_min=d["protocol_minor_version"],  v_supported_maj=CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION, v_supported_min=CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION)
-                    client.handler.show_error(msg)
+                if (v_supported<v_applet):
+                    msg=(_('The version of your Satochip is higher than supported by Electrum. You should update Electrum to ensure correct functioning!')+ '\n' 
+                                + f'    Satochip version: {d["protocol_major_version"]}.{d["protocol_minor_version"]}' + '\n' 
+                                + f'    Supported version: {CardConnector.SATOCHIP_PROTOCOL_MAJOR_VERSION}.{CardConnector.SATOCHIP_PROTOCOL_MINOR_VERSION}')
+                    client.handler.show_error(msg)    
                 break
             # setup device (done only once)
             elif (sw1==0x9c and sw2==0x04):
@@ -519,11 +505,9 @@ class SatochipPlugin(HW_PluginBase):
                 _logger.info(f"[SatochipPlugin] setup_device(): import seed") #debugSatochip
                 self.choose_seed(wizard)
                 seed= list(self.bip32_seed)
-                #seed= bytes([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]) # Bip32 test vectors
                 authentikey= client.cc.card_bip32_import_seed(seed)
             hex_authentikey= authentikey.get_public_key_hex(compressed=True)
             _logger.info(f"[SatochipPlugin] setup_device(): authentikey={hex_authentikey}")#debugSatochip
-            #wizard.storage.put('authentikey', hex_authentikey)
             wizard.data['authentikey']= hex_authentikey
             client.parser.authentikey_from_storage= authentikey
             break
@@ -617,8 +601,7 @@ class SatochipPlugin(HW_PluginBase):
     def restore_from_seed(self, wizard):
         wizard.opt_bip39 = True
         wizard.opt_ext = True
-        #is_cosigning_seed = lambda x: seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed #if self.wallet_type == 'standard' else is_cosigning_seed
+        test = mnemonic.is_seed 
         f= lambda seed, is_bip39, is_ext: self.on_restore_seed(wizard, seed, is_bip39, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=test)
         

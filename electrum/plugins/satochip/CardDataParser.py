@@ -18,8 +18,8 @@
  * limitations under the License.
 """  
 import hashlib
-from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException
-from electrum.util import to_bytes
+from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException, sig_string_from_der_sig, construct_sig65
+from electrum.util import to_bytes, bfh, bh2u
 #from electrum.bitcoin import var_int
 from electrum.crypto import sha256d
 from electrum.logging import get_logger
@@ -103,6 +103,7 @@ class CardDataParser:
         hash = sha256d(msg_magic(message))
         coordx= pubkey.get_public_key_bytes()
         
+        response= bytearray(response)
         recid=-1
         for id in range(4):
             compsig=self.parse_to_compact_sig(response, id, compressed=True)
@@ -187,49 +188,52 @@ class CardDataParser:
     
     def parse_to_compact_sig(self, sigin, recid, compressed):
         ''' convert a DER encoded signature to compact 65-byte format
-            input is hex string in DER format
-            output is hex string in compact 65-byteformat
+            input is bytearray in DER format
+            output is bytearray in compact 65-byteformat
             http://bitcoin.stackexchange.com/questions/12554/why-the-signature-is-always-65-13232-bytes-long
             https://bitcointalk.org/index.php?topic=215205.0            
         '''
-        sigout= bytearray(65*[0])
-        # parse input 
-        first= sigin[0]
-        if first!= 0x30:
-            raise ValueError("Wrong first byte!")
-        lt= sigin[1]
-        check= sigin[2]
-        if  check!= 0x02:
-            raise ValueError("Check byte should be 0x02")
-        # extract r
-        lr= sigin[3]
-        for i in range(32):
-            tmp= sigin[4+lr-1-i]
-            if lr>=(i+1):
-                sigout[32-i]= tmp
-            else:
-                sigout[32-i]=0 
-        # extract s
-        check= sigin[4+lr];
-        if check!= 0x02:
-            raise ValueError("Second check byte should be 0x02")
-        ls= sigin[5+lr]
-        if lt != (lr+ls+4):
-            raise ValueError("Wrong lt value")
-        for i in range(32):
-            tmp= sigin[5+lr+ls-i]
-            if ls>=(i+1):
-                sigout[64-i]= tmp;
-            else:
-                sigout[32-i]=0;              
-        # 1 byte header
-        if recid>3 or recid<0:
-            raise ValueError("Wrong recid value")
-        if compressed:
-            sigout[0]= 27 + recid + 4 
-        else:
-            sigout[0]= 27 + recid             
+        sig_string = sig_string_from_der_sig(sigin)
+        return construct_sig65(sig_string, recid, compressed)
         
-        return sigout;
+        # sigout= bytearray(65*[0])
+        # # parse input 
+        # first= sigin[0]
+        # if first!= 0x30:
+            # raise ValueError("Wrong first byte!")
+        # lt= sigin[1]
+        # check= sigin[2]
+        # if  check!= 0x02:
+            # raise ValueError("Check byte should be 0x02")
+        # # extract r
+        # lr= sigin[3]
+        # for i in range(32):
+            # tmp= sigin[4+lr-1-i]
+            # if lr>=(i+1):
+                # sigout[32-i]= tmp
+            # else:
+                # sigout[32-i]=0 
+        # # extract s
+        # check= sigin[4+lr];
+        # if check!= 0x02:
+            # raise ValueError("Second check byte should be 0x02")
+        # ls= sigin[5+lr]
+        # if lt != (lr+ls+4):
+            # raise ValueError("Wrong lt value")
+        # for i in range(32):
+            # tmp= sigin[5+lr+ls-i]
+            # if ls>=(i+1):
+                # sigout[64-i]= tmp;
+            # else:
+                # sigout[32-i]=0;              
+        # # 1 byte header
+        # if recid>3 or recid<0:
+            # raise ValueError("Wrong recid value")
+        # if compressed:
+            # sigout[0]= 27 + recid + 4 
+        # else:
+            # sigout[0]= 27 + recid             
+        
+        # return sigout;
      
 

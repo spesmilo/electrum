@@ -1,6 +1,5 @@
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
-#from smartcard.CardConnectionObserver import ConsoleCardConnectionObserver
 from smartcard.CardConnectionObserver import CardConnectionObserver
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.Exceptions import CardConnectionException, CardRequestTimeoutException
@@ -26,15 +25,18 @@ class LogCardConnectionObserver( CardConnectionObserver ):
         elif 'disconnect'==ccevent.type:
             _logger.info(f"disconnecting from {cardconnection.getReader()}")
         elif 'command'==ccevent.type:
-            _logger.info(f"> {toHexString(ccevent.args[0])}")
+            if (ccevent.args[0][1] in (JCconstants.INS_SETUP, JCconstants.INS_BIP32_IMPORT_SEED, 
+                                                    JCconstants.INS_CREATE_PIN, JCconstants.INS_VERIFY_PIN, 
+                                                    JCconstants.INS_CHANGE_PIN, JCconstants.INS_UNBLOCK_PIN)):
+                _logger.info(f"> {toHexString(ccevent.args[0][0:5])}{(len(ccevent.args[0])-5)*' *'}")
+            else:        
+                _logger.info(f"> {toHexString(ccevent.args[0])}")
         elif 'response'==ccevent.type:
             if []==ccevent.args[0]:
-                #print_error( '< [] ', "%-2X %-2X" % tuple(ccevent.args[-2:]))
                 _logger.info(f"< [] {ccevent.args[-2]:02X} {ccevent.args[-1]:02X}")
             else:
-                #print_error('< ', toHexString(ccevent.args[0]), "%-2X %-2X" % tuple(ccevent.args[-2:]))
                 _logger.info(f"< {toHexString(ccevent.args[0])} {ccevent.args[-2]:02X} {ccevent.args[-1]:02X}")
-                
+                                 
 # a simple card observer that detects inserted/removed cards
 class RemovalObserver(CardObserver):
     """A simple card observer that is notified
@@ -537,6 +539,8 @@ class CardConnector:
                 else:
                     msg = _("Enter the PIN for your Satochip:")
                 (is_PIN, pin_0, pin_0)= self.client.PIN_dialog(msg)
+                if pin_0 is None:
+                    raise RuntimeError('Device cannot be unlocked without PIN code!')
                 pin_0= list(pin_0)
             else: 
                 pin_0= self.pin                
@@ -610,7 +614,6 @@ class UnexpectedSW12Error(Exception):
 if __name__ == "__main__":
     
     cardconnector= CardConnector()
-    #cardconnector=satochiClient()
     cardconnector.card_get_ATR()
     cardconnector.card_select()
     #cardconnector.card_setup()

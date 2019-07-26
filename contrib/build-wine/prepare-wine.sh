@@ -77,7 +77,7 @@ wine "$CACHEDIR/$ZBAR_FILENAME" /S
 info "Installing pyscard..."
 download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
 verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
-$PYTHON -m pip install "$PWD/$PYSCARD_FILENAME"
+$PYTHON -m pip install "$CACHEDIR/$PYSCARD_FILENAME"
 
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"

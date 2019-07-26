@@ -62,7 +62,8 @@ class Plugin(BasePlugin):
         server.delete(id_2FA)
         server.delete(replyhash)
         server.put(id_2FA, msg)
-
+        _logger.info(f"challenge sent to id_2FA:{id_2FA}")
+         
         # wait for reply
         timeout= 180
         period=10
