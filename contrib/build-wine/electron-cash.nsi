@@ -125,28 +125,28 @@ Section
 
   ;Create desktop shortcut
   DetailPrint "Creating desktop shortcut..."
-  CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" ""
+  CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" ""
 
   ;Create start-menu items
   DetailPrint "Creating start-menu items..."
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "" "$INSTDIR\${INTERNAL_NAME}.exe" 0
   ;See #1255 where some users have bad opengl drivers and need to use software-only rendering. Requires we package openglsw32.dll with the app.
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} (Software OpenGL).lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "--qt_opengl software" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" "--testnet" "$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} (Software OpenGL).lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--qt_opengl software" "$INSTDIR\${INTERNAL_NAME}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--testnet" "$INSTDIR\${INTERNAL_NAME}.exe" 0
 
 
   ;Links bitcoincash: URI's to Electron Cash
   WriteRegStr HKCU "Software\Classes\bitcoincash" "" "URL:bitcoincash Protocol"
   WriteRegStr HKCU "Software\Classes\bitcoincash" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\bitcoincash" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
-  WriteRegStr HKCU "Software\Classes\bitcoincash\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe$\" $\"%1$\""
+  WriteRegStr HKCU "Software\Classes\bitcoincash\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
   ;Links cashacct: URI's to Electron Cash
   WriteRegStr HKCU "Software\Classes\cashacct" "" "URL:cashacct Protocol"
   WriteRegStr HKCU "Software\Classes\cashacct" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\cashacct" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
-  WriteRegStr HKCU "Software\Classes\cashacct\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}-${PRODUCT_VERSION}.exe$\" $\"%1$\""
+  WriteRegStr HKCU "Software\Classes\cashacct\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
 
   ;Adds an uninstaller possibilty to Windows Uninstall or change a program section
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"

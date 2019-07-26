@@ -111,3 +111,4 @@ if [ "$GIT_REPO" != "$DEFAULT_GIT_REPO" ]; then
 fi
 GIT_DIR_NAME=`basename $GIT_REPO`
 PACKAGE=$GIT_DIR_NAME  # Modify this if you like -- Windows and MacOS build scripts read this
+PYI_SKIP_TAG="${PYI_SKIP_TAG:-0}" # Set this to non-zero to make PyInstaller skip tagging the bootloader

@@ -68,6 +68,7 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
     # just in case it needs to see it.
     $SUDO docker run -it \
     -e GIT_REPO="$GIT_REPO" \
+    -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
     --name electroncash-wine-builder-cont \
     -v $FRESH_CLONE_DIR:/opt/wine64/drive_c/electroncash \
     --rm \

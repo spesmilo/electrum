@@ -200,9 +200,13 @@ prepare_wine() {
             git init
             git remote add origin $PYINSTALLER_REPO
             git fetch --depth 1 origin $PYINSTALLER_COMMIT
-            git checkout FETCH_HEAD
+            git checkout -b build FETCH_HEAD
             rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
-            echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
+            if [ ${PYI_SKIP_TAG:-0} -eq 0 ] ; then
+                echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
+            else
+                warn "Skipping PyInstaller tag"
+            fi
             pushd bootloader
             # If switching to 64-bit Windows, edit CC= below
             python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
@@ -304,8 +308,13 @@ build_the_app() {
 
         # build standalone and portable versions
         info "Running Pyinstaller to build standalone and portable .exe versions ..."
-        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec || fail "Pyinstaller failed"
+        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT -w deterministic.spec || fail "Pyinstaller failed"
 
+        # rename the output files
+        pushd dist
+        mv $NAME_ROOT.exe $NAME_ROOT-$VERSION.exe
+        mv $NAME_ROOT-portable.exe $NAME_ROOT-$VERSION-portable.exe
+        popd
 
         # set timestamps in dist, in order to make the installer reproducible
         pushd dist
