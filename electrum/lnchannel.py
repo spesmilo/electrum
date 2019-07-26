@@ -707,7 +707,7 @@ class Channel(Logger):
         return int(self.config[LOCAL].multisig_key.pubkey > self.config[REMOTE].multisig_key.pubkey)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
-                        fee_sat: int) -> Tuple[bytes, int, str]:
+                        fee_sat: int) -> Tuple[bytes, Transaction]:
         """ cooperative close """
         _, outputs = make_commitment_outputs({
                     LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,

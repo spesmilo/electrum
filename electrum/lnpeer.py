@@ -1359,7 +1359,7 @@ class Peer(Logger):
             their_sig = cs_payload['signature']
             if our_fee == their_fee:
                 break
-            # TODO: negociate better
+            # TODO: negotiate better
             our_fee = their_fee
         # index of our_sig
         i = chan.get_local_index()
