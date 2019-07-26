@@ -35,10 +35,13 @@ set -e
 
 info "Using docker: $docker_version"
 
-SUDO=""  # on macOS (and others?) we don't do sudo for the docker commands ...
-if [ $(uname) = "Linux" ]; then
-    # .. on Linux we do
-    SUDO="sudo"
+# Only set SUDO if its not been set already
+if [ -z ${SUDO+x} ] ; then
+    SUDO=""  # on macOS (and others?) we don't do sudo for the docker commands ...
+    if [ $(uname) = "Linux" ]; then
+        # .. on Linux we do
+        SUDO="sudo"
+    fi
 fi
 
 
