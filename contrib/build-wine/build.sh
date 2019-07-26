@@ -60,7 +60,7 @@ FRESH_CLONE="$WINE_PREFIX/drive_c/electroncash"
         cd $FRESH_CLONE  && \
         git clone $GIT_REPO $FRESH_CLONE && \
         cd $FRESH_CLONE && \
-        git checkout -b fresh $REV
+        git checkout $REV
 ) || fail "Could not create a fresh clone from git"
 
 mkdir "$WINE_PREFIX/home" || fail "Failed to create home directory"
