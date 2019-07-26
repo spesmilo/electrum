@@ -6,29 +6,40 @@ umask 0022
 # First, some functions that build scripts may use for pretty printing
 if [ -t 1 ] ; then
     RED='\033[0;31m'
-    BLUE='\033[0,34m'
+    BLUE='\033[0;34m'
     YELLOW='\033[0;33m'
     GREEN='\033[0;32m'
     NC='\033[0m' # No Color
+
+    MSG_INFO="\r💬 ${BLUE}INFO:${NC}"
+    MSG_ERROR="\r🗯  ${RED}ERROR:${NC}"
+    MSG_WARNING="\r⚠️  ${YELLOW}WARNING:${NC}"
+    MSG_OK="\r👍  ${GREEN}OK:${NC}"
 else
     RED=''
     BLUE=''
     YELLOW=''
     GREEN=''
     NC='' # No Color
+
+    MSG_INFO="INFO:"
+    MSG_ERROR="ERROR:"
+    MSG_WARNING="WARNING:"
+    MSG_OK="OK:"
 fi
+
 function info {
-	printf "\r💬 ${BLUE}INFO:${NC}  ${1}\n"
+    printf "${MSG_INFO}  ${1}\n"
 }
 function fail {
-    printf "\r🗯  ${RED}ERROR:${NC}  ${1}\n" >&2
+    printf "${MSG_ERROR}  ${1}\n" >&2
     exit 1
 }
 function warn {
-	printf "\r⚠️  ${YELLOW}WARNING:${NC}  ${1}\n"
+    printf "${MSG_WARNING}  ${1}\n"
 }
 function printok {
-    printf "\r👍  ${GREEN}OK:${NC}  ${1}\n"
+    printf "${MSG_OK}  ${1}\n"
 }
 
 function verify_hash {
