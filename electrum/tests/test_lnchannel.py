@@ -226,6 +226,8 @@ class TestChannel(unittest.TestCase):
         self.bob_channel.add_htlc(self.htlc_dict)
         self.alice_channel.receive_htlc(self.htlc_dict)
         self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
+        self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 3)
+        self.alice_channel.revoke_current_commitment()
         self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 4)
 
     def test_SimpleAddSettleWorkflow(self):
@@ -279,8 +281,8 @@ class TestChannel(unittest.TestCase):
         self.assertTrue(alice_channel.signature_fits(com()))
         self.assertEqual(str(alice_channel.current_commitment(LOCAL)), str(com()))
 
-        self.assertEqual(next(iter(alice_channel.hm.pending_htlcs(REMOTE)))[0], RECEIVED)
-        self.assertEqual(alice_channel.hm.pending_htlcs(REMOTE), bob_channel.hm.pending_htlcs(LOCAL))
+        self.assertEqual(next(iter(alice_channel.hm.get_htlcs_in_next_ctx(REMOTE)))[0], RECEIVED)
+        self.assertEqual(alice_channel.hm.get_htlcs_in_next_ctx(REMOTE), bob_channel.hm.get_htlcs_in_next_ctx(LOCAL))
         self.assertEqual(alice_channel.pending_commitment(REMOTE).outputs(), bob_channel.pending_commitment(LOCAL).outputs())
 
         # Bob receives this signature message, and checks that this covers the
@@ -291,13 +293,10 @@ class TestChannel(unittest.TestCase):
         self.assertTrue(bob_channel.signature_fits(bob_channel.pending_commitment(LOCAL)))
 
         self.assertEqual(bob_channel.config[REMOTE].ctn, 0)
-        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [htlc])
+        self.assertEqual(bob_channel.included_htlcs(LOCAL, RECEIVED, 1), [htlc])#
 
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
-
-        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 0), [])
-        self.assertEqual(bob_channel.included_htlcs(REMOTE, SENT, 1), [htlc])
 
         self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 0), [])
         self.assertEqual(alice_channel.included_htlcs(REMOTE, SENT, 1), [])
@@ -323,7 +322,11 @@ class TestChannel(unittest.TestCase):
         self.assertTrue(alice_channel.signature_fits(com()))
         self.assertEqual(str(alice_channel.current_commitment(LOCAL)), str(com()))
 
-        self.assertEqual(len(alice_channel.pending_commitment(LOCAL).outputs()), 3)
+        # so far: Alice added htlc, Alice signed.
+        self.assertEqual(len(alice_channel.current_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.pending_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.current_commitment(REMOTE).outputs()), 2)  # oldest unrevoked
+        self.assertEqual(len(alice_channel.pending_commitment(REMOTE).outputs()), 3)  # latest
 
         # Alice then processes this revocation, sending her own revocation for
         # her prior commitment transaction. Alice shouldn't have any HTLCs to

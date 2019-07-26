@@ -1024,12 +1024,12 @@ class Peer(Logger):
     def maybe_send_commitment(self, chan: Channel):
         ctn_to_sign = chan.get_current_ctn(REMOTE) + 1
         # if there are no changes, we will not (and must not) send a new commitment
-        pending, current = chan.hm.pending_htlcs(REMOTE), chan.hm.current_htlcs(REMOTE)
-        if (pending == current
+        next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
+        if (next_htlcs == latest_htlcs
                 and chan.pending_feerate(REMOTE) == chan.constraints.feerate) \
                 or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
-        self.logger.info(f'send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
+        self.logger.info(f'send_commitment. old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         self.sent_commitment_for_ctn_last[chan] = ctn_to_sign
@@ -1087,8 +1087,8 @@ class Peer(Logger):
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
-        if (chan.hm.pending_htlcs(LOCAL) == chan.hm.current_htlcs(LOCAL)
-            and chan.pending_feerate(LOCAL) == chan.constraints.feerate):
+        if (chan.hm.get_htlcs_in_next_ctx(LOCAL) == chan.hm.get_htlcs_in_latest_ctx(LOCAL)
+                and chan.pending_feerate(LOCAL) == chan.constraints.feerate):
             raise RemoteMisbehaving('received commitment_signed without pending changes')
         # make sure ctn is new
         ctn_to_recv = chan.get_current_ctn(LOCAL) + 1

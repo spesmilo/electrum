@@ -113,6 +113,10 @@ def str_bytes_dict_to_save(x):
     return {str(k): bh2u(v) for k, v in x.items()}
 
 class Channel(Logger):
+    # note: try to avoid naming ctns/ctxs/etc as "current" and "pending".
+    #       they are ambiguous. Use "oldest_unrevoked" or "latest" or "next".
+    #       TODO enforce this ^
+
     def diagnostic_name(self):
         if self.name:
             return str(self.name)
@@ -154,7 +158,9 @@ class Channel(Logger):
         self.remote_commitment_to_be_revoked.deserialize(True)
 
         log = state.get('log')
-        self.hm = HTLCManager(self.config[LOCAL].ctn, self.config[REMOTE].ctn, log)
+        self.hm = HTLCManager(local_ctn=self.config[LOCAL].ctn,
+                              remote_ctn=self.config[REMOTE].ctn,
+                              log=log)
 
         self.name = name
         Logger.__init__(self)
@@ -209,6 +215,7 @@ class Channel(Logger):
         return self.force_closed or self.get_state() in ['CLOSED', 'CLOSING']
 
     def _check_can_pay(self, amount_msat: int) -> None:
+        # TODO check if this method uses correct ctns (should use "latest" + 1)
         if self.is_closed():
             raise PaymentFailure('Channel closed')
         if self.get_state() != 'OPEN':
@@ -525,6 +532,7 @@ class Channel(Logger):
         not be used in the UI cause it fluctuates (commit fee)
         """
         # FIXME whose balance? whose ctx?
+        # FIXME confusing/mixing ctns (should probably use latest_ctn + 1; not oldest_unrevoked + 1)
         assert type(subject) is HTLCOwner
         return self.balance_minus_outgoing_htlcs(subject, ctx_owner=subject)\
                 - self.config[-subject].reserve_sat * 1000\
