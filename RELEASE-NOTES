@@ -665,3 +665,7 @@ and there is no warning message.
 * Added support for "cashacct:" URIs #1547. You can paste these in the Pay-to
   edit in the Send tab or, if on Linux, Mac & Windows, click on a cashacct:
   link in your browser as well. (cculianu)
+* Fixed esoteric crash bug which would occur sometimes when opening the
+  preferences dialog. This bug was do due bugs in PyQt5 when using QtMultimedia
+  and the fix involved loading QtMultimedia at app start, rather than on-demand.
+  #1545 (cculianu)
