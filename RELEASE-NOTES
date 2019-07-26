@@ -661,3 +661,7 @@ and there is no warning message.
   distributions. (Axel Gembe)
 * Added preferences options for "Use FreeType" (Windows) and "fontconfig
   overrides" (Linux).  (cculianu)
+* Updated blockchain checkpoint to block 592911. (Malcolm Smith)
+* Added support for "cashacct:" URIs #1547. You can paste these in the Pay-to
+  edit in the Send tab or, if on Linux, Mac & Windows, click on a cashacct:
+  link in your browser as well. (cculianu)
