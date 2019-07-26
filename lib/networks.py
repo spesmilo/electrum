@@ -54,13 +54,16 @@ class MainNet(AbstractNet):
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
     BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
 
-    # Note to Jonald or anyone reading this: the below is misleadingly named.  It's not a simple
-    # MERKLE_ROOT but a MERKLE_PROOF which is basically the hashes of all MERKLE_ROOTS up until and including
-    # this block. Consult the ElectrumX documentation.
-    # To get this value you need to connect to an ElectrumX server you trust and issue it a protocol command.
-    # blockchain.block.header (see ElectrumX docs)
-    VERIFICATION_BLOCK_MERKLE_ROOT = "b8f9b1649d0bba75e2c2ea4be73395a0967397003f33a40653caca0ec6a73baa"
-    VERIFICATION_BLOCK_HEIGHT = 560644
+    # Note: this is not the Merkle root of the verification block itself , but a Merkle root of
+    # all blockchain headers up until and including this block. To get this value you need to
+    # connect to an ElectrumX server you trust and issue it a protocol command. This can be
+    # done in the console as follows:
+    #
+    #    network.synchronous_get(("blockchain.block.header", [height, height]))
+    #
+    # Consult the ElectrumX documentation for more details.
+    VERIFICATION_BLOCK_MERKLE_ROOT = "fcf0ac1b7d7efc16d93e8ec9211def5977827482420b5210718731ecd6c4edb4"
+    VERIFICATION_BLOCK_HEIGHT = 592911
 
     # Version numbers for BIP32 extended keys
     # standard: xprv, xpub
