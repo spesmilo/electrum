@@ -705,7 +705,8 @@ class Peer(Logger):
                 revocation_store = chan.config[REMOTE].revocation_store
                 last_rev_index = current_remote_ctn - 1
                 last_rev_secret = revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
-            last_secret, last_point = chan.local_points(offset=0)
+            current_local_ctn = chan.get_current_ctn(LOCAL)
+            last_secret, last_point = chan.get_secret_and_point(LOCAL, current_local_ctn)
             self.send_message(
                 "channel_reestablish",
                 channel_id=chan_id,
@@ -731,16 +732,17 @@ class Peer(Logger):
             self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
             return
         # compare local ctns
-        if chan.config[LOCAL].ctn != their_next_remote_ctn:
-            if chan.config[LOCAL].ctn == their_next_remote_ctn + 1:
+        our_local_ctn = chan.get_current_ctn(LOCAL)
+        if our_local_ctn != their_next_remote_ctn:
+            if our_local_ctn == their_next_remote_ctn + 1:
                 # A node:
                 #    if next_remote_revocation_number is equal to the
                 #    commitment number of the last revoke_and_ack
                 #    the receiving node sent, AND the receiving node
                 #    hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
-                last_secret, last_point = chan.local_points(offset=-1)
-                next_secret, next_point = chan.local_points(offset=1)
+                last_secret, last_point = chan.get_secret_and_point(LOCAL, our_local_ctn - 1)
+                next_secret, next_point = chan.get_secret_and_point(LOCAL, our_local_ctn + 1)
                 self.send_message(
                     "revoke_and_ack",
                     channel_id=chan.channel_id,
@@ -762,7 +764,7 @@ class Peer(Logger):
                 # FIXME ...what now?
                 self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
                 return
-        if their_next_local_ctn == chan.config[LOCAL].ctn+1 == 1 and chan.short_channel_id:
+        if their_next_local_ctn == our_local_ctn + 1 == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:

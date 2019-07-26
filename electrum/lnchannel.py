@@ -410,15 +410,9 @@ class Channel(Logger):
                 self.lnworker.payment_completed(self, SENT, htlc)
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
-        last_secret, last_point = self.local_points(offset=-1)
-        next_secret, next_point = self.local_points(offset=1)
+        last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
+        next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
-
-    def local_points(self, *, offset=0):
-        ctn = self.config[LOCAL].ctn + offset
-        secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
-        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
-        return secret, point
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
@@ -518,27 +512,46 @@ class Channel(Logger):
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return list(filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs))
 
-    def pending_commitment(self, subject):
+    def get_secret_and_point(self, subject, ctn):
         assert type(subject) is HTLCOwner
-        this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.local_points(offset=1)[1]
-        ctn = self.config[subject].ctn + 1
-        feerate = self.get_feerate(subject, ctn)
-        return self.make_commitment(subject, this_point, ctn, feerate, True)
+        offset = ctn - self.get_current_ctn(subject)
+        if subject == REMOTE:
+            assert offset <= 1, offset
+            conf = self.config[REMOTE]
+            if offset == 1:
+                secret = None
+                point = conf.next_per_commitment_point
+            elif offset == 0:
+                secret = None
+                point = conf.current_per_commitment_point
+            else:
+                secret = conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+                point = secret_to_pubkey(int.from_bytes(secret, 'big'))
+        else:
+            secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+            point = secret_to_pubkey(int.from_bytes(secret, 'big'))
+        return secret, point
+
+    def get_secret_and_commitment(self, subject, ctn):
+        secret, point = self.get_secret_and_point(subject, ctn)
+        ctx = self.make_commitment(subject, point, ctn)
+        return secret, ctx
+
+    def get_commitment(self, subject, ctn):
+        secret, ctx = self.get_secret_and_commitment(subject, ctn)
+        return ctx
+
+    def pending_commitment(self, subject):
+        ctn = self.get_current_ctn(subject)
+        return self.get_commitment(subject, ctn + 1)
 
     def current_commitment(self, subject):
-        assert type(subject) is HTLCOwner
-        this_point = self.config[REMOTE].current_per_commitment_point if subject == REMOTE else self.local_points(offset=0)[1]
-        ctn = self.config[subject].ctn
-        feerate = self.get_feerate(subject, ctn)
-        return self.make_commitment(subject, this_point, ctn, feerate, False)
+        ctn = self.get_current_ctn(subject)
+        return self.get_commitment(subject, ctn)
 
     def create_sweeptxs(self, ctn):
         from .lnsweep import create_sweeptxs_for_watchtower
-        their_conf = self.config[REMOTE]
-        feerate = self.get_feerate(REMOTE, ctn)
-        secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
-        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
-        ctx = self.make_commitment(REMOTE, point, ctn, feerate, False)
+        secret, ctx = self.get_secret_and_commitment(REMOTE, ctn)
         return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
 
     def get_current_ctn(self, subject):
@@ -643,10 +656,9 @@ class Channel(Logger):
     def __str__(self):
         return str(self.serialize())
 
-    def make_commitment(self, subject, this_point, ctn, feerate, pending) -> Transaction:
-        #if subject == REMOTE and not pending:
-        #    ctn -= 1
+    def make_commitment(self, subject, this_point, ctn) -> Transaction:
         assert type(subject) is HTLCOwner
+        feerate = self.get_feerate(subject, ctn)
         other = REMOTE if LOCAL == subject else LOCAL
         local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
         remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
