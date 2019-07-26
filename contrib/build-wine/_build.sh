@@ -330,6 +330,9 @@ build_the_app() {
         cd dist
         mv $NAME_ROOT-setup.exe $NAME_ROOT-$VERSION-setup.exe  || fail "Failed to move $NAME_ROOT-$VERSION-setup.exe to the output dist/ directory"
 
+        ls -la *.exe
+        sha256sum *.exe
+
         popd
 
     ) || fail "Failed to build $PACKAGE"
