@@ -4,11 +4,19 @@
 umask 0022
 
 # First, some functions that build scripts may use for pretty printing
-RED='\033[0;31m'
-BLUE='\033[0,34m'
-YELLOW='\033[0;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+if [ -t 1 ] ; then
+    RED='\033[0;31m'
+    BLUE='\033[0,34m'
+    YELLOW='\033[0;33m'
+    GREEN='\033[0;32m'
+    NC='\033[0m' # No Color
+else
+    RED=''
+    BLUE=''
+    YELLOW=''
+    GREEN=''
+    NC='' # No Color
+fi
 function info {
 	printf "\r💬 ${BLUE}INFO:${NC}  ${1}\n"
 }
