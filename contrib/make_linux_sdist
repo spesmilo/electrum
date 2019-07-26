@@ -11,11 +11,21 @@ set -e
 
 pushd "$contrib"/..
 
+# EC_PACKAGE_VERSION and EC_PACKAGE_NAME are used by setup.py to specify
+# generated filename with a version from git tag. Otherwise defaults are used.
+EC_PACKAGE_VERSION=`git describe --tags` || fail "Could not get determine git tag version"
+EC_PACKAGE_NAME="${PACKAGE}"
+export EC_PACKAGE_VERSION EC_PACKAGE_NAME
+
+info "Making SrcDist for version: ${EC_PACKAGE_NAME}-${EC_PACKAGE_VERSION} ..."
+
 "$contrib"/make_locale && \
     "$contrib"/make_packages && \
     python3 setup.py sdist --enable-secp --enable-zbar --format=zip,gztar || fail "Failed."
 
-info "Linux source distribution (including compiled libseck256k1) has been placed in dist/"
+unset EC_PACKAGE_VERSION EC_PACKAGE_NAME
+
+info "Linux source distribution (including compiled libseck256k1 & libzbar) has been placed in dist/"
 
 popd
 popd
