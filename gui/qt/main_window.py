@@ -69,6 +69,18 @@ from .popup_widget import ShowPopupLabel, KillPopupLabel, PopupWidget
 from . import cashacctqt
 from .util import *
 
+try:
+    # pre-load QtMultimedia at app start, if possible
+    # this is because lazy-loading it from within Python
+    # callbacks led to crashes on Linux, likely due to
+    # bugs in PyQt5 (crashes wouldn't happen when testing
+    # with PySide2!).
+    from PyQt5.QtMultimedia import QCameraInfo
+    del QCameraInfo  # defensive programming: not always available so don't keep name around
+except ImportError as e:
+    pass  # we tried to pre-load it, failure is ok; camera just won't be available
+
+
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
         QPushButton.__init__(self, icon, '')
@@ -3835,8 +3847,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def settings_dialog(self):
+        class SettingsModalDialog(WindowModalDialog):
+            shown_signal = pyqtSignal()
+            def showEvent(self, e):
+                super().showEvent(e)
+                self.shown_signal.emit()
         self.need_restart = False
-        d = WindowModalDialog(self.top_level_window(), _('Preferences'))
+        dialog_finished = False
+        d = SettingsModalDialog(self.top_level_window(), _('Preferences'))
         d.setObjectName('WindowModalDialog - Preferences')
         destroyed_print_error(d)
         vbox = QVBoxLayout()
@@ -4022,26 +4040,51 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((block_ex_label, block_ex_combo))
 
         qr_combo = QComboBox()
-        qr_combo.addItem(_("Default"),"default")
-        system_cameras = []
-        try:
-            from PyQt5.QtMultimedia import QCameraInfo
-            system_cameras = QCameraInfo.availableCameras()
-            qr_label = HelpLabel(_('Video Device') + ':', _("For scanning Qr codes."))
-        except ImportError as e:
+        qr_label = HelpLabel(_('Video Device'), '')
+        qr_did_scan = False
+        def set_no_camera(e=''):
             # Older Qt or missing libs -- disable GUI control and inform user why
             qr_combo.setEnabled(False)
+            qr_combo.clear()
+            qr_combo.addItem(_("Default"), "default")
             qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
-            qr_label = HelpLabel(_('Video Device') + ' ' + _('(disabled)') + ':', qr_combo.toolTip() + "\n\n" + str(e))
+            qr_label.setText(_('Video Device') + ' ' + _('(disabled)') + ':')
+            qr_label.help_text = qr_combo.toolTip() + "\n\n" + str(e)
             qr_label.setToolTip(qr_combo.toolTip())
-        for cam in system_cameras:
-            qr_combo.addItem(cam.description(), cam.deviceName())
-        video_device = self.config.get("video_device")
-        video_device_index = 0
-        if video_device:
-            video_device_index = qr_combo.findData(video_device)
-        qr_combo.setCurrentIndex(video_device_index)
-        on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
+        def scan_cameras():
+            nonlocal qr_did_scan
+            if qr_did_scan or dialog_finished:  # dialog_finished guard needed because QueuedConnection
+                # already scanned or dialog finished quickly
+                return
+            qr_did_scan = True
+            system_cameras = []
+            try:
+                from PyQt5.QtMultimedia import QCameraInfo
+            except ImportError as e:
+                set_no_camera(e)
+                return
+            system_cameras = QCameraInfo.availableCameras()
+            qr_combo.clear()
+            qr_combo.addItem(_("Default"), "default")
+            qr_label.setText(_('Video Device') + ':')
+            qr_label.help_text = _("For scanning Qr codes.")
+            qr_combo.setToolTip(qr_label.help_text)
+            qr_label.setToolTip(qr_label.help_text)
+            for cam in system_cameras:
+                qr_combo.addItem(cam.description(), cam.deviceName())
+            video_device = self.config.get("video_device")
+            video_device_index = 0
+            if video_device:
+                video_device_index = max(0, qr_combo.findData(video_device))  # if not found, default to 0 (the default item)
+            qr_combo.setCurrentIndex(video_device_index)
+            qr_combo.setEnabled(True)
+        def on_video_device(x):
+            if qr_combo.isEnabled():
+                self.config.set_key("video_device", qr_combo.itemData(x), True)
+
+        set_no_camera() # pre-populate combo box with default so it has a sizeHint
+
+        d.shown_signal.connect(scan_cameras, Qt.QueuedConnection)  # do the camera scan once dialog is shown, using QueuedConnection so it's called from top level event loop and not from the showEvent handler
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
@@ -4378,9 +4421,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
 
-        # run the dialog
-        d.exec_()
-        d.setParent(None) # for Python GC
+        try:
+            # run the dialog
+            d.exec_()
+        finally:
+            dialog_finished = True  # paranoia for scan_cameras
+            d.setParent(None) # for Python GC
 
         if self.fx:
             self.fx.timeout = 0
