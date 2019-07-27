@@ -74,7 +74,7 @@ mkdir "$FRESH_CLONE_DIR/contrib/build-linux/home" || fail "Failed to create home
     -e HOME="/opt/electroncash/contrib/build-linux/home" \
     -e GIT_REPO="$GIT_REPO" \
     --name electroncash-srcdist-builder-cont \
-    -v $FRESH_CLONE_DIR:/opt/electroncash \
+    -v $FRESH_CLONE_DIR:/opt/electroncash:delegated \
     --rm \
     --workdir /opt/electroncash/contrib/build-linux/srcdist_docker \
     -u $(id -u $USER):$(id -g $USER) \

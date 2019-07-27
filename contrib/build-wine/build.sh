@@ -83,7 +83,7 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME  # FIXME: spaces.. every instance of 
     -e GIT_REPO="$GIT_REPO" \
     -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
     --name ec-wine-builder-cont \
-    -v $FRESH_CLONE_DIR:/homedir/wine64/drive_c/electroncash \
+    -v $FRESH_CLONE_DIR:/homedir/wine64/drive_c/electroncash:delegated \
     --rm \
     --workdir /homedir/wine64/drive_c/electroncash/contrib/build-wine \
     $IMGNAME \
