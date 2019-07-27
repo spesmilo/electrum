@@ -44,15 +44,26 @@ if [ -z ${SUDO+x} ] ; then
     fi
 fi
 
+USER_ID=$(id -u $USER)
+GROUP_ID=$(id -g $USER)
+
+# To prevent weird errors, img name must capture user:group id since the
+# Dockerfile receives those as args and sets up a /homedir in the image
+# owned by $USER_ID:$GROUP_ID
+IMGNAME="ec-wine-builder-img_${USER_ID}_${GROUP_ID}"
+
 info "Creating docker image ..."
-$SUDO docker build -t electroncash-wine-builder-img contrib/build-wine/docker \
+$SUDO docker build -t $IMGNAME \
+            --build-arg USER_ID=$USER_ID \
+            --build-arg GROUP_ID=$GROUP_ID \
+            contrib/build-wine/docker \
     || fail "Failed to create docker image"
 
 # This is the place where we checkout and put the exact revision we want to work
 # on. Docker will run mapping this directory to /opt/wine64/drive_c/electroncash
-# which inside wine will look lik c:\electroncash
-FRESH_CLONE=`pwd`/contrib/build-wine/fresh_clone
-FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
+# which inside wine will look like c:\electroncash
+FRESH_CLONE=`pwd`/contrib/build-wine/fresh_clone  # FIXME: This will fail if `pwd` has spaces in it
+FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME  # FIXME: spaces.. every instance of $FRESH_CLONE in here needs to be put in quotes.
 
 (
     $SUDO rm -fr $FRESH_CLONE && \
@@ -66,13 +77,16 @@ FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME
 (
     # NOTE: We propagate forward the GIT_REPO override to the container's env,
     # just in case it needs to see it.
-    $SUDO docker run -it \
+    $SUDO docker run $DOCKER_RUN_TTY \
+    -u $USER_ID:$GROUP_ID \
+    -e HOME=/homedir \
     -e GIT_REPO="$GIT_REPO" \
-    --name electroncash-wine-builder-cont \
-    -v $FRESH_CLONE_DIR:/opt/wine64/drive_c/electroncash \
+    -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
+    --name ec-wine-builder-cont \
+    -v $FRESH_CLONE_DIR:/homedir/wine64/drive_c/electroncash:delegated \
     --rm \
-    --workdir /opt/wine64/drive_c/electroncash/contrib/build-wine \
-    electroncash-wine-builder-img \
+    --workdir /homedir/wine64/drive_c/electroncash/contrib/build-wine \
+    $IMGNAME \
     ./_build.sh $REV
 ) || fail "Build inside docker container failed"
 

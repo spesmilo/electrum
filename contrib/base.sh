@@ -4,23 +4,42 @@
 umask 0022
 
 # First, some functions that build scripts may use for pretty printing
-RED='\033[0;31m'
-BLUE='\033[0,34m'
-YELLOW='\033[0;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+if [ -t 1 ] ; then
+    RED='\033[0;31m'
+    BLUE='\033[0;34m'
+    YELLOW='\033[0;33m'
+    GREEN='\033[0;32m'
+    NC='\033[0m' # No Color
+
+    MSG_INFO="\r💬 ${BLUE}INFO:${NC}"
+    MSG_ERROR="\r🗯  ${RED}ERROR:${NC}"
+    MSG_WARNING="\r⚠️  ${YELLOW}WARNING:${NC}"
+    MSG_OK="\r👍  ${GREEN}OK:${NC}"
+else
+    RED=''
+    BLUE=''
+    YELLOW=''
+    GREEN=''
+    NC='' # No Color
+
+    MSG_INFO="INFO:"
+    MSG_ERROR="ERROR:"
+    MSG_WARNING="WARNING:"
+    MSG_OK="OK:"
+fi
+
 function info {
-	printf "\r💬 ${BLUE}INFO:${NC}  ${1}\n"
+    printf "${MSG_INFO}  ${1}\n"
 }
 function fail {
-    printf "\r🗯  ${RED}ERROR:${NC}  ${1}\n" >&2
+    printf "${MSG_ERROR}  ${1}\n" >&2
     exit 1
 }
 function warn {
-	printf "\r⚠️  ${YELLOW}WARNING:${NC}  ${1}\n"
+    printf "${MSG_WARNING}  ${1}\n"
 }
 function printok {
-    printf "\r👍  ${GREEN}OK:${NC}  ${1}\n"
+    printf "${MSG_OK}  ${1}\n"
 }
 
 function verify_hash {
@@ -110,4 +129,12 @@ if [ "$GIT_REPO" != "$DEFAULT_GIT_REPO" ]; then
     info "Picked up override from env: GIT_REPO=${GIT_REPO}"
 fi
 GIT_DIR_NAME=`basename $GIT_REPO`
-PACKAGE=$GIT_DIR_NAME  # Modify this if you like -- Windows and MacOS build scripts read this
+PACKAGE="Electron-Cash"  # Modify this if you like -- Windows, MacOS & Linux srcdist build scripts read this, while AppImage has it hard-coded
+PYI_SKIP_TAG="${PYI_SKIP_TAG:-0}" # Set this to non-zero to make PyInstaller skip tagging the bootloader
+
+# Build a command line argument for docker, enabling interactive mode if stdin
+# is a tty and enabling tty in docker if stdout is a tty.
+DOCKER_RUN_TTY=""
+if [ -t 0 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}i" ; fi
+if [ -t 1 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}t" ; fi
+if [ -n "$DOCKER_RUN_TTY" ] ; then DOCKER_RUN_TTY="-${DOCKER_RUN_TTY}" ; fi

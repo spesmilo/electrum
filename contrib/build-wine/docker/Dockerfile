@@ -41,3 +41,8 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
 RUN rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+ARG USER_ID
+ARG GROUP_ID
+
+RUN mkdir -p /homedir/wine64/drive_c/electroncash ; chown -R ${USER_ID}:${GROUP_ID} /homedir && ls -al /homedir

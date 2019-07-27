@@ -142,7 +142,7 @@ prepare_wine() {
         PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
 
         ## These settings probably don't need change
-        export WINEPREFIX=/opt/wine64
+        export WINEPREFIX=$HOME/wine64
         #export WINEARCH='win32'
         export WINEDEBUG=-all
 
@@ -157,11 +157,11 @@ prepare_wine() {
         wine 'wineboot'
 
         info "Cleaning tmp"
-        rm -rf tmp
-        mkdir -p tmp
+        rm -rf $HOME/tmp
+        mkdir -p $HOME/tmp
         info "done"
 
-        cd tmp
+        pushd $HOME/tmp
 
         # note: you might need "sudo apt-get install dirmngr" for the following
         # if the verification fails you might need to get more keys from python.org
@@ -179,7 +179,7 @@ prepare_wine() {
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
             verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-            wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION || fail "Failed to install Python component: ${msifile}"
+            wine msiexec /i "${msifile}.msi" /qn TARGETDIR=$PYHOME || fail "Failed to install Python component: ${msifile}"
         done
 
         info "Upgrading pip ..."
@@ -202,7 +202,11 @@ prepare_wine() {
             git fetch --depth 1 origin $PYINSTALLER_COMMIT
             git checkout FETCH_HEAD
             rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
-            echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
+            if [ ${PYI_SKIP_TAG:-0} -eq 0 ] ; then
+                echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
+            else
+                warn "Skipping PyInstaller tag"
+            fi
             pushd bootloader
             # If switching to 64-bit Windows, edit CC= below
             python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
@@ -219,7 +223,7 @@ prepare_wine() {
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         info "Installing Packages from requirements-binaries ..."
-        $PYTHON -m pip install --no-warn-script-location -r ../../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
+        $PYTHON -m pip install --no-warn-script-location -r $here/../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
 
         info "Installing NSIS ..."
         # Install NSIS installer
@@ -239,19 +243,13 @@ prepare_wine() {
         cp "$here"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
         cp "$here"/../zbar/libzbar-0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
-        popd
+        popd  # out of homedir/tmp
+        popd  # out of $here
 
     ) || fail "Could not prepare Wine"
     info "Wine is configured."
 }
 prepare_wine
-
-info "Resetting modification time in C:\Python..."
-# (Because of some bugs in pyinstaller)
-pushd /opt/wine64/drive_c/python*
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-popd
-ls -l /opt/wine64/drive_c/python*
 
 build_the_app() {
     info "Building $PACKAGE ..."
@@ -263,7 +261,7 @@ build_the_app() {
 
         NAME_ROOT=$PACKAGE  # PACKAGE comes from ../base.sh
         # These settings probably don't need any change
-        export WINEPREFIX=/opt/wine64
+        export WINEPREFIX=$HOME/wine64
         export WINEDEBUG=-all
         export PYTHONDONTWRITEBYTECODE=1
 
@@ -288,7 +286,6 @@ build_the_app() {
         find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
         popd  # go back to $here
 
-        cp "$here"/../../LICENCE "$here"/tmp
         cp -r "$here"/../electrum-locale/locale $WINEPREFIX/drive_c/electroncash/lib/
 
         # Install frozen dependencies
@@ -302,10 +299,22 @@ build_the_app() {
 
         rm -rf dist/
 
+        info "Resetting modification time in C:\Python..."
+        # (Because we just installed a bunch of stuff)
+        pushd $HOME/wine64/drive_c/python$PYTHON_VERSION
+        find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+        ls -l
+        popd
+
         # build standalone and portable versions
         info "Running Pyinstaller to build standalone and portable .exe versions ..."
-        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec || fail "Pyinstaller failed"
+        wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT -w deterministic.spec || fail "Pyinstaller failed"
 
+        # rename the output files
+        pushd dist
+        mv $NAME_ROOT.exe $NAME_ROOT-$VERSION.exe
+        mv $NAME_ROOT-portable.exe $NAME_ROOT-$VERSION-portable.exe
+        popd
 
         # set timestamps in dist, in order to make the installer reproducible
         pushd dist
@@ -320,6 +329,9 @@ build_the_app() {
 
         cd dist
         mv $NAME_ROOT-setup.exe $NAME_ROOT-$VERSION-setup.exe  || fail "Failed to move $NAME_ROOT-$VERSION-setup.exe to the output dist/ directory"
+
+        ls -la *.exe
+        sha256sum *.exe
 
         popd
 
