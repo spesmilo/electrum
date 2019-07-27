@@ -44,40 +44,49 @@ if [ -z ${SUDO+x} ] ; then
     fi
 fi
 
+USER_ID=$(id -u $USER)
+GROUP_ID=$(id -g $USER)
+
+# To prevent weird errors, img name must capture user:group id since the
+# Dockerfile receives those as args and sets up a /homedir in the image
+# owned by $USER_ID:$GROUP_ID
+IMGNAME="ec-wine-builder-img_${USER_ID}_${GROUP_ID}"
+
 info "Creating docker image ..."
-$SUDO docker build -t electroncash-wine-builder-img contrib/build-wine/docker \
+$SUDO docker build -t $IMGNAME \
+            --build-arg USER_ID=$USER_ID \
+            --build-arg GROUP_ID=$GROUP_ID \
+            contrib/build-wine/docker \
     || fail "Failed to create docker image"
 
 # This is the place where we checkout and put the exact revision we want to work
 # on. Docker will run mapping this directory to /opt/wine64/drive_c/electroncash
 # which inside wine will look like c:\electroncash
-WINE_PREFIX=`pwd`/contrib/build-wine/wine_prefix
-FRESH_CLONE="$WINE_PREFIX/drive_c/electroncash"
+FRESH_CLONE=`pwd`/contrib/build-wine/fresh_clone  # FIXME: This will fail if `pwd` has spaces in it
+FRESH_CLONE_DIR=$FRESH_CLONE/$GIT_DIR_NAME  # FIXME: spaces.. every instance of $FRESH_CLONE in here needs to be put in quotes.
 
 (
-    $SUDO rm -fr $WINE_PREFIX && \
+    $SUDO rm -fr $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone $GIT_REPO $FRESH_CLONE && \
-        cd $FRESH_CLONE && \
+        git clone $GIT_REPO && \
+        cd $GIT_DIR_NAME && \
         git checkout $REV
 ) || fail "Could not create a fresh clone from git"
-
-mkdir "$WINE_PREFIX/home" || fail "Failed to create home directory"
 
 (
     # NOTE: We propagate forward the GIT_REPO override to the container's env,
     # just in case it needs to see it.
     $SUDO docker run $DOCKER_RUN_TTY \
-    -e HOME="/opt/wine64/home" \
+    -u $USER_ID:$GROUP_ID \
+    -e HOME=/homedir \
     -e GIT_REPO="$GIT_REPO" \
     -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
-    --name electroncash-wine-builder-cont \
-    -v $WINE_PREFIX:/opt/wine64 \
+    --name ec-wine-builder-cont \
+    -v $FRESH_CLONE_DIR:/homedir/wine64/drive_c/electroncash \
     --rm \
-    --workdir /opt/wine64/drive_c/electroncash/contrib/build-wine \
-    -u $(id -u $USER):$(id -g $USER) \
-    electroncash-wine-builder-img \
+    --workdir /homedir/wine64/drive_c/electroncash/contrib/build-wine \
+    $IMGNAME \
     ./_build.sh $REV
 ) || fail "Build inside docker container failed"
 
@@ -85,15 +94,15 @@ popd
 
 info "Copying .exe files out of our build directory ..."
 mkdir -p dist/
-files=$FRESH_CLONE/contrib/build-wine/dist/*.exe
+files=$FRESH_CLONE_DIR/contrib/build-wine/dist/*.exe
 for f in $files; do
     bn=`basename $f`
     cp -fpv $f dist/$bn || fail "Failed to copy $bn"
     touch dist/$bn || fail "Failed to update timestamp on $bn"
 done
 
-info "Removing $WINE_PREFIX ..."
-$SUDO rm -fr $WINE_PREFIX
+info "Removing $FRESH_CLONE ..."
+$SUDO rm -fr $FRESH_CLONE
 
 echo ""
 info "Done. Built .exe files have been placed in dist/"
