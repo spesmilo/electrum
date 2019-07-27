@@ -5,3 +5,4 @@ btchip-python>=0.1.26
 ckcc-protocol>=0.7.2
 websocket-client
 hidapi
+pyscard>=1.9.6

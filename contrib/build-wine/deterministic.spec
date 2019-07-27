@@ -21,8 +21,8 @@ hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
-hiddenimports += collect_submodules('satochip') #DebugSatochip
-hiddenimports += collect_submodules('smartcard') #DebugSatochip
+hiddenimports += collect_submodules('satochip') 
+hiddenimports += collect_submodules('smartcard') 
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
@@ -46,7 +46,7 @@ datas = [
     (home+'electrum/plugins', 'electrum/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
-    (PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win32.pyd', '.\\smartcard\\scard\\') #debugSatochip	
+    (PYHOME+'\\Lib\\site-packages\\smartcard\\scard\\_scard.cp36-win32.pyd', '.\\smartcard\\scard\\') 	
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
@@ -71,7 +71,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/plugins/safe_t/qt.py',
               home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
-              home+'electrum/plugins/satochip/qt.py', #DebugSatochip
+              home+'electrum/plugins/satochip/qt.py',
               home+'electrum/plugins/coldcard/qt.py',
               #home+'packages/requests/utils.py'
               ],
@@ -125,7 +125,7 @@ exe_standalone = EXE(
     strip=None,
     upx=False,
     icon=home+'electrum/gui/icons/electrum.ico',
-    console=True) #DebugSatochip True
+    console=False)
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 exe_portable = EXE(
@@ -138,7 +138,7 @@ exe_portable = EXE(
     strip=None,
     upx=False,
     icon=home+'electrum/gui/icons/electrum.ico',
-    console=True) #DebugSatochip True
+    console=False)
 
 #####
 # exe and separate files that NSIS uses to build installer "setup" exe
