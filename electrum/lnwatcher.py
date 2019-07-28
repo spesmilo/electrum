@@ -292,7 +292,7 @@ class WatchTower(LNWatcher):
             return await self.sweepstore.get_num_tx(outpoint)
         return self.network.run_from_another_thread(f())
 
-    def add_sweep_tx(self, funding_outpoint: str, address:str, ctn:int, prevout: str, tx: str):
+    def add_sweep_tx(self, funding_outpoint: str, ctn:int, prevout: str, tx: str):
         async def f():
             return await self.sweepstore.add_sweep_tx(funding_outpoint, ctn, prevout, tx)
         return self.network.run_from_another_thread(f())

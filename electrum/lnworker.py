@@ -358,9 +358,9 @@ class LNWallet(LNWorker):
             self.logger.info(f'sync with watchtower: {outpoint}, {ctn}, {len(sweeptxs)}')
             for tx in sweeptxs:
                 if is_local:
-                    await watchtower.add_sweep_tx(outpoint, addr, ctn, tx.prevout(0), str(tx))
+                    await watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
                 else:
-                    watchtower.add_sweep_tx(outpoint, addr, ctn, tx.prevout(0), str(tx))
+                    watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
 
     def start_network(self, network: 'Network'):
         self.config = network.config
