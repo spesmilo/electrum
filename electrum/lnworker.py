@@ -1043,9 +1043,10 @@ class LNWallet(LNWorker):
                 if chan.is_closed():
                     continue
                 if constants.net is not constants.BitcoinRegtest:
-                    ratio = chan.constraints.feerate / self.current_feerate_per_kw()
+                    chan_feerate = chan.get_latest_feerate(LOCAL)
+                    ratio = chan_feerate / self.current_feerate_per_kw()
                     if ratio < 0.5:
-                        self.logger.warning(f"fee level for channel {bh2u(chan.channel_id)} is {chan.constraints.feerate} sat/kiloweight, "
+                        self.logger.warning(f"fee level for channel {bh2u(chan.channel_id)} is {chan_feerate} sat/kiloweight, "
                                             f"current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
                 if not chan.should_try_to_reestablish_peer():
                     continue
