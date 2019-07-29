@@ -244,7 +244,10 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
+            super().closeEvent(event)
             event.accept()
+            if self._closed:
+                return
             self._closed = True
             self.tx.fetch_cancel()
             parent = self.main_window
