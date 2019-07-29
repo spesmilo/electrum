@@ -324,43 +324,39 @@ class LNWallet(LNWorker):
         if watchtower:
             while True:
                 for chan in self.channels.values():
-                    await self.sync_channel_with_watchtower(chan, watchtower.sweepstore, True)
+                    await self.sync_channel_with_watchtower(chan, watchtower.sweepstore)
                 await asyncio.sleep(5)
 
     @ignore_exceptions
     @log_exceptions
     async def sync_with_remote_watchtower(self):
-        # FIXME: jsonrpclib blocks the asyncio loop.
-        # we should use aiohttp instead
-        import jsonrpclib
+        import aiohttp
+        from jsonrpcclient.clients.aiohttp_client import AiohttpClient
+        class myAiohttpClient(AiohttpClient):
+            async def request(self, *args, **kwargs):
+                r = await super().request(*args, **kwargs)
+                return r.data.result
         while True:
             watchtower_url = self.config.get('watchtower_url')
             if watchtower_url:
-                watchtower = jsonrpclib.Server(watchtower_url)
-                for chan in self.channels.values():
-                    try:
-                        await self.sync_channel_with_watchtower(chan, watchtower, False)
-                    except ConnectionRefusedError:
-                        self.logger.info(f'could not contact watchtower {watchtower_url}')
-                        break
+                try:
+                    async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
+                        watchtower = myAiohttpClient(session, watchtower_url)
+                        for chan in self.channels.values():
+                            await self.sync_channel_with_watchtower(chan, watchtower)
+                except aiohttp.client_exceptions.ClientConnectorError:
+                    self.logger.info(f'could not contact remote watchtower {watchtower_url}')
             await asyncio.sleep(5)
 
-    async def sync_channel_with_watchtower(self, chan, watchtower, is_local):
+    async def sync_channel_with_watchtower(self, chan, watchtower):
         outpoint = chan.funding_outpoint.to_str()
         addr = chan.get_funding_address()
         current_ctn = chan.get_current_ctn(REMOTE)
-        if is_local:
-            watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
-        else:
-            watchtower_ctn = watchtower.get_ctn(outpoint, addr)
+        watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs(ctn)
-            self.logger.info(f'sync with watchtower: {outpoint}, {ctn}, {len(sweeptxs)}')
             for tx in sweeptxs:
-                if is_local:
-                    await watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
-                else:
-                    watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
+                await watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
 
     def start_network(self, network: 'Network'):
         self.config = network.config
