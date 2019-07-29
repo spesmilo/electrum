@@ -61,7 +61,7 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
                              InvoiceStore)
 from .contacts import Contacts
-from .interface import RequestTimedOut
+from .interface import NetworkException
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
@@ -1060,7 +1060,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 return True
         return False
 
-    def get_input_tx(self, tx_hash, ignore_timeout=False):
+    def get_input_tx(self, tx_hash, *, ignore_network_issues=False):
         # First look up an input transaction in the wallet where it
         # will likely be.  If co-signing a transaction it may not have
         # all the input txs, in which case we ask the network.
@@ -1069,9 +1069,10 @@ class Abstract_Wallet(AddressSynchronizer):
             try:
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(tx_hash, timeout=10))
-            except RequestTimedOut as e:
-                self.logger.info(f'getting input txn from network timed out for {tx_hash}')
-                if not ignore_timeout:
+            except NetworkException as e:
+                self.logger.info(f'got network error getting input txn. err: {repr(e)}. txid: {tx_hash}. '
+                                 f'if you are intentionally offline, consider using the --offline flag')
+                if not ignore_network_issues:
                     raise e
             else:
                 tx = Transaction(raw_tx)
@@ -1082,8 +1083,8 @@ class Abstract_Wallet(AddressSynchronizer):
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
             # segwit inputs might not be needed for some hw wallets
-            ignore_timeout = Transaction.is_segwit_input(txin)
-            txin['prev_tx'] = self.get_input_tx(tx_hash, ignore_timeout)
+            ignore_network_issues = Transaction.is_segwit_input(txin)
+            txin['prev_tx'] = self.get_input_tx(tx_hash, ignore_network_issues=ignore_network_issues)
         # add output info for hw wallets
         info = {}
         xpubs = self.get_master_public_keys()
