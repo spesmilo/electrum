@@ -309,7 +309,14 @@ class AddressList(MyTreeWidget):
             if col in self.editable_columns:
                 menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(self.itemAt(position), # NB: C++ item may go away if this widget is refreshed while menu is up -- so need to re-grab and not store in lamba. See #953
                                                                                         col))
-            menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            a = menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            if self.wallet.get_num_tx(addr) or self.wallet.has_payment_request(addr):
+                # This address cannot be used for a payment request because
+                # the receive tab will refuse to display it and will instead
+                # create a request with a new address, if we were to call
+                # self.parent.receive_at(addr). This is because the recieve tab
+                # now strongly enforces no-address-reuse. See #1552.
+                a.setDisabled(True)
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():
