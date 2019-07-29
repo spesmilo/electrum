@@ -669,3 +669,8 @@ and there is no warning message.
   preferences dialog. This bug was do due bugs in PyQt5 when using QtMultimedia
   and the fix involved loading QtMultimedia at app start, rather than on-demand.
   #1545 (cculianu)
+* Fix #1552: Disallow "Request payment" in addresses tab when address is used.
+  This would lead to an inconsistent UI; the receive tab would always enforce a
+  new address anyway, so the option in the right-click menu was misleading at
+  best in that situation.  "Request payment" works as normal if the address is
+  unused, however. (cculianu)
