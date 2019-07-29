@@ -125,6 +125,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.gui_object = gui_object
         self.wallet = wallet
+        self.wallet.thread = None  # this attribute will be set with a TaskThread in load_wallet later in this function, but we want to make sure it's always defined.
         self.config = config = gui_object.config
         assert self.wallet and self.config and self.gui_object
 
@@ -219,7 +220,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         # update fee slider in case we missed the callback
         self.fee_slider.update()
-        self.load_wallet(wallet)
+        self.load_wallet()
 
         if self.network:
             self.network_signal.connect(self.on_network_qt)
@@ -414,9 +415,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         run_hook('close_wallet', self.wallet)
 
-    def load_wallet(self, wallet):
-        wallet.thread = TaskThread(self, self.on_error, name = wallet.diagnostic_name() + '/Wallet')
-        self.update_recently_visited(wallet.storage.path)
+    def load_wallet(self):
+        self.wallet.thread = TaskThread(self, self.on_error, name = self.wallet.diagnostic_name() + '/Wallet')
+        self.update_recently_visited(self.wallet.storage.path)
         # address used to create a dummy transaction and estimate transaction fee
         self.history_list.update()
         self.address_list.update()
@@ -441,7 +442,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self._warn_if_invalid_testnet_wallet()
         self.watching_only_changed()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
-        run_hook('load_wallet', wallet, self)
+        run_hook('load_wallet', self.wallet, self)
 
     def init_geometry(self):
         winpos = self.wallet.storage.get("winpos-qt")
@@ -4432,11 +4433,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('Please restart Electron Cash to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
-        # It seems in some rare cases this closeEvent() is called twice
-        if not self.cleaned_up:
-            self.cleaned_up = True
-            self.clean_up()
-        event.accept()
+        # It seems in some rare cases this closeEvent() is called twice.
+        # clean_up() guards against that situation.
+        self.clean_up()
+        super().closeEvent(event)
+        event.accept()  # paranoia. be sure it's always accepted.
 
     def is_alive(self): return bool(not self.cleaned_up)
 
@@ -4503,8 +4504,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             c.setParent(None)
 
     def clean_up(self):
-        self.wallet.thread.stop()
-        self.wallet.thread.wait() # Join the thread to make sure it's really dead.
+        if self.cleaned_up:
+            return
+        self.cleaned_up = True
+        if self.wallet.thread:  # guard against window close before load_wallet was called (#1554)
+            self.wallet.thread.stop()
+            self.wallet.thread.wait() # Join the thread to make sure it's really dead.
 
         for w in [self.address_list, self.history_list, self.utxo_list, self.cash_account_e, self.contact_list,
                   self.tx_update_mgr]:
