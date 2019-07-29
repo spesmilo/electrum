@@ -674,3 +674,6 @@ and there is no warning message.
   new address anyway, so the option in the right-click menu was misleading at
   best in that situation.  "Request payment" works as normal if the address is
   unused, however. (cculianu)
+* Fixed Windows setup.exe to be more reproducible and other misc build fixes.
+  (Axel Gembe, cculianu)
+* Fixed very rare uncaught exception due to misbehaving plugin #1554. (cculianu)
