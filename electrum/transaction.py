@@ -909,14 +909,12 @@ class Transaction:
             return preimage_script
 
         pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-        if txin['type'] == 'p2pkh':
-            return bitcoin.address_to_script(txin['address'])
-        elif txin['type'] in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
+        if txin['type'] in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             return multisig_script(pubkeys, txin['num_sig'])
-        elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
+        elif txin['type'] in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             pubkey = pubkeys[0]
             pkh = bh2u(hash_160(bfh(pubkey)))
-            return '76a9' + push_script(pkh) + '88ac'
+            return bitcoin.pubkeyhash_to_p2pkh_script(pkh)
         elif txin['type'] == 'p2pk':
             pubkey = pubkeys[0]
             return bitcoin.public_key_to_p2pk_script(pubkey)
