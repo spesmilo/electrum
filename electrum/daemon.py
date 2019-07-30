@@ -31,9 +31,13 @@ import sys
 import threading
 from typing import Dict, Optional, Tuple
 
+from aiohttp import web
+from jsonrpcserver import async_dispatch as dispatch
+from jsonrpcserver.methods import Methods
+
 import jsonrpclib
 
-from .jsonrpc import SimpleJSONRPCServer, PasswordProtectedJSONRPCServer
+from .jsonrpc import PasswordProtectedJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import (json_decode, DaemonThread, to_string,
@@ -44,7 +48,7 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .plugin import run_hook
-from .logging import get_logger
+from .logging import get_logger, Logger
 
 
 _logger = get_logger(__name__)
@@ -122,25 +126,42 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     return rpc_user, rpc_password
 
 
-class WatchTowerServer(DaemonThread):
+class WatchTowerServer(Logger):
 
     def __init__(self, network):
-        DaemonThread.__init__(self)
+        Logger.__init__(self)
         self.config = network.config
+        self.network = network
         self.lnwatcher = network.local_watchtower
-        self.start()
+        self.app = web.Application()
+        self.app.router.add_post("/", self.handle)
+        self.methods = Methods()
+        self.methods.add(self.get_ctn)
+        self.methods.add(self.add_sweep_tx)
 
-    def run(self):
+    async def handle(self, request):
+        request = await request.text()
+        self.logger.info(f'{request}')
+        response = await dispatch(request, methods=self.methods)
+        if response.wanted:
+            return web.json_response(response.deserialized(), status=response.http_status)
+        else:
+            return web.Response()
+
+    async def run(self):
         host = self.config.get('watchtower_host')
         port = self.config.get('watchtower_port', 12345)
-        server = SimpleJSONRPCServer((host, port), logRequests=True)
-        server.register_function(self.lnwatcher.add_sweep_tx, 'add_sweep_tx')
-        server.register_function(self.lnwatcher.add_channel, 'add_channel')
-        server.register_function(self.lnwatcher.get_ctn, 'get_ctn')
-        server.register_function(self.lnwatcher.get_num_tx, 'get_num_tx')
-        server.timeout = 0.1
-        while self.is_running():
-            server.handle_request()
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        site = web.TCPSite(self.runner, host, port)
+        await site.start()
+
+    async def get_ctn(self, *args):
+        return await self.lnwatcher.sweepstore.get_ctn(*args)
+
+    async def add_sweep_tx(self, *args):
+        return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
+
 
 class Daemon(DaemonThread):
 
@@ -167,10 +188,11 @@ class Daemon(DaemonThread):
             self.init_server(config, fd)
         # server-side watchtower
         self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
+        jobs = [self.fx.run]
+        if self.watchtower:
+            jobs.append(self.watchtower.run)
         if self.network:
-            self.network.start([
-                self.fx.run,
-            ])
+            self.network.start(jobs)
         self.start()
 
     def init_server(self, config: SimpleConfig, fd):
