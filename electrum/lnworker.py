@@ -397,7 +397,13 @@ class LNWallet(LNWorker):
         if key not in self.invoices:
             return PR_UNKNOWN
         invoice, direction, is_paid = self.invoices[key]
-        return PR_PAID if is_paid else PR_UNPAID
+        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        if is_paid:
+            return PR_PAID
+        elif lnaddr.is_expired():
+            return PR_EXPIRED
+        else:
+            return PR_UNPAID
 
     def get_payments(self):
         # return one item per payment_hash

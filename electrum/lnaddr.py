@@ -272,7 +272,9 @@ class LnAddr(object):
     def get_expiry(self):
         return int(self.get_tag('x') or '3600')
 
-
+    def is_expired(self):
+        now = time.time()
+        return now > self.get_expiry() + self.date
 
 def lndecode(a, verbose=False, expected_hrp=None):
     if expected_hrp is None:
