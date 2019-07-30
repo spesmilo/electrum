@@ -361,7 +361,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             self.tx_desc.setText(_("Description") + ': ' + desc)
             self.tx_desc.show()
 
-        if self.tx_height and tx_hash:
+        if self.tx_height is not None and self.tx_height > 0 and tx_hash:
             status_extra = '&nbsp;&nbsp;( ' + _("Mined in block") + f': <a href="tx:{tx_hash}">{self.tx_height}</a>' + ' )'
         else:
             status_extra = ''
