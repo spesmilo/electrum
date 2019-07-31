@@ -349,7 +349,11 @@ class InfoGroupBox(PrintError, QGroupBox):
 
         def details_link_activated(castr):
             if isinstance(parent, ElectrumWindow):
-                cash_account_detail_dialog(parent, castr)
+                if castr.startswith('txid:'):
+                    txid = castr.split(':', 1)[-1]
+                    parent.do_process_from_txid(txid=txid, tx_desc=wallet.get_label(txid))
+                else:
+                    cash_account_detail_dialog(parent, castr)
 
         def view_addr_link_activated(addr):
             if isinstance(parent, ElectrumWindow):
@@ -410,11 +414,17 @@ class InfoGroupBox(PrintError, QGroupBox):
             ca_lbl = ButtonAssociatedLabel(f'<b>{pretty_string}</b><font size=-1><i>{chash_extra}</i></font><b>;</b>', button=rb)
             grid.addWidget(ca_lbl, row*3, col*5+1, 1, 1)
 
-            # Details ...
-            details = _("Details")
-            details_lbl = WWLabel(f'<font size=-1><a href="{ca_string}">{details}...</a></font>')
+            # Details and/or View tx ...
+            if not is_valid:
+                # Unsupported account type -- just offer View tx...
+                viewtx = _("View tx")
+                details_lbl = WWLabel(f'<font size=-1><a href="txid:{info.txid}">{viewtx}...</a></font>')
+                details_lbl.setToolTip(_("View Registration Transaction"))
+            else:
+                details = _("Details")
+                details_lbl = WWLabel(f'<font size=-1><a href="{ca_string}">{details}...</a></font>')
+                details_lbl.setToolTip(_("View Details"))
             grid.addWidget(details_lbl, row*3, col*5+2, 1, 1)
-            details_lbl.setToolTip(_("View Details"))
 
             # misc buttons
             hbox = QHBoxLayout()
