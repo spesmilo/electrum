@@ -679,3 +679,5 @@ and there is no warning message.
 * Fixed very rare uncaught exception due to misbehaving plugin #1554. (cculianu)
 * KeepKey & Trezor: Fix WebUSB on Windows 10 1903 by patching libusb, #1556.
   (Axel Gembe)
+* Cash Accounts: Lookup/Search results offer a "Details..." link now instead
+  of the "View tx..." link. You can view tx on the details page. (cculianu)
