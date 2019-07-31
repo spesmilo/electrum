@@ -87,7 +87,7 @@ class KeepKeyPlugin(HW_PluginBase):
             import keepkeylib.ckd_public
             import keepkeylib.transport_hid
             import keepkeylib.transport_webusb
-            from electroncash_plugins.hw_wallet.utils.libusb import USBContext
+            from usb1 import USBContext
             self.client_class = client.KeepKeyClient
             self.ckd_public = keepkeylib.ckd_public
             self.types = keepkeylib.client.types
@@ -108,9 +108,12 @@ class KeepKeyPlugin(HW_PluginBase):
             if usb_id in DEVICE_IDS:
                 yield dev
 
+    def _USBDevice_getPath(self, dev):
+        return ":".join(str(x) for x in ["%03i" % (dev.getBusNumber(),)] + dev.getPortNumberList())
+
     def enumerate(self):
         for dev in self.libusb_enumerate():
-            path = dev.getPath()
+            path = self._USBDevice_getPath(dev)
             usb_id = (dev.getVendorID(), dev.getProductID())
             yield Device(path=path, interface_number=-1, id_=path, product_key=usb_id, usage_page=0)
 
@@ -121,7 +124,7 @@ class KeepKeyPlugin(HW_PluginBase):
     def webusb_transport(self, device):
         from keepkeylib.transport_webusb import WebUsbTransport
         for dev in self.libusb_enumerate():
-            path = dev.getPath()
+            path = self._USBDevice_getPath(dev)
             if path == device.path:
                 return WebUsbTransport(dev)
         self.print_error(f"cannot connect at {device.path}: not found")
