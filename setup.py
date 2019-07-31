@@ -143,6 +143,7 @@ setup(
         'electroncash_plugins.cosigner_pool',
         'electroncash_plugins.email_requests',
         'electroncash_plugins.hw_wallet',
+        'electroncash_plugins.hw_wallet.utils',
         'electroncash_plugins.keepkey',
         'electroncash_plugins.labels',
         'electroncash_plugins.ledger',

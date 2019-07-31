@@ -73,6 +73,7 @@ class KeepKeyPlugin(HW_PluginBase):
     libraries_URL = 'https://github.com/keepkey/python-keepkey'
     minimum_firmware = (1, 0, 0)
     keystore_class = KeepKey_KeyStore
+    usb_context = None
     SUPPORTED_XTYPES = ('standard', 'p2wsh-p2sh', 'p2wsh')
 
     MAX_LABEL_LEN = 32
@@ -86,6 +87,7 @@ class KeepKeyPlugin(HW_PluginBase):
             import keepkeylib.ckd_public
             import keepkeylib.transport_hid
             import keepkeylib.transport_webusb
+            from electroncash_plugins.hw_wallet.utils.libusb import USBContext
             self.client_class = client.KeepKeyClient
             self.ckd_public = keepkeylib.ckd_public
             self.types = keepkeylib.client.types
@@ -93,22 +95,24 @@ class KeepKeyPlugin(HW_PluginBase):
                                keepkeylib.transport_webusb.DEVICE_IDS)
             self.device_manager().register_devices(self.DEVICE_IDS)
             self.device_manager().register_enumerate_func(self.enumerate)
+            self.usb_context = USBContext()
+            self.usb_context.open()
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
 
-    def enumerate(self):
-        from keepkeylib.transport_webusb import WebUsbTransport
-
-        results = []
-
-        for dev in WebUsbTransport.enumerate():
-            path = ":".join(str(x) for x in ["%03i" % (dev.getBusNumber(),)] + dev.getPortNumberList())
+    def libusb_enumerate(self):
+        from keepkeylib.transport_webusb import DEVICE_IDS
+        for dev in self.usb_context.getDeviceIterator(skip_on_error=True):
             usb_id = (dev.getVendorID(), dev.getProductID())
-            serial = dev.getSerialNumber()
-            results.append(Device(path=path, interface_number=-1, id_=serial, product_key=usb_id, usage_page=0))
+            if usb_id in DEVICE_IDS:
+                yield dev
 
-        return results
+    def enumerate(self):
+        for dev in self.libusb_enumerate():
+            path = dev.getPath()
+            usb_id = (dev.getVendorID(), dev.getProductID())
+            yield Device(path=path, interface_number=-1, id_=path, product_key=usb_id, usage_page=0)
 
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport
@@ -116,10 +120,12 @@ class KeepKeyPlugin(HW_PluginBase):
 
     def webusb_transport(self, device):
         from keepkeylib.transport_webusb import WebUsbTransport
-        for d in WebUsbTransport.enumerate():
-            if device.id_.startswith(d.getSerialNumber()):
-                return WebUsbTransport(d)
-        return WebUsbTransport(device)
+        for dev in self.libusb_enumerate():
+            path = dev.getPath()
+            if path == device.path:
+                return WebUsbTransport(dev)
+        self.print_error(f"cannot connect at {device.path}: not found")
+        return None
 
     def _try_hid(self, device):
         self.print_error("Trying to connect over USB...")
