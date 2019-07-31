@@ -143,8 +143,8 @@ prepare_wine() {
         NSIS_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/nsis-3.02.1-setup.exe'
         NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
 
-        LIBUSB_URL='https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/libusb-1.0.21.7z'
-        LIBUSB_SHA256=acdde63a40b1477898aee6153f9d91d1a2e8a5d93f832ca8ab876498f3a6d2b8
+        LIBUSB_REPO='https://github.com/EchterAgo/libusb.git'
+        LIBUSB_COMMIT=f2b1128714663ab9450d222ba7f438dbe4ec9d87
 
         PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
         PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
@@ -208,7 +208,7 @@ prepare_wine() {
             git init
             git remote add origin $PYINSTALLER_REPO
             git fetch --depth 1 origin $PYINSTALLER_COMMIT
-            git checkout FETCH_HEAD
+            git checkout -b pinned FETCH_HEAD
             rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
             if [ ${PYI_SKIP_TAG:-0} -eq 0 ] ; then
                 echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
@@ -239,17 +239,31 @@ prepare_wine() {
         verify_hash nsis.exe $NSIS_SHA256
         wine nsis.exe /S || fail "Could not run nsis"
 
-        info "Installing libusb ..."
-        wget -O libusb.7z "$LIBUSB_URL"
-        verify_hash libusb.7z "$LIBUSB_SHA256"
-        7z x -olibusb libusb.7z
-        mkdir -p $WINEPREFIX/drive_c/tmp
-        cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb.dll to its destination"
+        info "Compiling libusb ..."
+        mkdir libusb
+        (
+            cd libusb
+            # Shallow clone
+            git init
+            git remote add origin $LIBUSB_REPO
+            git fetch --depth 1 origin $LIBUSB_COMMIT
+            git checkout -b pinned FETCH_HEAD
+            export SOURCE_DATE_EPOCH=1530212462
+            echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
+            ./bootstrap.sh || fail "Could not bootstrap libusb"
+            host="i686-w64-mingw32"
+            LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
+                --host=$host \
+                --build=x86_64-pc-linux-gnu || fail "Could not run ./configure for libusb"
+            make -j4 || fail "Could not build libusb"
+            ${host}-strip libusb/.libs/libusb-1.0.dll
+        ) || fail "libusb build failed"
 
-        # libsecp256k1 & libzbar
+        # libsecp256k1, libzbar & libusb
         mkdir -p $WINEPREFIX/drive_c/tmp
         cp "$here"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
         cp "$here"/../zbar/libzbar-0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
+        cp libusb/libusb/.libs/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb to its destination"
 
         popd  # out of homedir/tmp
         popd  # out of $here
