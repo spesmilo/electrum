@@ -347,9 +347,9 @@ class InfoGroupBox(PrintError, QGroupBox):
         if self.custom_contents_margins:
             grid.setContentsMargins(*self.custom_contents_margins)
 
-        def view_tx_link_activated(txid):
+        def details_link_activated(castr):
             if isinstance(parent, ElectrumWindow):
-                parent.do_process_from_txid(txid=txid, tx_desc=wallet.get_label(txid))
+                cash_account_detail_dialog(parent, castr)
 
         def view_addr_link_activated(addr):
             if isinstance(parent, ElectrumWindow):
@@ -410,11 +410,11 @@ class InfoGroupBox(PrintError, QGroupBox):
             ca_lbl = ButtonAssociatedLabel(f'<b>{pretty_string}</b><font size=-1><i>{chash_extra}</i></font><b>;</b>', button=rb)
             grid.addWidget(ca_lbl, row*3, col*5+1, 1, 1)
 
-            # View tx ...
-            viewtx = _("View tx")
-            view_tx_lbl = WWLabel(f'<font size=-1><a href="{info.txid}">{viewtx}...</a></font>')
-            grid.addWidget(view_tx_lbl, row*3, col*5+2, 1, 1)
-            view_tx_lbl.setToolTip(_("View Registration Transaction"))
+            # Details ...
+            details = _("Details")
+            details_lbl = WWLabel(f'<font size=-1><a href="{ca_string}">{details}...</a></font>')
+            grid.addWidget(details_lbl, row*3, col*5+2, 1, 1)
+            details_lbl.setToolTip(_("View Details"))
 
             # misc buttons
             hbox = QHBoxLayout()
@@ -434,14 +434,14 @@ class InfoGroupBox(PrintError, QGroupBox):
             # end button bar
 
             if isinstance(parent, ElectrumWindow):
-                view_tx_lbl.linkActivated.connect(view_tx_link_activated)
+                details_lbl.linkActivated.connect(details_link_activated)
                 copy_but.clicked.connect(lambda ignored=None, ca_string_em=ca_string_em, copy_but=copy_but:
                                              parent.copy_to_clipboard(text=ca_string_em, tooltip=_('Cash Account copied to clipboard'), widget=copy_but) )
                 copy_but.setToolTip('<span style="white-space:nowrap">'
                                     + _("Copy <b>{cash_account_name}</b>").format(cash_account_name=ca_string_em)
                                     + '</span>')
             else:
-                view_tx_lbl.setHidden(True)
+                details_lbl.setHidden(True)
                 copy_but.setHidden(True)
 
             if self.show_addresses:
