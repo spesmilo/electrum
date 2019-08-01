@@ -92,11 +92,13 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
+        l = QLabel(_("&Transaction ID:"))
+        l.setBuddy(self.tx_hash_e)
+        vbox.addWidget(l)
         self.tx_hash_e.addCopyButton()
         weakSelfRef = Weak.ref(self)
-        qr_show = lambda: weakSelfRef() and weakSelfRef().main_window.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
+        qr_show = lambda: weakSelfRef() and weakSelfRef().main_window.show_qrcode(str(weakSelfRef().tx_hash_e.text()), _("Transaction ID"), parent=weakSelfRef())
         icon = ":icons/qrcode_white.svg" if ColorScheme.dark_scheme else ":icons/qrcode.svg"
         self.tx_hash_e.addButton(icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
@@ -134,22 +136,21 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.add_io(vbox)
 
-        self.sign_button = b = QPushButton(_("Sign"))
+        self.sign_button = b = QPushButton(_("&Sign"))
         b.clicked.connect(self.sign)
 
-        self.broadcast_button = b = QPushButton(_("Broadcast"))
+        self.broadcast_button = b = QPushButton(_("&Broadcast"))
         b.clicked.connect(self.do_broadcast)
 
-        self.save_button = b = QPushButton(_("Save"))
+        self.save_button = b = QPushButton(_("S&ave"))
         b.clicked.connect(self.save)
 
-        self.cancel_button = b = QPushButton(_("Close"))
-        b.clicked.connect(self.close)
-        b.setDefault(True)
+        self.cancel_button = b = CloseButton(self)
 
         self.qr_button = b = QPushButton()
         b.setIcon(QIcon(icon))
         b.clicked.connect(self.show_qr)
+        b.setShortcut(QKeySequence(Qt.ALT + Qt.Key_Q))
 
         self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx),
                                       callback=lambda: weakSelfRef() and weakSelfRef().show_message(_("Transaction raw hex copied to clipboard.")))
@@ -423,15 +424,18 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
 
+        self.i_text = i_text = QTextBrowser()
         num_inputs = len(self.tx.inputs())
-        inputs_lbl_text = ngettext("Input", "Inputs ({num_inputs})", num_inputs)
+        inputs_lbl_text = ngettext("&Input", "&Inputs ({num_inputs})", num_inputs)
         if num_inputs > 1:
             inputs_lbl_text = inputs_lbl_text.format(num_inputs=num_inputs)
-        hbox.addWidget(QLabel(inputs_lbl_text))
+        l = QLabel(inputs_lbl_text)
+        l.setBuddy(i_text)
+        hbox.addWidget(l)
 
 
         hbox.addSpacerItem(QSpacerItem(20, 0))  # 20 px padding
-        self.dl_input_chk = chk = QCheckBox(_("Download input data"))
+        self.dl_input_chk = chk = QCheckBox(_("&Download input data"))
         chk.setChecked(self.is_fetch_input_data())
         chk.clicked.connect(self.set_fetch_input_data)
         hbox.addWidget(chk)
@@ -450,7 +454,6 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         vbox.addLayout(hbox)
 
-        self.i_text = i_text = QTextBrowser()
         i_text.setOpenLinks(False)  # disable automatic link opening
         i_text.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.i_text_has_selection = False
@@ -461,7 +464,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         i_text.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
-        i_text.setTextInteractionFlags(i_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        i_text.setTextInteractionFlags(i_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard | Qt.TextSelectableByKeyboard)
         vbox.addWidget(i_text)
 
 
@@ -469,11 +472,14 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox.setContentsMargins(0,0,0,0)
         vbox.addLayout(hbox)
 
+        self.o_text = o_text = QTextBrowser()
         num_outputs = len(self.tx.outputs())
-        outputs_lbl_text = ngettext("Output", "Outputs ({num_outputs})", num_outputs)
+        outputs_lbl_text = ngettext("&Output", "&Outputs ({num_outputs})", num_outputs)
         if num_outputs > 1:
             outputs_lbl_text = outputs_lbl_text.format(num_outputs=num_outputs)
-        hbox.addWidget(QLabel(outputs_lbl_text))
+        l = QLabel(outputs_lbl_text)
+        l.setBuddy(o_text)
+        hbox.addWidget(l)
 
         box_char = "█"
         self.recv_legend = QLabel("<font color=" + ColorScheme.GREEN.as_color(background=True).name() + ">" + box_char + "</font> = " + _("Receiving Address"))
@@ -487,7 +493,6 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.recv_legend.setHidden(True)
         self.change_legend.setHidden(True)
 
-        self.o_text = o_text = QTextBrowser()
         o_text.setOpenLinks(False)  # disable automatic link opening
         o_text.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.o_text_has_selection = False
@@ -498,6 +503,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         o_text.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
+        o_text.setTextInteractionFlags(o_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard | Qt.TextSelectableByKeyboard)
         vbox.addWidget(o_text)
         self.cashaddr_signal_slots.append(self.update_io)
         self.main_window.gui_object.cashaddr_toggled_signal.connect(self.update_io)

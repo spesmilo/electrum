@@ -11,7 +11,7 @@ import qrcode
 
 from electroncash import util
 from electroncash.i18n import _
-from .util import WindowModalDialog, MessageBoxMixin
+from .util import WindowModalDialog, MessageBoxMixin, CloseButton
 
 
 class QRCodeWidget(QWidget, util.PrintError):
@@ -133,19 +133,17 @@ class QRDialog(WindowModalDialog):
         weakSelf = util.Weak.ref(self)  # Qt & Python GC hygeine: don't hold references to self in non-method slots as it appears Qt+Python GC don't like this too much and may leak memory in that case.
         weakQ = util.Weak.ref(qrw)
 
-        b = QPushButton(_("Copy"))
+        b = QPushButton(_("&Copy"))
         hbox.addWidget(b)
         weakBut = util.Weak.ref(b)
         b.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakBut()))
 
-        b = QPushButton(_("Save"))
+        b = QPushButton(_("&Save"))
         hbox.addWidget(b)
         b.clicked.connect(lambda: save_to_file(weakQ(), weakSelf()))
 
-        b = QPushButton(_("Close"))
+        b = CloseButton(self)
         hbox.addWidget(b)
-        b.clicked.connect(self.accept)
-        b.setDefault(True)
 
         vbox.addLayout(hbox)
         self.setLayout(vbox)
