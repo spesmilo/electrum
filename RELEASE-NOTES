@@ -681,3 +681,5 @@ and there is no warning message.
   (Axel Gembe)
 * Cash Accounts: Lookup/Search results offer a "Details..." link now instead
   of the "View tx..." link. You can view tx on the details page. (cculianu)
+* Qt: Added proper keyboard navigation to the Transaction Dialog window, and
+  various other places. #1557 (Axel Gembe)
