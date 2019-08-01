@@ -173,4 +173,4 @@ class LightningChannelsDialog(Factory.Popup):
                 _('Available to spend'): self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000),
                 _('State'): chan.get_state(),
                 _('Initiator'): 'Opened/funded by us' if chan.constraints.is_initiator else 'Opened/funded by remote party',
-                _('Current feerate'): chan.constraints.feerate}
+                _('Current feerate'): chan.get_latest_feerate(LOCAL)}
