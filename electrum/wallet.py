@@ -1247,7 +1247,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
         if self.parse_registeraddress_tx(tx, parent_window):
-                return True
+            return True
         if self.parse_whitelist_tx(tx):
             return True
         return False
@@ -1512,7 +1512,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_receiving_addresses(self):
         return self.get_addresses()
 
-    def get_change_addresses(self):
+    def get_change_addresses(self, whitelistedOnly=False):
         return []
 
     def import_address(self, address):
