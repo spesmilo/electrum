@@ -336,7 +336,11 @@ def get_exchanges_by_ccy(history=True):
     d = {}
     exchanges = CURRENCIES.keys()
     for name in exchanges:
-        klass = globals()[name]
+        try:
+            klass = globals()[name]
+        except KeyError:
+            # can happen if currencies.json is not in synch with this .py file, see #1559
+            continue
         exchange = klass(None, None)
         d[name] = exchange.history_ccys()
     return dictinvert(d)
