@@ -125,7 +125,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.gui_object = gui_object
         self.wallet = wallet
-        self.wallet.thread = None  # this attribute will be set with a TaskThread in load_wallet later in this function, but we want to make sure it's always defined.
         self.config = config = gui_object.config
         assert self.wallet and self.config and self.gui_object
 
