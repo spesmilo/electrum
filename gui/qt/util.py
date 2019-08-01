@@ -156,13 +156,13 @@ class Buttons(QHBoxLayout):
 
 class CloseButton(QPushButton):
     def __init__(self, dialog):
-        QPushButton.__init__(self, _("Close"))
+        QPushButton.__init__(self, _("C&lose"))
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
 class CopyButton(QPushButton):
     def __init__(self, text_getter, app=None, callback=None):
-        QPushButton.__init__(self, _("Copy"))
+        QPushButton.__init__(self, _("&Copy"))
         if not app:
             app = QApplication.instance()
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
@@ -171,20 +171,20 @@ class CopyButton(QPushButton):
 
 class CopyCloseButton(QPushButton):
     def __init__(self, text_getter, app, dialog):
-        QPushButton.__init__(self, _("Copy and Close"))
+        QPushButton.__init__(self, _("&Copy and Close"))
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
 class OkButton(QPushButton):
     def __init__(self, dialog, label=None):
-        QPushButton.__init__(self, label or _("OK"))
+        QPushButton.__init__(self, label or _("&OK"))
         self.clicked.connect(dialog.accept)
         self.setDefault(True)
 
 class CancelButton(QPushButton):
     def __init__(self, dialog, label=None):
-        QPushButton.__init__(self, label or _("Cancel"))
+        QPushButton.__init__(self, label or _("C&ancel"))
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin:

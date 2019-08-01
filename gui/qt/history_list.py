@@ -231,13 +231,13 @@ class HistoryList(MyTreeWidget):
 
         menu = QMenu()
 
-        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data.strip()))
+        menu.addAction(_("&Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data.strip()))
         if column in self.editable_columns:
             # We grab a fresh reference to the current item, as it has been deleted in a reported issue.
-            menu.addAction(_("Edit {}").format(column_title),
+            menu.addAction(_("&Edit {}").format(column_title),
                 lambda: self.currentItem() and self.editItem(self.currentItem(), column))
         label = self.wallet.get_label(tx_hash) or None
-        menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
+        menu.addAction(_("&Details"), lambda: self.parent.show_transaction(tx, label))
         if is_unconfirmed and tx:
             child_tx = self.wallet.cpfp(tx, 0)
             if child_tx:
