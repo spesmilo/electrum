@@ -66,7 +66,7 @@ from .util import *
 from .installwizard import WIF_HELP_TEXT
 from electrum.transaction import Transaction, TxOutput, TYPE_SCRIPT
 
-        
+
 
 
 
@@ -135,7 +135,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 5)
+        self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -621,12 +621,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
-                        
-                           
 
 
-                        
-                            
+
+
+
+
     def notify(self, message):
         if self.tray:
             try:
@@ -1513,7 +1513,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return None
 
         kyc_pubkey = bfh(kyc_pubkey)
-        
+
 
         label = 'registeraddresstx'
 
@@ -1533,10 +1533,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         password = None
         if self.wallet.has_keystore_encryption():
             password = self.password_dialog(msg)
-        
+
         txn_type='p2pkh'
         try:
-            inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)   
+            inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)
         except WalletFileException:
             return False
 
@@ -1553,7 +1553,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not outputs:
             self.show_error(_('No outputs'))
             return
-       
+
         amount=self.feerate_e.get_amount()
         amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
         fee_estimator = partial(
@@ -1576,7 +1576,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if r is None:
             return
-        
+
         outputs, fee_estimator, tx_desc = r
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True, True)
 
@@ -1589,7 +1589,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         outputs, fee_estimator, tx_desc, coins = r
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, preview)
 
-    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False, b_allow_zerospend: bool=False):    
+    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False, b_allow_zerospend: bool=False):
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
@@ -1839,7 +1839,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.set_registered_state(addrs, reg)
         self.address_list.update()
         self.utxo_list.update()
-        self.update_fee() 
+        self.update_fee()
 
     def set_pending_state(self, addrs, pending):
         self.wallet.set_pending_state(addrs, pending)
@@ -2560,7 +2560,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if isinstance(self.wallet, Multisig_Wallet):
             self.show_message(_('This is a multi-signature wallet.') + '\n' +
                             _('Registration is not currently supported.'))
-        
+
 
         kycSuccess, kycfileString=self.wallet.get_kyc_string(password)
         if not kycSuccess:
@@ -2587,7 +2587,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         vbox.addWidget(QLabel(msg))
 
-        
+
         defaultfilename = 'kycfile.dat'
 
         select_msg = _('Select a filename for the kycfile')
@@ -2823,7 +2823,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         export_meta_gui(self, _('labels'), export_labels)
 
     def do_export_addresses(self):
-        
+
         def accept_termsandconditions():
             def export_addresses(filename):
                 derived_addresses = []

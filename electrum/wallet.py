@@ -183,7 +183,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
-      
+
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -656,7 +656,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def is_registered(self, addr):
         return addr in self.registered_addresses
-        
+
     def get_pending_addresses(self):
         return self.pending_addresses
 
@@ -681,7 +681,7 @@ class Abstract_Wallet(AddressSynchronizer):
             self.storage.put('registered_addresses', list(self.registered_addresses))
             return True
         return False
-        
+
     def set_pending_state(self, addrs, pend: bool):
         '''Set pending state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
@@ -907,7 +907,7 @@ class Abstract_Wallet(AddressSynchronizer):
         addrs = self.get_unused_encryption_addresses()
         if addrs:
             return addrs[0]
-        
+
 
     def get_unused_encryption_addresses(self):
         domain = self.get_encryption_addresses()
@@ -1274,11 +1274,11 @@ class Abstract_Wallet(AddressSynchronizer):
             if self.is_mine(address):
                 fromAddress=address
                 break
-            
+
         if fromAddress == None:
             return False
 
-        
+
 
         password=None
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
@@ -1293,8 +1293,8 @@ class Abstract_Wallet(AddressSynchronizer):
                         return False
 
 
-        try: 
-            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
+        try:
+            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
             fromKey=ecc.ECPrivkey(secret_bytes)
         except Exception:
@@ -1320,7 +1320,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if(len(data)<2*pubKeySize+minPayloadSize):
             return False
-        
+
         kyc_pubkey=data[i1:i2]
         #Check if this is a onboarding TX
         try:
@@ -1329,10 +1329,10 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         except ValueError:
             return False
-        
+
         i1=i2
         i2+=33
-        userOnboardPubKey = data[i1:i2]         
+        userOnboardPubKey = data[i1:i2]
         try:
             _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
         except InvalidECPointException:
@@ -1358,8 +1358,8 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return False
 
-        try: 
-            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)   
+        try:
+            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
             _onboardUserKey=ecc.ECPrivkey(secret_bytes)
         except Exception:
@@ -1374,12 +1374,12 @@ class Abstract_Wallet(AddressSynchronizer):
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == _kyc_pubkey:
             return False
-        
+
 
         self.parse_ratx_addresses(plaintext)
 
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
-        
+
         return True
 
     def parse_ratx_addresses(self, data):
@@ -1397,13 +1397,13 @@ class Abstract_Wallet(AddressSynchronizer):
                 break
             addrbytes=bytes(data[i1:i2])
             addrs.append(hash160_to_b58_address(addrbytes, constants.net.ADDRTYPE_P2PKH))
-        
+
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
 
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
-        data=None       
+        data=None
         outputs = tx.outputs()
         for output in outputs:
             transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
@@ -1744,7 +1744,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             if for_encryption:
                 addresses=self.get_encryption_addresses()
             elif for_change:
-                addresses = self.get_change_addresses() 
+                addresses = self.get_change_addresses()
             else:
                 addresses = self.get_receiving_addresses()
 
@@ -1773,7 +1773,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             is_change=False
             addr_list = self.get_encryption_addresses()
         elif is_change:
-            addr_list = self.get_change_addresses() 
+            addr_list = self.get_change_addresses()
         else:
             addr_list = self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
@@ -1865,12 +1865,12 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             return False, "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
-        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)
         txin_type = self.get_txin_type(address)
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
         onboardUserKey=ecc.ECPrivkey(secret_bytes)
         # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
-      
+
         onboardPubKey=self.get_unassigned_kyc_pubkey()
         if onboardPubKey is None:
             return False, "No unassigned KYC public keys available. Please ensure that the wallet is connected to the network."

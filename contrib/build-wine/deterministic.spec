@@ -36,7 +36,7 @@ datas = [
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),    
-    (home+'electrum/contract/contract', 'contract')
+    (home+'electrum/contract/contract', 'electrum/contract')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
