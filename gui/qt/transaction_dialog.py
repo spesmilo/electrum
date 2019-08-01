@@ -424,7 +424,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
 
-        self.i_text = i_text = QTextBrowser()
+        self.i_text = i_text = TextBrowserKeyboardFocusFilter()
         num_inputs = len(self.tx.inputs())
         inputs_lbl_text = ngettext("&Input", "&Inputs ({num_inputs})", num_inputs)
         if num_inputs > 1:
@@ -464,7 +464,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         i_text.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
-        i_text.setTextInteractionFlags(i_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard | Qt.TextSelectableByKeyboard)
+        i_text.setTextInteractionFlags(i_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         vbox.addWidget(i_text)
 
 
@@ -472,7 +472,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         hbox.setContentsMargins(0,0,0,0)
         vbox.addLayout(hbox)
 
-        self.o_text = o_text = QTextBrowser()
+        self.o_text = o_text = TextBrowserKeyboardFocusFilter()
         num_outputs = len(self.tx.outputs())
         outputs_lbl_text = ngettext("&Output", "&Outputs ({num_outputs})", num_outputs)
         if num_outputs > 1:
@@ -503,7 +503,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         o_text.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        o_text.setTextInteractionFlags(o_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard | Qt.TextSelectableByKeyboard)
+        o_text.setTextInteractionFlags(o_text.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         vbox.addWidget(o_text)
         self.cashaddr_signal_slots.append(self.update_io)
         self.main_window.gui_object.cashaddr_toggled_signal.connect(self.update_io)

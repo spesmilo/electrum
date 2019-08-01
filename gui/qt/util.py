@@ -1225,6 +1225,28 @@ def webopen(url: str):
     else:
         webbrowser.open(url)
 
+class TextBrowserKeyboardFocusFilter(QTextBrowser):
+    """
+    This is a QTextBrowser that only enables keyboard text selection when the focus reason is
+    keyboard shortcuts or when a key is pressed while focused. Any other focus reason will
+    deactivate keyboard text selection.
+    """
+
+    def __init__(self, parent: QWidget = None):
+        super().__init__(parent)
+
+    def focusInEvent(self, e: QFocusEvent):
+        if e.reason() in (Qt.TabFocusReason, Qt.BacktabFocusReason, Qt.ShortcutFocusReason):
+            # Focused because of Tab, Shift+Tab or keyboard accelerator
+            self.setTextInteractionFlags(self.textInteractionFlags() | Qt.TextSelectableByKeyboard)
+        else:
+            self.setTextInteractionFlags(self.textInteractionFlags() & ~Qt.TextSelectableByKeyboard)
+        super().focusInEvent(e)
+
+    def keyPressEvent(self, e: QKeyEvent):
+        self.setTextInteractionFlags(self.textInteractionFlags() | Qt.TextSelectableByKeyboard)
+        super().keyPressEvent(e)
+
 if __name__ == "__main__":
     app = QApplication([])
     t = WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done"))
