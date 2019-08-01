@@ -1247,7 +1247,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
         if self.parse_registeraddress_tx(tx, parent_window):
-                return True
+            return True
         if self.parse_whitelist_tx(tx):
             return True
         return False
