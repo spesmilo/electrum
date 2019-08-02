@@ -533,6 +533,7 @@ class WizardDialog(EventsDialog):
     crcontent = ObjectProperty(None)
 
     def __init__(self, wizard, **kwargs):
+        self.auto_dismiss = False
         super(WizardDialog, self).__init__()
         self.wizard = wizard
         self.ids.back.disabled = not wizard.can_go_back()
@@ -540,7 +541,8 @@ class WizardDialog(EventsDialog):
         self.run_next = kwargs['run_next']
         _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
         Window.bind(size=_trigger_size_dialog,
-                    rotation=_trigger_size_dialog)
+                    rotation=_trigger_size_dialog,
+                    on_keyboard=self.on_keyboard)
         _trigger_size_dialog()
         self._on_release = False
 
@@ -561,6 +563,20 @@ class WizardDialog(EventsDialog):
             super(WizardDialog, self).add_widget(widget)
         else:
             self.crcontent.add_widget(widget, index=index)
+
+    def on_keyboard(self, instance, key, keycode, codepoint, modifier):
+        if key == 27:
+            if self.wizard.can_go_back():
+                self.wizard.go_back()
+            else:
+                app = App.get_running_app()
+                if not app.is_exit:
+                    app.is_exit = True
+                    app.show_info(_('Press again to exit'))
+                else:
+                    self._on_release = False
+                    self.dismiss()
+            return True
 
     def on_dismiss(self):
         app = App.get_running_app()
