@@ -692,6 +692,8 @@ class Peer(Logger):
             return
         chan.set_state('REESTABLISHING')
         self.network.trigger_callback('channel', chan)
+        # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
+        chan.hm.discard_unsigned_remote_updates()
         # ctns
         oldest_unrevoked_local_ctn = chan.config[LOCAL].ctn
         latest_local_ctn = chan.hm.ctn_latest(LOCAL)
