@@ -18,6 +18,7 @@ class HTLCManager:
                 'fails': {},
                 'fee_updates': [],
                 'revack_pending': False,
+                'next_htlc_id': 0,
             }
             log = {LOCAL: deepcopy(initial), REMOTE: deepcopy(initial)}
         else:
@@ -54,6 +55,9 @@ class HTLCManager:
     def _set_revack_pending(self, sub: HTLCOwner, pending: bool) -> None:
         self.log[sub]['revack_pending'] = pending
 
+    def get_next_htlc_id(self, sub: HTLCOwner) -> int:
+        return self.log[sub]['next_htlc_id']
+
     def to_save(self):
         log = deepcopy(self.log)
         for sub in (LOCAL, REMOTE):
@@ -75,14 +79,22 @@ class HTLCManager:
 
     def send_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
         htlc_id = htlc.htlc_id
+        if htlc_id != self.get_next_htlc_id(LOCAL):
+            raise Exception(f"unexpected local htlc_id. next should be "
+                            f"{self.get_next_htlc_id(LOCAL)} but got {htlc_id}")
         self.log[LOCAL]['adds'][htlc_id] = htlc
         self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE)+1}
+        self.log[LOCAL]['next_htlc_id'] += 1
         return htlc
 
     def recv_htlc(self, htlc: UpdateAddHtlc) -> None:
         htlc_id = htlc.htlc_id
+        if htlc_id != self.get_next_htlc_id(REMOTE):
+            raise Exception(f"unexpected remote htlc_id. next should be "
+                            f"{self.get_next_htlc_id(REMOTE)} but got {htlc_id}")
         self.log[REMOTE]['adds'][htlc_id] = htlc
         self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL)+1, REMOTE: None}
+        self.log[REMOTE]['next_htlc_id'] += 1
 
     def send_settle(self, htlc_id: int) -> None:
         self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}

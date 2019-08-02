@@ -35,7 +35,6 @@ OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 class LocalConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
     ctn: int
-    next_htlc_id: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
     htlc_basepoint: 'Keypair'
@@ -59,7 +58,6 @@ class LocalConfig(NamedTuple):
 class RemoteConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
     ctn: int
-    next_htlc_id: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
     htlc_basepoint: 'Keypair'

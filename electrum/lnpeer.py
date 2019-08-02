@@ -434,7 +434,6 @@ class Peer(Logger):
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             ctn=-1,
-            next_htlc_id=0,
             reserve_sat=546,
             per_commitment_secret_seed=keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey,
             funding_locked_received=False,
@@ -518,7 +517,6 @@ class Peer(Logger):
             max_accepted_htlcs=max_accepted_htlcs,
             initial_msat=push_msat,
             ctn = -1,
-            next_htlc_id = 0,
             reserve_sat = remote_reserve_sat,
             htlc_minimum_msat = htlc_min,
 
@@ -621,7 +619,6 @@ class Peer(Logger):
                     max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
                     initial_msat=remote_balance_sat,
                     ctn = -1,
-                    next_htlc_id = 0,
                     reserve_sat = remote_reserve_sat,
                     htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
                     next_per_commitment_point=payload['first_per_commitment_point'],
@@ -1142,11 +1139,14 @@ class Peer(Logger):
         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
         chan = self.channels[channel_id]
         assert chan.get_state() == "OPEN"
-        assert htlc_id == chan.config[REMOTE].next_htlc_id, (htlc_id, chan.config[REMOTE].next_htlc_id)  # TODO fail channel instead
         if cltv_expiry >= 500_000_000:
             pass  # TODO fail the channel
         # add htlc
-        htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc, payment_hash=payment_hash, cltv_expiry=cltv_expiry, timestamp=int(time.time()))
+        htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
+                             payment_hash=payment_hash,
+                             cltv_expiry=cltv_expiry,
+                             timestamp=int(time.time()),
+                             htlc_id=htlc_id)
         htlc = chan.receive_htlc(htlc)
         local_ctn = chan.get_current_ctn(LOCAL)
         remote_ctn = chan.get_current_ctn(REMOTE)

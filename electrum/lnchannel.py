@@ -243,10 +243,10 @@ class Channel(Logger):
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         self._check_can_pay(htlc.amount_msat)
-        htlc = htlc._replace(htlc_id=self.config[LOCAL].next_htlc_id)
+        if htlc.htlc_id is None:
+            htlc = htlc._replace(htlc_id=self.hm.get_next_htlc_id(LOCAL))
         self.hm.send_htlc(htlc)
         self.logger.info("add_htlc")
-        self.config[LOCAL]=self.config[LOCAL]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc
 
     def receive_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
@@ -260,14 +260,14 @@ class Channel(Logger):
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
-        htlc = htlc._replace(htlc_id=self.config[REMOTE].next_htlc_id)
+        if htlc.htlc_id is None:  # used in unit tests
+            htlc = htlc._replace(htlc_id=self.hm.get_next_htlc_id(REMOTE))
         if 0 <= self.available_to_spend(REMOTE) < htlc.amount_msat:
             raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
                     f' HTLC amount: {htlc.amount_msat}')
         self.hm.recv_htlc(htlc)
         self.logger.info("receive_htlc")
-        self.config[REMOTE]=self.config[REMOTE]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc
 
     def sign_next_commitment(self):
