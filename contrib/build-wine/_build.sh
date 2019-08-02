@@ -147,7 +147,7 @@ prepare_wine() {
         LIBUSB_COMMIT=f2b1128714663ab9450d222ba7f438dbe4ec9d87
 
         PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
-        PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
+        PYINSTALLER_COMMIT=1a8b2d47c277c451f4e358d926a47c096a5615ec
 
         ## These settings probably don't need change
         export WINEPREFIX=$HOME/wine64

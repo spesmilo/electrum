@@ -113,6 +113,8 @@ function retry() {
 # Now, some variables that affect all build scripts
 
 export PYTHONHASHSEED=22
+# Note, when upgrading Python, check the Windows python.exe embedded manifest for changes.
+# If the manifest changed, contrib/build-wine/manifest.xml needs to be updated.
 PYTHON_VERSION=3.6.8  # Windows, OSX & Linux AppImage use this to determine what to download/build
 PYTHON_SRC_TARBALL_HASH="35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
 DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash

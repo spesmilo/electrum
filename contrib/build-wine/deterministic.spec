@@ -132,6 +132,7 @@ exe_standalone = EXE(
     debug=False,
     strip=None,
     upx=False,
+    manifest=home+'contrib/build-wine/manifest.xml',
     icon=home+'icons/electron.ico',
     console=False)
 
@@ -144,6 +145,7 @@ exe_portable = EXE(
     debug=False,
     strip=None,
     upx=False,
+    manifest=home+'contrib/build-wine/manifest.xml',
     icon=home+'icons/electron.ico',
     console=False)
 
@@ -158,6 +160,7 @@ exe_dependent = EXE(
     debug=False,
     strip=None,
     upx=False,
+    manifest=home+'contrib/build-wine/manifest.xml',
     icon=home+'icons/electron.ico',
     console=False)
 
