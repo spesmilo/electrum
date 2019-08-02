@@ -10,14 +10,20 @@ class HTLCManager:
     def __init__(self, *, local_ctn=0, remote_ctn=0, log=None, initial_feerate=None):
         # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
         self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
-        # ctx_pending[sub] is True iff sub has received commitment_signed but did not send revoke_and_ack (sub has multiple unrevoked ctxs)
-        self.ctx_pending = {LOCAL:False, REMOTE: False} # FIXME does this need to be persisted?
         if log is None:
-            initial = {'adds': {}, 'locked_in': {}, 'settles': {}, 'fails': {}, 'fee_updates': []}
+            initial = {
+                'adds': {},
+                'locked_in': {},
+                'settles': {},
+                'fails': {},
+                'fee_updates': [],
+                'revack_pending': False,
+            }
             log = {LOCAL: deepcopy(initial), REMOTE: deepcopy(initial)}
         else:
             assert type(log) is dict
-            log = {HTLCOwner(int(sub)): action for sub, action in deepcopy(log).items()}
+            log = {(HTLCOwner(int(k)) if k in ("-1", "1") else k): v
+                   for k, v in deepcopy(log).items()}
             for sub in (LOCAL, REMOTE):
                 log[sub]['adds'] = {int(x): UpdateAddHtlc(*y) for x, y in log[sub]['adds'].items()}
                 coerceHtlcOwner2IntMap = lambda ctns: {HTLCOwner(int(owner)): ctn for owner, ctn in ctns.items()}
@@ -37,7 +43,16 @@ class HTLCManager:
 
     def ctn_latest(self, sub: HTLCOwner) -> int:
         """Return the ctn for the latest (newest that has a valid sig) ctx of sub"""
-        return self.ctn[sub] + int(self.ctx_pending[sub])
+        return self.ctn[sub] + int(self.is_revack_pending(sub))
+
+    def is_revack_pending(self, sub: HTLCOwner) -> bool:
+        """Returns True iff sub was sent commitment_signed but they did not
+        send revoke_and_ack yet (sub has multiple unrevoked ctxs)
+        """
+        return self.log[sub]['revack_pending']
+
+    def _set_revack_pending(self, sub: HTLCOwner, pending: bool) -> None:
+        self.log[sub]['revack_pending'] = pending
 
     def to_save(self):
         log = deepcopy(self.log)
@@ -55,7 +70,8 @@ class HTLCManager:
 
     def channel_open_finished(self):
         self.ctn = {LOCAL: 0, REMOTE: 0}
-        self.ctx_pending = {LOCAL:False, REMOTE: False}
+        self._set_revack_pending(LOCAL, False)
+        self._set_revack_pending(REMOTE, False)
 
     def send_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
         htlc_id = htlc.htlc_id
@@ -101,15 +117,15 @@ class HTLCManager:
 
     def send_ctx(self) -> None:
         assert self.ctn_latest(REMOTE) == self.ctn[REMOTE], (self.ctn_latest(REMOTE), self.ctn[REMOTE])
-        self.ctx_pending[REMOTE] = True
+        self._set_revack_pending(REMOTE, True)
 
     def recv_ctx(self) -> None:
         assert self.ctn_latest(LOCAL) == self.ctn[LOCAL], (self.ctn_latest(LOCAL), self.ctn[LOCAL])
-        self.ctx_pending[LOCAL] = True
+        self._set_revack_pending(LOCAL, True)
 
     def send_rev(self) -> None:
         self.ctn[LOCAL] += 1
-        self.ctx_pending[LOCAL] = False
+        self._set_revack_pending(LOCAL, False)
         # htlcs
         for ctns in self.log[REMOTE]['locked_in'].values():
             if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
@@ -125,7 +141,7 @@ class HTLCManager:
 
     def recv_rev(self) -> None:
         self.ctn[REMOTE] += 1
-        self.ctx_pending[REMOTE] = False
+        self._set_revack_pending(REMOTE, False)
         # htlcs
         for ctns in self.log[LOCAL]['locked_in'].values():
             if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
