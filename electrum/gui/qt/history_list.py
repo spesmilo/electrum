@@ -82,12 +82,10 @@ class HistoryColumns(IntEnum):
     DESCRIPTION = 1
     AMOUNT = 2
     BALANCE = 3
-    LN_AMOUNT = 4
-    LN_BALANCE = 5
-    FIAT_VALUE = 6
-    FIAT_ACQ_PRICE = 7
-    FIAT_CAP_GAINS = 8
-    TXID = 9
+    FIAT_VALUE = 4
+    FIAT_ACQ_PRICE = 5
+    FIAT_CAP_GAINS = 6
+    TXID = 7
 
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
@@ -172,13 +170,11 @@ class HistoryModel(QAbstractItemModel, Logger):
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
                 HistoryColumns.AMOUNT:
-                    tx_item['bc_value'].value if 'bc_value' in tx_item else None,
-                HistoryColumns.LN_AMOUNT:
-                    tx_item['ln_value'].value if 'ln_value' in tx_item else None,
+                    (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
+                    + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
                 HistoryColumns.BALANCE:
-                    tx_item['balance'].value if not is_lightning else None,
-                HistoryColumns.LN_BALANCE:
-                    tx_item['balance_msat'] if 'balance_msat' in tx_item else None,
+                    (tx_item['balance'].value if 'balance' in tx_item else 0)\
+                    + (tx_item['balance_msat']//1000 if 'balance_msat'in tx_item else 0),
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 HistoryColumns.FIAT_ACQ_PRICE:
@@ -216,20 +212,14 @@ class HistoryModel(QAbstractItemModel, Logger):
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION and 'label' in tx_item:
             return QVariant(tx_item['label'])
-        elif col == HistoryColumns.AMOUNT and 'bc_value' in tx_item:
-            value = tx_item['bc_value'].value
+        elif col == HistoryColumns.AMOUNT:
+            bc_value = tx_item['bc_value'].value if 'bc_value' in tx_item else 0
+            ln_value = tx_item['ln_value'].value if 'ln_value' in tx_item else 0
+            value = bc_value + ln_value
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
-        elif col == HistoryColumns.LN_AMOUNT and 'ln_value' in tx_item:
-            ln_value = tx_item['ln_value'].value
-            v_str = self.parent.format_amount(ln_value, is_diff=True, whitespaces=True)
-            return QVariant(v_str)
-        elif col == HistoryColumns.BALANCE and not is_lightning:
+        elif col == HistoryColumns.BALANCE:
             balance = tx_item['balance'].value
-            balance_str = self.parent.format_amount(balance, whitespaces=True)
-            return QVariant(balance_str)
-        elif col == HistoryColumns.LN_BALANCE and 'balance_msat' in tx_item:
-            balance = tx_item['balance_msat']//1000
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
         elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
@@ -370,9 +360,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             HistoryColumns.STATUS: _('Date'),
             HistoryColumns.DESCRIPTION: _('Description'),
             HistoryColumns.AMOUNT: _('Amount'),
-            HistoryColumns.LN_AMOUNT: u'\U0001f5f2 ' + _('Amount'),
             HistoryColumns.BALANCE: _('Balance'),
-            HistoryColumns.LN_BALANCE: u'\U0001f5f2 ' + _('Balance'),
             HistoryColumns.FIAT_VALUE: fiat_title,
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
@@ -419,9 +407,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.proxy = HistorySortModel(self)
         self.proxy.setSourceModel(model)
         self.setModel(self.proxy)
-        if not self.config.get('lightning'):
-            self.setColumnHidden(HistoryColumns.LN_BALANCE, True)
-            self.setColumnHidden(HistoryColumns.LN_AMOUNT, True)
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
         self.start_timestamp = None
@@ -622,7 +607,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         menu.addAction(_("Copy Transaction ID"), lambda: self.parent.app.clipboard().setText(tx_hash))
 
-        amount_columns = [HistoryColumns.AMOUNT, HistoryColumns.BALANCE, HistoryColumns.LN_AMOUNT, HistoryColumns.LN_BALANCE,
+        amount_columns = [HistoryColumns.AMOUNT, HistoryColumns.BALANCE,
                           HistoryColumns.FIAT_VALUE, HistoryColumns.FIAT_ACQ_PRICE, HistoryColumns.FIAT_CAP_GAINS]
         if column in amount_columns:
             column_data = column_data.strip()

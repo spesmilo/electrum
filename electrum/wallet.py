@@ -491,7 +491,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 'timestamp': tx_mined_status.timestamp,
                 'incoming': True if value>0 else False,
                 'bc_value': Satoshis(value),
-                'balance': Satoshis(balance),
+                'bc_balance': Satoshis(balance),
                 'date': timestamp_to_datetime(tx_mined_status.timestamp),
                 'label': self.get_label(tx_hash),
                 'txpos_in_block': tx_mined_status.txpos,
@@ -505,6 +505,7 @@ class Abstract_Wallet(AddressSynchronizer):
             txid = tx_item['txid']
             transactions[txid] = tx_item
         lightning_history = self.lnworker.get_history() if self.lnworker else []
+
         for i, tx_item in enumerate(lightning_history):
             txid = tx_item.get('txid')
             ln_value = Decimal(tx_item['amount_msat']) / 1000
@@ -512,7 +513,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 item = transactions[txid]
                 item['label'] = tx_item['label']
                 item['ln_value'] = Satoshis(ln_value)
-                item['balance_msat'] = tx_item['balance_msat']
+                item['ln_balance_msat'] = tx_item['balance_msat']
             else:
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)
@@ -520,6 +521,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
                 transactions[key] = tx_item
         now = time.time()
+        balance = 0
         for item in transactions.values():
             # add on-chain and lightning values
             value = Decimal(0)
@@ -528,6 +530,8 @@ class Abstract_Wallet(AddressSynchronizer):
             if item.get('ln_value'):
                 value += item.get('ln_value').value
             item['value'] = Satoshis(value)
+            balance += value
+            item['balance'] = Satoshis(balance)
             if fx:
                 timestamp = item['timestamp'] or now
                 fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
