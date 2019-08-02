@@ -176,9 +176,9 @@ class Peer(Logger):
             return
         # if they required some even flag we don't have, they will close themselves
         # but if we require an even flag they don't have, we close
-        self.their_localfeatures = int.from_bytes(payload['localfeatures'], byteorder="big")
+        their_localfeatures = int.from_bytes(payload['localfeatures'], byteorder="big")
         our_flags = set(list_enabled_bits(self.localfeatures))
-        their_flags = set(list_enabled_bits(self.their_localfeatures))
+        their_flags = set(list_enabled_bits(their_localfeatures))
         for flag in our_flags:
             if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
                 # they don't have this feature we wanted :(
@@ -186,6 +186,12 @@ class Peer(Logger):
                     raise GracefulDisconnect("remote does not have even flag {}"
                                              .format(str(LnLocalFeatures(1 << flag))))
                 self.localfeatures ^= 1 << flag  # disable flag
+            else:
+                # They too have this flag.
+                # For easier feature-bit-testing, if this is an even flag, we also
+                # set the corresponding odd flag now.
+                if flag % 2 == 0 and self.localfeatures & (1 << flag):
+                    self.localfeatures |= 1 << get_ln_flag_pair_of_bit(flag)
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
         self.initialized.set()

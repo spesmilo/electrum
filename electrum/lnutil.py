@@ -563,7 +563,7 @@ class LnLocalFeatures(IntFlag):
 LN_LOCAL_FEATURES_KNOWN_SET = set(LnLocalFeatures)
 
 
-def get_ln_flag_pair_of_bit(flag_bit: int):
+def get_ln_flag_pair_of_bit(flag_bit: int) -> int:
     """Ln Feature flags are assigned in pairs, one even, one odd. See BOLT-09.
     Return the other flag from the pair.
     e.g. 6 -> 7
