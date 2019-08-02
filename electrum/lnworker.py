@@ -724,9 +724,13 @@ class LNWallet(LNWorker):
     def pay(self, invoice, attempts=1, amount_sat=None, timeout=10):
         """
         Can be called from other threads
-        Raises timeout exception if htlc is not fulfilled
+        Raises exception after timeout
         """
-        addr = self._check_invoice(invoice, amount_sat)
+        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        status = self.get_invoice_status(bh2u(addr.paymenthash))
+        if status == PR_PAID:
+            raise PaymentFailure(_("This invoice has been paid already"))
+        self._check_invoice(invoice, amount_sat)
         self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
         self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
         fut = asyncio.run_coroutine_threadsafe(
@@ -768,6 +772,8 @@ class LNWallet(LNWorker):
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        if addr.is_expired():
+            raise InvoiceError(_("This invoice has expired"))
         if amount_sat:
             addr.amount = Decimal(amount_sat) / COIN
         if addr.amount is None:
@@ -776,9 +782,6 @@ class LNWallet(LNWorker):
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
-        #now = int(time.time())
-        #if addr.date + addr.get_expiry() > now:
-        #    raise InvoiceError(_('Invoice expired'))
         return addr
 
     async def _create_route_from_invoice(self, decoded_invoice) -> List[RouteEdge]:
