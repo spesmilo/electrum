@@ -422,17 +422,12 @@ class Channel(Logger):
         if cur_point != derived_point:
             raise Exception('revoked secret not for current point')
 
-        # FIXME not sure this is correct... but it seems to work
-        # if there are update_add_htlc msgs between commitment_signed and rev_ack,
-        # this might break
-        next_ctn = self.config[REMOTE].ctn + 1
-        prev_remote_commitment = self.pending_commitment(REMOTE)
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         ##### start applying fee/htlc changes
         next_point = self.config[REMOTE].next_per_commitment_point
         self.hm.recv_rev()
         self.config[REMOTE]=self.config[REMOTE]._replace(
-            ctn=next_ctn,
+            ctn=self.config[REMOTE].ctn + 1,
             current_per_commitment_point=next_point,
             next_per_commitment_point=revocation.next_per_commitment_point,
         )

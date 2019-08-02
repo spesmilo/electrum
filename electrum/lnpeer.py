@@ -1157,7 +1157,7 @@ class Peer(Logger):
                                                            onion_packet=onion_packet,
                                                            processed_onion=processed_onion))
 
-    @log_exceptions 
+    @log_exceptions
     async def _maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
                                   onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
         await self.await_local(chan, local_ctn)
