@@ -93,7 +93,19 @@ class Peer(Logger):
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
         self.logger.debug(f"Sending {message_name.upper()}")
-        self.transport.send_bytes(encode_msg(message_name, **kwargs))
+        raw_msg = encode_msg(message_name, **kwargs)
+        self._store_raw_msg_if_local_update(raw_msg, message_name=message_name, channel_id=kwargs.get("channel_id"))
+        self.transport.send_bytes(raw_msg)
+
+    def _store_raw_msg_if_local_update(self, raw_msg: bytes, *, message_name: str, channel_id: Optional[bytes]):
+        if not (message_name.startswith("update_") or message_name == "commitment_signed"):
+            return
+        assert channel_id
+        chan = self.lnworker.channels[channel_id]  # type: Channel
+        chan.hm.store_local_update_raw_msg(raw_msg)
+        if message_name == "commitment_signed":
+            # saving now, to ensure replaying updates works (in case of channel reestablishment)
+            self.lnworker.save_channel(chan)
 
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
@@ -733,11 +745,21 @@ class Peer(Logger):
         should_close_they_are_ahead = False
         # compare remote ctns
         if next_remote_ctn != their_next_local_ctn:
-            self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
-            if their_next_local_ctn < next_remote_ctn:
-                should_close_we_are_ahead = True
+            if their_next_local_ctn == latest_remote_ctn and chan.hm.is_revack_pending(REMOTE):
+                # Replay un-acked local updates (including commitment_signed) byte-for-byte.
+                # If we have sent them a commitment signature that they "lost" (due to disconnect),
+                # we need to make sure we replay the same local updates, as otherwise they could
+                # end up with two (or more) signed valid commitment transactions at the same ctn.
+                # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
+                # e.g. for watchtowers, hence we must ensure these ctxs coincide.
+                for raw_upd_msg in chan.hm.get_unacked_local_updates():
+                    self.transport.send_bytes(raw_upd_msg)
             else:
-                should_close_they_are_ahead = True
+                self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
+                if their_next_local_ctn < next_remote_ctn:
+                    should_close_we_are_ahead = True
+                else:
+                    should_close_they_are_ahead = True
         # compare local ctns
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
