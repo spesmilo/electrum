@@ -30,7 +30,7 @@ from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket)
-from .lnchannel import Channel, RevokeAndAck, htlcsum
+from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
@@ -720,7 +720,8 @@ class Peer(Logger):
         latest_remote_ctn = chan.hm.ctn_latest(REMOTE)
         next_remote_ctn = latest_remote_ctn + 1
         # send message
-        if self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT:
+        dlp_enabled = self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        if dlp_enabled:
             if oldest_unrevoked_remote_ctn == 0:
                 last_rev_secret = 0
             else:
@@ -746,6 +747,8 @@ class Peer(Logger):
         chan.set_state('OPENING')
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
+        their_claim_of_our_last_per_commitment_secret = channel_reestablish_msg.get("your_last_per_commitment_secret")
 
         should_close_we_are_ahead = False
         should_close_they_are_ahead = False
@@ -786,9 +789,34 @@ class Peer(Logger):
                     should_close_we_are_ahead = True
                 else:
                     should_close_they_are_ahead = True
+        # option_data_loss_protect
+        def are_datalossprotect_fields_valid() -> bool:
+            if their_local_pcp is None or their_claim_of_our_last_per_commitment_secret is None:
+                # if DLP was enabled, absence of fields is not OK
+                return not dlp_enabled
+            our_pcs, __ = chan.get_secret_and_point(LOCAL, their_oldest_unrevoked_remote_ctn - 1)
+            if our_pcs != their_claim_of_our_last_per_commitment_secret:
+                self.logger.error(f"channel_reestablish: (DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
+                return False
+            try:
+                __, our_remote_pcp = chan.get_secret_and_point(REMOTE, their_next_local_ctn - 1)
+            except RemoteCtnTooFarInFuture:
+                pass
+            else:
+                if our_remote_pcp != their_local_pcp:
+                    self.logger.error(f"channel_reestablish: (DLP) remote PCP mismatch: {bh2u(our_remote_pcp)} != {bh2u(their_local_pcp)}")
+                    return False
+            return True
 
-        # TODO option_data_loss_protect
-
+        if not are_datalossprotect_fields_valid():
+            self.logger.error(f"channel_reestablish: data loss protect fields invalid.")
+            # TODO should we force-close?
+            return
+        else:
+            if dlp_enabled and should_close_they_are_ahead:
+                self.logger.warning(f"channel_reestablish: remote is ahead of us! luckily DLP is enabled. remote PCP: {bh2u(their_local_pcp)}")
+                chan.data_loss_protect_remote_pcp[their_next_local_ctn - 1] = their_local_pcp
+                self.lnworker.save_channel(chan)
         if should_close_they_are_ahead:
             self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
             self.try_to_get_remote_to_force_close_with_their_latest(chan_id)

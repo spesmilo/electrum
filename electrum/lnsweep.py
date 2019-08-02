@@ -245,7 +245,7 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
         create_txns_for_htlc(htlc, is_received_htlc=True)
     return txs
 
-def analyze_ctx(chan, ctx):
+def analyze_ctx(chan: 'Channel', ctx: Transaction):
     # note: the remote sometimes has two valid non-revoked commitment transactions,
     # either of which could be broadcast (their_conf.ctn, their_conf.ctn+1)
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
@@ -265,6 +265,9 @@ def analyze_ctx(chan, ctx):
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
         #_logger.info(f'tx for revoked: {list(txs.keys())}')
+    elif ctn in chan.data_loss_protect_remote_pcp:
+        their_pcp = chan.data_loss_protect_remote_pcp[ctn]
+        is_revocation = False
     else:
         return
     return ctn, their_pcp, is_revocation, per_commitment_secret

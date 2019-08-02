@@ -65,6 +65,8 @@ class ChannelJsonEncoder(json.JSONEncoder):
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
 
+class RemoteCtnTooFarInFuture(Exception): pass
+
 
 def decodeAll(d, local):
     for k, v in d.items():
@@ -85,10 +87,10 @@ def htlcsum(htlcs):
 
 # following two functions are used because json
 # doesn't store int keys and byte string values
-def str_bytes_dict_from_save(x):
+def str_bytes_dict_from_save(x) -> Dict[int, bytes]:
     return {int(k): bfh(v) for k,v in x.items()}
 
-def str_bytes_dict_to_save(x):
+def str_bytes_dict_to_save(x) -> Dict[str, str]:
     return {str(k): bh2u(v) for k, v in x.items()}
 
 
@@ -132,6 +134,7 @@ class Channel(Logger):
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
         self.force_closed = state.get('force_closed')
+        self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
 
         log = state.get('log')
         self.hm = HTLCManager(local_ctn=self.config[LOCAL].ctn,
@@ -507,11 +510,12 @@ class Channel(Logger):
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return list(filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs))
 
-    def get_secret_and_point(self, subject, ctn):
+    def get_secret_and_point(self, subject, ctn) -> Tuple[Optional[bytes], bytes]:
         assert type(subject) is HTLCOwner
         offset = ctn - self.get_current_ctn(subject)
         if subject == REMOTE:
-            assert offset <= 1, offset
+            if offset > 1:
+                raise RemoteCtnTooFarInFuture(f"offset: {offset}")
             conf = self.config[REMOTE]
             if offset == 1:
                 secret = None
@@ -621,6 +625,7 @@ class Channel(Logger):
                 "log": self.hm.to_save(),
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "force_closed": self.force_closed,
+                "data_loss_protect_remote_pcp": str_bytes_dict_to_save(self.data_loss_protect_remote_pcp),
         }
         return to_save
 
