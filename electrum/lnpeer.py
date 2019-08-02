@@ -695,75 +695,83 @@ class Peer(Logger):
             return
         chan.set_state('REESTABLISHING')
         self.network.trigger_callback('channel', chan)
-        current_remote_ctn = chan.config[REMOTE].ctn
+        # ctns
+        oldest_unrevoked_local_ctn = chan.config[LOCAL].ctn
+        latest_local_ctn = chan.hm.ctn_latest(LOCAL)
+        next_local_ctn = latest_local_ctn + 1
+        oldest_unrevoked_remote_ctn = chan.config[REMOTE].ctn
+        latest_remote_ctn = chan.hm.ctn_latest(REMOTE)
+        next_remote_ctn = latest_remote_ctn + 1
         # send message
         if self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT:
-            if current_remote_ctn == 0:
+            if oldest_unrevoked_remote_ctn == 0:
                 last_rev_secret = 0
             else:
                 revocation_store = chan.config[REMOTE].revocation_store
-                last_rev_index = current_remote_ctn - 1
+                last_rev_index = oldest_unrevoked_remote_ctn - 1
                 last_rev_secret = revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
-            current_local_ctn = chan.get_current_ctn(LOCAL)
-            last_secret, last_point = chan.get_secret_and_point(LOCAL, current_local_ctn)
+            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
             self.send_message(
                 "channel_reestablish",
                 channel_id=chan_id,
-                next_local_commitment_number=chan.config[LOCAL].ctn+1,
-                next_remote_revocation_number=current_remote_ctn,
+                next_local_commitment_number=next_local_ctn,
+                next_remote_revocation_number=oldest_unrevoked_remote_ctn,
                 your_last_per_commitment_secret=last_rev_secret,
-                my_current_per_commitment_point=last_point)
+                my_current_per_commitment_point=latest_point)
         else:
             self.send_message(
                 "channel_reestablish",
                 channel_id=chan_id,
-                next_local_commitment_number=chan.config[LOCAL].ctn+1,
-                next_remote_revocation_number=current_remote_ctn)
+                next_local_commitment_number=next_local_ctn,
+                next_remote_revocation_number=oldest_unrevoked_remote_ctn)
 
         channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
         chan.set_state('OPENING')
-        # compare remote ctns
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
-        their_next_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
-        if their_next_local_ctn != chan.config[REMOTE].ctn + 1:
-            self.logger.info("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, their_next_local_ctn))
-            # TODO iff their ctn is lower than ours, we should force close instead
-            self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
-            return
+        their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+
+        should_close_we_are_ahead = False
+        should_close_they_are_ahead = False
+        # compare remote ctns
+        if next_remote_ctn != their_next_local_ctn:
+            self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
+            if their_next_local_ctn < next_remote_ctn:
+                should_close_we_are_ahead = True
+            else:
+                should_close_they_are_ahead = True
         # compare local ctns
-        our_local_ctn = chan.get_current_ctn(LOCAL)
-        if our_local_ctn != their_next_remote_ctn:
-            if our_local_ctn == their_next_remote_ctn + 1:
+        if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
+            if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
                 # A node:
-                #    if next_remote_revocation_number is equal to the
-                #    commitment number of the last revoke_and_ack
-                #    the receiving node sent, AND the receiving node
-                #    hasn't already received a closing_signed:
+                #    if next_remote_revocation_number is equal to the commitment number of the last revoke_and_ack
+                #    the receiving node sent, AND the receiving node hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
-                last_secret, last_point = chan.get_secret_and_point(LOCAL, our_local_ctn - 1)
-                next_secret, next_point = chan.get_secret_and_point(LOCAL, our_local_ctn + 1)
+                last_secret, last_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn - 1)
+                next_secret, next_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn + 1)
                 self.send_message(
                     "revoke_and_ack",
                     channel_id=chan.channel_id,
                     per_commitment_secret=last_secret,
                     next_per_commitment_point=next_point)
             else:
-                self.logger.info(f"expected local ctn {chan.config[LOCAL].ctn}, got {their_next_remote_ctn}")
-                # TODO iff their ctn is lower than ours, we should force close instead
-                self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
-                return
-        # compare per commitment points (needs data_protect option)
-        their_pcp = channel_reestablish_msg.get("my_current_per_commitment_point", None)
-        if their_pcp is not None:
-            our_pcp = chan.config[REMOTE].current_per_commitment_point
-            if our_pcp is None:
-                our_pcp = chan.config[REMOTE].next_per_commitment_point
-            if our_pcp != their_pcp:
-                self.logger.info(f"Remote PCP mismatch: {bh2u(our_pcp)} {bh2u(their_pcp)}")
-                # FIXME ...what now?
-                self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
-                return
-        if their_next_local_ctn == our_local_ctn + 1 == 1 and chan.short_channel_id:
+                self.logger.warning(f"channel_reestablish: expected local ctn {oldest_unrevoked_local_ctn}, got {their_oldest_unrevoked_remote_ctn}")
+                if their_oldest_unrevoked_remote_ctn < oldest_unrevoked_local_ctn:
+                    should_close_we_are_ahead = True
+                else:
+                    should_close_they_are_ahead = True
+
+        # TODO option_data_loss_protect
+
+        if should_close_they_are_ahead:
+            self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
+            self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
+            return
+        elif should_close_we_are_ahead:
+            self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
+            self.lnworker.force_close_channel(chan_id)
+            return
+
+        if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
@@ -948,6 +956,7 @@ class Peer(Logger):
         return h, node_signature, bitcoin_signature
 
     def on_update_fail_htlc(self, payload):
+        self.logger.info("on_update_fail_htlc")
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
         chan = self.channels[channel_id]
@@ -1103,7 +1112,7 @@ class Peer(Logger):
         self.send_revoke_and_ack(chan)
 
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
-        self.logger.info("update_fulfill")
+        self.logger.info("on_update_fulfill_htlc")
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
@@ -1118,7 +1127,7 @@ class Peer(Logger):
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
-        self.logger.info(f"error {payload['data'].decode('ascii')}")
+        self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
