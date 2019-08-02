@@ -42,7 +42,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
-                     UpdateAddHtlc, Direction, LnLocalFeatures)
+                     UpdateAddHtlc, Direction, LnLocalFeatures, format_short_channel_id)
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -752,7 +752,8 @@ class LNWallet(LNWorker):
         for i in range(attempts):
             route = await self._create_route_from_invoice(decoded_invoice=addr)
             if not self.get_channel_by_short_id(route[0].short_channel_id):
-                assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
+                scid = format_short_channel_id(route[0].short_channel_id)
+                raise Exception(f"Got route with unknown first channel: {scid}")
             self.network.trigger_callback('ln_payment_attempt', i)
             if await self._pay_to_route(route, addr, invoice):
                 return True
@@ -762,7 +763,8 @@ class LNWallet(LNWorker):
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         if not chan:
-            raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
+            scid = format_short_channel_id(short_channel_id)
+            raise Exception(f"PathFinder returned path with short_channel_id {scid} that is not in channel list")
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
@@ -960,7 +962,8 @@ class LNWallet(LNWorker):
                     cltv_expiry_delta = policy.cltv_expiry_delta
                     missing_info = False
             if missing_info:
-                self.logger.info(f"Warning. Missing channel update for our channel {bh2u(chan_id)}; "
+                scid = format_short_channel_id(chan_id)
+                self.logger.info(f"Warning. Missing channel update for our channel {scid}; "
                                  f"filling invoice with incorrect data.")
             routing_hints.append(('r', [(chan.node_id,
                                          chan_id,
@@ -988,7 +991,7 @@ class LNWallet(LNWorker):
                 yield {
                     'local_htlcs': json.loads(encoder.encode(chan.hm.log[LOCAL])),
                     'remote_htlcs': json.loads(encoder.encode(chan.hm.log[REMOTE])),
-                    'channel_id': bh2u(chan.short_channel_id) if chan.short_channel_id else None,
+                    'channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
                     'full_channel_id': bh2u(chan.channel_id),
                     'channel_point': chan.funding_outpoint.to_str(),
                     'state': chan.get_state(),
