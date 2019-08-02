@@ -34,8 +34,7 @@ _logger = get_logger(__name__)
 def xfp2str(xfp):
     # Standardized way to show an xpub's fingerprint... it's a 4-byte string
     # and not really an integer. Used to show as '0x%08x' but that's wrong endian.
-
-    return b2a_hex(pack('>I', xfp)).decode('ascii').upper()
+    return b2a_hex(pack('<I', xfp)).decode('ascii').upper()
 
 def xfp_from_xpub(xpub):
     # sometime we need to BIP32 fingerprint value: 4 bytes of ripemd(sha256(pubkey))
@@ -241,7 +240,12 @@ def build_psbt(tx: Transaction, wallet: Wallet):
         if type(wallet) is Multisig_Wallet:
             # always need a redeem script for multisig
             scr = Transaction.get_preimage_script(txin)
-            write_kv(PSBT_IN_REDEEM_SCRIPT, bfh(scr))
+
+            if 'p2wsh' in txin['type']:
+                # needed for both p2wsh-p2sh and p2wsh
+                write_kv(PSBT_IN_WITNESS_SCRIPT, bfh(scr))
+            else:
+                write_kv(PSBT_IN_REDEEM_SCRIPT, bfh(scr))
 
         sigs = txin.get('signatures')
 
@@ -326,14 +330,14 @@ def recover_tx_from_psbt(first: BasicPSBT, wallet: Wallet) -> Transaction:
     tx.is_partial_originally = True
 
     for idx, inp in enumerate(tx.inputs()):
-        scr = first.inputs[idx].redeem_script
+        scr = first.inputs[idx].redeem_script or first.inputs[idx].witness_script
 
         # XXX should use transaction.py parse_scriptSig() here!
         if scr:
             try:
                 M, N, __, pubkeys, __ = parse_redeemScript_multisig(scr)
             except NotRecognizedRedeemScript:
-                # problem: we can only handle M-of-N multisig here
+                # limitation: we can only handle M-of-N multisig here
                 raise ValueError("Cannot handle non M-of-N multisig input")
 
             inp['pubkeys'] = pubkeys
@@ -344,6 +348,14 @@ def recover_tx_from_psbt(first: BasicPSBT, wallet: Wallet) -> Transaction:
             # bugfix: transaction.py:parse_input() puts empty dict here, but need a list
             inp['signatures'] = [None] * N
 
+        if 'prev_tx' not in inp:
+            # fetch info about inputs' previous txn
+            wallet.add_hw_info(tx)
+
+        if 'value' not in inp:
+            # we'll need to know the value of the outpts used as part
+            # of the witness data, much later...
+            inp['value'] = inp['prev_tx'].outputs()[inp['prevout_n']].value
 
     return tx
 
@@ -356,8 +368,10 @@ def merge_sigs_from_psbt(tx: Transaction, psbt: BasicPSBT):
         if not inp.part_sigs:
             continue
 
+        scr = inp.redeem_script or inp.witness_script
+
         # need to map from pubkey to signing position in redeem script
-        M, N, _, pubkeys, _ = parse_redeemScript_multisig(inp.redeem_script)
+        M, N, _, pubkeys, _ = parse_redeemScript_multisig(scr)
         #assert (M, N) == (wallet.m, wallet.n)
 
         for sig_pk in inp.part_sigs:

@@ -21,6 +21,8 @@ from base64 import b64encode, b64decode
 from .basic_psbt import BasicPSBT
 from .build_psbt import build_psbt, merge_sigs_from_psbt, recover_tx_from_psbt
 
+CC_DEBUG = False
+
 class Plugin(ColdcardPlugin, QtPluginBase):
     icon_unpaired = "coldcard_unpaired.png"
     icon_paired = "coldcard.png"
@@ -156,6 +158,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 return
 
         warn = []
+        if not psbts: return        # user picked nothing
 
         # Consistency checks and warnings.
         try:
@@ -187,6 +190,9 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         try:
             tx = recover_tx_from_psbt(first, wallet)
         except BaseException as exc:
+            if CC_DEBUG:
+                from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
+                import pdb; pdb.post_mortem()
             window.show_critical(str(exc), title=_("Unable to understand PSBT file"))
             return
 
@@ -195,9 +201,10 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             try:
                 merge_sigs_from_psbt(tx, p)
             except BaseException as exc:
-                #from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
-                #import pdb; pdb.post_mortem()
-                window.show_critical(str(exc), 
+                if CC_DEBUG:
+                    from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
+                    import pdb; pdb.post_mortem()
+                window.show_critical("Unable to merge signatures: " + str(exc), 
                     title=_("Unable to combine PSBT file: ") + p.filename)
                 return
 
