@@ -75,7 +75,7 @@ class Peer(Logger):
         # channel messsage queues
         self.shutdown_received = defaultdict(asyncio.Future)
         self.channel_accepted = defaultdict(asyncio.Queue)
-        self.channel_reestablished = defaultdict(asyncio.Future)
+        self.channel_reestablished = defaultdict(asyncio.Queue)
         self.funding_signed = defaultdict(asyncio.Queue)
         self.funding_created = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
@@ -127,11 +127,10 @@ class Peer(Logger):
             asyncio.ensure_future(execution_result)
 
     def on_error(self, payload):
-        # todo: self.channel_reestablished is not a queue
         self.logger.info(f"error {payload['data'].decode('ascii')}")
         chan_id = payload.get("channel_id")
         for d in [ self.channel_accepted, self.funding_signed,
-                   self.funding_created,
+                   self.funding_created, self.channel_reestablished,
                    self.announcement_signatures, self.closing_signed ]:
             if chan_id in d:
                 d[chan_id].put_nowait({'error':payload['data']})
@@ -676,7 +675,7 @@ class Peer(Logger):
         if not chan:
             self.logger.info(f"Received unknown channel_reestablish {bh2u(chan_id)} {payload}")
             raise Exception('Unknown channel_reestablish')
-        self.channel_reestablished[chan_id].set_result(payload)
+        self.channel_reestablished[chan_id].put_nowait(payload)
 
     def try_to_get_remote_to_force_close_with_their_latest(self, chan_id):
         self.logger.info(f"trying to get remote to force close {bh2u(chan_id)}")
@@ -721,7 +720,7 @@ class Peer(Logger):
                 next_local_commitment_number=chan.config[LOCAL].ctn+1,
                 next_remote_revocation_number=current_remote_ctn)
 
-        channel_reestablish_msg = await self.channel_reestablished[chan_id]
+        channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
         chan.set_state('OPENING')
         # compare remote ctns
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
