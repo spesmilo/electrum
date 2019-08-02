@@ -8,7 +8,7 @@ PACKAGES="$ROOT_FOLDER"/packages/
 LOCALE="$ROOT_FOLDER"/electrum/locale/
 
 if [ ! -d "$LOCALE" ]; then
-  echo "Run make_locale first!"
+  echo "Run pull_locale first!"
   exit 1
 fi
 
@@ -30,6 +30,17 @@ if [[ -n "$1"  && "$1" == "release" ]] ; then
     export P4A_RELEASE_KEYALIAS=electrum
     make release
 else
+    export P4A_DEBUG_KEYSTORE="$CONTRIB"/android_debug.keystore
+    export P4A_DEBUG_KEYSTORE_PASSWD=unsafepassword
+    export P4A_DEBUG_KEYALIAS_PASSWD=unsafepassword
+    export P4A_DEBUG_KEYALIAS=electrum
+    if [ ! -f "$P4A_DEBUG_KEYSTORE" ]; then
+        keytool -genkey -v -keystore "$CONTRIB"/android_debug.keystore \
+            -alias "$P4A_DEBUG_KEYALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=mqttserver.ibm.com, OU=ID, O=IBM, L=Hursley, S=Hants, C=GB" \
+            -storepass "$P4A_DEBUG_KEYSTORE_PASSWD" \
+            -keypass "$P4A_DEBUG_KEYALIAS_PASSWD"
+    fi
     make apk
 fi
 

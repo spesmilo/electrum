@@ -23,7 +23,7 @@ cache:
 script:
     - tox
 after_success:
-    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/make_locale; fi
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
     - coveralls
 jobs:
   include:
@@ -44,13 +44,10 @@ jobs:
     - name: "Android build"
       language: python
       python: 3.7
-      env:
-        # reset API key to not have make_locale upload stuff here
-        - crowdin_api_key=
       services:
         - docker
       install:
-        - pip install requests && ./contrib/make_locale
+        - pip install requests && ./contrib/pull_locale
         - ./contrib/make_packages
         - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
       script:

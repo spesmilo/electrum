@@ -9,6 +9,10 @@ LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 . $(dirname "$0")/base.sh
 
+CONTRIB_OSX="$(dirname "$(realpath "$0")")"
+CONTRIB="$CONTRIB_OSX/.."
+ROOT_FOLDER="$CONTRIB/.."
+
 src_dir=$(dirname "$0")
 cd $src_dir/../..
 
@@ -65,13 +69,24 @@ pyinstaller --version
 
 rm -rf ./dist
 
-git submodule init
-git submodule update
+git submodule update --init
 
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-cp -R ./contrib/deterministic-build/electrum-locale/locale/ ./electrum/locale/
+info "generating locale"
+(
+    if ! which msgfmt > /dev/null 2>&1; then
+        brew install gettext
+        brew link --force gettext
+    fi
+    cd "$CONTRIB"/deterministic-build/electrum-locale
+    for i in ./locale/*; do
+        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
+        mkdir -p $dir
+        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+    done
+) || fail "failed generating locale"
 
 
 info "Downloading libusb..."
@@ -89,7 +104,7 @@ git reset --hard $LIBSECP_VERSION
 git clean -f -x -q
 ./autogen.sh
 ./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
-make
+make -j4
 popd
 cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
 

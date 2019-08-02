@@ -132,7 +132,7 @@ class Plugin(TrustedCoinPlugin):
             e = exc_info[1]
             window.show_error("{header}\n{exc}\n\n{tor}"
                               .format(header=_('Error getting TrustedCoin account info.'),
-                                      exc=str(e),
+                                      exc=repr(e),
                                       tor=_('If you keep experiencing network problems, try using a Tor proxy.')))
         return WaitingDialog(parent=window,
                              message=_('Requesting account info from TrustedCoin server...'),
@@ -253,7 +253,7 @@ class Plugin(TrustedCoinPlugin):
             except Exception as e:
                 self.logger.exception('Could not retrieve Terms of Service')
                 tos_e.error_signal.emit(_('Could not retrieve Terms of Service:')
-                                        + '\n' + str(e))
+                                        + '\n' + repr(e))
                 return
             self.TOS = tos
             tos_e.tos_signal.emit()
