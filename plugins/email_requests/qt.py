@@ -94,7 +94,7 @@ class Processor(threading.Thread, PrintError):
             self.M.login(self.username, self.password)
         except Exception as e:
             self.print_error("Exception encountered, stopping plugin thread:", repr(e))
-            self.on_error(_("Email plugin could not connect to {server} as {username}, plugin stopped.").format(server=self.imap_server, username=self.username))
+            self.on_error(_("Email plugin could not connect to {server} as {username}, IMAP receive thread stopped.").format(server=self.imap_server, username=self.username))
             return
         try:
             while Processor.instance is self:
@@ -150,6 +150,8 @@ class Plugin(BasePlugin):
         if self.imap_server and self.username and self.password:
             self.processor = Processor(self.imap_server, self.username, self.password, self.on_receive, self.on_error)
             self.processor.start()
+        else:
+            self.processor = None
         self.obj = EmailSignalObject()
         self.obj.email_new_invoice_signal.connect(self.new_invoice)
         self.obj.email_error.connect(self.on_error_qt)
@@ -157,7 +159,7 @@ class Plugin(BasePlugin):
     def on_close(self):
         ''' called on plugin close '''
         Processor.instance = None  # tells thread that it is defunct
-        if self.processor.is_alive():
+        if self.processor and self.processor.is_alive():
             self.processor.q.put(None)  # signal stop
             self.processor.join(timeout=1.0)
 
@@ -182,6 +184,9 @@ class Plugin(BasePlugin):
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
     def send(self, window, addr):
+        if not self.processor:
+            window.show_warning(_('The email plugin is enabled but not configured. Please go to its settings and configure it, or disable it if you do not wish to use it.'))
+            return
         from electroncash import paymentrequest
         r = window.wallet.receive_requests.get(addr)
         message = r.get('memo', '')
@@ -201,7 +206,11 @@ class Plugin(BasePlugin):
             self.processor.send(recipient, message, payload)
         except Exception as e:
             self.print_error("Exception sending:", repr(e))
-            window.show_error(_("Could not send email to {recipient}").format(recipient=recipient))
+            # NB; we don't want to actually display the exception message here
+            # because it may contain text from the server, which could be a
+            # potential phishing attack surface.  So instead we show the user
+            # the exception name which is something like ConnectionRefusedError.
+            window.show_error(_("Could not send email to {recipient}: {reason}").format(recipient=recipient, reason=type(e).__name__))
             return
 
         window.show_message(_('Request sent.'))
@@ -253,3 +262,4 @@ class Plugin(BasePlugin):
 
         password = str(password_e.text())
         self.config.set_key('email_password', password)
+        window.show_message(_('Please restart the plugin to activate the new settings'))
