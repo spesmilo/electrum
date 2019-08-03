@@ -1054,6 +1054,7 @@ class ElectrumGui(PrintError):
 
     # can be called from any thread, always runs in main thread
     def show_error(self, message, title = _("Error"), onOk = None, localRunLoop = False, vc = None):
+        message = str(message)  # ensure message is string in case calling code passed us an Exception subclass, see #1273
         return self.show_message(message=message, title=title, onOk=onOk, localRunLoop=localRunLoop, vc=vc)
 
     # full stop question for user -- appropriate for send tx dialog
@@ -1706,7 +1707,7 @@ class ElectrumGui(PrintError):
                                       onOk = lambda: self.show_wallet_share_actions(info = info, vc = vc, ipadAnchor = ipadAnchor, warnIfUnsafe = False))
                         return
             except:
-                self.show_error(sys.exc_info()[1], vc = vc)
+                self.show_error(str(sys.exc_info()[1]), vc = vc)
                 return
         waitDlg = None
         def Dismiss(compl = None, animated = True) -> None:
