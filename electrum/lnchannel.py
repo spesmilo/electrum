@@ -146,8 +146,6 @@ class Channel(Logger):
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
         self.set_state('DISCONNECTED')
-        self.local_commitment = None
-        self.remote_commitment = None
         self.sweep_info = {}
 
     def get_feerate(self, subject, ctn):
@@ -174,14 +172,6 @@ class Channel(Logger):
                 rhash = bh2u(htlc.payment_hash)
                 out[rhash] = (self.channel_id, htlc, direction, status)
         return out
-
-    def set_local_commitment(self, ctx):
-        ctn = extract_ctn_from_tx_and_chan(ctx, self)
-        assert self.signature_fits(ctx), (self.hm.log[LOCAL])
-        self.local_commitment = ctx
-
-    def set_remote_commitment(self):
-        self.remote_commitment = self.current_commitment(REMOTE)
 
     def open_with_first_pcp(self, remote_pcp, remote_sig):
         self.config[REMOTE] = self.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_pcp, next_per_commitment_point=None)
@@ -285,10 +275,10 @@ class Channel(Logger):
 
         This docstring was adapted from LND.
         """
-        next_remote_ctn = self.get_current_ctn(REMOTE) + 1
+        next_remote_ctn = self.get_next_ctn(REMOTE)
         self.logger.info(f"sign_next_commitment {next_remote_ctn}")
-        self.hm.send_ctx()
-        pending_remote_commitment = self.pending_commitment(REMOTE)
+
+        pending_remote_commitment = self.get_next_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
 
         their_remote_htlc_privkey_number = derive_privkey(
@@ -317,8 +307,7 @@ class Channel(Logger):
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
 
-        # TODO should add remote_commitment here and handle
-        # both valid ctx'es in lnwatcher at the same time...
+        self.hm.send_ctx()
 
         return sig_64, htlcsigs
 
@@ -335,22 +324,20 @@ class Channel(Logger):
 
         This docstring is from LND.
         """
+        next_local_ctn = self.get_next_ctn(LOCAL)
         self.logger.info("receive_new_commitment")
-
-        self.hm.recv_ctx()
 
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
-        pending_local_commitment = self.pending_commitment(LOCAL)
+        pending_local_commitment = self.get_next_commitment(LOCAL)
         preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
-            raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
+            raise Exception(f'failed verifying signature of our updated commitment transaction: {bh2u(sig)} preimage is {preimage_hex}')
 
         htlc_sigs_string = b''.join(htlc_sigs)
 
         htlc_sigs = htlc_sigs[:] # copy cause we will delete now
-        next_local_ctn = self.get_current_ctn(LOCAL) + 1
         for htlcs, we_receive in [(self.included_htlcs(LOCAL, SENT, ctn=next_local_ctn), False),
                                   (self.included_htlcs(LOCAL, RECEIVED, ctn=next_local_ctn), True)]:
             for htlc in htlcs:
@@ -359,12 +346,10 @@ class Channel(Logger):
         if len(htlc_sigs) != 0: # all sigs should have been popped above
             raise Exception('failed verifying HTLC signatures: invalid amount of correct signatures')
 
+        self.hm.recv_ctx()
         self.config[LOCAL]=self.config[LOCAL]._replace(
             current_commitment_signature=sig,
-            current_htlc_signatures=htlc_sigs_string,
-            got_sig_for_next=True)
-
-        self.set_local_commitment(pending_local_commitment)
+            current_htlc_signatures=htlc_sigs_string)
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool, ctx) -> int:
         ctn = extract_ctn_from_tx_and_chan(ctx, self)
@@ -394,15 +379,14 @@ class Channel(Logger):
 
     def revoke_current_commitment(self):
         self.logger.info("revoke_current_commitment")
-        assert self.config[LOCAL].got_sig_for_next
         new_ctn = self.config[LOCAL].ctn + 1
-        new_ctx = self.pending_commitment(LOCAL)
-        assert self.signature_fits(new_ctx)
-        self.set_local_commitment(new_ctx)
+        new_ctx = self.get_latest_commitment(LOCAL)
+        if not self.signature_fits(new_ctx):
+            # this should never fail; as receive_new_commitment already did this test
+            raise Exception("refusing to revoke as remote sig does not fit")
         self.hm.send_rev()
         self.config[LOCAL]=self.config[LOCAL]._replace(
             ctn=new_ctn,
-            got_sig_for_next=False,
         )
         received = self.hm.received_in_ctn(new_ctn)
         sent = self.hm.sent_in_ctn(new_ctn)
@@ -427,14 +411,12 @@ class Channel(Logger):
 
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         ##### start applying fee/htlc changes
-        next_point = self.config[REMOTE].next_per_commitment_point
         self.hm.recv_rev()
         self.config[REMOTE]=self.config[REMOTE]._replace(
             ctn=self.config[REMOTE].ctn + 1,
-            current_per_commitment_point=next_point,
+            current_per_commitment_point=self.config[REMOTE].next_per_commitment_point,
             next_per_commitment_point=revocation.next_per_commitment_point,
         )
-        self.set_remote_commitment()
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """
@@ -512,7 +494,7 @@ class Channel(Logger):
 
     def get_secret_and_point(self, subject, ctn) -> Tuple[Optional[bytes], bytes]:
         assert type(subject) is HTLCOwner
-        offset = ctn - self.get_current_ctn(subject)
+        offset = ctn - self.get_oldest_unrevoked_ctn(subject)
         if subject == REMOTE:
             if offset > 1:
                 raise RemoteCtnTooFarInFuture(f"offset: {offset}")
@@ -540,12 +522,16 @@ class Channel(Logger):
         secret, ctx = self.get_secret_and_commitment(subject, ctn)
         return ctx
 
-    def pending_commitment(self, subject):
-        ctn = self.get_current_ctn(subject)
-        return self.get_commitment(subject, ctn + 1)
+    def get_next_commitment(self, subject: HTLCOwner) -> Transaction:
+        ctn = self.get_next_ctn(subject)
+        return self.get_commitment(subject, ctn)
 
-    def current_commitment(self, subject):
-        ctn = self.get_current_ctn(subject)
+    def get_latest_commitment(self, subject: HTLCOwner) -> Transaction:
+        ctn = self.get_latest_ctn(subject)
+        return self.get_commitment(subject, ctn)
+
+    def get_oldest_unrevoked_commitment(self, subject: HTLCOwner) -> Transaction:
+        ctn = self.get_oldest_unrevoked_ctn(subject)
         return self.get_commitment(subject, ctn)
 
     def create_sweeptxs(self, ctn):
@@ -553,8 +539,14 @@ class Channel(Logger):
         secret, ctx = self.get_secret_and_commitment(REMOTE, ctn)
         return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
 
-    def get_current_ctn(self, subject):
+    def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
         return self.config[subject].ctn
+
+    def get_latest_ctn(self, subject: HTLCOwner) -> int:
+        return self.hm.ctn_latest(subject)
+
+    def get_next_ctn(self, subject: HTLCOwner) -> int:
+        return self.hm.ctn_latest(subject) + 1
 
     def total_msat(self, direction):
         """Return the cumulative total msat amount received/sent so far."""
@@ -597,12 +589,8 @@ class Channel(Logger):
         self.logger.info("receive_fail_htlc")
         self.hm.recv_fail(htlc_id)
 
-    @property
-    def current_height(self):
-        return {LOCAL: self.config[LOCAL].ctn, REMOTE: self.config[REMOTE].ctn}
-
     def pending_local_fee(self):
-        return self.constraints.capacity - sum(x[2] for x in self.pending_commitment(LOCAL).outputs())
+        return self.constraints.capacity - sum(x[2] for x in self.get_next_commitment(LOCAL).outputs())
 
     def update_fee(self, feerate: int, from_us: bool):
         # feerate uses sat/kw
@@ -751,7 +739,7 @@ class Channel(Logger):
         return res
 
     def force_close_tx(self):
-        tx = self.local_commitment
+        tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
         tx = Transaction(str(tx))
         tx.deserialize(True)

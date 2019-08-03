@@ -458,7 +458,6 @@ class Peer(Logger):
             was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=[],
-            got_sig_for_next=False,
         )
         return local_config
 
@@ -577,8 +576,6 @@ class Peer(Logger):
         # broadcast funding tx
         await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 5)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        chan.set_remote_commitment()
-        chan.set_local_commitment(chan.current_commitment(LOCAL))
         return chan
 
     async def on_open_channel(self, payload):
@@ -713,12 +710,12 @@ class Peer(Logger):
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
         # ctns
-        oldest_unrevoked_local_ctn = chan.config[LOCAL].ctn
-        latest_local_ctn = chan.hm.ctn_latest(LOCAL)
-        next_local_ctn = latest_local_ctn + 1
-        oldest_unrevoked_remote_ctn = chan.config[REMOTE].ctn
-        latest_remote_ctn = chan.hm.ctn_latest(REMOTE)
-        next_remote_ctn = latest_remote_ctn + 1
+        oldest_unrevoked_local_ctn = chan.get_oldest_unrevoked_ctn(LOCAL)
+        latest_local_ctn = chan.get_latest_ctn(LOCAL)
+        next_local_ctn = chan.get_next_ctn(LOCAL)
+        oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
+        latest_remote_ctn = chan.get_latest_ctn(REMOTE)
+        next_remote_ctn = chan.get_next_ctn(REMOTE)
         # send message
         dlp_enabled = self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         if dlp_enabled:
@@ -1016,7 +1013,7 @@ class Peer(Logger):
         htlc_id = int.from_bytes(payload["id"], "big")
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
-        local_ctn = chan.get_current_ctn(LOCAL)
+        local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
         asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn))
 
@@ -1087,7 +1084,7 @@ class Peer(Logger):
                 self.network.path_finder.add_to_blacklist(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
-        ctn_to_sign = chan.get_current_ctn(REMOTE) + 1
+        ctn_to_sign = chan.get_next_ctn(REMOTE)
         # if there are no changes, we will not (and must not) send a new commitment
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
         if (next_htlcs == latest_htlcs
@@ -1101,12 +1098,12 @@ class Peer(Logger):
 
     async def await_remote(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
-        while chan.get_current_ctn(REMOTE) <= ctn:
+        while chan.get_latest_ctn(REMOTE) <= ctn:
             await self._remote_changed_events[chan.channel_id].wait()
 
     async def await_local(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
-        while chan.get_current_ctn(LOCAL) <= ctn:
+        while chan.get_latest_ctn(LOCAL) <= ctn:
             await self._local_changed_events[chan.channel_id].wait()
 
     async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
@@ -1122,7 +1119,7 @@ class Peer(Logger):
         # create htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
-        remote_ctn = chan.get_current_ctn(REMOTE)
+        remote_ctn = chan.get_latest_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
         self.logger.info(f"starting payment. route: {route}. htlc: {htlc}")
@@ -1156,7 +1153,7 @@ class Peer(Logger):
                 and chan.get_next_feerate(LOCAL) == chan.get_latest_feerate(LOCAL)):
             raise RemoteMisbehaving('received commitment_signed without pending changes')
         # make sure ctn is new
-        ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
+        ctn_to_recv = chan.get_next_ctn(LOCAL)
         if ctn_to_recv == self.recv_commitment_for_ctn_last[chan]:
             raise RemoteMisbehaving('received commitment_signed with same ctn')
         self.recv_commitment_for_ctn_last[chan] = ctn_to_recv
@@ -1172,7 +1169,7 @@ class Peer(Logger):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         chan.receive_htlc_settle(preimage, htlc_id)
-        local_ctn = chan.get_current_ctn(LOCAL)
+        local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
 
     @log_exceptions
@@ -1206,8 +1203,8 @@ class Peer(Logger):
                              timestamp=int(time.time()),
                              htlc_id=htlc_id)
         htlc = chan.receive_htlc(htlc)
-        local_ctn = chan.get_current_ctn(LOCAL)
-        remote_ctn = chan.get_current_ctn(REMOTE)
+        local_ctn = chan.get_latest_ctn(LOCAL)
+        remote_ctn = chan.get_latest_ctn(REMOTE)
         if processed_onion.are_we_final:
             asyncio.ensure_future(self._maybe_fulfill_htlc(chan=chan,
                                                            htlc=htlc,
@@ -1243,7 +1240,7 @@ class Peer(Logger):
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
         next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
-        next_remote_ctn = next_chan.get_current_ctn(REMOTE)
+        next_remote_ctn = next_chan.get_latest_ctn(REMOTE)
         next_peer.send_message(
             "update_add_htlc",
             channel_id=next_chan.channel_id,
@@ -1301,7 +1298,7 @@ class Peer(Logger):
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         chan.settle_htlc(preimage, htlc_id)
-        remote_ctn = chan.get_current_ctn(REMOTE)
+        remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,
@@ -1313,7 +1310,7 @@ class Peer(Logger):
                         reason: OnionRoutingFailureMessage):
         self.logger.info(f"failing received htlc {(bh2u(chan.channel_id), htlc_id)}. reason: {reason}")
         chan.fail_htlc(htlc_id)
-        remote_ctn = chan.get_current_ctn(REMOTE)
+        remote_ctn = chan.get_latest_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
         self.send_message("update_fail_htlc",
                           channel_id=chan.channel_id,
@@ -1357,7 +1354,7 @@ class Peer(Logger):
         else:
             return
         chan.update_fee(feerate_per_kw, True)
-        remote_ctn = chan.get_current_ctn(REMOTE)
+        remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fee",
                           channel_id=chan.channel_id,
                           feerate_per_kw=feerate_per_kw)

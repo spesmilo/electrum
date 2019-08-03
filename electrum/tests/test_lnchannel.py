@@ -85,7 +85,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 was_announced=False,
                 current_commitment_signature=None,
                 current_htlc_signatures=None,
-                got_sig_for_next=False,
             ),
             "constraints":lnpeer.ChannelConstraints(
                 capacity=funding_sat,
@@ -93,7 +92,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 funding_txn_minimum_depth=3,
             ),
             "node_id":other_node_id,
-            "remote_commitment_to_be_revoked": None,
             'onion_keys': {},
     }
 
@@ -137,8 +135,8 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice.set_state('OPEN')
     bob.set_state('OPEN')
 
-    a_out = alice.current_commitment(LOCAL).outputs()
-    b_out = bob.pending_commitment(REMOTE).outputs()
+    a_out = alice.get_latest_commitment(LOCAL).outputs()
+    b_out = bob.get_next_commitment(REMOTE).outputs()
     assert a_out == b_out, "\n" + pformat((a_out, b_out))
 
     sig_from_bob, a_htlc_sigs = bob.sign_next_commitment()
@@ -150,20 +148,11 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
     bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
 
-    alice.set_local_commitment(alice.current_commitment(LOCAL))
-    bob.set_local_commitment(bob.current_commitment(LOCAL))
-
     alice_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
     bob_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
 
     alice.config[REMOTE] = alice.config[REMOTE]._replace(next_per_commitment_point=bob_second, current_per_commitment_point=bob_first)
     bob.config[REMOTE] = bob.config[REMOTE]._replace(next_per_commitment_point=alice_second, current_per_commitment_point=alice_first)
-
-    alice.set_remote_commitment()
-    bob.set_remote_commitment()
-
-    alice.remote_commitment_to_be_revoked = alice.remote_commitment
-    bob.remote_commitment_to_be_revoked = bob.remote_commitment
 
     alice.config[REMOTE] = alice.config[REMOTE]._replace(ctn=0)
     bob.config[REMOTE] = bob.config[REMOTE]._replace(ctn=0)
@@ -179,7 +168,7 @@ class TestFee(unittest.TestCase):
     """
     def test_fee(self):
         alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
-        self.assertIn(9999817, [x[2] for x in alice_channel.local_commitment.outputs()])
+        self.assertIn(9999817, [x[2] for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
 class TestChannel(unittest.TestCase):
     maxDiff = 999
@@ -228,31 +217,43 @@ class TestChannel(unittest.TestCase):
         self.htlc_dict['amount_msat'] += 1000
         self.bob_channel.add_htlc(self.htlc_dict)
         self.alice_channel.receive_htlc(self.htlc_dict)
+
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(REMOTE).outputs()), 2)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(REMOTE).outputs()), 3)
+
         self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
-        self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 3)
+
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(REMOTE).outputs()), 2)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(REMOTE).outputs()), 3)
+
         self.alice_channel.revoke_current_commitment()
-        self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 4)
+
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(self.alice_channel.get_latest_commitment(REMOTE).outputs()), 2)
+        self.assertEqual(len(self.alice_channel.get_next_commitment(REMOTE).outputs()), 4)
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
         htlc = self.htlc
 
-        alice_out = alice_channel.current_commitment(LOCAL).outputs()
+        alice_out = alice_channel.get_latest_commitment(LOCAL).outputs()
         short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 42]
         long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 62]
         self.assertLess(alice_out[long_idx].value, 5 * 10**8, alice_out)
         self.assertEqual(alice_out[short_idx].value, 5 * 10**8, alice_out)
 
-        alice_out = alice_channel.current_commitment(REMOTE).outputs()
+        alice_out = alice_channel.get_latest_commitment(REMOTE).outputs()
         short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 42]
         long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 62]
         self.assertLess(alice_out[short_idx].value, 5 * 10**8)
         self.assertEqual(alice_out[long_idx].value, 5 * 10**8)
 
-        def com():
-            return alice_channel.local_commitment
-
-        self.assertTrue(alice_channel.signature_fits(com()))
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
 
         self.assertNotEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
 
@@ -270,9 +271,9 @@ class TestChannel(unittest.TestCase):
 
         from electrum.lnutil import extract_ctn_from_tx_and_chan
         tx0 = str(alice_channel.force_close_tx())
-        self.assertEqual(alice_channel.config[LOCAL].ctn, 0)
+        self.assertEqual(alice_channel.get_oldest_unrevoked_ctn(LOCAL), 0)
         self.assertEqual(extract_ctn_from_tx_and_chan(alice_channel.force_close_tx(), alice_channel), 0)
-        self.assertTrue(alice_channel.signature_fits(alice_channel.current_commitment(LOCAL)))
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
 
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
@@ -281,21 +282,20 @@ class TestChannel(unittest.TestCase):
         aliceSig, aliceHtlcSigs = alice_channel.sign_next_commitment()
         self.assertEqual(len(aliceHtlcSigs), 1, "alice should generate one htlc signature")
 
-        self.assertTrue(alice_channel.signature_fits(com()))
-        self.assertEqual(str(alice_channel.current_commitment(LOCAL)), str(com()))
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
 
         self.assertEqual(next(iter(alice_channel.hm.get_htlcs_in_next_ctx(REMOTE)))[0], RECEIVED)
         self.assertEqual(alice_channel.hm.get_htlcs_in_next_ctx(REMOTE), bob_channel.hm.get_htlcs_in_next_ctx(LOCAL))
-        self.assertEqual(alice_channel.pending_commitment(REMOTE).outputs(), bob_channel.pending_commitment(LOCAL).outputs())
+        self.assertEqual(alice_channel.get_latest_commitment(REMOTE).outputs(), bob_channel.get_next_commitment(LOCAL).outputs())
 
         # Bob receives this signature message, and checks that this covers the
         # state he has in his remote log. This includes the HTLC just sent
         # from Alice.
-        self.assertTrue(bob_channel.signature_fits(bob_channel.current_commitment(LOCAL)))
+        self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
         bob_channel.receive_new_commitment(aliceSig, aliceHtlcSigs)
-        self.assertTrue(bob_channel.signature_fits(bob_channel.pending_commitment(LOCAL)))
+        self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
-        self.assertEqual(bob_channel.config[REMOTE].ctn, 0)
+        self.assertEqual(bob_channel.get_oldest_unrevoked_ctn(REMOTE), 0)
         self.assertEqual(bob_channel.included_htlcs(LOCAL, RECEIVED, 1), [htlc])#
 
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
@@ -311,57 +311,50 @@ class TestChannel(unittest.TestCase):
         # has a valid signature for a newer commitment.
         bobRevocation, _ = bob_channel.revoke_current_commitment()
         bob_channel.serialize()
-        self.assertTrue(bob_channel.signature_fits(bob_channel.current_commitment(LOCAL)))
+        self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
         # Bob finally sends a signature for Alice's commitment transaction.
         # This signature will cover the HTLC, since Bob will first send the
         # revocation just created. The revocation also acks every received
         # HTLC up to the point where Alice sent her signature.
         bobSig, bobHtlcSigs = bob_channel.sign_next_commitment()
-        self.assertTrue(bob_channel.signature_fits(bob_channel.current_commitment(LOCAL)))
+        self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
         self.assertEqual(len(bobHtlcSigs), 1)
 
-        self.assertTrue(alice_channel.signature_fits(com()))
-        self.assertEqual(str(alice_channel.current_commitment(LOCAL)), str(com()))
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
 
         # so far: Alice added htlc, Alice signed.
-        self.assertEqual(len(alice_channel.current_commitment(LOCAL).outputs()), 2)
-        self.assertEqual(len(alice_channel.pending_commitment(LOCAL).outputs()), 2)
-        self.assertEqual(len(alice_channel.current_commitment(REMOTE).outputs()), 2)  # oldest unrevoked
-        self.assertEqual(len(alice_channel.pending_commitment(REMOTE).outputs()), 3)  # latest
+        self.assertEqual(len(alice_channel.get_latest_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.get_next_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.get_oldest_unrevoked_commitment(REMOTE).outputs()), 2)
+        self.assertEqual(len(alice_channel.get_latest_commitment(REMOTE).outputs()), 3)
 
         # Alice then processes this revocation, sending her own revocation for
         # her prior commitment transaction. Alice shouldn't have any HTLCs to
         # forward since she's sending an outgoing HTLC.
         alice_channel.receive_revocation(bobRevocation)
         alice_channel.serialize()
-        self.assertEqual(alice_channel.remote_commitment.outputs(), alice_channel.current_commitment(REMOTE).outputs())
 
-        self.assertTrue(alice_channel.signature_fits(com()))
-        self.assertTrue(alice_channel.signature_fits(alice_channel.current_commitment(LOCAL)))
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
         alice_channel.serialize()
-        self.assertEqual(str(alice_channel.current_commitment(LOCAL)), str(com()))
 
-        self.assertEqual(len(alice_channel.current_commitment(LOCAL).outputs()), 2)
-        self.assertEqual(len(alice_channel.current_commitment(REMOTE).outputs()), 3)
-        self.assertEqual(len(com().outputs()), 2)
+        self.assertEqual(len(alice_channel.get_latest_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.get_latest_commitment(REMOTE).outputs()), 3)
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 2)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
         alice_channel.serialize()
 
-        self.assertEqual(alice_channel.pending_commitment(LOCAL).outputs(),
-                         bob_channel.pending_commitment(REMOTE).outputs())
+        self.assertEqual(alice_channel.get_next_commitment(LOCAL).outputs(),
+                         bob_channel.get_latest_commitment(REMOTE).outputs())
 
         # Alice then processes bob's signature, and since she just received
         # the revocation, she expect this signature to cover everything up to
         # the point where she sent her signature, including the HTLC.
         alice_channel.receive_new_commitment(bobSig, bobHtlcSigs)
-        self.assertEqual(alice_channel.remote_commitment.outputs(), alice_channel.current_commitment(REMOTE).outputs())
 
-        self.assertEqual(len(alice_channel.current_commitment(REMOTE).outputs()), 3)
-        self.assertEqual(len(com().outputs()), 3)
+        self.assertEqual(len(alice_channel.get_latest_commitment(REMOTE).outputs()), 3)
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 3)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
@@ -371,10 +364,8 @@ class TestChannel(unittest.TestCase):
         self.assertNotEqual(tx0, tx1)
 
         # Alice then generates a revocation for bob.
-        self.assertEqual(alice_channel.remote_commitment.outputs(), alice_channel.current_commitment(REMOTE).outputs())
         aliceRevocation, _ = alice_channel.revoke_current_commitment()
         alice_channel.serialize()
-        #self.assertEqual(alice_channel.remote_commitment.outputs(), alice_channel.current_commitment(REMOTE).outputs())
 
         tx2 = str(alice_channel.force_close_tx())
         # since alice already has the signature for the next one, it doesn't change her force close tx (it was already the newer one)
@@ -384,7 +375,7 @@ class TestChannel(unittest.TestCase):
         # is fully locked in within both commitment transactions. Bob should
         # also be able to forward an HTLC now that the HTLC has been locked
         # into both commitment transactions.
-        self.assertTrue(bob_channel.signature_fits(bob_channel.current_commitment(LOCAL)))
+        self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
         bob_channel.receive_revocation(aliceRevocation)
         bob_channel.serialize()
 
@@ -398,13 +389,13 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat(RECEIVED), bobSent, "alice has incorrect milli-satoshis received")
         self.assertEqual(bob_channel.total_msat(SENT), bobSent, "bob has incorrect milli-satoshis sent")
         self.assertEqual(bob_channel.total_msat(RECEIVED), aliceSent, "bob has incorrect milli-satoshis received")
-        self.assertEqual(bob_channel.config[LOCAL].ctn, 1, "bob has incorrect commitment height")
-        self.assertEqual(alice_channel.config[LOCAL].ctn, 1, "alice has incorrect commitment height")
+        self.assertEqual(bob_channel.get_oldest_unrevoked_ctn(LOCAL), 1, "bob has incorrect commitment height")
+        self.assertEqual(alice_channel.get_oldest_unrevoked_ctn(LOCAL), 1, "alice has incorrect commitment height")
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
-        alice_ctx = alice_channel.pending_commitment(LOCAL)
-        bob_ctx = bob_channel.pending_commitment(LOCAL)
+        alice_ctx = alice_channel.get_next_commitment(LOCAL)
+        bob_ctx = bob_channel.get_next_commitment(LOCAL)
         self.assertEqual(len(alice_ctx.outputs()), 3, "alice should have three commitment outputs, instead have %s"% len(alice_ctx.outputs()))
         self.assertEqual(len(bob_ctx.outputs()), 3, "bob should have three commitment outputs, instead have %s"% len(bob_ctx.outputs()))
         self.assertOutputExistsByValue(alice_ctx, htlc.amount_msat // 1000)
@@ -415,7 +406,6 @@ class TestChannel(unittest.TestCase):
         preimage = self.paymentPreimage
         bob_channel.settle_htlc(preimage, self.bobHtlcIndex)
 
-        #self.assertEqual(alice_channel.remote_commitment.outputs(), alice_channel.current_commitment(REMOTE).outputs())
         alice_channel.receive_htlc_settle(preimage, self.aliceHtlcIndex)
 
         tx3 = str(alice_channel.force_close_tx())
@@ -426,7 +416,7 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(len(bobHtlcSigs2), 0)
 
         self.assertEqual(alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED), [htlc])
-        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, alice_channel.config[REMOTE].ctn), [htlc])
+        self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, alice_channel.get_oldest_unrevoked_ctn(REMOTE)), [htlc])
 
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 2), [htlc])
@@ -440,8 +430,8 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
         self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 2), [])
 
-        alice_ctx_bob_version = bob_channel.pending_commitment(REMOTE).outputs()
-        alice_ctx_alice_version = alice_channel.pending_commitment(LOCAL).outputs()
+        alice_ctx_bob_version = bob_channel.get_latest_commitment(REMOTE).outputs()
+        alice_ctx_alice_version = alice_channel.get_next_commitment(LOCAL).outputs()
         self.assertEqual(alice_ctx_alice_version, alice_ctx_bob_version)
 
         alice_channel.receive_new_commitment(bobSig2, bobHtlcSigs2)
@@ -450,14 +440,13 @@ class TestChannel(unittest.TestCase):
         self.assertNotEqual(tx3, tx4)
 
         self.assertEqual(alice_channel.balance(LOCAL), 500000000000)
-        self.assertEqual(1, alice_channel.config[LOCAL].ctn)
+        self.assertEqual(1, alice_channel.get_oldest_unrevoked_ctn(LOCAL))
         self.assertEqual(len(alice_channel.included_htlcs(LOCAL, RECEIVED, ctn=2)), 0)
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
         alice_channel.serialize()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
         self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
-        self.assertEqual(len(bob_channel.current_commitment(LOCAL).outputs()), 3)
-        #self.assertEqual(len(bob_channel.pending_commitment(LOCAL).outputs()), 3)
+        self.assertEqual(len(bob_channel.get_latest_commitment(LOCAL).outputs()), 3)
         bob_channel.receive_revocation(aliceRevocation2)
         bob_channel.serialize()
 
@@ -478,14 +467,14 @@ class TestChannel(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat(RECEIVED), 0, "alice satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(RECEIVED), mSatTransferred, "bob satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(SENT), 0, "bob satoshis sent incorrect")
-        self.assertEqual(bob_channel.current_height[LOCAL], 2, "bob has incorrect commitment height")
-        self.assertEqual(alice_channel.current_height[LOCAL], 2, "alice has incorrect commitment height")
+        self.assertEqual(bob_channel.get_latest_ctn(LOCAL), 2, "bob has incorrect commitment height")
+        self.assertEqual(alice_channel.get_latest_ctn(LOCAL), 2, "alice has incorrect commitment height")
 
         alice_channel.update_fee(100000, True)
-        alice_outputs = alice_channel.pending_commitment(REMOTE).outputs()
-        old_outputs = bob_channel.pending_commitment(LOCAL).outputs()
+        alice_outputs = alice_channel.get_next_commitment(REMOTE).outputs()
+        old_outputs = bob_channel.get_next_commitment(LOCAL).outputs()
         bob_channel.update_fee(100000, False)
-        new_outputs = bob_channel.pending_commitment(LOCAL).outputs()
+        new_outputs = bob_channel.get_next_commitment(LOCAL).outputs()
         self.assertNotEqual(old_outputs, new_outputs)
         self.assertEqual(alice_outputs, new_outputs)
 
@@ -517,13 +506,13 @@ class TestChannel(unittest.TestCase):
 
 
     def alice_to_bob_fee_update(self, fee=111):
-        aoldctx = self.alice_channel.pending_commitment(REMOTE).outputs()
+        aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.alice_channel.update_fee(fee, True)
-        anewctx = self.alice_channel.pending_commitment(REMOTE).outputs()
+        anewctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.assertNotEqual(aoldctx, anewctx)
-        boldctx = self.bob_channel.pending_commitment(LOCAL).outputs()
+        boldctx = self.bob_channel.get_next_commitment(LOCAL).outputs()
         self.bob_channel.update_fee(fee, False)
-        bnewctx = self.bob_channel.pending_commitment(LOCAL).outputs()
+        bnewctx = self.bob_channel.get_next_commitment(LOCAL).outputs()
         self.assertNotEqual(boldctx, bnewctx)
         self.assertEqual(anewctx, bnewctx)
         return fee
@@ -805,12 +794,12 @@ class TestDust(unittest.TestCase):
             'timestamp'   :  0,
         }
 
-        old_values = [x.value for x in bob_channel.current_commitment(LOCAL).outputs() ]
+        old_values = [x.value for x in bob_channel.get_latest_commitment(LOCAL).outputs() ]
         aliceHtlcIndex = alice_channel.add_htlc(htlc).htlc_id
         bobHtlcIndex = bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
-        alice_ctx = alice_channel.current_commitment(LOCAL)
-        bob_ctx = bob_channel.current_commitment(LOCAL)
+        alice_ctx = alice_channel.get_latest_commitment(LOCAL)
+        bob_ctx = bob_channel.get_latest_commitment(LOCAL)
         new_values = [x.value for x in bob_ctx.outputs() ]
         self.assertNotEqual(old_values, new_values)
         self.assertEqual(len(alice_ctx.outputs()), 3)
@@ -820,7 +809,7 @@ class TestDust(unittest.TestCase):
         bob_channel.settle_htlc(paymentPreimage, bobHtlcIndex)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
-        self.assertEqual(len(alice_channel.pending_commitment(LOCAL).outputs()), 2)
+        self.assertEqual(len(alice_channel.get_next_commitment(LOCAL).outputs()), 2)
         self.assertEqual(alice_channel.total_msat(SENT) // 1000, htlcAmt)
 
 def force_state_transition(chanA, chanB):

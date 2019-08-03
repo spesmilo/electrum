@@ -311,8 +311,6 @@ class LNWallet(LNWorker):
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
             self.channels[c.channel_id] = c
-            c.set_remote_commitment()
-            c.set_local_commitment(c.current_commitment(LOCAL))
         # timestamps of opening and closing transactions
         self.channel_timestamps = self.storage.get('lightning_channel_timestamps', {})
         self.pending_payments = defaultdict(asyncio.Future)
@@ -348,10 +346,10 @@ class LNWallet(LNWorker):
                     self.logger.info(f'could not contact remote watchtower {watchtower_url}')
             await asyncio.sleep(5)
 
-    async def sync_channel_with_watchtower(self, chan, watchtower):
+    async def sync_channel_with_watchtower(self, chan: Channel, watchtower):
         outpoint = chan.funding_outpoint.to_str()
         addr = chan.get_funding_address()
-        current_ctn = chan.get_current_ctn(REMOTE)
+        current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs(ctn)

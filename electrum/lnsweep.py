@@ -188,7 +188,7 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
-    if ctn != our_conf.ctn:
+    if ctn < chan.get_oldest_unrevoked_ctn(LOCAL):
         _logger.info("we breached.")
         return {}
     txs = {}
@@ -247,17 +247,18 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
 
 def analyze_ctx(chan: 'Channel', ctx: Transaction):
     # note: the remote sometimes has two valid non-revoked commitment transactions,
-    # either of which could be broadcast (their_conf.ctn, their_conf.ctn+1)
+    # either of which could be broadcast
     our_conf, their_conf = get_ordered_channel_configs(chan=chan, for_us=True)
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     per_commitment_secret = None
-    if ctn == their_conf.ctn:
+    oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
+    if ctn == oldest_unrevoked_remote_ctn:
         their_pcp = their_conf.current_per_commitment_point
         is_revocation = False
-    elif ctn == their_conf.ctn + 1:
+    elif ctn == oldest_unrevoked_remote_ctn + 1:
         their_pcp = their_conf.next_per_commitment_point
         is_revocation = False
-    elif ctn < their_conf.ctn:  # breach
+    elif ctn < oldest_unrevoked_remote_ctn:  # breach
         try:
             per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:

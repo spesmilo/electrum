@@ -52,7 +52,6 @@ class LocalConfig(NamedTuple):
     was_announced: bool
     current_commitment_signature: Optional[bytes]
     current_htlc_signatures: List[bytes]
-    got_sig_for_next: bool
 
 
 class RemoteConfig(NamedTuple):
