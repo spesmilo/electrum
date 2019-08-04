@@ -469,7 +469,9 @@ def bh2u(x: bytes) -> str:
 
 
 def user_dir():
-    if 'ANDROID_DATA' in os.environ:
+    if "ELECTRUMDIR" in os.environ:
+        return os.environ["ELECTRUMDIR"]
+    elif 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum")
