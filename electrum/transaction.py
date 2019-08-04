@@ -958,6 +958,7 @@ class Transaction:
             txin['sequence'] = nSequence
 
     def BIP69_sort(self, inputs=True, outputs=True):
+        # NOTE: other parts of the code rely on these sorts being *stable* sorts
         if inputs:
             self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
         if outputs:

@@ -340,6 +340,7 @@ class Channel(Logger):
         htlc_sigs = htlc_sigs[:] # copy cause we will delete now
         for htlcs, we_receive in [(self.included_htlcs(LOCAL, SENT, ctn=next_local_ctn), False),
                                   (self.included_htlcs(LOCAL, RECEIVED, ctn=next_local_ctn), True)]:
+            # FIXME this is quadratic. BOLT-02: "corresponding to the ordering of the commitment transaction"
             for htlc in htlcs:
                 idx = self.verify_htlc(htlc, htlc_sigs, we_receive, pending_local_commitment)
                 del htlc_sigs[idx]

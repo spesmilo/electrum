@@ -93,7 +93,11 @@ class FeeUpdate(NamedTuple):
 
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 
-ScriptHtlc = namedtuple('ScriptHtlc', ['redeem_script', 'htlc'])
+
+class ScriptHtlc(NamedTuple):
+    redeem_script: bytes
+    htlc: 'UpdateAddHtlc'
+
 
 class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
     def to_str(self):
@@ -474,6 +478,13 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+
+    # BOLT-03: "Transaction Input and Output Ordering
+    #           Lexicographic ordering: see BIP69. In the case of identical HTLC outputs,
+    #           the outputs are ordered in increasing cltv_expiry order."
+    # so we sort by cltv_expiry now; and the later BIP69-sort is assumed to be *stable*
+    htlcs = list(htlcs)
+    htlcs.sort(key=lambda x: x.htlc.cltv_expiry)
 
     htlc_outputs, c_outputs_filtered = make_commitment_outputs(fees_per_participant, local_amount, remote_amount,
         (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
