@@ -490,6 +490,7 @@ class Channel(Logger):
 
     def get_secret_and_point(self, subject, ctn) -> Tuple[Optional[bytes], bytes]:
         assert type(subject) is HTLCOwner
+        assert ctn >= 0, ctn
         offset = ctn - self.get_oldest_unrevoked_ctn(subject)
         if subject == REMOTE:
             if offset > 1:

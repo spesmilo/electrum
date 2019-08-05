@@ -151,6 +151,7 @@ class RevocationStore:
         self.index -= 1
 
     def retrieve_secret(self, index: int) -> bytes:
+        assert index <= self.START_INDEX, index
         for bucket in self.buckets:
             if bucket is None:
                 raise UnableToDeriveSecret()

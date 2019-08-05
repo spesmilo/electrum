@@ -743,6 +743,11 @@ class Peer(Logger):
         their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = channel_reestablish_msg.get("your_last_per_commitment_secret")
+        # sanity checks of received values
+        if their_next_local_ctn < 0:
+            raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
+        if their_oldest_unrevoked_remote_ctn < 0:
+            raise RemoteMisbehaving(f"channel reestablish: their_oldest_unrevoked_remote_ctn < 0")
 
         should_close_we_are_ahead = False
         should_close_they_are_ahead = False
@@ -788,7 +793,11 @@ class Peer(Logger):
             if their_local_pcp is None or their_claim_of_our_last_per_commitment_secret is None:
                 # if DLP was enabled, absence of fields is not OK
                 return not dlp_enabled
-            our_pcs, __ = chan.get_secret_and_point(LOCAL, their_oldest_unrevoked_remote_ctn - 1)
+            if their_oldest_unrevoked_remote_ctn > 0:
+                our_pcs, __ = chan.get_secret_and_point(LOCAL, their_oldest_unrevoked_remote_ctn - 1)
+            else:
+                assert their_oldest_unrevoked_remote_ctn == 0
+                our_pcs = bytes(32)
             if our_pcs != their_claim_of_our_last_per_commitment_secret:
                 self.logger.error(f"channel_reestablish: (DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
                 return False
