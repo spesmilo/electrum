@@ -738,7 +738,6 @@ class Peer(Logger):
                 next_remote_revocation_number=oldest_unrevoked_remote_ctn)
 
         channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
-        chan.set_state('OPENING')
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
@@ -812,9 +811,7 @@ class Peer(Logger):
             return True
 
         if not are_datalossprotect_fields_valid():
-            self.logger.error(f"channel_reestablish: data loss protect fields invalid.")
-            # TODO should we force-close?
-            return
+            raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
         else:
             if dlp_enabled and should_close_they_are_ahead:
                 self.logger.warning(f"channel_reestablish: remote is ahead of us! luckily DLP is enabled. remote PCP: {bh2u(their_local_pcp)}")
@@ -832,6 +829,7 @@ class Peer(Logger):
         if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done
+        chan.set_state('OPENING')
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
@@ -848,6 +846,7 @@ class Peer(Logger):
 
     def on_funding_locked(self, payload):
         channel_id = payload['channel_id']
+        self.logger.info(f"on_funding_locked. channel: {bh2u(channel_id)}")
         chan = self.channels.get(channel_id)
         if not chan:
             print(self.channels)
@@ -918,9 +917,9 @@ class Peer(Logger):
 
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
-        if chan.get_state() == "OPEN":
+        # only allow state transition to "OPEN" from "OPENING"
+        if chan.get_state() != "OPENING":
             return
-        # NOTE: even closed channels will be temporarily marked "OPEN"
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
