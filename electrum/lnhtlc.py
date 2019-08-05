@@ -181,12 +181,16 @@ class HTLCManager:
         """Discard updates sent by the remote, that the remote itself
         did not yet sign (i.e. there was no corresponding commitment_signed msg)
         """
-        # htlcs
+        # htlcs added
         for htlc_id, ctns in list(self.log[REMOTE]['locked_in'].items()):
             if ctns[LOCAL] > self.ctn_latest(LOCAL):
                 del self.log[REMOTE]['locked_in'][htlc_id]
                 del self.log[REMOTE]['adds'][htlc_id]
-        self.log[REMOTE]['next_htlc_id'] = max(self.log[REMOTE]['locked_in']) + 1
+        if self.log[REMOTE]['locked_in']:
+            self.log[REMOTE]['next_htlc_id'] = max(self.log[REMOTE]['locked_in']) + 1
+        else:
+            self.log[REMOTE]['next_htlc_id'] = 0
+        # htlcs removed
         for log_action in ('settles', 'fails'):
             for htlc_id, ctns in list(self.log[LOCAL][log_action].items()):
                 if ctns[LOCAL] > self.ctn_latest(LOCAL):
