@@ -58,7 +58,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 max_htlc_value_in_flight_msat=one_bitcoin_in_msat * 5,
                 max_accepted_htlcs=5,
                 initial_msat=remote_amount,
-                ctn = -1,
                 reserve_sat=0,
                 htlc_minimum_msat=1,
 
@@ -77,7 +76,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 max_htlc_value_in_flight_msat=one_bitcoin_in_msat * 5,
                 max_accepted_htlcs=5,
                 initial_msat=local_amount,
-                ctn = 0,
                 reserve_sat=0,
 
                 per_commitment_secret_seed=seed,
@@ -132,6 +130,9 @@ def create_test_channels(feerate=6000, local=None, remote=None):
             initial_feerate=feerate)
     )
 
+    alice.hm.log[LOCAL]['ctn'] = 0
+    bob.hm.log[LOCAL]['ctn'] = 0
+
     alice.set_state('OPEN')
     bob.set_state('OPEN')
 
@@ -154,8 +155,6 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice.config[REMOTE] = alice.config[REMOTE]._replace(next_per_commitment_point=bob_second, current_per_commitment_point=bob_first)
     bob.config[REMOTE] = bob.config[REMOTE]._replace(next_per_commitment_point=alice_second, current_per_commitment_point=alice_first)
 
-    alice.config[REMOTE] = alice.config[REMOTE]._replace(ctn=0)
-    bob.config[REMOTE] = bob.config[REMOTE]._replace(ctn=0)
     alice.hm.channel_open_finished()
     bob.hm.channel_open_finished()
 

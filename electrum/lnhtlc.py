@@ -7,9 +7,7 @@ from .util import bh2u, bfh
 
 class HTLCManager:
 
-    def __init__(self, *, local_ctn=0, remote_ctn=0, log=None, initial_feerate=None):
-        # self.ctn[sub] is the ctn for the oldest unrevoked ctx of sub
-        self.ctn = {LOCAL:local_ctn, REMOTE: remote_ctn}
+    def __init__(self, *, log=None, initial_feerate=None):
         if log is None:
             initial = {
                 'adds': {},
@@ -19,6 +17,7 @@ class HTLCManager:
                 'fee_updates': [],
                 'revack_pending': False,
                 'next_htlc_id': 0,
+                'ctn': -1,  # oldest unrevoked ctx of sub
             }
             log = {LOCAL: deepcopy(initial), REMOTE: deepcopy(initial)}
         else:
@@ -47,7 +46,11 @@ class HTLCManager:
 
     def ctn_latest(self, sub: HTLCOwner) -> int:
         """Return the ctn for the latest (newest that has a valid sig) ctx of sub"""
-        return self.ctn[sub] + int(self.is_revack_pending(sub))
+        return self.ctn_oldest_unrevoked(sub) + int(self.is_revack_pending(sub))
+
+    def ctn_oldest_unrevoked(self, sub: HTLCOwner) -> int:
+        """Return the ctn for the oldest unrevoked ctx of sub"""
+        return self.log[sub]['ctn']
 
     def is_revack_pending(self, sub: HTLCOwner) -> bool:
         """Returns True iff sub was sent commitment_signed but they did not
@@ -77,7 +80,8 @@ class HTLCManager:
     ##### Actions on channel:
 
     def channel_open_finished(self):
-        self.ctn = {LOCAL: 0, REMOTE: 0}
+        self.log[LOCAL]['ctn'] = 0
+        self.log[REMOTE]['ctn'] = 0
         self._set_revack_pending(LOCAL, False)
         self._set_revack_pending(REMOTE, False)
 
@@ -132,15 +136,15 @@ class HTLCManager:
             self.log[subject]['fee_updates'].append(fee_update)
 
     def send_ctx(self) -> None:
-        assert self.ctn_latest(REMOTE) == self.ctn[REMOTE], (self.ctn_latest(REMOTE), self.ctn[REMOTE])
+        assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self._set_revack_pending(REMOTE, True)
 
     def recv_ctx(self) -> None:
-        assert self.ctn_latest(LOCAL) == self.ctn[LOCAL], (self.ctn_latest(LOCAL), self.ctn[LOCAL])
+        assert self.ctn_latest(LOCAL) == self.ctn_oldest_unrevoked(LOCAL), (self.ctn_latest(LOCAL), self.ctn_oldest_unrevoked(LOCAL))
         self._set_revack_pending(LOCAL, True)
 
     def send_rev(self) -> None:
-        self.ctn[LOCAL] += 1
+        self.log[LOCAL]['ctn'] += 1
         self._set_revack_pending(LOCAL, False)
         # htlcs
         for ctns in self.log[REMOTE]['locked_in'].values():
@@ -156,7 +160,7 @@ class HTLCManager:
                 fee_update.ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
 
     def recv_rev(self) -> None:
-        self.ctn[REMOTE] += 1
+        self.log[REMOTE]['ctn'] += 1
         self._set_revack_pending(REMOTE, False)
         # htlcs
         for ctns in self.log[LOCAL]['locked_in'].values():
@@ -210,7 +214,7 @@ class HTLCManager:
         assert type(subject) is HTLCOwner
         assert type(direction) is Direction
         if ctn is None:
-            ctn = self.ctn[subject]
+            ctn = self.ctn_oldest_unrevoked(subject)
         l = []
         # subject's ctx
         # party is the proposer of the HTLCs
@@ -229,7 +233,7 @@ class HTLCManager:
         """Return the list of HTLCs in subject's ctx at ctn."""
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.ctn[subject]
+            ctn = self.ctn_oldest_unrevoked(subject)
         l = []
         l += [(SENT, x) for x in self.htlcs_by_direction(subject, SENT, ctn)]
         l += [(RECEIVED, x) for x in self.htlcs_by_direction(subject, RECEIVED, ctn)]
@@ -237,7 +241,7 @@ class HTLCManager:
 
     def get_htlcs_in_oldest_unrevoked_ctx(self, subject: HTLCOwner) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         assert type(subject) is HTLCOwner
-        ctn = self.ctn[subject]
+        ctn = self.ctn_oldest_unrevoked(subject)
         return self.htlcs(subject, ctn)
 
     def get_htlcs_in_latest_ctx(self, subject: HTLCOwner) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
@@ -257,7 +261,7 @@ class HTLCManager:
         """
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.ctn[subject]
+            ctn = self.ctn_oldest_unrevoked(subject)
         # subject's ctx
         # party is the proposer of the HTLCs
         party = subject if direction == SENT else subject.inverted()
@@ -274,7 +278,7 @@ class HTLCManager:
         """
         assert type(subject) is HTLCOwner
         if ctn is None:
-            ctn = self.ctn[subject]
+            ctn = self.ctn_oldest_unrevoked(subject)
         sent = [(SENT, x) for x in self.all_settled_htlcs_ever_by_direction(subject, SENT, ctn)]
         received = [(RECEIVED, x) for x in self.all_settled_htlcs_ever_by_direction(subject, RECEIVED, ctn)]
         return sent + received
@@ -318,7 +322,7 @@ class HTLCManager:
         return fee_log[i].rate
 
     def get_feerate_in_oldest_unrevoked_ctx(self, subject: HTLCOwner) -> int:
-        return self.get_feerate(subject=subject, ctn=self.ctn[subject])
+        return self.get_feerate(subject=subject, ctn=self.ctn_oldest_unrevoked(subject))
 
     def get_feerate_in_latest_ctx(self, subject: HTLCOwner) -> int:
         return self.get_feerate(subject=subject, ctn=self.ctn_latest(subject))

@@ -137,9 +137,7 @@ class Channel(Logger):
         self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
 
         log = state.get('log')
-        self.hm = HTLCManager(local_ctn=self.config[LOCAL].ctn,
-                              remote_ctn=self.config[REMOTE].ctn,
-                              log=log,
+        self.hm = HTLCManager(log=log,
                               initial_feerate=initial_feerate)
 
 
@@ -174,8 +172,9 @@ class Channel(Logger):
         return out
 
     def open_with_first_pcp(self, remote_pcp, remote_sig):
-        self.config[REMOTE] = self.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_pcp, next_per_commitment_point=None)
-        self.config[LOCAL] = self.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
+        self.config[REMOTE] = self.config[REMOTE]._replace(current_per_commitment_point=remote_pcp,
+                                                           next_per_commitment_point=None)
+        self.config[LOCAL] = self.config[LOCAL]._replace(current_commitment_signature=remote_sig)
         self.hm.channel_open_finished()
         self.set_state('OPENING')
 
@@ -380,15 +379,12 @@ class Channel(Logger):
 
     def revoke_current_commitment(self):
         self.logger.info("revoke_current_commitment")
-        new_ctn = self.config[LOCAL].ctn + 1
+        new_ctn = self.get_latest_ctn(LOCAL)
         new_ctx = self.get_latest_commitment(LOCAL)
         if not self.signature_fits(new_ctx):
             # this should never fail; as receive_new_commitment already did this test
             raise Exception("refusing to revoke as remote sig does not fit")
         self.hm.send_rev()
-        self.config[LOCAL]=self.config[LOCAL]._replace(
-            ctn=new_ctn,
-        )
         received = self.hm.received_in_ctn(new_ctn)
         sent = self.hm.sent_in_ctn(new_ctn)
         if self.lnworker:
@@ -414,7 +410,6 @@ class Channel(Logger):
         ##### start applying fee/htlc changes
         self.hm.recv_rev()
         self.config[REMOTE]=self.config[REMOTE]._replace(
-            ctn=self.config[REMOTE].ctn + 1,
             current_per_commitment_point=self.config[REMOTE].next_per_commitment_point,
             next_per_commitment_point=revocation.next_per_commitment_point,
         )
@@ -448,13 +443,13 @@ class Channel(Logger):
 
         return initial
 
-    def balance_minus_outgoing_htlcs(self, whose, *, ctx_owner=HTLCOwner.LOCAL):
+    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL):
         """
         This balance in mSAT, which includes the value of
         pending outgoing HTLCs, is used in the UI.
         """
         assert type(whose) is HTLCOwner
-        ctn = self.hm.ctn[ctx_owner] + 1
+        ctn = self.get_next_ctn(ctx_owner)
         return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)\
                 - htlcsum(self.hm.htlcs_by_direction(ctx_owner, SENT, ctn))
 
@@ -482,7 +477,7 @@ class Channel(Logger):
         assert type(subject) is HTLCOwner
         assert type(direction) is Direction
         if ctn is None:
-            ctn = self.config[subject].ctn
+            ctn = self.get_oldest_unrevoked_ctn(subject)
         feerate = self.get_feerate(subject, ctn)
         conf = self.config[subject]
         if (subject, direction) in [(REMOTE, RECEIVED), (LOCAL, SENT)]:
@@ -541,7 +536,7 @@ class Channel(Logger):
         return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
 
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
-        return self.config[subject].ctn
+        return self.hm.ctn_oldest_unrevoked(subject)
 
     def get_latest_ctn(self, subject: HTLCOwner) -> int:
         return self.hm.ctn_latest(subject)

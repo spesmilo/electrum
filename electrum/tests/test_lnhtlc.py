@@ -12,6 +12,8 @@ class TestHTLCManager(unittest.TestCase):
     def test_adding_htlcs_race(self):
         A = HTLCManager()
         B = HTLCManager()
+        A.channel_open_finished()
+        B.channel_open_finished()
         ah0, bh0 = H('A', 0), H('B', 0)
         B.recv_htlc(A.send_htlc(ah0))
         self.assertEqual(B.log[REMOTE]['locked_in'][0][LOCAL], 1)
@@ -57,6 +59,8 @@ class TestHTLCManager(unittest.TestCase):
         def htlc_lifecycle(htlc_success: bool):
             A = HTLCManager()
             B = HTLCManager()
+            A.channel_open_finished()
+            B.channel_open_finished()
             B.recv_htlc(A.send_htlc(H('A', 0)))
             self.assertEqual(len(B.get_htlcs_in_next_ctx(REMOTE)), 0)
             self.assertEqual(len(A.get_htlcs_in_next_ctx(REMOTE)), 1)
@@ -128,6 +132,8 @@ class TestHTLCManager(unittest.TestCase):
         def htlc_lifecycle(htlc_success: bool):
             A = HTLCManager()
             B = HTLCManager()
+            A.channel_open_finished()
+            B.channel_open_finished()
             ah0 = H('A', 0)
             B.recv_htlc(A.send_htlc(ah0))
             A.send_ctx()
@@ -163,6 +169,8 @@ class TestHTLCManager(unittest.TestCase):
     def test_adding_htlc_between_send_ctx_and_recv_rev(self):
         A = HTLCManager()
         B = HTLCManager()
+        A.channel_open_finished()
+        B.channel_open_finished()
         A.send_ctx()
         B.recv_ctx()
         B.send_rev()

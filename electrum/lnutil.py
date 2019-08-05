@@ -34,7 +34,6 @@ OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 # NamedTuples cannot subclass NamedTuples :'(   https://github.com/python/typing/issues/427
 class LocalConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
-    ctn: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
     htlc_basepoint: 'Keypair'
@@ -56,7 +55,6 @@ class LocalConfig(NamedTuple):
 
 class RemoteConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
-    ctn: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
     htlc_basepoint: 'Keypair'

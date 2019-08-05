@@ -451,7 +451,6 @@ class Peer(Logger):
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
-            ctn=-1,
             reserve_sat=546,
             per_commitment_secret_seed=keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey,
             funding_locked_received=False,
@@ -533,7 +532,6 @@ class Peer(Logger):
             max_htlc_value_in_flight_msat=remote_max,
             max_accepted_htlcs=max_accepted_htlcs,
             initial_msat=push_msat,
-            ctn = -1,
             reserve_sat = remote_reserve_sat,
             htlc_minimum_msat = htlc_min,
 
@@ -633,7 +631,6 @@ class Peer(Logger):
                     max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
                     max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
                     initial_msat=remote_balance_sat,
-                    ctn = -1,
                     reserve_sat = remote_reserve_sat,
                     htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
                     next_per_commitment_point=payload['first_per_commitment_point'],
