@@ -25,7 +25,9 @@ for i in '' '-hw' '-binaries'; do
 
     info "OK."
 
-    requirements=$(pip freeze --all | grep -v 0.0.0)
+    # --all is required because protobuf depends on setuptools. However, we exclude pip because
+    # it's unnecessary and quite large.
+    requirements=$(pip freeze --all | grep -v 0.0.0 | grep -v '^pip==')
     restricted=$(echo $requirements | $other_python $contrib/deterministic-build/find_restricted_dependencies.py)
     requirements="$requirements $restricted"
 
