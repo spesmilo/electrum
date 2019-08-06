@@ -412,9 +412,14 @@ if __name__ == '__main__':
             fd, server = daemon.get_fd_or_server(config)
             if fd is not None:
                 if subcommand == 'start':
+                    if sys.platform == 'darwin':
+                        sys.exit("MacOS does not support this usage due to the way the platform libraries work.\n"
+                                 "Please run the daemon without the 'start' option and manually detach/background the process.")
                     pid = os.fork()
                     if pid:
                         print_stderr("starting daemon (PID %d)" % pid)
+                        import atexit
+                        atexit.unregister(daemon.remove_lockfile)  # ensure the parent doesn't remove the lockfile -- it's now the child's responsibility to do so.
                         sys.exit(0)
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd, False)
