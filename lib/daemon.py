@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import ast
-import atexit
 import os
 import time
 import sys
@@ -66,9 +65,7 @@ def get_fd_or_server(config):
     latest_exc = None
     for n in range(limit):
         try:
-            ret = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
-            atexit.register(remove_lockfile, lockfile)
-            return ret
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
         except PermissionError as e:
             sys.exit(f"Unable to create lockfile due to file system permission problems: {e}")
         except NotADirectoryError as e:
@@ -326,13 +323,9 @@ class Daemon(DaemonThread):
         self.on_stop()
 
     def stop(self):
-        try:
-            self.print_error("stopping, removing lockfile")
-            super().stop()
-        finally:
-            # Remove lockfile right away, even if we got an exception.
-            atexit.unregister(remove_lockfile)  # Ensure this won't be called twice.  Callback was possibly-registered in get_fd_or_server above.
-            remove_lockfile(get_lockfile(self.config))
+        self.print_error("stopping, removing lockfile")
+        remove_lockfile(get_lockfile(self.config))
+        super().stop()
 
 
     def init_gui(self, config, plugins):

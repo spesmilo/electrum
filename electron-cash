@@ -418,8 +418,6 @@ if __name__ == '__main__':
                     pid = os.fork()
                     if pid:
                         print_stderr("starting daemon (PID %d)" % pid)
-                        import atexit
-                        atexit.unregister(daemon.remove_lockfile)  # ensure the parent doesn't remove the lockfile -- it's now the child's responsibility to do so.
                         sys.exit(0)
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd, False)
