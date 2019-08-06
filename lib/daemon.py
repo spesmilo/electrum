@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import ast
+import atexit
 import os
 import time
 import sys
@@ -47,7 +48,11 @@ def get_lockfile(config):
 
 
 def remove_lockfile(lockfile):
-    os.unlink(lockfile)
+    try:
+        os.unlink(lockfile)
+        print_error("Removed lockfile:", lockfile)
+    except OSError as e:
+        print_error("Could not remove lockfile:", lockfile, repr(e))
 
 
 def get_fd_or_server(config):
@@ -57,25 +62,38 @@ def get_fd_or_server(config):
     If this succeeds, the server is returned.  Otherwise remove the
     lockfile and try again.'''
     lockfile = get_lockfile(config)
-    while True:
+    limit = 5  # prevent infinite looping here. Give up after 5 attempts.
+    latest_exc = None
+    for n in range(limit):
         try:
-            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
-        except OSError:
-            pass
+            ret = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
+            atexit.register(remove_lockfile, lockfile)
+            return ret
+        except PermissionError as e:
+            sys.exit(f"Unable to create lockfile due to file system permission problems: {e}")
+        except NotADirectoryError as e:
+            lockdir = os.path.dirname(lockfile)
+            sys.exit(f"Electron Cash directory location at {lockdir} is not a directory. Error was: {e}")
+        except OSError as e:
+            ''' Unable to create -- this is normal if there was a pre-existing lockfile '''
+            latest_exc = e
         server = get_server(config)
         if server is not None:
             return None, server
         # Couldn't connect; remove lockfile and try again.
         remove_lockfile(lockfile)
+    sys.exit(f"Unable to open/create lockfile at {lockfile} after {limit} attempts. Please check your filesystem setup. Last error was: {repr(latest_exc)}")
 
 
-def get_server(config):
+def get_server(config, timeout=2.0):
+    assert timeout > 0.0
     lockfile = get_lockfile(config)
     while True:
         create_time = None
         try:
             with open(lockfile) as f:
-                (host, port), create_time = ast.literal_eval(f.read())
+                (host, port), tmp_create_time = ast.literal_eval(f.read())
+                create_time = float(tmp_create_time); del tmp_create_time  # ensures create_time is float; raises if create_time is not-float-compatible
                 rpc_user, rpc_password = get_rpc_credentials(config)
                 if rpc_password == '':
                     # authentication disabled
@@ -89,7 +107,13 @@ def get_server(config):
             return server
         except Exception as e:
             print_error("[get_server]", e)
-        if not create_time or create_time < time.time() - 1.0:
+        # Note that the create_time may be in the future if there was a clock
+        # adjustment by system ntp, etc. We guard against this, with some
+        # tolerance.  The net effect here is in normal cases we wait for the
+        # daemon, giving up after timeout seconds (or at worst timeout*2 seconds
+        # in the pathological case of a clock adjustment happening
+        # at the precise time the daemon was starting up).
+        if not create_time or abs(time.time() - create_time) > timeout:
             return None
         # Sleep a bit and try again; it might have just been started
         time.sleep(1.0)
@@ -302,9 +326,14 @@ class Daemon(DaemonThread):
         self.on_stop()
 
     def stop(self):
-        self.print_error("stopping, removing lockfile")
-        remove_lockfile(get_lockfile(self.config))
-        DaemonThread.stop(self)
+        try:
+            self.print_error("stopping, removing lockfile")
+            super().stop()
+        finally:
+            # Remove lockfile right away, even if we got an exception.
+            atexit.unregister(remove_lockfile)  # Ensure this won't be called twice.  Callback was possibly-registered in get_fd_or_server above.
+            remove_lockfile(get_lockfile(self.config))
+
 
     def init_gui(self, config, plugins):
         gui_name = config.get('gui', 'qt')
