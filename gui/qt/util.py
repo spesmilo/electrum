@@ -536,6 +536,10 @@ class MyTreeWidget(QTreeWidget):
     # added).
     default_sort : SortSpec = None
 
+    # Specify this in subclasses to enable substring search/filtering (Ctrl+F)
+    # (if empty, no search is applied)
+    filter_columns = []
+
     def __init__(self, parent, create_menu, headers, stretch_column=None,
                  editable_columns=None,
                  *, deferred_updates=False, save_sort_settings=False):
@@ -728,6 +732,8 @@ class MyTreeWidget(QTreeWidget):
 
     def filter(self, p):
         columns = self.__class__.filter_columns
+        if not columns:
+            return
         p = p.lower()
         self.current_filter = p
         for item in self.get_leaves(self.invisibleRootItem()):

@@ -2867,8 +2867,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         do not support searchable_list anyway, so hopefully it's a non-issue.'''
         for i in range(self.tabs.count()):
             tab = self.tabs.widget(i)
-            if hasattr(tab, 'searchable_list'):
+            try:
                 tab.searchable_list.filter(t)
+            except (AttributeError, TypeError):
+                pass
 
     def new_contact_dialog(self):
         d = WindowModalDialog(self.top_level_window(), _("New Contact"))
