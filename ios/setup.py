@@ -60,7 +60,7 @@ setup(
         'jsonrpclib-pelix', 'protobuf',
         'pyaes>=0.1a1',
         'PySocks>=1.6.6', 'qrcode', 'requests', 'six',
-        'urllib3'
+        'urllib3', 'python-dateutil==2.6.1'
     ],
     options={
         'app': {

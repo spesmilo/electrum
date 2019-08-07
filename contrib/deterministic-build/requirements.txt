@@ -40,6 +40,9 @@ pyaes==1.6.1 \
     --hash=sha256:02c1b1405c38d3c370b085fb952dd8bea3fadcee6411ad99f312cc129c536d8f
 PySocks==1.6.8 \
     --hash=sha256:3fe52c55890a248676fd69dc9e3c4e811718b777834bcaab7a8125cf9deac672
+python-dateutil==2.6.1 \
+    --hash=sha256:891c38b2a02f5bb1be3e4793866c8df49c7d19baabf9c1bad62547e0b4866aca \
+    --hash=sha256:95511bae634d69bc7329ba55e646499a842bc4ec342ad54a8cdb65645a0aad3c
 QDarkStyle==2.6.8 \
     --hash=sha256:037a54bf0aa5153f8055b65b8b36ac0d0f7648f2fd906c011a4da22eb0f582a2 \
     --hash=sha256:fd1abae37d3a0a004089178da7c0b26ec5eb29f965b3e573853b8f280b614dea
