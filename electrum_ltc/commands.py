@@ -107,21 +107,20 @@ class Commands:
         self.network = network
         self._callback = callback
 
-    def _run(self, method, args, password_getter):
-        # this wrapper is called from the python console
+    def _run(self, method, args, password_getter, **kwargs):
+        """This wrapper is called from the Qt python console."""
         cmd = known_commands[method]
-        if cmd.requires_password and self.wallet.has_password():
+        password = kwargs.get('password', None)
+        if (cmd.requires_password and self.wallet.has_password()
+                and password is None):
             password = password_getter()
             if password is None:
                 return
-        else:
-            password = None
 
         f = getattr(self, method)
         if cmd.requires_password:
-            result = f(*args, **{'password':password})
-        else:
-            result = f(*args)
+            kwargs['password'] = password
+        result = f(*args, **kwargs)
 
         if self._callback:
             self._callback()
