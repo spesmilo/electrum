@@ -220,8 +220,7 @@ def parse_URI(uri, on_pr=None, *, net=None):
                 request = pr.get_payment_request(r)
             if on_pr:
                 on_pr(request)
-        t = threading.Thread(target=get_payment_request_thread)
-        t.setDaemon(True)
+        t = threading.Thread(target=get_payment_request_thread, daemon=True)
         t.start()
 
     return out

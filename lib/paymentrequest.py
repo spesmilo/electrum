@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Electrum - lightweight Bitcoin client
+# Electron Cash - lightweight Bitcoin Cash client
 # Copyright (C) 2014 Thomas Voegtlin
+# Copyright (C) 2019 Calin Culianu <calin.culianu@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -28,9 +29,11 @@ import time
 import traceback
 import json
 import requests
-
 import urllib.parse
-
+import dateutil.parser
+import threading
+import zlib
+from collections import namedtuple
 
 try:
     from . import paymentrequest_pb2 as pb2
@@ -38,14 +41,18 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 from . import bitcoin
+from . import version
 from . import util
-from .util import print_error, bh2u, bfh
-from .util import FileImportFailed, FileImportFailedEncrypted
 from . import transaction
 from . import x509
 from . import rsakey
 
+from .address import Address, PublicKey
 from .bitcoin import TYPE_ADDRESS
+from .util import print_error, bh2u, bfh, PrintError
+from .util import FileImportFailed, FileImportFailedEncrypted
+from .transaction import Transaction
+
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoincash-paymentrequest', 'User-Agent': 'Electron-Cash'}
 ACK_HEADERS = {'Content-Type':'application/bitcoincash-payment','Accept':'application/bitcoincash-paymentack','User-Agent':'Electron-Cash'}
@@ -76,6 +83,11 @@ def get_payment_request(url):
     except ValueError as e:
         error = str(e)
     else:
+        if u.scheme in ('https',) and u.netloc.lower().endswith('bitpay.com'):
+            # Use BitPay 2.0 JSON-based API -- https only
+            return get_payment_request_bitpay20(url)
+
+        #.. else, try regular BIP70
         if u.scheme in ['http', 'https']:
             try:
                 response = requests.request('GET', url, headers=REQUEST_HEADERS)
@@ -290,6 +302,22 @@ class PaymentRequest:
         print("PaymentACK message received: %s" % paymntack.memo)
         return True, paymntack.memo
 
+    def serialize(self):
+        ''' Returns bytes '''
+        return self.raw or b''
+
+    @classmethod
+    def deserialize(cls, ser):
+        return cls(ser)
+
+    def export_file_data(self):
+        ''' Returns bytes suitable to be saved to a file '''
+        return self.serialize()
+
+    @classmethod
+    def export_file_ext(cls):
+        return 'bip70'
+
 
 def make_unsigned_request(req):
     from .transaction import Transaction
@@ -449,7 +477,10 @@ class InvoiceStore(object):
         self.storage = storage
         self.invoices = {}
         self.paid = {}
-        d = self.storage.get('invoices', {})
+        d = self.storage.get('invoices2', b'?')
+        if d == b'?':
+            # new format not found, use old format (upgrade)
+            d = self.storage.get('invoices', {})
         self.load(d)
 
     def set_paid(self, pr, txid):
@@ -459,7 +490,16 @@ class InvoiceStore(object):
     def load(self, d):
         for k, v in d.items():
             try:
-                pr = PaymentRequest(bfh(v.get('hex')))
+                pr = None
+                raw = bfh(v.get('hex'))
+                try:
+                    # First try BitPay 2.0 style PR -- this contains compressed raw bytes of the headers & json associated with the request; will raise if wrong format
+                    pr = PaymentRequest_BitPay20.deserialize(raw)
+                except:
+                    pass
+                if not pr:
+                    # Lastly, try the BIP70 style PR; this won't raise if bad format
+                    pr = PaymentRequest.deserialize(raw)
                 pr.tx = v.get('txid')
                 pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
@@ -485,11 +525,12 @@ class InvoiceStore(object):
         l = {}
         for k, pr in self.invoices.items():
             l[k] = {
-                'hex': bh2u(pr.raw),
+                'hex': bh2u(pr.serialize()),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        self.storage.put('invoices', l)
+        self.storage.put('invoices2', l)
+        self.storage.put('invoices', None)  # delete old invoice format to save space; caveat: older EC versions will not see invoices saved by newer versions anymore.
 
     def get_status(self, key):
         pr = self.get(key)
@@ -527,3 +568,346 @@ class InvoiceStore(object):
     def unpaid_invoices(self):
         return [v for k, v in self.invoices.items()
                 if self.get_status(k) not in (PR_PAID, None)]
+
+# -----------------------------------------------------------------------------
+''' BitPay 2.0 JSON-based HTTP Payment Protocol, replaces BIP70 for BitPay only.
+Includes a scheme to verify the payment request using Bitcoin public keys
+rather than x509 which is what BIP70 used. '''
+
+class ResponseError(Exception):
+    ''' Contains the exact text of the bad response error message from BitPay'''
+
+class PaymentRequest_BitPay20(PaymentRequest, PrintError):
+    ''' Work-alike to the existing BIP70 PaymentRequest class.
+    Wraps payment requests based on the new BitPay 2.0 JSON API.'''
+
+    # Extra headers we attach to requests we send to BitPay, so they may
+    # track us as a 'partner' (we actually get a small amount of revenue this way).
+    HEADERS = { 'BP_PARTNER'         : 'ELECTRONCASH',
+                'BP_PARTNER_VERSION' : 'V' + version.PACKAGE_VERSION,
+                'User-Agent'         : 'Electron-Cash' }
+
+    Details = namedtuple('BitPay20Details', 'outputs, memo, payment_url, time, expires, network, currency, required_fee_rate')
+
+    class Raw:
+        __slots__ = ('status_code', 'headers', 'text', 'url')
+        ser_prefix = b'BITPAY2.0_ZCOMPRESSED_'
+        def __init__(self, **kwargs):
+            resp = kwargs.get('response')
+            if resp:
+                if not isinstance(resp, requests.Response):
+                    raise ValueError("Expected a Response object in PaymentRequest_BitPay20.Raw constructor")
+                self.status_code = resp.status_code
+                self.headers = resp.headers
+                self.text = resp.text
+                self.url = resp.url
+            else:
+                self.status_code = kwargs.get('status_code', 0)
+                self.headers = requests.structures.CaseInsensitiveDict(kwargs.get('headers', {}))
+                self.text = kwargs.get('text', '')
+                self.url = kwargs.get('url', '')
+        def json(self):
+            return json.loads(self.text)
+        def serialize(self):
+            d = self.get_dict()
+            return self.ser_prefix + zlib.compress(json.dumps(d).encode('utf-8'), level=9)
+        @classmethod
+        def deserialize(cls, ser):
+            if not ser.startswith(cls.ser_prefix):
+                raise ValueError('Invalid serialized data')
+            data = zlib.decompress(ser[len(cls.ser_prefix):])
+            d = json.loads(data.decode('utf-8'))
+            if not all(s in d for s in cls.__slots__):
+                raise ValueError('Missing required keys in deserialized data')
+            return cls(**d)
+        def get_dict(self):
+            d = {}
+            for s in self.__slots__:
+                val = getattr(self, s, '')
+                if isinstance(val, requests.structures.CaseInsensitiveDict):
+                    val = dict(val)
+                d[s] = val
+            return d
+        def __str__(self):
+            return json.dumps(self.get_dict())
+    # /class Raw
+
+    def serialize(self):
+        if self.raw:
+            return self.raw.serialize()
+
+    @classmethod
+    def deserialize(cls, ser):
+        return cls(cls.Raw.deserialize(ser))
+
+    def export_file_data(self):
+        ''' Returns bytes suitable to be saved to a file '''
+        return json.dumps(self.raw.get_dict(), indent=4).encode('utf-8')
+
+    @classmethod
+    def export_file_ext(cls):
+        return 'json'
+
+    def parse(self, r):
+        ''' Overrides super. r is a self.Raw object. '''
+        if self.error:
+            return
+        if not isinstance(r, self.Raw):  # BitPay2.0 requires 'raw' be a Raw instance
+            self.error = 'Argument not of the proper type (expected PaymentRequest_BitPay20.Raw instance)'
+            return
+        self.data, self.id, self.details, self.outputs, self.memo, self.payment_url, self.headers = (None,)*7  # ensure attributes defined
+        try:
+            if r.status_code == 400:
+                # error 400, has special info in r.text
+                raise ResponseError(r.text)
+            assert r.status_code == 200, f"Bad response status: {r.status_code}"
+            self.headers = r.headers.copy()
+            self.data = j = r.json()
+            self.id = j['paymentId']
+            self.details = self.Details(
+                outputs = j['outputs'],
+                memo = j['memo'],
+                payment_url = j['paymentUrl'],
+                time = dateutil.parser.parse(j['time']).timestamp(),
+                expires = dateutil.parser.parse(j['expires']).timestamp(),
+                network = j.get('network', 'main'),
+                currency = j.get('currency', 'BCH'),
+                required_fee_rate = j.get('requiredFeeRate', 1),
+            )
+            self.outputs = []
+            for o in self.details.outputs:
+                amt, addr = o['amount'], Address.from_string(o['address'])
+                self.outputs.append((TYPE_ADDRESS, addr, amt))
+            self.memo = self.details.memo
+            self.payment_url = self.details.payment_url
+        except ResponseError as e:
+            self.error = str(e)
+        except (KeyError, ValueError, TypeError, AssertionError, IndexError) as e:
+            self.error = f'cannot parse payment request ({str(e)})'
+        except Exception as e:
+            self.print_error("Error parsing payment prequest", repr(e))
+            self.error = 'Low-level error encountered parsing the payment request'
+
+
+    # super methods that work ok for us:
+    #   def is_pr(self) -> bool
+    #   def get_outputs(self) -> list
+    #   def get_id(self) -> str
+    #   def get_dict(self) -> dict
+    #   def get_memo(self) -> str
+    #   def get_verify_status(self) -> str
+    #   def get_requestor(self) -> Address?
+    #   def get_amount(self) -> int
+    #   def get_address(self) -> Address
+    #   def get_expiration_date(self) -> float
+    #   def has_expired(self) -> bool
+
+    def base_url(self):
+        r = self.raw
+        url = getattr(r, 'url', None)
+        if url:
+            up = urllib.parse.urlparse(url)
+            return f'{up.scheme}://{up.netloc}'
+        return ''
+
+    # Cache the signing keys
+    _signing_keys = [ 0.0, 'BitPay, Inc.', set() ]
+    _signing_keys_lock = threading.Lock()
+    _pgp_key_data = {}
+
+    def _get_signing_keys(self, timeout=10.0):
+        return self._signing_keys
+
+        # NOTE: the below is turned-off for now
+        # We need to hear from BitPay on how best to handle this.
+        # It appears to be much ado about nothing since the PGP keys
+        # come from the web *anyway*.  What's more -- we need to depend
+        # on Python PGP libs now, which is a rather heavy dependency. :/
+
+        if not self._pgp_key_data:
+            try:
+                pgp_key_data = requests.get('https://bitpay.com/pgp-keys.json', timeout=timeout, verify=True).json()['pgpKeys']
+                pgp_key_data = { d['fingerprint'] : { 'owner' : d['owner'], 'publicKey' : d['publicKey'] } for d in pgp_key_data }
+                with self._signing_keys_lock:
+                    self._pgp_key_data.update(pgp_key_data)
+            except Exception as e:
+                self.print_error('Failed to get PGP keys:', repr(e))
+        # TODO FIXME XXX: Use the PGP keys above to verify the retrieved keys below
+        # The problem is as follows: PGP dependencies in python, which are a bit
+        # heavy-handed. The URL for requesting sigs for the below would be:
+        #
+        # https://test.bitpay.com/signatures/<paymentProtocol.json_RESPONSE_SHA256_HASH>.json
+        #
+        # See: https://bitpay.com/docs/payment-protocol
+        ts, owner, signing_pubkeys = self._signing_keys
+        if not signing_pubkeys or abs(time.time()-ts) > 60.0*60.0:  # we keep the cached keys for up to 1 hour
+            url = self.base_url() + '/signingKeys/paymentProtocol.json'
+            try:
+                r2 = requests.get(url, timeout=timeout, verify=True)
+                if r2.status_code != 200:
+                    raise RuntimeError(f'Bad status when retrieving signing keys: {r2.status_code}')
+                with self._signing_keys_lock:
+                    signing_pubkeys.clear()
+                    d = r2.json()
+                    exp = dateutil.parser.parse(d['expirationDate']).timestamp()
+                    if exp < time.time():
+                        self.print_error("Warning: BitPay returned expired keys expirationDate=", d['expirationDate'])
+                    owner = d.get('owner', owner)
+                    for k in d['publicKeys']:
+                        pk = PublicKey.from_string(k)
+                        signing_pubkeys.add(pk)
+            except requests.RequestException as e:
+                self.error = 'error retrieving keys: ' + repr(e)
+                self.print_error(self.error)
+                raise
+            except Exception as e:
+                self.error = 'error parsing signing keys: ' + repr(e)
+                self.print_error(self.error)
+                raise
+            self._signing_keys[0] = time.time()
+            self._signing_keys[1] = owner
+        return self._signing_keys
+
+    def verify(self, contacts, *, timeout=10.0):
+        self.print_error("Verify")
+        # NB: contacts is ignored
+        if self.error:
+            return False
+        if not self.raw:
+            self.error = "Empty request"
+            return False
+        r = self.raw
+        try:
+            if r.status_code != 200:
+                if r.status_code == 400:
+                    raise ValueError(r.text)
+                raise ValueError(f'Bad HTTP respone code: {r.status_code}')
+            sig = bytes.fromhex(r.headers['signature'])
+            digest = r.headers['digest']
+            if not digest.upper().startswith('SHA-256='):
+                raise ValueError('Unknown digest')
+            digest = bytes.fromhex(digest.split('=', 1)[1])
+            if len(digest) != 32:
+                raise ValueError('Bad digest')
+            addr = Address.from_string(r.headers['x-identity'])
+            if bitcoin.sha256(r.text) != digest:
+                raise ValueError('Digest does not match payload')
+            msg = digest
+        except Exception as e:
+            self.error = 'error processing response:' + repr(e)
+            self.print_error(self.error)
+            return False
+
+        # Grab Signing keys either from cache or from BitPay
+        try:
+            ts, owner, signing_pubkeys = self._get_signing_keys(timeout=timeout)
+        except Exception as e:
+            # Error retrieving signing pubkeys, try using cached values
+            # if that fails.. just abort.
+            ts, owner, signing_pubkeys = self._signing_keys
+            if not signing_pubkeys:
+                return False
+            self.error = None  # clear error
+
+        # they don't include the nV byte so we have to try a bunch of stuff here
+        for nV in (27, 28, 31, 32):
+            pk, comp = bitcoin.pubkey_from_signature(bytes([nV]) + sig, msg)
+            pubkey = bitcoin.point_to_ser(pk.pubkey.point, comp)
+            sig_addr = Address.from_pubkey(pubkey)
+            if addr == sig_addr:
+                self.print_error("Signing address found and matches")
+                if PublicKey.from_pubkey(pubkey) in signing_pubkeys:
+                    self.print_error('Signing pubkey is valid')
+                else:
+                    # TODO: Fixme -- for now this branch will always be taken because we turned off key download in _get_signing_keys() above
+                    self.print_error('Warning: Could not verify whether signing public key is valid:', pubkey.hex(), "(PGP verification is currently disabled)")
+                self.requestor = sig_addr.to_ui_string()
+                break
+        else:
+            self.error = 'failed to verify signature against retrieved keys'
+            self.print_error(self.error)
+            return False
+
+        ### SIG Verified
+        self.error = 'Signed by: ' + owner  # <--- This is not ideal because we re-use self.error for a *non-error* but the superclass API is this way. -Calin
+        return True
+
+    def verify_x509(self, paymntreq):
+        raise NotImplementedError()
+
+    def verify_dnssec(self, pr, contacts):
+        raise NotImplementedError()
+
+    def send_payment(self, raw_tx, refund_addr, *, timeout=10.0):
+        self.print_error("Send payment")
+        # NB: refund_addr is ignored
+        self.tx = None
+        # First, verify that BitPay would accept the payment by sending
+        # a verify-payment message via HTTP
+        tx = Transaction(raw_tx)
+        #def from_io(klass, inputs, outputs, locktime=0, sign_schnorr=False):
+        unsigned_tx = Transaction.from_io(tx.inputs(), tx.outputs(), locktime=tx.locktime, sign_schnorr=tx.is_schnorr_signed(0))
+        h = self.HEADERS.copy()
+        h['Content-Type'] = 'application/verify-payment'
+        unsigned_raw = unsigned_tx.serialize(True)
+        body = {
+            'currency' : self.details.currency or 'BCH',
+            'unsignedTransaction' : unsigned_raw,
+            'weightedSize' : len(unsigned_raw)//2
+        }
+        try:
+            r = requests.post(self.raw.url, headers=h, data=json.dumps(body).encode('utf-8'))
+        except requests.RequestException as e:
+            return False, str(e)
+        if r.status_code != 200:
+            # Propagate 'Bad request' (HTTP 400) messages to the user since they
+            # contain valuable information.
+            if r.status_code == 400:
+                return False, (r.reason + ": " + r.content.decode('UTF-8'))
+            # Some other errors might display an entire HTML document.
+            # Hide those and just display the name of the error code.
+            return False, r.reason
+        memo = r.json().get('memo', '?').lower()
+        if 'valid' not in memo:
+            return False, f"Did not receive 'valid': {memo}"
+
+        # Ok, all is valid -- now actually send the tx
+        h['Content-Type'] = 'application/payment'
+        body = {
+            'currency' : self.details.currency or 'BCH',
+            'transactions' : [ raw_tx ]
+        }
+        try:
+            r = requests.post(self.raw.url, headers=h, data=json.dumps(body).encode('utf-8'))
+        except requests.RequestException as e:
+            return False, str(e)
+        if r.status_code != 200:
+            # Propagate 'Bad request' (HTTP 400) messages to the user since they
+            # contain valuable information.
+            if r.status_code == 400:
+                return False, (r.reason + ": " + r.content.decode('UTF-8'))
+            # Some other errors might display an entire HTML document.
+            # Hide those and just display the name of the error code.
+            return False, r.reason
+        memo = r.json().get('memo', '?')
+
+        self.tx = Transaction._txid(raw_tx)  # save txid
+
+        return True, memo
+
+
+def get_payment_request_bitpay20(url, timeout=10.0):
+    ''' Synchronously contacts BitPay and gets the payment request.
+    Returns the PaymentRequest object. Returned PaymentRequest
+    has .error != None on error. '''
+    headers = PaymentRequest_BitPay20.HEADERS.copy()
+    headers.update({'accept' : 'application/payment-request'})
+    try:
+        r = requests.get(url, headers=headers, timeout=timeout, verify=True)
+        if r.status_code == 400:
+            raise ResponseError(r.text)
+        r.raise_for_status()
+        return PaymentRequest_BitPay20(PaymentRequest_BitPay20.Raw(response=r))
+    except Exception as e:
+        print_error('[BitPay2.0] get_payment_request:', repr(e))
+        return PaymentRequest(None, error=str(e))

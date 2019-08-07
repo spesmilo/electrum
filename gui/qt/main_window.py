@@ -2283,10 +2283,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             cb()
 
     def payment_request_error(self):
-        request_error = self.payment_request and self.payment_request.error
+        request_error = (self.payment_request and self.payment_request.error) or ''
         self.payment_request = None
         self.print_error("PaymentRequest error:", request_error)
-        self.show_error(_("There was an error processing the payment request"), rich_text=False)
+        self.show_error(_("There was an error processing the payment request"), rich_text=False, detail_text=request_error)
         self.do_clear()
 
     def on_pr(self, request):
@@ -2666,11 +2666,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(grid)
         weakD = Weak.ref(d)
         def do_export():
-            fn = self.getSaveFileName(_("Save invoice to file"), "*.bip70")
+            ext = pr.export_file_ext()
+            fn = self.getSaveFileName(_("Save invoice to file"), "*." + ext)
             if not fn:
                 return
             with open(fn, 'wb') as f:
-                data = f.write(pr.raw)
+                data = f.write(pr.export_file_data())
             self.show_message(_('Invoice saved as' + ' ' + fn))
         exportButton = EnterButton(_('Save'), do_export)
         def do_delete():
