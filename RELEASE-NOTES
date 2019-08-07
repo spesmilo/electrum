@@ -683,3 +683,11 @@ and there is no warning message.
   of the "View tx..." link. You can view tx on the details page. (cculianu)
 * Qt: Added proper keyboard navigation to the Transaction Dialog window, and
   various other places. #1557 (Axel Gembe)
+* Android: Added native libsecp256k1 support (Malcolm Smith)
+* Bugfix #1240, #892, #1484: Prevent infinite startup hangs due to lockfile
+  timestamp in the future. (cculianu)
+* Email Plugin: Minor fixups and fixed bug #924. (cculianu)
+* iOS: Fix #1273 -- Crash due to trying to pass a Python Exception to obj-c as
+  string. (cculianu)
+* Various build and packaging fixes for Windows. (Axel Gembe)
+* Added BitPay 2.0 JSON API support. (cculianu)
