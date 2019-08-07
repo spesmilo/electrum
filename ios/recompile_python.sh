@@ -23,10 +23,10 @@ elif [ -n "$1" ]; then
 else
 	originaldir=`pwd`
 	cd "$dir1" 
-	python3 -O -m compileall . || exit 1
+	python3 -m compileall . || exit 1
 	cd "$originaldir" 
 	cd "$dir2"
-	python3 -O -m compileall . || exit 1
+	python3 -m compileall . || exit 1
 	cd "$originaldir"
 fi
 
