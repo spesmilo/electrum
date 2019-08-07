@@ -691,3 +691,7 @@ and there is no warning message.
   string. (cculianu)
 * Various build and packaging fixes for Windows. (Axel Gembe)
 * Added BitPay 2.0 JSON API support. (cculianu)
+* Fixup to some plugins such as Scheduled Payments and Inter-Wallet-Transfer
+  raising uncaught exceptions if they are loaded and enabled and user hits
+  Ctrl+F (cculianu).
+
