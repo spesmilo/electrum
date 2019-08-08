@@ -3,6 +3,7 @@ from weakref import ref
 from decimal import Decimal
 import re
 import datetime
+import threading
 import traceback, sys
 from enum import Enum, auto
 
@@ -299,6 +300,11 @@ class SendScreen(CScreen):
             return
         invoice = self.screen.address
         amount_sat = self.app.get_amount(self.screen.amount)
+        threading.Thread(target=self._lnpay_thread, args=(invoice, amount_sat)).start()
+
+    def _lnpay_thread(self, invoice, amount_sat):
+        self.do_clear()
+        self.app.show_info(_('Payment in progress..'))
         try:
             success = self.app.wallet.lnworker.pay(invoice, attempts=10, amount_sat=amount_sat, timeout=60)
         except PaymentFailure as e:
