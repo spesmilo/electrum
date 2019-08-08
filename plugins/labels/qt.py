@@ -94,7 +94,7 @@ class Plugin(LabelsPlugin):
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(d.ok_button))
         return bool(d.exec_())
-    
+
     def on_dlg_finished(self, dlgRef, result_code):
         ''' Wait for any threaded buttons that may be still extant so we don't get a crash '''
         #self.print_error("Dialog finished with code", result_code)
@@ -135,9 +135,15 @@ class Plugin(LabelsPlugin):
             dlg.ok_button.setEnabled(True)
             self._notok_synch(dlg, exc_info)
 
+    _warn_dlg_flg = Weak.KeyDictionary()
     def _notok_synch(self, window, exc_info):
-        if window.isVisible():
-            window.show_warning(_("LabelSync error:") + "\n\n" + str(exc_info[1]))
+        # Runs in main thread
+        cls = __class__
+        if window.isVisible() and not cls._warn_dlg_flg.get(window, False):
+            # Guard against duplicate error dialogs (without this we may get error window spam when importing labels)
+            cls._warn_dlg_flg[window] = True
+            window.show_warning(_("LabelSync error:") + "\n\n" + str(exc_info[1]), rich_text=False)
+            cls._warn_dlg_flg.pop(window, None)
 
     def on_request_exception(self, wallet, exc_info):
         # not main thread
@@ -225,4 +231,3 @@ class Plugin(LabelsPlugin):
 
         self.initted = True
         self.print_error("Initialized (had {} extant windows, added {}).".format(ct,ct2))
-
