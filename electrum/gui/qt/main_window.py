@@ -118,8 +118,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
-    new_fx_quotes_signal = pyqtSignal()
-    new_fx_history_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
     ln_payment_attempt_signal = pyqtSignal(str)
     alias_received_signal = pyqtSignal()
@@ -234,8 +232,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.network.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
-            self.new_fx_quotes_signal.connect(self.on_fx_quotes)
-            self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
         self.fee_slider.update()
@@ -348,6 +344,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(repr(e))
 
     def on_network(self, event, *args):
+        # Handle in GUI thread
+        self.network_signal.emit(event, args)
+
+    def on_network_qt(self, event, args=None):
+        # Handle a network message in the GUI thread
         if event == 'wallet_updated':
             wallet = args[0]
             if wallet == self.wallet:
@@ -363,13 +364,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             wallet, tx = args
             if wallet == self.wallet:
                 self.tx_notification_queue.put(tx)
-        elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram', 'payment_received']:
-            # Handle in GUI thread
-            self.network_signal.emit(event, args)
         elif event == 'on_quotes':
-            self.new_fx_quotes_signal.emit()
+            self.on_fx_quotes()
         elif event == 'on_history':
-            self.new_fx_history_signal.emit()
+            self.on_fx_history()
         elif event == 'channels':
             self.channels_list.update_rows.emit()
         elif event == 'channel':
@@ -383,12 +381,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # just for a single LN payment. individual rows in lists should be updated instead.
             # consider: history tab, invoice list, request list
             self.need_update.set()
-        else:
-            self.logger.info(f"unexpected network message: {event} {args}")
-
-    def on_network_qt(self, event, args=None):
-        # Handle a network message in the GUI thread
-        if event == 'status':
+        elif event == 'status':
             self.update_status()
         elif event == 'banner':
             self.console.showMessage(args[0])
@@ -410,7 +403,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if wallet == self.wallet:
                 self.notify(_('Payment received') + '\n' + key)
         else:
-            self.logger.info(f"unexpected network_qt signal: {event} {args}")
+            self.logger.info(f"unexpected network event: {event} {args}")
 
     def fetch_alias(self):
         self.alias_info = None
