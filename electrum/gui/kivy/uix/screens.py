@@ -27,7 +27,7 @@ from electrum.util import profiler, parse_URI, format_time, InvalidPassword, Not
 from electrum import bitcoin, constants
 from electrum.transaction import TxOutput, Transaction, tx_from_str
 from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo
+from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo, age
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
@@ -45,6 +45,9 @@ class Destination(Enum):
     LN = auto()
 
 class HistoryRecycleView(RecycleView):
+    pass
+
+class RequestRecycleView(RecycleView):
     pass
 
 class CScreen(Factory.Screen):
@@ -396,9 +399,15 @@ class SendScreen(CScreen):
             self.app.tx_dialog(tx)
 
 
+
 class ReceiveScreen(CScreen):
 
     kvname = 'receive'
+    cards = {}
+
+    def __init__(self, **kwargs):
+        super(ReceiveScreen, self).__init__(**kwargs)
+        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
 
     def clear(self):
         self.screen.address = ''
@@ -454,11 +463,65 @@ class ReceiveScreen(CScreen):
             self.screen.address = addr
             req = self.app.wallet.make_payment_request(addr, amount, message, expiration)
             self.app.wallet.add_payment_request(req, self.app.electrum_config)
-            #request = self.get_URI()
             key = addr
         self.app.show_request(lightning, key)
 
+    def get_card(self, req):
+        is_lightning = req.get('lightning', False)
+        status = req['status']
+        #if status != PR_UNPAID:
+        #    continue
+        if not is_lightning:
+            address = req['address']
+            key = address
+        else:
+            key = req['rhash']
+            address = req['invoice']
+        timestamp = req.get('time', 0)
+        amount = req.get('amount')
+        description = req.get('memo', '')
+        ci = self.cards.get(key)
+        if ci is None:
+            ci = {}
+            ci['address'] = address
+            ci['is_lightning'] = is_lightning
+            ci['key'] = key
+            ci['screen'] = self
+            self.cards[key] = ci
+        ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
+        ci['memo'] = description
+        ci['status'] = age(timestamp)
+        return ci
 
+    def update(self):
+        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
+        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
+        requests_container = self.screen.ids.requests_container
+        requests_container.data = [self.get_card(item) for item in _list]
+
+    def do_show(self, obj):
+        self.hide_menu()
+        self.app.show_request(obj.is_lightning, obj.key)
+
+    def do_delete(self, req):
+        from .dialogs.question import Question
+        def cb(result):
+            if result:
+                self.app.wallet.remove_payment_request(req.address, self.app.electrum_config)
+                self.hide_menu()
+                self.update()
+        d = Question(_('Delete request'), cb)
+        d.open()
+
+    def show_menu(self, obj):
+        self.hide_menu()
+        self.context_menu = ContextMenu(obj, self.menu_actions)
+        self.add_widget(self.context_menu)
+
+    def hide_menu(self):
+        if self.context_menu is not None:
+            self.remove_widget(self.context_menu)
+            self.context_menu = None
 
 class TabbedCarousel(Factory.TabbedPanel):
     '''Custom TabbedPanel using a carousel used in the Main Screen

@@ -1,9 +1,70 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
 #:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
 
+
+<RequestLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<RequestItem@CardItem>
+    address: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+    icon: 'atlas://electrum/gui/kivy/theming/light/important'
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        width: self.height *.54
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.address
+            shorten: True
+        Widget
+        RequestLabel:
+            text: root.memo
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        RequestLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: .699, .699, .699, 1
+        Widget
+
+<RequestRecycleView>:
+    viewclass: 'RequestItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
 
 
 ReceiveScreen:
@@ -14,6 +75,7 @@ ReceiveScreen:
     message: ''
     status: ''
     is_lightning: False
+    show_list: True
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -29,7 +91,7 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if root.is_lightning else 'atlas://electrum/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -37,9 +99,8 @@ ReceiveScreen:
                     id: address_label
                     text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
                     shorten: True
+                    on_release: root.is_lightning = not root.is_lightning
 		    #on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
-                    on_release:
-                        root.is_lightning = not root.is_lightning
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -81,11 +142,12 @@ ReceiveScreen:
             height: '48dp'
             IconButton:
                 icon: 'atlas://electrum/gui/kivy/theming/light/list'
-                size_hint: 1, None
+                size_hint: 0.5, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
-            #Widget:
-            #    size_hint: 0.5, 1
+                on_release: root.show_list = not root.show_list
+		#Clock.schedule_once(lambda dt: app.requests_dialog(s))
+            Widget:
+                size_hint: 0.5, None
             Button:
                 text: _('Clear')
                 size_hint: 1, None
@@ -97,14 +159,10 @@ ReceiveScreen:
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.parent.new_request(root.is_lightning))
         Widget:
-            size_hint: 1, 1
-        #BoxLayout:
-        #    size_hint: 1, None
-        #    height: '48dp'
-        #    IconButton:
-        #        icon: 'atlas://electrum/gui/kivy/theming/light/list'
-        #        size_hint: 0.5, None
-        #        height: '48dp'
-        #        on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
-        #    Widget:
-        #        size_hint: 2.5, 1
+            size_hint: 1, 0.1
+        RequestRecycleView:
+            id: requests_container
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'
+            opacity: 1 if root.show_list else 0
+            disabled: not root.show_list
