@@ -120,7 +120,7 @@ class Test_NewMnemonic(SequentialTestCase):
         iters = 10
         m = mnemonic.Mnemonic(lang='en')
         for _ in range(iters):
-            seed = m.make_seed()
+            seed = m.make_seed("standard")
             i = m.mnemonic_decode(seed)
             self.assertEqual(m.mnemonic_encode(i), seed)
 

@@ -156,7 +156,6 @@ class TestCreateRestoreWallet(WalletTestCase):
                               passphrase=passphrase,
                               password=password,
                               encrypt_file=encrypt_file,
-                              segwit=True,
                               gap_limit=1)
         wallet = d['wallet']  # type: Standard_Wallet
         wallet.check_password(password)

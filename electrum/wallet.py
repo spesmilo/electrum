@@ -2005,13 +2005,12 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True, gap_limit=None):
+def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, seed_type=None, gap_limit=None):
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
 
-    seed_type = 'segwit' if segwit else 'standard'
     seed = Mnemonic('en').make_seed(seed_type)
     k = keystore.from_seed(seed, passphrase)
     storage.put('keystore', k.dump())

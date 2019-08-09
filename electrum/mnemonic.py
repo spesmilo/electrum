@@ -160,7 +160,9 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type='standard', num_bits=132):
+    def make_seed(self, seed_type=None, *, num_bits=132):
+        if seed_type is None:
+            seed_type = 'segwit'
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)
