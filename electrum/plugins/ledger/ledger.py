@@ -224,7 +224,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # device reconnects
         self.force_watching_only = False
         self.signing = False
-        self.cfg = d.get('cfg', {'mode':0,'pair':''})
+        self.cfg = d.get('cfg', {'mode': 0})
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
@@ -461,8 +461,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                     if not pin:
                         raise UserWarning()
-                    if pin != 'paired':
-                        self.handler.show_message(_("Confirmed. Signing Transaction..."))
+                    self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransaction(False, 0,
@@ -485,16 +484,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
                         if not pin:
                             raise UserWarning()
-                        if pin != 'paired':
-                            self.handler.show_message(_("Confirmed. Signing Transaction..."))
+                        self.handler.show_message(_("Confirmed. Signing Transaction..."))
                     else:
                         # Sign input with the provided PIN
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
-                    if pin != 'paired':
-                        firstTransaction = False
+                    firstTransaction = False
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return
