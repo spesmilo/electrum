@@ -503,7 +503,7 @@ class JsonDB(Logger):
         return seed_version
 
     def _raise_unsupported_version(self, seed_version):
-        msg = "Your wallet has an unsupported seed version."
+        msg = f"Your wallet has an unsupported seed version: {seed_version}."
         if seed_version in [5, 7, 8, 9, 10, 14]:
             msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
         if seed_version == 6:
