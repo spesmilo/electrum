@@ -14,8 +14,8 @@ LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
-# ^ tag 3.4, plus a custom commit that fixes cross-compilation with MinGW
+PYINSTALLER_COMMIT=46fc8155710631f84ebe20e32e0a6ba6df76d366
+# ^ tag 3.5, plus a custom commit that fixes cross-compilation with MinGW
 
 PYTHON_VERSION=3.6.8
 
