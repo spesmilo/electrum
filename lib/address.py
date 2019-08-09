@@ -185,6 +185,12 @@ class OpCodes(IntEnum):
     OP_CHECKDATASIGVERIFY = 0xbb
 
 
+P2PKH_prefix = bytes([OpCodes.OP_DUP, OpCodes.OP_HASH160, 20])
+P2PKH_suffix = bytes([OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG])
+
+P2SH_prefix = bytes([OpCodes.OP_HASH160, 20])
+P2SH_suffix = bytes([OpCodes.OP_EQUAL])
+
 # Utility functions
 
 def to_bytes(x):
@@ -710,15 +716,13 @@ class Script:
 
     @classmethod
     def P2SH_script(cls, hash160):
-        return (bytes([OpCodes.OP_HASH160])
-                + cls.push_data(hash160)
-                + bytes([OpCodes.OP_EQUAL]))
+        assert len(hash160) == 20
+        return P2SH_prefix + hash160 + P2SH_suffix
 
     @classmethod
     def P2PKH_script(cls, hash160):
-        return (bytes([OpCodes.OP_DUP, OpCodes.OP_HASH160])
-                + cls.push_data(hash160)
-                + bytes([OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG]))
+        assert len(hash160) == 20
+        return P2PKH_prefix + hash160 + P2PKH_suffix
 
     @classmethod
     def P2PK_script(cls, pubkey):

@@ -32,7 +32,8 @@ from .caches import ExpiringCache
 
 from .bitcoin import *
 from .address import (PublicKey, Address, Script, ScriptOutput, hash160,
-                      UnknownAddress, OpCodes as opcodes)
+                      UnknownAddress, OpCodes as opcodes,
+                      P2PKH_prefix, P2PKH_suffix, P2SH_prefix, P2SH_suffix)
 from . import schnorr
 from . import util
 import struct
@@ -269,28 +270,25 @@ def parse_redeemScript(s):
     return m, n, x_pubkeys, pubkeys, redeemScript
 
 def get_address_from_output_script(_bytes):
-    try:
-        decoded = Script.get_ops(_bytes)
+    scriptlen = len(_bytes)
 
-        # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
-        # 65 BYTES:... CHECKSIG
-        match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
-        if match_decoded(decoded, match):
-            return TYPE_PUBKEY, PublicKey.from_pubkey(decoded[0][1])
+    if scriptlen == 23 and _bytes.startswith(P2SH_prefix) and _bytes.endswith(P2SH_suffix):
+        # Pay-to-script-hash
+        return TYPE_ADDRESS, Address.from_P2SH_hash(_bytes[2:22])
 
-        # Pay-by-Bitcoin-address TxOuts look like:
-        # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
-        match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
-        if match_decoded(decoded, match):
-            return TYPE_ADDRESS, Address.from_P2PKH_hash(decoded[2][1])
+    if scriptlen == 25 and _bytes.startswith(P2PKH_prefix) and _bytes.endswith(P2PKH_suffix):
+        # Pay-to-pubkey-hash
+        return TYPE_ADDRESS, Address.from_P2PKH_hash(_bytes[3:23])
 
-        # p2sh
-        match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
-        if match_decoded(decoded, match):
-            return TYPE_ADDRESS, Address.from_P2SH_hash(decoded[1][1])
-    except Exception as e:
-        print_error('{}: Failed to parse tx ouptut {}. Exception was: {}'.format(__name__, _bytes.hex(), repr(e)))
-        pass
+    if scriptlen == 35 and _bytes[0] == 33 and _bytes[1] in (2,3) and _bytes[34] == opcodes.OP_CHECKSIG:
+        # Pay-to-pubkey (compressed)
+        return TYPE_PUBKEY, PublicKey.from_pubkey(_bytes[1:34])
+
+    if scriptlen == 67 and _bytes[0] == 65 and _bytes[1] == 4 and _bytes[66] == opcodes.OP_CHECKSIG:
+        # Pay-to-pubkey (uncompressed)
+        return TYPE_PUBKEY, PublicKey.from_pubkey(_bytes[1:66])
+
+    # note: we don't recognize bare multisigs.
 
     return TYPE_SCRIPT, ScriptOutput.protocol_factory(bytes(_bytes))
 

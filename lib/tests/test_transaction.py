@@ -2,8 +2,8 @@ import unittest
 from pprint import pprint
 
 from .. import transaction
-from ..address import Address
-from ..bitcoin import TYPE_ADDRESS
+from ..address import Address, ScriptOutput, PublicKey
+from ..bitcoin import TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT
 
 from ..keystore import xpubkey_to_address
 
@@ -12,7 +12,6 @@ from ..util import bh2u
 unsigned_blob = '010000000149f35e43fefd22d8bb9e4b3ff294c6286154c25712baf6ab77b646e5074d6aed010000005701ff4c53ff0488b21e0000000000000000004f130d773e678a58366711837ec2e33ea601858262f8eaef246a7ebd19909c9a03c3b30e38ca7d797fee1223df1c9827b2a9f3379768f520910260220e0560014600002300feffffffd8e43201000000000118e43201000000001976a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac5fbd0700'
 signed_blob = '010000000149f35e43fefd22d8bb9e4b3ff294c6286154c25712baf6ab77b646e5074d6aed010000006a473044022025bdc804c6fe30966f6822dc25086bc6bb0366016e68e880cf6efd2468921f3202200e665db0404f6d6d9f86f73838306ac55bb0d0f6040ac6047d4e820f24f46885412103b5bbebceeb33c1b61f649596b9c3611c6b2853a1f6b48bce05dd54f667fa2166feffffff0118e43201000000001976a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac5fbd0700'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
-
 
 class TestBCDataStream(unittest.TestCase):
 
@@ -178,6 +177,88 @@ class TestTransaction(unittest.TestCase):
         tx = transaction.Transaction('01000000018695eef2250b3a3b6ef45fe065e601610e69dd7a56de742092d40e6276e6c9ec00000000fdfd000047304402203199bf8e49f7203e8bcbfd754aa356c6ba61643a3490f8aef3888e0aaa7c048c02201e7180bfd670f4404e513359b4020fbc85d6625e3e265e0c357e8611f11b83e401483045022100e60f897db114679f9a310a032a22e9a7c2b8080affe2036c480ff87bf6f45ada02202dbd27af38dd97d418e24d89c3bb7a97e359dd927c1094d8c9e5cac57df704fb014c69522103adc563b9f5e506f485978f4e913c10da208eac6d96d49df4beae469e81a4dd982102c52bc9643a021464a31a3bfa99cfa46afaa4b3acda31e025da204b4ee44cc07a2103a1c8edcc3310b3d7937e9e4179e7bd9cdf31c276f985f4eb356f21b874225eb153aeffffffff02b8ce05000000000017a9145c9c158430b7b79c3ad7ef9bdf981601eda2412d87b82400000000000017a9146bf3ff89019ecc5971a39cdd4f1cabd3b647ad5d8700000000')
         self.assertEqual('2caab5a11fa1ec0f5bb014b8858d00fecf2c001e15d22ad04379ad7b36fef305', tx.txid())
 
+    def test_parse_output_p2pkh(self):
+        tx = transaction.Transaction('010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000001976a914aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa88ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_ADDRESS, Address.from_P2PKH_hash(b'\xaa'*20), 0)])
+        self.assertEqual('7a0e3fcbdaa9ecc6ccce1ad325b6b661e774a57f2e8519c679964e2dd32e200f', tx.txid())
+
+    def test_parse_output_p2pkh_nonmin(self):
+        tx = transaction.Transaction('010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000001a76a94c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa88ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(bytes.fromhex('76a94c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa88ac')), 0)])
+        self.assertEqual('69706667959fd2e6aa3385acdcd2c478e875344422e1f4c94eb06065268540d1', tx.txid())
+
+    def test_parse_output_p2sh(self):
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000017a914aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8700000000')
+        self.assertEqual(tx.outputs(), [(TYPE_ADDRESS, Address.from_P2SH_hash(b'\xaa'*20), 0)])
+        self.assertEqual('d33750908965d24a411d94371fdc64ebb06f13bf4d19e73372347e6b4eeca49f', tx.txid())
+
+    def test_parse_output_p2sh_nonmin(self):
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000018a94c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8700000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(bytes.fromhex('a94c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa87')), 0)])
+        self.assertEqual('dd4b174d7094c63c9f530703702a8d76c7b3fe5fc278ba2837dbd75bc5b0b296', tx.txid())
+
+    def test_parse_output_p2pk(self):
+        tx = transaction.Transaction('010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000002321030000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_PUBKEY, PublicKey.from_pubkey(b'\x03' + b'\x00'*32), 0)])
+        self.assertEqual('78afa0576a4ee6e7db663a58202f11bab8e860dd4a2226f856a2490187046b3d', tx.txid())
+
+    def test_parse_output_p2pk_badpubkey(self):
+        tx = transaction.Transaction('010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000002321040000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(bytes.fromhex('21040000000000000000000000000000000000000000000000000000000000000000ac')), 0)])
+        self.assertEqual('8e57f026081b6589570dc5e6e339b706d2ac75e6cbd1896275dee176b8d35ba6', tx.txid())
+
+    def test_parse_output_p2pk_nonmin(self):
+        tx = transaction.Transaction('01000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000244c21030000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(bytes.fromhex('4c21030000000000000000000000000000000000000000000000000000000000000000ac')), 0)])
+        self.assertEqual('730d77384d7bfc965caa338b501e7b071092474320af6ea19052859c93bfaf98', tx.txid())
+
+    def test_parse_output_p2pk_uncomp(self):
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000043410400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_PUBKEY, PublicKey.from_pubkey(b'\x04' + b'\x00'*64), 0)])
+        self.assertEqual('053626542393dd957a14bb2bcbfdcf3564a5f438e923799e1b9714c4a8e70a7c', tx.txid())
+
+    def test_parse_output_p2pk_uncomp_badpubkey(self):
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000043410300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x41\x03' + b'\x00'*64 + b'\xac'), 0)])
+        self.assertEqual('a15a9f86f5a47ef7efc28ae701f5b2a353aff76a21cb22ff08b77759533fb59b', tx.txid())
+
+    def test_parse_output_p2pk_uncomp_nonmin(self):
+        tx = transaction.Transaction('01000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000444c410400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ac00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x4c\x41\x04' + b'\x00'*64 + b'\xac'), 0)])
+        self.assertEqual('bd8e0827c8bacd6bac10dd28d5fc6ad52f3fef3f91200c7c1d8698531c9325e9', tx.txid())
+
+    def test_parse_output_baremultisig(self):
+        # no special support for recognizing bare multisig outputs
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000025512103000000000000000000000000000000000000000000000000000000000000000051ae00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x51\x21\x03' + b'\x00'*32 + b'\x51\xae'), 0)])
+        self.assertEqual('b1f66fde0aa3d5af03be3c69f599069aad217e939f36cacc2372ea4fece7d57b', tx.txid())
+
+    def test_parse_output_baremultisig_nonmin(self):
+        # even if bare multisig support is added, note that this case should still remain unrecognized
+        tx = transaction.Transaction('0100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000026514c2103000000000000000000000000000000000000000000000000000000000000000051ae00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x51\x4c\x21\x03' + b'\x00'*32 + b'\x51\xae'), 0)])
+        self.assertEqual('eb0b69c86a05499cabc42b12d4706b18eab97ed6155fc966e488a433edf05932', tx.txid())
+
+    def test_parse_output_truncated1(self):
+        # truncated in middle of PUSHDATA2's first argument
+        tx = transaction.Transaction('01000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000024d0100000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x4d\x01'), 0)])
+        self.assertIn("Invalid script", tx.outputs()[0][1].to_ui_string())
+        self.assertEqual('72d8af8edcc603c6c64390ac5eb913b97a80efe0f5ae7c00ad5397eb5786cd33', tx.txid())
+
+    def test_parse_output_truncated1(self):
+        # truncated in middle of PUSHDATA2's second argument
+        tx = transaction.Transaction('01000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000044d0200ff00000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b'\x4d\x02\x00\xff'), 0)])
+        self.assertIn("Invalid script", tx.outputs()[0][1].to_ui_string())
+        self.assertEqual('976667816c4955189973cc56ac839844da4ed32a8bd22a8c6217c2c04e69e9d7', tx.txid())
+
+    def test_parse_output_empty(self):
+        # nothing wrong with empty output script
+        tx = transaction.Transaction('010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000')
+        self.assertEqual(tx.outputs(), [(TYPE_SCRIPT, ScriptOutput(b''), 0)])
+        self.assertEqual("", tx.outputs()[0][1].to_ui_string())
+        self.assertEqual('50fa7bd4e5e2d3220fd2e84effec495b9845aba379d853408779d59a4b0b4f59', tx.txid())
 
 class NetworkMock(object):
 
