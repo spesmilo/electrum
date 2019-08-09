@@ -56,8 +56,10 @@ for msifile in core dev exe lib pip tools; do
     wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
 
+info "Installing build dependencies."
+$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-wine-build.txt
+
 info "Installing dependencies specific to binaries."
-# note that this also installs pinned versions of both pip and setuptools
 $PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 
 info "Installing ZBar."
@@ -107,6 +109,6 @@ info "Building PyInstaller."
     [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$PYTHON -m pip install --no-warn-script-location ./pyinstaller
+$PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."
