@@ -48,13 +48,14 @@ For reasons that aren't entirely clear to me (but likely due to the way libPytho
  - **Valid Architectures** = arm64
  - **Symbols Hidden by Default** = NO
 
+For more information, see this stackoverflow post: https://stackoverflow.com/questions/22261753/ios-app-wont-start-on-testflight-ad-hoc-distribution
+
 Connecting to TestNet
 ---------------------
 If you want to run the app to point to the BCH TestNet network:
 
-   * Edit / Duplicate the Xcode "Scheme" for Electron Cash and set the envronment variable: `EC_TESTNET`
+  * Edit / Duplicate the Xcode "Scheme" for Electron Cash and set the envronment variable: `EC_TESTNET`
 
-For more information, see this stackoverflow post: https://stackoverflow.com/questions/22261753/ios-app-wont-start-on-testflight-ad-hoc-distribution
 
 Additional Notes
 ----------------
