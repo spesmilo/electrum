@@ -19,11 +19,12 @@ import sys
 
 
 if __name__ == '__main__':
-    argc = c_int(len(sys.argv))
+    C_like_argv = [sys.executable] + sys.argv  # prepend executable path to follow C argv convention
+    argc = c_int(len(C_like_argv))
     argv = (c_char_p * (argc.value + 1))()
-    for i,a in enumerate(sys.argv):
+    for i,a in enumerate(C_like_argv):
         argv[i] = c_char_p(a.encode('utf-8'))
-    argv[-1] = 0
+    argv[-1] = 0  # This actually sets last pointer to NULL, and not int(0)
 
     #.argtypes = [c_int, POINTER(c_char_p), c_void_p, c_void_p]
     uikit.UIApplicationMain(argc, argv, None, ns_from_py("PythonAppDelegate").ptr)
