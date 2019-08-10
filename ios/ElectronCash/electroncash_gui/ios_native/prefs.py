@@ -161,7 +161,7 @@ class PrefsVC(UITableViewController):
         elif secName == 'Fees':
             return 2
         elif secName == 'Transactions':
-            return 3
+            return 4
         elif secName == 'Appearance':
             return 5
         elif secName == 'Fiat':
@@ -278,13 +278,20 @@ class PrefsVC(UITableViewController):
             l = cell.viewWithTag_(1)
             s = cell.viewWithTag_(2)
             if row == 0:
+                l.text = _("Enable Schnorr signatures")
+                b, enabled = parent.prefs_use_schnorr, parent.prefs_is_schnorr_possible
+                s.on = b
+                utils.uiview_set_enabled(cell, enabled)
+                if s.allTargets.count <= 0:
+                    s.addTarget_action_forControlEvents_(self, SEL(b'onEnableSchnorr:'), UIControlEventValueChanged)
+            elif row == 1:
                 l.text = _("Use change addresses")
                 b, enabled = parent.prefs_get_use_change()
                 s.on = b
                 utils.uiview_set_enabled(cell, enabled)
                 if s.allTargets.count <= 0:
                     s.addTarget_action_forControlEvents_(self, SEL(b'onUseChange:'), UIControlEventValueChanged)
-            elif row == 1:
+            elif row == 2:
                 l.text = _("Use multiple change addresses")
                 cell.contentView.tag = TAG_MULTIPLE_CHANGE_CELL
                 b1, enabled = parent.prefs_get_multiple_change()
@@ -292,7 +299,7 @@ class PrefsVC(UITableViewController):
                 utils.uiview_set_enabled(cell.contentView, enabled)
                 if s.allTargets.count <= 0:
                     s.addTarget_action_forControlEvents_(self, SEL(b'onUseMultiple:'), UIControlEventValueChanged)
-            elif row == 2:
+            elif row == 3:
                 l.text = _("Spend only confirmed coins")
                 s.on = parent.prefs_get_confirmed_only()
                 if s.allTargets.count <= 0:
@@ -417,7 +424,7 @@ class PrefsVC(UITableViewController):
 
         if secName in ['Tools']:
             cell =  UITableViewCell.alloc().initWithStyle_reuseIdentifier_(UITableViewCellStyleSubtitle, ident).autorelease()
-        elif ident in ['Fees_1', 'Transactions_0', 'Transactions_1', 'Transactions_2', 'Appearance_0', 'Appearance_1','Fiat_1', 'Fiat_2']:
+        elif ident in ['Fees_1', 'Transactions_0', 'Transactions_1', 'Transactions_2', 'Transactions_3', 'Appearance_0', 'Appearance_1','Fiat_1', 'Fiat_2']:
             objs = NSBundle.mainBundle.loadNibNamed_owner_options_("BoolCell",self.tableView,None)
             assert objs is not None and len(objs)
             cell = objs[0]
@@ -551,6 +558,10 @@ class PrefsVC(UITableViewController):
     def onConfirmedOnly_(self, s : ObjCInstance) -> None:
         parent = gui.ElectrumGui.gui
         parent.prefs_set_confirmed_only(bool(s.isOn()))
+    @objc_method
+    def onEnableSchnorr_(self, s: ObjCInstance) -> None:
+        parent = gui.ElectrumGui.gui
+        parent.prefs_use_schnorr = bool(s.isOn())  # NB: prefs_use_schnorr is a property setter method
     @objc_method
     def onUseChange_(self, s: ObjCInstance) -> None:
         parent = gui.ElectrumGui.gui

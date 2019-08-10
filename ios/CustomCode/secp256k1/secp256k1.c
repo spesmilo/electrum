@@ -5,6 +5,7 @@
  **********************************************************************/
 
 #define HAVE_CONFIG_H 1
+#define SECP256K1_BUILD 1
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -14,7 +15,6 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wconditional-uninitialized"
 #endif
-
 #include "secp256k1.h"
 
 #include "util.h"

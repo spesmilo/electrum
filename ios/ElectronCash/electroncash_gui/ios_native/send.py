@@ -733,7 +733,7 @@ class SendVC(SendBase):
                 _type, addr = get_dummy()
                 outputs = [(_type, addr, amount)]
             try:
-                tx = wallet().make_unsigned_transaction(get_coins(self), outputs, config(), fee)
+                tx = wallet().make_unsigned_transaction(get_coins(self), outputs, config(), fee, sign_schnorr=parent().prefs_use_schnorr)
                 if tx and freeze_fee and fee and tx.estimated_size():
                     self.feeLbl.text = _("Manual fee") + ": " + parent().format_fee_rate((fee*1e3) / tx.estimated_size())
             except NotEnoughFunds:
@@ -770,7 +770,7 @@ class SendVC(SendBase):
 
     @objc_method
     def showTransaction_desc_(self, txraw, desc) -> None:
-        tx = Transaction(txraw)
+        tx = Transaction(txraw, sign_schnorr=parent().prefs_use_schnorr)
         tx.deserialize()
         tx_hash, status_, label_, can_broadcast, amount, fee, height, conf, timestamp, exp_n = wallet().get_tx_info(tx)
         #print("send: status_",status_,"label_",label_,"amount",amount,"conf",conf)
@@ -823,7 +823,7 @@ class SendVC(SendBase):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            tx = wallet().make_unsigned_transaction(coins, outputs, config(), fee)
+            tx = wallet().make_unsigned_transaction(coins, outputs, config(), fee, sign_schnorr=parent().prefs_use_schnorr)
         except NotEnoughFunds:
             parent().show_error(_("Insufficient funds"))
             return

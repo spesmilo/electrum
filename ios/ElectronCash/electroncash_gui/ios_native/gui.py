@@ -960,6 +960,18 @@ class ElectrumGui(PrintError):
     def prefs_set_confirmed_only(self, b : bool) -> None:
         self.config.set_key('confirmed_only', bool(b))
 
+    @property
+    def prefs_use_schnorr(self) -> bool:
+        return bool(self.wallet.is_schnorr_enabled())
+
+    @prefs_use_schnorr.setter
+    def prefs_use_schnorr(self, b):
+        self.wallet.set_schnorr_enabled(b)
+
+    @property
+    def prefs_is_schnorr_possible(self) -> bool:
+        return self.wallet.is_schnorr_possible()
+
     def prefs_get_use_change(self) -> tuple: # returns the setting plus a second bool that indicates whether this setting can be modified
         if not self.wallet: return False, False
         r1 = self.wallet.use_change
@@ -1352,7 +1364,14 @@ class ElectrumGui(PrintError):
         if self.wallet:
             if self.onboardingWizard and not self.onboardingWizard.isBeingDismissed():
                 self.onboardingWizard.presentingViewController.dismissViewControllerAnimated_completion_(False, None)
-            self.wallet.set_schnorr_enabled(False)  # hard-coded -- disable schnorr on iOS
+            # Below conditional is because we used to force Schnorr to 0 on all
+            # wallets on iOS, and now we have to "undo the damage" of that.
+            if self.wallet.storage.get('_ios_undid_force_no_sign_schnorr') is None:
+                # indicate that this branch should never be taken again
+                self.wallet.storage.put('_ios_undid_force_no_sign_schnorr', True)
+                if self.wallet.storage.get('sign_schnorr') == 0:
+                    # clear key only if it was 0
+                    self.wallet.storage.put('sign_schnorr', None)
             self.config.set_key('gui_last_wallet', self.wallet.storage.path)
             self.config.open_last_wallet() # this badly named function just sets the 'default wallet path' to the gui_last_wallet..
             vcs = self.tabController.viewControllers

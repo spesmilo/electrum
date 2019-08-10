@@ -129,6 +129,7 @@
 //# Locktime:
 @property (nonatomic, weak) IBOutlet UILabel *lockTit;
 @property (nonatomic, weak) IBOutlet UILabel *lockLbl;
+@property (nonatomic, weak) IBOutlet UILabel *schnorrLbl;
 //# Inputs
 @property (nonatomic, weak) IBOutlet UITableView *inputsTV;
 //# Outputs

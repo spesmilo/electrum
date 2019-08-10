@@ -15,12 +15,12 @@ Quick Start Instructions
    * MacPorts is required (Brew may work too but is untested)
    * Python 3.6 must be installed via either MacPorts or Brew
    * cookiecutter, briefcase, pbxproj, and setuptools python packages must be installed::
-   
+
            python3 -m pip install 'setuptools==40.6.2' --user
            python3 -m pip install 'cookiecutter==1.6.0' --user
            python3 -m pip install 'briefcase==0.2.6' --user
            python3 -m pip install 'pbxproj==2.5.1' --user
-           
+
            (NOTE: The exact versions specified above are known to work, but you may also try and use newer version as well.)
 
    * If you're using Brew, use pyenv to setup a Python 3.6 environment.
@@ -28,7 +28,7 @@ Quick Start Instructions
 2. Generate the iOS project using the included shell script::
 
            ./make_ios_project.sh
-       
+
 3. Use Xcode to open the generated project, and add the following two libs (frameworks) to the project::
 
            libxml2.tbd
@@ -46,10 +46,16 @@ For reasons that aren't entirely clear to me (but likely due to the way libPytho
  - **Strip Style** = Debugging Symbols
  - **Enable Bitcode** = NO
  - **Valid Architectures** = arm64
-   
+ - **Symbols Hidden by Default** = NO
+
+Connecting to TestNet
+---------------------
+If you want to run the app to point to the BCH TestNet network:
+
+   * Edit / Duplicate the Xcode "Scheme" for Electron Cash and set the envronment variable: `EC_TESTNET`
+
 For more information, see this stackoverflow post: https://stackoverflow.com/questions/22261753/ios-app-wont-start-on-testflight-ad-hoc-distribution
 
 Additional Notes
 ----------------
 The app built by this Xcode project is a fully running standalone Electron Cash as an iPhone app.  It pulls in sources from ../lib and other places when generating the Xcode project, but everything that is needed (.py files, Python interpreter, etc) ends up packaged in the generated iOS .app!
-

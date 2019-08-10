@@ -120,7 +120,7 @@ typedef int (*secp256k1_nonce_function)(
 #  else
 #   define SECP256K1_API
 #  endif
-# elif defined(__GNUC__) && defined(SECP256K1_BUILD)
+# elif (defined(__GNUC__)  || defined(__clang__)) && defined(SECP256K1_BUILD)
 #  define SECP256K1_API __attribute__ ((visibility ("default")))
 # else
 #  define SECP256K1_API
