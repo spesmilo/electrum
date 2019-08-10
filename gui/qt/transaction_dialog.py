@@ -426,9 +426,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.i_text = i_text = TextBrowserKeyboardFocusFilter()
         num_inputs = len(self.tx.inputs())
-        inputs_lbl_text = ngettext("&Input", "&Inputs ({num_inputs})", num_inputs)
-        if num_inputs > 1:
-            inputs_lbl_text = inputs_lbl_text.format(num_inputs=num_inputs)
+        inputs_lbl_text = ngettext("&Input", "&Inputs ({num_inputs})", num_inputs).format(num_inputs=num_inputs)
         l = QLabel(inputs_lbl_text)
         l.setBuddy(i_text)
         hbox.addWidget(l)
@@ -474,9 +472,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.o_text = o_text = TextBrowserKeyboardFocusFilter()
         num_outputs = len(self.tx.outputs())
-        outputs_lbl_text = ngettext("&Output", "&Outputs ({num_outputs})", num_outputs)
-        if num_outputs > 1:
-            outputs_lbl_text = outputs_lbl_text.format(num_outputs=num_outputs)
+        outputs_lbl_text = ngettext("&Output", "&Outputs ({num_outputs})", num_outputs).format(num_outputs=num_outputs)
         l = QLabel(outputs_lbl_text)
         l.setBuddy(o_text)
         hbox.addWidget(l)

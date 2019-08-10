@@ -699,8 +699,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 height, conf, timestamp = self.get_tx_height(tx_hash)
                 if height > 0:
                     if conf:
-                        status = ngettext("{conf} confirmation", "{conf} confirmations", conf)
-                        status = status.format(conf=conf)
+                        status = ngettext("{conf} confirmation", "{conf} confirmations", conf).format(conf=conf)
                     else:
                         status = _('Not verified')
                 else:
