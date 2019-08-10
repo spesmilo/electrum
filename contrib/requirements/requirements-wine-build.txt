@@ -1,8 +1,7 @@
-altgraph>=0.15
-future
-macholib>=1.8
-pefile>=2017.8.1
 pip
 setuptools
-pywin32-ctypes==0.1.2
-win-inet-pton==1.0.1
+# Below is needed by PyInstaller 3.5
+altgraph>=0.15
+future
+pefile>=2017.8.1
+pywin32-ctypes>=0.2.0
