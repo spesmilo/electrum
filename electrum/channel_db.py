@@ -518,6 +518,10 @@ class ChannelDB(SqlDB):
         for x in c:
             ci = ChannelInfo(*x)
             self._channels[ci.short_channel_id] = ci
+        c.execute("""SELECT * FROM node_info""")
+        for x in c:
+            ni = NodeInfo(*x)
+            self._nodes[ni.node_id] = ni
         c.execute("""SELECT * FROM policy""")
         for x in c:
             p = Policy(*x)
