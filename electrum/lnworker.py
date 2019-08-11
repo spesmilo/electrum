@@ -21,7 +21,8 @@ import dns.exception
 
 from . import constants
 from . import keystore
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, profiler
+from .util import PR_TYPE_LN
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
 from .transaction import Transaction
@@ -396,14 +397,12 @@ class LNWallet(LNWorker):
     def get_invoice_status(self, key):
         if key not in self.invoices:
             return PR_UNKNOWN
-        invoice, direction, is_paid = self.invoices[key]
+        invoice, direction, status = self.invoices[key]
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        if is_paid:
-            return PR_PAID
-        elif lnaddr.is_expired():
+        if status == PR_UNPAID and lnaddr.is_expired():
             return PR_EXPIRED
         else:
-            return PR_UNPAID
+            return status
 
     def get_payments(self):
         # return one item per payment_hash
@@ -415,11 +414,35 @@ class LNWallet(LNWorker):
                 out[k].append(v)
         return out
 
+    def get_unsettled_payments(self):
+        out = []
+        for payment_hash, plist in self.get_payments().items():
+            if len(plist) != 1:
+                continue
+            chan_id, htlc, _direction, status = plist[0]
+            if _direction != SENT:
+                continue
+            if status == 'settled':
+                continue
+            amount = htlc.amount_msat//1000
+            item = {
+                'is_lightning': True,
+                'status': status,
+                'key': payment_hash,
+                'amount': amount,
+                'timestamp': htlc.timestamp,
+                'label': self.wallet.get_label(payment_hash)
+            }
+            out.append(item)
+        return out
+
     def get_history(self):
         out = []
         for payment_hash, plist in self.get_payments().items():
             if len(plist) == 1:
                 chan_id, htlc, _direction, status = plist[0]
+                if status != 'settled':
+                    continue
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat= int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
@@ -751,17 +774,23 @@ class LNWallet(LNWorker):
             raise Exception(_("open_channel timed out"))
         return chan
 
-    def pay(self, invoice, attempts=1, amount_sat=None, timeout=10):
+    def pay(self, invoice, amount_sat=None, attempts=1):
         """
         Can be called from other threads
-        Raises exception after timeout
         """
-        coro = self._pay(invoice, attempts, amount_sat)
+        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        key = bh2u(addr.paymenthash)
+        coro = self._pay(invoice, amount_sat, attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
-            return fut.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            raise PaymentFailure(_("Payment timed out"))
+            success = fut.result()
+        except Exception as e:
+            self.network.trigger_callback('payment_status', key, 'error', e)
+            return
+        if success:
+            self.network.trigger_callback('payment_status', key, 'success')
+        else:
+            self.network.trigger_callback('payment_status', key, 'failure')
 
     def get_channel_by_short_id(self, short_channel_id):
         with self.lock:
@@ -770,20 +799,22 @@ class LNWallet(LNWorker):
                     return chan
 
     @log_exceptions
-    async def _pay(self, invoice, attempts=1, amount_sat=None):
+    async def _pay(self, invoice, amount_sat=None, attempts=1):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        status = self.get_invoice_status(bh2u(addr.paymenthash))
+        key = bh2u(addr.paymenthash)
+        status = self.get_invoice_status(key)
         if status == PR_PAID:
+            # fixme: use lightning_preimaages, because invoices are not permanently stored
             raise PaymentFailure(_("This invoice has been paid already"))
         self._check_invoice(invoice, amount_sat)
-        self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
-        self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
+        self.save_invoice(addr.paymenthash, invoice, SENT, PR_INFLIGHT)
+        self.wallet.set_label(key, addr.get_description())
         for i in range(attempts):
             route = await self._create_route_from_invoice(decoded_invoice=addr)
             if not self.get_channel_by_short_id(route[0].short_channel_id):
                 scid = format_short_channel_id(route[0].short_channel_id)
                 raise Exception(f"Got route with unknown first channel: {scid}")
-            self.network.trigger_callback('ln_payment_attempt', i)
+            self.network.trigger_callback('payment_status', key, 'progress', i)
             if await self._pay_to_route(route, addr, invoice):
                 return True
         return False
@@ -895,7 +926,7 @@ class LNWallet(LNWorker):
                                         ('x', expiry)]
                                        + routing_hints),
                            self.node_keypair.privkey)
-        self.save_invoice(payment_hash, invoice, RECEIVED, is_paid=False)
+        self.save_invoice(payment_hash, invoice, RECEIVED, PR_UNPAID)
         self.save_preimage(payment_hash, payment_preimage)
         self.wallet.set_label(bh2u(payment_hash), message)
         return payment_hash
@@ -915,20 +946,24 @@ class LNWallet(LNWorker):
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
 
-    def save_invoice(self, payment_hash:bytes, invoice, direction, *, is_paid=False):
+    def save_new_invoice(self, invoice):
+        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        self.save_invoice(addr.paymenthash, invoice, SENT, PR_UNPAID)
+
+    def save_invoice(self, payment_hash:bytes, invoice, direction, status):
         key = bh2u(payment_hash)
-        self.invoices[key] = invoice, direction, is_paid
+        self.invoices[key] = invoice, direction, status
         self.storage.put('lightning_invoices', self.invoices)
         self.storage.write()
 
-    def set_paid(self, payment_hash):
+    def set_invoice_status(self, payment_hash, status):
         key = bh2u(payment_hash)
         if key not in self.invoices:
             # if we are forwarding
             return
         invoice, direction, _ = self.invoices[key]
-        self.save_invoice(payment_hash, invoice, direction, is_paid=True)
-        if direction == RECEIVED:
+        self.save_invoice(payment_hash, invoice, direction, status)
+        if direction == RECEIVED and status == PR_PAID:
             self.network.trigger_callback('payment_received', self.wallet, key, PR_PAID)
 
     def get_invoice(self, payment_hash: bytes) -> LnAddr:
@@ -939,6 +974,9 @@ class LNWallet(LNWorker):
             raise UnknownPaymentHash(payment_hash) from e
 
     def get_request(self, key):
+        if key not in self.invoices:
+            return
+        # todo: parse invoices when saving
         invoice, direction, is_paid = self.invoices[key]
         status = self.get_invoice_status(key)
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
@@ -946,23 +984,32 @@ class LNWallet(LNWorker):
         description = lnaddr.get_description()
         timestamp = lnaddr.date
         return {
-            'lightning':True,
-            'status':status,
-            'amount':amount_sat,
-            'time':timestamp,
-            'exp':lnaddr.get_expiry(),
-            'memo':description,
-            'rhash':key,
+            'type': PR_TYPE_LN,
+            'status': status,
+            'amount': amount_sat,
+            'time': timestamp,
+            'exp': lnaddr.get_expiry(),
+            'message': description,
+            'rhash': key,
             'invoice': invoice
         }
 
+    @profiler
     def get_invoices(self):
-        items = self.invoices.items()
+        # invoices = outgoing
         out = []
-        for key, (invoice, direction, is_paid) in items:
-            if direction == SENT:
-                continue
-            out.append(self.get_request(key))
+        for key, (invoice, direction, status) in self.invoices.items():
+            if direction == SENT and status != PR_PAID:
+                out.append(self.get_request(key))
+        return out
+
+    @profiler
+    def get_requests(self):
+        # requests = incoming
+        out = []
+        for key, (invoice, direction, status) in self.invoices.items():
+            if direction == RECEIVED and status != PR_PAID:
+                out.append(self.get_request(key))
         return out
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):

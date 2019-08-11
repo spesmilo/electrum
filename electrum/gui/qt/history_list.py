@@ -196,9 +196,9 @@ class HistoryModel(QAbstractItemModel, Logger):
             elif col != HistoryColumns.STATUS and role == Qt.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
-            elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
-                    and self.parent.wallet.invoices.paid.get(tx_hash):
-                return QVariant(read_QIcon("seal"))
+            #elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
+            #        and self.parent.wallet.invoices.paid.get(tx_hash):
+            #    return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
                     and role == Qt.ForegroundRole and not is_lightning and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))

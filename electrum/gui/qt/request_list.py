@@ -31,6 +31,7 @@ from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
 from electrum.util import format_time, age, get_request_status
+from electrum.util import PR_TYPE_ADDRESS, PR_TYPE_LN, PR_TYPE_BIP70
 from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
 from electrum.lnutil import SENT, RECEIVED
 from electrum.plugin import run_hook
@@ -104,9 +105,10 @@ class RequestList(MyTreeView):
             is_lightning = date_item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN
             req = self.wallet.get_request(key, is_lightning)
             if req:
+                status = req['status']
                 status_str = get_request_status(req)
                 status_item.setText(status_str)
-                status_item.setIcon(read_QIcon(pr_icons.get(req['status'])))
+                status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
         self.wallet = self.parent.wallet
@@ -118,10 +120,11 @@ class RequestList(MyTreeView):
             status = req.get('status')
             if status == PR_PAID:
                 continue
-            request_type = REQUEST_TYPE_LN if req.get('lightning', False) else REQUEST_TYPE_BITCOIN
+            is_lightning = req['type'] == PR_TYPE_LN
+            request_type = REQUEST_TYPE_LN if is_lightning else REQUEST_TYPE_BITCOIN
             timestamp = req.get('time', 0)
             amount = req.get('amount')
-            message = req['memo']
+            message = req['message'] if is_lightning else req['memo']
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             status_str = get_request_status(req)

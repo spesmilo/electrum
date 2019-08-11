@@ -47,6 +47,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import age
+from .util import PR_TYPE_ADDRESS, PR_TYPE_BIP70, PR_TYPE_LN
 from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -60,14 +61,14 @@ from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
-                             InvoiceStore)
+from .util import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT
 from .contacts import Contacts
 from .interface import NetworkException
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet
+from .paymentrequest import PaymentRequest
 
 if TYPE_CHECKING:
     from .network import Network
@@ -225,6 +226,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
+        self.invoices              = storage.get('invoices', {})
 
         self.calc_unused_change_addresses()
 
@@ -232,8 +234,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
 
-        # invoices and contacts
-        self.invoices = InvoiceStore(self.storage)
+        # contacts
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
         self.lnworker = LNWallet(self) if get_config().get('lightning') else None
@@ -497,6 +498,51 @@ class Abstract_Wallet(AddressSynchronizer):
                 'label': self.get_label(tx_hash),
                 'txpos_in_block': tx_mined_status.txpos,
             }
+
+    def save_invoice(self, invoice):
+        invoice_type = invoice['type']
+        if invoice_type == PR_TYPE_LN:
+            self.lnworker.save_new_invoice(invoice['invoice'])
+        else:
+            if invoice_type == PR_TYPE_ADDRESS:
+                key = invoice['address']
+                invoice['time'] = int(time.time())
+            elif invoice_type == PR_TYPE_BIP70:
+                key = invoice['id']
+                invoice['txid'] = None
+            else:
+                raise Exception('Unsupported invoice type')
+            self.invoices[key] = invoice
+            self.storage.put('invoices', self.invoices)
+            self.storage.write()
+
+    def get_invoices(self):
+        out = [self.get_invoice(key) for key in self.invoices.keys()]
+        out = [x for x in out if x and x.get('status') != PR_PAID]
+        if self.lnworker:
+            out += self.lnworker.get_invoices()
+        out.sort(key=operator.itemgetter('time'))
+        return out
+
+    def get_invoice(self, key):
+        if key in self.invoices:
+            item = copy.copy(self.invoices[key])
+            request_type = item.get('type')
+            if request_type is None:
+                # todo: convert old bip70 invoices
+                return
+            # add status
+            if item.get('txid'):
+                status = PR_PAID
+            elif 'exp' in item and item['time'] + item['exp'] < time.time():
+                status = PR_EXPIRED
+            else:
+                status = PR_UNPAID
+            item['status'] = status
+            return item
+        if self.lnworker:
+            return self.lnworker.get_request(key)
+
 
     @profiler
     def get_full_history(self, fx=None):
@@ -1221,6 +1267,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if not r:
             return
         out = copy.copy(r)
+        out['type'] = PR_TYPE_ADDRESS
         out['URI'] = 'bitcoin:' + addr + '?amount=' + format_satoshis(out.get('amount'))
         status, conf = self.get_request_status(addr)
         out['status'] = status
@@ -1363,6 +1410,14 @@ class Abstract_Wallet(AddressSynchronizer):
         elif self.lnworker:
             self.lnworker.delete_invoice(key)
 
+    def delete_invoice(self, key):
+        """ lightning or on-chain """
+        if key in self.invoices:
+            self.invoices.pop(key)
+            self.storage.put('invoices', self.invoices)
+        elif self.lnworker:
+            self.lnworker.delete_invoice(key)
+
     def remove_payment_request(self, addr, config):
         if addr not in self.receive_requests:
             return False
@@ -1381,7 +1436,7 @@ class Abstract_Wallet(AddressSynchronizer):
         """ sorted by timestamp """
         out = [self.get_payment_request(x, config) for x in self.receive_requests.keys()]
         if self.lnworker:
-            out += self.lnworker.get_invoices()
+            out += self.lnworker.get_requests()
         out.sort(key=operator.itemgetter('time'))
         return out
 

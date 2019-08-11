@@ -31,7 +31,7 @@ from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Itera
 import time
 
 from . import ecc
-from .util import bfh, bh2u
+from .util import bfh, bh2u, PR_PAID, PR_FAILED
 from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
@@ -165,8 +165,11 @@ class Channel(Logger):
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
                 if htlc_id in log.get('fails',{}):
-                    continue
-                status = 'settled' if htlc_id in log.get('settles',{}) else 'inflight'
+                    status = 'failed'
+                elif htlc_id in log.get('settles',{}):
+                    status = 'settled'
+                else:
+                    status = 'inflight'
                 direction = SENT if subject is LOCAL else RECEIVED
                 rhash = bh2u(htlc.payment_hash)
                 out[rhash] = (self.channel_id, htlc, direction, status)
@@ -563,7 +566,7 @@ class Channel(Logger):
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
         if self.lnworker:
-            self.lnworker.set_paid(htlc.payment_hash)
+            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.logger.info("receive_htlc_settle")
@@ -574,7 +577,7 @@ class Channel(Logger):
         self.hm.recv_settle(htlc_id)
         if self.lnworker:
             self.lnworker.save_preimage(htlc.payment_hash, preimage)
-            self.lnworker.set_paid(htlc.payment_hash)
+            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def fail_htlc(self, htlc_id):
         self.logger.info("fail_htlc")

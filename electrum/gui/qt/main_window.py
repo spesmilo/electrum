@@ -120,7 +120,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
-    ln_payment_attempt_signal = pyqtSignal(str)
+    #ln_payment_attempt_signal = pyqtSignal(str)
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
@@ -138,7 +138,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         assert wallet, "no wallet"
         self.wallet = wallet
         self.fx = gui_object.daemon.fx  # type: FxThread
-        self.invoices = wallet.invoices
+        #self.invoices = wallet.invoices
         self.contacts = wallet.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
@@ -225,7 +225,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
                          'on_history', 'channel', 'channels', 'payment_received',
-                         'ln_payment_completed', 'ln_payment_attempt']
+                         'payment_status']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -374,14 +374,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
             self.update_status()
-        elif event == 'ln_payment_attempt':
-            msg = _('Sending lightning payment') + '... (%d/%d)'%(args[0]+1, LN_NUM_PAYMENT_ATTEMPTS)
-            self.ln_payment_attempt_signal.emit(msg)
-        elif event == 'ln_payment_completed':
-            # FIXME it is really inefficient to force update the whole GUI
-            # just for a single LN payment. individual rows in lists should be updated instead.
-            # consider: history tab, invoice list, request list
-            self.need_update.set()
+        elif event == 'payment_status':
+            self.on_payment_status(*args)
         elif event == 'status':
             self.update_status()
         elif event == 'banner':
@@ -1671,33 +1665,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_send(preview = True)
 
     def pay_lightning_invoice(self, invoice):
-        amount = self.amount_e.get_amount()
-        def on_success(result):
-            self.logger.info(f'ln payment success. {result}')
-            self.show_error(_('Payment succeeded'))
-            self.do_clear()
-        def on_failure(exc_info):
-            type_, e, traceback = exc_info
-            if isinstance(e, PaymentFailure):
-                self.show_error(_('Payment failed. {}').format(e))
-            elif isinstance(e, InvoiceError):
-                self.show_error(_('InvoiceError: {}').format(e))
-            else:
-                raise e
+        amount_sat = self.amount_e.get_amount()
+        attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
-            success = self.wallet.lnworker.pay(invoice, attempts=LN_NUM_PAYMENT_ATTEMPTS, amount_sat=amount, timeout=60)
-            if not success:
-                raise PaymentFailure(f'Failed after {LN_NUM_PAYMENT_ATTEMPTS} attempts')
+            self.wallet.lnworker.pay(invoice, amount_sat, attempts)
+        self.do_clear()
+        self.wallet.thread.add(task)
+        self.invoice_list.update()
 
-        msg = _('Sending lightning payment...')
-        d = WaitingDialog(self, msg, task, on_success, on_failure)
-        self.ln_payment_attempt_signal.connect(d.update)
+    def on_payment_status(self, key, status, *args):
+        # todo: check that key is in this wallet's invoice list
+        self.invoice_list.update()
+        if status == 'success':
+            self.show_message(_('Payment succeeded'))
+            self.need_update.set()
+        elif status == 'progress':
+            print('on_payment_status', key, status, args)
+        elif status == 'failure':
+            self.show_info(_('Payment failed'))
+        elif status == 'error':
+            e = args[0]
+            self.show_error(_('Error') + '\n' + str(e))
 
     def do_send(self, preview = False):
         if self.payto_e.is_lightning:
             self.pay_lightning_invoice(self.payto_e.lightning_invoice)
             return
-        #
         if run_hook('abort_send', self):
             return
         outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
@@ -1817,8 +1810,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             else:
                 status, msg = True, tx.txid()
             if pr and status is True:
-                self.invoices.set_paid(pr, tx.txid())
-                self.invoices.save()
+                key = pr.get_id()
+                self.wallet.set_invoice_paid(key, tx.txid())
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
                 coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
@@ -1889,17 +1882,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return True
 
     def delete_invoice(self, key):
-        self.invoices.remove(key)
+        self.wallet.delete_invoice(key)
         self.invoice_list.update()
 
     def payment_request_ok(self):
         pr = self.payment_request
         if not pr:
             return
-        key = self.invoices.add(pr)
-        status = self.invoices.get_status(key)
-        self.invoice_list.update()
-        if status == PR_PAID:
+        key = pr.get_id()
+        invoice = self.wallet.get_invoice(key)
+        if invoice and invoice['status'] == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
@@ -2106,7 +2098,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.update_completions()
 
     def show_invoice(self, key):
-        pr = self.invoices.get(key)
+        pr = self.wallet.get_invoice(key)
         if pr is None:
             self.show_error('Cannot find payment request in wallet.')
             return
@@ -2143,7 +2135,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         exportButton = EnterButton(_('Save'), do_export)
         def do_delete():
             if self.question(_('Delete invoice?')):
-                self.invoices.remove(key)
+                self.wallet.delete_invoices(key)
                 self.history_list.update()
                 self.invoice_list.update()
                 d.close()
@@ -2152,7 +2144,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d.exec_()
 
     def do_pay_invoice(self, key):
-        pr = self.invoices.get(key)
+        pr = self.wallet.get_invoice(key)
         self.payment_request = pr
         self.prepare_for_payment_request()
         pr.error = None  # this forces verify() to re-run
