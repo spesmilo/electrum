@@ -19,3 +19,4 @@ def seed_prefix(seed_type):
         return SEED_PREFIX_2FA
     elif seed_type == '2fa_segwit':
         return SEED_PREFIX_2FA_SW
+    raise Exception(f"unknown seed_type: {seed_type}")

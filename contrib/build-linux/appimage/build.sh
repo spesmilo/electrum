@@ -141,7 +141,7 @@ mkdir -p "$CACHEDIR/pip_cache"
 
 
 info "copying zbar"
-cp "/usr/lib/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
+cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
 
 
 info "desktop integration."
