@@ -45,6 +45,7 @@ REQUEST_TYPE_LN = 1
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
 
+from electrum.paymentrequest import PR_PAID
 
 class InvoiceList(MyTreeView):
 
@@ -92,11 +93,13 @@ class InvoiceList(MyTreeView):
             self.model().insertRow(idx, items)
 
         lnworker = self.parent.wallet.lnworker
-        items = lnworker.invoices.items() if lnworker else []
+        items = list(lnworker.invoices.items()) if lnworker else []
         for key, (invoice, direction, is_paid) in items:
             if direction == RECEIVED:
                 continue
             status = lnworker.get_invoice_status(key)
+            if status == PR_PAID:
+                continue
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
             amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''

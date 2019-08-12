@@ -107,12 +107,14 @@ class RequestList(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests(self.config):
+            status = req.get('status')
+            if status == PR_PAID:
+                continue
             request_type = REQUEST_TYPE_LN if req.get('lightning', False) else REQUEST_TYPE_BITCOIN
             timestamp = req.get('time', 0)
             amount = req.get('amount')
             message = req['memo']
             date = format_time(timestamp)
-            status = req.get('status')
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
