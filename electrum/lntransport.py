@@ -88,7 +88,7 @@ def create_ephemeral_key() -> (bytes, bytes):
 
 class LNTransportBase:
 
-    def send_bytes(self, msg):
+    def send_bytes(self, msg: bytes) -> None:
         l = len(msg).to_bytes(2, 'big')
         lc = aead_encrypt(self.sk, self.sn(), b'', l)
         c = aead_encrypt(self.sk, self.sn(), b'', msg)

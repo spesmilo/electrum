@@ -96,12 +96,13 @@ class Peer(Logger):
         self.transport.send_bytes(raw_msg)
 
     def _store_raw_msg_if_local_update(self, raw_msg: bytes, *, message_name: str, channel_id: Optional[bytes]):
-        if not (message_name.startswith("update_") or message_name == "commitment_signed"):
+        is_commitment_signed = message_name == "commitment_signed"
+        if not (message_name.startswith("update_") or is_commitment_signed):
             return
         assert channel_id
         chan = self.lnworker.channels[channel_id]  # type: Channel
-        chan.hm.store_local_update_raw_msg(raw_msg)
-        if message_name == "commitment_signed":
+        chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
+        if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
             self.lnworker.save_channel(chan)
 
@@ -755,8 +756,9 @@ class Peer(Logger):
         # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
         # e.g. for watchtowers, hence we must ensure these ctxs coincide.
         # We replay the local updates even if they were not yet committed.
-        for raw_upd_msg in chan.hm.get_unacked_local_updates():
-            self.transport.send_bytes(raw_upd_msg)
+        for ctn, messages in chan.hm.get_unacked_local_updates():
+            for raw_upd_msg in messages:
+                self.transport.send_bytes(raw_upd_msg)
 
         should_close_we_are_ahead = False
         should_close_they_are_ahead = False
@@ -831,6 +833,7 @@ class Peer(Logger):
             self.lnworker.force_close_channel(chan_id)
             return
 
+        # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
         if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done

@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Optional, Sequence, Tuple, List
+from typing import Optional, Sequence, Tuple, List, Dict
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bh2u, bfh
@@ -33,9 +33,10 @@ class HTLCManager:
                 log[sub]['fails'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['fails'].items()}
                 # "side who initiated fee update" -> action -> list of FeeUpdates
                 log[sub]['fee_updates'] = [FeeUpdate.from_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
-        if 'unacked_local_updates' not in log:
-            log['unacked_local_updates'] = []
-        log['unacked_local_updates'] = [bfh(upd) for upd in log['unacked_local_updates']]
+        if 'unacked_local_updates2' not in log:
+            log['unacked_local_updates2'] = {}
+        log['unacked_local_updates2'] = {int(ctn): [bfh(msg) for msg in messages]
+                                         for ctn, messages in log['unacked_local_updates2'].items()}
         # maybe bootstrap fee_updates if initial_feerate was provided
         if initial_feerate is not None:
             assert type(initial_feerate) is int
@@ -74,7 +75,8 @@ class HTLCManager:
             log[sub]['adds'] = d
             # fee_updates
             log[sub]['fee_updates'] = [FeeUpdate.to_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
-        log['unacked_local_updates'] = [bh2u(upd) for upd in log['unacked_local_updates']]
+        log['unacked_local_updates2'] = {ctn: [bh2u(msg) for msg in messages]
+                                         for ctn, messages in log['unacked_local_updates2'].items()}
         return log
 
     ##### Actions on channel:
@@ -175,7 +177,7 @@ class HTLCManager:
             if fee_update.ctns[LOCAL] is None and fee_update.ctns[REMOTE] <= self.ctn_latest(REMOTE):
                 fee_update.ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
         # no need to keep local update raw msgs anymore, they have just been ACKed.
-        self.log['unacked_local_updates'].clear()
+        self.log['unacked_local_updates2'].pop(self.log[REMOTE]['ctn'], None)
 
     def discard_unsigned_remote_updates(self):
         """Discard updates sent by the remote, that the remote itself
@@ -200,11 +202,22 @@ class HTLCManager:
             if fee_update.ctns[LOCAL] > self.ctn_latest(LOCAL):
                 del self.log[REMOTE]['fee_updates'][i]
 
-    def store_local_update_raw_msg(self, raw_update_msg: bytes):
-        self.log['unacked_local_updates'].append(raw_update_msg)
+    def store_local_update_raw_msg(self, raw_update_msg: bytes, *, is_commitment_signed: bool) -> None:
+        """We need to be able to replay unacknowledged updates we sent to the remote
+        in case of disconnections. Hence, raw update and commitment_signed messages
+        are stored temporarily (until they are acked)."""
+        # self.log['unacked_local_updates2'][ctn_idx] is a list of raw messages
+        # containing some number of updates and then a single commitment_signed
+        if is_commitment_signed:
+            ctn_idx = self.ctn_latest(REMOTE)
+        else:
+            ctn_idx = self.ctn_latest(REMOTE) + 1
+        if ctn_idx not in self.log['unacked_local_updates2']:
+            self.log['unacked_local_updates2'][ctn_idx] = []
+        self.log['unacked_local_updates2'][ctn_idx].append(raw_update_msg)
 
-    def get_unacked_local_updates(self) -> Sequence[bytes]:
-        return self.log['unacked_local_updates']
+    def get_unacked_local_updates(self) -> Dict[int, Sequence[bytes]]:
+        return self.log['unacked_local_updates2']
 
     ##### Queries re HTLCs:
 

@@ -211,3 +211,34 @@ class TestHTLCManager(unittest.TestCase):
         self.assertEqual([(Direction.RECEIVED, ah0)], A.get_htlcs_in_latest_ctx(REMOTE))
         self.assertEqual([(Direction.SENT, ah0)], A.get_htlcs_in_next_ctx(LOCAL))
         self.assertEqual([(Direction.RECEIVED, ah0)], A.get_htlcs_in_next_ctx(REMOTE))
+
+    def test_unacked_local_updates(self):
+        A = HTLCManager()
+        B = HTLCManager()
+        A.channel_open_finished()
+        B.channel_open_finished()
+        self.assertEqual({}, A.get_unacked_local_updates())
+
+        ah0 = H('A', 0)
+        B.recv_htlc(A.send_htlc(ah0))
+        A.store_local_update_raw_msg(b"upd_msg0", is_commitment_signed=False)
+        self.assertEqual({1: [b"upd_msg0"]}, A.get_unacked_local_updates())
+
+        ah1 = H('A', 1)
+        B.recv_htlc(A.send_htlc(ah1))
+        A.store_local_update_raw_msg(b"upd_msg1", is_commitment_signed=False)
+        self.assertEqual({1: [b"upd_msg0", b"upd_msg1"]}, A.get_unacked_local_updates())
+
+        A.send_ctx()
+        B.recv_ctx()
+        A.store_local_update_raw_msg(b"ctx1", is_commitment_signed=True)
+        self.assertEqual({1: [b"upd_msg0", b"upd_msg1", b"ctx1"]}, A.get_unacked_local_updates())
+
+        ah2 = H('A', 2)
+        B.recv_htlc(A.send_htlc(ah2))
+        A.store_local_update_raw_msg(b"upd_msg2", is_commitment_signed=False)
+        self.assertEqual({1: [b"upd_msg0", b"upd_msg1", b"ctx1"], 2: [b"upd_msg2"]}, A.get_unacked_local_updates())
+
+        B.send_rev()
+        A.recv_rev()
+        self.assertEqual({2: [b"upd_msg2"]}, A.get_unacked_local_updates())
