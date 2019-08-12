@@ -3,7 +3,7 @@ Building Mac OS binaries
 
 ✗ _This script does not produce reproducible output (yet!)._
 
-This guide explains how to build Electrum binaries for macOS systems.
+This guide explains how to build Electron Cash binaries for macOS systems.
 We build our binaries on El Capitan (10.11.6) as building it on High Sierra
 makes the binaries incompatible with older versions.
 
@@ -15,7 +15,7 @@ This assumes that the Xcode + Xcode Command Line tools (and thus git) are alread
     git submodule init
     git submodule update
 
-The above ensures that you pull in the OSX helper app, CalinsQRReader.
+The above ensures that you pull in the zbar, secp256k1, and other submodules.
 
 ## 2. Use the provided script to begin building.
 
