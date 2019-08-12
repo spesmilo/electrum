@@ -1,7 +1,6 @@
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-import PyQt5.QtGui as QtGui
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
     QSizePolicy, QToolTip)
@@ -48,17 +47,19 @@ class QRCodeWidget(QWidget, util.PrintError):
 
 
     def _paint_blank(self):
-        qp = QtGui.QPainter(self)
+        qp = QPainter(self)
         r = qp.viewport()
-        qp.fillRect(0, 0, r.width(), r.height(), self._white)
+        qp.fillRect(0, 0, r.width(), r.height(), self._white_brush)
         qp.end(); del qp
 
     def _bad_data(self, data):
         self.print_error("Failed to generate QR image -- data too long! Data length was: {} bytes".format(len(data or '')))
         self.qr = None
 
-    _black = QColor(0, 0, 0, 255)
-    _white = QColor(255, 255, 255, 255)
+    _black_brush = QBrush(QColor(0, 0, 0, 255))
+    _white_brush = QBrush(QColor(255, 255, 255, 255))
+    _black_pen = QPen(_black_brush, 1.0, join = Qt.MiterJoin)
+    _white_pen = QPen(_white_brush, 1.0, join = Qt.MiterJoin)
 
     def paintEvent(self, e):
         matrix = None
@@ -74,7 +75,7 @@ class QRCodeWidget(QWidget, util.PrintError):
             return
 
         k = len(matrix)
-        qp = QtGui.QPainter(self)
+        qp = QPainter(self)
         r = qp.viewport()
 
         margin = 5
@@ -85,11 +86,11 @@ class QRCodeWidget(QWidget, util.PrintError):
         top = (r.height() - size)/2
 
         # Make a white margin around the QR in case of dark theme use
-        qp.setBrush(self._white)
-        qp.setPen(self._white)
+        qp.setBrush(self._white_brush)
+        qp.setPen(self._white_pen)
         qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
-        qp.setBrush(self._black)
-        qp.setPen(self._black)
+        qp.setBrush(self._black_brush)
+        qp.setPen(self._black_pen)
 
         for r in range(k):
             for c in range(k):
