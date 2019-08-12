@@ -46,6 +46,7 @@ if [[ $1 == "init" ]]; then
     $bob setconfig log_to_file True
     $carol setconfig log_to_file True
     $bob setconfig lightning_listen localhost:9735
+    $bob setconfig lightning_forward_payments true
     echo "funding alice and carol"
     $bitcoin_cli sendtoaddress $($alice getunusedaddress) 1
     $bitcoin_cli sendtoaddress $($carol getunusedaddress) 1

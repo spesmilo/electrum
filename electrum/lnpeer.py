@@ -1191,9 +1191,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
 
     def on_update_add_htlc(self, payload):
-        # no onion routing for the moment: we assume we are the end node
         self.logger.info('on_update_add_htlc')
-        # check if this in our list of requests
         payment_hash = payload["payment_hash"]
         channel_id = payload['channel_id']
         htlc_id = int.from_bytes(payload["id"], 'big')
@@ -1236,6 +1234,13 @@ class Peer(Logger):
         await self.await_remote(chan, remote_ctn)
         # Forward HTLC
         # FIXME: this is not robust to us going offline before payment is fulfilled
+        # FIXME: there are critical safety checks MISSING here
+        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        if not forwarding_enabled:
+            self.logger.info(f"forwarding is disabled. failing htlc.")
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
         dph = processed_onion.hop_data.per_hop
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
         next_peer = self.lnworker.peers[next_chan.node_id]
