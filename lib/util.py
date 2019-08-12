@@ -51,7 +51,7 @@ def _(message): return message
 fee_levels = [_('Within 25 blocks'), _('Within 10 blocks'), _('Within 5 blocks'), _('Within 2 blocks'), _('In the next block')]
 
 del _
-from .i18n import _
+from .i18n import _, ngettext
 
 class NotEnoughFunds(Exception): pass
 
@@ -542,55 +542,71 @@ def format_time(timestamp):
 # Takes a timestamp and returns a string with the approximation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if from_date is None:
-        return "Unknown"
+        return _("Unknown")
 
-    from_date = datetime.fromtimestamp(from_date)
-    if since_date is None:
-        since_date = datetime.now(target_tz)
+    try:
+        from_date = datetime.fromtimestamp(from_date)
+        if since_date is None:
+            since_date = datetime.now(target_tz)
+        else:
+            if isinstance(since_date, (int, float)):
+                since_date = datetime.fromtimestamp(since_date)
+    except ValueError:
+        return _("Error")
 
     td = time_difference(from_date - since_date, include_seconds)
-    return td + " ago" if from_date < since_date else "in " + td
+
+    if from_date < since_date:
+        return _("{time} ago").format(time=td)
+    else:
+        return _("in {time}").format(time=td)
 
 
 def time_difference(distance_in_time, include_seconds):
-    #distance_in_time = since_date - from_date
+    #distance_in_time = from_date - since_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
-    distance_in_minutes = int(round(distance_in_seconds/60))
+    distance_in_minutes = int(round(distance_in_seconds / 60))
 
-    if distance_in_minutes <= 1:
+    if distance_in_seconds < 60:
         if include_seconds:
             for remainder in [5, 10, 20]:
                 if distance_in_seconds < remainder:
-                    return "less than %s seconds" % remainder
+                    return _("less than {seconds} seconds").format(seconds=remainder)
             if distance_in_seconds < 40:
-                return "half a minute"
-            elif distance_in_seconds < 60:
-                return "less than a minute"
+                return _("half a minute")
             else:
-                return "1 minute"
+                return _("about a minute")
         else:
-            if distance_in_minutes == 0:
-                return "less than a minute"
-            else:
-                return "1 minute"
+            return _("less than a minute")
+    elif distance_in_seconds < 90:
+        return _("about a minute")
     elif distance_in_minutes < 45:
-        return "%s minutes" % distance_in_minutes
+        fmt = ngettext("{minutes} minute", "{minutes} minutes", distance_in_minutes)
+        return fmt.format(minutes=distance_in_minutes)
     elif distance_in_minutes < 90:
-        return "about 1 hour"
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        return "about %d hours" % (round(distance_in_minutes / 60.0))
-    elif distance_in_minutes < 2880:
-        return "1 day"
+        distance_in_hours = round(distance_in_minutes / 60.0)
+        fmt = ngettext("{hours} hour", "{hours} hours", distance_in_hours)
+        return fmt.format(hours=distance_in_hours)
+    elif distance_in_minutes < 2160:
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        return "%d days" % (round(distance_in_minutes / 1440))
-    elif distance_in_minutes < 86400:
-        return "about 1 month"
+        distance_in_days = round(distance_in_minutes / 1440.0)
+        fmt = ngettext("{days} day", "{days} days", distance_in_days)
+        return fmt.format(days=distance_in_days)
+    elif distance_in_minutes < 64830:
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        return "%d months" % (round(distance_in_minutes / 43200))
-    elif distance_in_minutes < 1051200:
-        return "about 1 year"
+        distance_in_months = round(distance_in_minutes / 43200.0)
+        fmt = ngettext("{months} month", "{months} months", distance_in_months)
+        return fmt.format(months=distance_in_months)
+    elif distance_in_minutes < 788400:
+        return _("about 1 year")
     else:
-        return "over %d years" % (round(distance_in_minutes / 525600))
+        distance_in_years = round(distance_in_minutes / 525600.0)
+        fmt = ngettext("{years} year", "{years} years", distance_in_years)
+        return fmt.format(years=distance_in_years)
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
