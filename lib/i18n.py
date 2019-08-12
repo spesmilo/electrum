@@ -30,9 +30,9 @@ import sys
 from typing import Dict
 from collections import namedtuple
 
-from . import locale  # Causes translation files to be extracted on Android.
+from . import locale as ec_locale  # Causes translation files to be extracted on Android.
 
-LOCALE_DIR = os.path.dirname(locale.__file__)
+LOCALE_DIR = os.path.dirname(ec_locale.__file__)
 language = gettext.translation('electron-cash', LOCALE_DIR, fallback=True)
 
 def _(x):
