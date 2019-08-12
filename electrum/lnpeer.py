@@ -748,20 +748,24 @@ class Peer(Logger):
             raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
         if their_oldest_unrevoked_remote_ctn < 0:
             raise RemoteMisbehaving(f"channel reestablish: their_oldest_unrevoked_remote_ctn < 0")
+        # Replay un-acked local updates (including commitment_signed) byte-for-byte.
+        # If we have sent them a commitment signature that they "lost" (due to disconnect),
+        # we need to make sure we replay the same local updates, as otherwise they could
+        # end up with two (or more) signed valid commitment transactions at the same ctn.
+        # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
+        # e.g. for watchtowers, hence we must ensure these ctxs coincide.
+        # We replay the local updates even if they were not yet committed.
+        for raw_upd_msg in chan.hm.get_unacked_local_updates():
+            self.transport.send_bytes(raw_upd_msg)
 
         should_close_we_are_ahead = False
         should_close_they_are_ahead = False
         # compare remote ctns
         if next_remote_ctn != their_next_local_ctn:
             if their_next_local_ctn == latest_remote_ctn and chan.hm.is_revack_pending(REMOTE):
-                # Replay un-acked local updates (including commitment_signed) byte-for-byte.
-                # If we have sent them a commitment signature that they "lost" (due to disconnect),
-                # we need to make sure we replay the same local updates, as otherwise they could
-                # end up with two (or more) signed valid commitment transactions at the same ctn.
-                # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
-                # e.g. for watchtowers, hence we must ensure these ctxs coincide.
-                for raw_upd_msg in chan.hm.get_unacked_local_updates():
-                    self.transport.send_bytes(raw_upd_msg)
+                # We replayed the local updates (see above), which should have contained a commitment_signed
+                # (due to is_revack_pending being true), and this should have remedied this situation.
+                pass
             else:
                 self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
                 if their_next_local_ctn < next_remote_ctn:
