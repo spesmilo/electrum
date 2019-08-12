@@ -498,7 +498,10 @@ class Peer(Logger):
             raise Exception('Remote Lightning peer reported error: ' + repr(payload.get('error')))
         remote_per_commitment_point = payload['first_per_commitment_point']
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
-        assert funding_txn_minimum_depth > 0, funding_txn_minimum_depth
+        if funding_txn_minimum_depth <= 0:
+            raise Exception(f"minimum depth too low, {funding_txn_minimum_depth}")
+        if funding_txn_minimum_depth > 30:
+            raise Exception(f"minimum depth too high, {funding_txn_minimum_depth}")
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big')
         remote_reserve_sat = self.validate_remote_reserve(payload["channel_reserve_satoshis"], remote_dust_limit_sat, funding_sat)
         if remote_dust_limit_sat > remote_reserve_sat:

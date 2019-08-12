@@ -782,7 +782,8 @@ class Commands:
 
     @command('wpn')
     def open_channel(self, connection_string, amount, channel_push=0, password=None):
-        return self.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
+        chan = self.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
+        return chan.funding_outpoint.to_str()
 
     @command('wn')
     def lnpay(self, invoice, attempts=1, timeout=10):

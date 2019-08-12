@@ -717,7 +717,7 @@ class LNWallet(LNWorker):
             chan = fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
-        return chan.funding_outpoint.to_str()
+        return chan
 
     def pay(self, invoice, attempts=1, amount_sat=None, timeout=10):
         """

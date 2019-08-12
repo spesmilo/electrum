@@ -1839,12 +1839,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def open_channel(self, *args, **kwargs):
         def task():
             return self.wallet.lnworker.open_channel(*args, **kwargs)
-        def on_success(node_id):
-            self.show_message('\n'.join([
+        def on_success(chan):
+            n = chan.constraints.funding_txn_minimum_depth
+            message = '\n'.join([
                 _('Channel established.'),
-                _('Remote peer ID') + ':' + node_id,
-                _('This channel will be usable after 3 confirmations')
-            ]))
+                _('Remote peer ID') + ':' + chan.node_id.hex(),
+                _('This channel will be usable after {} confirmations').format(n)
+            ])
+            self.show_message(message)
         def on_failure(exc_info):
             type_, e, traceback = exc_info
             self.show_error(_('Could not open channel: {}').format(e))

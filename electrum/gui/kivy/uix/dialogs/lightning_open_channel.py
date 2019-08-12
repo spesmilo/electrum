@@ -136,8 +136,14 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def do_open_channel(self, conn_str, amount, password):
         try:
-            node_id_hex = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
+            chan = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
         except Exception as e:
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
-        self.app.show_info(_('Please wait for confirmation, channel is opening with node ') + node_id_hex[:16])
+        n = chan.constraints.funding_txn_minimum_depth
+        message = '\n'.join([
+            _('Channel established.'),
+            _('Remote peer ID') + ':' + chan.node_id.hex(),
+            _('This channel will be usable after {} confirmations').format(n)
+        ])
+        self.app.show_info(message)
