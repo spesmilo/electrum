@@ -443,7 +443,10 @@ class LNWallet(LNWorker):
             out.append(item)
         # add funding events
         for chan in self.channels.values():
-            funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = self.channel_timestamps.get(bh2u(chan.channel_id))
+            item = self.channel_timestamps.get(chan.channel_id.hex())
+            if item is None:
+                continue
+            funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = item
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
