@@ -302,7 +302,7 @@ class LNWallet(LNWorker):
             self.storage.put('lightning_privkey2', xprv)
         LNWorker.__init__(self, xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
-        #self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, direction, is_paid)
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
