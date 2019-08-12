@@ -84,8 +84,6 @@ class Peer(Logger):
         #
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
-        self.sent_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
-        self.recv_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
         Logger.__init__(self)
@@ -1089,17 +1087,16 @@ class Peer(Logger):
                 self.network.path_finder.add_to_blacklist(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
-        ctn_to_sign = chan.get_next_ctn(REMOTE)
+        # REMOTE should revoke first before we can sign a new ctx
+        if chan.hm.is_revack_pending(REMOTE):
+            return
         # if there are no changes, we will not (and must not) send a new commitment
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
-        if (next_htlcs == latest_htlcs
-                and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE)) \
-                or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
+        if next_htlcs == latest_htlcs and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE):
             return
         self.logger.info(f'send_commitment. old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
-        self.sent_commitment_for_ctn_last[chan] = ctn_to_sign
 
     async def await_remote(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
@@ -1157,12 +1154,9 @@ class Peer(Logger):
         if (chan.hm.get_htlcs_in_next_ctx(LOCAL) == chan.hm.get_htlcs_in_latest_ctx(LOCAL)
                 and chan.get_next_feerate(LOCAL) == chan.get_latest_feerate(LOCAL)):
             raise RemoteMisbehaving('received commitment_signed without pending changes')
-        # make sure ctn is new
-        ctn_to_recv = chan.get_next_ctn(LOCAL)
-        if ctn_to_recv == self.recv_commitment_for_ctn_last[chan]:
-            raise RemoteMisbehaving('received commitment_signed with same ctn')
-        self.recv_commitment_for_ctn_last[chan] = ctn_to_recv
-
+        # REMOTE should wait until we have revoked
+        if chan.hm.is_revack_pending(LOCAL):
+            raise RemoteMisbehaving('received commitment_signed before we revoked previous ctx')
         data = payload["htlc_signature"]
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
