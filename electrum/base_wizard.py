@@ -377,7 +377,7 @@ class BaseWizard(Logger):
 
     def derivation_and_script_type_dialog(self, f):
         message1 = _('Choose the type of addresses in your wallet.')
-        message2 = '\n'.join([
+        message2 = ' '.join([
             _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])

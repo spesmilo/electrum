@@ -150,7 +150,7 @@ Builder.load_string('''
             value: 2
 
 
-<WizardChoiceDialog>
+<ChoiceDialog>
     message : ''
     Widget:
         size_hint: 1, 1
@@ -488,7 +488,6 @@ Builder.load_string('''
             text: _('Share')
             on_release: root.do_share()
 
-
 <ShowSeedDialog>
     spacing: '12dp'
     value: 'next'
@@ -508,9 +507,7 @@ Builder.load_string('''
         SeedLabel:
             text: root.message
 
-
 <LineDialog>
-
     BigLabel:
         text: root.title
     SeedLabel:
@@ -519,9 +516,29 @@ Builder.load_string('''
         id: passphrase_input
         multiline: False
         size_hint: 1, None
-        height: '27dp'
+        height: '48dp'
     SeedLabel:
         text: root.warning
+
+<ChoiceLineDialog>
+    BigLabel:
+        text: root.title
+    SeedLabel:
+        text: root.message1
+    GridLayout:
+        row_default_height: '48dp'
+        orientation: 'vertical'
+        id: choices
+        cols: 1
+        spacing: '14dp'
+        size_hint: 1, None
+    SeedLabel:
+        text: root.message2
+    TextInput:
+        id: passphrase_input
+        multiline: False
+        size_hint: 1, None
+        height: '48dp'
 
 ''')
 
@@ -706,12 +723,17 @@ class WizardConfirmDialog(WizardDialog):
     def get_params(self, button):
         return (True,)
 
-class WizardChoiceDialog(WizardDialog):
+
+class ChoiceDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
-        super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
+        super(ChoiceDialog, self).__init__(wizard, **kwargs)
+        self.title = kwargs.get('message', '')
         self.message = kwargs.get('message', '')
         choices = kwargs.get('choices', [])
+        self.init_choices(choices)
+
+    def init_choices(self, choices):
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
         for action, text in choices:
@@ -730,7 +752,6 @@ class WizardChoiceDialog(WizardDialog):
         return (button.action,)
 
 
-
 class LineDialog(WizardDialog):
     title = StringProperty('')
     message = StringProperty('')
@@ -738,10 +759,46 @@ class LineDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         WizardDialog.__init__(self, wizard, **kwargs)
+        self.title = kwargs.get('title', '')
+        self.message = kwargs.get('message', '')
         self.ids.next.disabled = False
 
     def get_params(self, b):
         return (self.ids.passphrase_input.text,)
+
+class CLButton(Button):
+    def on_release(self):
+        self.root.script_type = self.script_type
+        self.root.set_text(self.value)
+
+class ChoiceLineDialog(ChoiceDialog):
+    title = StringProperty('')
+    message1 = StringProperty('')
+    message2 = StringProperty('')
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.title = kwargs.get('title', '')
+        self.message1 = kwargs.get('message1', '')
+        self.message2 = kwargs.get('message2', '')
+        self.choices = kwargs.get('choices', [])
+        self.ids.next.disabled = False
+        layout = self.ids.choices
+        layout.bind(minimum_height=layout.setter('height'))
+        for script_type, title, text in self.choices:
+            b = CLButton(text=title, height='30dp')
+            b.script_type = script_type
+            b.root = self
+            b.value = text
+            layout.add_widget(b)
+        # last one is default
+        b.on_release()
+
+    def set_text(self, value):
+        self.ids.passphrase_input.text = value
+
+    def get_params(self, b):
+        return (self.ids.passphrase_input.text, self.script_type)
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
@@ -759,9 +816,9 @@ class ShowSeedDialog(WizardDialog):
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
-        def callback(status):
-            self.ext = status
-        d = SeedOptionsDialog(self.ext, callback)
+        def callback(ext, _):
+            self.ext = ext
+        d = SeedOptionsDialog(self.ext, None, callback)
         d.open()
 
     def get_params(self, b):
@@ -787,12 +844,15 @@ class RestoreSeedDialog(WizardDialog):
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
+        self.bip39 = False
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
-        def callback(status):
-            self.ext = status
-        d = SeedOptionsDialog(self.ext, callback)
+        def callback(ext, bip39):
+            self.ext = ext
+            self.bip39 = bip39
+            self.update_next_button()
+        d = SeedOptionsDialog(self.ext, self.bip39, callback)
         d.open()
 
     def get_suggestions(self, prefix):
@@ -800,8 +860,11 @@ class RestoreSeedDialog(WizardDialog):
             if w.startswith(prefix):
                 yield w
 
+    def update_next_button(self):
+        self.ids.next.disabled = False if self.bip39 else not bool(self._test(self.get_text()))
+
     def on_text(self, dt):
-        self.ids.next.disabled = not bool(self._test(self.get_text()))
+        self.update_next_button()
 
         text = self.ids.text_input_seed.text
         if not text:
@@ -887,7 +950,7 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), False, self.ext)
+        return (self.get_text(), self.bip39, self.ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
@@ -1005,7 +1068,7 @@ class InstallWizard(BaseWizard, Widget):
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
         if len(choices) > 1:
-            WizardChoiceDialog(self, **kwargs).open()
+            ChoiceDialog(self, **kwargs).open()
         else:
             f = kwargs['run_next']
             f(choices[0][0])
@@ -1013,6 +1076,7 @@ class InstallWizard(BaseWizard, Widget):
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
     def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
+    def choice_and_line_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
