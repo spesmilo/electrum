@@ -91,12 +91,6 @@ class ElectrumGui(QObject, PrintError):
         self.plugins = plugins
         self.windows = []
 
-        if self.windows_qt_use_freetype:
-            # Use FreeType for font rendering on Windows. This fixes rendering
-            # of the Schnorr sigil and allows us to load the Noto Color Emoji
-            # font if needed.
-            os.environ['QT_QPA_PLATFORM'] = 'windows:fontengine=freetype'
-
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #if daemon.network:
@@ -106,32 +100,13 @@ class ElectrumGui(QObject, PrintError):
         #    from electroncash.synchronizer import Synchronizer
         #    daemon.network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                                       ElectrumWindow], interval=5)])
-        QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
-        if hasattr(Qt, "AA_ShareOpenGLContexts"):
-            QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-        if sys.platform not in ('darwin',) and hasattr(Qt, "AA_EnableHighDpiScaling"):
-            # The below only applies to non-macOS. On macOS this setting is
-            # never used (because it is implicitly auto-negotiated by the OS
-            # in a differernt way).
-            #
-            # qt_disable_highdpi will be set to None by default, or True if
-            # specified on command-line.  The command-line override is intended
-            # to supporess high-dpi mode just for this run for testing.
-            #
-            # The more permanent setting is qt_enable_highdpi which is the GUI
-            # preferences option, so we don't enable highdpi if it's explicitly
-            # set to False in the GUI.
-            #
-            # The default on Linux, Windows, etc is to enable high dpi
-            disable_scaling = config.get('qt_disable_highdpi', False)
-            enable_scaling = config.get('qt_enable_highdpi', True)
-            if not disable_scaling and enable_scaling:
-                QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-        if hasattr(Qt, "AA_UseHighDpiPixmaps"):
-            QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-        if hasattr(QGuiApplication, 'setDesktopFileName'):
-            QGuiApplication.setDesktopFileName('electron-cash.desktop')
-        self.app = QApplication(sys.argv)
+
+        call_after_app = self._pre_and_post_app_setup()
+        try:
+            self.app = QApplication(sys.argv)
+        finally:
+            call_after_app()
+
         self._load_fonts()  # this needs to be done very early, before the font engine loads fonts.. out of paranoia
         self._exit_if_required_pyqt_is_missing()  # This may immediately exit the app if missing required PyQt5 modules, so it should also be done early.
         self.new_version_available = None
@@ -182,6 +157,85 @@ class ElectrumGui(QObject, PrintError):
         print_error("[{}] finalized{}".format(__class__.__name__, ' (stale instance)' if stale else ''))
         if hasattr(super(), '__del__'):
             super().__del__()
+
+    def _pre_and_post_app_setup(self):
+        ''' Call this before instantiating the QApplication object.  It sets up
+        some platform-specific miscellany that need to happen before the
+        QApplication is constructed.
+
+        A function is returned.  This function *must* be called after the
+        QApplication is constructed. '''
+        callables = []
+        def call_callables():
+            for func in callables:
+                func()
+        ret = call_callables
+
+        if hasattr(QGuiApplication, 'setDesktopFileName'):
+            QGuiApplication.setDesktopFileName('electron-cash.desktop')
+
+        if self.windows_qt_use_freetype:
+            # Use FreeType for font rendering on Windows. This fixes rendering
+            # of the Schnorr sigil and allows us to load the Noto Color Emoji
+            # font if needed.
+            os.environ['QT_QPA_PLATFORM'] = 'windows:fontengine=freetype'
+
+        QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
+        if hasattr(Qt, "AA_ShareOpenGLContexts"):
+            QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+        if sys.platform not in ('darwin',) and hasattr(Qt, "AA_EnableHighDpiScaling"):
+            # The below only applies to non-macOS. On macOS this setting is
+            # never used (because it is implicitly auto-negotiated by the OS
+            # in a differernt way).
+            #
+            # qt_disable_highdpi will be set to None by default, or True if
+            # specified on command-line.  The command-line override is intended
+            # to supporess high-dpi mode just for this run for testing.
+            #
+            # The more permanent setting is qt_enable_highdpi which is the GUI
+            # preferences option, so we don't enable highdpi if it's explicitly
+            # set to False in the GUI.
+            #
+            # The default on Linux, Windows, etc is to enable high dpi
+            disable_scaling = self.config.get('qt_disable_highdpi', False)
+            enable_scaling = self.config.get('qt_enable_highdpi', True)
+            if not disable_scaling and enable_scaling:
+                QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+        if hasattr(Qt, "AA_UseHighDpiPixmaps"):
+            QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+
+        # macOS Mojave "font rendering looks terrible on PyQt5.11" workaround.
+        # See: https://old.reddit.com/r/apple/comments/9leavs/fix_mojave_font_rendering_issues_on_a_perapp_basis/
+        # This affects PyQt 5.11 (which is what we ship in the macOS El Capitan
+        # .dmg).  We apply the workaround and also warn the user to not use
+        # the El Capitan compatibility .dmg.
+        if sys.platform in ('darwin',) and self.qt_version() < (5, 12):
+            # macOS hacks. On Mojave with PyQt <5.12 the font rendering is terrible.
+            # As a workaround we need to temporarily set this 'defaults' keys
+            # which we immediately disable after the QApplication is started.
+            try:
+                ver = tuple(int(a) for a in platform.mac_ver()[0].split('.'))
+            except (TypeError, ValueError):
+                self.print_error("WARNING: Cannot parse platform.mac_ver", f"'{platform.mac_ver()[0]}'")
+                ver = None
+            if ver and ver >= (10, 14):
+                from electroncash.utils import macos
+                self.print_error("Mojave+ with PyQt<5.12 detected; applying CGFontRenderingFontSmoothingDisabled workaround...")
+                bundle = macos.get_bundle_identifier()
+                os.system(f'defaults write {bundle} CGFontRenderingFontSmoothingDisabled -bool NO')
+                def undo_hack():
+                    os.system(f'defaults delete {bundle} CGFontRenderingFontSmoothingDisabled')
+                    self.print_error("Mojave+ font rendering workaround applied.")
+                    msg = _("Mojave or newer system detected, however you are running the "
+                            "El Capitan compatibility release of Electron Cash. "
+                            "Font and graphics rendering may be affected."
+                            "\n\nPlease obtain the latest non-compatibility version "
+                            "of Electron Cash for MacOS.")
+                    QMessageBox.warning(None, _("Warning"), msg)  # this works even if app is not exec_() yet.
+
+                callables.append(undo_hack)
+
+        return ret
 
     def _exit_if_required_pyqt_is_missing(self):
         ''' Will check if required PyQt5 modules are present and if not,

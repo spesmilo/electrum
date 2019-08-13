@@ -5,6 +5,17 @@ test -n "$build_dir" -a -d "$build_dir" || (echo "Cannot determine build dir. FI
 
 . "$build_dir"/../base.sh # functions we use below
 
+OSX_COMPAT=""
+DARWIN_VER=$(uname -r | cut -f 1 -d .)
+if ((DARWIN_VER < 15)); then
+    fail "Minimum OSX El Capitan is required to build"
+elif ((DARWIN_VER == 15)); then
+    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
+    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
+    OSX_COMPAT="-elcapitan"
+    info "Building for El Capitan (compatibility version)"
+fi
+
 function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     infoName="$1"
     file="$2"
@@ -57,8 +68,8 @@ fi
 
 have_brew=`which brew`
 if [ -n "$have_brew" ]; then
-    info "Ensuring Python prerequisites are installed via brew"
-    for a in openssl@1.1 readline sqlite3 xz zlib coreutils; do
+    info "Ensuring build prerequisites are installed via brew"
+    for a in autoconf automake coreutils gettext libtool openssl@1.1 readline sqlite3 xz zlib ; do
         brew list $a > /dev/null 2>&1
         if [ "$?" != "0" ]; then
             info "Installing $a"
@@ -158,7 +169,7 @@ cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could n
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries-osx.txt --user || \
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries${OSX_COMPAT}.txt --user || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
@@ -199,9 +210,10 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # must force a codesign again because Info.plist modified above
 
 info "Creating .DMG"
-dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmgbuild.spec "" dist/$PACKAGE-$VERSION-macosx.dmg || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}-macosx.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmgbuild.spec "" "dist/${PACKAGE}-${VERSION}${OSX_COMPAT}-macosx.dmg" || fail "Could not create .DMG"
+
+DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}${OSX_COMPAT}-macosx.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 if [ -z "$APP_SIGN" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
