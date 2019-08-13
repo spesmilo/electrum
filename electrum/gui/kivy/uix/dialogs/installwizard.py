@@ -9,6 +9,7 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, StringProperty, OptionProperty
 from kivy.core.window import Window
 from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
@@ -554,7 +555,7 @@ Builder.load_string('''
     SeedLabel:
         text: root.message2
     TextInput:
-        id: passphrase_input
+        id: text_input
         multiline: False
         size_hint: 1, None
         height: '48dp'
@@ -785,7 +786,7 @@ class LineDialog(WizardDialog):
     def get_params(self, b):
         return (self.ids.passphrase_input.text,)
 
-class CLButton(Button):
+class CLButton(ToggleButton):
     def on_release(self):
         self.root.script_type = self.script_type
         self.root.set_text(self.value)
@@ -801,23 +802,24 @@ class ChoiceLineDialog(ChoiceDialog):
         self.message1 = kwargs.get('message1', '')
         self.message2 = kwargs.get('message2', '')
         self.choices = kwargs.get('choices', [])
+        default_choice_idx = kwargs.get('default_choice_idx', 0)
         self.ids.next.disabled = False
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
-        for script_type, title, text in self.choices:
-            b = CLButton(text=title, height='30dp')
+        for idx, (script_type, title, text) in enumerate(self.choices):
+            b = CLButton(text=title, height='30dp', group=self.title, allow_no_selection=False)
             b.script_type = script_type
             b.root = self
             b.value = text
             layout.add_widget(b)
-        # last one is default
-        b.on_release()
+            if idx == default_choice_idx:
+                b.trigger_action(duration=0)
 
     def set_text(self, value):
-        self.ids.passphrase_input.text = value
+        self.ids.text_input.text = value
 
     def get_params(self, b):
-        return (self.ids.passphrase_input.text, self.script_type)
+        return (self.ids.text_input.text, self.script_type)
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
