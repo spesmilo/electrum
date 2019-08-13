@@ -314,13 +314,33 @@ Builder.load_string('''
     valign: 'middle'
     border: 4, 4, 4, 4
 
+<SeedDialogHeader@GridLayout>
+    text: ''
+    options_dialog: None
+    rows: 1
+    orientation: 'horizontal'
+    size_hint: 1, None
+    height: self.minimum_height
+    BigLabel:
+        size_hint: 9, None
+        text: root.text
+    IconButton:
+        id: options_button
+        height: '30dp'
+        width: '30dp'
+        size_hint: 1, None
+        icon: 'atlas://electrum/gui/kivy/theming/light/gear'
+        on_release:
+            root.options_dialog() if root.options_dialog else None
 
 <RestoreSeedDialog>
     message: ''
     word: ''
-    BigLabel:
-        text: "ENTER YOUR SEED PHRASE"
-    GridLayout
+    SeedDialogHeader:
+        id: seed_dialog_header
+        text: 'ENTER YOUR SEED PHRASE'
+        options_dialog: root.options_dialog
+    GridLayout:
         cols: 1
         padding: 0, '12dp'
         orientation: 'vertical'
@@ -331,7 +351,6 @@ Builder.load_string('''
             id: text_input_seed
             text: ''
             on_text: Clock.schedule_once(root.on_text)
-            on_release: root.options_dialog()
         SeedLabel:
             text: root.message
         BoxLayout:
@@ -491,8 +510,9 @@ Builder.load_string('''
 <ShowSeedDialog>
     spacing: '12dp'
     value: 'next'
-    BigLabel:
+    SeedDialogHeader:
         text: "PLEASE WRITE DOWN YOUR SEED PHRASE"
+        options_dialog: root.options_dialog
     GridLayout:
         id: grid
         cols: 1
@@ -503,7 +523,6 @@ Builder.load_string('''
         spacing: '12dp'
         SeedButton:
             text: root.seed_text
-            on_release: root.options_dialog()
         SeedLabel:
             text: root.message
 
@@ -954,6 +973,11 @@ class RestoreSeedDialog(WizardDialog):
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
+
+    def __init__(self, *args, **kwargs):
+        RestoreSeedDialog.__init__(self, *args, **kwargs)
+        self.ids.seed_dialog_header.ids.options_button.disabled = True
+
     def get_params(self, b):
         return (self.get_text(),)
     def options_dialog(self):
