@@ -539,11 +539,14 @@ class WizardDialog(EventsDialog):
         self.ids.back.disabled = not wizard.can_go_back()
         self.app = App.get_running_app()
         self.run_next = kwargs['run_next']
-        _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
-        Window.bind(size=_trigger_size_dialog,
-                    rotation=_trigger_size_dialog,
+
+        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog)
+        # note: everything bound here needs to be unbound as otherwise the
+        # objects will be kept around and keep receiving the callbacks
+        Window.bind(size=self._trigger_size_dialog,
+                    rotation=self._trigger_size_dialog,
                     on_keyboard=self.on_keyboard)
-        _trigger_size_dialog()
+        self._trigger_size_dialog()
         self._on_release = False
 
     def _size_dialog(self, dt):
@@ -579,6 +582,9 @@ class WizardDialog(EventsDialog):
             return True
 
     def on_dismiss(self):
+        Window.unbind(size=self._trigger_size_dialog,
+                      rotation=self._trigger_size_dialog,
+                      on_keyboard=self.on_keyboard)
         app = App.get_running_app()
         if app.wallet is None and not self._on_release:
             app.stop()

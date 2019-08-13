@@ -495,11 +495,10 @@ class ElectrumWindow(App):
         '''
         import time
         Logger.info('Time to on_start: {} <<<<<<<<'.format(time.clock()))
-        win = Window
-        win.bind(size=self.on_size, on_keyboard=self.on_keyboard)
-        win.bind(on_key_down=self.on_key_down)
-        #win.softinput_mode = 'below_target'
-        self.on_size(win, win.size)
+        Window.bind(size=self.on_size, on_keyboard=self.on_keyboard)
+        Window.bind(on_key_down=self.on_key_down)
+        #Window.softinput_mode = 'below_target'
+        self.on_size(Window, Window.size)
         self.init_ui()
         crash_reporter.ExceptionHook(self)
         # init plugins
