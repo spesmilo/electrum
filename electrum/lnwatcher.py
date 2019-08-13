@@ -11,7 +11,6 @@ from collections import defaultdict
 import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
-import jsonrpclib
 
 from .sql_db import SqlDB, sql
 from .json_db import JsonDB
