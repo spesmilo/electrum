@@ -257,7 +257,7 @@ def get_logfile_path() -> Optional[pathlib.Path]:
 def describe_os_version() -> str:
     if 'ANDROID_DATA' in os.environ:
         from kivy import utils
-        if utils.platform is not "android":
+        if utils.platform != "android":
             return utils.platform
         import jnius
         bv = jnius.autoclass('android.os.Build$VERSION')
