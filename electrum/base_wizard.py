@@ -582,6 +582,7 @@ class BaseWizard(Logger):
         if not self.pw_args:
             return
         password, encrypt_storage, storage_enc_version = self.pw_args
+        self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
         storage.set_keystore_encryption(bool(password))
         if encrypt_storage:
