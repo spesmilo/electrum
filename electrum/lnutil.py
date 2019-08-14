@@ -114,10 +114,31 @@ class RemoteMisbehaving(LightningError): pass
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 
-# TODO make configurable?
+# TODO make some of these values configurable?
 DEFAULT_TO_SELF_DELAY = 144
+
+
+##### CLTV-expiry-delta-related values
+# see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
+
+# the minimum cltv_expiry accepted for terminal payments
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
-MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 1
+# set it a tiny bit higher for invoices as blocks could get mined
+# during forward path of payment
+MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 3
+
+# the deadline for offered HTLCs:
+# the deadline after which the channel has to be failed and timed out on-chain
+NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS = 1
+
+# the deadline for received HTLCs this node has fulfilled:
+# the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry
+NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS = 72
+
+# the cltv_expiry_delta for channels when we are forwarding payments
+NBLOCK_OUR_CLTV_EXPIRY_DELTA = 144
+
+NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 4032
 
 
 # When we open a channel, the remote peer has to support at least this

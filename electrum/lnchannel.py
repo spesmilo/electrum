@@ -551,10 +551,6 @@ class Channel(Logger):
         assert type(direction) is Direction
         return htlcsum(self.hm.all_settled_htlcs_ever_by_direction(LOCAL, direction))
 
-    def get_unfulfilled_htlcs(self):
-        log = self.hm.log[REMOTE]
-        return [v for x,v in log['adds'].items() if x not in log['settles']]
-
     def settle_htlc(self, preimage, htlc_id):
         """
         SettleHTLC attempts to settle an existing outstanding received HTLC.

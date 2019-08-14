@@ -36,6 +36,7 @@ from .lnpeer import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchannel import Channel, ChannelJsonEncoder
+from . import lnutil
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -628,16 +629,38 @@ class LNWallet(LNWorker):
             except Exception as e:
                 self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
 
-    def is_dangerous(self, chan):
-        for x in chan.get_unfulfilled_htlcs():
-            dust_limit = chan.config[REMOTE].dust_limit_sat * 1000
-            delay = x.cltv_expiry - self.network.get_local_height()
-            if x.amount_msat > 10 * dust_limit and delay < 3:
-                self.logger.info('htlc is dangerous')
-                return True
-            else:
-                self.logger.info(f'htlc is not dangerous. delay {delay}')
-        return False
+    def should_channel_be_closed_due_to_expiring_htlcs(self, chan: Channel) -> bool:
+        local_height = self.network.get_local_height()
+        htlcs_we_could_reclaim = {}  # type: Dict[Tuple[Direction, int], UpdateAddHtlc]
+        # If there is a received HTLC for which we already released the preimage
+        # but the remote did not revoke yet, and the CLTV of this HTLC is dangerously close
+        # to the present, then unilaterally close channel
+        recv_htlc_deadline = lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS
+        for sub, dir, ctn in ((LOCAL, RECEIVED, chan.get_latest_ctn(LOCAL)),
+                              (REMOTE, SENT, chan.get_oldest_unrevoked_ctn(LOCAL)),
+                              (REMOTE, SENT, chan.get_latest_ctn(LOCAL)),):
+            for htlc_id, htlc in chan.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
+                if not chan.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_sender=REMOTE):
+                    continue
+                if htlc.cltv_expiry - recv_htlc_deadline > local_height:
+                    continue
+                htlcs_we_could_reclaim[(RECEIVED, htlc_id)] = htlc
+        # If there is an offered HTLC which has already expired (+ some grace period after), we
+        # will unilaterally close the channel and time out the HTLC
+        offered_htlc_deadline = lnutil.NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS
+        for sub, dir, ctn in ((LOCAL, SENT, chan.get_latest_ctn(LOCAL)),
+                              (REMOTE, RECEIVED, chan.get_oldest_unrevoked_ctn(LOCAL)),
+                              (REMOTE, RECEIVED, chan.get_latest_ctn(LOCAL)),):
+            for htlc_id, htlc in chan.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
+                if htlc.cltv_expiry + offered_htlc_deadline > local_height:
+                    continue
+                htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
+
+        total_value_sat = sum([htlc.amount_msat // 1000 for htlc in htlcs_we_could_reclaim.values()])
+        num_htlcs = len(htlcs_we_could_reclaim)
+        min_value_worth_closing_channel_over_sat = max(num_htlcs * 10 * chan.config[REMOTE].dust_limit_sat,
+                                                       500_000)
+        return total_value_sat > min_value_worth_closing_channel_over_sat
 
     @log_exceptions
     async def on_network_update(self, event, *args):
@@ -652,7 +675,7 @@ class LNWallet(LNWorker):
         for chan in channels:
             if chan.is_closed():
                 continue
-            if chan.get_state() in ["OPEN", "DISCONNECTED"] and self.is_dangerous(chan):
+            if chan.get_state() != 'CLOSED' and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
                 await self.force_close_channel(chan.channel_id)
                 continue
             if chan.short_channel_id is None:

@@ -271,6 +271,12 @@ class HTLCManager:
         ctn = self.ctn_latest(subject) + 1
         return self.htlcs(subject, ctn)
 
+    def was_htlc_preimage_released(self, *, htlc_id: int, htlc_sender: HTLCOwner) -> bool:
+        settles = self.log[htlc_sender]['settles']
+        if htlc_id not in settles:
+            return False
+        return settles[htlc_id][htlc_sender] is not None
+
     def all_settled_htlcs_ever_by_direction(self, subject: HTLCOwner, direction: Direction,
                                             ctn: int = None) -> Sequence[UpdateAddHtlc]:
         """Return the list of all HTLCs that have been ever settled in subject's
