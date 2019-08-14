@@ -1059,16 +1059,17 @@ class Peer(Logger):
         self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
         # handle some specific error codes
         failure_codes = {
-            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2,
-            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 10,
-            OnionFailureCode.FEE_INSUFFICIENT: 10,
-            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 6,
-            OnionFailureCode.EXPIRY_TOO_SOON: 2,
-            OnionFailureCode.CHANNEL_DISABLED: 4,
+            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
+            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 8,
+            OnionFailureCode.FEE_INSUFFICIENT: 8,
+            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 4,
+            OnionFailureCode.EXPIRY_TOO_SOON: 0,
+            OnionFailureCode.CHANNEL_DISABLED: 2,
         }
         if code in failure_codes:
             offset = failure_codes[code]
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
+            channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset+2: offset+2+channel_update_len]
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
             orphaned, expired, deprecated, good, to_delete = self.channel_db.add_channel_updates([payload])
