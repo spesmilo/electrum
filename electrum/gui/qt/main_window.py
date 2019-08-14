@@ -879,7 +879,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.history_model.set_view(self.history_list)
         l.searchable_list = l
         toolbar = l.create_toolbar(self.config)
-        toolbar_shown = self.config.get('show_toolbar_history', False)
+        toolbar_shown = bool(self.config.get('show_toolbar_history', False))
         l.show_toolbar(toolbar_shown)
         return self.create_list_tab(l, toolbar)
 
@@ -1665,7 +1665,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount = tx.output_value() if self.max_button.isChecked() else sum(map(lambda x:x[2], outputs))
         fee = tx.get_fee()
 
-        use_rbf = self.config.get('use_rbf', True)
+        use_rbf = bool(self.config.get('use_rbf', True))
         if use_rbf:
             tx.set_rbf(True)
 
@@ -1932,7 +1932,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
         toolbar = l.create_toolbar(self.config)
-        toolbar_shown = self.config.get('show_toolbar_addresses', False)
+        toolbar_shown = bool(self.config.get('show_toolbar_addresses', False))
         l.show_toolbar(toolbar_shown)
         return self.create_list_tab(l, toolbar)
 
@@ -2876,7 +2876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         fee_widgets.append((fee_type_label, fee_type_combo))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
-        feebox_cb.setChecked(self.config.get('show_fee', False))
+        feebox_cb.setChecked(bool(self.config.get('show_fee', False)))
         feebox_cb.setToolTip(_("Show fee edit box in send tab."))
         def on_feebox(x):
             self.config.set_key('show_fee', x == Qt.Checked)
@@ -2884,7 +2884,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         feebox_cb.stateChanged.connect(on_feebox)
         fee_widgets.append((feebox_cb, None))
 
-        use_rbf = self.config.get('use_rbf', True)
+        use_rbf = bool(self.config.get('use_rbf', True))
         use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
         use_rbf_cb.setChecked(use_rbf)
         use_rbf_cb.setToolTip(
@@ -2898,7 +2898,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         fee_widgets.append((use_rbf_cb, None))
 
         batch_rbf_cb = QCheckBox(_('Batch RBF transactions'))
-        batch_rbf_cb.setChecked(self.config.get('batch_rbf', False))
+        batch_rbf_cb.setChecked(bool(self.config.get('batch_rbf', False)))
         batch_rbf_cb.setEnabled(use_rbf)
         batch_rbf_cb.setToolTip(
             _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
@@ -3025,7 +3025,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         gui_widgets.append((colortheme_label, colortheme_combo))
 
         updatecheck_cb = QCheckBox(_("Automatically check for software updates"))
-        updatecheck_cb.setChecked(self.config.get('check_updates', False))
+        updatecheck_cb.setChecked(bool(self.config.get('check_updates', False)))
         def on_set_updatecheck(v):
             self.config.set_key('check_updates', v == Qt.Checked, save=True)
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
@@ -3092,7 +3092,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         def on_unconf(x):
             self.config.set_key('confirmed_only', bool(x))
-        conf_only = self.config.get('confirmed_only', False)
+        conf_only = bool(self.config.get('confirmed_only', False))
         unconf_cb = QCheckBox(_('Spend only confirmed coins'))
         unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
         unconf_cb.setChecked(conf_only)
@@ -3101,7 +3101,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         def on_outrounding(x):
             self.config.set_key('coin_chooser_output_rounding', bool(x))
-        enable_outrounding = self.config.get('coin_chooser_output_rounding', False)
+        enable_outrounding = bool(self.config.get('coin_chooser_output_rounding', False))
         outrounding_cb = QCheckBox(_('Enable output value rounding'))
         outrounding_cb.setToolTip(
             _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
