@@ -31,6 +31,7 @@ from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, ca
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket)
 from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture
+from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
@@ -39,7 +40,8 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
-                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY)
+                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
+                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id)
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -1110,6 +1112,8 @@ class Peer(Logger):
 
     async def await_remote(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
+        # TODO review this. I suspect some callers want updates irrevocably committed,
+        #      so comparision should use chan.get_oldest_unrevoked_ctn(REMOTE)
         while chan.get_latest_ctn(REMOTE) <= ctn:
             await self._remote_changed_events[chan.channel_id].wait()
 
@@ -1200,9 +1204,11 @@ class Peer(Logger):
         onion_packet = OnionPacket.from_bytes(payload["onion_routing_packet"])
         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
         chan = self.channels[channel_id]
-        assert chan.get_state() == "OPEN"
+        if chan.get_state() != "OPEN":
+            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry >= 500_000_000:
-            pass  # TODO fail the channel
+            self.lnworker.force_close_channel(channel_id)
+            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry >= 500_000_000. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
                              payment_hash=payment_hash,
@@ -1243,15 +1249,44 @@ class Peer(Logger):
             return
         dph = processed_onion.hop_data.per_hop
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
+        next_chan_scid = format_short_channel_id(dph.short_channel_id)
         next_peer = self.lnworker.peers[next_chan.node_id]
-        if next_chan is None or next_chan.get_state() != 'OPEN':
-            self.logger.info(f"cannot forward htlc {next_chan.get_state() if next_chan else None}")
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+        local_height = self.network.get_local_height()
+        if next_chan is None:
+            self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
-        self.logger.info(f'forwarding htlc to {next_chan.node_id}')
+        if next_chan.get_state() != 'OPEN':
+            self.logger.info(f"cannot forward htlc. next_chan not OPEN: {next_chan_scid} in state {next_chan.get_state()}")
+            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=)  # FIXME data
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
         next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
+        if htlc.cltv_expiry - next_cltv_expiry < NBLOCK_OUR_CLTV_EXPIRY_DELTA:
+            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=)  # FIXME data
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
+        if htlc.cltv_expiry - lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS <= local_height \
+                or next_cltv_expiry <= local_height:
+            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON, data=)  # FIXME data
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
+        if max(htlc.cltv_expiry, next_cltv_expiry) > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
+        if htlc.amount_msat - next_amount_msat_htlc < 0:  # TODO fees?
+            # reason = OnionRoutingFailureMessage(code=OnionFailureCode.FEE_INSUFFICIENT, data=)  # FIXME data
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+            return
+
+        self.logger.info(f'forwarding htlc to {next_chan.node_id}')
         next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
         next_remote_ctn = next_chan.get_latest_ctn(REMOTE)
@@ -1280,13 +1315,13 @@ class Peer(Logger):
             invoice = self.lnworker.get_invoice(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)
         except UnknownPaymentHash:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_PAYMENT_HASH, data=b'')
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         expected_received_msat = int(invoice.amount * bitcoin.COIN * 1000) if invoice.amount is not None else None
         if expected_received_msat is not None and \
-                (htlc.amount_msat < expected_received_msat or htlc.amount_msat > 2 * expected_received_msat):
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_PAYMENT_AMOUNT, data=b'')
+                not (expected_received_msat <= htlc.amount_msat <= 2 * expected_received_msat):
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         local_height = self.network.get_local_height()

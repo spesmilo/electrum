@@ -378,8 +378,8 @@ class OnionFailureCode(IntEnum):
     FEE_INSUFFICIENT =                        UPDATE | 12
     INCORRECT_CLTV_EXPIRY =                   UPDATE | 13
     EXPIRY_TOO_SOON =                         UPDATE | 14
-    UNKNOWN_PAYMENT_HASH =                    PERM | 15
-    INCORRECT_PAYMENT_AMOUNT =                PERM | 16
+    INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS =    PERM | 15
+    _LEGACY_INCORRECT_PAYMENT_AMOUNT =        PERM | 16
     FINAL_EXPIRY_TOO_SOON =                   17
     FINAL_INCORRECT_CLTV_EXPIRY =             18
     FINAL_INCORRECT_HTLC_AMOUNT =             19
