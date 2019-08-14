@@ -544,6 +544,8 @@ class BaseWizard(Logger):
                     storage_enc_version=STO_EV_XPUB_PW,
                     encrypt_keystore=False))
         else:
+            # reset stack to disable 'back' button in password dialog
+            self.reset_stack()
             # prompt the user to set an arbitrary password
             self.request_password(
                 run_next=lambda password, encrypt_storage: self.on_password(
