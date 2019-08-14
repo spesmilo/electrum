@@ -25,7 +25,7 @@ class HTLCManager:
             log = {(HTLCOwner(int(k)) if k in ("-1", "1") else k): v
                    for k, v in deepcopy(log).items()}
             for sub in (LOCAL, REMOTE):
-                log[sub]['adds'] = {int(x): UpdateAddHtlc(*y) for x, y in log[sub]['adds'].items()}
+                log[sub]['adds'] = {int(htlc_id): UpdateAddHtlc(*htlc) for htlc_id, htlc in log[sub]['adds'].items()}
                 coerceHtlcOwner2IntMap = lambda ctns: {HTLCOwner(int(owner)): ctn for owner, ctn in ctns.items()}
                 # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 log[sub]['locked_in'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['locked_in'].items()}
@@ -222,9 +222,9 @@ class HTLCManager:
     ##### Queries re HTLCs:
 
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
-                           ctn: int = None) -> Sequence[UpdateAddHtlc]:
-        """Return the list of received or sent (depending on direction) HTLCs
-        in subject's ctx at ctn.
+                           ctn: int = None) -> Dict[int, UpdateAddHtlc]:
+        """Return the dict of received or sent (depending on direction) HTLCs
+        in subject's ctx at ctn, keyed by htlc_id.
 
         direction is relative to subject!
         """
@@ -232,19 +232,19 @@ class HTLCManager:
         assert type(direction) is Direction
         if ctn is None:
             ctn = self.ctn_oldest_unrevoked(subject)
-        l = []
+        d = {}
         # subject's ctx
         # party is the proposer of the HTLCs
         party = subject if direction == SENT else subject.inverted()
+        settles = self.log[party]['settles']
+        fails = self.log[party]['fails']
         for htlc_id, ctns in self.log[party]['locked_in'].items():
             if ctns[subject] is not None and ctns[subject] <= ctn:
-                settles = self.log[party]['settles']
-                fails = self.log[party]['fails']
                 not_settled = htlc_id not in settles or settles[htlc_id][subject] is None or settles[htlc_id][subject] > ctn
                 not_failed = htlc_id not in fails or fails[htlc_id][subject] is None or fails[htlc_id][subject] > ctn
                 if not_settled and not_failed:
-                        l.append(self.log[party]['adds'][htlc_id])
-        return l
+                    d[htlc_id] = self.log[party]['adds'][htlc_id]
+        return d
 
     def htlcs(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         """Return the list of HTLCs in subject's ctx at ctn."""
@@ -252,8 +252,8 @@ class HTLCManager:
         if ctn is None:
             ctn = self.ctn_oldest_unrevoked(subject)
         l = []
-        l += [(SENT, x) for x in self.htlcs_by_direction(subject, SENT, ctn)]
-        l += [(RECEIVED, x) for x in self.htlcs_by_direction(subject, RECEIVED, ctn)]
+        l += [(SENT, x) for x in self.htlcs_by_direction(subject, SENT, ctn).values()]
+        l += [(RECEIVED, x) for x in self.htlcs_by_direction(subject, RECEIVED, ctn).values()]
         return l
 
     def get_htlcs_in_oldest_unrevoked_ctx(self, subject: HTLCOwner) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:

@@ -202,7 +202,7 @@ class TestChannel(unittest.TestCase):
         # update log. Then Alice sends this wire message over to Bob who adds
         # this htlc to his remote state update log.
         self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc_dict).htlc_id
-        self.assertNotEqual(self.alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED, 1), [])
+        self.assertNotEqual(list(self.alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED, 1).values()), [])
 
         before = self.bob_channel.balance_minus_outgoing_htlcs(REMOTE)
         beforeLocal = self.bob_channel.balance_minus_outgoing_htlcs(LOCAL)
@@ -414,7 +414,7 @@ class TestChannel(unittest.TestCase):
         bobSig2, bobHtlcSigs2 = bob_channel.sign_next_commitment()
         self.assertEqual(len(bobHtlcSigs2), 0)
 
-        self.assertEqual(alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED), [htlc])
+        self.assertEqual(list(alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED).values()), [htlc])
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, alice_channel.get_oldest_unrevoked_ctn(REMOTE)), [htlc])
 
         self.assertEqual(alice_channel.included_htlcs(REMOTE, RECEIVED, 1), [htlc])
@@ -693,9 +693,9 @@ class TestChanReserve(unittest.TestCase):
         force_state_transition(self.alice_channel, self.bob_channel)
 
         aliceSelfBalance = self.alice_channel.balance(LOCAL)\
-                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(LOCAL, SENT))
+                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(LOCAL, SENT).values())
         bobBalance = self.bob_channel.balance(REMOTE)\
-                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(REMOTE, SENT))
+                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(REMOTE, SENT).values())
         self.assertEqual(aliceSelfBalance, one_bitcoin_in_msat*4.5)
         self.assertEqual(bobBalance, one_bitcoin_in_msat*5)
         # Now let Bob try to add an HTLC. This should fail, since it will

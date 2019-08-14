@@ -82,7 +82,7 @@ class TestHTLCManager(unittest.TestCase):
             else:
                 B.send_fail(0)
                 A.recv_fail(0)
-            self.assertEqual(A.htlcs_by_direction(REMOTE, RECEIVED), [H('A', 0)])
+            self.assertEqual(list(A.htlcs_by_direction(REMOTE, RECEIVED).values()), [H('A', 0)])
             self.assertNotEqual(A.get_htlcs_in_latest_ctx(LOCAL), [])
             self.assertNotEqual(B.get_htlcs_in_latest_ctx(REMOTE), [])
 

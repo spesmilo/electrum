@@ -200,7 +200,8 @@ class Channel(Logger):
             raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
             raise PaymentFailure('Too many HTLCs already in channel')
-        current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(LOCAL, SENT)) + htlcsum(self.hm.htlcs_by_direction(LOCAL, RECEIVED))
+        current_htlc_sum = (htlcsum(self.hm.htlcs_by_direction(LOCAL, SENT).values())
+                            + htlcsum(self.hm.htlcs_by_direction(LOCAL, RECEIVED).values()))
         if current_htlc_sum + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
             raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat plus new htlc: {amount_msat/1000} sat) would exceed max allowed: {self.config[REMOTE].max_htlc_value_in_flight_msat/1000} sat')
         if amount_msat < self.config[REMOTE].htlc_minimum_msat:
@@ -451,7 +452,7 @@ class Channel(Logger):
         assert type(whose) is HTLCOwner
         ctn = self.get_next_ctn(ctx_owner)
         return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)\
-                - htlcsum(self.hm.htlcs_by_direction(ctx_owner, SENT, ctn))
+                - htlcsum(self.hm.htlcs_by_direction(ctx_owner, SENT, ctn).values())
 
     def available_to_spend(self, subject):
         """
@@ -484,7 +485,7 @@ class Channel(Logger):
             weight = HTLC_SUCCESS_WEIGHT
         else:
             weight = HTLC_TIMEOUT_WEIGHT
-        htlcs = self.hm.htlcs_by_direction(subject, direction, ctn=ctn)
+        htlcs = self.hm.htlcs_by_direction(subject, direction, ctn=ctn).values()
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return list(filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs))
 
@@ -647,8 +648,8 @@ class Channel(Logger):
         other = REMOTE if LOCAL == subject else LOCAL
         local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
         remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
-        received_htlcs = self.hm.htlcs_by_direction(subject, SENT if subject == LOCAL else RECEIVED, ctn)
-        sent_htlcs = self.hm.htlcs_by_direction(subject, RECEIVED if subject == LOCAL else SENT, ctn)
+        received_htlcs = self.hm.htlcs_by_direction(subject, SENT if subject == LOCAL else RECEIVED, ctn).values()
+        sent_htlcs = self.hm.htlcs_by_direction(subject, RECEIVED if subject == LOCAL else SENT, ctn).values()
         if subject != LOCAL:
             remote_msat -= htlcsum(received_htlcs)
             local_msat -= htlcsum(sent_htlcs)
