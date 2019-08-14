@@ -1447,12 +1447,13 @@ class Peer(Logger):
     async def _shutdown(self, chan: Channel, payload, is_local):
         # set state so that we stop accepting HTLCs
         chan.set_state('CLOSING')
-        while len(chan.hm.htlcs_by_direction(LOCAL, RECEIVED)) > 0:
+        # wait until no HTLCs remain in either commitment transaction
+        while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info('waiting for htlcs to settle...')
             await asyncio.sleep(1)
         our_fee = chan.pending_local_fee()
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
-        # negociate fee
+        # negotiate fee
         while True:
             our_sig, closing_tx = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=our_fee)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
