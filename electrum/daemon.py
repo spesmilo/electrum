@@ -62,7 +62,7 @@ def remove_lockfile(lockfile):
     os.unlink(lockfile)
 
 
-def get_fd_or_server(config: SimpleConfig):
+def get_file_descriptor(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
     prevent races.  If it succeeds it returns the FD.
     Otherwise try and connect to the server specified in the lockfile.
@@ -71,12 +71,12 @@ def get_fd_or_server(config: SimpleConfig):
     lockfile = get_lockfile(config)
     while True:
         try:
-            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
         except OSError:
             pass
         server = get_server(config)
         if server is not None:
-            return None, server
+            return
         # Couldn't connect; remove lockfile and try again.
         remove_lockfile(lockfile)
 
@@ -170,8 +170,9 @@ class Daemon(DaemonThread):
         DaemonThread.__init__(self)
         self.config = config
         if fd is None and listen_jsonrpc:
-            fd, server = get_fd_or_server(config)
-            if fd is None: raise Exception('failed to lock daemon; already running?')
+            fd = get_file_descriptor(config)
+            if fd is None:
+                raise Exception('failed to lock daemon; already running?')
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         if config.get('offline'):
             self.network = None

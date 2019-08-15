@@ -357,13 +357,14 @@ if __name__ == '__main__':
 
     if cmdname == 'gui':
         configure_logging(config)
-        fd, server = daemon.get_fd_or_server(config)
+        fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
             d = daemon.Daemon(config, fd)
             d.init_gui(config, plugins)
             sys.exit(0)
         else:
+            server = daemon.get_server()
             result = server.gui(config_options)
 
     elif cmdname == 'daemon':
@@ -373,7 +374,7 @@ if __name__ == '__main__':
 
         if subcommand in [None, 'start']:
             configure_logging(config)
-            fd, server = daemon.get_fd_or_server(config)
+            fd = daemon.get_file_descriptor(config)
             if fd is not None:
                 if subcommand == 'start':
                     pid = os.fork()
@@ -404,6 +405,7 @@ if __name__ == '__main__':
                 d.join()
                 sys.exit(0)
             else:
+                server = daemon.get_server(config)
                 result = server.daemon(config_options)
         else:
             server = daemon.get_server(config)
