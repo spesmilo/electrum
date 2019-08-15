@@ -297,7 +297,7 @@ def hash160_to_b58_address(h160, addrtype):
 
 def b58_address_to_hash160(addr):
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, 25, base=58)
+    _bytes = base_decode(addr, 25, base=58)  # will raise ValueError on bad characters
     return _bytes[0], _bytes[1:21]
 
 
@@ -368,7 +368,8 @@ def base_encode(v, base):
 
 
 def base_decode(v, length, base):
-    """ decode v into a string of len bytes."""
+    """ decode v into a string of len bytes. May raise ValueError on bad chars
+    in string."""
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
     assert base in (58, 43)
@@ -377,7 +378,10 @@ def base_decode(v, length, base):
         chars = __b43chars
     long_value = 0
     for (i, c) in enumerate(v[::-1]):
-        long_value += chars.find(bytes([c])) * (base**i)
+        x = chars.find(bytes((c,)))
+        if x < 0:
+            raise ValueError(f"Invalid base{base} character '{str(c)}' at position {i}")
+        long_value +=  x * (base**i)
     result = bytearray()
     while long_value >= 256:
         div, mod = divmod(long_value, 256)
@@ -403,7 +407,12 @@ def EncodeBase58Check(vchIn):
 
 
 def DecodeBase58Check(psz):
-    vchRet = base_decode(psz, None, base=58)
+    '''Returns None on failure'''
+    try:
+        vchRet = base_decode(psz, None, base=58)
+    except ValueError:
+        # Bad characters in string
+        return None
     key = vchRet[0:-4]
     csum = vchRet[-4:]
     hash = Hash(key)
