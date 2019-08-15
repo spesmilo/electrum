@@ -286,7 +286,11 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 data = getData(x, False, True)
             else:
                 data = getData(x, True, False)
-                data = Address.from_string(data)
+                try:
+                    data = Address.from_string(data)
+                except:
+                    parent.show_error(_('Invalid address') + ': ' + str(data))
+                    return
             parent.view_on_block_explorer(data, "tx" if isInput else "addr")
 
         actions = [
