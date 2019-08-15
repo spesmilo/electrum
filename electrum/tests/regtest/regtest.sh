@@ -156,12 +156,12 @@ if [[ $1 == "redeem_htlcs" ]]; then
     new_blocks 1
     sleep 3
     echo "alice balance after closing channel:" $($alice getbalance)
-    new_blocks 144
+    new_blocks 150
     sleep 10
     new_blocks 1
     sleep 3
     echo "alice balance after CLTV" $($alice getbalance)
-    new_blocks 144
+    new_blocks 150
     sleep 10
     new_blocks 1
     sleep 3
@@ -243,12 +243,12 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo "alice pays bob"
     invoice=$($bob addinvoice 0.05 "test")
     $alice lnpay $invoice --timeout=1 || true
+    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
         echo "SETTLE_DELAY did not work, $settled != 0"
         exit 1
     fi
-    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
     sleep 5
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
@@ -267,9 +267,9 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
         exit 1
     fi
     echo "wait for cltv_expiry blocks"
-    # note: this will let alice redeem to_local
-    # because cltv_delay is the same as csv_delay
-    new_blocks 144
+    # note: this will let alice redeem both to_local and the htlc.
+    # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
+    new_blocks 150
     echo "alice spends to_local and htlc outputs"
     $alice daemon stop
     cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
