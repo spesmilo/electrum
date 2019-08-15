@@ -110,8 +110,7 @@ class Commands:
         self.wallet = wallet
         self.network = network
         self._callback = callback
-        if self.wallet:
-            self.lnworker = self.wallet.lnworker
+        self.lnworker = self.wallet.lnworker if self.wallet else None
 
     def _run(self, method, args, password_getter, **kwargs):
         """This wrapper is called from the Qt python console."""
