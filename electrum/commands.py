@@ -348,7 +348,7 @@ class Commands:
     def getbalance(self):
         """Return the balance of your wallet. """
         c, u, x = self.wallet.get_balance()
-        l = self.lnworker.get_balance()
+        l = self.lnworker.get_balance() if self.lnworker else None
         out = {"confirmed": str(Decimal(c)/COIN)}
         if u:
             out["unconfirmed"] = str(Decimal(u)/COIN)
