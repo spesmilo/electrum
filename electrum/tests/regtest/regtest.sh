@@ -56,10 +56,11 @@ fi
 # start daemons. Bob is started first because he is listening
 if [[ $1 == "start" ]]; then
     $bob daemon -s 127.0.0.1:51001:t start
-    $bob daemon load_wallet
     $alice daemon -s 127.0.0.1:51001:t start
-    $alice daemon load_wallet
     $carol daemon -s 127.0.0.1:51001:t start
+    sleep 1 # time to accept commands
+    $bob daemon load_wallet
+    $alice daemon load_wallet
     $carol daemon load_wallet
     sleep 10 # give time to synchronize
 fi
@@ -130,6 +131,7 @@ fi
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $bob daemon load_wallet
     sleep 1
     # alice opens channel
@@ -177,6 +179,7 @@ fi
 if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $bob daemon load_wallet
     wait_until_funded
     echo "alice opens channel"
@@ -233,6 +236,7 @@ fi
 if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $bob daemon load_wallet
     wait_until_funded
     echo "alice opens channel"
@@ -274,6 +278,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice daemon stop
     cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
     $alice daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $alice daemon load_wallet
     # wait until alice has spent both ctx outputs
     while [[ $($bitcoin_cli gettxout $ctx_id 0) ]]; do
@@ -287,6 +292,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 1
     echo "bob comes back"
     $bob daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $bob daemon load_wallet
     while [[ $($bitcoin_cli getmempoolinfo | jq '.size') != "1" ]]; do
         echo "waiting for bob's transaction"
@@ -312,6 +318,7 @@ if [[ $1 == "watchtower" ]]; then
     $carol setconfig watchtower_port 12345
     $carol daemon -s 127.0.0.1:51001:t start
     $alice daemon -s 127.0.0.1:51001:t start
+    sleep 1
     $alice daemon load_wallet
     echo "waiting until alice funded"
     wait_until_funded

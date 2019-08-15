@@ -31,7 +31,7 @@ FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 
-config = None
+config = {}
 _logger = get_logger(__name__)
 
 

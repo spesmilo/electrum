@@ -700,6 +700,7 @@ class LNWallet(LNWorker):
                     self.logger.info('REBROADCASTING CLOSING TX')
                     await self.force_close_channel(chan.channel_id)
 
+    @log_exceptions
     async def _open_channel_coroutine(self, connect_str, local_amount_sat, push_sat, password):
         peer = await self.add_peer(connect_str)
         # peer might just have been connected to
@@ -717,6 +718,7 @@ class LNWallet(LNWorker):
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
 
+    @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
         node_id, rest = extract_nodeid(connect_str)
         peer = self.peers.get(node_id)
@@ -750,16 +752,8 @@ class LNWallet(LNWorker):
         Can be called from other threads
         Raises exception after timeout
         """
-        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        status = self.get_invoice_status(bh2u(addr.paymenthash))
-        if status == PR_PAID:
-            raise PaymentFailure(_("This invoice has been paid already"))
-        self._check_invoice(invoice, amount_sat)
-        self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
-        self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
-        fut = asyncio.run_coroutine_threadsafe(
-            self._pay(invoice, attempts, amount_sat),
-            self.network.asyncio_loop)
+        coro = self._pay(invoice, attempts, amount_sat)
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
             return fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
@@ -771,8 +765,15 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
+    @log_exceptions
     async def _pay(self, invoice, attempts=1, amount_sat=None):
-        addr = self._check_invoice(invoice, amount_sat)
+        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        status = self.get_invoice_status(bh2u(addr.paymenthash))
+        if status == PR_PAID:
+            raise PaymentFailure(_("This invoice has been paid already"))
+        self._check_invoice(invoice, amount_sat)
+        self.save_invoice(addr.paymenthash, invoice, SENT, is_paid=False)
+        self.wallet.set_label(bh2u(addr.paymenthash), addr.get_description())
         for i in range(attempts):
             route = await self._create_route_from_invoice(decoded_invoice=addr)
             if not self.get_channel_by_short_id(route[0].short_channel_id):
@@ -875,6 +876,7 @@ class LNWallet(LNWorker):
         except concurrent.futures.TimeoutError:
             raise Exception(_("add_invoice timed out"))
 
+    @log_exceptions
     async def _add_invoice_coro(self, amount_sat, message):
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
