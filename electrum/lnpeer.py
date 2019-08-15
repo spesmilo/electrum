@@ -45,7 +45,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
-from .interface import GracefulDisconnect
+from .interface import GracefulDisconnect, NetworkException
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker
@@ -576,6 +576,7 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
+        # TODO make more robust (timeout low? server returns error?)
         await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 5)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         return chan
@@ -659,10 +660,11 @@ class Peer(Logger):
         self.lnworker.save_channel(chan)
         self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
+        # TODO make more robust
         while True:
             try:
                 funding_tx = Transaction(await self.network.get_transaction(funding_txid))
-            except aiorpcx.jsonrpc.RPCError as e:
+            except NetworkException as e:
                 print("sleeping", str(e))
                 await asyncio.sleep(1)
             else:
