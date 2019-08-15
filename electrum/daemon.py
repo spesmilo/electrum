@@ -53,6 +53,8 @@ from .logging import get_logger, Logger
 
 _logger = get_logger(__name__)
 
+class DaemonNotRunning(Exception):
+    pass
 
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
@@ -74,35 +76,39 @@ def get_file_descriptor(config: SimpleConfig):
             return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
         except OSError:
             pass
-        server = get_server(config)
-        if server is not None:
-            return
-        # Couldn't connect; remove lockfile and try again.
-        remove_lockfile(lockfile)
+        try:
+            request(config, 'ping')
+            return None
+        except DaemonNotRunning:
+            # Couldn't connect; remove lockfile and try again.
+            remove_lockfile(lockfile)
 
 
-def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
+def request(config: SimpleConfig, endpoint, *args, **kwargs):
     lockfile = get_lockfile(config)
     while True:
         create_time = None
         try:
             with open(lockfile) as f:
                 (host, port), create_time = ast.literal_eval(f.read())
-                rpc_user, rpc_password = get_rpc_credentials(config)
-                if rpc_password == '':
-                    # authentication disabled
-                    server_url = 'http://%s:%d' % (host, port)
-                else:
-                    server_url = 'http://%s:%s@%s:%d' % (
-                        rpc_user, rpc_password, host, port)
-                server = jsonrpclib.Server(server_url)
-            # Test daemon is running
-            server.ping()
-            return server
-        except Exception as e:
-            _logger.info(f"failed to connect to JSON-RPC server: {e}")
-        if not create_time or create_time < time.time() - 1.0:
-            return None
+            rpc_user, rpc_password = get_rpc_credentials(config)
+            if rpc_password == '':
+                # authentication disabled
+                server_url = 'http://%s:%d' % (host, port)
+            else:
+                server_url = 'http://%s:%s@%s:%d' % (
+                    rpc_user, rpc_password, host, port)
+        except Exception:
+            raise DaemonNotRunning()
+        server = jsonrpclib.Server(server_url)
+        try:
+            # run request
+            f = getattr(server, endpoint)
+            return f(*args, **kwargs)
+        except ConnectionRefusedError:
+            _logger.info(f"failed to connect to JSON-RPC server")
+            if not create_time or create_time < time.time() - 1.0:
+                raise DaemonNotRunning()
         # Sleep a bit and try again; it might have just been started
         time.sleep(1.0)
 
