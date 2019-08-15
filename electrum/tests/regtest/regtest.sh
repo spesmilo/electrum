@@ -18,16 +18,16 @@ function new_blocks()
 function wait_until_funded()
 {
     while alice_balance=$($alice getbalance | jq '.confirmed' | tr -d '"') && [ $alice_balance != "1" ]; do
-	echo "waiting for alice balance"
-	sleep 1
+        echo "waiting for alice balance"
+        sleep 1
     done
 }
 
 function wait_until_channel_open()
 {
     while channel_state=$($alice list_channels | jq '.[] | .state' | tr -d '"') && [ $channel_state != "OPEN" ]; do
-	echo "waiting for channel open"
-	sleep 1
+        echo "waiting for channel open"
+        sleep 1
     done
 }
 
@@ -85,7 +85,7 @@ if [[ $1 == "alice_pays_carol" ]]; then
     carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
     echo "carol balance: $carol_balance"
     if [[ $carol_balance != 110000 ]]; then
-	exit 1
+        exit 1
     fi
 fi
 
@@ -123,7 +123,7 @@ if [[ $1 == "breach" ]]; then
     balance=$($bob getbalance | jq '.confirmed | tonumber')
     echo "balance of bob after breach: $balance"
     if (( $(echo "$balance < 0.14" | bc -l) )); then
-	exit 1
+        exit 1
     fi
 fi
 
@@ -143,7 +143,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     sleep 1
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
-	echo 'SETTLE_DELAY did not work'
+        echo 'SETTLE_DELAY did not work'
         exit 1
     fi
     # bob goes away
@@ -168,8 +168,8 @@ if [[ $1 == "redeem_htlcs" ]]; then
     echo "alice balance after CSV" $($alice getbalance)
     balance_after=$($alice getbalance |  jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     if (( $(echo "$balance_before - $balance_after > 0.02" | bc -l) )); then
-	echo "htlc not redeemed."
-	exit 1
+        echo "htlc not redeemed."
+        exit 1
     fi
 fi
 
@@ -189,14 +189,14 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $alice lnpay $invoice --timeout=1 || true
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
-	echo "SETTLE_DELAY did not work, $settled != 0"
+        echo "SETTLE_DELAY did not work, $settled != 0"
         exit 1
     fi
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     sleep 5
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "1" ]]; then
-	echo "SETTLE_DELAY did not work, $settled != 1"
+        echo "SETTLE_DELAY did not work, $settled != 1"
         exit 1
     fi
     echo $($bob getbalance)
@@ -207,25 +207,25 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 1
     # wait until breach is confirmed
     while height2=$($bob daemon status | jq '.blockchain_height') && [ $(($height2 - $height1)) -ne 1 ]; do
-	echo "waiting for block"
-	sleep 1
+        echo "waiting for block"
+        sleep 1
     done
     new_blocks 1
     # wait until next block is confirmed, so that htlc tx and redeem tx are confirmed too
     while height3=$($bob daemon status | jq '.blockchain_height') && [ $(($height3 - $height2)) -ne 1 ]; do
-	echo "waiting for block"
-	sleep 1
+        echo "waiting for block"
+        sleep 1
     done
     # wait until wallet is synchronized
     while b=$($bob daemon status | jq '.wallets | ."/tmp/bob/regtest/wallets/default_wallet"') && [ "$b" != "true" ]; do
-	echo "waiting for wallet sync $b"
-	sleep 1
+  echo "waiting for wallet sync $b"
+  sleep 1
     done
     echo $($bob getbalance)
     balance_after=$($bob getbalance | jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     if (( $(echo "$balance_after < 0.14" | bc -l) )); then
-	echo "htlc not redeemed."
-	exit 1
+        echo "htlc not redeemed."
+        exit 1
     fi
 fi
 
@@ -245,7 +245,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice lnpay $invoice --timeout=1 || true
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
-	echo "SETTLE_DELAY did not work, $settled != 0"
+        echo "SETTLE_DELAY did not work, $settled != 0"
         exit 1
     fi
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
@@ -253,7 +253,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     sleep 5
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "1" ]]; then
-	echo "SETTLE_DELAY did not work, $settled != 1"
+        echo "SETTLE_DELAY did not work, $settled != 1"
         exit 1
     fi
     echo $($bob getbalance)
@@ -263,8 +263,8 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo "alice breaches with old ctx:" $ctx_id
     new_blocks 1
     if [[ $($bitcoin_cli gettxout $ctx_id 0 | jq '.confirmations') != "1" ]]; then
-	echo "breach tx not confirmed"
-	exit 1
+        echo "breach tx not confirmed"
+        exit 1
     fi
     echo "wait for cltv_expiry blocks"
     # note: this will let alice redeem to_local
@@ -277,28 +277,28 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice daemon load_wallet
     # wait until alice has spent both ctx outputs
     while [[ $($bitcoin_cli gettxout $ctx_id 0) ]]; do
-	echo "waiting until alice spends ctx outputs"
-	sleep 1
+        echo "waiting until alice spends ctx outputs"
+        sleep 1
     done
     while [[ $($bitcoin_cli gettxout $ctx_id 1) ]]; do
-	echo "waiting until alice spends ctx outputs"
-	sleep 1
+        echo "waiting until alice spends ctx outputs"
+        sleep 1
     done
     new_blocks 1
     echo "bob comes back"
     $bob daemon -s 127.0.0.1:51001:t start
     $bob daemon load_wallet
     while [[ $($bitcoin_cli getmempoolinfo | jq '.size') != "1" ]]; do
-	echo "waiting for bob's transaction"
-	sleep 1
+        echo "waiting for bob's transaction"
+        sleep 1
     done
     echo "mempool has 1 tx"
     new_blocks 1
     sleep 5
     balance=$($bob getbalance | jq '.confirmed')
     if (( $(echo "$balance < 0.049" | bc -l) )); then
-	echo "htlc not redeemed."
-	exit 1
+        echo "htlc not redeemed."
+        exit 1
     fi
     echo "bob balance $balance"
 fi
