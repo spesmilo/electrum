@@ -909,6 +909,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return self._history.get(address, [])
 
     def add_transaction(self, tx_hash, tx):
+        if not tx.inputs():
+            # bad tx came in off the wire -- all 0's or something, see #987
+            self.print_error("add_transaction: WARNING a tx came in from the network with 0 inputs! Bad server? Ignoring tx:", tx_hash)
+            return
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
         with self.lock:
             # add inputs
