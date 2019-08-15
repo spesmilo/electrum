@@ -2144,7 +2144,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
 
-    def broadcast_transaction(self, tx, tx_desc):
+    def broadcast_transaction(self, tx, tx_desc, *, callback=None):
 
         def broadcast_thread():
             # non-GUI thread
@@ -2194,9 +2194,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def broadcast_done(result):
             # GUI thread
+            cb_result = False
             if result:
                 status, msg = result
                 if status:
+                    cb_result = True
                     buttons, copy_index, copy_link = [ _('Ok') ], None, ''
                     try: txid = tx.txid()  # returns None if not is_complete, but may raise potentially as well
                     except: txid = None
@@ -2220,6 +2222,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     if msg.startswith("error: "):
                         msg = msg.split(" ", 1)[-1] # take the last part, sans the "error: " prefix
                     parent.show_error(msg)
+            if callback:
+                callback(cb_result)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)

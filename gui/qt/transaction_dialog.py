@@ -27,6 +27,7 @@ import sys
 import copy
 import datetime
 import json
+import time
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -63,6 +64,8 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
     throttled_update_sig = pyqtSignal()  # connected to self.throttled_update -- emit from thread to do update in main thread
     dl_done_sig = pyqtSignal()  # connected to an inner function to get a callback in main thread upon dl completion
 
+    BROADCAST_COOLDOWN_SECS = 5.0
+
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -85,6 +88,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.tx_hash = self.tx.txid_fast() if self.tx.raw and self.tx.is_complete() else None
         self.tx_height = self.wallet.get_tx_height(self.tx_hash)[0] or None
         self.block_hash = None
+        Weak.finalization_print_error(self)  # track object lifecycle
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -141,6 +145,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.broadcast_button = b = QPushButton(_("&Broadcast"))
         b.clicked.connect(self.do_broadcast)
+        self.last_broadcast_time = 0
 
         self.save_button = b = QPushButton(_("S&ave"))
         b.clicked.connect(self.save)
@@ -232,9 +237,16 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             self.update()
 
     def do_broadcast(self):
+        def broadcast_done(success):
+            if success:
+                # 5 second cooldown period on broadcast_button after successful
+                # broadcast
+                self.last_broadcast_time = time.time()
+                self.update()  # disables the broadcast button if last_broadcast_time is < BROADCAST_COOLDOWN_SECS seconds ago
+                QTimer.singleShot(self.BROADCAST_COOLDOWN_SECS*1e3+100, self.update)  # broadcast button will re-enable if we got nothing from server and >= BROADCAST_COOLDOWN_SECS elapsed
         self.main_window.push_top_level_window(self)
         try:
-            self.main_window.broadcast_transaction(self.tx, self.desc)
+            self.main_window.broadcast_transaction(self.tx, self.desc, callback=broadcast_done)
         finally:
             self.main_window.pop_top_level_window(self)
         self.saved = True
@@ -341,6 +353,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         return fee
 
     def update(self):
+        if self._closed:
+            # latent timer fire
+            return
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
@@ -349,7 +364,20 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.tx_hash = tx_hash
         desc = label or desc
         size = self.tx.estimated_size()
-        self.broadcast_button.setEnabled(can_broadcast)
+
+        # We enable the broadcast button IFF both of the following hold:
+        # 1. can_broadcast is true (tx has not been seen yet on the network
+        #    and is_complete).
+        # 2. The last time user hit "Broadcast" (and it was successful) was
+        #    more than BROADCAST_COOLDOWN_SECS ago. This second condition
+        #    implements a broadcast cooldown timer which immediately disables
+        #    the "Broadcast" button for a time after a successful broadcast.
+        #    This prevents the user from being able to spam the broadcast
+        #    button. See #1483.
+        self.broadcast_button.setEnabled(can_broadcast
+                                         and time.time() - self.last_broadcast_time
+                                                >= self.BROADCAST_COOLDOWN_SECS)
+
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.main_window.tx_external_keypairs))
         self.sign_button.setEnabled(can_sign)
@@ -419,10 +447,12 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
     def add_io(self, vbox):
         if self.tx.locktime > 0:
-            vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
+            lbl = QLabel(_("LockTime: {lock_time}").format(lock_time=self.tx.locktime))
+            lbl.setTextInteractionFlags(lbl.textInteractionFlags() | Qt.TextSelectableByMouse)
+            vbox.addWidget(lbl)
 
         hbox = QHBoxLayout()
-        hbox.setContentsMargins(0,0,0,0)
+        hbox.setContentsMargins(0,12,0,0)
 
         self.i_text = i_text = TextBrowserKeyboardFocusFilter()
         num_inputs = len(self.tx.inputs())
