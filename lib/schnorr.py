@@ -14,7 +14,7 @@ vulnerabilities, and must not be used in an automated-signing environment.
 import os
 import sys
 import hmac, hashlib
-from ctypes import create_string_buffer, c_void_p, c_char_p, c_int, c_size_t
+from ctypes import create_string_buffer, c_void_p, c_char_p, c_int, c_size_t, byref, cast
 
 from . import secp256k1
 
@@ -49,6 +49,7 @@ def _setup_verify_function():
 
 _secp256k1_schnorr_sign = _setup_sign_function()
 _secp256k1_schnorr_verify = _setup_verify_function()
+seclib = secp256k1.secp256k1
 
 def has_fast_sign():
     """Does sign() do fast (& side-channel secure) schnorr signatures?"""
@@ -57,6 +58,30 @@ def has_fast_verify():
     """Does verify() do fast schnorr verification?"""
     return bool(_secp256k1_schnorr_verify)
 
+def jacobi(a, n):
+    """Jacobi symbol"""
+    # Based on the Handbook of Applied Cryptography (HAC), algorithm 2.149.
+    # This is more than 2x faster than the one from python ecdsa package, due
+    # to usage of bitwise arithmetic and no recursion.
+    assert n >= 3
+    assert n & 1 == 1
+    a = a % n
+    s = 1
+    while a > 1:
+        a1, e = a, 0
+        while a1 & 1 == 0:
+            a1, e = a1 >> 1, e+1
+        if not (e & 1 == 0 or n & 7 == 1 or n & 7 == 7):
+            s = -s
+        if a1 == 1:
+            return s
+        if n & 3 == 3 and a1 & 3 == 3:
+            s = -s
+        a, n = n%a1, a1
+    if a == 0:
+        return 0
+    if a == 1:
+        return s
 
 # only used for pure python:
 def nonce_function_rfc6979(order, privkeybytes, msg32, algo16=b'', ndata=b''):
@@ -221,3 +246,201 @@ def verify(pubkey, signature, message_hash):
 
         return (R.x().to_bytes(32, 'big') == rbytes)
 
+class BlindSigner:
+    """ Schnorr blind signature creator, signer side.
+
+    We calculate R = k*G for some secret k, and share R with the requester.
+    Then, upon receiving an e value, we calculate s = k + e*x, where x is our
+    private key, and return s to the requester. The requester can use this to
+    create a valid Schnorr signature from our public key, without us being able
+    to link the exact request to the unblinded signature.
+
+    The most CPU-intense part of this is initialization, where the R value is
+    generated.
+
+    Security note: If we were to sign two distinct requests for the same R,
+    then our private key could be recovered. Thus, you can only call .sign()
+    once. If you need a new blind signature then you must create a new
+    object.
+
+    Security note 2: If an adversary knows that this private key is related
+    to another key (say, they are related by multiplication or addition of a
+    known factor), then the adversary can use blind signatures to get a valid
+    signature *from the other key*! For example, all keys in a BIP32 "xpub"
+    are related, and so you should seriously avoid using this function with
+    standard BIP32 or any other public key derivation method.
+    """
+    order = ecdsa.SECP256k1.generator.order()
+
+    def __init__(self):
+        k = ecdsa.util.randrange(self.order)
+        # we store k in a list since .pop() is atomic.
+        self._kcontainer = [k]
+        Rpoint = k * ecdsa.SECP256k1.generator
+        self.R = point_to_ser(Rpoint, comp=True)
+
+    def get_R(self):
+        return self.R
+
+    def sign(self, privkey, ebytes):
+        assert len(privkey) == 32
+        assert len(ebytes) == 32
+        try:
+            k = self._kcontainer.pop()
+        except IndexError:
+            raise RuntimeError("Attempted to sign twice!")
+
+        x = int.from_bytes(privkey, 'big')
+        e = int.from_bytes(ebytes, 'big')
+
+        s = (k + e * x) % self.order
+        return s.to_bytes(32, 'big')
+
+
+class BlindSignatureRequest:
+    """ Schnorr blind signature creator, requester side.
+
+    We expect to be set up with two elliptic curve points
+    (serialized as bytes) -- the Blind signer's public key, and
+    a nonce point whose secret is known by the signer. Also, the
+    32-byte message_hash should be provided.
+
+    Upon construction, this creates and remembers the blinding factors,
+    and also performs the expensive math needed to create the blind
+    signature request. One initialized, call .get_request() to obtain
+    the 32-byte request that should be sent to the signer. Once you get
+    back their 32-byte response, call finalize().
+
+    The resultant Schnorr signatures follow the standard BCH Schnorr
+    convention (using Jacobi symbol, pubkey prefixing and SHA256).
+
+    Internally we use two random blinding factors a,b. Due to the jacobi
+    thing, we have to also include a signflip factor c = +/- 1.
+
+        [signer provides: R = k*G]
+        R' = c*(R + a*G + b*P)
+        choose c = +1 or -1 such that jacobi(R'.y(), fieldsize) = +1
+        e' = Hash(R'.x | ser_compressed(P) | message32)
+        e = c*e' + b mod n
+        [send to signer: e]
+        [signer provides: s = k + e*x]
+        s' = c*(s + a) mod n
+
+        resulting unblinded signature: (R'.x, s')
+
+    Ref: https://blog.cryptographyengineering.com/a-note-on-blind-signature-schemes/
+    """
+    order = ecdsa.SECP256k1.generator.order()
+    fieldsize = ecdsa.SECP256k1.curve.p()
+
+    def __init__(self, pubkey, R, message_hash):
+        """ Expects three bytes objects """
+        assert isinstance(pubkey, bytes)
+        assert isinstance(R, bytes)
+        assert len(message_hash) == 32
+
+        self.pubkey = pubkey
+        self.R = R
+        self.message_hash = message_hash
+
+        self.a = ecdsa.util.randrange(self.order)
+        self.b = ecdsa.util.randrange(self.order)
+        if seclib:
+            self._calc_initial_fast()
+        else:
+            self._calc_initial()
+        assert self.c in (-1, +1)
+        ehash = hashlib.sha256(self.Rxnew + self.pubkey_compressed + message_hash).digest()
+        self.e = (self.c * int.from_bytes(ehash,'big') + self.b) % self.order
+
+        self.enew = int.from_bytes(ehash,'big') % self.order # debug
+
+    def _calc_initial(self):
+        # Internal function, calculates Rxnew, c, and compressed pubkey.
+        try:
+            Rpoint = ser_to_point(self.R)
+        except:
+            # off-curve points, failed decompression, bad format,
+            # point at infinity:
+            raise ValueError('R could not be parsed')
+        try:
+            pubpoint = ser_to_point(self.pubkey)
+        except:
+            # off-curve points, failed decompression, bad format,
+            # point at infinity:
+            raise ValueError('pubkey could not be parsed')
+
+        self.pubkey_compressed = point_to_ser(pubpoint, comp=True)
+
+        # multiply & add the points -- takes ~190 microsec
+        Rnew = Rpoint + self.a * ecdsa.SECP256k1.generator + self.b * pubpoint
+        self.Rxnew = Rnew.x().to_bytes(32,'big')
+        y = Rnew.y()
+
+        # calculate the jacobi symbol (+1 or -1). ~30 microsec
+        self.c = jacobi(y, self.fieldsize)
+
+    def _calc_initial_fast(self):
+        # Fast version of _calc_initial, using libsecp256k1. About 2.4x faster.
+        ctx = seclib.ctx
+
+        abytes = self.a.to_bytes(32,'big')
+        bbytes = self.b.to_bytes(32,'big')
+
+        R_buf = create_string_buffer(64)
+        res = seclib.secp256k1_ec_pubkey_parse(ctx, R_buf, self.R, c_size_t(len(self.R)))
+        if not res:
+            raise ValueError('R could not be parsed by the secp256k1 library')
+
+        pubkey_buf = create_string_buffer(64)
+        res = seclib.secp256k1_ec_pubkey_parse(ctx, pubkey_buf, self.pubkey, c_size_t(len(self.pubkey)))
+        if not res:
+            raise ValueError('pubkey could not be parsed by the secp256k1 library')
+
+        # resave pubkey as compressed.
+        P_compressed = create_string_buffer(33)
+        P_size = c_size_t(33)
+        res = seclib.secp256k1_ec_pubkey_serialize(ctx, P_compressed, byref(P_size), pubkey_buf, secp256k1.SECP256K1_EC_COMPRESSED)
+        self.pubkey_compressed = P_compressed.raw
+
+        A_buf = create_string_buffer(64)
+
+        # calculate a*G. ~24 microsec
+        res = seclib.secp256k1_ec_pubkey_create(ctx, A_buf, abytes)
+        assert res == 1, "should never fail since 0 < a < order"
+
+        # in-place tweak the pubkey by multiplying with scalar b. ~33 microsec
+        res = seclib.secp256k1_ec_pubkey_tweak_mul(ctx, pubkey_buf, bbytes)
+        assert res == 1, "should never fail since 0 < b < order"
+
+        # add the three points together. ~6 microsec
+        Rnew_buf = create_string_buffer(64)
+        publist = (c_void_p*3)(*(cast(x, c_void_p) for x in (R_buf, A_buf, pubkey_buf)))
+        res = seclib.secp256k1_ec_pubkey_combine(ctx, Rnew_buf, publist, 3)
+        assert res == 1, "fails with 2^-256 chance (if sum is point at infinity)"
+
+        # serialize the new R point
+        Rnew_serialized = create_string_buffer(65)
+        Rnew_size = c_size_t(65)
+        res = seclib.secp256k1_ec_pubkey_serialize(ctx, Rnew_serialized, byref(Rnew_size), Rnew_buf, secp256k1.SECP256K1_EC_UNCOMPRESSED)
+        assert res == 1, "defined to never fail"
+        assert Rnew_size.value == 65, "should fill buffer as uncompressed"
+        self.Rxnew = Rnew_serialized[1:33]
+        y = int.from_bytes(Rnew_serialized[33:], byteorder="big")
+
+        # calculate the jacobi symbol (+1 or -1). ~30 microsec, because pure python :(
+        self.c = jacobi(y, self.fieldsize)
+
+    def get_request(self,):
+        """ returns 32 bytes e value, to be sent to the signer """
+        return self.e.to_bytes(32,'big')
+
+    def finalize(self, sbytes):
+        """ expects 32 bytes s value, returns 64 byte finished signature """
+        assert len(sbytes) == 32
+
+        s = int.from_bytes(sbytes,'big')
+
+        snew = (self.c*(s + self.a)) % self.order
+
+        return self.Rxnew + snew.to_bytes(32,'big')
