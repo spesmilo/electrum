@@ -271,20 +271,18 @@ class Commands:
                 txin['num_sig'] = 1
 
         outputs = [(TYPE_ADDRESS, Address.from_string(x['address']), int(x['value'])) for x in outputs]
-        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
+        tx = Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=self.wallet and self.wallet.is_schnorr_enabled())
         tx.sign(keypairs)
         return tx.as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None, password=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        tx = Transaction(tx)
+        tx = Transaction(tx, sign_schnorr=self.wallet and self.wallet.is_schnorr_enabled())
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
             pubkey = bitcoin.public_key_from_private_key(privkey2, compressed)
-            h160 = bitcoin.hash_160(bfh(pubkey))
-            x_pubkey = 'fd' + bh2u(b'\x00' + h160)
-            tx.sign({x_pubkey:(privkey2, compressed)})
+            tx.sign({pubkey:(privkey2, compressed)})
         else:
             self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
