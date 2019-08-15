@@ -271,10 +271,8 @@ class Commands:
         tx = Transaction(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
-            pubkey_bytes = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed)
-            h160 = bitcoin.hash_160(pubkey_bytes)
-            x_pubkey = 'fd' + bh2u(b'\x00' + h160)
-            tx.sign({x_pubkey:(privkey2, compressed)})
+            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
+            tx.sign({pubkey:(privkey2, compressed)})
         else:
             self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
@@ -605,7 +603,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount (LTC)'] = format_satoshis(out.get('amount'))
+        out['amount_LTC'] = format_satoshis(out.get('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 

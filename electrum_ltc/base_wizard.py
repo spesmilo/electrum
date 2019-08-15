@@ -377,7 +377,7 @@ class BaseWizard(Logger):
 
     def derivation_and_script_type_dialog(self, f):
         message1 = _('Choose the type of addresses in your wallet.')
-        message2 = '\n'.join([
+        message2 = ' '.join([
             _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
@@ -544,6 +544,8 @@ class BaseWizard(Logger):
                     storage_enc_version=STO_EV_XPUB_PW,
                     encrypt_keystore=False))
         else:
+            # reset stack to disable 'back' button in password dialog
+            self.reset_stack()
             # prompt the user to set an arbitrary password
             self.request_password(
                 run_next=lambda password, encrypt_storage: self.on_password(
@@ -580,6 +582,7 @@ class BaseWizard(Logger):
         if not self.pw_args:
             return
         password, encrypt_storage, storage_enc_version = self.pw_args
+        self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
         storage.set_keystore_encryption(bool(password))
         if encrypt_storage:
