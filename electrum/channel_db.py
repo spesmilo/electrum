@@ -468,7 +468,7 @@ class ChannelDB(SqlDB):
         self.update_counts()
 
     def get_routing_policy_for_channel(self, start_node_id: bytes,
-                                       short_channel_id: bytes) -> Optional[bytes]:
+                                       short_channel_id: bytes) -> Optional[Policy]:
         if not start_node_id or not short_channel_id: return None
         channel_info = self.get_channel_info(short_channel_id)
         if channel_info is not None:
