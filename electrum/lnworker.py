@@ -814,7 +814,7 @@ class LNWallet(LNWorker):
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
-        route = None  # type: List[RouteEdge]
+        route = None  # type: Optional[List[RouteEdge]]
         # only want 'r' tags
         r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
         # strip the tag type, it's implicitly 'r' now
@@ -979,7 +979,7 @@ class LNWallet(LNWorker):
             cltv_expiry_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
-                policy = self.channel_db.get_policy_for_node(channel_info, chan.node_id)
+                policy = self.channel_db.get_policy_for_node(channel_info.short_channel_id, chan.node_id)
                 if policy:
                     fee_base_msat = policy.fee_base_msat
                     fee_proportional_millionths = policy.fee_proportional_millionths

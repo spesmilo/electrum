@@ -33,7 +33,7 @@ import json
 import sys
 import ipaddress
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING
 import traceback
 
 import dns
@@ -59,6 +59,9 @@ from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
+
+if TYPE_CHECKING:
+    from .channel_db import ChannelDB
 
 
 _logger = get_logger(__name__)
@@ -307,7 +310,7 @@ class Network(Logger):
             self.lngossip = lnworker.LNGossip(self)
             self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', True) else None
         else:
-            self.channel_db = None
+            self.channel_db = None  # type: Optional[ChannelDB]
             self.lngossip = None
             self.local_watchtower = None
 

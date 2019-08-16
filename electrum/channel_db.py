@@ -545,7 +545,7 @@ class ChannelDB(SqlDB):
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes) -> Optional['Policy']:
         return self._policies.get((node_id, short_channel_id))
 
-    def get_channel_info(self, channel_id: bytes):
+    def get_channel_info(self, channel_id: bytes) -> ChannelInfo:
         return self._channels.get(channel_id)
 
     def get_channels_for_node(self, node_id) -> Set[bytes]:
