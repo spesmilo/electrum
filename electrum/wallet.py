@@ -1401,6 +1401,9 @@ class Abstract_Wallet(AddressSynchronizer):
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
 
+    def get_zero_address(self):
+        return hash160_to_b58_address(bytearray.fromhex('0'*40) , constants.net.ADDRTYPE_P2PKH)
+
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
         data=None

@@ -2351,13 +2351,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coin_vals = list(coins)
         fee_estimator = 0
         tx_desc = 'Redemption transaction'
-        addr = self.wallet.get_unused_address()
+        if self.wallet.wallet_type == 'imported':
+            addr = self.wallet.get_receiving_addresses()[0]
+        else:
+            addr = self.wallet.get_unused_address()
         out_type = TYPE_ADDRESS
         outputs = []
-        if constants.net.TESTNET:
-            zero_addr = '2dZRkPX3hrPtuBrmMkbGtxTxsuYYgAaFrXZ'
-        else:
-            zero_addr = '1111111111111111111114oLvT2'
+        zero_addr = self.wallet.get_zero_address()
         lock_output = TxOutput(out_type,zero_addr,0,1,coin_vals[0]['asset'],1)
         outputs.append(lock_output)
 
