@@ -188,6 +188,15 @@ class Address(NamedTuple):
     port: int
     last_connected_date: int
 
+
+class CategorizedChannelUpdates(NamedTuple):
+    orphaned: List    # no channel announcement for channel update
+    expired: List     # update older than two weeks
+    deprecated: List  # update older than database entry
+    good: List        # good updates
+    to_delete: List   # database entries to delete
+
+
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
 short_channel_id VARCHAR(64),
@@ -241,7 +250,7 @@ class ChannelDB(SqlDB):
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], dict]
         self.ca_verifier = LNChannelVerifier(network, self)
         # initialized in load_data
-        self._channels = {}
+        self._channels = {}  # type: Dict[bytes, ChannelInfo]
         self._policies = {}
         self._nodes = {}
         self._addresses = defaultdict(set)
@@ -320,12 +329,12 @@ class ChannelDB(SqlDB):
         if old_policy.channel_flags != new_policy.channel_flags:
             self.logger.info(f'channel_flags: {old_policy.channel_flags} -> {new_policy.channel_flags}')
 
-    def add_channel_updates(self, payloads, max_age=None, verify=True):
-        orphaned = []      # no channel announcement for channel update
-        expired = []       # update older than two weeks
-        deprecated = []    # update older than database entry
-        good = []          # good updates
-        to_delete = []     # database entries to delete
+    def add_channel_updates(self, payloads, max_age=None, verify=True) -> CategorizedChannelUpdates:
+        orphaned = []
+        expired = []
+        deprecated = []
+        good = []
+        to_delete = []
         # filter orphaned and expired first
         known = []
         now = int(time.time())
@@ -333,11 +342,11 @@ class ChannelDB(SqlDB):
             short_channel_id = payload['short_channel_id']
             timestamp = int.from_bytes(payload['timestamp'], "big")
             if max_age and now - timestamp > max_age:
-                expired.append(short_channel_id)
+                expired.append(payload)
                 continue
             channel_info = self._channels.get(short_channel_id)
             if not channel_info:
-                orphaned.append(short_channel_id)
+                orphaned.append(payload)
                 continue
             flags = int.from_bytes(payload['channel_flags'], 'big')
             direction = flags & FLAG_DIRECTION
@@ -352,7 +361,7 @@ class ChannelDB(SqlDB):
             key = (start_node, short_channel_id)
             old_policy = self._policies.get(key)
             if old_policy and timestamp <= old_policy.timestamp:
-                deprecated.append(short_channel_id)
+                deprecated.append(payload)
                 continue
             good.append(payload)
             if verify:
@@ -362,11 +371,17 @@ class ChannelDB(SqlDB):
             self.save_policy(policy)
         #
         self.update_counts()
-        return orphaned, expired, deprecated, good, to_delete
+        return CategorizedChannelUpdates(
+            orphaned=orphaned,
+            expired=expired,
+            deprecated=deprecated,
+            good=good,
+            to_delete=to_delete,
+        )
 
     def add_channel_update(self, payload):
-        orphaned, expired, deprecated, good, to_delete = self.add_channel_updates([payload], verify=False)
-        assert len(good) == 1
+        categorized_chan_upds = self.add_channel_updates([payload], verify=False)
+        assert len(categorized_chan_upds.good) == 1
 
     def create_database(self):
         c = self.conn.cursor()

@@ -266,13 +266,22 @@ class Peer(Logger):
                 self.channel_db.add_node_announcement(node_anns_chunk)
             # channel updates
             for chan_upds_chunk in chunks(chan_upds, 1000):
-                orphaned, expired, deprecated, good, to_delete = self.channel_db.add_channel_updates(
+                categorized_chan_upds = self.channel_db.add_channel_updates(
                     chan_upds_chunk, max_age=self.network.lngossip.max_age)
+                orphaned = categorized_chan_upds.orphaned
                 if orphaned:
                     self.logger.info(f'adding {len(orphaned)} unknown channel ids')
                     await self.network.lngossip.add_new_ids(orphaned)
-                if good:
-                    self.logger.debug(f'on_channel_update: {len(good)}/{len(chan_upds_chunk)}')
+                    # Save (some bounded number of) orphan channel updates for later
+                    # as it might be for our own direct channel with this peer
+                    # (and we might not yet know the short channel id for that)
+                    for chan_upd_payload in orphaned:
+                        short_channel_id = chan_upd_payload['short_channel_id']
+                        self.orphan_channel_updates[short_channel_id] = chan_upd_payload
+                        while len(self.orphan_channel_updates) > 25:
+                            self.orphan_channel_updates.popitem(last=False)
+                if categorized_chan_upds.good:
+                    self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
             # refresh gui
             if chan_anns or node_anns or chan_upds:
                 self.network.lngossip.refresh_gui()
@@ -1074,18 +1083,18 @@ class Peer(Logger):
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset+2: offset+2+channel_update_len]
             message_type, payload = decode_msg(channel_update)
             payload['raw'] = channel_update
-            orphaned, expired, deprecated, good, to_delete = self.channel_db.add_channel_updates([payload])
+            categorized_chan_upds = self.channel_db.add_channel_updates([payload])
             blacklist = False
-            if good:
+            if categorized_chan_upds.good:
                 self.logger.info("applied channel update on our db")
-            elif orphaned:
+            elif categorized_chan_upds.orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info("maybe channel update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-            elif expired:
+            elif categorized_chan_upds.expired:
                 blacklist = True
-            elif deprecated:
+            elif categorized_chan_upds.deprecated:
                 self.logger.info(f'channel update is not more recent.')
                 blacklist = True
         else:
