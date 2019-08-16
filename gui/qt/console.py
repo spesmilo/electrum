@@ -36,8 +36,8 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
     STYLESHEET_COMMON = '''
     QLabel, QLabel link {
         border: 2px solid;
-        padding: 16px;
-        font: 16pt;
+        padding: 8px;
+        font: 12pt;
     }
     '''
 
@@ -57,7 +57,7 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
 
         util.finalization_print_error(self)
 
-        warning_fmt = '<h1 align="center">{0}</h1><p align=center><font size=-1>{1} {2}</font></p><p align=center><font size=-1><a href="{3}" {5}>{3}</a></font></p><p align="center">{4}</p>'
+        warning_fmt = '<h1 align="center">{0}</h1><p align=center>{1} {2}<br/><a href="{3}" {5}>{3}</a><p align="center"><font size=+1>{4}</font></p>'
         warning_text = warning_fmt.format(
             _('WARNING'),
             _('Do not enter code here that you don\'t understand. Executing the wrong code could '
@@ -75,7 +75,7 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
         self.setStyleSheet(style_sheet)
 
         layout = QtWidgets.QVBoxLayout()
-        layout.setContentsMargins(35,35,35,35)
+        layout.setContentsMargins(25,25,25,25)
         self.setLayout(layout)
 
         warning_label = QtWidgets.QLabel(warning_text)
