@@ -88,7 +88,7 @@ class MyEncoder(json.JSONEncoder):
         return super(MyEncoder, self).default(obj)
 
 class PrintError:
-    '''A handy base class'''
+    '''A handy base class for printing formatted log messages'''
     def diagnostic_name(self):
         return self.__class__.__name__
 
@@ -101,6 +101,23 @@ class PrintError:
 
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
+
+    SPAM_MSG_RATE_LIMIT = 1.0  # Once every second
+    _print_error_last_spam_msg = 0.0
+    def _spam_common(self, method, *args):
+        '''Used internally to control spam messages. *All* messages called with
+        spam_* are suppressed to max once every SPAM_MSG_RATE_LIMIT seconds'''
+        now = time.time()
+        if now - self._print_error_last_spam_msg >= self.SPAM_MSG_RATE_LIMIT:
+            method(*args)
+            self._print_error_last_spam_msg = now
+    def spam_error(self, *args):
+        ''' Like self.print_error except it only prints the supplied args
+        once every self.SPAM_MSG_RATE_LIMIT seconds. '''
+        self._spam_common(self.print_error, *args)
+    def spam_msg(self, *args): self._spam_common(self.print_msg, *args)
+    def spam_stderr(self, *args): self._spam_common(self.print_stderr, *args)
+
 
 class ThreadJob(ABC, PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
