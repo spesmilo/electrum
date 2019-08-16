@@ -230,7 +230,7 @@ class Network(util.DaemonThread):
         self.pending_sends_lock = threading.Lock()
 
         self.pending_sends = []
-        self.message_id = 0
+        self.message_id = util.Monotonic(locking=True)
         self.verified_checkpoint = False
         self.verifications_required = 1
         # If the height is cleared from the network constants, we're
@@ -403,22 +403,32 @@ class Network(util.DaemonThread):
         considered if callback is not None.)
 
         Note that the special argument interface='random' will queue the request
-        on a random, currently active (connected) interface.
+        on a random, currently active (connected) interface.  Otherwise
+        `interface` should be None or a valid Interface instance.
 
-        Otherwise `interface` should be None or a valid Interface instance.
+
+        If no interface is available:
+            - If `callback` is supplied: the request will be enqueued and sent
+              later when an interface becomes available
+            - If callback is not supplied: an AssertionError exception is raised
         '''
         if interface is None:
             interface = self.interface
-        if interface == 'random':
-            interface = random.choice(self.get_interfaces(interfaces=True))
-        assert isinstance(interface, Interface), "queue_request: No interface! (request={} params={})".format(method, params)
-        message_id = self.message_id
-        self.message_id += 1
+        elif interface == 'random':
+            interface = random.choice(self.get_interfaces(interfaces=True)
+                                      or (None,))  # may set interface to None if no interfaces
+        message_id = self.message_id() # Note: self.message_id is a Monotonic (thread-safe) counter-object, see util.Monotonic
         if callback:
             if max_qlen and len(self.unanswered_requests) >= max_qlen:
                 # Indicate to client code we are busy
                 return None
             self.unanswered_requests[message_id] = [method, params, callback]
+            if not interface:
+                # Request was queued -- it should get sent if/when we get
+                # an interface in the future
+                return message_id
+        # Now, if no interface, we will raise AssertionError
+        assert isinstance(interface, Interface), "queue_request: No interface! (request={} params={})".format(method, params)
         if self.debug:
             self.print_error(interface.host, "-->", method, params, message_id)
         interface.queue_request(method, params, message_id)
@@ -465,8 +475,11 @@ class Network(util.DaemonThread):
         # We disable fee estimates. BCH doesn't need this code. For now 1 sat/B
         # is enough.
         self.config.requested_fee_estimates()
-        for i in bitcoin.FEE_TARGETS:
-            self.queue_request('blockchain.estimatefee', [i])
+        try:
+            for i in bitcoin.FEE_TARGETS:
+                self.queue_request('blockchain.estimatefee', [i])
+        except AssertionError:
+            '''No interface available.'''
 
     def get_status_value(self, key):
         if key == 'status':
@@ -935,7 +948,7 @@ class Network(util.DaemonThread):
                 ct += 1
         ct2 = self._cancel_pending_sends(callback)
         if ct or ct2:
-            qname = getattr(callback, '__qualname__', '<unknown>')
+            qname = getattr(callback, '__qualname__', repr(callback))
             self.print_error("Removed {} unanswered client requests and {} pending sends for callback: {}".format(ct, ct2, qname))
 
     def connection_down(self, server, blacklist=False):
