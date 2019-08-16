@@ -1102,9 +1102,16 @@ class Peer(Logger):
         if code in failure_codes:
             offset = failure_codes[code]
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset+2: offset+2+channel_update_len]
-            message_type, payload = decode_msg(channel_update)
-            payload['raw'] = channel_update
+            channel_update_as_received = data[offset+2: offset+2+channel_update_len]
+            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
+            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
+            #       we try decoding both ways here.
+            try:
+                message_type, payload = decode_msg(channel_update_typed)
+                payload['raw'] = channel_update_typed
+            except:  # FIXME: too broad
+                message_type, payload = decode_msg(channel_update_as_received)
+                payload['raw'] = channel_update_as_received
             categorized_chan_upds = self.channel_db.add_channel_updates([payload])
             blacklist = False
             if categorized_chan_upds.good:
