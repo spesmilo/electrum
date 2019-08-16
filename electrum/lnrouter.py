@@ -23,34 +23,18 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from datetime import datetime
-import time
-import random
 import queue
-import os
-import json
-import threading
-import concurrent
 from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
-import binascii
-import base64
 
-from . import constants
-from .util import bh2u, profiler, get_headers_dir, is_ip_address, list_enabled_bits, print_msg, chunks
+from .util import bh2u, profiler
 from .logging import Logger
-from .storage import JsonDB
-from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
-from .crypto import sha256d
-from . import ecc
-from .lnutil import (LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH,
-                     NotFoundChanAnnouncementForUpdate)
-from .lnmsg import encode_msg
-from .channel_db import ChannelDB
+from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH
+from .channel_db import ChannelDB, Policy
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
-    from .network import Network
+
 
 class NoChannelPolicy(Exception):
     def __init__(self, short_channel_id: bytes):

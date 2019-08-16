@@ -23,14 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from datetime import datetime
 import time
 import random
-import queue
 import os
-import json
-import threading
-import concurrent
 from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
 import binascii
@@ -39,20 +34,14 @@ import base64
 
 from .sql_db import SqlDB, sql
 from . import constants
-from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits, print_msg, chunks
+from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .logging import Logger
-from .storage import JsonDB
+from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
-from .crypto import sha256d
-from . import ecc
-from .lnutil import (LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH,
-                     NotFoundChanAnnouncementForUpdate)
-from .lnverifier import verify_sig_for_channel_update
-from .lnmsg import encode_msg
 
 if TYPE_CHECKING:
-    from .lnchannel import Channel
     from .network import Network
+
 
 class UnknownEvenFeatureBits(Exception): pass
 
