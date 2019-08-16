@@ -41,6 +41,11 @@ class NoChannelPolicy(Exception):
         super().__init__(f'cannot find channel policy for short_channel_id: {bh2u(short_channel_id)}')
 
 
+def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_proportional_millionths: int) -> int:
+    return fee_base_msat \
+           + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
+
+
 class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
                                          ('short_channel_id', bytes),
                                          ('fee_base_msat', int),
@@ -49,8 +54,9 @@ class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
     """if you travel through short_channel_id, you will reach node_id"""
 
     def fee_for_edge(self, amount_msat: int) -> int:
-        return self.fee_base_msat \
-               + (amount_msat * self.fee_proportional_millionths // 1_000_000)
+        return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
+                                 fee_base_msat=self.fee_base_msat,
+                                 fee_proportional_millionths=self.fee_proportional_millionths)
 
     @classmethod
     def from_channel_policy(cls, channel_policy: 'Policy',

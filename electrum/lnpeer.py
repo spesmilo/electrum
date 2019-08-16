@@ -46,6 +46,7 @@ from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
+from .lnrouter import fee_for_edge_msat
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker
@@ -1290,22 +1291,25 @@ class Peer(Logger):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
+        outgoing_chan_upd = self.get_outgoing_gossip_channel_update_for_chan(next_chan)[2:]
+        outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         if next_chan.get_state() != 'OPEN':
             self.logger.info(f"cannot forward htlc. next_chan not OPEN: {next_chan_scid} in state {next_chan.get_state()}")
-            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=)  # FIXME data
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE,
+                                                data=outgoing_chan_upd_len+outgoing_chan_upd)
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
         if htlc.cltv_expiry - next_cltv_expiry < NBLOCK_OUR_CLTV_EXPIRY_DELTA:
-            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=)  # FIXME data
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY,
+                                                data=(htlc.cltv_expiry.to_bytes(4, byteorder="big")
+                                                      + outgoing_chan_upd_len + outgoing_chan_upd))
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         if htlc.cltv_expiry - lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS <= local_height \
                 or next_cltv_expiry <= local_height:
-            #reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON, data=)  # FIXME data
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON,
+                                                data=outgoing_chan_upd_len+outgoing_chan_upd)
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         if max(htlc.cltv_expiry, next_cltv_expiry) > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
@@ -1313,9 +1317,13 @@ class Peer(Logger):
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
-        if htlc.amount_msat - next_amount_msat_htlc < 0:  # TODO fees?
-            # reason = OnionRoutingFailureMessage(code=OnionFailureCode.FEE_INSUFFICIENT, data=)  # FIXME data
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+        forwarding_fees = fee_for_edge_msat(forwarded_amount_msat=next_amount_msat_htlc,
+                                            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
+                                            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS)
+        if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.FEE_INSUFFICIENT,
+                                                data=(next_amount_msat_htlc.to_bytes(8, byteorder="big")
+                                                      + outgoing_chan_upd_len + outgoing_chan_upd))
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
 
