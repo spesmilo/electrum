@@ -63,9 +63,9 @@ class Peer(Logger):
         self.initialized = asyncio.Event()
         self.querying = asyncio.Event()
         self.transport = transport
-        self.pubkey = pubkey
+        self.pubkey = pubkey  # remote pubkey
         self.lnworker = lnworker
-        self.privkey = lnworker.node_keypair.privkey
+        self.privkey = lnworker.node_keypair.privkey  # local privkey
         self.localfeatures = self.lnworker.localfeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
@@ -938,6 +938,7 @@ class Peer(Logger):
 
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
+        scid = format_short_channel_id(chan.short_channel_id)
         # only allow state transition to "OPEN" from "OPENING"
         if chan.get_state() != "OPENING":
             return
@@ -945,17 +946,21 @@ class Peer(Logger):
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
         asyncio.ensure_future(self.add_own_channel(chan))
-        self.logger.info("CHANNEL OPENING COMPLETED")
+        self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
+        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        if forwarding_enabled:
+            # send channel_update of outgoing edge to peer,
+            # so that channel can be used to to receive payments
+            self.logger.info(f"sending channel update for outgoing edge of {scid}")
+            chan_upd = self.get_outgoing_gossip_channel_update_for_chan(chan)
+            self.transport.send_bytes(chan_upd)
 
     async def add_own_channel(self, chan):
         # add channel to database
         bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
         sorted_node_ids = list(sorted(self.node_ids))
         if sorted_node_ids != self.node_ids:
-            node_ids = sorted_node_ids
             bitcoin_keys.reverse()
-        else:
-            node_ids = self.node_ids
         # note: we inject a channel announcement, and a channel update (for outgoing direction)
         # This is atm needed for
         # - finding routes
@@ -966,8 +971,8 @@ class Peer(Logger):
         self.channel_db.add_channel_announcement(
             {
                 "short_channel_id": chan.short_channel_id,
-                "node_id_1": node_ids[0],
-                "node_id_2": node_ids[1],
+                "node_id_1": sorted_node_ids[0],
+                "node_id_2": sorted_node_ids[1],
                 'chain_hash': constants.net.rev_genesis_bytes(),
                 'len': b'\x00\x00',
                 'features': b'',
@@ -976,28 +981,43 @@ class Peer(Logger):
             },
             trusted=True)
         # only inject outgoing direction:
-        channel_flags = b'\x00' if node_ids[0] == privkey_to_pubkey(self.privkey) else b'\x01'
-        now = int(time.time())
-        self.channel_db.add_channel_update(
-            {
-                "short_channel_id": chan.short_channel_id,
-                'channel_flags': channel_flags,
-                'message_flags': b'\x00',
-                'cltv_expiry_delta': b'\x90',
-                'htlc_minimum_msat': b'\x03\xe8',
-                'fee_base_msat': b'\x03\xe8',
-                'fee_proportional_millionths': b'\x01',
-                'chain_hash': constants.net.rev_genesis_bytes(),
-                'timestamp': now.to_bytes(4, byteorder="big")
-            })
+        chan_upd_bytes = self.get_outgoing_gossip_channel_update_for_chan(chan)
+        chan_upd_payload = decode_msg(chan_upd_bytes)[1]
+        self.channel_db.add_channel_update(chan_upd_payload)
         # peer may have sent us a channel update for the incoming direction previously
-        # note: if we were offline when the 3rd conf happened, lnd will never send us this channel_update
-        # see https://github.com/lightningnetwork/lnd/issues/1347
-        #self.send_message("query_short_channel_ids", chain_hash=constants.net.rev_genesis_bytes(),
-        #                          len=9, encoded_short_ids=b'\x00'+chan.short_channel_id)
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
             self.channel_db.add_channel_update(pending_channel_update)
+
+    def get_outgoing_gossip_channel_update_for_chan(self, chan: Channel) -> bytes:
+        if chan._outgoing_channel_update is not None:
+            return chan._outgoing_channel_update
+        sorted_node_ids = list(sorted(self.node_ids))
+        channel_flags = b'\x00' if sorted_node_ids[0] == privkey_to_pubkey(self.privkey) else b'\x01'
+        now = int(time.time())
+        htlc_maximum_msat = min(chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * chan.constraints.capacity)
+
+        chan_upd = encode_msg(
+            "channel_update",
+            short_channel_id=chan.short_channel_id,
+            channel_flags=channel_flags,
+            message_flags=b'\x01',
+            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
+            htlc_minimum_msat=chan.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
+            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
+            chain_hash=constants.net.rev_genesis_bytes(),
+            timestamp=now.to_bytes(4, byteorder="big"),
+        )
+        sighash = sha256d(chan_upd[2 + 64:])
+        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        message_type, payload = decode_msg(chan_upd)
+        payload['signature'] = sig
+        chan_upd = encode_msg(message_type, **payload)
+
+        chan._outgoing_channel_update = chan_upd
+        return chan_upd
 
     def send_announcement_signatures(self, chan: Channel):
 
