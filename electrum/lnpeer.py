@@ -390,7 +390,7 @@ class Peer(Logger):
         elif encoded[0] == 1:
             decoded = zlib.decompress(encoded[1:])
         else:
-            raise BaseException('zlib')
+            raise Exception(f'decode_short_ids: unexpected first byte: {encoded[0]}')
         ids = [decoded[i:i+8] for i in range(0, len(decoded), 8)]
         return ids
 

@@ -36,7 +36,7 @@ from .sql_db import SqlDB, sql
 from . import constants
 from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .logging import Logger
-from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr
+from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, format_short_channel_id
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 
 if TYPE_CHECKING:
@@ -430,10 +430,11 @@ class ChannelDB(SqlDB):
 
     def verify_channel_update(self, payload):
         short_channel_id = payload['short_channel_id']
+        scid = format_short_channel_id(short_channel_id)
         if constants.net.rev_genesis_bytes() != payload['chain_hash']:
             raise Exception('wrong chain hash')
         if not verify_sig_for_channel_update(payload, payload['start_node']):
-            raise BaseException('verify error')
+            raise Exception(f'failed verifying channel update for {scid}')
 
     def add_node_announcement(self, msg_payloads):
         if type(msg_payloads) is dict:
