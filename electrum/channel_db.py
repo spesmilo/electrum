@@ -92,10 +92,11 @@ class Policy(NamedTuple):
     key: bytes
     cltv_expiry_delta: int
     htlc_minimum_msat: int
-    htlc_maximum_msat: int
+    htlc_maximum_msat: Optional[int]
     fee_base_msat: int
     fee_proportional_millionths: int
     channel_flags: int
+    message_flags: int
     timestamp: int
 
     @staticmethod
@@ -107,6 +108,7 @@ class Policy(NamedTuple):
             htlc_maximum_msat           = int.from_bytes(payload['htlc_maximum_msat'], "big") if 'htlc_maximum_msat' in payload else None,
             fee_base_msat               = int.from_bytes(payload['fee_base_msat'], "big"),
             fee_proportional_millionths = int.from_bytes(payload['fee_proportional_millionths'], "big"),
+            message_flags               = int.from_bytes(payload['message_flags'], "big"),
             channel_flags               = int.from_bytes(payload['channel_flags'], "big"),
             timestamp                   = int.from_bytes(payload['timestamp'], "big")
         )
@@ -186,7 +188,7 @@ class Address(NamedTuple):
     node_id: bytes
     host: str
     port: int
-    last_connected_date: int
+    last_connected_date: Optional[int]
 
 
 class CategorizedChannelUpdates(NamedTuple):
@@ -196,6 +198,9 @@ class CategorizedChannelUpdates(NamedTuple):
     good: List        # good updates
     to_delete: List   # database entries to delete
 
+
+# TODO It would make more sense to store the raw gossip messages in the db.
+#      That is pretty much a pre-requisite of actively participating in gossip.
 
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
@@ -215,6 +220,7 @@ htlc_maximum_msat INTEGER,
 fee_base_msat INTEGER NOT NULL,
 fee_proportional_millionths INTEGER NOT NULL,
 channel_flags INTEGER NOT NULL,
+message_flags INTEGER NOT NULL,
 timestamp INTEGER NOT NULL,
 PRIMARY KEY(key)
 )"""
@@ -314,7 +320,7 @@ class ChannelDB(SqlDB):
         self.update_counts()
         self.logger.debug('add_channel_announcement: %d/%d'%(added, len(msg_payloads)))
 
-    def print_change(self, old_policy, new_policy):
+    def print_change(self, old_policy: Policy, new_policy: Policy):
         # print what changed between policies
         if old_policy.cltv_expiry_delta != new_policy.cltv_expiry_delta:
             self.logger.info(f'cltv_expiry_delta: {old_policy.cltv_expiry_delta} -> {new_policy.cltv_expiry_delta}')
@@ -328,6 +334,8 @@ class ChannelDB(SqlDB):
             self.logger.info(f'fee_proportional_millionths: {old_policy.fee_proportional_millionths} -> {new_policy.fee_proportional_millionths}')
         if old_policy.channel_flags != new_policy.channel_flags:
             self.logger.info(f'channel_flags: {old_policy.channel_flags} -> {new_policy.channel_flags}')
+        if old_policy.message_flags != new_policy.message_flags:
+            self.logger.info(f'message_flags: {old_policy.message_flags} -> {new_policy.message_flags}')
 
     def add_channel_updates(self, payloads, max_age=None, verify=True) -> CategorizedChannelUpdates:
         orphaned = []
@@ -394,7 +402,7 @@ class ChannelDB(SqlDB):
     @sql
     def save_policy(self, policy):
         c = self.conn.cursor()
-        c.execute("""REPLACE INTO policy (key, cltv_expiry_delta, htlc_minimum_msat, htlc_maximum_msat, fee_base_msat, fee_proportional_millionths, channel_flags, timestamp) VALUES (?,?,?,?,?,?, ?, ?)""", list(policy))
+        c.execute("""REPLACE INTO policy (key, cltv_expiry_delta, htlc_minimum_msat, htlc_maximum_msat, fee_base_msat, fee_proportional_millionths, channel_flags, message_flags, timestamp) VALUES (?,?,?,?,?,?,?,?,?)""", list(policy))
 
     @sql
     def delete_policy(self, node_id, short_channel_id):

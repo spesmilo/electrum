@@ -982,6 +982,7 @@ class Peer(Logger):
             {
                 "short_channel_id": chan.short_channel_id,
                 'channel_flags': channel_flags,
+                'message_flags': b'\x00',
                 'cltv_expiry_delta': b'\x90',
                 'htlc_minimum_msat': b'\x03\xe8',
                 'fee_base_msat': b'\x03\xe8',
