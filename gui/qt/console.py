@@ -20,16 +20,16 @@ class ConsoleWarningOverlay(QtWidgets.QWidget):
     STYLESHEET = '''
     QLabel, QLabel link {
         color: rgb(0, 64, 0);
-        background-color: rgb(200, 220, 200, 215);
-        border-color: rgb(16, 120, 16, 215);
+        background-color: rgba(200, 220, 200, 215);
+        border-color: rgba(16, 120, 16, 215);
     }
     '''
 
     STYLESHEET_DARK = '''
     QLabel, QLabel link {
         color: rgb(180, 220, 180);
-        background-color: rgb(3, 12, 3, 215);
-        border-color: rgb(3, 96, 3, 215);
+        background-color: rgba(3, 12, 3, 215);
+        border-color: rgba(3, 96, 3, 215);
     }
     '''
 
