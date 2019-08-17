@@ -226,12 +226,12 @@ class ElectrumGui(QObject, PrintError):
                 def undo_hack():
                     os.system(f'defaults delete {bundle} CGFontRenderingFontSmoothingDisabled')
                     self.print_error("Mojave+ font rendering workaround applied.")
-                    msg = _("Mojave or newer system detected, however you are running the "
-                            "El Capitan compatibility release of Electron Cash. "
-                            "Font and graphics rendering may be affected."
-                            "\n\nPlease obtain the latest non-compatibility version "
-                            "of Electron Cash for MacOS.")
-                    QMessageBox.warning(None, _("Warning"), msg)  # this works even if app is not exec_() yet.
+                    #msg = _("Mojave or newer system detected, however you are running the "
+                    #        "El Capitan compatibility release of Electron Cash. "
+                    #        "Font and graphics rendering may be affected."
+                    #        "\n\nPlease obtain the latest non-compatibility version "
+                    #        "of Electron Cash for MacOS.")
+                    #QMessageBox.warning(None, _("Warning"), msg)  # this works even if app is not exec_() yet.
 
                 callables.append(undo_hack)
 

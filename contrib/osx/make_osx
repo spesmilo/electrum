@@ -6,15 +6,22 @@ test -n "$build_dir" -a -d "$build_dir" || (echo "Cannot determine build dir. FI
 . "$build_dir"/../base.sh # functions we use below
 
 OSX_COMPAT=""
-DARWIN_VER=$(uname -r | cut -f 1 -d .)
-if ((DARWIN_VER < 15)); then
-    fail "Minimum OSX El Capitan is required to build"
-elif ((DARWIN_VER == 15)); then
-    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
-    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
-    OSX_COMPAT="-elcapitan"
-    info "Building for El Capitan (compatibility version)"
-fi
+# This mechanism has been disabled for now becasue Qt 5.12.x & Qt 5.13.0 have
+# some bugs still on all macOS (QPushButtons not always sending clicks through).
+# For now we use the requirements-binaries-elcapitan.txt always, which uses
+# PyQt5.11 (which works better on macOS before Mojave and not perfectly but
+# acceptably on Mojave).
+#DARWIN_VER=$(uname -r | cut -f 1 -d .)
+#if ((DARWIN_VER < 15)); then
+#    fail "Minimum OSX El Capitan is required to build"
+#elif ((DARWIN_VER == 15)); then
+#    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
+#    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
+#    OSX_COMPAT="-elcapitan"
+#    info "Building for El Capitan (compatibility version)"
+#fi
+#REQUIREMENTS_BINARIES="requirements-binaries${OSX_COMPAT}.txt"
+REQUIREMENTS_BINARIES="requirements-binaries-elcapitan.txt"  # hard-coded for now, uses PyQt5.11
 
 function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     infoName="$1"
@@ -168,9 +175,8 @@ popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
 
 info "Installing requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries${OSX_COMPAT}.txt --user || \
-fail "Could not install requirements"
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || fail "Could not install requirements"
+python3 -m pip install -Ir ./contrib/deterministic-build/${REQUIREMENTS_BINARIES} --user || fail "Could not install binary requirements"
 
 info "Installing hardware wallet requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
