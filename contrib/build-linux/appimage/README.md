@@ -8,7 +8,7 @@ This assumes an Ubuntu host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
 folder.
 
-1. Install Docker
+1. Install Docker  (Ubuntu instructions -- other platforms vary)
 
     ```
     $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -17,32 +17,15 @@ folder.
     $ sudo apt-get install -y docker-ce
     ```
 
-2. Build image
+2. Build binary
 
     ```
-    $ sudo docker build --no-cache -t electroncash-appimage-builder-img \
-        -f contrib/build-linux/appimage/Dockerfile_ub1404 \
-        contrib/build-linux/appimage
-    ```
-
-    _Note:_ If you are using a MacOS host, run the above **without** `sudo`.
-    _Note 2:_ If you want to build an Ubuntu 18.04 based image, replace `Dockerfile_ub1404` above with `Dockerfile_ub1804`
-
-3. Build binary
-
-    ```
-    $ sudo docker run -it \
-        --name electroncash-appimage-builder-cont \
-        -v $PWD:/opt/electroncash \
-        --rm \
-        --workdir /opt/electroncash/contrib/build-linux/appimage \
-        electroncash-appimage-builder-img \
-        ./_build.sh REVISION_TAG_OR_BRANCH_OR_COMMIT_TAG
+    $ sudo contrib/build-linux/appimage/build.sh REVISION_TAG_OR_BRANCH_OR_COMMIT_TAG
     ```
 
     _Note:_ If you are using a MacOS host, run the above **without** `sudo`.
 
-4. The generated .AppImage binary is in `./dist`.
+3. The generated .AppImage binary is in `./dist`.
 
 
 ## FAQ
