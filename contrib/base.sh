@@ -115,8 +115,8 @@ function retry() {
 export PYTHONHASHSEED=22
 # Note, when upgrading Python, check the Windows python.exe embedded manifest for changes.
 # If the manifest changed, contrib/build-wine/manifest.xml needs to be updated.
-PYTHON_VERSION=3.6.8  # Windows, OSX & Linux AppImage use this to determine what to download/build
-PYTHON_SRC_TARBALL_HASH="35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
+PYTHON_VERSION=3.6.9  # Windows, OSX & Linux AppImage use this to determine what to download/build
+PYTHON_SRC_TARBALL_HASH="5e2f5f554e3f8f7f0296f7e73d8600c4e9acbaee6b2555b83206edf5153870da"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
 DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
 if [ -z "$GIT_REPO" ] ; then
     # If no override from env is present, use default. Support for overrides
