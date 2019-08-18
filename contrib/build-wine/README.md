@@ -20,8 +20,3 @@ user.
 
 The built .exe files will be placed in: `dist/`
 
----
-
-Alternatively, you may follow the instructions in the `docker/` subfolder here:
-
-- [docker/README.md](docker/README.md)
