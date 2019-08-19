@@ -38,7 +38,6 @@ import jsonrpcclient
 import jsonrpcserver
 from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 
-from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .wallet import Wallet, Abstract_Wallet
@@ -46,7 +45,6 @@ from .storage import WalletStorage
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
-from .plugin import run_hook
 from .logging import get_logger, Logger
 
 
@@ -243,7 +241,7 @@ class Daemon(Logger):
         self.methods.add(self.ping)
         self.methods.add(self.gui)
         self.methods.add(self.daemon)
-        self.cmd_runner = Commands(self.config, None, self.network)
+        self.cmd_runner = Commands(self.config, None, self.network, self)
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
         self.methods.add(self.run_cmdline)
@@ -263,46 +261,9 @@ class Daemon(Logger):
     async def daemon(self, config_options):
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
+        assert sub in [None, 'start', 'stop']
         if sub in [None, 'start']:
             response = "Daemon already running"
-        elif sub == 'load_wallet':
-            path = config.get_wallet_path()
-            wallet = self.load_wallet(path, config.get('password'))
-            if wallet is not None:
-                self.cmd_runner.wallet = wallet
-                run_hook('load_wallet', wallet, None)
-            response = wallet is not None
-        elif sub == 'close_wallet':
-            path = config.get_wallet_path()
-            path = standardize_path(path)
-            if path in self.wallets:
-                self.stop_wallet(path)
-                response = True
-            else:
-                response = False
-        elif sub == 'status':
-            if self.network:
-                net_params = self.network.get_parameters()
-                current_wallet = self.cmd_runner.wallet
-                current_wallet_path = current_wallet.storage.path \
-                                      if current_wallet else None
-                response = {
-                    'path': self.network.config.path,
-                    'server': net_params.host,
-                    'blockchain_height': self.network.get_local_height(),
-                    'server_height': self.network.get_server_height(),
-                    'spv_nodes': len(self.network.get_interfaces()),
-                    'connected': self.network.is_connected(),
-                    'auto_connect': net_params.auto_connect,
-                    'version': ELECTRUM_VERSION,
-                    'wallets': {k: w.is_up_to_date()
-                                for k, w in self.wallets.items()},
-                    'current_wallet': current_wallet_path,
-                    'fee_per_kb': self.config.fee_per_kb(),
-                }
-            else:
-                response = "Daemon offline"
         elif sub == 'stop':
             self.stop()
             response = "Daemon stopped"
@@ -382,7 +343,7 @@ class Daemon(Logger):
             path = standardize_path(path)
             wallet = self.wallets.get(path)
             if wallet is None:
-                return {'error': 'Wallet "%s" is not loaded. Use "electrum daemon load_wallet"'%os.path.basename(path) }
+                return {'error': 'Wallet "%s" is not loaded. Use "electrum load_wallet"'%os.path.basename(path) }
         else:
             wallet = None
         # arguments passed to function
@@ -393,7 +354,7 @@ class Daemon(Logger):
         kwargs = {}
         for x in cmd.options:
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
-        cmd_runner = Commands(config, wallet, self.network)
+        cmd_runner = Commands(config, wallet, self.network, self)
         func = getattr(cmd_runner, cmd.name)
         try:
             result = await func(*args, **kwargs)

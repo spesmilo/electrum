@@ -43,8 +43,11 @@ if [[ $1 == "init" ]]; then
     $bob create > /dev/null
     $carol create > /dev/null
     $alice setconfig log_to_file True
-    $bob setconfig log_to_file True
+    $bob   setconfig log_to_file True
     $carol setconfig log_to_file True
+    $alice setconfig server 127.0.0.1:51001:t
+    $bob   setconfig server 127.0.0.1:51001:t
+    $carol setconfig server 127.0.0.1:51001:t
     $bob setconfig lightning_listen localhost:9735
     $bob setconfig lightning_forward_payments true
     echo "funding alice and carol"
@@ -55,20 +58,20 @@ fi
 
 # start daemons. Bob is started first because he is listening
 if [[ $1 == "start" ]]; then
-    $bob daemon -s 127.0.0.1:51001:t start
-    $alice daemon -s 127.0.0.1:51001:t start
-    $carol daemon -s 127.0.0.1:51001:t start
+    $bob daemon start
+    $alice daemon start
+    $carol daemon start
     sleep 1 # time to accept commands
-    $bob daemon load_wallet
-    $alice daemon load_wallet
-    $carol daemon load_wallet
+    $bob load_wallet
+    $alice load_wallet
+    $carol load_wallet
     sleep 10 # give time to synchronize
 fi
 
 if [[ $1 == "stop" ]]; then
-    $alice daemon stop || true
-    $bob daemon stop || true
-    $carol daemon stop || true
+    $alice stop || true
+    $bob stop || true
+    $carol stop || true
 fi
 
 if [[ $1 == "open" ]]; then
@@ -129,10 +132,10 @@ if [[ $1 == "breach" ]]; then
 fi
 
 if [[ $1 == "redeem_htlcs" ]]; then
-    $bob daemon stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon -s 127.0.0.1:51001:t start
+    $bob stop
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon start
     sleep 1
-    $bob daemon load_wallet
+    $bob load_wallet
     sleep 1
     # alice opens channel
     bob_node=$($bob nodeid)
@@ -149,7 +152,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
         exit 1
     fi
     # bob goes away
-    $bob daemon stop
+    $bob stop
     echo "alice balance before closing channel:" $($alice getbalance)
     balance_before=$($alice getbalance | jq '[.confirmed, .unconfirmed, .lightning] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
     # alice force closes the channel
@@ -177,10 +180,10 @@ fi
 
 
 if [[ $1 == "breach_with_unspent_htlc" ]]; then
-    $bob daemon stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    $bob stop
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
     sleep 1
-    $bob daemon load_wallet
+    $bob load_wallet
     wait_until_funded
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -205,24 +208,24 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     echo $($bob getbalance)
     echo "alice breaches with old ctx"
     echo $ctx
-    height1=$($bob daemon status | jq '.blockchain_height')
+    height1=$($bob getinfo | jq '.blockchain_height')
     $bitcoin_cli sendrawtransaction $ctx
     new_blocks 1
     # wait until breach is confirmed
-    while height2=$($bob daemon status | jq '.blockchain_height') && [ $(($height2 - $height1)) -ne 1 ]; do
+    while height2=$($bob getinfo | jq '.blockchain_height') && [ $(($height2 - $height1)) -ne 1 ]; do
         echo "waiting for block"
         sleep 1
     done
     new_blocks 1
     # wait until next block is confirmed, so that htlc tx and redeem tx are confirmed too
-    while height3=$($bob daemon status | jq '.blockchain_height') && [ $(($height3 - $height2)) -ne 1 ]; do
+    while height3=$($bob getinfo | jq '.blockchain_height') && [ $(($height3 - $height2)) -ne 1 ]; do
         echo "waiting for block"
         sleep 1
     done
     # wait until wallet is synchronized
-    while b=$($bob daemon status | jq '.wallets | ."/tmp/bob/regtest/wallets/default_wallet"') && [ "$b" != "true" ]; do
-  echo "waiting for wallet sync $b"
-  sleep 1
+    while b=$($bob list_wallets | jq '.[0]|.synchronized') && [ "$b" != "true" ]; do
+        echo "waiting for wallet sync: $b"
+        sleep 1
     done
     echo $($bob getbalance)
     balance_after=$($bob getbalance | jq '[.confirmed, .unconfirmed] | to_entries | map(select(.value != null).value) | map(tonumber) | add ')
@@ -234,10 +237,10 @@ fi
 
 
 if [[ $1 == "breach_with_spent_htlc" ]]; then
-    $bob daemon stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -s 127.0.0.1:51001:t start
+    $bob stop
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
     sleep 1
-    $bob daemon load_wallet
+    $bob load_wallet
     wait_until_funded
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -262,7 +265,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     fi
     echo $($bob getbalance)
     echo "bob goes offline"
-    $bob daemon stop
+    $bob stop
     ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     new_blocks 1
@@ -275,11 +278,11 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
     new_blocks 150
     echo "alice spends to_local and htlc outputs"
-    $alice daemon stop
+    $alice stop
     cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
-    $alice daemon -s 127.0.0.1:51001:t start
+    $alice daemon start
     sleep 1
-    $alice daemon load_wallet
+    $alice load_wallet
     # wait until alice has spent both ctx outputs
     while [[ $($bitcoin_cli gettxout $ctx_id 0) ]]; do
         echo "waiting until alice spends ctx outputs"
@@ -291,9 +294,9 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     done
     new_blocks 1
     echo "bob comes back"
-    $bob daemon -s 127.0.0.1:51001:t start
+    $bob daemon start
     sleep 1
-    $bob daemon load_wallet
+    $bob load_wallet
     while [[ $($bitcoin_cli getmempoolinfo | jq '.size') != "1" ]]; do
         echo "waiting for bob's transaction"
         sleep 1
@@ -311,15 +314,15 @@ fi
 
 if [[ $1 == "watchtower" ]]; then
     # carol is a watchtower of alice
-    $alice daemon stop
-    $carol daemon stop
+    $alice stop
+    $carol stop
     $alice setconfig watchtower_url http://127.0.0.1:12345
     $carol setconfig watchtower_host 127.0.0.1
     $carol setconfig watchtower_port 12345
-    $carol daemon -s 127.0.0.1:51001:t start
-    $alice daemon -s 127.0.0.1:51001:t start
+    $carol daemon start
+    $alice daemon start
     sleep 1
-    $alice daemon load_wallet
+    $alice load_wallet
     echo "waiting until alice funded"
     wait_until_funded
     echo "alice opens channel"

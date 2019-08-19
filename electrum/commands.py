@@ -50,6 +50,9 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnpeer import channel_id_from_funding_tx
+from .plugin import run_hook
+from .version import ELECTRUM_VERSION
+
 
 if TYPE_CHECKING:
     from .network import Network
@@ -105,10 +108,12 @@ def command(s):
 
 class Commands:
 
-    def __init__(self, config: 'SimpleConfig', wallet: Abstract_Wallet,
-                 network: Optional['Network'], callback=None):
+    def __init__(self, config: 'SimpleConfig',
+                 wallet: Abstract_Wallet,
+                 network: Optional['Network'], daemon=None, callback=None):
         self.config = config
         self.wallet = wallet
+        self.daemon = daemon
         self.network = network
         self._callback = callback
         self.lnworker = self.wallet.lnworker if self.wallet else None
@@ -139,6 +144,58 @@ class Commands:
     async def commands(self):
         """List of commands"""
         return ' '.join(sorted(known_commands.keys()))
+
+    @command('n')
+    async def getinfo(self):
+        """ network info """
+        net_params = self.network.get_parameters()
+        response = {
+            'path': self.network.config.path,
+            'server': net_params.host,
+            'blockchain_height': self.network.get_local_height(),
+            'server_height': self.network.get_server_height(),
+            'spv_nodes': len(self.network.get_interfaces()),
+            'connected': self.network.is_connected(),
+            'auto_connect': net_params.auto_connect,
+            'version': ELECTRUM_VERSION,
+            'default_wallet': self.config.get_wallet_path(),
+            'fee_per_kb': self.config.fee_per_kb(),
+        }
+        return response
+
+    @command('n')
+    async def stop(self):
+        """Stop daemon"""
+        self.daemon.stop()
+        return "Daemon stopped"
+
+    @command('n')
+    async def list_wallets(self):
+        """List wallets open in daemon"""
+        return [{'path':k, 'synchronized':w.is_up_to_date()} for k, w in self.daemon.wallets.items()]
+
+    @command('n')
+    async def load_wallet(self):
+        """Open wallet in daemon"""
+        path = self.config.get_wallet_path()
+        wallet = self.daemon.load_wallet(path, self.config.get('password'))
+        if wallet is not None:
+            self.wallet = wallet
+            run_hook('load_wallet', wallet, None)
+        response = wallet is not None
+        return response
+
+    @command('n')
+    async def close_wallet(self):
+        """Close wallet"""
+        path = self.config.get_wallet_path()
+        path = standardize_path(path)
+        if path in self.wallets:
+            self.stop_wallet(path)
+            response = True
+        else:
+            response = False
+        return response
 
     @command('')
     async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None):
