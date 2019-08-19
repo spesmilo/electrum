@@ -607,6 +607,8 @@ class WizardDialog(EventsDialog):
     def on_keyboard(self, instance, key, keycode, codepoint, modifier):
         if key == 27:
             if self.wizard.can_go_back():
+                self._on_release = True
+                self.dismiss()
                 self.wizard.go_back()
             else:
                 app = App.get_running_app()
@@ -631,7 +633,7 @@ class WizardDialog(EventsDialog):
 
     def on_release(self, button):
         self._on_release = True
-        self.close()
+        self.dismiss()
         if not button:
             self.parent.dispatch('on_wizard_complete', None)
             return
