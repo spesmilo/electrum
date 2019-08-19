@@ -3,7 +3,6 @@ ecdsa>=0.13
 qrcode
 protobuf
 dnspython
-jsonrpclib-pelix
 qdarkstyle<2.7
 aiorpcx>=0.18,<0.19
 aiohttp>=3.3.0

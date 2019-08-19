@@ -61,7 +61,6 @@ def check_imports():
         import certifi
         import qrcode
         import google.protobuf
-        import jsonrpclib
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
@@ -70,7 +69,6 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
-    from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
     assert os.path.exists(certifi.where())
 
