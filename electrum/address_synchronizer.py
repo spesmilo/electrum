@@ -685,6 +685,8 @@ class AddressSynchronizer(PrintError):
             for n, v, a, cb in d:
                 if n == prevout_n:
                     if a == constants.net.WHITELISTASSET:
+                        if hasattr(d, script) != True:
+                            continue
                         datatype, payload = transaction.get_data_from_policy_output_script(d.script)
                         if datatype != TYPE_DATA:
                             continue
