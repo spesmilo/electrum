@@ -159,7 +159,7 @@ def init_cmdline(config_options, server):
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
+    if (cmd.requires_wallet and storage.is_encrypted() and server is False)\
        or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
