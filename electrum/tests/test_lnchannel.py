@@ -741,6 +741,8 @@ class TestChanReserve(unittest.TestCase):
         # Resulting balances:
         #	Alice:	3.0
         #	Bob:	7.0
+        paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(paymentPreimage)
         htlc_dict = {
             'payment_hash' : paymentHash,
             'amount_msat' :  int(2 * one_bitcoin_in_msat),

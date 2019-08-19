@@ -38,6 +38,7 @@ from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
+from .util import standardize_path
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .bip32 import BIP32Node

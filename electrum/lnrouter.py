@@ -128,7 +128,7 @@ class LNPathFinder(Logger):
         """Heuristic cost of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
         """
-        channel_info = self.channel_db.get_channel_info(short_channel_id)  # type: ChannelInfo
+        channel_info = self.channel_db.get_channel_info(short_channel_id)
         if channel_info is None:
             return float('inf'), 0
         channel_policy = self.channel_db.get_policy_for_node(short_channel_id, start_node)
