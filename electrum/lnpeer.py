@@ -272,7 +272,8 @@ class Peer(Logger):
                 orphaned = categorized_chan_upds.orphaned
                 if orphaned:
                     self.logger.info(f'adding {len(orphaned)} unknown channel ids')
-                    await self.network.lngossip.add_new_ids(orphaned)
+                    orphaned_ids = [c['short_channel_id'] for c in orphaned]
+                    await self.network.lngossip.add_new_ids(orphaned_ids)
                     # Save (some bounded number of) orphan channel updates for later
                     # as it might be for our own direct channel with this peer
                     # (and we might not yet know the short channel id for that)
@@ -770,7 +771,9 @@ class Peer(Logger):
         # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
         # e.g. for watchtowers, hence we must ensure these ctxs coincide.
         # We replay the local updates even if they were not yet committed.
-        for ctn, messages in chan.hm.get_unacked_local_updates():
+        unacked = chan.hm.get_unacked_local_updates()
+        self.logger.info(f'replaying {len(unacked)} unacked messages')
+        for ctn, messages in unacked.items():
             for raw_upd_msg in messages:
                 self.transport.send_bytes(raw_upd_msg)
 
