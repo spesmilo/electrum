@@ -464,6 +464,7 @@ class ReceiveScreen(CScreen):
             req = self.app.wallet.make_payment_request(addr, amount, message, expiration)
             self.app.wallet.add_payment_request(req, self.app.electrum_config)
             key = addr
+        self.update()
         self.app.show_request(lightning, key)
 
     def get_card(self, req):
@@ -494,7 +495,6 @@ class ReceiveScreen(CScreen):
         return ci
 
     def update(self):
-        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
         requests_container = self.screen.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list]
