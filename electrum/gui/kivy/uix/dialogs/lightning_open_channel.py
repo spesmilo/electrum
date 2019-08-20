@@ -2,7 +2,6 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from electrum.gui.kivy.i18n import _
 from electrum.lnaddr import lndecode
-from electrum.gui.kivy.uix.dialogs.choice_dialog import ChoiceDialog
 from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
