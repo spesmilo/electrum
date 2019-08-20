@@ -315,6 +315,7 @@ class SendScreen(CScreen):
             return
         if success:
             self.app.show_info(_('Payment was sent'))
+            self.app._trigger_update_history()
         else:
             self.app.show_error(_('Payment failed'))
 
@@ -408,6 +409,7 @@ class ReceiveScreen(CScreen):
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
+        self.expiration = self.app.electrum_config.get('request_expiration', 3600) # 1 hour
 
     def clear(self):
         self.screen.address = ''
@@ -450,7 +452,7 @@ class ReceiveScreen(CScreen):
         amount = self.screen.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.screen.message
-        expiration = 3600 # 1 hour
+        expiration = self.expiration
         if lightning:
             payment_hash = self.app.wallet.lnworker.add_invoice(amount, message)
             request, direction, is_paid = self.app.wallet.lnworker.invoices.get(payment_hash.hex())
@@ -497,17 +499,34 @@ class ReceiveScreen(CScreen):
     def update(self):
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
         requests_container = self.screen.ids.requests_container
-        requests_container.data = [self.get_card(item) for item in _list]
+        requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
 
     def do_show(self, obj):
         self.hide_menu()
         self.app.show_request(obj.is_lightning, obj.key)
 
+    def expiration_dialog(self, obj):
+        from .dialogs.choice_dialog import ChoiceDialog
+        choices = {
+            10*60: _('10 minutes'),
+            60*60: _('1 hour'),
+            24*60*60: _('1 day'),
+            7*24*60*60: _('1 week')
+        }
+        def callback(c):
+            self.expiration = c
+            self.app.electrum_config.set_key('request_expiration', c)
+        d = ChoiceDialog(_('Expiration date'), choices, self.expiration, callback)
+        d.open()
+
     def do_delete(self, req):
         from .dialogs.question import Question
         def cb(result):
             if result:
-                self.app.wallet.remove_payment_request(req.address, self.app.electrum_config)
+                if req.is_lightning:
+                    self.app.wallet.lnworker.delete_invoice(req.key)
+                else:
+                    self.app.wallet.remove_payment_request(req.key, self.app.electrum_config)
                 self.hide_menu()
                 self.update()
         d = Question(_('Delete request'), cb)

@@ -145,9 +145,11 @@ ReceiveScreen:
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: root.show_list = not root.show_list
-		#Clock.schedule_once(lambda dt: app.requests_dialog(s))
-            Widget:
+            IconButton:
+                icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
                 size_hint: 0.5, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
             Button:
                 text: _('Clear')
                 size_hint: 1, None
