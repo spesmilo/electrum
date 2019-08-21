@@ -290,11 +290,11 @@ class ECPubkey(object):
             assert(type(ephemeral) == ECPrivkey)
         ecdh_key = self.ecdh(ephemeral.secret_scalar)
         key = hashlib.sha512(ecdh_key).digest()
-        iv = hashlib.sha1(key).digest()[:16]
+        iv = bytes(os.urandom(16))
         key_e, key_m = key[0:32], key[32:]
         ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = ephemeral.get_public_key_bytes(compressed=True)
-        encrypted = magic + ephemeral_pubkey + ciphertext
+        encrypted = magic + ephemeral_pubkey + iv + ciphertext
         mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
         return encode(encrypted + mac)
@@ -425,12 +425,14 @@ class ECPrivkey(ECPubkey):
 
     def decrypt_message(self, encrypted, magic=b'BIE1', get_ephemeral=False, decode=base64.b64decode, ephemeral_pubkey_bytes:bytes=None):
         encrypted = decode(encrypted)
-        if len(encrypted) < 85:
+        if len(encrypted) < 101:
             raise Exception('invalid ciphertext: length')
         magic_found = encrypted[:4]
         if ephemeral_pubkey_bytes == None:
             ephemeral_pubkey_bytes = encrypted[4:37]
-        ciphertext = encrypted[37:-32]
+
+        iv = encrypted[37:53]
+        ciphertext = encrypted[53:-32]
         mac = encrypted[-32:]
         if magic_found != magic:
             raise Exception('invalid ciphertext: invalid magic bytes')
@@ -443,7 +445,6 @@ class ECPrivkey(ECPubkey):
         ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
         ecdh_key = ephemeral_pubkey.ecdh(self.secret_scalar)
         key = hashlib.sha512(ecdh_key).digest()
-        iv = hashlib.sha1(key).digest()[:16]
         key_e, key_m = key[0:32], key[32:]
         if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()

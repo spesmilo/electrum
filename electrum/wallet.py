@@ -1416,7 +1416,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return True
 
-    def parse_ratx_addresses(self, data):
+    def parse_ratx_addresses(self, data, registered_state=True):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
@@ -1461,14 +1461,16 @@ class Abstract_Wallet(AddressSynchronizer):
                         break
 
             addrbytes=bytes(data[i1:i2])
-
-            addrs.append(hash160_to_b58_address(addrbytes, addrType))
+            addr=hash160_to_b58_address(addrbytes, addrType)
+            if not is_mine(addr):
+                return
+            addrs.append(addr)
 
             #Calculate the number of bytes in the current segment so we know where to read the next address
             nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
 
         self.set_pending_state(addrs, False)
-        self.set_registered_state(addrs, True)
+        self.set_registered_state(addrs, registered_state)
 
     def get_zero_address(self):
         return hash160_to_b58_address(bytearray.fromhex('0'*40) , constants.net.ADDRTYPE_P2PKH)
@@ -1481,7 +1483,7 @@ class Abstract_Wallet(AddressSynchronizer):
             transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
             if len(decoded) is not 0:
                 txtype=decoded['type']
-                if txtype == 'registeraddress':
+                if txtype == 'registeraddress' or txtype == 'deregisteraddress':
                     data=decoded['data']
                     break
                 else:
@@ -1490,11 +1492,13 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        if self.parse_onboard_data(data, parent_window):
-            return True
-
-        if self.parse_registeraddress_data(data, tx, parent_window):
-            return True
+        if txtype == 'registeraddress' and constants.net.ENCRYPTED_WHITELIST:
+            if self.parse_onboard_data(data, parent_window):
+                return True
+            if self.parse_registeraddress_data(data, tx, parent_window):
+                return True
+        else:
+            return self.parse_ratx_addresses(data, txtype != 'deregisteraddress'))
 
         return False
 
