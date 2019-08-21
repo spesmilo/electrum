@@ -183,7 +183,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
-      
+
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -660,7 +660,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def is_registered(self, addr):
         return addr in self.registered_addresses
-        
+
     def get_pending_addresses(self):
         return self.pending_addresses
 
@@ -685,7 +685,7 @@ class Abstract_Wallet(AddressSynchronizer):
             self.storage.put('registered_addresses', list(self.registered_addresses))
             return True
         return False
-        
+
     def set_pending_state(self, addrs, pend: bool):
         '''Set pending state of the addresses to STATE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
@@ -911,7 +911,7 @@ class Abstract_Wallet(AddressSynchronizer):
         addrs = self.get_unused_encryption_addresses()
         if addrs:
             return addrs[0]
-        
+
 
     def get_unused_encryption_addresses(self):
         domain = self.get_encryption_addresses()
@@ -1332,11 +1332,11 @@ class Abstract_Wallet(AddressSynchronizer):
             if self.is_mine(address):
                 fromAddress=address
                 break
-            
+
         if fromAddress == None:
             return False
 
-        
+
 
         password=None
         if self.storage.is_encrypted() or self.storage.get('use_encryption'):
@@ -1350,8 +1350,8 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return False
 
-        try: 
-            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)   
+        try:
+            fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
             fromKey=ecc.ECPrivkey(secret_bytes)
         except Exception:
@@ -1376,6 +1376,7 @@ class Abstract_Wallet(AddressSynchronizer):
         i2=33
         if(len(data)<2*pubKeySize+minPayloadSize):
             return False
+
         kyc_pubkey=data[i1:i2]
         #Check if this is a onboarding TX
         try:
@@ -1386,7 +1387,7 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         i1=i2
         i2+=33
-        userOnboardPubKey = data[i1:i2]         
+        userOnboardPubKey = data[i1:i2]
         try:
             _userOnboardPubKey=ecc.ECPubkey(userOnboardPubKey)
         except InvalidECPointException:
@@ -1412,7 +1413,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
         self.set_onboard_address(onboardAddress)
-        
+
         return True
 
     def parse_ratx_addresses(self, data):
@@ -1465,13 +1466,16 @@ class Abstract_Wallet(AddressSynchronizer):
 
             #Calculate the number of bytes in the current segment so we know where to read the next address
             nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
-        
+
         self.set_pending_state(addrs, False)
         self.set_registered_state(addrs, True)
 
+    def get_zero_address(self):
+        return hash160_to_b58_address(bytearray.fromhex('0'*40) , constants.net.ADDRTYPE_P2PKH)
+
     def parse_registeraddress_tx(self, tx: transaction.Transaction, parent_window):
         decoded=dict()
-        data=None       
+        data=None
         outputs = tx.outputs()
         for output in outputs:
             transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
@@ -1580,7 +1584,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_receiving_addresses(self):
         return self.get_addresses()
 
-    def get_change_addresses(self):
+    def get_change_addresses(self, whitelistedOnly=False):
         return []
 
     def import_address(self, address):
@@ -1812,7 +1816,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             if for_encryption:
                 addresses=self.get_encryption_addresses()
             elif for_change:
-                addresses = self.get_change_addresses() 
+                addresses = self.get_change_addresses()
             else:
                 addresses = self.get_receiving_addresses()
 
@@ -1841,7 +1845,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             is_change=False
             addr_list = self.get_encryption_addresses()
         elif is_change:
-            addr_list = self.get_change_addresses() 
+            addr_list = self.get_change_addresses()
         else:
             addr_list = self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
@@ -1930,18 +1934,18 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
         if address == None:
-            return "No wallet encryption keys available."
+            return False, "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
-        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)   
+        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)
         txin_type = self.get_txin_type(address)
         txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
         onboardUserKey=ecc.ECPrivkey(secret_bytes)
         # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
-      
+
         onboardPubKey=self.get_unassigned_kyc_pubkey()
         if onboardPubKey is None:
-            return "No unassigned KYC public keys available."
+            return False, "No unassigned KYC public keys available. Please ensure that the wallet is connected to the network."
 
         ss = StringIO()
 
@@ -1955,18 +1959,18 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
             ss.write("\n")
 
         #Encrypt the addresses string
-        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+        encrypted = ecc.ECPubkey(bfh(onboardPubKey)).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
 
         ss2 = StringIO()
         str_encrypted=str(encrypted)
         #Remove the b'' characters (first 2 and last characters)
         str_encrypted=str_encrypted[2:]
         str_encrypted=str_encrypted[:-1]
-        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write("{} {} {}\n".format(onboardPubKey, ''.join(onboardUserPubKey), str(len(str_encrypted))))
         ss2.write(str_encrypted)
         kyc_string=ss2.getvalue()
 
-        return kyc_string
+        return True, kyc_string
 
     def dumpkycfile(self, filename=None, password=None):
         kycfile_string = self.get_kyc_string(password)

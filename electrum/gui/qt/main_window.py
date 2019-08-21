@@ -30,6 +30,7 @@ import csv
 from decimal import Decimal as Decimalf
 import base64
 from functools import partial
+from pathlib import Path
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -65,7 +66,7 @@ from .util import *
 from .installwizard import WIF_HELP_TEXT
 from electrum.transaction import Transaction, TxOutput, TYPE_SCRIPT
 
-        
+
 
 
 
@@ -135,7 +136,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 5)
+        self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
@@ -1513,7 +1514,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return None
 
         kyc_pubkey = bfh(kyc_pubkey)
-        
+
 
         label = 'registeraddresstx'
 
@@ -1536,10 +1537,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         password = None
         if self.wallet.has_keystore_encryption():
             password = self.password_dialog(msg)
-        
+
         txn_type='p2pkh'
         try:
-            inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)   
+            inputKey_serialized, redeem_script=self.wallet.export_private_key(pay_from_address, password)
         except WalletFileException:
             return False
 
@@ -1556,7 +1557,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not outputs:
             self.show_error(_('No outputs'))
             return
-       
+
         amount=self.feerate_e.get_amount()
         amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
         fee_estimator = partial(
@@ -1579,7 +1580,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if r is None:
             return
-        
+
         outputs, fee_estimator, tx_desc = r
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, pay_from_coins, True, True)
 
@@ -1592,7 +1593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         outputs, fee_estimator, tx_desc, coins = r
         self.make_transaction_and_send(outputs, fee_estimator, tx_desc, coins, preview)
 
-    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False, b_allow_zerospend: bool=False):    
+    def make_transaction_and_send(self, outputs, fee_estimator, tx_desc, coins, preview = False, b_allow_zerospend: bool=False):
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
@@ -1842,7 +1843,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.set_registered_state(addrs, reg)
         self.address_list.update()
         self.utxo_list.update()
-        self.update_fee() 
+        self.update_fee()
 
     def set_pending_state(self, addrs, pending):
         self.wallet.set_pending_state(addrs, pending)
@@ -2354,13 +2355,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         coin_vals = list(coins)
         fee_estimator = 0
         tx_desc = 'Redemption transaction'
-        addr = self.wallet.get_unused_address()
+        if self.wallet.wallet_type == 'imported':
+            addr = self.wallet.get_receiving_addresses()[0]
+        else:
+            addr = self.wallet.get_unused_address()
         out_type = TYPE_ADDRESS
         outputs = []
-        if constants.net.TESTNET:
-            zero_addr = '2dZRkPX3hrPtuBrmMkbGtxTxsuYYgAaFrXZ'
-        else:
-            zero_addr = '1111111111111111111114oLvT2'
+        zero_addr = self.wallet.get_zero_address()
         lock_output = TxOutput(out_type,zero_addr,0,1,coin_vals[0]['asset'],1)
         outputs.append(lock_output)
 
@@ -2473,6 +2474,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = PasswordDialog(parent, msg)
         return d.run()
 
+    def file_overwrite_dialog(self, msg=None, parent=None):
+        from .file_overwrite_dialog import FileOverwriteDialog
+        parent = parent or self
+        d = FileOverwriteDialog(parent, msg)
+        return d.run()
+
     def tx_from_text(self, txt):
         from electrum.transaction import tx_from_str
         try:
@@ -2554,28 +2561,39 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("This is a watching-only wallet"))
             return
 
-        kycfileString=self.wallet.get_kyc_string(password)
-        if kycfileString == None:
-            self.show_critical(txt, title=_("Unable to encrypt kyc data"))
-
+        kycSuccess, kycfileString=self.wallet.get_kyc_string(password)
+        if not kycSuccess:
+            txt = "\n".join([
+                _("Unable to export KYC file."),
+                str(kycfileString)
+            ])
+            self.show_critical(txt, title=_("Unable to export KYC file"))
+            return
 
         d = WindowModalDialog(self, _('Register wallet'))
         d.setMinimumSize(980, 300)
         vbox = QVBoxLayout(d)
 
-        msg = "%s\n%s\n%s\n%s\n%s\n%s" % (_("Your addresses and public keys will be exported to an encrypted KYC file, readable only by DGLD and this wallet."),
-                              _("Your private keys will not be exported."),
+        msg = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (_("Your addresses and public keys will be exported to an encrypted KYC file, readable only by DGLD and this wallet."),
+                                          _("Your private keys will not be exported."),
                               _(""),
                               _("You agree to the terms and conditions, the SHA256 hash of which will be embedded in the exported addresses"),
                               _(""),
-                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."))
-        
+                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."),
+                              _(""),
+                              _("Click \'Export\' to save the file.")
+        )
+
         vbox.addWidget(QLabel(msg))
 
-        defaultname = 'kycfile.dat'
-        select_msg = _('Select file to export your encrypted addresses and public keys to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg, b_csv_select=False)
+
+        defaultfilename = 'kycfile.dat'
+
+        select_msg = _('Select a filename for the kycfile')
+        hbox, filename_e, csv_button, file_button = filename_field(self, self.config, defaultfilename, select_msg, b_csv_select=False)
         vbox.addLayout(hbox)
+
+        defaultfilepath=filename_e.text();
 
         e = QTextEdit()
         e.setReadOnly(True)
@@ -2588,9 +2606,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
         def show_kycaddresses():
-            #s = "\n".join( map( lambda x: x[0], addressList.items()))
             e.setText(kycfileString)
-            b.setEnabled(True)
+            if kycSuccess:
+                b.setEnabled(True)
             nonlocal done
             done = True
 
@@ -2605,19 +2623,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         filename = filename_e.text()
+
         if not filename:
             return
 
+        if os.path.isfile(filename):
+            msg = [
+                    _('Warning: file exists: ' + filename),
+                    _('Overwrite?'),
+                ]
+            if not self.question(' '.join(msg)):
+                self.show_message(_("Cancelled."))
+                return
         try:
             f=open(filename, 'w')
             f.write(kycfileString)
             f.close()
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Unable to export kyc file."),
+                _("Unable to export KYC file."),
                 str(reason)
             ])
-            self.show_critical(txt, title=_("Unable to create kycfile"))
+            self.show_critical(txt, title=_("Unable to export KYC file"))
+            return
 
         except Exception as e:
             self.show_message(str(e))
@@ -2640,6 +2668,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contract_e.setReadOnly(True)
         layout.addWidget(QLabel(_('All wallet keys will include the SHA256 hash of the following terms and conditions via the pay-to-contact protocol')), 1, 0)
         layout.addWidget(contract_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("OK"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
+
+    def overwritefile_dialog(self):
+
+        d = WindowModalDialog(self, _('Overwrite File?'))
+        d.setMinimumWidth(660)
+
+        layout = QGridLayout(d)
+
+        layout.addWidget(QLabel(_('File exists. Overwrite?')), 1, 0)
         layout.setRowStretch(2,3)
 
         hbox = QHBoxLayout()
@@ -2875,7 +2922,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         export_meta_gui(self, _('labels'), export_labels)
 
     def do_export_addresses(self):
-        
+
         def accept_termsandconditions():
             def export_addresses(filename):
                 derived_addresses = []

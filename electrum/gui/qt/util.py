@@ -399,7 +399,7 @@ def filename_field(parent, config, defaultname, select_msg, b_csv_select=True):
     b1.clicked.connect(lambda: set_csv(True))
     b2.clicked.connect(lambda: set_csv(False))
 
-    return vbox, filename_e, b1
+    return vbox, filename_e, b1, button
 
 class ElectrumItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):

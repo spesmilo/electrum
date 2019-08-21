@@ -458,7 +458,7 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
-            self.storage.put('unassigned_kyc_pubkeys', list(self.unassigned_kyc_pubkeys))
+            self.storage.put('unassigned_kyc_pubkeys', dict.fromkeys(self.unassigned_kyc_pubkeys,0))
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
             self.storage.put('onboard_address', self.onboard_address)
             if write:
@@ -693,6 +693,8 @@ class AddressSynchronizer(PrintError):
             for n, v, a, cb in d:
                 if n == prevout_n:
                     if a == constants.net.WHITELISTASSET:
+                        if hasattr(d, script) != True:
+                            continue
                         datatype, payload = transaction.get_data_from_policy_output_script(d.script)
                         if datatype != TYPE_DATA:
                             continue
@@ -702,7 +704,7 @@ class AddressSynchronizer(PrintError):
                             ba2=bytearray(payload[3:])
                             ba2.reverse()
                             data = bh2u(ba1+ba2)
-                            self.unassigned_kyc_pubkeys.remove(bfh(data))
+                            self.unassigned_kyc_pubkeys.remove(data)
 
         #Check outputs for address data (assign)
         for output in tx.outputs():
@@ -722,7 +724,7 @@ class AddressSynchronizer(PrintError):
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
-                self.unassigned_kyc_pubkeys.add(bfh(data))
+                self.unassigned_kyc_pubkeys.add(data)
 
         return (datatype==TYPE_DATA)
 

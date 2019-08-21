@@ -1221,7 +1221,7 @@ class Network(util.DaemonThread):
         q = queue.Queue()
         it(q.put)
         try:
-            result = q.get(block=True, timeout=30)
+            result = q.get(block=True, timeout=300)
         except queue.Empty:
             raise util.TimeoutException(_('Server did not answer'))
 
