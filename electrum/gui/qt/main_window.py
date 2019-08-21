@@ -73,6 +73,7 @@ from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.paymentrequest import PR_PAID
+from electrum.util import pr_expiration_values
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -83,7 +84,7 @@ from .fee_slider import FeeSlider
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
                    WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
-                   CloseButton, HelpButton, MessageBoxMixin, EnterButton, expiration_values,
+                   CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen)
 from .util import ButtonsTextEdit
@@ -753,6 +754,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return fileName
 
     def timer_actions(self):
+        self.request_list.refresh_status()
         # Note this runs in the GUI thread
         if self.need_update.is_set():
             self.need_update.clear()
@@ -945,9 +947,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
 
         self.expires_combo = QComboBox()
-        self.expires_combo.addItems([i[0] for i in expiration_values])
-        self.expires_combo.setCurrentIndex(3)
+        evl = sorted(pr_expiration_values.items())
+        evl_keys = [i[0] for i in evl]
+        evl_values = [i[1] for i in evl]
+        default_expiry = self.config.get('request_expiry', 3600)
+        try:
+            i = evl_keys.index(default_expiry)
+        except ValueError:
+            i = 0
+        self.expires_combo.addItems(evl_values)
+        self.expires_combo.setCurrentIndex(i)
         self.expires_combo.setFixedWidth(self.receive_amount_e.width())
+        def on_expiry(i):
+            self.config.set_key('request_expiry', evl_keys[i])
+        self.expires_combo.currentIndexChanged.connect(on_expiry)
         msg = ' '.join([
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
@@ -1057,13 +1070,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_invoice(self, is_lightning):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
-        i = self.expires_combo.currentIndex()
-        expiration = list(map(lambda x: x[1], expiration_values))[i]
+        expiry = self.config.get('request_expiry', 3600)
         if is_lightning:
-            payment_hash = self.wallet.lnworker.add_invoice(amount, message)
+            payment_hash = self.wallet.lnworker.add_invoice(amount, message, expiry)
             key = bh2u(payment_hash)
         else:
-            key = self.create_bitcoin_request(amount, message, expiration)
+            key = self.create_bitcoin_request(amount, message, expiry)
             self.address_list.update()
         self.request_list.update()
         self.request_list.select_key(key)

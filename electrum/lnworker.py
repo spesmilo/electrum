@@ -868,8 +868,8 @@ class LNWallet(LNWorker):
                 raise PaymentFailure(_("No path found"))
         return route
 
-    def add_invoice(self, amount_sat, message):
-        coro = self._add_invoice_coro(amount_sat, message)
+    def add_invoice(self, amount_sat, message, expiry):
+        coro = self._add_invoice_coro(amount_sat, message, expiry)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
             return fut.result(timeout=5)
@@ -877,7 +877,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add_invoice timed out"))
 
     @log_exceptions
-    async def _add_invoice_coro(self, amount_sat, message):
+    async def _add_invoice_coro(self, amount_sat, message, expiry):
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
@@ -887,7 +887,8 @@ class LNWallet(LNWorker):
                              "Other clients will likely not be able to send to us.")
         invoice = lnencode(LnAddr(payment_hash, amount_btc,
                                   tags=[('d', message),
-                                        ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
+                                        ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                                        ('x', expiry)]
                                        + routing_hints),
                            self.node_keypair.privkey)
         self.save_invoice(payment_hash, invoice, RECEIVED, is_paid=False)
@@ -933,26 +934,31 @@ class LNWallet(LNWorker):
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
 
+    def get_request(self, key):
+        invoice, direction, is_paid = self.invoices[key]
+        status = self.get_invoice_status(key)
+        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
+        description = lnaddr.get_description()
+        timestamp = lnaddr.date
+        return {
+            'lightning':True,
+            'status':status,
+            'amount':amount_sat,
+            'time':timestamp,
+            'exp':lnaddr.get_expiry(),
+            'memo':description,
+            'rhash':key,
+            'invoice': invoice
+        }
+
     def get_invoices(self):
         items = self.invoices.items()
         out = []
         for key, (invoice, direction, is_paid) in items:
             if direction == SENT:
                 continue
-            status = self.get_invoice_status(key)
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-            amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
-            description = lnaddr.get_description()
-            timestamp = lnaddr.date
-            out.append({
-                'lightning':True,
-                'status':status,
-                'amount':amount_sat,
-                'time':timestamp,
-                'memo':description,
-                'rhash':key,
-                'invoice': invoice
-            })
+            out.append(self.get_request(key))
         return out
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):

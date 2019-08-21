@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import QMenu, QHeaderView
 from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
-from electrum.util import format_time, age
+from electrum.util import format_time, age, get_request_status
 from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
 from electrum.lnutil import SENT, RECEIVED
 from electrum.plugin import run_hook
@@ -85,20 +85,28 @@ class RequestList(MyTreeView):
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_RHASH_OR_ADDR)
-        if request_type == REQUEST_TYPE_BITCOIN:
-            req = self.wallet.receive_requests.get(key)
-            if req is None:
-                self.update()
-                return
-            req = self.wallet.get_request_URI(key)
-        elif request_type == REQUEST_TYPE_LN:
-            req, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None, None)
-            if req is None:
-                self.update()
-                return
-        else:
-            raise Exception(f"unknown request type: {request_type}")
-        self.parent.receive_address_e.setText(req)
+        is_lightning = request_type == REQUEST_TYPE_LN
+        req = self.wallet.get_request(key, is_lightning)
+        if req is None:
+            self.update()
+            return
+        text = req.get('invoice') if is_lightning else req.get('URI')
+        self.parent.receive_address_e.setText(text)
+
+    def refresh_status(self):
+        m = self.model()
+        for r in range(m.rowCount()):
+            idx = m.index(r, self.Columns.STATUS)
+            date_idx = idx.sibling(idx.row(), self.Columns.DATE)
+            date_item = m.itemFromIndex(date_idx)
+            status_item = m.itemFromIndex(idx)
+            key = date_item.data(ROLE_RHASH_OR_ADDR)
+            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN
+            req = self.wallet.get_request(key, is_lightning)
+            if req:
+                status_str = get_request_status(req)
+                status_item.setText(status_str)
+                status_item.setIcon(read_QIcon(pr_icons.get(req['status'])))
 
     def update(self):
         self.wallet = self.parent.wallet
@@ -116,7 +124,8 @@ class RequestList(MyTreeView):
             message = req['memo']
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, message, amount_str, pr_tooltips.get(status,'')]
+            status_str = get_request_status(req)
+            labels = [date, message, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)

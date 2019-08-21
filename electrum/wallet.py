@@ -46,6 +46,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
+from .util import age
 from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -59,7 +60,7 @@ from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
+from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
                              InvoiceStore)
 from .contacts import Contacts
 from .interface import NetworkException
@@ -1204,7 +1205,7 @@ class Abstract_Wallet(AddressSynchronizer):
             txid, n = txo.split(':')
             info = self.db.get_verified_tx(txid)
             if info:
-                conf = local_height - info.height
+                conf = local_height - info.height + 1
             else:
                 conf = 0
             l.append((conf, v))
@@ -1282,12 +1283,22 @@ class Abstract_Wallet(AddressSynchronizer):
         expiration = r.get('exp')
         if expiration and type(expiration) != int:
             expiration = 0
-
         paid, conf = self.get_payment_status(address, amount)
-        status = PR_PAID if paid else PR_UNPAID
-        if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
-            status = PR_EXPIRED
+        if not paid:
+            if expiration is not None and time.time() > timestamp + expiration:
+                status = PR_EXPIRED
+            else:
+                status = PR_UNPAID
+        else:
+            status = PR_INFLIGHT if conf <= 0 else PR_PAID
         return status, conf
+
+    def get_request(self, key, is_lightning):
+        if not is_lightning:
+            req = self.get_payment_request(key, {})
+        else:
+            req = self.lnworker.get_request(key)
+        return req
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         super().receive_tx_callback(tx_hash, tx, tx_height)

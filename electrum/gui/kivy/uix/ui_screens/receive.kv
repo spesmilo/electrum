@@ -13,29 +13,22 @@
     valign: 'top'
 
 <RequestItem@CardItem>
+    is_expired: False
     address: ''
     memo: ''
     amount: ''
     status: ''
-    date: ''
-    icon: 'atlas://electrum/gui/kivy/theming/light/important'
-    Image:
-        id: icon
-        source: root.icon
-        size_hint: None, 1
-        width: self.height *.54
-        mipmap: True
     BoxLayout:
         spacing: '8dp'
         height: '32dp'
         orientation: 'vertical'
         Widget
         RequestLabel:
-            text: root.address
+            text: root.memo
             shorten: True
         Widget
         RequestLabel:
-            text: root.memo
+            text: root.address
             color: .699, .699, .699, 1
             font_size: '13sp'
             shorten: True
@@ -54,7 +47,7 @@
             text: root.status
             halign: 'right'
             font_size: '13sp'
-            color: .699, .699, .699, 1
+            color: (1., .2, .2, 1) if root.is_expired else (.7, .7, .7, 1)
         Widget
 
 <RequestRecycleView>:
@@ -75,7 +68,6 @@ ReceiveScreen:
     message: ''
     status: ''
     is_lightning: False
-    show_list: True
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -100,7 +92,6 @@ ReceiveScreen:
                     text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
                     shorten: True
                     on_release: root.is_lightning = not root.is_lightning
-		    #on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -144,7 +135,7 @@ ReceiveScreen:
                 icon: 'atlas://electrum/gui/kivy/theming/light/list'
                 size_hint: 0.5, None
                 height: '48dp'
-                on_release: root.show_list = not root.show_list
+                on_release: Clock.schedule_once(lambda dt: app.addresses_dialog())
             IconButton:
                 icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
                 size_hint: 0.5, None
@@ -166,5 +157,3 @@ ReceiveScreen:
             id: requests_container
             scroll_type: ['bars', 'content']
             bar_width: '25dp'
-            opacity: 1 if root.show_list else 0
-            disabled: not root.show_list

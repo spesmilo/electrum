@@ -78,15 +78,33 @@ PR_UNPAID  = 0
 PR_EXPIRED = 1
 PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
-PR_INFLIGHT = 4    # lightning
+PR_INFLIGHT = 4    # unconfirmed
 
 pr_tooltips = {
     PR_UNPAID:_('Pending'),
     PR_PAID:_('Paid'),
     PR_UNKNOWN:_('Unknown'),
     PR_EXPIRED:_('Expired'),
-    PR_INFLIGHT:_('Inflight')
+    PR_INFLIGHT:_('Paid (unconfirmed)')
 }
+
+pr_expiration_values = {
+    10*60: _('10 minutes'),
+    60*60: _('1 hour'),
+    24*60*60: _('1 day'),
+    7*24*60*60: _('1 week')
+}
+
+def get_request_status(req):
+    status = req['status']
+    status_str = pr_tooltips[status]
+    if status == PR_UNPAID:
+        if req.get('exp'):
+            expiration = req['exp'] + req['time']
+            status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
+        else:
+            status_str = _('Pending')
+    return status_str
 
 
 class UnknownBaseUnit(Exception): pass
@@ -638,22 +656,11 @@ def time_difference(distance_in_time, include_seconds):
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds/60))
 
-    if distance_in_minutes <= 1:
+    if distance_in_minutes == 0:
         if include_seconds:
-            for remainder in [5, 10, 20]:
-                if distance_in_seconds < remainder:
-                    return "less than %s seconds" % remainder
-            if distance_in_seconds < 40:
-                return "half a minute"
-            elif distance_in_seconds < 60:
-                return "less than a minute"
-            else:
-                return "1 minute"
+            return "%s seconds" % distance_in_seconds
         else:
-            if distance_in_minutes == 0:
-                return "less than a minute"
-            else:
-                return "1 minute"
+            return "less than a minute"
     elif distance_in_minutes < 45:
         return "%s minutes" % distance_in_minutes
     elif distance_in_minutes < 90:

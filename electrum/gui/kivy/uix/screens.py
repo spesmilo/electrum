@@ -2,7 +2,6 @@ import asyncio
 from weakref import ref
 from decimal import Decimal
 import re
-import datetime
 import threading
 import traceback, sys
 from enum import Enum, auto
@@ -27,7 +26,7 @@ from electrum.util import profiler, parse_URI, format_time, InvalidPassword, Not
 from electrum import bitcoin, constants
 from electrum.transaction import TxOutput, Transaction, tx_from_str
 from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo, age
+from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo, get_request_status, pr_expiration_values
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
@@ -404,12 +403,14 @@ class SendScreen(CScreen):
 class ReceiveScreen(CScreen):
 
     kvname = 'receive'
-    cards = {}
 
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
-        self.expiration = self.app.electrum_config.get('request_expiration', 3600) # 1 hour
+        Clock.schedule_interval(lambda dt: self.update(), 5)
+
+    def expiry(self):
+        return self.app.electrum_config.get('request_expiry', 3600) # 1 hour
 
     def clear(self):
         self.screen.address = ''
@@ -452,9 +453,8 @@ class ReceiveScreen(CScreen):
         amount = self.screen.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.screen.message
-        expiration = self.expiration
         if lightning:
-            payment_hash = self.app.wallet.lnworker.add_invoice(amount, message)
+            payment_hash = self.app.wallet.lnworker.add_invoice(amount, message, self.expiry())
             request, direction, is_paid = self.app.wallet.lnworker.invoices.get(payment_hash.hex())
             key = payment_hash.hex()
         else:
@@ -463,40 +463,37 @@ class ReceiveScreen(CScreen):
                 self.app.show_info(_('No address available. Please remove some of your pending requests.'))
                 return
             self.screen.address = addr
-            req = self.app.wallet.make_payment_request(addr, amount, message, expiration)
+            req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
             self.app.wallet.add_payment_request(req, self.app.electrum_config)
             key = addr
+        self.clear()
         self.update()
         self.app.show_request(lightning, key)
 
     def get_card(self, req):
         is_lightning = req.get('lightning', False)
-        status = req['status']
-        #if status != PR_UNPAID:
-        #    continue
         if not is_lightning:
             address = req['address']
             key = address
         else:
             key = req['rhash']
             address = req['invoice']
-        timestamp = req.get('time', 0)
         amount = req.get('amount')
         description = req.get('memo', '')
-        ci = self.cards.get(key)
-        if ci is None:
-            ci = {}
-            ci['address'] = address
-            ci['is_lightning'] = is_lightning
-            ci['key'] = key
-            ci['screen'] = self
-            self.cards[key] = ci
+        ci = {}
+        ci['screen'] = self
+        ci['address'] = address
+        ci['is_lightning'] = is_lightning
+        ci['key'] = key
         ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
         ci['memo'] = description
-        ci['status'] = age(timestamp)
+        ci['status'] = get_request_status(req)
+        ci['is_expired'] = req['status'] == PR_EXPIRED
         return ci
 
     def update(self):
+        if not self.loaded:
+            return
         _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
         requests_container = self.screen.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
@@ -507,16 +504,9 @@ class ReceiveScreen(CScreen):
 
     def expiration_dialog(self, obj):
         from .dialogs.choice_dialog import ChoiceDialog
-        choices = {
-            10*60: _('10 minutes'),
-            60*60: _('1 hour'),
-            24*60*60: _('1 day'),
-            7*24*60*60: _('1 week')
-        }
         def callback(c):
-            self.expiration = c
-            self.app.electrum_config.set_key('request_expiration', c)
-        d = ChoiceDialog(_('Expiration date'), choices, self.expiration, callback)
+            self.app.electrum_config.set_key('request_expiry', c)
+        d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()
 
     def do_delete(self, req):

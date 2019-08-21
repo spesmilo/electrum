@@ -45,16 +45,10 @@ pr_icons = {
     PR_UNPAID:"unpaid.png",
     PR_PAID:"confirmed.png",
     PR_EXPIRED:"expired.png",
-    PR_INFLIGHT:"lightning.png",
+    PR_INFLIGHT:"unconfirmed.png",
 }
 
 
-expiration_values = [
-    (_('1 hour'), 60*60),
-    (_('1 day'), 24*60*60),
-    (_('1 week'), 7*24*60*60),
-    (_('Never'), None)
-]
 
 
 class EnterButton(QPushButton):

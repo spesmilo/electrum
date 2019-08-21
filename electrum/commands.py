@@ -670,14 +670,9 @@ class Commands:
         return decrypted.decode('utf-8')
 
     def _format_request(self, out):
-        pr_str = {
-            PR_UNKNOWN: 'Unknown',
-            PR_UNPAID: 'Pending',
-            PR_PAID: 'Paid',
-            PR_EXPIRED: 'Expired',
-        }
+        from .util import get_request_status
         out['amount_BTC'] = format_satoshis(out.get('amount'))
-        out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
+        out['status'] = get_request_status(out)
         return out
 
     @command('w')
@@ -850,9 +845,9 @@ class Commands:
         return await self.lnworker._pay(invoice, attempts=attempts)
 
     @command('wn')
-    async def addinvoice(self, requested_amount, message):
+    async def addinvoice(self, requested_amount, message, expiration=3600):
         # using requested_amount because it is documented in param_descriptions
-        payment_hash = await self.lnworker._add_invoice_coro(satoshis(requested_amount), message)
+        payment_hash = await self.lnworker._add_invoice_coro(satoshis(requested_amount), message, expiration)
         invoice, direction, is_paid = self.lnworker.invoices[bh2u(payment_hash)]
         return invoice
 
