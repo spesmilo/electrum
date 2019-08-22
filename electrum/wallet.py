@@ -1356,6 +1356,13 @@ class Abstract_Wallet(AddressSynchronizer):
                 f.write(json.dumps(req))
         return req
 
+    def delete_request(self, key):
+        """ lightning or on-chain """
+        if key in self.receive_requests:
+            self.remove_payment_request(key, {})
+        elif self.lnworker:
+            self.lnworker.delete_invoice(key)
+
     def remove_payment_request(self, addr, config):
         if addr not in self.receive_requests:
             return False

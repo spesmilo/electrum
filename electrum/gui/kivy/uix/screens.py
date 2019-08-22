@@ -34,6 +34,7 @@ from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .context_menu import ContextMenu
+from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
 from electrum.gui.kivy.i18n import _
@@ -132,15 +133,15 @@ class HistoryScreen(CScreen):
         self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.show_tx)]
 
     def show_tx(self, obj):
-        tx_hash = obj.tx_hash
-        tx = self.app.wallet.db.get_transaction(tx_hash)
+        key = obj.key
+        tx = self.app.wallet.db.get_transaction(key)
         if not tx:
             return
         self.app.tx_dialog(tx)
 
     def label_dialog(self, obj):
         from .dialogs.label_dialog import LabelDialog
-        key = obj.tx_hash
+        key = obj.key
         text = self.app.wallet.get_label(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
@@ -151,14 +152,13 @@ class HistoryScreen(CScreen):
     def get_card(self, tx_item): #tx_hash, tx_mined_status, value, balance):
         is_lightning = tx_item.get('lightning', False)
         timestamp = tx_item['timestamp']
+        key = tx_item.get('txid') or tx_item['payment_hash']
         if is_lightning:
             status = 0
             txpos = tx_item['txpos']
-            if timestamp is None:
-                status_str = 'unconfirmed'
-            else:
-                status_str = format_time(int(timestamp))
+            status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = "atlas://electrum/gui/kivy/theming/light/lightning"
+            message = tx_item['label']
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
@@ -169,18 +169,19 @@ class HistoryScreen(CScreen):
                                         timestamp=tx_item['timestamp'])
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
             icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
+            message = tx_item['label'] or tx_hash
         ri = {}
         ri['screen'] = self
+        ri['key'] = key
         ri['icon'] = icon
         ri['date'] = status_str
-        ri['message'] = tx_item['label']
+        ri['message'] = message
         value = tx_item['value'].value
         if value is not None:
             ri['is_mine'] = value < 0
-            if value < 0: value = - value
-            ri['amount'] = self.app.format_amount_and_units(value)
+            ri['amount'] = self.app.format_amount(value, is_diff = True)
             if 'fiat_value' in tx_item:
-                ri['quote_text'] = tx_item['fiat_value'].to_ui_string()
+                ri['quote_text'] = str(tx_item['fiat_value'])
         return ri
 
     def update(self, see_all=False):
@@ -344,7 +345,6 @@ class SendScreen(CScreen):
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):
-            from .dialogs.question import Question
             d = Question(_('Should this transaction be replaceable?'), lambda b: self._do_send(amount, message, outputs, b))
             d.open()
         else:
@@ -406,7 +406,7 @@ class ReceiveScreen(CScreen):
 
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
-        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.do_delete)]
+        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.delete_request_dialog)]
         Clock.schedule_interval(lambda dt: self.update(), 5)
 
     def expiry(self):
@@ -509,17 +509,27 @@ class ReceiveScreen(CScreen):
         d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()
 
-    def do_delete(self, req):
-        from .dialogs.question import Question
+    def clear_requests_dialog(self):
+        expired = [req for req in self.app.wallet.get_sorted_requests(self.app.electrum_config) if req['status'] == PR_EXPIRED]
+        if len(expired) == 0:
+            return
+        def callback(c):
+            if c:
+                for req in expired:
+                    is_lightning = req.get('lightning', False)
+                    key = req['rhash'] if is_lightning else req['address']
+                    self.app.wallet.delete_request(key)
+                self.update()
+        d = Question(_('Delete expired requests?'), callback)
+        d.open()
+
+    def delete_request_dialog(self, req):
         def cb(result):
             if result:
-                if req.is_lightning:
-                    self.app.wallet.lnworker.delete_invoice(req.key)
-                else:
-                    self.app.wallet.remove_payment_request(req.key, self.app.electrum_config)
+                self.app.wallet.delete_request(req.key)
                 self.hide_menu()
                 self.update()
-        d = Question(_('Delete request'), cb)
+        d = Question(_('Delete request?'), cb)
         d.open()
 
     def show_menu(self, obj):

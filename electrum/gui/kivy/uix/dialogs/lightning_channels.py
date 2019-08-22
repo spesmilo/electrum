@@ -6,26 +6,52 @@ from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from electrum.gui.kivy.uix.context_menu import ContextMenu
 from electrum.util import bh2u
-from electrum.lnutil import LOCAL, REMOTE
+from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.gui.kivy.i18n import _
 
 Builder.load_string(r'''
 <LightningChannelItem@CardItem>
     details: {}
     active: False
-    channelId: '<channelId not set>'
-    id: card
+    short_channel_id: '<channelId not set>'
+    status: ''
+    local_balance: ''
+    remote_balance: ''
     _chan: None
-    Label:
-        color: (.5,.5,.5,1) if not card.active else (1,1,1,1)
-        text: root.channelId
-    Label:
-        text: (card._chan.get_state() if card._chan else 'n/a')
-
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        CardLabel:
+            color: (.5,.5,.5,1) if not root.active else (1,1,1,1)
+            text: root.short_channel_id
+            font_size: '15sp'
+        Widget
+        CardLabel:
+            font_size: '13sp'
+            shorten: True
+            text: root.status
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        CardLabel:
+            text: root.local_balance
+            font_size: '13sp'
+            halign: 'right'
+        Widget
+        CardLabel:
+            text: root.remote_balance
+            font_size: '13sp'
+            halign: 'right'
+        Widget
 
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
-    title: _('Lightning channels. Tap for options.')
+    title: _('Lightning channels.')
     id: popup
     BoxLayout:
         id: box
@@ -103,12 +129,13 @@ class LightningChannelsDialog(Factory.Popup):
         self.clocks = []
         self.app = app
         self.context_menu = None
-        self.app.wallet.network.register_callback(self.channels_update, ['channels'])
-        self.channels_update('bogus evt')
+        self.app.wallet.network.register_callback(self.on_channels, ['channels'])
+        self.app.wallet.network.register_callback(self.on_channel, ['channel'])
+        self.update()
 
     def show_channel_details(self, obj):
         p = Factory.ChannelDetailsPopup()
-        p.title = _('Details for channel ') + self.presentable_chan_id(obj._chan)
+        p.title = _('Details for channel ') + format_short_channel_id(obj.chan.short_channel_id)
         p.data = [{'keyName': key, 'value': str(obj.details[key])} for key in obj.details.keys()]
         p.open()
 
@@ -146,10 +173,37 @@ class LightningChannelsDialog(Factory.Popup):
             self.ids.box.remove_widget(self.context_menu)
             self.context_menu = None
 
-    def presentable_chan_id(self, i):
-        return bh2u(i.short_channel_id) if i.short_channel_id else bh2u(i.channel_id)[:16]
+    def format_fields(self, chan):
+        labels = {}
+        for subject in (REMOTE, LOCAL):
+            bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
+            label = self.app.format_amount(bal_minus_htlcs)
+            other = subject.inverted()
+            bal_other = chan.balance(other)//1000
+            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
+            if bal_other != bal_minus_htlcs_other:
+                label += ' (+' + self.app.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+            labels[subject] = label
+        return [
+            labels[LOCAL],
+            labels[REMOTE],
+        ]
 
-    def channels_update(self, evt):
+    def on_channel(self, evt, chan):
+        Clock.schedule_once(lambda dt: self.update())
+
+    def on_channels(self, evt):
+        Clock.schedule_once(lambda dt: self.update())
+
+    def update_item(self, item):
+        chan = item._chan
+        item.status = chan.get_state()
+        item.short_channel_id = format_short_channel_id(chan.short_channel_id)
+        l, r = self.format_fields(chan)
+        item.local_balance = _('Local') + ':' + l
+        item.remote_balance = _('Remote') + ': ' + r
+
+    def update(self):
         channel_cards = self.ids.lightning_channels_container
         channel_cards.clear_widgets()
         if not self.app.wallet:
@@ -158,10 +212,10 @@ class LightningChannelsDialog(Factory.Popup):
         for i in lnworker.channels.values():
             item = Factory.LightningChannelItem()
             item.screen = self
-            item.channelId = self.presentable_chan_id(i)
             item.active = i.node_id in lnworker.peers
             item.details = self.channel_details(i)
             item._chan = i
+            self.update_item(item)
             channel_cards.add_widget(item)
 
     def channel_details(self, chan):

@@ -333,6 +333,8 @@ class ElectrumWindow(App):
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
+        self._channels_dialog = None
+        self._addresses_dialog = None
         self.fee_status = self.electrum_config.get_fee_status()
         self.request_popup = None
 
@@ -666,8 +668,9 @@ class ElectrumWindow(App):
         d.open()
 
     def lightning_channels_dialog(self):
-        d = LightningChannelsDialog(self)
-        d.open()
+        if self._channels_dialog is None:
+            self._channels_dialog = LightningChannelsDialog(self)
+        self._channels_dialog.open()
 
     def popup_dialog(self, name):
         if name == 'settings':
@@ -1054,20 +1057,12 @@ class ElectrumWindow(App):
         popup.update()
         popup.open()
 
-    def requests_dialog(self, screen):
-        from .uix.dialogs.requests import RequestsDialog
-        if len(self.wallet.get_sorted_requests(self.electrum_config)) == 0:
-            self.show_info(_('No saved requests.'))
-            return
-        popup = RequestsDialog(self, screen, None)
-        popup.update()
-        popup.open()
-
     def addresses_dialog(self):
         from .uix.dialogs.addresses import AddressesDialog
-        popup = AddressesDialog(self)
-        popup.update()
-        popup.open()
+        if self._addresses_dialog is None:
+            self._addresses_dialog = AddressesDialog(self)
+        self._addresses_dialog.update()
+        self._addresses_dialog.open()
 
     def fee_dialog(self, label, dt):
         from .uix.dialogs.fee_dialog import FeeDialog
