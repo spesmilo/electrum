@@ -133,13 +133,14 @@
     font_size: '6pt'
     name: ''
     data: ''
-    text: self.data
+    text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
     on_touch_down:
         touch = args[1]
-        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
-        else: self.touched = False
+        touched = bool(self.collide_point(*touch.pos))
+        if touched: app.on_ref_label(self)
+        if touched: self.touched = True
     canvas.before:
         Color:
             rgb: .3, .3, .3

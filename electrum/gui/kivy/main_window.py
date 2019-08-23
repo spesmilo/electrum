@@ -856,14 +856,10 @@ class ElectrumWindow(App):
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
 
-    def on_ref_label(self, label, touch):
-        if label.touched:
-            label.touched = False
-            self.qr_dialog(label.name, label.data, True)
-        else:
-            label.touched = True
-            self._clipboard.copy(label.data)
-            Clock.schedule_once(lambda dt: self.show_info(_('Text copied to clipboard.\nTap again to display it as QR code.')))
+    def on_ref_label(self, label):
+        if not label.data:
+            return
+        self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://electrum/gui/kivy/theming/light/error', duration=0,
@@ -1064,9 +1060,9 @@ class ElectrumWindow(App):
         except:
             self.show_error("Invalid PIN")
             return
-        label.text = _('Seed') + ':\n' + seed
+        label.data = seed
         if passphrase:
-            label.text += '\n\n' + _('Passphrase') + ': ' + passphrase
+            label.data += '\n\n' + _('Passphrase') + ': ' + passphrase
 
     def password_dialog(self, wallet, msg, on_success, on_failure):
         from .uix.dialogs.password_dialog import PasswordDialog

@@ -103,6 +103,7 @@ Builder.load_string('''
     address: ''
     balance: ''
     status: ''
+    script_type: ''
     pk: ''
     BoxLayout:
         orientation: 'vertical'
@@ -113,26 +114,31 @@ Builder.load_string('''
                 size_hint_y: None
                 padding: '10dp'
                 spacing: '10dp'
+                TopLabel:
+                    text: _('Address')
+                RefLabel:
+                    data: root.address
+                    name: _('Address')
                 GridLayout:
                     cols: 1
                     size_hint_y: None
                     height: self.minimum_height
                     spacing: '10dp'
                     BoxLabel:
-                        text: _('Address')
-                        value: root.address
-                    BoxLabel:
                         text: _('Balance')
                         value: root.balance
+                    BoxLabel:
+                        text: _('Script type')
+                        value: root.script_type
                     BoxLabel:
                         text: _('Status')
                         value: root.status
                 TopLabel:
                     text: _('Private Key')
                 RefLabel:
-                    id: pk_label
-                    touched: True if not self.touched else True
                     data: root.pk
+                    name: _('Private key')
+                    on_touched: if not self.data: root.do_export(self)
         Widget:
             size_hint: 1, 0.1
         BoxLayout:
@@ -141,14 +147,8 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Hide key') if pk_label.data else _('Show key')
-                on_release:
-                    setattr(pk_label, 'data', '') if pk_label.data else root.do_export(pk_label)
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Use')
-                on_release: root.do_use()
+                text: _('Receive')
+                on_release: root.receive_at()
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -162,14 +162,15 @@ class AddressPopup(Popup):
 
     def __init__(self, parent, address, balance, status, **kwargs):
         super(AddressPopup, self).__init__(**kwargs)
-        self.title = _('Address')
+        self.title = _('Address Details')
         self.parent_dialog = parent
         self.app = parent.app
         self.address = address
         self.status = status
+        self.script_type = self.app.wallet.get_txin_type(self.address)
         self.balance = self.app.format_amount_and_units(balance)
 
-    def do_use(self):
+    def receive_at(self):
         self.dismiss()
         self.parent_dialog.dismiss()
         self.app.switch_to('receive')
