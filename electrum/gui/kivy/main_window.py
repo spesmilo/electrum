@@ -418,41 +418,6 @@ class ElectrumWindow(App):
         self.request_popup.set_status(status)
         self.request_popup.open()
 
-    def show_pr_details(self, req, status, is_invoice):
-        from electrum.util import format_time
-        requestor = req.get('requestor')
-        exp = req.get('exp')
-        memo = req.get('memo')
-        amount = req.get('amount')
-        fund = req.get('fund')
-        popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/invoice.kv')
-        popup.is_invoice = is_invoice
-        popup.amount = amount
-        popup.requestor = requestor if is_invoice else req.get('address')
-        popup.exp = format_time(exp) if exp else ''
-        popup.description = memo if memo else ''
-        popup.signature = req.get('signature', '')
-        popup.status = status
-        popup.fund = fund if fund else 0
-        txid = req.get('txid')
-        popup.tx_hash = txid or ''
-        popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
-        popup.export = self.export_private_keys
-        popup.open()
-
-    def show_addr_details(self, req, status):
-        from electrum.util import format_time
-        fund = req.get('fund')
-        isaddr = 'y'
-        popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/invoice.kv')
-        popup.isaddr = isaddr
-        popup.is_invoice = False
-        popup.status = status
-        popup.requestor = req.get('address')
-        popup.fund = fund if fund else 0
-        popup.export = self.export_private_keys
-        popup.open()
-
     def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
         from .uix.dialogs.qr_dialog import QRDialog
         def on_qr_failure():
@@ -1033,28 +998,6 @@ class ElectrumWindow(App):
         def cb(amount):
             screen.amount = amount
         popup = AmountDialog(show_max, amount, cb)
-        popup.open()
-
-    def lightning_invoices_dialog(self, cb):
-        from .uix.dialogs.lightning_invoices import LightningInvoicesDialog
-        report = self.wallet.lnworker._list_invoices()
-        if not report['unsettled']:
-            self.show_info(_('No unsettled invoices. Type in an amount to generate a new one.'))
-            return
-        popup = LightningInvoicesDialog(report, cb)
-        popup.open()
-
-    def invoices_dialog(self, screen):
-        from .uix.dialogs.invoices import InvoicesDialog
-        if len(self.wallet.invoices.sorted_list()) == 0:
-            self.show_info(' '.join([
-                _('No saved invoices.'),
-                _('Signed invoices are saved automatically when you scan them.'),
-                _('You may also save unsigned requests or contact addresses using the save button.')
-            ]))
-            return
-        popup = InvoicesDialog(self, screen, None)
-        popup.update()
         popup.open()
 
     def addresses_dialog(self):

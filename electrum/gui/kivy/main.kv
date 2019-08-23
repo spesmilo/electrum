@@ -231,15 +231,14 @@
             size: self.size
             pos: self.pos
 
-<CardItem@ToggleButtonBehavior+BoxLayout>
+<CardItem@ButtonBehavior+BoxLayout>
     size_hint: 1, None
     height: '65dp'
     group: 'requests'
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_state:
-        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    on_release: self.screen.show_item(args[0])
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)

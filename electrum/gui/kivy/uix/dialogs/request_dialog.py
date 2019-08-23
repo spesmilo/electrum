@@ -42,30 +42,33 @@ Builder.load_string('''
                 Button:
                     size_hint: 1, None
                     height: '48dp'
-                    text: _('Copy')
-                    on_release:
-                        root.copy_to_clipboard()
+                    text: _('Delete')
+                    on_release: root.delete_dialog()
+                IconButton:
+                    icon: 'atlas://electrum/gui/kivy/theming/light/copy'
+                    size_hint: 0.5, None
+                    height: '48dp'
+                    on_release: root.copy_to_clipboard()
                 IconButton:
                     icon: 'atlas://electrum/gui/kivy/theming/light/share'
-                    size_hint: 0.6, None
+                    size_hint: 0.5, None
                     height: '48dp'
-                    on_release: s.parent.do_share()
+                    on_release: root.do_share()
                 Button:
                     size_hint: 1, None
                     height: '48dp'
                     text: _('Close')
-                    on_release:
-                        popup.dismiss()
+                    on_release: popup.dismiss()
 ''')
 
 class RequestDialog(Factory.Popup):
+
     def __init__(self, title, data, key):
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
         self.data = data
         self.key = key
-        #self.text_for_clipboard = text_for_clipboard if text_for_clipboard else data
 
     def on_open(self):
         self.ids.qr.set_data(self.data)
@@ -80,3 +83,17 @@ class RequestDialog(Factory.Popup):
         Clipboard.copy(self.data)
         msg = _('Text copied to clipboard.')
         Clock.schedule_once(lambda dt: self.app.show_info(msg))
+
+    def do_share(self):
+        self.app.do_share(self.data, _("Share Bitcoin Request"))
+        self.dismiss()
+
+    def delete_dialog(self):
+        from .question import Question
+        def cb(result):
+            if result:
+                self.app.wallet.delete_request(self.key)
+                self.dismiss()
+                self.app.receive_screen.update()
+        d = Question(_('Delete request?'), cb)
+        d.open()

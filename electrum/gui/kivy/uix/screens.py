@@ -33,7 +33,6 @@ from electrum import simple_config
 from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
-from .context_menu import ContextMenu
 from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
@@ -55,8 +54,6 @@ class CScreen(Factory.Screen):
     action_view = ObjectProperty(None)
     loaded = False
     kvname = None
-    context_menu = None
-    menu_actions = []
     app = App.get_running_app()
 
     def _change_action_view(self):
@@ -94,17 +91,7 @@ class CScreen(Factory.Screen):
         self.dispatch('on_deactivate')
 
     def on_deactivate(self):
-        self.hide_menu()
-
-    def hide_menu(self):
-        if self.context_menu is not None:
-            self.remove_widget(self.context_menu)
-            self.context_menu = None
-
-    def show_menu(self, obj):
-        self.hide_menu()
-        self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.add_widget(self.context_menu)
+        pass
 
 
 # note: this list needs to be kept in sync with another in qt
@@ -130,24 +117,15 @@ class HistoryScreen(CScreen):
     def __init__(self, **kwargs):
         self.ra_dialog = None
         super(HistoryScreen, self).__init__(**kwargs)
-        self.menu_actions = [ ('Label', self.label_dialog), ('Details', self.show_tx)]
 
-    def show_tx(self, obj):
+    def show_item(self, obj):
+        print(obj)
         key = obj.key
         tx = self.app.wallet.db.get_transaction(key)
         if not tx:
             return
         self.app.tx_dialog(tx)
 
-    def label_dialog(self, obj):
-        from .dialogs.label_dialog import LabelDialog
-        key = obj.key
-        text = self.app.wallet.get_label(key)
-        def callback(text):
-            self.app.wallet.set_label(key, text)
-            self.update()
-        d = LabelDialog(_('Enter Transaction Label'), text, callback)
-        d.open()
 
     def get_card(self, tx_item): #tx_hash, tx_mined_status, value, balance):
         is_lightning = tx_item.get('lightning', False)
@@ -406,7 +384,6 @@ class ReceiveScreen(CScreen):
 
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
-        self.menu_actions = [(_('Show'), self.do_show), (_('Delete'), self.delete_request_dialog)]
         Clock.schedule_interval(lambda dt: self.update(), 5)
 
     def expiry(self):
@@ -439,10 +416,6 @@ class ReceiveScreen(CScreen):
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
         return create_bip21_uri(self.screen.address, amount, self.screen.message)
-
-    def do_share(self):
-        uri = self.get_URI()
-        self.app.do_share(uri, _("Share Bitcoin Request"))
 
     def do_copy(self):
         uri = self.get_URI()
@@ -498,8 +471,7 @@ class ReceiveScreen(CScreen):
         requests_container = self.screen.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
 
-    def do_show(self, obj):
-        self.hide_menu()
+    def show_item(self, obj):
         self.app.show_request(obj.is_lightning, obj.key)
 
     def expiration_dialog(self, obj):
@@ -523,24 +495,7 @@ class ReceiveScreen(CScreen):
         d = Question(_('Delete expired requests?'), callback)
         d.open()
 
-    def delete_request_dialog(self, req):
-        def cb(result):
-            if result:
-                self.app.wallet.delete_request(req.key)
-                self.hide_menu()
-                self.update()
-        d = Question(_('Delete request?'), cb)
-        d.open()
 
-    def show_menu(self, obj):
-        self.hide_menu()
-        self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.add_widget(self.context_menu)
-
-    def hide_menu(self):
-        if self.context_menu is not None:
-            self.remove_widget(self.context_menu)
-            self.context_menu = None
 
 class TabbedCarousel(Factory.TabbedPanel):
     '''Custom TabbedPanel using a carousel used in the Main Screen
