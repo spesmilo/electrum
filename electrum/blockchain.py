@@ -25,8 +25,9 @@ import threading
 from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
-from .bitcoin import hash_encode, int_to_hex, rev_hex
+from .bitcoin import hash_decode, hash_encode, int_to_hex, rev_hex
 from .crypto import sha256d
+from .transaction import Transaction
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
@@ -43,6 +44,12 @@ class MissingHeader(Exception):
     pass
 
 class InvalidHeader(Exception):
+    pass
+
+class MerkleVerificationFailure(Exception):
+    pass
+
+class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure):
     pass
 
 class HeaderChunk:
@@ -668,15 +675,37 @@ def verify_proven_chunk(chunk_base_height, chunk_data):
                 raise Exception("prev hash mismatch: %s vs %s" % (prev_header_hash, header.get('prev_block_hash')))
         prev_header_hash = this_header_hash
 
-# Copied from electrumx
-def root_from_proof(hash, branch, index):
-    hash_func = sha256d
-    for elt in branch:
-        if index & 1:
-            hash = hash_func(elt + hash)
-        else:
-            hash = hash_func(hash + elt)
+def hash_merkle_root(merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int, reject_valid_tx: bool=True):
+    """Return calculated merkle root."""
+    try:
+        h = hash_decode(tx_hash)
+        merkle_branch_bytes = [hash_decode(item) for item in merkle_branch]
+        leaf_pos_in_tree = int(leaf_pos_in_tree)  # raise if invalid
+    except Exception as e:
+        raise MerkleVerificationFailure(e)
+    if leaf_pos_in_tree < 0:
+        raise MerkleVerificationFailure('leaf_pos_in_tree must be non-negative')
+    index = leaf_pos_in_tree
+    for item in merkle_branch_bytes:
+        if len(item) != 32:
+            raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
+        h = sha256d(item + h) if (index & 1) else sha256d(h + item)
         index >>= 1
-    if index:
-        raise ValueError('index out of range for branch')
-    return hash
+        if reject_valid_tx:
+            raise_if_valid_tx(bh2u(h))
+    if index != 0:
+        raise MerkleVerificationFailure(f'leaf_pos_in_tree too large for branch')
+    return hash_encode(h)
+
+def raise_if_valid_tx(raw_tx: str):
+    # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
+    # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+    # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
+    # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
+    tx = Transaction(raw_tx)
+    try:
+        tx.deserialize()
+    except:
+        pass
+    else:
+        raise InnerNodeOfSpvProofIsValidTx()

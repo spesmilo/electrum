@@ -49,8 +49,9 @@ from .crypto import sha256d
 from . import x509
 from . import pem
 from . import version
+from .bitcoin import hash_encode
 from . import blockchain
-from .blockchain import Blockchain, HeaderChunk
+from .blockchain import Blockchain, HeaderChunk, hash_merkle_root
 from . import constants
 from .i18n import _
 from .logging import Logger
@@ -532,25 +533,23 @@ class Interface(Logger):
 
         return res, proof_was_provided
 
-    def validate_checkpoint_result(self, merkle_root, merkle_branch, header, header_height):
+    def validate_checkpoint_result(self, received_merkle_root, merkle_branch, header, header_height):
         '''
         header: hex representation of the block header.
         merkle_root: hex representation of the server's calculated merkle root.
         branch: list of hex representations of the server's calculated merkle root branches.
 
-        Returns a boolean to represent whether the server's proof is correct.
+        Raises an exception if the server's proof is incorrect.
         '''
-        received_merkle_root = bytes(reversed(bfh(merkle_root)))
-        expected_merkle_root = bytes(reversed(bfh(constants.net.CHECKPOINTS['merkle_root'])))
+        expected_merkle_root = constants.net.CHECKPOINTS['merkle_root']
 
         if received_merkle_root != expected_merkle_root:
-            raise Exception("Sent unexpected merkle root, expected: {}, got: {}".format(constants.net.CHECKPOINTS['merkle_root'], merkle_root))
+            raise Exception("Sent unexpected merkle root, expected: {}, got: {}".format(expected_merkle_root, received_merkle_root))
 
-        header_hash = sha256d(bfh(header))
-        byte_branches = [ bytes(reversed(bfh(v))) for v in merkle_branch ]
-        proven_merkle_root = blockchain.root_from_proof(header_hash, byte_branches, header_height)
+        header_hash = hash_encode(sha256d(bfh(header)))
+        proven_merkle_root = hash_merkle_root(merkle_branch, header_hash, header_height, reject_valid_tx=False)
         if proven_merkle_root != expected_merkle_root:
-            raise Exception("Sent incorrect merkle branch, expected: {}, proved: {}".format(constants.net.CHECKPOINTS['merkle_root'], util.hfu(reversed(proven_merkle_root))))
+            raise Exception("Sent incorrect merkle branch, expected: {}, proved: {}".format(constants.net.CHECKPOINTS['merkle_root'], proven_merkle_root))
 
     def is_main_server(self) -> bool:
         return self.network.default_server == self.server

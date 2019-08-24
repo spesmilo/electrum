@@ -30,7 +30,7 @@ from .util import bh2u, TxMinedInfo, NetworkJobOnDefaultServer
 from .crypto import sha256d
 from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
-from .blockchain import hash_header
+from .blockchain import MerkleVerificationFailure, hash_header, hash_merkle_root
 from .interface import GracefulDisconnect
 from .network import UntrustedServerReturnedError
 from . import constants
@@ -40,10 +40,8 @@ if TYPE_CHECKING:
     from .address_synchronizer import AddressSynchronizer
 
 
-class MerkleVerificationFailure(Exception): pass
 class MissingBlockHeader(MerkleVerificationFailure): pass
 class MerkleRootMismatch(MerkleVerificationFailure): pass
-class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
 
 
 class SPV(NetworkJobOnDefaultServer):
@@ -134,42 +132,6 @@ class SPV(NetworkJobOnDefaultServer):
                               header_hash=header_hash)
         self.wallet.add_verified_tx(tx_hash, tx_info)
 
-    @classmethod
-    def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):
-        """Return calculated merkle root."""
-        try:
-            h = hash_decode(tx_hash)
-            merkle_branch_bytes = [hash_decode(item) for item in merkle_branch]
-            leaf_pos_in_tree = int(leaf_pos_in_tree)  # raise if invalid
-        except Exception as e:
-            raise MerkleVerificationFailure(e)
-        if leaf_pos_in_tree < 0:
-            raise MerkleVerificationFailure('leaf_pos_in_tree must be non-negative')
-        index = leaf_pos_in_tree
-        for item in merkle_branch_bytes:
-            if len(item) != 32:
-                raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
-            h = sha256d(item + h) if (index & 1) else sha256d(h + item)
-            index >>= 1
-            cls._raise_if_valid_tx(bh2u(h))
-        if index != 0:
-            raise MerkleVerificationFailure(f'leaf_pos_in_tree too large for branch')
-        return hash_encode(h)
-
-    @classmethod
-    def _raise_if_valid_tx(cls, raw_tx: str):
-        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
-        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
-        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
-        # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
-        tx = Transaction(raw_tx)
-        try:
-            tx.deserialize()
-        except:
-            pass
-        else:
-            raise InnerNodeOfSpvProofIsValidTx()
-
     async def _maybe_undo_verifications(self):
         old_chain = self.blockchain
         cur_chain = self.network.blockchain()
@@ -199,7 +161,7 @@ def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
                                  .format(tx_hash, block_height))
     if len(merkle_branch) > 30:
         raise MerkleVerificationFailure(f"merkle branch too long: {len(merkle_branch)}")
-    calc_merkle_root = SPV.hash_merkle_root(merkle_branch, tx_hash, leaf_pos_in_tree)
+    calc_merkle_root = hash_merkle_root(merkle_branch, tx_hash, leaf_pos_in_tree)
     if block_header.get('merkle_root') != calc_merkle_root:
         raise MerkleRootMismatch("merkle verification failed for {} ({} != {})".format(
             tx_hash, block_header.get('merkle_root'), calc_merkle_root))
