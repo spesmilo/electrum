@@ -42,14 +42,14 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
+from .util import ignore_exceptions, log_exceptions, bfh, bh2u, SilentTaskGroup
 from . import util
 from .crypto import sha256d
 from . import x509
 from . import pem
 from . import version
 from . import blockchain
-from .blockchain import Blockchain
+from .blockchain import Blockchain, HeaderChunk
 from . import constants
 from .i18n import _
 from .logging import Logger
@@ -496,12 +496,13 @@ class Interface(Logger):
 
         res = await self.session.send_request('blockchain.block.headers', [height, count, cp_height])
 
-        header_hexsize = 80 * 2
         hexdata = res['hex']
-        actual_header_count = len(hexdata) // header_hexsize
+        data = bfh(hexdata)
+        chunk = HeaderChunk(height, data)
+        actual_header_count = chunk.get_header_count()
         # We accept less headers than we asked for, to cover the case where the distance to the tip was unknown.
         if actual_header_count > count:
-            raise Exception("chunk data size incorrect expected_size={} actual_size={}".format(count * header_hexsize, len(hexdata)))
+            raise Exception("chunk header count too high expected_count={} actual_count={}".format(count, actual_header_count))
 
         proof_was_provided = False
         if 'root' in res and 'branch' in res:
@@ -509,11 +510,11 @@ class Interface(Logger):
                 raise Exception("Received checkpoint validation data even though it wasn't requested.")
 
             header_height = height + actual_header_count - 1
-            header_offset = (actual_header_count - 1) * header_hexsize
-            header = hexdata[header_offset : header_offset + header_hexsize]
-            self.validate_checkpoint_result(res["root"], res["branch"], header, header_height)
+            header = chunk.get_header_at_height(header_height)
+            hexheader = bh2u(header)
 
-            data = bfh(hexdata)
+            self.validate_checkpoint_result(res["root"], res["branch"], hexheader, header_height)
+
             blockchain.verify_proven_chunk(height, data)
 
             proof_was_provided = True

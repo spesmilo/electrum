@@ -45,6 +45,33 @@ class MissingHeader(Exception):
 class InvalidHeader(Exception):
     pass
 
+class HeaderChunk:
+    def __init__(self, base_height, data):
+        self.base_height = base_height
+        self.data = data
+
+    def __repr__(self):
+        return "HeaderChunk(base_height={}, data_count={})".format(self.base_height, len(self.data))
+
+    def contains_height(self, height):
+        return height >= self.base_height and height < self.base_height + self.get_header_count()
+
+    def get_header_at_height(self, height):
+        return self.get_header_at_index(height - self.base_height)
+
+    def get_header_at_index(self, index):
+        header_offset = index * HEADER_SIZE
+        return self.data[header_offset:header_offset + HEADER_SIZE]
+
+    def get_deserialized_header_at_height(self, height):
+        return deserialize_header(self.get_header_at_height(height), height)
+
+    def get_deserialized_header_at_index(self, index):
+        return deserialize_header(self.get_header_at_index(index), self.base_height + index)
+
+    def get_header_count(self):
+        return len(self.data) // HEADER_SIZE
+
 def serialize_header(header_dict: dict) -> str:
     s = int_to_hex(header_dict['version'], 4) \
         + rev_hex(header_dict['prev_block_hash']) \
@@ -295,10 +322,9 @@ class Blockchain(Logger):
             if block_hash_as_num > target:
                 raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
-    def verify_chunk(self, index: int, data: bytes) -> None:
-        num = len(data) // HEADER_SIZE
+    def verify_chunk(self, index: int, chunk: HeaderChunk) -> None:
+        num = chunk.get_header_count()
         start_height = index * 2016
-        chunk = HeaderChunk(start_height, data)
         prev_hash = self.get_hash(start_height - 1)
         target = self.get_target(index-1)
         for i in range(num):
@@ -307,8 +333,7 @@ class Blockchain(Logger):
                 expected_header_hash = self.get_hash(height)
             except MissingHeader:
                 expected_header_hash = None
-            raw_header = chunk.get_header_at_index(i)
-            header = deserialize_header(raw_header, start_height + i)
+            header = chunk.get_deserialized_header_at_index(i)
             self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
@@ -598,8 +623,10 @@ class Blockchain(Logger):
         assert idx >= 0, idx
         try:
             data = bfh(hexdata)
+            start_height = idx * 2016
+            chunk = HeaderChunk(start_height, data)
             if not proof_was_provided:
-                self.verify_chunk(idx, data)
+                self.verify_chunk(idx, chunk)
             self.save_chunk(idx, data)
             return True
         except BaseException as e:
@@ -627,12 +654,11 @@ def can_connect(header: dict, proof_was_provided: bool=False) -> Optional[Blockc
 def verify_proven_chunk(chunk_base_height, chunk_data):
     chunk = HeaderChunk(chunk_base_height, chunk_data)
 
-    header_count = len(chunk_data) // HEADER_SIZE
+    header_count = chunk.get_header_count()
     prev_header = None
     prev_header_hash = None
     for i in range(header_count):
-        raw_header = chunk.get_header_at_index(i)
-        header = deserialize_header(raw_header, chunk_base_height + i)
+        header = chunk.get_deserialized_header_at_index(i)
         # Check the chain of hashes for all headers preceding the proven one.
         this_header_hash = hash_header(header)
         if i > 0:
@@ -652,22 +678,3 @@ def root_from_proof(hash, branch, index):
     if index:
         raise ValueError('index out of range for branch')
     return hash
-
-class HeaderChunk:
-    def __init__(self, base_height, data):
-        self.base_height = base_height
-        self.data = data
-
-    def __repr__(self):
-        return "HeaderChunk(base_height={}, data_count={})".format(self.base_height, len(self.data))
-
-    def contains_height(self, height):
-        header_count = len(self.data) // HEADER_SIZE
-        return height >= self.base_height and height < self.base_height + header_count
-
-    def get_header_at_height(self, height):
-        return self.get_header_at_index(height - self.base_height)
-
-    def get_header_at_index(self, index):
-        header_offset = index * HEADER_SIZE
-        return self.data[header_offset:header_offset + HEADER_SIZE]
