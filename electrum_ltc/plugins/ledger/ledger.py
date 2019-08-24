@@ -3,7 +3,7 @@ import hashlib
 import sys
 import traceback
 
-from electrum_ltc import ecc
+from electrum_ltc import ecc, constants
 from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, is_segwit_script_type
 from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc.i18n import _
