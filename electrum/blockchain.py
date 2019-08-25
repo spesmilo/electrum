@@ -486,6 +486,8 @@ class Blockchain(Logger):
             return 0
         if index == -1:
             return MAX_TARGET
+        if index + 1 == (constants.net.max_checkpoint() + 1) // 2016:
+            return self.bits_to_target(constants.net.VERIFICATION_BLOCK_LAST_BITS)
         # new target
         if index == constants.net.max_checkpoint() // 2016:
             first_timestamp = constants.net.VERIFICATION_BLOCK_FIRST_TIMESTAMP
