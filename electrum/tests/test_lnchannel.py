@@ -173,8 +173,8 @@ class TestChannel(unittest.TestCase):
     maxDiff = 999
 
     def assertOutputExistsByValue(self, tx, amt_sat):
-        for typ, scr, val in tx.outputs():
-            if val == amt_sat:
+        for o in tx.outputs():
+            if o.value == amt_sat:
                 break
         else:
             self.assertFalse()
