@@ -417,14 +417,16 @@ class Interface(Logger):
         # use lower timeout as we usually have network.bhi_lock here
         timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
 
-        height = 1
-        if height > cp_height:
-            raise Exception("Can't request a checkpoint proof because requested height is above checkpoint height")
+        retarget_first_height = cp_height // 2016 * 2016
+        retarget_last_height = (cp_height+1) // 2016 * 2016 - 1
 
-        res = await self.session.send_request('blockchain.block.header', [height, cp_height], timeout=timeout)
+        res = await self.session.send_request('blockchain.block.header', [retarget_first_height, cp_height], timeout=timeout)
 
         if 'root' in res and 'branch' in res and 'header' in res:
-            return {"height": cp_height, "merkle_root": res["root"]}
+            retarget_first_header = blockchain.deserialize_header(bytes.fromhex(res['header']), retarget_first_height)
+            retarget_last_chainwork = self.blockchain.get_chainwork(retarget_last_height)
+
+            return {'height': cp_height, 'merkle_root': res['root'], 'first_timestamp': retarget_first_header['timestamp'], 'last_chainwork': retarget_last_chainwork}
         else:
             raise Exception("Expected checkpoint validation data, did not receive it.")
 

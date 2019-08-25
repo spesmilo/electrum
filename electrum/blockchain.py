@@ -487,13 +487,19 @@ class Blockchain(Logger):
         if index == -1:
             return MAX_TARGET
         # new target
-        first = self.read_header(index * 2016)
+        if index == constants.net.max_checkpoint() // 2016:
+            first_timestamp = constants.net.VERIFICATION_BLOCK_FIRST_TIMESTAMP
+        else:
+            first = self.read_header(index * 2016)
+            if not first:
+                raise MissingHeader()
+            first_timestamp = first.get('timestamp')
         last = self.read_header(index * 2016 + 2015)
-        if not first or not last:
+        if not last:
             raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        nActualTimespan = last.get('timestamp') - first_timestamp
         nTargetTimespan = 14 * 24 * 60 * 60
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
@@ -538,14 +544,17 @@ class Blockchain(Logger):
             # On testnet/regtest, difficulty works somewhat different.
             # It's out of scope to properly implement that.
             return height
-        last_retarget = height // 2016 * 2016 - 1
+        last_retarget = (height + 1) // 2016 * 2016 - 1
         cached_height = last_retarget
-        while _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
+        while cached_height != (constants.net.max_checkpoint() + 1) // 2016 * 2016 - 1 and _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
             if cached_height <= -1:
                 break
             cached_height -= 2016
         assert cached_height >= -1, cached_height
-        running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
+        if cached_height == (constants.net.max_checkpoint() + 1) // 2016 * 2016 - 1:
+            running_total = constants.net.VERIFICATION_BLOCK_LAST_CHAINWORK
+        else:
+            running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
         while cached_height < last_retarget:
             cached_height += 2016
             work_in_single_header = self.chainwork_of_header_at_height(cached_height)
@@ -554,7 +563,7 @@ class Blockchain(Logger):
             _CHAINWORK_CACHE[self.get_hash(cached_height)] = running_total
         cached_height += 2016
         work_in_single_header = self.chainwork_of_header_at_height(cached_height)
-        work_in_last_partial_chunk = (height % 2016 + 1) * work_in_single_header
+        work_in_last_partial_chunk = ((height + 1) % 2016) * work_in_single_header
         return running_total + work_in_last_partial_chunk
 
     def can_connect(self, header: dict, check_height: bool=True, proof_was_provided: bool=False) -> bool:
