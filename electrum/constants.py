@@ -50,7 +50,7 @@ class AbstractNet:
 
     @classmethod
     def max_checkpoint(cls) -> int:
-        return cls.VERIFICATION_BLOCK_HEIGHT
+        return cls.CHECKPOINTS['height']
 
     @classmethod
     def rev_genesis_bytes(cls) -> bytes:
@@ -67,19 +67,10 @@ class BitcoinMainnet(AbstractNet):
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    # To generate this, connect to a trusted server, and then run this from the console:
-    # import asyncio
-    # asyncio.run(network.interface.get_purported_checkpoint(height))
-    VERIFICATION_BLOCK_MERKLE_ROOT = "4c6b8a34ed0ab02ef9486d0f57de24ee367e4c1735c20f7b3a79927b62310fc3"
-    VERIFICATION_BLOCK_HEIGHT = 558431
-    # Timestamp of height // 2016 * 2016
-    VERIFICATION_BLOCK_FIRST_TIMESTAMP = 1546276809
-    # Chainwork of (height + 1) // 2016 * 2016 - 1
-    VERIFICATION_BLOCK_LAST_CHAINWORK = 1458314160032177082968012064
-    # Hash of (height + 1) // 2016 * 2016 - 1
-    VERIFICATION_BLOCK_LAST_HASH = "00000000000000000028a69d9498c46b2b073752133e3e9e585965e7dab55065"
-    # Bits used in height + 1
-    VERIFICATION_BLOCK_LAST_BITS = 389010995
+    # To generate this JSON file, connect to a trusted server, and then run
+    # this from the console:
+    # network.run_from_another_thread(network.interface.export_purported_checkpoints(height, path))
+    CHECKPOINTS = read_json('checkpoints.json', {'height': 0})
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
@@ -116,11 +107,7 @@ class BitcoinTestnet(AbstractNet):
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
-    VERIFICATION_BLOCK_MERKLE_ROOT = "09006bcaf5d043502ef50e9b0598014ab31bd1c449ab81a48e74f780085599b9"
-    VERIFICATION_BLOCK_HEIGHT = 1453535
-    VERIFICATION_BLOCK_FIRST_TIMESTAMP = 1546969628
-    VERIFICATION_BLOCK_LAST_CHAINWORK = 1453535
-    VERIFICATION_BLOCK_LAST_BITS = 436286723
+    CHECKPOINTS = read_json('checkpoints_testnet.json', {'height': 0})
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
@@ -151,7 +138,7 @@ class BitcoinRegtest(BitcoinTestnet):
     SEGWIT_HRP = "bcrt"
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    VERIFICATION_BLOCK_HEIGHT = 0
+    CHECKPOINTS = {'height': 0}
     LN_DNS_SEEDS = []
 
 
@@ -163,7 +150,7 @@ class BitcoinSimnet(BitcoinTestnet):
     SEGWIT_HRP = "sb"
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    VERIFICATION_BLOCK_HEIGHT = 0
+    CHECKPOINTS = {'height': 0}
     LN_DNS_SEEDS = []
 
 

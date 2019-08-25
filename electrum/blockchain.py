@@ -500,7 +500,7 @@ class Blockchain(Logger):
         elif height == 0:
             return constants.net.GENESIS
         elif height == (constants.net.max_checkpoint() + 1) // 2016 * 2016 - 1:
-            return constants.net.VERIFICATION_BLOCK_LAST_HASH
+            return constants.net.CHECKPOINTS['last_hash']
         else:
             header = self.read_header(height)
             if header is None:
@@ -514,10 +514,10 @@ class Blockchain(Logger):
         if index == -1:
             return MAX_TARGET
         if index + 1 == (constants.net.max_checkpoint() + 1) // 2016:
-            return self.bits_to_target(constants.net.VERIFICATION_BLOCK_LAST_BITS)
+            return self.bits_to_target(constants.net.CHECKPOINTS['last_bits'])
         # new target
         if index == constants.net.max_checkpoint() // 2016:
-            first_timestamp = constants.net.VERIFICATION_BLOCK_FIRST_TIMESTAMP
+            first_timestamp = constants.net.CHECKPOINTS['first_timestamp']
         else:
             first = self.read_header(index * 2016)
             if not first:
@@ -581,7 +581,7 @@ class Blockchain(Logger):
             cached_height -= 2016
         assert cached_height >= -1, cached_height
         if cached_height == (constants.net.max_checkpoint() + 1) // 2016 * 2016 - 1:
-            running_total = constants.net.VERIFICATION_BLOCK_LAST_CHAINWORK
+            running_total = constants.net.CHECKPOINTS['last_chainwork']
         else:
             running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
         while cached_height < last_retarget:

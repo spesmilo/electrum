@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import json
 import os
 import re
 import ssl
@@ -413,7 +414,7 @@ class Interface(Logger):
 
     # Run manually from console to generate blockchain checkpoints.
     # Only use this with a server that you trust!
-    async def get_purported_checkpoint(self, cp_height):
+    async def export_purported_checkpoints(self, cp_height, path):
         # use lower timeout as we usually have network.bhi_lock here
         timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
 
@@ -429,11 +430,17 @@ class Interface(Logger):
             retarget_last_hash = self.blockchain.get_hash(retarget_last_height)
             retarget_last_bits = self.blockchain.target_to_bits(self.blockchain.get_target(retarget_last_chunk_index))
 
-            return {'height': cp_height, 'merkle_root': res['root'],
-                    'first_timestamp': retarget_first_header['timestamp'],
-                    'last_chainwork': retarget_last_chainwork,
-                    'last_hash': retarget_last_hash,
-                    'last_bits': retarget_last_bits}
+            # first_timestamp: Timestamp of height // 2016 * 2016
+            # last_chainwork: Chainwork of (height + 1) // 2016 * 2016 - 1
+            # last_hash: Hash of (height + 1) // 2016 * 2016 - 1
+            # last_bits: Bits used in height + 1
+            cp = {'height': cp_height, 'merkle_root': res['root'],
+                  'first_timestamp': retarget_first_header['timestamp'],
+                  'last_chainwork': retarget_last_chainwork,
+                  'last_hash': retarget_last_hash,
+                  'last_bits': retarget_last_bits}
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(json.dumps(cp, indent=4, sort_keys=True))
         else:
             raise Exception("Expected checkpoint validation data, did not receive it.")
 
@@ -534,16 +541,16 @@ class Interface(Logger):
         Returns a boolean to represent whether the server's proof is correct.
         '''
         received_merkle_root = bytes(reversed(bfh(merkle_root)))
-        expected_merkle_root = bytes(reversed(bfh(constants.net.VERIFICATION_BLOCK_MERKLE_ROOT)))
+        expected_merkle_root = bytes(reversed(bfh(constants.net.CHECKPOINTS['merkle_root'])))
 
         if received_merkle_root != expected_merkle_root:
-            raise Exception("Sent unexpected merkle root, expected: {}, got: {}".format(constants.net.VERIFICATION_BLOCK_MERKLE_ROOT, merkle_root))
+            raise Exception("Sent unexpected merkle root, expected: {}, got: {}".format(constants.net.CHECKPOINTS['merkle_root'], merkle_root))
 
         header_hash = sha256d(bfh(header))
         byte_branches = [ bytes(reversed(bfh(v))) for v in merkle_branch ]
         proven_merkle_root = blockchain.root_from_proof(header_hash, byte_branches, header_height)
         if proven_merkle_root != expected_merkle_root:
-            raise Exception("Sent incorrect merkle branch, expected: {}, proved: {}".format(constants.net.VERIFICATION_BLOCK_MERKLE_ROOT, util.hfu(reversed(proven_merkle_root))))
+            raise Exception("Sent incorrect merkle branch, expected: {}, proved: {}".format(constants.net.CHECKPOINTS['merkle_root'], util.hfu(reversed(proven_merkle_root))))
 
     def is_main_server(self) -> bool:
         return self.network.default_server == self.server

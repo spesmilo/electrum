@@ -340,7 +340,7 @@ class TestBlockchain(ElectrumTestCase):
 
         # Try a variety of checkpoint heights relative to the chunk boundary
         for height_offset in range(2016):
-            constants.net.VERIFICATION_BLOCK_HEIGHT+=1
+            constants.net.CHECKPOINTS['height']+=1
 
             chain_u.get_chainwork(constants.net.max_checkpoint())
             with self.assertRaises(MissingHeader):
