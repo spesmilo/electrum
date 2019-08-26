@@ -1276,7 +1276,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if r is None:
             return PR_UNKNOWN
         address = r['address']
-        amount = r.get('amount', 0)
+        amount = r.get('amount', 0) or 0
         timestamp = r.get('time', 0)
         if timestamp and type(timestamp) != int:
             timestamp = 0
