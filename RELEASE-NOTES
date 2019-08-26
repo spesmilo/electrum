@@ -699,7 +699,9 @@ and there is no warning message.
 
 # Release 4.0.10
 
-* Lib: Added Bip38Key encryption support, #1593. (cculianu)
+* Lib & Qt: Added Bip38Key encryption support to both the library for plugins
+  to use as well as to the Qt UI for users to be able to export or encrypt WIF
+  keys as BIP38 encrypted keys; #1593, #1594. (cculianu)
 * Minor internal i18n nits, #1571. (Mark Lundeberg)
 * Windows: Switch LibUSB to version 1.0.23-rc2, #1572. (Axel Gembe)
 * iOS: Added native secp256k1 to iOS build, drastically improving signing speed.
