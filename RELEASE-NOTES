@@ -696,3 +696,25 @@ and there is no warning message.
   Ctrl+F (cculianu).
 * LabelSync: Prevent error dialog spam when labels plugin fails to update
   labels on the server. (cculianu)
+
+# Release 4.0.10
+
+* Lib: Added Bip38Key encryption support, #1593. (cculianu)
+* Minor internal i18n nits, #1571. (Mark Lundeberg)
+* Windows: Switch LibUSB to version 1.0.23-rc2, #1572. (Axel Gembe)
+* iOS: Added native secp256k1 to iOS build, drastically improving signing speed.
+  (cculianu)
+* iOS: Added Schnorr signatures. (cculianu)
+* Fixed output script classifaction code to be more correct. (Mark Lundeberg)
+* Qt: Made generated QR codes look better on HighDPI displays. (cculianu, zebra-lucky)
+* Misc. localization and internationalization fixups. (Axel Gembe)
+* OSX: Minor fixup for Mojave font weights being rendered too thick. (cculianu)
+* Minor bugfix: Guard against "all zero" transactions coming from malicious
+  servers, #987. (cculianu)
+* Qt Console: Fixed the warning box layout to fit on-screen in all setups,
+  #1584. (Axel Gembe)
+* Qt: Fixed minor warning about alpha value, #1585. (proteanx)
+* OSX & Linux AppImage: Bumped bundled Python version to 3.6.9. (cculianu)
+* iOS: Added a ruby helper script which, if running Brew, will auto-set-up
+  more of the Xcode project for the user after creating it with
+  `make_ios_project.sh`. (jonspock)

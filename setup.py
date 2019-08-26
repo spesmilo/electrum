@@ -178,7 +178,7 @@ setup(
     scripts=['electron-cash'],
     data_files=data_files,
     description="Lightweight Bitcoin Cash Wallet",
-    author="Jonald Fyookball",
+    author="The Electron Cash Developers",
     author_email="jonf@electroncash.org",
     license="MIT Licence",
     url="http://electroncash.org",
