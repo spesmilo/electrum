@@ -593,23 +593,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
-        file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
-        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
-        file_menu.addAction(_("Delete"), self.remove_wallet)
+        file_menu.addAction(_("&Open") + "...", self.open_wallet).setShortcut(QKeySequence.Open)
+        file_menu.addAction(_("&New/Restore") + "...", self.new_wallet).setShortcut(QKeySequence.New)
+        file_menu.addAction(_("&Save Copy") + "...", self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("Delete") + "...", self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&Information"), self.show_master_public_keys, QKeySequence("Ctrl+I"))
+        wallet_menu.addAction(_("&Information") + "...", self.show_master_public_keys, QKeySequence("Ctrl+I"))
         wallet_menu.addSeparator()
-        self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
-        self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
+        self.password_menu = wallet_menu.addAction(_("&Password") + "...", self.change_password_dialog)
+        self.seed_menu = wallet_menu.addAction(_("&Seed") + "...", self.show_seed_dialog)
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
-        self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
-        self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
-        self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
-        self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
+        self.private_keys_menu.addAction(_("&Sweep") + "...", self.sweep_key_dialog)
+        self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import") + "...", self.do_import_privkey)
+        self.export_menu = self.private_keys_menu.addMenu(_("&Export"))
+        self.export_menu.addAction(_("&WIF Plaintext") + "...", self.export_privkeys_dialog)
+        self.export_menu.addAction(_("&BIP38 Encrypted") + "...", self.export_bip38_dialog)
+        self.import_address_menu = wallet_menu.addAction(_("Import addresses") + "...", self.import_addresses)
         wallet_menu.addSeparator()
         self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history"), self.rebuild_history)
         self._scan_beyond_gap_action = wallet_menu.addAction(_("&Scan beyond gap..."), self.scan_beyond_gap)
@@ -617,17 +619,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
-        labels_menu.addAction(_("&Import"), self.do_import_labels)
-        labels_menu.addAction(_("&Export"), self.do_export_labels)
+        labels_menu.addAction(_("&Import") + "...", self.do_import_labels)
+        labels_menu.addAction(_("&Export") + "...", self.do_export_labels)
         contacts_menu = wallet_menu.addMenu(_("Contacts"))
-        contacts_menu.addAction(_("&New"), self.new_contact_dialog)
-        contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
-        contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
+        contacts_menu.addAction(_("&New") + "...", self.new_contact_dialog)
+        contacts_menu.addAction(_("Import") + "...", lambda: self.contact_list.import_contacts())
+        contacts_menu.addAction(_("Export") + "...", lambda: self.contact_list.export_contacts())
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
-        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
+        invoices_menu.addAction(_("Import") + "...", lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
         #hist_menu.addAction(_("Plot"), self.plot_history_dialog).setEnabled(plot_history is not None)
-        hist_menu.addAction(_("Export"), self.export_history_dialog)
+        hist_menu.addAction(_("Export") + "...", self.export_history_dialog)
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search, QKeySequence("Ctrl+F"))
@@ -649,7 +651,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
-        prefs_tit = _("Preferences")
+        prefs_tit = _("Preferences")  + "..."
         a = tools_menu.addAction(prefs_tit, self.settings_dialog, QKeySequence("Ctrl+,") )  # Note: on macOS this hotkey sequence won't be shown in the menu (since it's reserved by the system), but will still work. :/
         if sys.platform == 'darwin':
             # This turns off the heuristic matching based on name and keeps the
@@ -658,24 +660,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             a.setMenuRole(QAction.NoRole)
         gui_object = self.gui_object
         weakSelf = Weak.ref(self)
-        tools_menu.addAction(_("&Network"), lambda: gui_object.show_network_dialog(weakSelf()), QKeySequence("Ctrl+K"))
-        tools_menu.addAction(_("Optional &Features"), self.internal_plugins_dialog, QKeySequence("Shift+Ctrl+P"))
-        tools_menu.addAction(_("Installed &Plugins"), self.external_plugins_dialog, QKeySequence("Ctrl+P"))
+        tools_menu.addAction(_("&Network") + "...", lambda: gui_object.show_network_dialog(weakSelf()), QKeySequence("Ctrl+K"))
+        tools_menu.addAction(_("Optional &Features") + "...", self.internal_plugins_dialog, QKeySequence("Shift+Ctrl+P"))
+        tools_menu.addAction(_("Installed &Plugins") + "...", self.external_plugins_dialog, QKeySequence("Ctrl+P"))
         if sys.platform.startswith('linux'):
             tools_menu.addSeparator()
             tools_menu.addAction(_("&Hardware wallet support..."), self.hardware_wallet_support)
         tools_menu.addSeparator()
-        tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
-        tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
+        tools_menu.addAction(_("&Sign/verify message") + "...", self.sign_verify_message)
+        tools_menu.addAction(_("&Encrypt/decrypt message") + "...", self.encrypt_message)
         tools_menu.addSeparator()
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany, QKeySequence("Ctrl+M"))
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-        raw_transaction_menu.addAction(_("From &file"), self.do_process_from_file)
-        raw_transaction_menu.addAction(_("From &text"), self.do_process_from_text, QKeySequence("Ctrl+T"))
-        raw_transaction_menu.addAction(_("From the &blockchain"), self.do_process_from_txid, QKeySequence("Ctrl+B"))
-        raw_transaction_menu.addAction(_("From &QR code"), self.read_tx_from_qrcode)
+        raw_transaction_menu.addAction(_("From &file") + "...", self.do_process_from_file)
+        raw_transaction_menu.addAction(_("From &text") + "...", self.do_process_from_text, QKeySequence("Ctrl+T"))
+        raw_transaction_menu.addAction(_("From the &blockchain") + "...", self.do_process_from_txid, QKeySequence("Ctrl+B"))
+        raw_transaction_menu.addAction(_("From &QR code") + "...", self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
         tools_menu.addSeparator()
         if ColorScheme.dark_scheme and sys.platform != 'darwin':  # use dark icon in menu except for on macOS where we can't be sure it will look right due to the way menus work on macOS
@@ -2060,7 +2062,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("Your fee is too high.  Max is 50 sat/byte."))
             return
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            traceback.print_exc(file=sys.stderr)
             self.show_message(str(e))
             return
 
@@ -2866,12 +2868,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
             return
         except:
-            traceback.print_exc(file=sys.stdout)
+            if util.is_verbose:
+                traceback.print_exc(file=sys.stderr)
             self.show_error(_('Failed to update password'))
             return
         msg = _('Password was updated successfully') if new_password else _('Password is disabled, this wallet is not protected')
         self.show_message(msg, title=_("Success"))
         self.update_lock_icon()
+
+    def get_passphrase_dialog(self, msg : str, title : str = None, *, permit_empty = False) -> str:
+        from .password_dialog import PassphraseDialog
+        d = PassphraseDialog(self.wallet, self.top_level_window(), msg, title, permit_empty = permit_empty)
+        return d.run()
 
     def toggle_search(self):
         self.search_box.setHidden(not self.search_box.isHidden())
@@ -3016,7 +3024,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             pk = self.wallet.export_private_key(address, password)
         except Exception as e:
-            traceback.print_exc(file=sys.stdout)
+            if util.is_verbose:
+                traceback.print_exc(file=sys.stderr)
             self.show_message(str(e))
             return
         xtype = bitcoin.deserialize_privkey(pk)[0]
@@ -3025,9 +3034,54 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel('{}: {}'.format(_("Address"), address)))
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
-        vbox.addWidget(QLabel(_("Private key") + ':'))
+        pk_lbl = QLabel(_("Private key") + ':')
+        vbox.addWidget(pk_lbl)
         keys_e = ShowQRTextEdit(text=pk)
         keys_e.addCopyButton()
+        # BIP38 Encrypt Button
+        def setup_encrypt_button():
+            encrypt_but = QPushButton(_("Encrypt BIP38") + "...")
+            f = encrypt_but.font(); f.setPointSize(f.pointSize()-1); encrypt_but.setFont(f)  # make font -= 1
+            encrypt_but.setEnabled(bool(bitcoin.Bip38Key.canEncrypt()))
+            encrypt_but.setToolTip(_("Encrypt this private key using BIP38 encryption")
+                                   if encrypt_but.isEnabled() else
+                                   _("BIP38 encryption unavailable: install pycryptodomex to enable"))
+            border_color = ColorScheme.DEFAULT.as_color(False)
+            border_color.setAlphaF(0.65)
+            encrypt_but_ss_en = (
+                keys_e.styleSheet() + (("QPushButton { border: 1px solid %s; border-radius: 6px; padding: 2px; margin: 2px; } "
+                                        "QPushButton:hover { border: 1px solid #3daee9; } "
+                                        "QPushButton:disabled { border: 1px solid transparent; ") % (border_color.name(QColor.HexArgb)))
+            )
+            encrypt_but_ss_dis = ( keys_e.styleSheet() )
+            encrypt_but.setStyleSheet(encrypt_but_ss_en if encrypt_but.isEnabled() else encrypt_but_ss_dis)
+            def on_encrypt():
+                passphrase = self.get_passphrase_dialog(
+                    msg = (
+                            _("Specify a passphrase to use for BIP38 encryption.") + "\n" +
+                            _("Save this passphrase if you save the generated key so you may decrypt it later.")
+                    )
+                )
+                if not passphrase:
+                    return
+                try:
+                    bip38 = str(bitcoin.Bip38Key.encrypt(pk, passphrase))
+                    keys_e.setText(bip38)
+                    encrypt_but.setEnabled(False)
+                    encrypt_but.setStyleSheet(encrypt_but_ss_dis)
+                    pk_lbl.setText( _("BIP38 Key") + ":" )
+                    self.show_message(_("WIF key has been encrypted using BIP38.\n\n"
+                                        "You may save this encrypted key to a file or print out its QR code and/or text.\n\n"
+                                        "It is strongly encrypted with the passphrase you specified and safe to store electronically. "
+                                        "However, the passphrase should be stored securely and not shared with anyone."))
+                except Exception as e:
+                    if util.is_verbose:
+                        traceback.print_exc(file=sys.stderr)
+                    self.show_error(str(e))
+            encrypt_but.clicked.connect(on_encrypt)
+            keys_e.addWidget(encrypt_but, 0)
+        setup_encrypt_button()
+        # /BIP38 Encrypt Button
         vbox.addWidget(keys_e)
         vbox.addWidget(QLabel(_("Redeem Script") + ':'))
         rds_e = ShowQRTextEdit(text=address.to_script().hex())
@@ -3035,13 +3089,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
-        d.exec_()
 
-    msg_sign = _("Signing with an address actually means signing with the corresponding "
-                "private key, and verifying with the corresponding public key. The "
-                "address you have entered does not have a unique public key, so these "
-                "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electron Cash, but in general.')
+        d.exec_()
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -3053,7 +3102,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('Invalid Bitcoin Cash address.'))
             return
         if addr.kind != addr.ADDR_P2PKH:
-            self.show_message(_('Cannot sign messages with this type of address.') + '\n\n' + self.msg_sign)
+            msg_sign = ( _("Signing with an address actually means signing with the corresponding "
+                           "private key, and verifying with the corresponding public key. The "
+                           "address you have entered does not have a unique public key, so these "
+                           "operations cannot be performed.") + '\n\n' +
+                         _('The operation is undefined. Not just in Electron Cash, but in general.') )
+            self.show_message(_('Cannot sign messages with this type of address.') + '\n\n' + msg_sign)
+            return
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))
             return
@@ -3140,7 +3195,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
             encrypted_e.setText(encrypted.decode('ascii'))
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
+            if util.is_verbose:
+                traceback.print_exc(file=sys.stderr)
             self.show_warning(str(e))
 
     def encrypt_message(self, address=None):
@@ -3207,7 +3263,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         tx._inputs[i]['value'] = my_coins[my_index]['value']
             return tx
         except:
-            traceback.print_exc(file=sys.stdout)
+            if util.is_verbose:
+                traceback.print_exc(file=sys.stderr)
             self.show_critical(_("Electron Cash was unable to parse your transaction"))
             return
 
@@ -3261,8 +3318,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self._qr_dialog.start_scan(get_config().get_video_device())
         except BaseException as e:
             if util.is_verbose:
-                import traceback
-                traceback.print_exc()
+                traceback.print_exc(file=sys.stderr)
             self._qr_dialog = None
             self.show_error(str(e))
 
@@ -3318,15 +3374,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tx = transaction.Transaction(r, sign_schnorr=self.wallet.is_schnorr_enabled())  # note that presumably the tx is already signed if it comes from blockchain so this sign_schnorr parameter is superfluous, but here to satisfy my OCD -Calin
             self.show_transaction(tx, tx_desc=tx_desc)
 
+    def export_bip38_dialog(self):
+        ''' Convenience method. Simply calls self.export_privkeys_dialog(bip38=True) '''
+        self.export_privkeys_dialog(bip38 = True)
+
     @protected
-    def export_privkeys_dialog(self, password):
+    def export_privkeys_dialog(self, password, *, bip38=False):
         if self.wallet.is_watching_only():
             self.show_message(_("This is a watching-only wallet"))
             return
 
         if isinstance(self.wallet, Multisig_Wallet):
+            if bip38:
+                self.show_error(_('WARNING: This is a multi-signature wallet.') + '\n' +
+                                _("It cannot be used with BIP38 encrypted keys."))
+                return
             self.show_message(_('WARNING: This is a multi-signature wallet.') + '\n' +
                               _('It can not be "backed up" by simply exporting these private keys.'))
+
+        if bip38:
+            if not bitcoin.Bip38Key.canEncrypt() or not bitcoin.Bip38Key.isFast():
+                self.show_error(_("BIP38 Encryption is not available. Please install 'pycryptodomex' and restart Electron Cash to enable BIP38."))
+                return
+            passphrase = self.get_passphrase_dialog(
+                msg = (
+                        _("You are exporting your wallet's private keys as BIP38 encrypted keys.") + "\n\n" +
+                        _("You must specify a passphrase to use for encryption.") + "\n" +
+                        _("Save this passphrase so you may decrypt your BIP38 keys later.")
+                )
+            )
+            if not passphrase:
+                # user cancel
+                return
+            bip38 = passphrase  # overwrite arg with passphrase.. for use down below ;)
+
 
         class MyWindowModalDialog(WindowModalDialog):
             computing_privkeys_signal = pyqtSignal()
@@ -3339,10 +3420,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
 
-        msg = "%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),
-                              _("Exposing a single private key can compromise your entire wallet!"),
-                              _("In particular, DO NOT use 'redeem private key' services proposed by third parties."))
+        lines = [ _("WARNING: ALL your private keys are secret."),
+                  _("Exposing a single private key can compromise your entire wallet!"),
+                  _("In particular, DO NOT use 'redeem private key' services proposed by third parties.") ]
+        if bip38:
+            del lines[0]  # No need to scream-WARN them since BIP38 *are* encrypted
+        msg = '\n'.join(lines)
         vbox.addWidget(QLabel(msg))
+
+        if bip38:
+            wwlbl = WWLabel()
+            def set_ww_txt(pf_shown=False):
+                if pf_shown:
+                    pf_text = ("<font face='{monoface}' size=+1><b>"
+                               + bip38
+                               + '</b></font> <a href="hide">{link}</a>').format(link=_("Hide"), monoface=MONOSPACE_FONT)
+                else:
+                    pf_text = '<a href="show">{link}</a>'.format(link=_("Click to show"))
+                wwlbl.setText(
+                    _("The below keys are BIP38 <i>encrypted</i> using the passphrase: {passphrase}<br>"
+                      "Please <i>write this passphrase down</i> and store it in a secret place, separate from these encrypted keys."
+                    ).format(passphrase=pf_text)
+                )
+            def toggle_ww_txt(link):
+                set_ww_txt(link=="show")
+            set_ww_txt()
+            wwlbl.linkActivated.connect(toggle_ww_txt)
+            vbox.addWidget(wwlbl)
 
         e = QTextEdit()
         e.setFont(QFont(MONOSPACE_FONT))
@@ -3350,7 +3454,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        defaultname = 'electron-cash-private-keys.csv'
+        defaultname = 'electron-cash-private-keys.csv' if not bip38 else 'electron-cash-bip38-keys.csv'
         select_msg = _('Select file to export your private keys to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
@@ -3364,11 +3468,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         stop = False
         def privkeys_thread():
             for addr in addresses:
-                time.sleep(0.100)  # this artificial sleep is likely a security / paranoia measure to allow user to cancel or to make the process "feel expensive"
+                if not bip38:
+                    # This artificial sleep is likely a security / paranoia measure
+                    # to allow user to cancel or to make the process "feel expensive".
+                    # In the bip38 case it's already slow enough so this delay
+                    # is not needed.
+                    time.sleep(0.100)
                 if stop:
                     return
                 try:
                     privkey = self.wallet.export_private_key(addr, password)
+                    if bip38 and privkey:
+                        privkey = str(bitcoin.Bip38Key.encrypt(privkey, bip38))  # __str__() -> base58 encoded bip38 key
                 except InvalidPassword:
                     # See #921 -- possibly a corrupted wallet or other strangeness
                     privkey = 'INVALID_PASSWORD'
@@ -4670,7 +4781,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 grid.addWidget(HelpButton(msg), i, 2)
             except Exception:
                 self.print_msg("error: cannot display plugin", name)
-                traceback.print_exc(file=sys.stdout)
+                traceback.print_exc(file=sys.stderr)
         grid.setRowStretch(len(plugins.internal_plugin_metadata.values()), 1)
         vbox.addLayout(Buttons(CloseButton(d)))
         self.internalpluginsdialog = d
