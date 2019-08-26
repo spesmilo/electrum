@@ -295,14 +295,14 @@ def print_error(*args):
         args = ("|%7.3f|"%(time.time() - _t0), *args)
     print_stderr(*args)
 
-_print_lock = threading.Lock()
+_print_lock = threading.RLock()  # use a recursive lock in case a signal handler does a print_error
 def _print_common(file, *args):
-    s_args = (str(item) for item in args)  # generator -- slightly faster than composing to a list
+    s_args = " ".join(str(item) for item in args) + "\n"  # newline at end will implicitly .flush() underlying stream
     with _print_lock:
         # locking is required here as TextIOWrapper subclasses are not thread-safe;
         # see: https://docs.python.org/3.6/library/io.html#multi-threading
         try:
-            file.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
+            file.write(s_args)  # implicit .flush() for TextIOWrapper objects ending in "\n"
         except OSError:
             '''In very rare cases IO errors can occur here. We tolerate them. See #1595.'''
 
