@@ -296,20 +296,21 @@ def print_error(*args):
     print_stderr(*args)
 
 _print_lock = threading.Lock()
-def print_stderr(*args):
-    s_args = (str(item) for item in args)  # generator -- slightly faster than compising to a list
-    with _print_lock:
-        # locking is required here as TextIOWrapper subclasses are not thread-safe, see:
-        # https://docs.python.org/3.6/library/io.html#multi-threading
-        sys.stderr.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
-
-def print_msg(*args):
-    # Stringify args
+def _print_common(file, *args):
     s_args = (str(item) for item in args)  # generator -- slightly faster than composing to a list
     with _print_lock:
-        # locking is required here as TextIOWrapper subclasses are not thread-safe, see:
-        # https://docs.python.org/3.6/library/io.html#multi-threading
-        sys.stdout.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
+        # locking is required here as TextIOWrapper subclasses are not thread-safe;
+        # see: https://docs.python.org/3.6/library/io.html#multi-threading
+        try:
+            file.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
+        except OSError:
+            '''In very rare cases IO errors can occur here. We tolerate them. See #1595.'''
+
+def print_stderr(*args):
+    _print_common(sys.stderr, *args)
+
+def print_msg(*args):
+    _print_common(sys.stdout, *args)
 
 def json_encode(obj):
     try:
