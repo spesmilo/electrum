@@ -12,7 +12,7 @@ from ..bitcoin import (
     var_int, op_push, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey,
     is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type, Bip38Key)
 from ..networks import set_mainnet, set_testnet
 from ..util import bfh
 
@@ -382,3 +382,107 @@ class Test_seeds(unittest.TestCase):
     def test_seed_type(self):
         for seed_words, _type in self.mnemonics:
             self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
+
+class Test_Bip38(unittest.TestCase):
+    ''' Test Bip38 encryption/decryption. Test cases taken from:
+
+    https://github.com/bitcoin/bips/blob/master/bip-0038.mediawiki '''
+
+    def test_decrypt(self):
+        if not Bip38Key.isFast():
+            self.skipTest("Bip38 lacks a fast scrypt function, skipping decrypt test")
+            return
+
+        # Test basic comprehension
+        self.assertTrue(Bip38Key.isBip38('6PRVWUbkzzsbcVac2qwfssoUJAN1Xhrg6bNk8J7Nzm5H7kxEbn2Nh2ZoGg'))
+        self.assertFalse(Bip38Key.isBip38('5KN7MzqK5wt2TP1fQCYyHBtDrXdJuXbUzm4A9rKAteGu3Qi5CVR'))
+
+        # No EC Mult, Uncompressed key
+        b38 = Bip38Key('6PRVWUbkzzsbcVac2qwfssoUJAN1Xhrg6bNk8J7Nzm5H7kxEbn2Nh2ZoGg')
+        self.assertEqual(b38.decrypt('TestingOneTwoThree')[0], '5KN7MzqK5wt2TP1fQCYyHBtDrXdJuXbUzm4A9rKAteGu3Qi5CVR')
+
+        b38 = Bip38Key('6PRNFFkZc2NZ6dJqFfhRoFNMR9Lnyj7dYGrzdgXXVMXcxoKTePPX1dWByq')
+        self.assertEqual(b38.decrypt('Satoshi')[0], '5HtasZ6ofTHP6HCwTqTkLDuLQisYPah7aUnSKfC7h4hMUVw2gi5')
+
+        # No EC Mult, Compressed key
+        b38 = Bip38Key('6PYNKZ1EAgYgmQfmNVamxyXVWHzK5s6DGhwP4J5o44cvXdoY7sRzhtpUeo')
+        self.assertEqual(b38.decrypt('TestingOneTwoThree')[0], 'L44B5gGEpqEDRS9vVPz7QT35jcBG2r3CZwSwQ4fCewXAhAhqGVpP')
+
+        b38 = Bip38Key('6PYLtMnXvfG3oJde97zRyLYFZCYizPU5T3LwgdYJz1fRhh16bU7u6PPmY7')
+        self.assertEqual(b38.decrypt('Satoshi')[0], 'KwYgW8gcxj1JWJXhPSu4Fqwzfhp5Yfi42mdYmMa4XqK7NJxXUSK7')
+
+        # EC Mult, No compression, No lot/sequence
+        b38 = Bip38Key('6PfQu77ygVyJLZjfvMLyhLMQbYnu5uguoJJ4kMCLqWwPEdfpwANVS76gTX')
+        self.assertEqual(b38.decrypt('TestingOneTwoThree')[0], '5K4caxezwjGCGfnoPTZ8tMcJBLB7Jvyjv4xxeacadhq8nLisLR2')
+
+        b38 = Bip38Key('6PfLGnQs6VZnrNpmVKfjotbnQuaJK4KZoPFrAjx1JMJUa1Ft8gnf5WxfKd')
+        self.assertEqual(b38.decrypt('Satoshi')[0], '5KJ51SgxWaAYR13zd9ReMhJpwrcX47xTJh2D3fGPG9CM8vkv5sH')
+
+        # EC multiply, no compression, lot/sequence numbers
+        b38 = Bip38Key('6PgNBNNzDkKdhkT6uJntUXwwzQV8Rr2tZcbkDcuC9DZRsS6AtHts4Ypo1j')
+        self.assertEqual(b38.decrypt('MOLON LABE')[0], '5JLdxTtcTHcfYcmJsNVy1v2PMDx432JPoYcBTVVRHpPaxUrdtf8')
+        self.assertEqual(b38.lot, 263183)
+        self.assertEqual(b38.sequence, 1)
+
+        # EC multiply, no compression, lot/sequence numbers, unicode passphrase
+        b38 = Bip38Key('6PgGWtx25kUg8QWvwuJAgorN6k9FbE25rv5dMRwu5SKMnfpfVe5mar2ngH')
+        self.assertEqual(b38.decrypt('ΜΟΛΩΝ ΛΑΒΕ')[0], '5KMKKuUmAkiNbA3DazMQiLfDq47qs8MAEThm4yL8R2PhV1ov33D')
+        self.assertEqual(b38.lot, 806938)
+        self.assertEqual(b38.sequence, 1)
+
+
+        # Test raise on bad pass
+        b38 = Bip38Key('6PYNKZ1EAgYgmQfmNVamxyXVWHzK5s6DGhwP4J5o44cvXdoY7sRzhtpUeo')
+        self.assertRaises(Bip38Key.PasswordError, b38.decrypt, 'a bad password')
+
+        # Test raise on not a Bip 38 key
+        self.assertRaises(Bip38Key.DecodeError, Bip38Key, '5KMKKuUmAkiNbA3DazMQiLfDq47qs8MAEThm4yL8R2PhV1ov33D')
+        # Test raise on garbled key
+        self.assertRaises(Exception, Bip38Key, '6PYNKZ1EAgYgmQfmNVamxyzgmQfK5s6DGhwP4J5o44cvXdoY7sRzhtpUeo')
+
+
+    def test_encrypt(self):
+        if not Bip38Key.isFast():
+            self.skipTest("Bip38 lacks a fast scrypt function, skipping encrypt test")
+            return
+        # Test encrypt, uncompressed key
+        b38 = Bip38Key.encrypt('5HtasZ6ofTHP6HCwTqTkLDuLQisYPah7aUnSKfC7h4hMUVw2gi5', 'a very password')
+        self.assertFalse(b38.compressed)
+        self.assertEqual(b38.typ, Bip38Key.Type.NonECMult)
+        self.assertEqual(b38.decrypt('a very password')[0], '5HtasZ6ofTHP6HCwTqTkLDuLQisYPah7aUnSKfC7h4hMUVw2gi5')
+
+        # Test encrypt, compressed key, unicode PW
+        b38 = Bip38Key.encrypt('L44B5gGEpqEDRS9vVPz7QT35jcBG2r3CZwSwQ4fCewXAhAhqGVpP', 'éåñ!!∆∆∆¡™£¢…æ÷≥')
+        self.assertTrue(b38.compressed)
+        self.assertEqual(b38.typ, Bip38Key.Type.NonECMult)
+        self.assertEqual(b38.decrypt('éåñ!!∆∆∆¡™£¢…æ÷≥')[0], 'L44B5gGEpqEDRS9vVPz7QT35jcBG2r3CZwSwQ4fCewXAhAhqGVpP')
+
+        # Test encrypt garbage WIF
+        self.assertRaises(Exception, Bip38Key.encrypt, '5HtasLLLLLsadjlaskjalqqj817qwiean', 'a very password')
+
+        # Test EC Mult encrypt intermediate, passphrase: ΜΟΛΩΝ ΛΑΒΕ
+        b38 = Bip38Key.ec_mult_from_intermediate_passphrase_string('passphrased3z9rQJHSyBkNBwTRPkUGNVEVrUAcfAXDyRU1V28ie6hNFbqDwbFBvsTK7yWVK', True)
+        self.assertTrue(b38.compressed)
+        self.assertEqual(b38.typ, Bip38Key.Type.ECMult)
+        self.assertEqual(b38.lot, 806938)
+        self.assertEqual(b38.sequence, 1)
+        self.assertTrue(bool(b38.decrypt('ΜΟΛΩΝ ΛΑΒΕ')))
+
+        # Test EC Mult compressed end-to-end, passphrase: ΜΟΛΩΝ ΛΑΒΕ
+        b38 = Bip38Key.createECMult('ΜΟΛΩΝ ΛΑΒΕ', (12345, 617), True)
+        self.assertTrue(b38.compressed)
+        self.assertEqual(b38.typ, Bip38Key.Type.ECMult)
+        self.assertEqual(b38.lot, 12345)
+        self.assertEqual(b38.sequence, 617)
+        self.assertTrue(bool(b38.decrypt('ΜΟΛΩΝ ΛΑΒΕ')))
+
+
+        # Test EC Mult uncompressed end-to-end, passphrase: ΜΟΛΩΝ ΛΑΒΕ
+        b38 = Bip38Key.createECMult('ΜΟΛΩΝ ΛΑΒΕ', (456, 123), False)
+        self.assertFalse(b38.compressed)
+        self.assertEqual(b38.typ, Bip38Key.Type.ECMult)
+        self.assertEqual(b38.lot, 456)
+        self.assertEqual(b38.sequence, 123)
+        self.assertTrue(bool(b38.decrypt('ΜΟΛΩΝ ΛΑΒΕ')))
+
+        # Success!

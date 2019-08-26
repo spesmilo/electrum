@@ -33,6 +33,8 @@ import json
 import ecdsa
 import pyaes
 
+from typing import Tuple
+
 from . import networks
 from .util import (bfh, bh2u, to_string, print_error, InvalidPassword,
                    assert_bytes, to_bytes, inv_dict, profiler)
@@ -1000,8 +1002,7 @@ def bip38_decrypt(enc_key, password, *, require_fast=True, net=None):
 
 class Bip38Key:
     '''
-        Implements Bip38 _decrypt_ functionality only. Encrypt will be added
-        at a later time.
+        Implements Bip38 _encrypt_ and _decrypt_ functionality.
 
         Supports both ECMult and NonECMult key types, so it should work with
         all BIP38 keys.
@@ -1009,7 +1010,7 @@ class Bip38Key:
         This code was translated from Calin's Go implementation of brute38:
         https://www.github.com/cculianu/brute38
 
-        Note that to actually decrypt keys you need either:
+        Note that to actually encrypt or decrypt keys you need either:
 
         - hashlib.scrypt (python 3.6 + openssl 1.1) which is very fast.
         - Cryptodome.Protocol.KDF.scrypt (also fast as it's native)
@@ -1017,6 +1018,8 @@ class Bip38Key:
 
         Use Bip38Key.canDecrypt() to test if the decrypt() functionality
         is actually available (that is, if we found a scrypt implementation).
+
+        Similarly, use Bip38Key.canEncrypt() to test whether encryption works.
 
         Use Bip38Key.isFast() to determine if decrypt() will be fast or
         painfully slow: It can take several minutes to decode a single key
@@ -1122,6 +1125,19 @@ class Bip38Key:
 
         self.networkVersion, self.privateKeyPrefix = self.net.ADDRTYPE_P2PKH, self.net.WIF_PREFIX
 
+    @property
+    def lot(self) -> int:
+        ''' Returns the 'lot' number if 'hasLotSequence' or None otherwise. '''
+        if self.dec and self.hasLotSequence:
+            return self.entropy[4] * 4096 + self.entropy[5] * 16 + self.entropy[6] // 16;
+
+    @property
+    def sequence(self) -> int:
+        ''' Returns the 'sequence' number if 'hasLotSequence' or None
+        otherwise. '''
+        if self.dec and self.hasLotSequence:
+            return (self.entropy[6] & 0x0f) * 256 + self.entropy[7]
+
     def typeString(self):
         if self.typ == Bip38Key.Type.NonECMult: return "NonECMultKey"
         if self.typ == Bip38Key.Type.ECMult: return "ECMultKey"
@@ -1171,6 +1187,9 @@ class Bip38Key:
         return False
 
     @staticmethod
+    def canEncrypt(): return Bip38Key.canDecrypt()
+
+    @staticmethod
     @profiler
     def _scrypt(password, salt, N, r, p, dkLen):
         password = to_bytes(password)
@@ -1189,7 +1208,6 @@ class Bip38Key:
         return pyscrypt.hash(password = password, salt = salt, N=N, r=r, p=p, dkLen=dkLen)
 
     def _decryptNoEC(self, passphrase : str) -> tuple: # returns the (WIF private key, Address)  on success, raises Error on failure.
-        assert isinstance(passphrase, str), "Passphrase must be a string!"
         scryptBuf = Bip38Key._scrypt(password = passphrase, salt = self.salt, N=16384, r=8, p=8, dkLen=64)
         derivedHalf1 = scryptBuf[0:32]
         derivedHalf2 = scryptBuf[32:64]
@@ -1223,14 +1241,19 @@ class Bip38Key:
 
         return serialize_privkey(keyBytes, self.compressed, 'p2pkh', net=self.net), addr
 
-    def decrypt(self, passphrase : str) -> tuple: # returns the (wifkey string, Address object)
+    @staticmethod
+    def _normalizeNFC(s : str) -> str:
+        '''Ensures unicode string is normalized to NFC standard as specified by bip38 '''
+        import unicodedata
+        return unicodedata.normalize('NFC', s)
+
+    def decrypt(self, passphrase : str) -> Tuple[str, object]: # returns the (wifkey string, Address object)
+        assert isinstance(passphrase, str), "Passphrase must be a string!"
+        passphrase = self._normalizeNFC(passphrase)  # ensure unicode bytes are normalized to NFC standard as specified by bip38
         if self.typ == Bip38Key.Type.NonECMult:
             return self._decryptNoEC(passphrase)
         elif self.typ != Bip38Key.Type.ECMult:
             raise Bip38Key.Error("INTERNAL ERROR: Unknown key type")
-        assert isinstance(passphrase, str), "Passphrase must be a string!"
-        import unicodedata
-        passphrase = unicodedata.normalize('NFC', passphrase) # ensure unicode bytes are normalized to NFC standard as specified by bip38
 
         prefactorA = Bip38Key._scrypt(password = passphrase, salt = self.salt, N=16384, r=8, p=8, dkLen=32)
 
@@ -1292,6 +1315,139 @@ class Bip38Key:
 
         return serialize_privkey(privKey, self.compressed, 'p2pkh', net=self.net), addr
 
+    @classmethod
+    def encrypt(cls, wif : str, passphrase : str, *, net=None) -> object:
+        ''' Returns a Bip38Key instance encapsulating the supplied WIF key
+        encrypted with passphrase. May raise on bad/garbage WIF or other bad
+        arguments. '''
+        assert cls.canEncrypt(), "scrypt function missing. Cannot encrypt."
+        assert isinstance(passphrase, str), "Passphrase must be a string!"
+        if net is None: net = networks.net
+        _type, key_bytes, compressed = deserialize_privkey(wif, net=net)  # may raise
+        if _type != 'p2pkh':
+            raise ValueError('Only p2pkh WIF keys may be encrypted using BIP38 at this time.')
+        public_key = public_key_from_private_key(key_bytes, compressed)
+        addr_str = pubkey_to_address(_type, public_key, net=net)
+        addr_hash = Hash(addr_str)[0:4]
+        passphrase = cls._normalizeNFC(passphrase)  # ensure unicode bytes are normalized to NFC standard as specified by bip38
+
+        derived_key = cls._scrypt(passphrase, addr_hash, N=16384, r=8, p=8, dkLen=64)
+
+        derivedHalf1 = derived_key[:32]
+        derivedHalf2 = derived_key[32:]
+
+        h = pyaes.AESModeOfOperationECB(derivedHalf2)
+
+        # Encrypt bitcoinprivkey[0...15] xor derivedhalf1[0...15]
+        encryptedHalf1 = h.encrypt(bytes( (x[0] ^ x[1]) for x in zip(key_bytes[:16], derivedHalf1[:16])) )
+        encryptedHalf2 = h.encrypt(bytes( (x[0] ^ x[1]) for x in zip(key_bytes[16:], derivedHalf1[16:])) )
+
+        flag = 0xe0 if compressed else 0xc0
+        b38 = bytes((0x01, cls.Type.NonECMult)) + bytes((flag,)) + to_bytes(addr_hash) + encryptedHalf1 + encryptedHalf2
+
+        return cls(EncodeBase58Check(b38))
+
+
+    _ec_mult_magic_prefix = bytes.fromhex('2CE9B3E1FF39E2')
+
+    @classmethod
+    def createECMult(cls, passphrase : str, lot_sequence : Tuple[int, int] = None,
+                     compressed = True, *, net=None) -> object:
+        ''' Creates a new, randomly generated and encrypted "EC Mult" Bip38 key
+        as per the Bip38 spec. The new key may be decrypted later with the
+        supplied passphrase to yield a 'p2pkh' WIF private key.
+
+        May raise if the scrypt function is missing.
+
+        Optional arguments:
+
+        `lot_sequence`, a tuple of (lot, sequence), both ints, with lot being an
+        int in the range [0,1048575], and sequence being an int in the range
+        [0, 4095]. This tuple, if specified, will be encoded in the generated
+        Bip38 key as the .lot and .sequence property.
+
+        `compressed` specifies whether to encode a compressed or uncompressed
+        bitcoin pub/priv key pair. Older wallets do not support compressed keys
+        but all new wallets do.'''
+        assert cls.canEncrypt(), "scrypt function missing. Cannot encrypt."
+        assert isinstance(passphrase, str), "Passphrase must be a string!"
+        if net is None: net = networks.net
+        passphrase = cls._normalizeNFC(passphrase)
+
+        has_lot_seq = lot_sequence is not None
+
+        if not has_lot_seq:
+            # No lot_sequence
+            ownersalt = ownerentropy = to_bytes(os.urandom(8))
+            magic = cls._ec_mult_magic_prefix + bytes((0x53,))
+        else:
+            lot, seq = lot_sequence
+            assert 0 <= lot <= 1048575, "Lot number out of range"
+            assert 0 <= seq <= 4095, "Sequence number out of range"
+
+            ownersalt = to_bytes(os.urandom(4))
+            lotseq = int(lot * 4096 + seq).to_bytes(4, byteorder='big')
+            ownerentropy = ownersalt + lotseq
+            magic = cls._ec_mult_magic_prefix + bytes((0x51,))
+
+        prefactor = cls._scrypt(passphrase, salt=ownersalt, N=16384, r=8, p=8, dkLen=32)
+
+        if has_lot_seq:
+            passfactor = Hash(prefactor + ownerentropy)
+        else:
+            passfactor = prefactor
+
+        ignored, passpoint = get_pubkeys_from_secret(passfactor)
+
+        intermediate_passphrase_string = magic + ownerentropy + passpoint # 49 bytes (not a str, despite name. We use the name from bip38 spec here)
+
+        enc = EncodeBase58Check(intermediate_passphrase_string)
+        print_error("[{}] Intermediate passphrase string:".format(cls.__name__), enc)
+        return cls.ec_mult_from_intermediate_passphrase_string(enc, compressed)
+
+    @classmethod
+    def ec_mult_from_intermediate_passphrase_string(cls, enc_ips : bytes,
+                                                    compressed = True) -> object:
+        ''' Takes a Bip38 intermediate passphrase string as specified in the
+        bip38 spec and generates a random and encrypted key, returning a newly
+        constructed Bip38Key instance. '''
+        ips = DecodeBase58Check(enc_ips)
+        assert ips.startswith(cls._ec_mult_magic_prefix), "Bad intermediate string"
+        hls_byte = ips[7]
+        assert hls_byte in (0x51, 0x53), "Bad has_lot_seq byte"
+        has_lot_seq = hls_byte == 0x51
+        ownerentropy = ips[8:16] # 8 bytes
+        passpoint = ips[16:]  # 33 bytes
+
+        assert len(passpoint) == 33, "Bad passpoint length"
+
+        # set up flag byte
+        flag = 0x20 if compressed else 0x0
+        if has_lot_seq:
+            flag |= 0x04
+
+        seedb = os.urandom(24)
+        factorb = Hash(seedb)
+
+        point = ser_to_point(passpoint) * cls._bytes_to_int(factorb)
+        pubkey = point_to_ser(point, compressed)
+        generatedaddress = pubkey_to_address('p2pkh', pubkey.hex())
+        addresshash = Hash(generatedaddress)[:4]
+
+        salt = addresshash + ownerentropy
+        derived = cls._scrypt(passpoint, salt=salt, N=1024, r=1, p=1, dkLen=64)
+
+        derivedhalf1 = derived[:32]
+        derivedhalf2 = derived[32:]
+
+        h = pyaes.AESModeOfOperationECB(derivedhalf2)
+
+        encryptedpart1 = h.encrypt(bytes( (x[0] ^ x[1]) for x in zip(seedb[:16], derivedhalf1[:16]) ))
+        encryptedpart2 = h.encrypt(bytes( (x[0] ^ x[1]) for x in zip(encryptedpart1[8:] + seedb[16:24], derivedhalf1[16:]) ))
+
+        return cls( EncodeBase58Check(bytes((0x01, cls.Type.ECMult, flag)) + addresshash + ownerentropy + encryptedpart1[:8] + encryptedpart2) )
+
+
     @staticmethod
     def _int_to_bytes(value, length):
         result = []
@@ -1327,24 +1483,3 @@ class Bip38Key:
     def __str__(self):
         return self.enc
 
-if __name__ == '__main__':
-    from .address import Address
-    from .util import set_verbosity
-    set_verbosity(True)
-    Address.FMT_UI = Address.FMT_LEGACY
-    b38 = '6PnV3J7jNC7iRazwtqhBz8bi162YvpGqyYQgRSXjKRrbUjkzHu9DBJfAgJ'
-    pw = 'foobar'
-    isbip38 = Bip38Key.isBip38(b38)
-    print("IsBip38:", isbip38)
-    if isbip38:
-        if not Bip38Key.canDecrypt():
-            print("scrypt not found: You need either hashlib.scrypt (python 3.6 + openssl 1.1) or the python library 'pyscrypt'!")
-            import sys
-            sys.exit(1)
-        bip = Bip38Key(b38)
-        print("Type:", bip.typeString())
-        print("Repr:",repr(bip))
-        print("Decrypting {} with pw={}...".format(str(bip), pw))
-        print(bip.decrypt(pw))
-    else:
-        print("'{}' is not a BIP38 encrypted key. Nothing to do. :)".format(b38))
