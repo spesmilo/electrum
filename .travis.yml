@@ -12,20 +12,13 @@ addons:
     packages:
       - libsecp256k1-0
 before_install:
-  - sudo add-apt-repository -y ppa:bitcoin/bitcoin
-  - sudo apt-get -qq update
-  - sudo apt-get install -yq bitcoind
   - git tag
 install:
   - pip install -r contrib/requirements/requirements-travis.txt
-  - pip install electrumx
 cache:
   - pip: true
   - directories:
     - /tmp/electrum-build
-before_script:
-    - electrum/tests/regtest/start_bitcoind.sh
-    - electrum/tests/regtest/start_electrumx.sh
 script:
     - tox
 after_success:
@@ -33,6 +26,20 @@ after_success:
     - coveralls
 jobs:
   include:
+    - name: "Regtest"
+      before_install:
+        - sudo add-apt-repository -y ppa:bitcoin/bitcoin
+        - sudo apt-get -qq update
+        - sudo apt-get install -yq bitcoind
+      install:
+        - pip install -r contrib/requirements/requirements.txt
+        - pip install electrumx
+      before_script:
+          - electrum/tests/regtest/start_bitcoind.sh
+          - electrum/tests/regtest/start_electrumx.sh
+      script:
+        - python -m unittest electrum/tests/regtest.py
+      after_success: True
     - if: branch = master  # don't build binaries on lightning branch
       stage: binary builds
       name: "Windows build"
