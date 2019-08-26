@@ -295,16 +295,21 @@ def print_error(*args):
         args = ("|%7.3f|"%(time.time() - _t0), *args)
     print_stderr(*args)
 
+_print_lock = threading.Lock()
 def print_stderr(*args):
-    args = [str(item) for item in args]
-    sys.stderr.write(" ".join(args) + "\n")
-    sys.stderr.flush()
+    s_args = (str(item) for item in args)  # generator -- slightly faster than compising to a list
+    with _print_lock:
+        # locking is required here as TextIOWrapper subclasses are not thread-safe, see:
+        # https://docs.python.org/3.6/library/io.html#multi-threading
+        sys.stderr.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
 
 def print_msg(*args):
     # Stringify args
-    args = [str(item) for item in args]
-    sys.stdout.write(" ".join(args) + "\n")
-    sys.stdout.flush()
+    s_args = (str(item) for item in args)  # generator -- slightly faster than composing to a list
+    with _print_lock:
+        # locking is required here as TextIOWrapper subclasses are not thread-safe, see:
+        # https://docs.python.org/3.6/library/io.html#multi-threading
+        sys.stdout.write(" ".join(s_args) + "\n")  # implicit .flush() for TextIOWrapper objects ending in "\n"
 
 def json_encode(obj):
     try:
