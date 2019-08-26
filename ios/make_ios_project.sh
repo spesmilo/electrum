@@ -251,7 +251,7 @@ fi
 # Clean up no-longer-needed electroncash/ dir that is outside of Xcode project
 rm -fr ${compact_name}/electroncash/*
 
-# Can add this back when it works uniformly without issues 
+# Can add this back when it works uniformly without issues
 # /usr/bin/env ruby update_project.rb
 
 echo ''
@@ -260,14 +260,12 @@ echo '*                                                                        *
 echo '*   Operation Complete. An Xcode project has been generated in "iOS/"    *'
 echo '*                                                                        *'
 echo '**************************************************************************'
-
-echo '  IMPORTANT!'
-echo '        Now you either need to manually add the library libxml2.tbd to the '
-echo '        project under "General -> Linked Frameworks and Libraries" or successfully '
-echo '        run the update_project.rb script to do it for you.'
-echo '        Either of those are needed to prevent build errors! '
 echo ''
-
+echo '  IMPORTANT!'
+echo '        Now you need to either manually add the library libxml2.tbd to the '
+echo '        project under "General -> Linked Frameworks and Libraries" *or* '
+echo '        run the ./update_project.rb script which will do it for you.'
+echo '        Either of the above are needed to prevent build errors! '
 echo ''
 echo '  Also note:'
 echo '        Modifications to files in iOS/ will be clobbered the next    '
