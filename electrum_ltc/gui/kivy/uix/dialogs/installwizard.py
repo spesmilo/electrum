@@ -151,7 +151,7 @@ Builder.load_string('''
             value: 2
 
 
-<ChoiceDialog>
+<WizardChoiceDialog>
     message : ''
     Widget:
         size_hint: 1, 1
@@ -744,10 +744,10 @@ class WizardConfirmDialog(WizardDialog):
         return (True,)
 
 
-class ChoiceDialog(WizardDialog):
+class WizardChoiceDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
-        super(ChoiceDialog, self).__init__(wizard, **kwargs)
+        super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
         self.title = kwargs.get('message', '')
         self.message = kwargs.get('message', '')
         choices = kwargs.get('choices', [])
@@ -791,7 +791,7 @@ class CLButton(ToggleButton):
         self.root.script_type = self.script_type
         self.root.set_text(self.value)
 
-class ChoiceLineDialog(ChoiceDialog):
+class ChoiceLineDialog(WizardChoiceDialog):
     title = StringProperty('')
     message1 = StringProperty('')
     message2 = StringProperty('')
@@ -1094,7 +1094,7 @@ class InstallWizard(BaseWizard, Widget):
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
         if len(choices) > 1:
-            ChoiceDialog(self, **kwargs).open()
+            WizardChoiceDialog(self, **kwargs).open()
         else:
             f = kwargs['run_next']
             f(choices[0][0])
