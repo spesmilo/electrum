@@ -145,7 +145,7 @@ class ChannelDetailsPopup(Popup):
         if not b:
             return
         loop = self.app.wallet.network.asyncio_loop
-        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.close_channel(self._chan.channel_id), loop)
+        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.close_channel(self.chan.channel_id), loop)
         try:
             coro.result(5)
             self.app.show_info(_('Channel closed'))
