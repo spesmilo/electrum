@@ -25,12 +25,11 @@
 import hashlib
 import sys
 import time
-import traceback
-import json
 from typing import Optional
+import asyncio
+import urllib.parse
 
 import certifi
-import urllib.parse
 import aiohttp
 
 
@@ -87,7 +86,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                         data = resp_content
                     data_len = len(data) if data is not None else None
                     _logger.info(f'fetched payment request {url} {data_len}')
-        except aiohttp.ClientError as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             error = f"Error while contacting payment URL: {url}.\nerror type: {type(e)}"
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
