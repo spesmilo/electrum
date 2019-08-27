@@ -605,6 +605,9 @@ class Transaction:
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
         self.version = 2
+        self.name = None
+        self.csv_delay = 0
+        self.cltv_expiry = 0
         # by default we assume this is a partial txn;
         # this value will get properly set when deserializing
         self.is_partial_originally = True
@@ -715,13 +718,16 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0, version=None):
+    def from_io(klass, inputs, outputs, locktime=0, version=None, name=None, csv_delay=0, cltv_expiry=0):
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs
         self.locktime = locktime
         if version is not None:
             self.version = version
+        self.name = name
+        self.csv_delay = csv_delay
+        self.cltv_expiry = cltv_expiry
         self.BIP69_sort()
         return self
 
@@ -933,6 +939,9 @@ class Transaction:
         prevout_n = txin['prevout_n']
         return prevout_hash + ':%d' % prevout_n
 
+    def prevout(self, index):
+        return self.get_outpoint_from_txin(self.inputs()[index])
+
     @classmethod
     def serialize_input(self, txin, script):
         # Prev hash and index
@@ -949,6 +958,7 @@ class Transaction:
             txin['sequence'] = nSequence
 
     def BIP69_sort(self, inputs=True, outputs=True):
+        # NOTE: other parts of the code rely on these sorts being *stable* sorts
         if inputs:
             self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
         if outputs:
@@ -1190,6 +1200,28 @@ class Transaction:
         return (addr in (o.address for o in self.outputs())) \
                or (addr in (txin.get("address") for txin in self.inputs()))
 
+    def get_output_idx_from_scriptpubkey(self, script: str) -> Optional[int]:
+        """Returns the index of an output with given script.
+        If there are no such outputs, returns None;
+        if there are multiple, returns one of them.
+        """
+        assert isinstance(script, str)  # hex
+        # build cache if there isn't one yet
+        # note: can become stale and return incorrect data
+        #       if the tx is modified later; that's out of scope.
+        if not hasattr(self, '_script_to_output_idx'):
+            d = {}
+            for output_idx, o in enumerate(self.outputs()):
+                o_script = self.pay_script(o.type, o.address)
+                assert isinstance(o_script, str)
+                d[o_script] = output_idx
+            self._script_to_output_idx = d
+        return self._script_to_output_idx.get(script)
+
+    def get_output_idx_from_address(self, addr: str) -> Optional:
+        script = bitcoin.address_to_script(addr)
+        return self.get_output_idx_from_scriptpubkey(script)
+
     def as_dict(self):
         if self.raw is None:
             self.raw = self.serialize()
@@ -1198,8 +1230,20 @@ class Transaction:
             'hex': self.raw,
             'complete': self.is_complete(),
             'final': self.is_final(),
+            'name': self.name,
+            'csv_delay': self.csv_delay,
+            'cltv_expiry': self.cltv_expiry,
         }
         return out
+
+    @classmethod
+    def from_dict(cls, d):
+        tx = cls(d['hex'])
+        tx.deserialize(True)
+        tx.name = d.get('name')
+        tx.csv_delay = d.get('csv_delay', 0)
+        tx.cltv_expiry = d.get('cltv_expiry', 0)
+        return tx
 
 
 def tx_from_str(txt: str) -> str:

@@ -10,6 +10,7 @@ from numbers import Real
 from copy import deepcopy
 
 from . import util
+from . import constants
 from .util import (user_dir, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
@@ -18,6 +19,7 @@ from .logging import get_logger, Logger
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
+FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
 
 # satoshi per kbyte
 FEERATE_MAX_DYNAMIC = 1000000
@@ -26,9 +28,10 @@ FEERATE_FALLBACK_STATIC_FEE = 100000
 FEERATE_DEFAULT_RELAY = 1000
 FEERATE_STATIC_VALUES = [10000, 20000, 30000, 50000, 70000, 100000,
                          150000, 200000, 300000, 500000]
+FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 
-config = None
+config = {}
 _logger = get_logger(__name__)
 
 
@@ -41,6 +44,19 @@ def set_config(c):
     global config
     config = c
 
+def estimate_fee(tx_size_bytes: int) -> int:
+    def use_fallback_feerate():
+        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+        fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
+        return fee
+
+    global config
+    if not config:
+        return use_fallback_feerate()
+    try:
+        return config.estimate_fee(tx_size_bytes)
+    except NoDynamicFeeEstimates:
+        return use_fallback_feerate()
 
 FINAL_CONFIG_VERSION = 3
 
@@ -63,6 +79,7 @@ class SimpleConfig(Logger):
             options = {}
 
         Logger.__init__(self)
+        self.lightning_settle_delay = int(os.environ.get('ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY', 0))
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
@@ -511,6 +528,8 @@ class SimpleConfig(Logger):
 
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
+        if constants.net is constants.BitcoinRegtest:
+            return FEERATE_REGTEST_HARDCODED
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:

@@ -40,7 +40,7 @@ from . import util
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
-frozen_style = "QWidget { background-color:none; border:none;}"
+frozen_style = "QWidget {border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 
@@ -61,10 +61,9 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.errors = []
         self.is_pr = False
         self.is_alias = False
-        self.scan_f = win.pay_to_URI
+        self.is_lightning = False
         self.update_size()
         self.payto_address = None
-
         self.previous_payto = ''
 
     def setFrozen(self, b):
@@ -130,7 +129,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         if len(lines) == 1:
             data = lines[0]
             if data.startswith("litecoin:"):
-                self.scan_f(data)
+                self.win.pay_to_URI(data)
+                return
+            l = data.lower()
+            if l.startswith("lightning:"):
+                data = l[10:]
+            if data.startswith("ln"):
+                self.win.parse_lightning_invoice(data)
+                self.lightning_invoice = data
                 return
             try:
                 self.payto_address = self.parse_output(data)
@@ -204,7 +210,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
         if data.startswith("litecoin:"):
-            self.scan_f(data)
+            self.win.pay_to_URI(data)
             # TODO: update fee
 
     def resolve(self):

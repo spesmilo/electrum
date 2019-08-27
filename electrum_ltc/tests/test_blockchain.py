@@ -339,3 +339,37 @@ class TestBlockchain(SequentialTestCase):
 
         for b in (chain_u, chain_l, chain_z):
             self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
+
+
+class TestVerifyHeader(SequentialTestCase):
+
+    # Data for Litecoin block header #100.
+    valid_header = "01000000fb040b4b30f4f0d90b5d4819f566a156669565f73998fb37cf072c4ec5daac08fd5a56f1650756fec9f1a587f9f69e5298723bf4e296aff71670b7d471f1a31e9e55964ef0ff0f1e27010000"
+    target = Blockchain.bits_to_target(0x1e0ffff0)
+    prev_hash = "08acdac54e2c07cf37fb9839f765956656a166f519485d0bd9f0f4304b0b04fb"
+
+    def setUp(self):
+        super().setUp()
+        self.header = deserialize_header(bfh(self.valid_header), 100)
+
+    def test_valid_header(self):
+        Blockchain.verify_header(self.header, self.prev_hash, self.target)
+
+    def test_expected_hash_mismatch(self):
+        with self.assertRaises(Exception):
+            Blockchain.verify_header(self.header, self.prev_hash, self.target,
+                                     expected_header_hash="foo")
+
+    def test_prev_hash_mismatch(self):
+        with self.assertRaises(Exception):
+            Blockchain.verify_header(self.header, "foo", self.target)
+
+    def test_target_mismatch(self):
+        with self.assertRaises(Exception):
+            other_target = Blockchain.bits_to_target(0x1d00eeee)
+            Blockchain.verify_header(self.header, self.prev_hash, other_target)
+
+    def test_insufficient_pow(self):
+        with self.assertRaises(Exception):
+            self.header["nonce"] = 42
+            Blockchain.verify_header(self.header, self.prev_hash, self.target)

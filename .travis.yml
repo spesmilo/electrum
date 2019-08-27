@@ -26,7 +26,22 @@ after_success:
     - coveralls
 jobs:
   include:
-    - stage: binary builds
+    - name: "Regtest"
+      before_install:
+        - sudo add-apt-repository -y ppa:litecoin-project/litecoin
+        - sudo apt-get -qq update
+        - sudo apt-get install -yq litecoind
+      install:
+        - pip install -r contrib/requirements/requirements.txt
+        - pip install electrumx
+      before_script:
+          - electrum_ltc/tests/regtest/start_bitcoind.sh
+          - electrum_ltc/tests/regtest/start_electrumx.sh
+      script:
+        - python -m unittest electrum_ltc/tests/regtest.py
+      after_success: True
+    - if: branch = master  # don't build binaries on lightning branch
+      stage: binary builds
       name: "Windows build"
       language: c
       python: false
@@ -39,7 +54,8 @@ jobs:
       script:
         - sudo docker run --name electrum-ltc-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-ltc --rm --workdir /opt/wine64/drive_c/electrum-ltc/contrib/build-wine electrum-ltc-wine-builder-img ./build.sh
       after_success: true
-    - name: "Android build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "Android build"
       language: python
       python: 3.7
       services:
@@ -58,7 +74,8 @@ jobs:
         - ls -la bin
         - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
-    - name: "MacOS build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "MacOS build"
       os: osx
       language: c
       env:
@@ -69,7 +86,8 @@ jobs:
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
-    - name: "AppImage build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "AppImage build"
       language: c
       python: false
       services:

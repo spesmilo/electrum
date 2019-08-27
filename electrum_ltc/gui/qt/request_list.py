@@ -26,37 +26,42 @@
 from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMenu, QHeaderView
+from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import format_time, age
+from electrum_ltc.util import format_time, age, get_request_status
+from electrum_ltc.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
+from electrum_ltc.lnutil import SENT, RECEIVED
 from electrum_ltc.plugin import run_hook
-from electrum_ltc.paymentrequest import PR_UNKNOWN
 from electrum_ltc.wallet import InternalAddressCorruption
+from electrum_ltc.bitcoin import COIN
+from electrum_ltc.lnaddr import lndecode
+import electrum_ltc.constants as constants
 
-from .util import MyTreeView, pr_tooltips, pr_icons, read_QIcon
+from .util import MyTreeView, pr_icons, read_QIcon
 
+REQUEST_TYPE_BITCOIN = 0
+REQUEST_TYPE_LN = 1
+
+ROLE_REQUEST_TYPE = Qt.UserRole
+ROLE_RHASH_OR_ADDR = Qt.UserRole + 1
 
 class RequestList(MyTreeView):
 
     class Columns(IntEnum):
         DATE = 0
-        ADDRESS = 1
-        SIGNATURE = 2
-        DESCRIPTION = 3
-        AMOUNT = 4
-        STATUS = 5
+        DESCRIPTION = 1
+        AMOUNT = 2
+        STATUS = 3
 
     headers = {
         Columns.DATE: _('Date'),
-        Columns.ADDRESS: _('Address'),
-        Columns.SIGNATURE: '',
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
     }
-    filter_columns = [Columns.DATE, Columns.ADDRESS, Columns.SIGNATURE, Columns.DESCRIPTION, Columns.AMOUNT]
+    filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
@@ -64,102 +69,131 @@ class RequestList(MyTreeView):
                          editable_columns=[])
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
-        self.setColumnWidth(self.Columns.DATE, 180)
         self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
 
+    def select_key(self, key):
+        for i in range(self.model().rowCount()):
+            item = self.model().index(i, self.Columns.DATE)
+            row_key = item.data(ROLE_RHASH_OR_ADDR)
+            if key == row_key:
+                self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
+                break
+
     def item_changed(self, idx):
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS)).text()
-        req = self.wallet.receive_requests.get(addr)
+        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        request_type = item.data(ROLE_REQUEST_TYPE)
+        key = item.data(ROLE_RHASH_OR_ADDR)
+        is_lightning = request_type == REQUEST_TYPE_LN
+        req = self.wallet.get_request(key, is_lightning)
         if req is None:
             self.update()
             return
-        expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        amount = req['amount']
-        message = req['memo']
-        self.parent.receive_address_e.setText(addr)
-        self.parent.receive_message_e.setText(message)
-        self.parent.receive_amount_e.setAmount(amount)
-        self.parent.expires_combo.hide()
-        self.parent.expires_label.show()
-        self.parent.expires_label.setText(expires)
-        self.parent.new_request_button.setEnabled(True)
+        text = req.get('invoice') if is_lightning else req.get('URI')
+        self.parent.receive_address_e.setText(text)
+
+    def refresh_status(self):
+        m = self.model()
+        for r in range(m.rowCount()):
+            idx = m.index(r, self.Columns.STATUS)
+            date_idx = idx.sibling(idx.row(), self.Columns.DATE)
+            date_item = m.itemFromIndex(date_idx)
+            status_item = m.itemFromIndex(idx)
+            key = date_item.data(ROLE_RHASH_OR_ADDR)
+            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN
+            req = self.wallet.get_request(key, is_lightning)
+            if req:
+                status_str = get_request_status(req)
+                status_item.setText(status_str)
+                status_item.setIcon(read_QIcon(pr_icons.get(req['status'])))
 
     def update(self):
         self.wallet = self.parent.wallet
-        # hide receive tab if no receive requests available
-        if self.parent.isVisible():
-            b = len(self.wallet.receive_requests) > 0
-            self.setVisible(b)
-            self.parent.receive_requests_label.setVisible(b)
-            if not b:
-                self.parent.expires_label.hide()
-                self.parent.expires_combo.show()
-
-        # update the receive address if necessary
-        current_address = self.parent.receive_address_e.text()
         domain = self.wallet.get_receiving_addresses()
-        try:
-            addr = self.wallet.get_unused_address()
-        except InternalAddressCorruption as e:
-            self.parent.show_error(str(e))
-            addr = ''
-        if current_address not in domain and addr:
-            self.parent.set_receive_address(addr)
-        self.parent.new_request_button.setEnabled(addr != current_address)
         self.parent.update_receive_address_styling()
-
         self.model().clear()
         self.update_headers(self.__class__.headers)
-        self.hideColumn(self.Columns.ADDRESS)
         for req in self.wallet.get_sorted_requests(self.config):
-            address = req['address']
-            if address not in domain:
+            status = req.get('status')
+            if status == PR_PAID:
                 continue
+            request_type = REQUEST_TYPE_LN if req.get('lightning', False) else REQUEST_TYPE_BITCOIN
             timestamp = req.get('time', 0)
             amount = req.get('amount')
-            expiration = req.get('exp', None)
             message = req['memo']
             date = format_time(timestamp)
-            status = req.get('status')
-            signature = req.get('sig')
-            requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, address, '', message, amount_str, pr_tooltips.get(status,'')]
+            status_str = get_request_status(req)
+            labels = [date, message, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
-            if signature is not None:
-                items[self.Columns.SIGNATURE].setIcon(read_QIcon("seal.png"))
-                items[self.Columns.SIGNATURE].setToolTip(f'signed by {requestor}')
-            if status is not PR_UNKNOWN:
-                items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            items[self.Columns.DESCRIPTION].setData(address, Qt.UserRole)
+            items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+            if request_type == REQUEST_TYPE_LN:
+                items[self.Columns.DATE].setData(req['rhash'], ROLE_RHASH_OR_ADDR)
+                items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
+                items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
+            else:
+                address = req['address']
+                if address not in domain:
+                    continue
+                expiration = req.get('exp', None)
+                signature = req.get('sig')
+                requestor = req.get('name', '')
+                items[self.Columns.DATE].setData(address, ROLE_RHASH_OR_ADDR)
+                if signature is not None:
+                    items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
+                    items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
+                else:
+                    items[self.Columns.DATE].setIcon(read_QIcon("bitcoin.png"))
             self.model().insertRow(self.model().rowCount(), items)
         self.filter()
+        # sort requests by date
+        self.model().sort(self.Columns.DATE)
+        # hide list if empty
+        if self.parent.isVisible():
+            b = self.model().rowCount() > 0
+            self.setVisible(b)
+            self.parent.receive_requests_label.setVisible(b)
 
     def create_menu(self, position):
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item_addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS))
-        if not item_addr:
+        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        if not item:
             return
-        addr = item_addr.text()
-        req = self.wallet.receive_requests.get(addr)
+        addr = item.data(ROLE_RHASH_OR_ADDR)
+        request_type = item.data(ROLE_REQUEST_TYPE)
+        assert request_type in [REQUEST_TYPE_BITCOIN, REQUEST_TYPE_LN]
+        if request_type == REQUEST_TYPE_BITCOIN:
+            req = self.wallet.receive_requests.get(addr)
+        elif request_type == REQUEST_TYPE_LN:
+            req = self.wallet.lnworker.invoices[addr][0]
         if req is None:
             self.update()
             return
         column = idx.column()
         column_title = self.model().horizontalHeaderItem(column).text()
-        column_data = item.text()
+        column_data = self.model().itemFromIndex(idx).text()
         menu = QMenu(self)
-        if column != self.Columns.SIGNATURE:
-            if column == self.Columns.AMOUNT:
-                column_data = column_data.strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
+        if column == self.Columns.AMOUNT:
+            column_data = column_data.strip()
+        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
+        if request_type == REQUEST_TYPE_BITCOIN:
+            self.create_menu_bitcoin_payreq(menu, addr)
+        elif request_type == REQUEST_TYPE_LN:
+            self.create_menu_ln_payreq(menu, addr, req)
+        menu.exec_(self.viewport().mapToGlobal(position))
+
+    def create_menu_bitcoin_payreq(self, menu, addr):
+        menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', addr))
+        menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', self.wallet.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
-        menu.exec_(self.viewport().mapToGlobal(position))
+
+    def create_menu_ln_payreq(self, menu, payreq_key, req):
+        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))

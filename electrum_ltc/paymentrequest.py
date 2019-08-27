@@ -41,6 +41,7 @@ except ImportError:
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
@@ -64,12 +65,6 @@ def load_ca_list():
         ca_list, ca_keyID = x509.load_certificates(ca_path)
 
 
-
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_UNKNOWN = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
 
 
 async def get_payment_request(url: str) -> 'PaymentRequest':
@@ -250,6 +245,9 @@ class PaymentRequest:
         if not hasattr(self, 'details'):
             return None
         return self.details.expires and self.details.expires < int(time.time())
+
+    def get_time(self):
+        return self.details.time
 
     def get_expiration_date(self):
         return self.details.expires

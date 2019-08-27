@@ -383,7 +383,10 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         pk = node.eckey.get_secret_bytes()
         return pk, True
 
-
+    def get_keypair(self, sequence, password):
+        k, _ = self.get_private_key(sequence, password)
+        cK = ecc.ECPrivkey(k).get_public_key_bytes()
+        return cK, k
 
 class Old_KeyStore(Deterministic_KeyStore):
 

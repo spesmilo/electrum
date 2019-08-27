@@ -60,3 +60,6 @@ class ElectrumGui:
                            plugins = self.plugins,
                            gui_object=self)
         w.run()
+
+    def stop(self):
+        pass

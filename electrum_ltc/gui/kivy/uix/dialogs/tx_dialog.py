@@ -101,6 +101,11 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Label')
+                on_release: root.label_dialog()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.dismiss()
 ''')
@@ -270,4 +275,15 @@ class TxDialog(Factory.Popup):
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()
         d = Question(question, on_prompt)
+        d.open()
+
+    def label_dialog(self):
+        from .label_dialog import LabelDialog
+        key = self.tx.txid()
+        text = self.app.wallet.get_label(key)
+        def callback(text):
+            self.app.wallet.set_label(key, text)
+            self.update()
+            self.app.history_screen.update()
+        d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()

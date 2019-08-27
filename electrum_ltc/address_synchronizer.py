@@ -21,6 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import asyncio
 import threading
 import asyncio
 import itertools
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from .json_db import JsonDB
 
 
+TX_HEIGHT_FUTURE = -3
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
@@ -70,6 +72,7 @@ class AddressSynchronizer(Logger):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
+        self.future_tx = {} # txid -> blocks remaining
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -92,6 +95,9 @@ class AddressSynchronizer(Logger):
         self.check_history()
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
+
+    def synchronize(self):
+        pass
 
     def is_mine(self, address):
         return self.db.is_addr_in_history(address)
@@ -172,11 +178,13 @@ class AddressSynchronizer(Logger):
         if self.synchronizer:
             self.synchronizer.add(address)
 
-    def get_conflicting_transactions(self, tx_hash, tx):
+    def get_conflicting_transactions(self, tx_hash, tx, include_self=False):
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
-        spent with tx. If the tx is already in wallet history, that will not be
-        reported as a conflict.
+        spent with tx.
+
+        include_self specifies whether the tx itself should be reported as a
+        conflict (if already in wallet history)
         """
         conflicting_txns = set()
         with self.transaction_lock:
@@ -196,7 +204,8 @@ class AddressSynchronizer(Logger):
                 # this tx is already in history, so it conflicts with itself
                 if len(conflicting_txns) > 1:
                     raise Exception('Found conflicting transactions already in wallet history.')
-                conflicting_txns -= {tx_hash}
+                if not include_self:
+                    conflicting_txns -= {tx_hash}
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx, allow_unrelated=False):
@@ -354,7 +363,6 @@ class AddressSynchronizer(Logger):
         # Store fees
         self.db.update_tx_fees(tx_fees)
 
-
     @profiler
     def load_local_history(self):
         self._history_local = {}  # address -> set(txid)
@@ -396,9 +404,9 @@ class AddressSynchronizer(Logger):
                 return verified_tx_mined_info.height, verified_tx_mined_info.txpos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return (height, 0) if height > 0 else ((1e9 - height), 0)
+                return (height, -1) if height > 0 else ((1e9 - height), -1)
             else:
-                return (1e9+1, 0)
+                return (1e9+1, -1)
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -550,6 +558,11 @@ class AddressSynchronizer(Logger):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
+    def add_future_tx(self, tx, num_blocks):
+        with self.lock:
+            self.add_transaction(tx.txid(), tx)
+            self.future_tx[tx.txid()] = num_blocks
+
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         with self.lock:
             verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
@@ -559,6 +572,9 @@ class AddressSynchronizer(Logger):
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
+            elif tx_hash in self.future_tx:
+                conf = self.future_tx[tx_hash]
+                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=conf)
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)

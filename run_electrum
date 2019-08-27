@@ -26,7 +26,7 @@
 import os
 import sys
 import warnings
-
+import asyncio
 
 MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -61,7 +61,6 @@ def check_imports():
         import certifi
         import qrcode
         import google.protobuf
-        import jsonrpclib
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
@@ -70,7 +69,6 @@ def check_imports():
     from google.protobuf import message
     from google.protobuf import reflection
     from google.protobuf import descriptor_pb2
-    from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
     assert os.path.exists(certifi.where())
 
@@ -90,6 +88,7 @@ from electrum_ltc.util import InvalidPassword
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc import daemon
 from electrum_ltc import keystore
+from electrum_ltc.util import create_and_start_event_loop
 
 _logger = get_logger(__name__)
 
@@ -160,8 +159,9 @@ def init_cmdline(config_options, server):
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if (cmd.requires_wallet and storage.is_encrypted() and server is None)\
-       or (cmd.requires_password and (storage.get('use_encryption') or storage.is_encrypted())):
+    if  ( (cmd.requires_wallet and storage.is_encrypted() and server is False)\
+       or (cmdname == 'load_wallet' and storage.is_encrypted())\
+       or (cmd.requires_password and (storage.is_encrypted() or storage.get('use_encryption')))):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
@@ -222,7 +222,7 @@ def get_password_for_hw_device_encrypted_storage(plugins):
     return password
 
 
-def run_offline_command(config, config_options, plugins):
+async def run_offline_command(config, config_options, plugins):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
@@ -256,7 +256,7 @@ def run_offline_command(config, config_options, plugins):
         kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
     cmd_runner = Commands(config, wallet, None)
     func = getattr(cmd_runner, cmd.name)
-    result = func(*args, **kwargs)
+    result = await func(*args, **kwargs)
     # save wallet
     if wallet:
         wallet.storage.write()
@@ -267,6 +267,11 @@ def init_plugins(config, gui_name):
     from electrum_ltc.plugin import Plugins
     return Plugins(config, gui_name)
 
+def sys_exit(i):
+    # stop event loop and exit
+    loop.call_soon_threadsafe(stop_loop.set_result, 1)
+    loop_thread.join(timeout=1)
+    sys.exit(i)
 
 if __name__ == '__main__':
     # The hook will only be used in the Qt GUI right now
@@ -345,6 +350,7 @@ if __name__ == '__main__':
     config = SimpleConfig(config_options)
 
     cmdname = config.get('cmd')
+    subcommand = config.get('subcommand')
 
     if config.get('testnet'):
         constants.set_testnet()
@@ -352,41 +358,45 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
+    elif config.get('lightning') and not config.get('reckless'):
+        raise Exception('lightning branch not available on mainnet')
+
+    if cmdname == 'daemon' and subcommand == 'start':
+        # fork before creating the asyncio event loop
+        pid = os.fork()
+        if pid:
+            print_stderr("starting daemon (PID %d)" % pid)
+            sys.exit(0)
+        else:
+            # redirect standard file descriptors
+            sys.stdout.flush()
+            sys.stderr.flush()
+            si = open(os.devnull, 'r')
+            so = open(os.devnull, 'w')
+            se = open(os.devnull, 'w')
+            os.dup2(si.fileno(), sys.stdin.fileno())
+            os.dup2(so.fileno(), sys.stdout.fileno())
+            os.dup2(se.fileno(), sys.stderr.fileno())
+
+    loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     if cmdname == 'gui':
         configure_logging(config)
-        fd, server = daemon.get_fd_or_server(config)
+        fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
             d = daemon.Daemon(config, fd)
-            d.init_gui(config, plugins)
-            sys.exit(0)
+            d.run_gui(config, plugins)
+            sys_exit(0)
         else:
-            result = server.gui(config_options)
+            result = daemon.request(config, 'gui', (config_options,))
 
     elif cmdname == 'daemon':
-        subcommand = config.get('subcommand')
-        if subcommand in ['load_wallet']:
-            init_daemon(config_options)
 
         if subcommand in [None, 'start']:
             configure_logging(config)
-            fd, server = daemon.get_fd_or_server(config)
+            fd = daemon.get_file_descriptor(config)
             if fd is not None:
-                if subcommand == 'start':
-                    pid = os.fork()
-                    if pid:
-                        print_stderr("starting daemon (PID %d)" % pid)
-                        sys.exit(0)
-                    # redirect standard file descriptors
-                    sys.stdout.flush()
-                    sys.stderr.flush()
-                    si = open(os.devnull, 'r')
-                    so = open(os.devnull, 'w')
-                    se = open(os.devnull, 'w')
-                    os.dup2(si.fileno(), sys.stdin.fileno())
-                    os.dup2(so.fileno(), sys.stdout.fileno())
-                    os.dup2(se.fileno(), sys.stderr.fileno())
                 # run daemon
                 init_plugins(config, 'cmdline')
                 d = daemon.Daemon(config, fd)
@@ -398,37 +408,42 @@ if __name__ == '__main__':
                     if not os.path.exists(path):
                         print("Requests directory not configured.")
                         print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                        sys.exit(1)
-                d.join()
-                sys.exit(0)
+                        sys_exit(1)
+                d.run_daemon()
+                sys_exit(0)
             else:
-                result = server.daemon(config_options)
+                result = daemon.request(config, 'daemon', (config_options,))
         else:
-            server = daemon.get_server(config)
-            if server is not None:
-                result = server.daemon(config_options)
-            else:
+            try:
+                result = daemon.request(config, 'daemon', (config_options,))
+            except daemon.DaemonNotRunning:
                 print_msg("Daemon not running")
-                sys.exit(1)
+                sys_exit(1)
     else:
         # command line
-        server = daemon.get_server(config)
-        init_cmdline(config_options, server)
-        if server is not None:
-            result = server.run_cmdline(config_options)
-        else:
+        try:
+            init_cmdline(config_options, True)
+            timeout = config_options.get('timeout', 60)
+            if timeout: timeout = int(timeout)
+            result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
+        except daemon.DaemonNotRunning:
             cmd = known_commands[cmdname]
             if cmd.requires_network:
                 print_msg("Daemon not running; try 'electrum-ltc daemon start'")
-                sys.exit(1)
+                sys_exit(1)
             else:
+                init_cmdline(config_options, False)
                 plugins = init_plugins(config, 'cmdline')
-                result = run_offline_command(config, config_options, plugins)
-                # print result
+                coro = run_offline_command(config, config_options, plugins)
+                fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                result = fut.result(10)
+        except Exception as e:
+            print_stderr(e)
+            sys_exit(1)
     if isinstance(result, str):
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))
     elif result is not None:
         print_msg(json_encode(result))
-    sys.exit(0)
+    sys_exit(0)

@@ -75,6 +75,8 @@ from electrum_ltc.util import (base_units, NoDynamicFeeEstimates, decimal_point_
                                base_unit_name_to_decimal_point, NotEnoughFunds, UnknownBaseUnit,
                                DECIMAL_POINT_DEFAULT)
 
+from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
+from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 class ElectrumWindow(App):
 
@@ -160,11 +162,16 @@ class ElectrumWindow(App):
         self.switch_to('send')
         self.send_screen.set_URI(uri)
 
+    def set_ln_invoice(self, invoice):
+        self.switch_to('send')
+        self.send_screen.set_ln_invoice(invoice)
+
     def on_new_intent(self, intent):
-        if intent.getScheme() != 'litecoin':
-            return
-        uri = intent.getDataString()
-        self.set_URI(uri)
+        data = intent.getDataString()
+        if intent.getScheme() == 'litecoin':
+            self.set_URI(data)
+        elif intent.getScheme() == 'lightning':
+            self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -187,6 +194,12 @@ class ElectrumWindow(App):
 
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
+
+    def on_payment_received(self, event, wallet, key, status):
+        if self.request_popup and self.request_popup.key == key:
+            self.request_popup.set_status(status)
+        if status == PR_PAID:
+            self.show_info(_('Payment Received') + '\n' + key)
 
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
@@ -320,7 +333,10 @@ class ElectrumWindow(App):
         # cached dialogs
         self._settings_dialog = None
         self._password_dialog = None
+        self._channels_dialog = None
+        self._addresses_dialog = None
         self.fee_status = self.electrum_config.get_fee_status()
+        self.request_popup = None
 
     def on_pr(self, pr):
         if not self.wallet:
@@ -352,6 +368,9 @@ class ElectrumWindow(App):
             return
         if data.startswith('litecoin:'):
             self.set_URI(data)
+            return
+        if data.startswith('ln'):
+            self.set_ln_invoice(data)
             return
         # try to decode transaction
         from electrum_ltc.transaction import Transaction
@@ -387,44 +406,17 @@ class ElectrumWindow(App):
         tab = self.tabs.ids[name + '_tab']
         panel.switch_to(tab)
 
-    def show_request(self, addr):
-        self.switch_to('receive')
-        self.receive_screen.screen.address = addr
-
-    def show_pr_details(self, req, status, is_invoice):
-        from electrum_ltc.util import format_time
-        requestor = req.get('requestor')
-        exp = req.get('exp')
-        memo = req.get('memo')
-        amount = req.get('amount')
-        fund = req.get('fund')
-        popup = Builder.load_file('electrum_ltc/gui/kivy/uix/ui_screens/invoice.kv')
-        popup.is_invoice = is_invoice
-        popup.amount = amount
-        popup.requestor = requestor if is_invoice else req.get('address')
-        popup.exp = format_time(exp) if exp else ''
-        popup.description = memo if memo else ''
-        popup.signature = req.get('signature', '')
-        popup.status = status
-        popup.fund = fund if fund else 0
-        txid = req.get('txid')
-        popup.tx_hash = txid or ''
-        popup.on_open = lambda: popup.ids.output_list.update(req.get('outputs', []))
-        popup.export = self.export_private_keys
-        popup.open()
-
-    def show_addr_details(self, req, status):
-        from electrum_ltc.util import format_time
-        fund = req.get('fund')
-        isaddr = 'y'
-        popup = Builder.load_file('electrum_ltc/gui/kivy/uix/ui_screens/invoice.kv')
-        popup.isaddr = isaddr
-        popup.is_invoice = False
-        popup.status = status
-        popup.requestor = req.get('address')
-        popup.fund = fund if fund else 0
-        popup.export = self.export_private_keys
-        popup.open()
+    def show_request(self, is_lightning, key):
+        from .uix.dialogs.request_dialog import RequestDialog
+        if is_lightning:
+            request, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None, None)
+            status = self.wallet.lnworker.get_invoice_status(key)
+        else:
+            request = self.wallet.get_request_URI(key)
+            status, conf = self.wallet.get_request_status(key)
+        self.request_popup = RequestDialog('Request', request, key)
+        self.request_popup.set_status(status)
+        self.request_popup.open()
 
     def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
         from .uix.dialogs.qr_dialog import QRDialog
@@ -524,6 +516,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
+            self.network.register_callback(self.on_payment_received, ['payment_received'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # URI passed in config
@@ -635,6 +628,15 @@ class ElectrumWindow(App):
         self._settings_dialog.update()
         self._settings_dialog.open()
 
+    def lightning_open_channel_dialog(self):
+        d = LightningOpenChannelDialog(self)
+        d.open()
+
+    def lightning_channels_dialog(self):
+        if self._channels_dialog is None:
+            self._channels_dialog = LightningChannelsDialog(self)
+        self._channels_dialog.open()
+
     def popup_dialog(self, name):
         if name == 'settings':
             self.settings_dialog()
@@ -652,6 +654,8 @@ class ElectrumWindow(App):
                 ref.data = xpub
                 master_public_keys_layout.add_widget(ref)
             popup.open()
+        elif name.endswith("_dialog"):
+            getattr(self, name)()
         else:
             popup = Builder.load_file('electrum_ltc/gui/kivy/uix/ui_screens/'+name+'.kv')
             popup.open()
@@ -783,7 +787,11 @@ class ElectrumWindow(App):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
         if not inputs:
             return ''
-        addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
+        addr = None
+        if self.send_screen:
+            addr = str(self.send_screen.screen.address)
+        if not addr:
+            addr = self.wallet.dummy_address()
         outputs = [TxOutput(TYPE_ADDRESS, addr, '!')]
         try:
             tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
@@ -848,14 +856,10 @@ class ElectrumWindow(App):
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
 
-    def on_ref_label(self, label, touch):
-        if label.touched:
-            label.touched = False
-            self.qr_dialog(label.name, label.data, True)
-        else:
-            label.touched = True
-            self._clipboard.copy(label.data)
-            Clock.schedule_once(lambda dt: self.show_info(_('Text copied to clipboard.\nTap again to display it as QR code.')))
+    def on_ref_label(self, label):
+        if not label.data:
+            return
+        self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://electrum_ltc/gui/kivy/theming/light/error', duration=0,
@@ -992,33 +996,12 @@ class ElectrumWindow(App):
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
-    def invoices_dialog(self, screen):
-        from .uix.dialogs.invoices import InvoicesDialog
-        if len(self.wallet.invoices.sorted_list()) == 0:
-            self.show_info(' '.join([
-                _('No saved invoices.'),
-                _('Signed invoices are saved automatically when you scan them.'),
-                _('You may also save unsigned requests or contact addresses using the save button.')
-            ]))
-            return
-        popup = InvoicesDialog(self, screen, None)
-        popup.update()
-        popup.open()
-
-    def requests_dialog(self, screen):
-        from .uix.dialogs.requests import RequestsDialog
-        if len(self.wallet.get_sorted_requests(self.electrum_config)) == 0:
-            self.show_info(_('No saved requests.'))
-            return
-        popup = RequestsDialog(self, screen, None)
-        popup.update()
-        popup.open()
-
-    def addresses_dialog(self, screen):
+    def addresses_dialog(self):
         from .uix.dialogs.addresses import AddressesDialog
-        popup = AddressesDialog(self, screen, None)
-        popup.update()
-        popup.open()
+        if self._addresses_dialog is None:
+            self._addresses_dialog = AddressesDialog(self)
+        self._addresses_dialog.update()
+        self._addresses_dialog.open()
 
     def fee_dialog(self, label, dt):
         from .uix.dialogs.fee_dialog import FeeDialog
@@ -1077,9 +1060,9 @@ class ElectrumWindow(App):
         except:
             self.show_error("Invalid PIN")
             return
-        label.text = _('Seed') + ':\n' + seed
+        label.data = seed
         if passphrase:
-            label.text += '\n\n' + _('Passphrase') + ': ' + passphrase
+            label.data += '\n\n' + _('Passphrase') + ': ' + passphrase
 
     def password_dialog(self, wallet, msg, on_success, on_failure):
         from .uix.dialogs.password_dialog import PasswordDialog
