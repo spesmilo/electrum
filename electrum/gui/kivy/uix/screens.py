@@ -253,7 +253,7 @@ class SendScreen(CScreen):
             self.payment_request = None
 
     def do_paste(self):
-        data = self.app._clipboard.paste()
+        data = self.app._clipboard.paste().strip()
         if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
@@ -267,9 +267,12 @@ class SendScreen(CScreen):
         if tx:
             self.app.tx_dialog(tx)
             return
+        lower = data.lower()
+        if lower.startswith('lightning:ln'):
+            lower = lower[10:]
         # try to decode as URI/address
-        if data.startswith('ln'):
-            self.set_ln_invoice(data.rstrip())
+        if lower.startswith('ln'):
+            self.set_ln_invoice(lower)
         else:
             self.set_URI(data)
             # save automatically

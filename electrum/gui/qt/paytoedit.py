@@ -131,12 +131,12 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             if data.startswith("bitcoin:"):
                 self.win.pay_to_URI(data)
                 return
-            l = data.lower()
-            if l.startswith("lightning:"):
-                data = l[10:]
-            if data.startswith("ln"):
-                self.win.parse_lightning_invoice(data)
-                self.lightning_invoice = data
+            lower = data.lower()
+            if lower.startswith("lightning:ln"):
+                lower = lower[10:]
+            if lower.startswith("ln"):
+                self.win.parse_lightning_invoice(lower)
+                self.lightning_invoice = lower
                 return
             try:
                 self.payto_address = self.parse_output(data)
