@@ -40,7 +40,8 @@ class ChannelsList(MyTreeView):
     }
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID)
+        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID,
+                         editable_columns=[])
         self.setModel(QtGui.QStandardItemModel(self))
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
@@ -126,6 +127,7 @@ class ChannelsList(MyTreeView):
         self.update_headers(self.headers)
         for chan in self.parent.wallet.lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
+            self.set_editability(items)
             items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
             self.model().insertRow(0, items)
 

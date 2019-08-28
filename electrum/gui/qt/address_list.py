@@ -146,7 +146,7 @@ class AddressList(MyTreeView):
                 item.setTextAlignment(Qt.AlignVCenter)
                 if i not in (self.Columns.TYPE, self.Columns.LABEL):
                     item.setFont(QFont(MONOSPACE_FONT))
-                item.setEditable(i in self.editable_columns)
+            self.set_editability(address_item)
             address_item[self.Columns.FIAT_BALANCE].setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             # setup column 0
             if self.wallet.is_change(address):
