@@ -1636,7 +1636,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         msg.append("")
-        msg.append("The transaction signature will include the SHA256 hash of the network terms and conditions")
+        if constants.net.CONTRACTINTX:
+            msg.append("The transaction will include the SHA256 hash of the network terms and conditions")
+        else:
+            msg.append("The transaction signature will include the SHA256 hash of the network terms and conditions")
 
         if self.wallet.has_keystore_encryption():
             msg.append("")
@@ -2366,6 +2369,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             outp = TxOutput(out_type,addr,coin['value'],1,coin['asset'],1)
             outputs.append(outp)
 
+        if constants.net.CONTRACTINTX:
+            asset = coin_vals[0]['asset']
+            contr = self.contracts[-1]
+            op_return_script = '6a20' + "".join(reversed([contr[i:i+2] for i in range(0, len(contr), 2)]))
+            outputs.append(TxOutput(TYPE_SCRIPT,op_return_script,0,1,asset,1))
+
         tx = Transaction.from_io(coin_vals, outputs)
         tx.locktime = self.wallet.get_local_height()
 
@@ -2667,7 +2676,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contract_e = QTextEdit()
         contract_e.setText(self.config.contract_text)
         contract_e.setReadOnly(True)
-        layout.addWidget(QLabel(_('All wallet keys will include the SHA256 hash of the following terms and conditions via the pay-to-contact protocol')), 1, 0)
+        if constants.net.CONTRACTINTX:
+            layout.addWidget(QLabel(_('All wallet transactions will include the SHA256 hash of the following terms and conditions')), 1, 0)
+        else:
+            layout.addWidget(QLabel(_('All wallet keys will include the SHA256 hash of the following terms and conditions via the pay-to-contact protocol')), 1, 0)
         layout.addWidget(contract_e, 2, 0)
         layout.setRowStretch(2,3)
 
