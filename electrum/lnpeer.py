@@ -141,7 +141,7 @@ class Peer(Logger):
             asyncio.ensure_future(execution_result)
 
     def on_error(self, payload):
-        self.logger.info(f"error {payload['data'].decode('ascii')}")
+        self.logger.info(f"on_error: {payload['data'].decode('ascii')}")
         chan_id = payload.get("channel_id")
         for d in [ self.channel_accepted, self.funding_signed,
                    self.funding_created, self.channel_reestablished,
@@ -753,10 +753,16 @@ class Peer(Logger):
                 channel_id=chan_id,
                 next_local_commitment_number=next_local_ctn,
                 next_remote_revocation_number=oldest_unrevoked_remote_ctn)
+        self.logger.info(f'channel_reestablish: sent channel_reestablish with '
+                         f'(next_local_ctn={next_local_ctn}, '
+                         f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
 
         channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
         their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        self.logger.info(f'channel_reestablish: received channel_reestablish with '
+                         f'(their_next_local_ctn={their_next_local_ctn}, '
+                         f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
         their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = channel_reestablish_msg.get("your_last_per_commitment_secret")
         # sanity checks of received values
@@ -772,10 +778,16 @@ class Peer(Logger):
         # e.g. for watchtowers, hence we must ensure these ctxs coincide.
         # We replay the local updates even if they were not yet committed.
         unacked = chan.hm.get_unacked_local_updates()
-        self.logger.info(f'replaying {len(unacked)} unacked messages')
+        n_replayed_msgs = 0
         for ctn, messages in unacked.items():
+            if ctn < their_next_local_ctn:
+                # They claim to have received these messages and the corresponding
+                # commitment_signed, hence we must not replay them.
+                continue
             for raw_upd_msg in messages:
                 self.transport.send_bytes(raw_upd_msg)
+                n_replayed_msgs += 1
+        self.logger.info(f'channel_reestablish: replayed {n_replayed_msgs} unacked messages')
 
         should_close_we_are_ahead = False
         should_close_they_are_ahead = False
