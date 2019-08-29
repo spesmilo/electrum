@@ -586,17 +586,6 @@ class Abstract_Wallet(AddressSynchronizer):
                 # coin_chooser will set change address
                 change_addrs = []
 
-              # Fee estimator
-        if fixed_fee is None:
-            fee_estimator = config.estimate_fee
-        elif isinstance(fixed_fee, Number):
-            fee_estimator = lambda size: fixed_fee
-        elif callable(fixed_fee):
-            fee_estimator = fixed_fee
-        else:
-            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
-
-
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee

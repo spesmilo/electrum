@@ -104,7 +104,7 @@ def filter_protocol(hostmap, protocol='s'):
     return eligible
 
 
-def pick_random_server(hostmap = None, protocol = 't', exclude_set = set()):
+def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
