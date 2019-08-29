@@ -1498,7 +1498,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if self.parse_registeraddress_data(data, tx, parent_window):
                 return True
         else:
-            return self.parse_ratx_addresses(data, txtype != 'deregisteraddress'))
+            return self.parse_ratx_addresses(data, txtype != 'deregisteraddress')
 
         return False
 

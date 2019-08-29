@@ -28,7 +28,7 @@ import hmac
 import hashlib
 import sys
 from typing import Union
-
+import os
 
 import ecdsa
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
