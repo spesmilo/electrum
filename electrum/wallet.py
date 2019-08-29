@@ -2023,17 +2023,24 @@ class Multisig_Wallet(Deterministic_Wallet):
         address_pubkey_list = []
         for addr in addrs:
             line="{} {}".format(self.m, addr)
-            untweakedKeys = self.get_public_keys(addr, False)
-            tweakedKeys = self.get_tweaked_multi_public_keys(addr, untweakedKeys, self.m, False)
+            
+
             tweakedKeysSorted = self.get_public_keys(addr, True)
-            sortedUntweaked = []
-            for i in range(len(tweakedKeysSorted)):
-                for j in range(len(tweakedKeys)):
-                    if tweakedKeys[j] == tweakedKeysSorted[i]:
-                        sortedUntweaked.append(untweakedKeys[j])
-                        break
-            for pub in sortedUntweaked:
-                line+=" {}".format(pub)
+            if not constants.net.CONTRACTINTX:
+                untweakedKeys = self.get_public_keys(addr, False)
+                tweakedKeys = self.get_tweaked_multi_public_keys(addr, untweakedKeys, self.m, False)
+                sortedUntweaked = []
+                for i in range(len(tweakedKeysSorted)):
+                    for j in range(len(tweakedKeys)):
+                        if tweakedKeys[j] == tweakedKeysSorted[i]:
+                            sortedUntweaked.append(untweakedKeys[j])
+                            break
+                for pub in sortedUntweaked:
+                    line+=" {}".format(pub)
+            else:
+                for pub in tweakedKeysSorted:
+                    line+=" {}".format(pub)
+                    
             address_pubkey_list.append(line)
             ss.write(line)
             ss.write("\n")
