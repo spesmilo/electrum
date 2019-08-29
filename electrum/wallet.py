@@ -590,17 +590,6 @@ class Abstract_Wallet(AddressSynchronizer):
                 # coin_chooser will set change address
                 change_addrs = []
 
-              # Fee estimator
-        if fixed_fee is None:
-            fee_estimator = config.estimate_fee
-        elif isinstance(fixed_fee, Number):
-            fee_estimator = lambda size: fixed_fee
-        elif callable(fixed_fee):
-            fee_estimator = fixed_fee
-        else:
-            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
-
-
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee
@@ -634,6 +623,7 @@ class Abstract_Wallet(AddressSynchronizer):
             asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
                 for o in outputs for (asset, value) in coinchooser.get_asset_outputs(o.value, input_map)]
 
+
             # add fee output
             tx = Transaction.from_io(inputs, asset_outputs[:])
             tx.add_outputs(TxOutput(TYPE_SCRIPT, '', value, 1, asset, 1)
@@ -641,6 +631,13 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
+
+        if constants.net.CONTRACTINTX:
+            asset = tx.outputs()[0].asset
+            contr = self.contracts[-1]
+            op_return_script = '6a20' + "".join(reversed([contr[i:i+2] for i in range(0, len(contr), 2)]))
+            tx.add_outputs([TxOutput(TYPE_SCRIPT,op_return_script,0,1,asset,1)])
+
         # Timelock tx to current height.
         tx.locktime = self.get_local_height()
         run_hook('make_unsigned_transaction', self, tx)
@@ -1957,7 +1954,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
         address_pubkey_list = []
         for addr in addrs:
-            line="{} {}".format(addr, ''.join(self.get_public_keys(addr, False)))
+            line="{} {}".format(addr, ''.join(self.get_public_keys(addr, constants.net.CONTRACTINTX)))
             address_pubkey_list.append(line)
             ss.write(line)
             ss.write("\n")

@@ -1,7 +1,8 @@
 {
-    "oceanelectrum.commerceblock.com": {
+    "localhost": {
         "pruning": "-",
-        "t": "18001",
-        "version": "1.7"
+        "s": "51002",
+        "t": "51001",
+        "version": "2.0"
     }
 }
