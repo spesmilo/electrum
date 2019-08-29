@@ -304,7 +304,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo "mempool has 1 tx"
     new_blocks 1
     sleep 5
-    balance=$($bob getbalance | jq '.confirmed')
+    balance=$($bob getbalance | jq '.confirmed | tonumber')
     if (( $(echo "$balance < 0.049" | bc -l) )); then
         echo "htlc not redeemed."
         exit 1
