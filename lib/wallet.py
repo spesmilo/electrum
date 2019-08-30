@@ -94,49 +94,54 @@ def dust_threshold(network):
     return 546 # hard-coded Bitcoin Cash dust threshold. Was changed to this as of Sept. 2018
 
 
-def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
-    if txin_type == 'p2pkh':
-        address = Address.from_pubkey(pubkey)
-    else:
-        address = PublicKey.from_pubkey(pubkey)
-    sh = address.to_scripthash_hex()
-    u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
-    for item in u:
-        if len(inputs) >= imax:
-            break
-        item['address'] = address
-        item['type'] = txin_type
-        item['prevout_hash'] = item['tx_hash']
-        item['prevout_n'] = item['tx_pos']
-        item['pubkeys'] = [pubkey]
-        item['x_pubkeys'] = [pubkey]
-        item['signatures'] = [None]
-        item['num_sig'] = 1
-        inputs.append(item)
-
 def sweep_preparations(privkeys, network, imax=100):
+    class InputsMaxxed(Exception):
+        pass
+
+    def append_utxos_to_inputs(inputs, pubkey, txin_type):
+        if txin_type == 'p2pkh':
+            address = Address.from_pubkey(pubkey)
+        else:
+            address = PublicKey.from_pubkey(pubkey)
+        sh = address.to_scripthash_hex()
+        u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+        for item in u:
+            if len(inputs) >= imax:
+                raise InputsMaxxed()
+            item['address'] = address
+            item['type'] = txin_type
+            item['prevout_hash'] = item['tx_hash']
+            item['prevout_n'] = item['tx_pos']
+            item['pubkeys'] = [pubkey]
+            item['x_pubkeys'] = [pubkey]
+            item['signatures'] = [None]
+            item['num_sig'] = 1
+            inputs.append(item)
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
-        append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+        append_utxos_to_inputs(inputs, pubkey, txin_type)
         keypairs[pubkey] = privkey, compressed
 
     inputs = []
     keypairs = {}
-    for sec in privkeys:
-        txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-        find_utxos_for_privkey(txin_type, privkey, compressed)
-        # do other lookups to increase support coverage
-        if is_minikey(sec):
-            # minikeys don't have a compressed byte
-            # we lookup both compressed and uncompressed pubkeys
-            find_utxos_for_privkey(txin_type, privkey, not compressed)
-        elif txin_type == 'p2pkh':
-            # WIF serialization does not distinguish p2pkh and p2pk
-            # we also search for pay-to-pubkey outputs
-            find_utxos_for_privkey('p2pk', privkey, compressed)
-        elif txin_type == 'p2sh':
-            raise ValueError(_("The specified WIF key '{}' is a p2sh WIF key. These key types cannot be swept.").format(sec))
+    try:
+        for sec in privkeys:
+            txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+            find_utxos_for_privkey(txin_type, privkey, compressed)
+            # do other lookups to increase support coverage
+            if is_minikey(sec):
+                # minikeys don't have a compressed byte
+                # we lookup both compressed and uncompressed pubkeys
+                find_utxos_for_privkey(txin_type, privkey, not compressed)
+            elif txin_type == 'p2pkh':
+                # WIF serialization does not distinguish p2pkh and p2pk
+                # we also search for pay-to-pubkey outputs
+                find_utxos_for_privkey('p2pk', privkey, compressed)
+            elif txin_type == 'p2sh':
+                raise ValueError(_("The specified WIF key '{}' is a p2sh WIF key. These key types cannot be swept.").format(sec))
+    except InputsMaxxed:
+        pass
     if not inputs:
         raise ValueError(_('No inputs found. (Note that inputs need to be confirmed)'))
     return inputs, keypairs
@@ -150,9 +155,9 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100, sign_schnorr
         tx = Transaction.from_io(inputs, outputs, sign_schnorr=sign_schnorr)
         fee = config.estimate_fee(tx.estimated_size())
     if total - fee < 0:
-        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
+        raise NotEnoughFunds(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
     if total - fee < dust_threshold(network):
-        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
+        raise NotEnoughFunds(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
 
     outputs = [(TYPE_ADDRESS, recipient, total - fee)]
     locktime = network.get_local_height()
