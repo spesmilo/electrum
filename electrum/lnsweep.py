@@ -186,11 +186,6 @@ def create_sweeptxs_for_our_ctx(chan: 'Channel', ctx: Transaction, ctn: int,
         return
     # we have to_local, to_remote.
     # other outputs are htlcs
-    # if they are spent, we need to generate the script
-    # so, second-stage htlc sweep should not be returned here
-    if ctn < chan.get_oldest_unrevoked_ctn(LOCAL):
-        _logger.info("we breached.")
-        return {}
     txs = {}
     # to_local
     output_idx = ctx.get_output_idx_from_address(to_local_address)
