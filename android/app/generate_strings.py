@@ -59,7 +59,14 @@ QUANTITIES = {
     "(n > 1)": {
         0: "one",   # For these languages, "one" includes zero (see CLDR link above).
         1: "other"
-    }
+    },
+
+    # e.g. ro
+    "(n==1 ? 0 : (n==0 || (n%100>0 && n%100<20)) ? 1 : 2)": {
+        0: "one",
+        1: "few",
+        2: "other"
+    },
 }
 
 
@@ -102,7 +109,8 @@ def read_catalog(filename):
             match = re.search(r"plural=(.+?);", pf)
             if not match:
                 raise Exception("Failed to parse Plural-Forms")
-            quantities = QUANTITIES.get(match.group(1))
+            formula = match.group(1)
+            quantities = QUANTITIES.get(formula)
 
         catalog = {}
         for entry in f:
@@ -127,8 +135,9 @@ def read_catalog(filename):
                                           "other": fix_format(entry.msgid_plural)}
                     else:
                         if quantities is None:
-                            raise Exception("Plural formula unknown: add it to QUANTITIES "
-                                            "in " + SCRIPT_NAME)
+                            raise Exception(
+                                "Unknown plural formula '{}': add it to QUANTITIES in {}"
+                                .format(formula, SCRIPT_NAME))
                         catalog[msgid] = {quantities[i]: fix_format(s)
                                           for i, s in entry.msgstr_plural.items()}
                 else:
