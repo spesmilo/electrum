@@ -159,6 +159,7 @@ fi
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon start
+    sleep 1
     $bob load_wallet
     sleep 1
     # alice opens channel
@@ -204,6 +205,7 @@ fi
 if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bob stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
+    sleep 1
     $bob load_wallet
     wait_for_balance alice 1
     echo "alice opens channel"
@@ -235,6 +237,7 @@ fi
 if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob stop
     ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
+    sleep 1
     $bob load_wallet
     wait_for_balance alice 1
     echo "alice opens channel"
@@ -275,6 +278,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice stop
     cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
     $alice daemon start
+    sleep 1
     $alice load_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
@@ -283,6 +287,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 1
     echo "bob comes back"
     $bob daemon start
+    sleep 1
     $bob load_wallet
     wait_for_balance bob 0.049
     $bob getbalance
@@ -297,6 +302,7 @@ if [[ $1 == "watchtower" ]]; then
     $carol setconfig watchtower_port 12345
     $carol daemon start
     $alice daemon start
+    sleep 1
     $alice load_wallet
     wait_for_balance alice 1
     echo "alice opens channel"
