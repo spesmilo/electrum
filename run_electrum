@@ -24,6 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+import time
 import sys
 import warnings
 import asyncio
@@ -273,6 +274,16 @@ def sys_exit(i):
     loop_thread.join(timeout=1)
     sys.exit(i)
 
+def can_ping_daemon(config):
+    try:
+        daemon.request(config, 'ping')
+        return True
+    except daemon.DaemonNotRunning:
+        return False
+    except BaseException as e:
+        print_stderr(e)
+        return False
+
 if __name__ == '__main__':
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
@@ -348,6 +359,8 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
+    # this sets rpc_password as side effect
+    daemon.get_rpc_credentials(config)
 
     cmdname = config.get('cmd')
     subcommand = config.get('subcommand')
@@ -361,12 +374,28 @@ if __name__ == '__main__':
     elif config.get('lightning') and not config.get('reckless'):
         raise Exception('lightning branch not available on mainnet')
 
+    loop, stop_loop, loop_thread = create_and_start_event_loop()
+
     if cmdname == 'daemon' and subcommand == 'start':
-        # fork before creating the asyncio event loop
+        if can_ping_daemon(config):
+            print_stderr('daemon already running')
+            sys_exit(1)
+        loop.call_soon_threadsafe(stop_loop.set_result, 1)
+        loop_thread.join(timeout=1)
+        # we must fork before creating the asyncio event loop,
+        # see https://bugs.python.org/issue21998
         pid = os.fork()
+        loop, stop_loop, loop_thread = create_and_start_event_loop()
         if pid:
-            print_stderr("starting daemon (PID %d)" % pid)
-            sys.exit(0)
+            for i in range(10):
+                if can_ping_daemon(config):
+                    break
+                time.sleep(0.5)
+            else:
+                print_stderr("Could not contact daemon, giving up")
+                sys_exit(1)
+            print_stderr("Daemon started (PID %d)" % pid)
+            sys_exit(0)
         else:
             # redirect standard file descriptors
             sys.stdout.flush()
@@ -377,8 +406,6 @@ if __name__ == '__main__':
             os.dup2(si.fileno(), sys.stdin.fileno())
             os.dup2(so.fileno(), sys.stdout.fileno())
             os.dup2(se.fileno(), sys.stderr.fileno())
-
-    loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     if cmdname == 'gui':
         configure_logging(config)
