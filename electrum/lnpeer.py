@@ -24,7 +24,7 @@ from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
-from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions, chunks
+from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions, chunks, SilentTaskGroup
 from .transaction import Transaction, TxOutput
 from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
@@ -90,6 +90,7 @@ class Peer(Logger):
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
         Logger.__init__(self)
+        self.group = SilentTaskGroup()
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
@@ -231,7 +232,7 @@ class Peer(Logger):
     @log_exceptions
     @handle_disconnect
     async def main_loop(self):
-        async with aiorpcx.TaskGroup() as group:
+        async with self.group as group:
             await group.spawn(self._message_loop())
             await group.spawn(self.query_gossip())
             await group.spawn(self.process_gossip())

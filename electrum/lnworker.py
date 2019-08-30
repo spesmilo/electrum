@@ -1102,8 +1102,11 @@ class LNWallet(LNWorker):
                 if not chan.should_try_to_reestablish_peer():
                     continue
                 peer = self.peers.get(chan.node_id, None)
-                coro = peer.reestablish_channel(chan) if peer else self.reestablish_peer_for_given_channel(chan)
-                await self.network.main_taskgroup.spawn(coro)
+                if peer:
+                    await peer.group.spawn(peer.reestablish_channel(chan))
+                else:
+                    await self.network.main_taskgroup.spawn(
+                        self.reestablish_peer_for_given_channel(chan))
 
     def current_feerate_per_kw(self):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
