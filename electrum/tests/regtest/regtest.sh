@@ -276,10 +276,9 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
     new_blocks 150
     $alice stop
-    cp /tmp/alice/regtest/wallets/toxic_wallet /tmp/alice/regtest/wallets/default_wallet
     $alice daemon start
     sleep 1
-    $alice load_wallet
+    $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
     wait_until_spent $ctx_id 0
