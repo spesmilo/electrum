@@ -983,7 +983,9 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except BaseException as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
             pass
     return wrapper
 
