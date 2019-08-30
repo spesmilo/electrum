@@ -377,6 +377,7 @@ class LNWallet(LNWorker):
                 self.sync_with_local_watchtower(),
                 self.sync_with_remote_watchtower(),
         ]:
+            # FIXME: exceptions in those coroutines will cancel network.main_taskgroup
             asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
 
     def peer_closed(self, peer):
@@ -570,6 +571,7 @@ class LNWallet(LNWorker):
             self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed and set sweep_info
         sweep_info = chan.sweep_ctx(closing_tx)
+        self.logger.info(f'sweep_info length: {len(sweep_info)}')
         # create and broadcast transaction
         for prevout, e_tx in sweep_info.items():
             name, csv_delay, cltv_expiry, gen_tx = e_tx
@@ -662,6 +664,7 @@ class LNWallet(LNWorker):
                                                        500_000)
         return total_value_sat > min_value_worth_closing_channel_over_sat
 
+    @ignore_exceptions
     @log_exceptions
     async def on_network_update(self, event, *args):
         # TODO
@@ -676,6 +679,7 @@ class LNWallet(LNWorker):
             if chan.is_closed():
                 continue
             if chan.get_state() != 'CLOSED' and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
+                self.logger.info(f"force-closing due to expiring htlcs")
                 await self.force_close_channel(chan.channel_id)
                 continue
             if chan.short_channel_id is None:
@@ -1043,7 +1047,11 @@ class LNWallet(LNWorker):
         chan.set_force_closed()
         self.save_channel(chan)
         self.on_channels_updated()
-        await self.network.broadcast_transaction(tx)
+        try:
+            await self.network.broadcast_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'could NOT publish {tx.txid()}, {str(e)}')
+            return
         return tx.txid()
 
     def remove_channel(self, chan_id):
