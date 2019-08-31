@@ -70,20 +70,20 @@ fi
 if [[ $1 == "init" ]]; then
     echo "initializing alice, bob and carol"
     rm -rf /tmp/alice/ /tmp/bob/ /tmp/carol/
-    $alice create > /dev/null
-    $bob create > /dev/null
-    $carol create > /dev/null
-    $alice setconfig log_to_file True
-    $bob   setconfig log_to_file True
-    $carol setconfig log_to_file True
-    $alice setconfig server 127.0.0.1:51001:t
-    $bob   setconfig server 127.0.0.1:51001:t
-    $carol setconfig server 127.0.0.1:51001:t
-    $bob setconfig lightning_listen localhost:9735
-    $bob setconfig lightning_forward_payments true
+    $alice create --offline > /dev/null
+    $bob   create --offline > /dev/null
+    $carol create --offline > /dev/null
+    $alice setconfig --offline log_to_file True
+    $bob   setconfig --offline log_to_file True
+    $carol setconfig --offline log_to_file True
+    $alice setconfig --offline server 127.0.0.1:51001:t
+    $bob   setconfig --offline server 127.0.0.1:51001:t
+    $carol setconfig --offline server 127.0.0.1:51001:t
+    $bob setconfig --offline lightning_listen localhost:9735
+    $bob setconfig --offline lightning_forward_payments true
     echo "funding alice and carol"
-    $bitcoin_cli sendtoaddress $($alice getunusedaddress) 1
-    $bitcoin_cli sendtoaddress $($carol getunusedaddress) 1
+    $bitcoin_cli sendtoaddress $($alice getunusedaddress -o) 1
+    $bitcoin_cli sendtoaddress $($carol getunusedaddress -o) 1
     new_blocks 1
 fi
 
@@ -296,9 +296,9 @@ if [[ $1 == "watchtower" ]]; then
     # carol is a watchtower of alice
     $alice stop
     $carol stop
-    $alice setconfig watchtower_url http://127.0.0.1:12345
-    $carol setconfig watchtower_host 127.0.0.1
-    $carol setconfig watchtower_port 12345
+    $alice setconfig --offline watchtower_url http://127.0.0.1:12345
+    $carol setconfig --offline watchtower_host 127.0.0.1
+    $carol setconfig --offline watchtower_port 12345
     $carol daemon start
     $alice daemon start
     sleep 1

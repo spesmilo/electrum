@@ -1091,6 +1091,7 @@ def add_global_options(parser):
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
     group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable lightning")
     group.add_argument("--reckless", action="store_true", dest="reckless", default=False, help="Allow to enable lightning on mainnet")
+    group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
 
 def get_parser():
     # create main parser
@@ -1102,7 +1103,6 @@ def get_parser():
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
-    parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")

@@ -398,25 +398,34 @@ if __name__ == '__main__':
                 sys_exit(1)
     else:
         # command line
-        try:
+        cmd = known_commands[cmdname]
+        if not config.get('offline'):
             init_cmdline(config_options, True)
             timeout = config_options.get('timeout', 60)
             if timeout: timeout = int(timeout)
-            result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
-        except daemon.DaemonNotRunning:
-            cmd = known_commands[cmdname]
-            if cmd.requires_network:
+            try:
+                result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
+            except daemon.DaemonNotRunning:
                 print_msg("Daemon not running; try 'electrum daemon start'")
+                if not cmd.requires_network:
+                    print_msg("To run this command without a daemon, use --offline")
                 sys_exit(1)
-            else:
-                init_cmdline(config_options, False)
-                plugins = init_plugins(config, 'cmdline')
-                coro = run_offline_command(config, config_options, plugins)
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
+            except Exception as e:
+                print_stderr(e)
+                sys_exit(1)
+        else:
+            if cmd.requires_network:
+                print_msg("This command cannot be run offline")
+                sys_exit(1)
+            init_cmdline(config_options, False)
+            plugins = init_plugins(config, 'cmdline')
+            coro = run_offline_command(config, config_options, plugins)
+            fut = asyncio.run_coroutine_threadsafe(coro, loop)
+            try:
                 result = fut.result(10)
-        except Exception as e:
-            print_stderr(e)
-            sys_exit(1)
+            except Exception as e:
+                print_stderr(e)
+                sys_exit(1)
     if isinstance(result, str):
         print_msg(result)
     elif type(result) is dict and result.get('error'):
