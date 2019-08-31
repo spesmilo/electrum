@@ -640,7 +640,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """
-        addresses = self.get_addresses()
         is_relevant = False
         is_mine = False
         is_pruned = False
@@ -648,7 +647,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         v_in = v_out = v_out_mine = 0
         for item in tx.inputs():
             addr = item['address']
-            if addr in addresses:
+            if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
                 d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
@@ -668,7 +667,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             is_partial = False
         for _type, addr, value in tx.outputs():
             v_out += value
-            if addr in addresses:
+            if self.is_mine(addr):
                 v_out_mine += value
                 is_relevant = True
         if is_pruned:
