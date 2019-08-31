@@ -40,8 +40,8 @@ RUN apt-get update -q && \
         zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
         libfreetype6=2.8.1-2ubuntu2 \
         libfontconfig1=2.12.6-0ubuntu2 \
-        libssl-dev=1.1.0g-2ubuntu4.3 \
-        libssl1.1=1.1.0g-2ubuntu4.3 \
+        libssl-dev=1.1.0g-2ubuntu4 \
+        libssl1.1=1.1.0g-2ubuntu4 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
