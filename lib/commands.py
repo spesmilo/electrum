@@ -657,9 +657,13 @@ class Commands:
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
         addr = self.wallet.get_unused_address()
         if addr is None:
+            if not self.wallet.is_deterministic():
+                self.wallet.print_error("Unable to find an unused address. Please use a deteministic wallet to proceed, then run with the --force option to create new addresses.")
+                return False
             if force:
                 addr = self.wallet.create_new_address(False)
             else:
+                self.wallet.print_error("Unable to find an unused address. Try running with the --force option to create new addresses.")
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
