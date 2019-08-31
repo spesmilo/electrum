@@ -517,6 +517,8 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
             self.network.register_callback(self.on_payment_received, ['payment_received'])
+            self.network.register_callback(self.on_channels, ['channels'])
+            self.network.register_callback(self.on_channel, ['channel'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # URI passed in config
@@ -636,6 +638,14 @@ class ElectrumWindow(App):
         if self._channels_dialog is None:
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
+
+    def on_channel(self, evt, chan):
+        if self._channels_dialog:
+            Clock.schedule_once(lambda dt: self._channels_dialog.update())
+
+    def on_channels(self, evt):
+        if self._channels_dialog:
+            Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
     def popup_dialog(self, name):
         if name == 'settings':

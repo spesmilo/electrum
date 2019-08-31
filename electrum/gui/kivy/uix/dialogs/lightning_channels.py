@@ -130,6 +130,8 @@ class ChannelDetailsPopup(Popup):
             _('Short Chan ID'): format_short_channel_id(chan.short_channel_id),
             _('Initiator'): 'Local' if chan.constraints.is_initiator else 'Remote',
             _('State'): chan.get_state(),
+            _('Local CTN'): chan.get_latest_ctn(LOCAL),
+            _('Remote CTN'): chan.get_latest_ctn(REMOTE),
             _('Capacity'): self.app.format_amount_and_units(chan.constraints.capacity),
             _('Can send'): self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000),
             _('Current feerate'): str(chan.get_latest_feerate(LOCAL)),
@@ -176,8 +178,6 @@ class LightningChannelsDialog(Factory.Popup):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app
-        self.app.wallet.network.register_callback(self.on_channels, ['channels'])
-        self.app.wallet.network.register_callback(self.on_channel, ['channel'])
         self.update()
 
     def show_item(self, obj):
@@ -199,12 +199,6 @@ class LightningChannelsDialog(Factory.Popup):
             labels[LOCAL],
             labels[REMOTE],
         ]
-
-    def on_channel(self, evt, chan):
-        Clock.schedule_once(lambda dt: self.update())
-
-    def on_channels(self, evt):
-        Clock.schedule_once(lambda dt: self.update())
 
     def update_item(self, item):
         chan = item._chan
