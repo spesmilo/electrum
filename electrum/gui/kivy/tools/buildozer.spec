@@ -91,7 +91,7 @@ android.ndk_path = /opt/android/android-ndk
 android.sdk_path = /opt/android/android-sdk
 
 # (str) ANT directory (if empty, it will be automatically downloaded.)
-#android.ant_path =
+android.ant_path = /opt/android/apache-ant
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity

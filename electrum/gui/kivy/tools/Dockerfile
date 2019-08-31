@@ -69,6 +69,20 @@ RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/nul
     "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
 
+# download ANT
+ENV APACHE_ANT_VERSION="1.9.4"
+ENV APACHE_ANT_ARCHIVE="apache-ant-${APACHE_ANT_VERSION}-bin.tar.gz"
+ENV APACHE_ANT_DL_URL="http://archive.apache.org/dist/ant/binaries/${APACHE_ANT_ARCHIVE}"
+ENV APACHE_ANT_HOME="${ANDROID_HOME}/apache-ant"
+ENV APACHE_ANT_HOME_V="${APACHE_ANT_HOME}-${APACHE_ANT_VERSION}"
+
+RUN curl --location --progress-bar \
+        "${APACHE_ANT_DL_URL}" \
+        --output "${APACHE_ANT_ARCHIVE}" \
+    && tar -xf "${APACHE_ANT_ARCHIVE}" -C "${ANDROID_HOME}" \
+    && ln -sfn "${APACHE_ANT_HOME_V}" "${APACHE_ANT_HOME}" \
+    && rm -rf "${APACHE_ANT_ARCHIVE}"
+
 
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
