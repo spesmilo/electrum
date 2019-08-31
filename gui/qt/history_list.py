@@ -225,7 +225,6 @@ class HistoryList(MyTreeWidget):
         height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         if not tx: return # this happens sometimes on wallet synch when first starting up.
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
         pr_key = self.wallet.invoices.paid.get(tx_hash)
 

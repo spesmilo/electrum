@@ -666,7 +666,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 is_partial = True
         if not is_mine:
             is_partial = False
-        for addr, value in tx.get_outputs():
+        for _type, addr, value in tx.outputs():
             v_out += value
             if addr in addresses:
                 v_out_mine += value
@@ -1142,7 +1142,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     addr = x.get('address')
                     if addr == None: continue
                     input_addresses.append(addr.to_ui_string())
-                for addr, v in tx.get_outputs():
+                for _type, addr, v in tx.outputs():
                     output_addresses.append(addr.to_ui_string())
                 item['input_addresses'] = input_addresses
                 item['output_addresses'] = output_addresses
