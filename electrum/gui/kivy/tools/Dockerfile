@@ -138,7 +138,13 @@ RUN git config --global user.name "John Doe" \
 RUN cd /opt \
     && git clone https://github.com/kivy/buildozer \
     && cd buildozer \
-    && git checkout 678b1bf52cf63daa51b06e86a43ea4e2ea8a0b24 \
+    && git remote add sombernight https://github.com/SomberNight/buildozer \
+    && git fetch --all \
+    && git checkout 182d13f1027d4c16e04e1096c94ed3e488226330 \
+       # put target arch in apk name:
+    && git cherry-pick 2233dd70ce559205bcb183272519b0c31bd24079 \
+       # "Separate build per android.arch" https://github.com/kivy/buildozer/pull/957 :
+    && git cherry-pick 229a98442897db172cc905e2412710f5924c5366 \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -147,15 +153,15 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout ccb0f8e1bab36f1b7d1508216b4b4afb076e614f \
+    && git checkout dd69749f79dee0fdbe25ca7b04238b7cdada7925 \
        # allowBackup="false":
-    && git cherry-pick d7f722e4e5d4b3e6f5b1733c95e6a433f78ee570 \
+    && git cherry-pick 003e675625b86319716c8c86c751f509f5d22204 \
        # fix gradle "versionCode" overflow:
-    && git cherry-pick ed20e196fbcdce718a180f88f23bb2d165c4c5d8 \
-       # gradle: persist debug keystore:
-    && git cherry-pick aaa0d5d0e7a334631df71e0a9bf127817e0ab9ab \
+    && git cherry-pick 38df23528f471ca5f493f72a2f0dfeb40f5275da \
        # add recipe for pycryptodomex:
-    && git cherry-pick 9bab610565d95111d8035998765e97c70fa3e1b4 \
+    && git cherry-pick 5545a81c6c47436a41d2cf74194ab6f711e54ad6 \
+       # gradle: persist debug keystore:
+    && git cherry-pick af93820bcd7fb85710f8ba469be3a6e5acb68b08 \
     && python3 -m pip install --user -e .
 
 # build env vars

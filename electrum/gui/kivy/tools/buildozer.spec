@@ -42,7 +42,8 @@ requirements =
     android,
     openssl,
     plyer,
-    kivy==82d561d62577757d478df52173610f925c05ecab,
+    # kivy 1.11.1
+    kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
     libsecp256k1,
     pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
