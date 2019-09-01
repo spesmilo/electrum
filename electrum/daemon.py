@@ -36,6 +36,7 @@ from base64 import b64decode
 
 import jsonrpcclient
 import jsonrpcserver
+from jsonrpcserver import response
 from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 
 from .network import Network
@@ -224,10 +225,12 @@ class Daemon(Logger):
         try:
             self.authenticate(request.headers)
         except AuthenticationError:
-            return web.Response(text='Forbidden', status='403')
+            return web.Response(text='Forbidden', status=403)
         request = await request.text()
-        self.logger.info(f'request: {request}')
+        #self.logger.info(f'handling request: {request}')
         response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
+        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
+            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
         if response.wanted:
             return web.json_response(response.deserialized(), status=response.http_status)
         else:
