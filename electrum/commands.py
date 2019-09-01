@@ -32,7 +32,7 @@ import ast
 import base64
 import operator
 import asyncio
-from functools import wraps
+from functools import wraps, partial
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 
@@ -53,11 +53,11 @@ from .lnutil import SENT, RECEIVED
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
+from .simple_config import SimpleConfig
 
 
 if TYPE_CHECKING:
     from .network import Network
-    from .simple_config import SimpleConfig
 
 
 known_commands = {}
@@ -519,7 +519,10 @@ class Commands:
         message = util.to_bytes(message)
         return ecc.verify_message_with_address(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
+    def _mktx(self, outputs, *, fee=None, feerate=None, change_addr=None, domain=None,
+              nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
+        if fee is not None and feerate is not None:
+            raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -530,8 +533,13 @@ class Commands:
             final_outputs.append(TxOutput(TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
-        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
-        if locktime != None:
+        if feerate is not None:
+            fee_per_kb = 1000 * Decimal(feerate)
+            fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
+        else:
+            fee_estimator = fee
+        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee_estimator, change_addr)
+        if locktime is not None:
             tx.locktime = locktime
         if rbf is None:
             rbf = self.config.get('use_rbf', True)
@@ -542,19 +550,39 @@ class Commands:
         return tx
 
     @command('wp')
-    async def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
+    async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, change_addr=None,
+                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx([(destination, amount)],
+                        fee=tx_fee,
+                        feerate=feerate,
+                        change_addr=change_addr,
+                        domain=domain,
+                        nocheck=nocheck,
+                        unsigned=unsigned,
+                        rbf=rbf,
+                        password=password,
+                        locktime=locktime)
         return tx.as_dict()
 
     @command('wp')
-    async def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
+    async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, change_addr=None,
+                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
+        tx = self._mktx(outputs,
+                        fee=tx_fee,
+                        feerate=feerate,
+                        change_addr=change_addr,
+                        domain=domain,
+                        nocheck=nocheck,
+                        unsigned=unsigned,
+                        rbf=rbf,
+                        password=password,
+                        locktime=locktime)
         return tx.as_dict()
 
     @command('w')
@@ -951,7 +979,8 @@ command_options = {
     'labels':      ("-l", "Show the labels of listed addresses"),
     'nocheck':     (None, "Do not verify aliases"),
     'imax':        (None, "Maximum number of inputs"),
-    'fee':         ("-f", "Transaction fee (in BTC)"),
+    'fee':         ("-f", "Transaction fee (absolute, in BTC)"),
+    'feerate':     (None, "Transaction fee rate (in sat/byte)"),
     'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
