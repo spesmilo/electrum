@@ -48,6 +48,7 @@ class UTXOList(MyTreeWidget):
         frozen_flags = Qt.UserRole + 1
         address      = Qt.UserRole + 2
         cash_account = Qt.UserRole + 3  # this may not always be there for a particular item
+        slp_token    = Qt.UserRole + 4  # this is either a tuple of (token_id, qty) or None
 
     filter_columns = [Col.address, Col.label]
     default_sort = MyTreeWidget.SortSpec(Col.amount, Qt.DescendingOrder)  # sort by amount, descending
@@ -68,6 +69,7 @@ class UTXOList(MyTreeWidget):
         self.lightBlue = QColor('lightblue') if not ColorScheme.dark_scheme else QColor('blue')
         self.blue = ColorScheme.BLUE.as_color(True)
         self.cyanBlue = QColor('#3399ff')
+        self.slpBG = ColorScheme.SLPGREEN.as_color(True)
 
         self.cleaned_up = False
 
@@ -108,7 +110,7 @@ class UTXOList(MyTreeWidget):
         ca_by_addr = defaultdict(list)
         if self.show_cash_accounts:
             addr_set = set()
-            self.utxos = self.wallet.get_utxos(addr_set_out=addr_set)
+            self.utxos = self.wallet.get_utxos(addr_set_out=addr_set, exclude_slp=False)
             # grab all cash accounts so that we may add the emoji char
             for info in self.wallet.cashacct.get_cashaccounts(addr_set):
                 ca_by_addr[info.address].append(info)
@@ -118,7 +120,7 @@ class UTXOList(MyTreeWidget):
                 del ca_list  # reference still exists inside ca_by_addr dict, this is just deleted here because we re-use this name below.
             del addr_set  # clean-up. We don't want the below code to ever depend on the existence of this cell.
         else:
-            self.utxos = self.wallet.get_utxos()
+            self.utxos = self.wallet.get_utxos(exclude_slp=False)
         for x in self.utxos:
             address = x['address']
             address_text = address.to_ui_string()
@@ -148,30 +150,36 @@ class UTXOList(MyTreeWidget):
             utxo_item.setData(0, self.DataRoles.name, name)
             a_frozen = self.wallet.is_frozen(address)
             c_frozen = x['is_frozen_coin']
-            toolTipFrozen = ''
-            if a_frozen and not c_frozen:
+            toolTipMisc = ''
+            slp_token = x['slp_token']
+            if slp_token:
+                utxo_item.setBackground(0, self.slpBG)
+                toolTipMisc = _('Coin contains an SLP token')
+            elif a_frozen and not c_frozen:
                 # address is frozen, coin is not frozen
                 # emulate the "Look" off the address_list .py's frozen entry
                 utxo_item.setBackground(0, self.lightBlue)
-                toolTipFrozen = _("Address is frozen")
+                toolTipMisc = _("Address is frozen")
             elif c_frozen and not a_frozen:
                 # coin is frozen, address is not frozen
                 utxo_item.setBackground(0, self.blue)
-                toolTipFrozen = _("Coin is frozen")
+                toolTipMisc = _("Coin is frozen")
             elif c_frozen and a_frozen:
                 # both coin and address are frozen so color-code it to indicate that.
                 utxo_item.setBackground(0, self.lightBlue)
                 utxo_item.setForeground(0, self.cyanBlue)
-                toolTipFrozen = _("Coin & Address are frozen")
+                toolTipMisc = _("Coin & Address are frozen")
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
-            utxo_item.setData(0, self.DataRoles.frozen_flags, "{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else "")))
+            utxo_item.setData(0, self.DataRoles.frozen_flags, "{}{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else ""), ("s" if slp_token else "")))
             # store the address
             utxo_item.setData(0, self.DataRoles.address, address)
             # store the ca_info for this address -- if any
             if ca_info:
                 utxo_item.setData(0, self.DataRoles.cash_account, ca_info)
-            if toolTipFrozen:
-                utxo_item.setToolTip(0, toolTipFrozen)
+            # store the slp_token
+            utxo_item.setData(0, self.DataRoles.slp_token, slp_token)
+            if toolTipMisc:
+                utxo_item.setToolTip(0, toolTipMisc)
             run_hook("utxo_list_item_setup", self, utxo_item, x, name)
             self.addChild(utxo_item)
             if name in prev_selection:
@@ -194,7 +202,8 @@ class UTXOList(MyTreeWidget):
                 return
             spendable_coins = list(filter(lambda x: not selected.get(self.get_name(x), ''), coins))
             # Unconditionally add the "Spend" option but leave it disabled if there are no spendable_coins
-            menu.addAction(_("Spend"), lambda: self.parent.spend_coins(spendable_coins)).setEnabled(bool(spendable_coins))
+            spend_action = menu.addAction(_("Spend"), lambda: self.parent.spend_coins(spendable_coins))
+            spend_action.setEnabled(bool(spendable_coins))
             if len(selected) == 1:
                 # "Copy ..."
                 item = self.itemAt(position)
@@ -204,6 +213,7 @@ class UTXOList(MyTreeWidget):
                 col = self.currentColumn()
                 column_title = self.headerItem().text(col)
                 alt_column_title, alt_copy_text = None, None
+                slp_token = item.data(0, self.DataRoles.slp_token)
                 ca_info = None
                 if col == self.Col.output_point:
                     copy_text = item.data(0, self.DataRoles.name)
@@ -251,6 +261,8 @@ class UTXOList(MyTreeWidget):
                     menu.addAction(_("Unfreeze Address"), lambda: self.set_frozen_addresses_for_coins(list(selected.keys()), False))
                 else:
                     menu.addAction(_("Freeze Address"), lambda: self.set_frozen_addresses_for_coins(list(selected.keys()), True))
+                if slp_token and not spend_action.isEnabled():
+                    spend_action.setText(_("SLP Token: Spend Locked"))
             else:
                 # multi-selection
                 menu.addSeparator()

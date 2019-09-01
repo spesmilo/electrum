@@ -925,7 +925,9 @@ class ColorScheme:
     dark_scheme = False
 
     GREEN = ColorSchemeItem("#117c11", "#8af296")
+    SLPGREEN = ColorSchemeItem("#25863f", "#8af296") # darker alternative: ColorSchemeItem("#25863f", "#60bc70")
     YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
+    PINK = ColorSchemeItem("#9c4444", "#ffbaba")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")

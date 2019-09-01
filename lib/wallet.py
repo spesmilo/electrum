@@ -66,6 +66,7 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 from . import cashacct
+from . import slp
 
 def _(message): return message
 
@@ -188,7 +189,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # start_threads. Note: object instantiation should be lightweight here.
         # self.cashacct.load() is called later in this function to load data.
         self.cashacct = cashacct.CashAcct(self)
+        self.slp = slp.WalletData(self)
         finalization_print_error(self.cashacct)  # debug object lifecycle
+        finalization_print_error(self.slp)  # debug object lifecycle
 
         # Cache of Address -> (c,u,x) balance. This cache is used by
         # get_addr_balance to significantly speed it up (it is called a lot).
@@ -261,6 +264,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # cashacct is started in start_threads, but it needs to have relevant
         # data here, before the below calls happen
         self.cashacct.load()
+        self.slp.load()  # try to load first so we can pick up the remove_transaction hook from load_transactions if need be
 
         # Now, finally, after object is constructed -- we can do this
         self.load_keystore()
@@ -268,8 +272,12 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.load_transactions()
         self.build_reverse_history()
 
-
         self.check_history()
+
+        if self.slp.need_rebuild:
+            # load failed, must rebuild from self.transactions
+            self.slp.rebuild()
+            self.slp.save()  # commit changes to self.storage
 
         # Print debug message on finalization
         finalization_print_error(self, "[{}/{}] finalized".format(type(self).__name__, self.diagnostic_name()))
@@ -313,6 +321,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
                 self.cashacct.remove_transaction_hook(tx_hash)
+                self.slp.rm_tx(tx_hash)
 
     @profiler
     def save_transactions(self, write=False):
@@ -331,6 +340,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self.storage.put('pruned_txo', self.pruned_txo)
             history = self.from_Address_dict(self._history)
             self.storage.put('addr_history', history)
+            self.slp.save()
             if write:
                 self.storage.write()
 
@@ -347,6 +357,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self.txo = {}
             self.tx_fees = {}
             self.pruned_txo = {}
+            self.slp.clear()
             self.save_transactions()
             self._addr_bal_cache = {}
             self._history = {}
@@ -768,7 +779,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 'prevout_hash':prevout_hash,
                 'height':tx_height,
                 'coinbase':is_cb,
-                'is_frozen_coin':txo in self.frozen_coins
+                'is_frozen_coin':txo in self.frozen_coins,
+                'slp_token':self.slp.token_info_for_txo(txo),  # (token_id_hex, qty) tuple or None
             }
             out[txo] = x
         return out
@@ -845,12 +857,15 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         confirmed_only = config.get('confirmed_only', DEFAULT_CONFIRMED_ONLY)
         if (isInvoice):
             confirmed_only = True
-        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
+        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only, exclude_slp=True)
 
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False,
-                  *, addr_set_out = None):
+                  *, addr_set_out = None, exclude_slp = True):
         '''Note that exclude_frozen = True checks for BOTH address-level and
         coin-level frozen status.
+
+        exclude_slp skips coins that also have SLP tokens on them.  This defaults
+        to True in EC 4.0.10+ in order to prevent inadvertently burning tokens.
 
         Optional kw-only arg `addr_set_out` specifies a set in which to add all
         addresses encountered in the utxos returned. '''
@@ -864,6 +879,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 utxos = self.get_addr_utxo(addr)
                 len_before = len(coins)
                 for x in utxos.values():
+                    if exclude_slp and x['slp_token']:
+                        continue
                     if exclude_frozen and x['is_frozen_coin']:
                         continue
                     if confirmed_only and x['height'] <= 0:
@@ -982,6 +999,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if op_return_ct == 1 and deferred_cashacct_add:
                 deferred_cashacct_add()
 
+            # Unconditionally invoke the SLP handler. Note that it is a fast &
+            # cheap no-op if this tx's outputs[0] is not an SLP script.
+            self.slp.add_tx(tx_hash, tx)
+
     def remove_transaction(self, tx_hash):
         with self.lock:
             self.print_error("removing tx from history", tx_hash)
@@ -1017,6 +1038,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
             # do this with the lock held
             self.cashacct.remove_transaction_hook(tx_hash)
+            # inform slp subsystem as well
+            self.slp.rm_tx(tx_hash)
 
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
