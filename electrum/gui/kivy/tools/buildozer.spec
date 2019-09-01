@@ -136,6 +136,7 @@ android.manifest.launch_mode = singleTask
 #android.wakelock = False
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+# note: can be overwritten by APP_ANDROID_ARCH env var
 android.arch = armeabi-v7a
 
 # (list) Android application meta-data to set (key=value format)
