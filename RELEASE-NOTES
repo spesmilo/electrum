@@ -720,3 +720,10 @@ and there is no warning message.
 * iOS: Added a ruby helper script which, if running Brew, will auto-set-up
   more of the Xcode project for the user after creating it with
   `make_ios_project.sh`. (jonspock)
+* Added SLP awareness to all wallets. Even though one can't easily get an SLP
+  token into a non-SLP wallet, it is still possible. The EC internals now
+  track transactions containing SLP tokens and guard against spending such
+  coins. Coins that have SLP tokens on them are highlighted in green in the
+  "Coins" tab and cannot be spent from the UI.  This is to prevent token
+  burn, #1602 (cculianu)
+* Android build fixes, #1599. (mhsmith)
