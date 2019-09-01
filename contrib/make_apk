@@ -46,11 +46,13 @@ else
             -storepass "$P4A_DEBUG_KEYSTORE_PASSWD" \
             -keypass "$P4A_DEBUG_KEYALIAS_PASSWD"
     fi
-    # build two apks
+    # build two apks (only one on Travis CI)
     export APP_ANDROID_ARCH=armeabi-v7a
     make apk
-    export APP_ANDROID_ARCH=arm64-v8a
-    make apk
+    if [ ! $CI ]; then
+        export APP_ANDROID_ARCH=arm64-v8a
+        make apk
+    fi
 fi
 
 popd
