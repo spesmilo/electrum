@@ -62,8 +62,6 @@ jobs:
       name: "Android build"
       language: python
       python: 3.7
-      env:
-        - CI=true
       services:
         - docker
       install:
@@ -74,7 +72,7 @@ jobs:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
