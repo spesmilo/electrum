@@ -327,7 +327,6 @@ if __name__ == '__main__':
     config = SimpleConfig(config_options)
 
     cmdname = config.get('cmd')
-    subcommand = config.get('subcommand')
 
     if config.get('testnet'):
         constants.set_testnet()
@@ -338,7 +337,7 @@ if __name__ == '__main__':
     elif config.get('lightning') and not config.get('reckless'):
         raise Exception('lightning branch not available on mainnet')
 
-    if cmdname == 'daemon' and subcommand == 'start':
+    if cmdname == 'daemon' and config.get("detach"):
         # fork before creating the asyncio event loop
         pid = os.fork()
         if pid:
@@ -370,32 +369,26 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
 
-        if subcommand in [None, 'start']:
-            configure_logging(config)
-            fd = daemon.get_file_descriptor(config)
-            if fd is not None:
-                # run daemon
-                init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd)
-                if config.get('websocket_server'):
-                    from electrum import websockets
-                    websockets.WebSocketServer(config, d.network)
-                if config.get('requests_dir'):
-                    path = os.path.join(config.get('requests_dir'), 'index.html')
-                    if not os.path.exists(path):
-                        print("Requests directory not configured.")
-                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                        sys_exit(1)
-                d.run_daemon()
-                sys_exit(0)
-            else:
-                result = daemon.request(config, 'daemon', (config_options,))
+        configure_logging(config)
+        fd = daemon.get_file_descriptor(config)
+        if fd is not None:
+            # run daemon
+            init_plugins(config, 'cmdline')
+            d = daemon.Daemon(config, fd)
+            if config.get('websocket_server'):
+                from electrum import websockets
+                websockets.WebSocketServer(config, d.network)
+            if config.get('requests_dir'):
+                path = os.path.join(config.get('requests_dir'), 'index.html')
+                if not os.path.exists(path):
+                    print("Requests directory not configured.")
+                    print("You can configure it using https://github.com/spesmilo/electrum-merchant")
+                    sys_exit(1)
+            d.run_daemon()
+            sys_exit(0)
         else:
-            try:
-                result = daemon.request(config, 'daemon', (config_options,))
-            except daemon.DaemonNotRunning:
-                print_msg("Daemon not running")
-                sys_exit(1)
+            print_msg("Daemon already running")
+            sys_exit(1)
     else:
         # command line
         cmd = known_commands[cmdname]
@@ -406,7 +399,7 @@ if __name__ == '__main__':
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
             except daemon.DaemonNotRunning:
-                print_msg("Daemon not running; try 'electrum daemon start'")
+                print_msg("Daemon not running; try 'electrum daemon -d'")
                 if not cmd.requires_network:
                     print_msg("To run this command without a daemon, use --offline")
                 sys_exit(1)

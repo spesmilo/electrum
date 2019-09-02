@@ -243,7 +243,6 @@ class Daemon(Logger):
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
-        self.methods.add(self.daemon)
         self.cmd_runner = Commands(self.config, None, self.network, self)
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
@@ -260,17 +259,6 @@ class Daemon(Logger):
 
     async def ping(self):
         return True
-
-    async def daemon(self, config_options):
-        config = SimpleConfig(config_options)
-        sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop']
-        if sub in [None, 'start']:
-            response = "Daemon already running"
-        elif sub == 'stop':
-            self.stop()
-            response = "Daemon stopped"
-        return response
 
     async def gui(self, config_options):
         config = SimpleConfig(config_options)

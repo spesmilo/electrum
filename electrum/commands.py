@@ -1139,8 +1139,7 @@ def get_parser():
     add_global_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
-    parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop', 'load_wallet', 'close_wallet'], nargs='?')
-    #parser_daemon.set_defaults(func=run_daemon)
+    parser_daemon.add_argument("-d", "--detached", action="store_true", dest="detach", default=False, help="run daemon in detached mode")
     add_network_options(parser_daemon)
     add_global_options(parser_daemon)
     # commands

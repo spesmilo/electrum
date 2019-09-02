@@ -89,9 +89,9 @@ fi
 
 # start daemons. Bob is started first because he is listening
 if [[ $1 == "start" ]]; then
-    $bob daemon start
-    $alice daemon start
-    $carol daemon start
+    $bob daemon -d
+    $alice daemon -d
+    $carol daemon -d
     $bob load_wallet
     $alice load_wallet
     $carol load_wallet
@@ -158,7 +158,7 @@ fi
 
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon start
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon -d
     sleep 1
     $bob load_wallet
     sleep 1
@@ -204,7 +204,7 @@ fi
 
 if [[ $1 == "breach_with_unspent_htlc" ]]; then
     $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -d
     sleep 1
     $bob load_wallet
     wait_for_balance alice 1
@@ -236,7 +236,7 @@ fi
 
 if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon start
+    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -d
     sleep 1
     $bob load_wallet
     wait_for_balance alice 1
@@ -276,7 +276,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     # (to_local needs to_self_delay blocks; htlc needs whatever we put in invoice)
     new_blocks 150
     $alice stop
-    $alice daemon start
+    $alice daemon -d
     sleep 1
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
@@ -285,7 +285,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     wait_until_spent $ctx_id 1
     new_blocks 1
     echo "bob comes back"
-    $bob daemon start
+    $bob daemon -d
     sleep 1
     $bob load_wallet
     wait_for_balance bob 0.049
@@ -299,8 +299,8 @@ if [[ $1 == "watchtower" ]]; then
     $alice setconfig --offline watchtower_url http://127.0.0.1:12345
     $carol setconfig --offline watchtower_host 127.0.0.1
     $carol setconfig --offline watchtower_port 12345
-    $carol daemon start
-    $alice daemon start
+    $carol daemon -d
+    $alice daemon -d
     sleep 1
     $alice load_wallet
     wait_for_balance alice 1
