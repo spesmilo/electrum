@@ -633,9 +633,9 @@ class Abstract_Wallet(AddressSynchronizer):
             out.append(item)
         # add summary
         if out:
-            b, v = out[0]['balance'].value, out[0]['bc_value'].value
+            b, v = out[0]['bc_balance'].value, out[0]['bc_value'].value
             start_balance = None if b is None or v is None else b - v
-            end_balance = out[-1]['balance'].value
+            end_balance = out[-1]['bc_balance'].value
             if from_timestamp is not None and to_timestamp is not None:
                 start_date = timestamp_to_datetime(from_timestamp)
                 end_date = timestamp_to_datetime(to_timestamp)
