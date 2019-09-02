@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <android.support.constraint.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="24dp"
@@ -28,7 +28,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
 
-        <android.support.design.widget.FloatingActionButton
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnExplore"
             style="@style/FAB.Dialog"
             android:layout_width="wrap_content"
@@ -43,7 +43,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:srcCompat="@drawable/ic_browser_24dp"/>
 
-        <android.support.design.widget.FloatingActionButton
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnCopy"
             style="@style/FAB.Dialog"
             android:layout_width="wrap_content"
@@ -52,7 +52,7 @@
             app:layout_constraintTop_toTopOf="@+id/btnExplore"
             app:srcCompat="@drawable/ic_copy_24dp"/>
 
-    </android.support.constraint.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -61,7 +61,7 @@
         android:layout_marginRight="24dp"
         android:layout_weight="1">
 
-        <android.support.constraint.ConstraintLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -194,7 +194,7 @@
                 app:layout_constraintTop_toBottomOf="@+id/textView22"
                 tools:text="@string/lorem"/>
 
-            <android.support.constraint.Barrier
+            <androidx.constraintlayout.widget.Barrier
                 android:id="@+id/barrier5"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -202,6 +202,6 @@
                 app:constraint_referenced_ids="textView14,textView12,textView16,textView17,textView18"
                 tools:layout_editor_absoluteX="336dp"/>
 
-        </android.support.constraint.ConstraintLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>
 </LinearLayout>

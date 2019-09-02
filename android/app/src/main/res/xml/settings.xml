@@ -26,8 +26,7 @@
     <PreferenceCategory android:title="@string/appearance">
         <SwitchPreference
             android:key="cashaddr_format"
-            android:title="@string/cashaddr_address"
-            android:defaultValue="true"/>
+            android:title="@string/cashaddr_address"/>
         <ListPreference
             android:key="base_unit"
             android:title="@string/base_unit"

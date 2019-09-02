@@ -1,11 +1,11 @@
 package org.electroncash.electroncash3
 
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Observer
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
-import android.support.v7.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AlertDialog
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -127,19 +127,19 @@ class RequestDialog() : AlertDialogFragment() {
         }
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        dialog.btnCopy.setOnClickListener {
+    override fun onShowDialog() {
+        btnCopy.setOnClickListener {
             copyToClipboard(getUri(), R.string.request_uri)
         }
-        dialog.tvAddress.text = address.callAttr("to_ui_string").toString()
-        dialog.tvUnit.text = unitName
+        tvAddress.text = address.callAttr("to_ui_string").toString()
+        tvUnit.text = unitName
 
         val tw = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) { updateUI() }
         }
-        for (et in listOf(dialog.etAmount, dialog.etDescription)) {
+        for (et in listOf(etAmount, etDescription)) {
             et.addTextChangedListener(tw)
         }
         fiatUpdate.observe(this, Observer { updateUI() })
@@ -152,17 +152,17 @@ class RequestDialog() : AlertDialogFragment() {
         }
     }
 
-    override fun onFirstShowDialog(dialog: AlertDialog) {
+    override fun onFirstShowDialog() {
         val request = existingRequest
         if (request != null) {
             val model = RequestModel(request)
-            dialog.etAmount.setText(model.amount)
-            dialog.etDescription.setText(model.description)
+            etAmount.setText(model.amount)
+            etDescription.setText(model.description)
         }
     }
 
     private fun updateUI() {
-        showQR(dialog.imgQR, getUri())
+        showQR(imgQR, getUri())
         amountBoxUpdate(dialog)
     }
 
@@ -187,7 +187,7 @@ class RequestDialog() : AlertDialogFragment() {
     }
 
     val description
-        get() = dialog.etDescription.text.toString()
+        get() = etDescription.text.toString()
 }
 
 

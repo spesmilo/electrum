@@ -1,14 +1,10 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.ViewModel
-import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.os.Bundle
-import android.support.v4.app.DialogFragment
-import android.support.v7.app.AlertDialog
+import androidx.fragment.app.DialogFragment
+import androidx.appcompat.app.AlertDialog
 import android.text.Selection
 import android.view.View
 import android.widget.Toast
@@ -17,6 +13,7 @@ import com.chaquo.python.PyException
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.new_wallet.*
 import kotlinx.android.synthetic.main.new_wallet_2.*
+import kotlin.properties.Delegates.notNull
 
 
 val libKeystore by lazy { libMod("keystore") }
@@ -31,12 +28,12 @@ class NewWalletDialog1 : AlertDialogFragment() {
             .setNegativeButton(R.string.cancel, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        dialog.spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+    override fun onShowDialog() {
+        spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val name = dialog.etName.text.toString()
+                val name = etName.text.toString()
                 if (name.isEmpty()) throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
                 if (name.contains("/")) throw ToastException(R.string.invalid_name)
                 if (daemonModel.listWallets().contains(name)) {
@@ -50,7 +47,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                     putString("password", password)
                 }
 
-                val walletType = dialog.spnType.selectedItemId.toInt()
+                val walletType = spnType.selectedItemId.toInt()
                 if (walletType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
                     nextDialog = NewWalletSeedDialog()
                     val seed = if (walletType == R.id.menuCreateSeed)
@@ -62,7 +59,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                 } else if (walletType == R.id.menuImportMaster) {
                     nextDialog = NewWalletImportMasterDialog()
                 } else {
-                    throw Exception("Unknown item: ${dialog.spnType.selectedItem}")
+                    throw Exception("Unknown item: ${spnType.selectedItem}")
                 }
                 showDialog(activity!!, nextDialog.apply { setArguments(arguments) })
             } catch (e: ToastException) { e.show() }
@@ -81,11 +78,8 @@ fun confirmPassword(dialog: Dialog): String {
 }
 
 
-abstract class NewWalletDialog2 : AlertDialogFragment() {
-    class Model : ViewModel() {
-        val result = MutableLiveData<Boolean>()
-    }
-    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+abstract class NewWalletDialog2 : TaskLauncherDialog<Unit>() {
+    var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.New_wallet)
@@ -94,68 +88,60 @@ abstract class NewWalletDialog2 : AlertDialogFragment() {
             .setNegativeButton(R.string.back, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        super.onShowDialog(dialog)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            model.result.value = null
-            showDialog(activity!!, ProgressDialogFragment())
-            Thread {
-                try {
-                    val name = arguments!!.getString("name")!!
-                    val password = arguments!!.getString("password")!!
-                    onCreateWallet(name, password, dialog.etInput.text.toString())
-                    daemonModel.loadWallet(name, password)
-                    model.result.postValue(true)
-                } catch (e: ToastException) {
-                    e.show()
-                    model.result.postValue(false)
-                }
-            }.start()
-        }
-        model.result.observe(this, Observer { onResult(it) })
+    override fun onPreExecute() {
+        input = etInput.text.toString()
     }
 
-    abstract fun onCreateWallet(name: String, password: String, input: String)
+    override fun doInBackground() {
+        val name = arguments!!.getString("name")!!
+        val password = arguments!!.getString("password")!!
+        onCreateWallet(name, password)
+        daemonModel.loadWallet(name, password)
+    }
 
-    fun onResult(success: Boolean?) {
-        if (success == null) return
-        dismissDialog(activity!!, ProgressDialogFragment::class)
-        if (success) {
-            dismiss()
-            dismissDialog(activity!!, NewWalletDialog1::class)
-        }
+    abstract fun onCreateWallet(name: String, password: String)
+
+    override fun onPostExecute(result: Unit) {
+        dismissDialog(activity!!, NewWalletDialog1::class)
     }
 }
 
 
 class NewWalletSeedDialog : NewWalletDialog2() {
-    override fun onShowDialog(dialog: AlertDialog) {
-        super.onShowDialog(dialog)
+    var passphrase: String by notNull()
+    var bip39: Boolean by notNull()
+    var derivation: String? = null
+
+    override fun onShowDialog() {
+        super.onShowDialog()
         setupSeedDialog(this)
         if (arguments!!.getString("seed") == null) {  // Restore from seed
-            dialog.bip39Panel.visibility = View.VISIBLE
-            dialog.swBip39.setOnCheckedChangeListener { _, isChecked ->
-                dialog.etDerivation.isEnabled = isChecked
+            bip39Panel.visibility = View.VISIBLE
+            swBip39.setOnCheckedChangeListener { _, isChecked ->
+                etDerivation.isEnabled = isChecked
             }
         }
     }
 
-    override fun onCreateWallet(name: String, password: String, input: String) {
-        try {
-            val derivation: String?
-            if (dialog.swBip39.isChecked) {
-                derivation = dialog.etDerivation.text.toString()
-                if (!libBitcoin.callAttr("is_bip32_derivation", derivation).toBoolean()) {
-                    throw ToastException(R.string.derivation_invalid)
-                }
-            } else {
-                derivation = null
-            }
+    override fun onPreExecute() {
+        super.onPreExecute()
+        passphrase = etPassphrase.text.toString()
+        bip39 = swBip39.isChecked
+        if (bip39) {
+            derivation = etDerivation.text.toString()
+        }
+    }
 
+    override fun onCreateWallet(name: String, password: String) {
+        try {
+            if (derivation != null &&
+                !libBitcoin.callAttr("is_bip32_derivation", derivation).toBoolean()) {
+                throw ToastException(R.string.Derivation_invalid)
+            }
             daemonModel.commands.callAttr(
                 "create", name, password,
                 Kwarg("seed", input),
-                Kwarg("passphrase", dialog.etPassphrase.text.toString()),
+                Kwarg("passphrase", passphrase),
                 Kwarg("bip39_derivation", derivation))
         } catch (e: PyException) {
             if (e.message!!.startsWith("InvalidSeed")) {
@@ -173,13 +159,13 @@ class NewWalletImportDialog : NewWalletDialog2() {
         builder.setNeutralButton(R.string.qr_code, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        super.onShowDialog(dialog)
-        dialog.tvPrompt.setText(R.string.enter_a_list_of_bitcoin)
+    override fun onShowDialog() {
+        super.onShowDialog()
+        tvPrompt.setText(R.string.enter_a_list_of_bitcoin)
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
 
-    override fun onCreateWallet(name: String, password: String, input: String) {
+    override fun onCreateWallet(name: String, password: String) {
         var foundAddress = false
         var foundPrivkey = false
         for (word in input.split(Regex("\\s+"))) {
@@ -210,7 +196,7 @@ class NewWalletImportDialog : NewWalletDialog2() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
-            val text = dialog.etInput.text
+            val text = etInput.text
             if (!text.isEmpty() && !text.endsWith("\n")) {
                 text.append("\n")
             }
@@ -229,9 +215,9 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
         builder.setNeutralButton(R.string.qr_code, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        super.onShowDialog(dialog)
-        dialog.tvPrompt.setText(getString(R.string.to_create_a_watching) + " " +
+    override fun onShowDialog() {
+        super.onShowDialog()
+        tvPrompt.setText(getString(R.string.to_create_a_watching) + " " +
                                 getString(R.string.to_create_a_spending))
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
@@ -239,14 +225,14 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
-            dialog.etInput.setText(result.contents)
-            dialog.etInput.setSelection(result.contents.length)
+            etInput.setText(result.contents)
+            etInput.setSelection(result.contents.length)
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
-    override fun onCreateWallet(name: String, password: String, input: String) {
+    override fun onCreateWallet(name: String, password: String) {
         val key = input.trim()
         if (libKeystore.callAttr("is_bip32_key", key).toBoolean()) {
             daemonModel.commands.callAttr("create", name, password, Kwarg("master", key))
@@ -257,8 +243,8 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
 }
 
 
-fun setupSeedDialog(fragment: DialogFragment) {
-    with (fragment.dialog) {
+fun setupSeedDialog(fragment: AlertDialogFragment) {
+    with (fragment) {
         val seed = fragment.arguments!!.getString("seed")
         if (seed == null) {
             // Import

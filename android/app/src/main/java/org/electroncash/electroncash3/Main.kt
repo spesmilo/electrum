@@ -1,15 +1,13 @@
 package org.electroncash.electroncash3
 
 import android.app.Activity
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.ViewModel
-import android.arch.lifecycle.ViewModelProviders
+import androidx.lifecycle.Observer
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
@@ -23,7 +21,6 @@ import android.widget.Toast
 import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.change_password.*
 import kotlinx.android.synthetic.main.main.*
-import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
 
@@ -47,13 +44,9 @@ interface MainFragment
 
 
 class MainActivity : AppCompatActivity() {
-    var stateValid: Boolean by notNull()
     var cleanStart = true
-
-    class Model : ViewModel() {
-        var walletName: String? = null
-    }
-    val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+    var newIntent = true
+    var walletName: String? = null
 
     override fun onCreate(state: Bundle?) {
         // Remove splash screen: doesn't work if called after super.onCreate.
@@ -66,9 +59,11 @@ class MainActivity : AppCompatActivity() {
 
         // If the wallet name doesn't match, the process has probably been restarted, so
         // ignore the UI state, including all dialogs.
-        stateValid = (state != null &&
-                      (state.getString("walletName") == daemonModel.walletName))
-        super.onCreate(if (stateValid) state else null)
+        if (state != null) {
+            walletName = state.getString("walletName")
+            cleanStart = (walletName != daemonModel.walletName)
+        }
+        super.onCreate(if (!cleanStart) state else null)
 
         setContentView(R.layout.main)
         setSupportActionBar(toolbar)
@@ -92,18 +87,13 @@ class MainActivity : AppCompatActivity() {
         updateToolbar()
         updateDrawer()
 
-        val walletName = daemonModel.walletName
-        if (walletName != model.walletName) {
-            model.walletName = walletName
+        val newWalletName = daemonModel.walletName
+        if (cleanStart || (newWalletName != walletName)) {
+            walletName = newWalletName
             invalidateOptionsMenu()
             clearFragments()
-            navBottom.selectedItemId = R.id.navTransactions
-        }
-        if (walletName == null) {
-            navBottom.visibility = View.GONE
-            showFragment(R.id.navNoWallet)
-        } else {
-            navBottom.visibility = View.VISIBLE
+            navBottom.selectedItemId = if (walletName == null) R.id.navNoWallet
+                                       else R.id.navTransactions
         }
     }
 
@@ -230,31 +220,34 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putBoolean("cleanStart", cleanStart)
-        outState.putString("walletName", daemonModel.walletName)
+        outState.putBoolean("newIntent", newIntent)
+        outState.putString("walletName", walletName)
     }
 
     override fun onRestoreInstanceState(state: Bundle) {
-        if (stateValid) {
+        if (!cleanStart) {
             super.onRestoreInstanceState(state)
-            cleanStart = state.getBoolean("cleanStart", true)
         }
+        newIntent = state.getBoolean("newIntent")
     }
 
     override fun onPostCreate(state: Bundle?) {
-        super.onPostCreate(if (stateValid) state else null)
+        super.onPostCreate(if (!cleanStart) state else null)
     }
 
+    // setIntent only takes effect on the current instance of the activity: after a rotation,
+    // the original intent will be restored.
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
+        newIntent = true
     }
 
     override fun onResume() {
         super.onResume()
-        val intent = getIntent()
-        if (intent != null) {
-            val uri = intent.data
+        if (newIntent) {
+            newIntent = false
+            val uri = intent?.data
             if (uri != null) {
                 if (daemonModel.wallet == null) {
                     toast(R.string.no_wallet_is_open_)
@@ -274,7 +267,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            setIntent(null)
         }
     }
 
@@ -298,10 +290,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         ft.attach(newFrag)
+        ft.commit()
 
-        // BottomNavigationView onClick is sometimes triggered after state has been saved
-        // (https://github.com/Electron-Cash/Electron-Cash/issues/1091).
-        ft.commitNowAllowingStateLoss()
+        navBottom.visibility = if (newFrag is NoWalletFragment) View.GONE else View.VISIBLE
     }
 
     fun getFragment(id: Int): Fragment? {
@@ -316,7 +307,7 @@ class MainActivity : AppCompatActivity() {
             frag = FRAGMENTS[id]!!.java.newInstance()
             supportFragmentManager.beginTransaction()
                 .add(flContent.id, frag, fragTag(id))
-                .commitNowAllowingStateLoss()
+                .commit()
             return frag
         }
     }
@@ -329,7 +320,7 @@ class MainActivity : AppCompatActivity() {
                 ft.remove(frag)
             }
         }
-        ft.commitNowAllowingStateLoss()
+        ft.commit()
     }
 
     fun fragTag(id: Int) = "MainFragment:$id"
@@ -356,27 +347,23 @@ class AboutDialog : AlertDialogFragment() {
         }
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
+    override fun onShowDialog() {
         dialog.findViewById<TextView>(android.R.id.message)!!.movementMethod =
             LinkMovementMethod.getInstance()
     }
 }
 
 
-class DeleteWalletDialog : AlertDialogFragment() {
+class DeleteWalletDialog : TaskLauncherDialog<Unit>() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val message = getString(R.string.do_you_want_to_delete, daemonModel.walletName) +
                       "\n\n" + getString(R.string.if_your)
         builder.setTitle(R.string.confirm_delete)
             .setMessage(message)
-            .setPositiveButton(R.string.delete) { _, _ ->
-                showDialog(activity!!, DeleteWalletProgress())
-            }
+            .setPositiveButton(R.string.delete, null)
             .setNegativeButton(android.R.string.cancel, null)
     }
-}
 
-class DeleteWalletProgress : ProgressDialogTask<Unit>() {
     override fun doInBackground() {
         daemonModel.commands.callAttr("delete_wallet", daemonModel.walletName)
     }
@@ -387,14 +374,14 @@ class DeleteWalletProgress : ProgressDialogTask<Unit>() {
 }
 
 
-class OpenWalletDialog : PasswordDialog(runInBackground = true) {
+class OpenWalletDialog : PasswordDialog<Unit>() {
     override fun onPassword(password: String) {
         daemonModel.loadWallet(arguments!!.getString("walletName")!!, password)
     }
 }
 
 
-class CloseWalletDialog : ProgressDialogTask<Unit>() {
+class CloseWalletDialog : TaskDialog<Unit>() {
     override fun doInBackground() {
         daemonModel.commands.callAttr("close_wallet")
     }
@@ -413,10 +400,10 @@ class ChangePasswordDialog : AlertDialogFragment() {
             .setNegativeButton(android.R.string.cancel, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
+    override fun onShowDialog() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val currentPassword = dialog.etCurrentPassword.text.toString()
+                val currentPassword = etCurrentPassword.text.toString()
                 val newPassword = confirmPassword(dialog)
                 try {
                     daemonModel.wallet!!.callAttr("update_password",
@@ -435,15 +422,23 @@ class ChangePasswordDialog : AlertDialogFragment() {
 }
 
 
-class ShowSeedPasswordDialog : PasswordDialog() {
-    override fun onPassword(password: String) {
+data class ShowSeedResult(val seed: String, val passphrase: String)
+
+class ShowSeedPasswordDialog : PasswordDialog<ShowSeedResult>() {
+    override fun onPassword(password: String): ShowSeedResult {
         val keystore = daemonModel.wallet!!.callAttr("get_keystore")!!
+        return ShowSeedResult(keystore.callAttr("get_seed", password).toString(),
+                              keystore.callAttr("get_passphrase", password).toString())
+    }
+
+    override fun onPostExecute(result: ShowSeedResult) {
         showDialog(activity!!, SeedDialog().apply { arguments = Bundle().apply {
-            putString("seed", keystore.callAttr("get_seed", password).toString())
-            putString("passphrase", keystore.callAttr("get_passphrase", password).toString())
+            putString("seed", result.seed)
+            putString("passphrase", result.passphrase)
         }})
     }
 }
+
 
 class SeedDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -452,7 +447,7 @@ class SeedDialog : AlertDialogFragment() {
             .setPositiveButton(android.R.string.ok, null)
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
+    override fun onShowDialog() {
         setupSeedDialog(this)
     }
 }

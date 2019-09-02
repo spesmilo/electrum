@@ -54,7 +54,7 @@ class CrashhubSenderFactory : ReportSenderFactory {
  * TODO: display the GitHub link if the submission is successful (would require overriding
  * HttpSender.sendWithoutAttachments and BaseHttpRequest.send). */
 class CrashhubSender(config: CoreConfiguration, uri: String)
-    : HttpSender(config, HttpSender.Method.POST,
+    : HttpSender(config, Method.POST,
                  StringFormat.JSON,  // Will only be used to set the Content-Type.
                  uri) {
 

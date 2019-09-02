@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-<android.support.constraint.ConstraintLayout
+<androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
@@ -38,7 +38,7 @@
         tools:text="@string/test_address"/>
 
     <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
-    <android.support.design.widget.FloatingActionButton
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnContacts"
         style="@style/FAB.Dialog"
         android:layout_width="wrap_content"
@@ -129,6 +129,6 @@
         app:layout_constraintTop_toBottomOf="@+id/textView22"
         tools:text="@string/lorem"/>
 
-</android.support.constraint.ConstraintLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
 
 </ScrollView>

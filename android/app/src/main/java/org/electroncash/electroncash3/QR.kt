@@ -1,6 +1,6 @@
 package org.electroncash.electroncash3
 
-import android.support.v4.app.Fragment
+import androidx.fragment.app.Fragment
 import android.widget.ImageView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType

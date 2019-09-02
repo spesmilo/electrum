@@ -1,15 +1,15 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import android.arch.lifecycle.Observer
+import androidx.lifecycle.Observer
 import android.content.Context
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
-import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.preference.EditTextPreference
-import android.support.v7.preference.EditTextPreferenceDialogFragmentCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.EditTextPreference
+import androidx.preference.EditTextPreferenceDialogFragmentCompat
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.LayoutInflater

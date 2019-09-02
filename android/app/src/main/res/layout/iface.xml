@@ -7,7 +7,7 @@
         <variable name="model" type="org.electroncash.electroncash3.IfaceModel"/>
     </data>
 
-    <android.support.constraint.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         style="@style/Clickable">
@@ -63,5 +63,5 @@
             app:layout_constraintTop_toBottomOf="@+id/tvAddress"
             tools:text="557382"/>
 
-    </android.support.constraint.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>

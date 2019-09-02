@@ -1,14 +1,14 @@
 package com.chaquo.python.utils;
 
 import android.app.*;
-import android.arch.lifecycle.*;
+import androidx.annotation.*;
+import androidx.lifecycle.*;
 import android.content.*;
 import android.content.res.*;
 import android.graphics.*;
 import android.os.*;
-import android.support.annotation.*;
-import android.support.v4.content.*;
-import android.support.v7.app.*;
+import androidx.core.content.*;
+import androidx.appcompat.app.*;
 import android.text.*;
 import android.text.style.*;
 import android.view.*;
@@ -73,19 +73,23 @@ implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollCha
             }
         });
 
+        // At least on API level 28, if an ACTION_UP is lost during a rotation, then the app
+        // (or any other app which takes focus) will receive an endless stream of ACTION_DOWNs
+        // until the key is pressed again. So we react to ACTION_UP instead.
         etInput.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_DONE ||
-                    (event != null && event.getAction() == KeyEvent.ACTION_DOWN)) {
+                    (event != null && event.getAction() == KeyEvent.ACTION_UP)) {
                     String text = etInput.getText().toString() + "\n";
                     etInput.setText("");
                     output(span(text, new StyleSpan(Typeface.BOLD)));
                     scrollTo(Scroll.BOTTOM);
                     task.onInput(text);
-                    return true;
                 }
-                return false;
+
+                // If we return false on ACTION_DOWN, we won't be given the ACTION_UP.
+                return true;
             }
         });
 
@@ -195,17 +199,20 @@ implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollCha
         } else {
             int scrollY = svOutput.getScrollY();
             Layout layout = tvOutput.getLayout();
-            int line = layout.getLineForVertical(scrollY);
-            consoleModel.scrollChar = layout.getLineStart(line);
-            consoleModel.scrollAdjust = scrollY - layout.getLineTop(line);
+            if (layout != null) {  // See note in restoreScroll
+                int line = layout.getLineForVertical(scrollY);
+                consoleModel.scrollChar = layout.getLineStart(line);
+                consoleModel.scrollAdjust = scrollY - layout.getLineTop(line);
+            }
         }
     }
 
     private void restoreScroll() {
         removeCursor();
 
-        // getLayout sometimes returns null even when called from onGlobalLayout, but I haven't
-        // been able to reproduce this (Electron Cash issue #1330, Chaquopy issue #5443).
+        // getLayout sometimes returns null even when called from onGlobalLayout. The
+        // documentation says this can happen if the "text or width has recently changed", but
+        // does not define "recently". See Electron Cash issues #1330 and #1592.
         Layout layout = tvOutput.getLayout();
         if (layout != null) {
             int line = layout.getLineForOffset(consoleModel.scrollChar);

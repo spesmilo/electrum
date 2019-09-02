@@ -1,14 +1,14 @@
 package org.electroncash.electroncash3
 
-import android.arch.lifecycle.LiveData
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.ViewModel
-import android.arch.lifecycle.ViewModelProviders
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProviders
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
-import android.support.v7.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AlertDialog
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -162,23 +162,23 @@ class AddressDialog() : AlertDialogFragment() {
             setNegativeButton(android.R.string.cancel, null)
             setPositiveButton(android.R.string.ok, { _, _  ->
                 setDescription(addrModel.toString("storage"),
-                               dialog.etDescription.text.toString())
+                               etDescription.text.toString())
                 addressLabelUpdate.setValue(Unit)
             })
         }
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
-        dialog.btnExplore.setOnClickListener {
+    override fun onShowDialog() {
+        btnExplore.setOnClickListener {
             exploreAddress(activity!!, addrModel.addr)
         }
-        dialog.btnCopy.setOnClickListener {
+        btnCopy.setOnClickListener {
             copyToClipboard(addrModel.toString("full_ui"), R.string.address)
         }
 
-        showQR(dialog.imgQR, addrModel.toString("full_ui"))
-        dialog.tvAddress.text = addrModel.toString("ui")
-        dialog.tvType.text = addrModel.type
+        showQR(imgQR, addrModel.toString("full_ui"))
+        tvAddress.text = addrModel.toString("ui")
+        tvType.text = addrModel.type
 
         with (SpannableStringBuilder()) {
             append(addrModel.history.size.toString())
@@ -194,15 +194,15 @@ class AddressDialog() : AlertDialogFragment() {
                 append(link)
                 append(")")
             }
-            dialog.tvTxCount.text = this
+            tvTxCount.text = this
         }
-        dialog.tvTxCount.movementMethod = LinkMovementMethod.getInstance()
+        tvTxCount.movementMethod = LinkMovementMethod.getInstance()
 
-        dialog.tvBalance.text = formatSatoshisAndFiat(addrModel.balance)
+        tvBalance.text = formatSatoshisAndFiat(addrModel.balance)
     }
 
-    override fun onFirstShowDialog(dialog: AlertDialog) {
-        dialog.etDescription.setText(addrModel.description)
+    override fun onFirstShowDialog() {
+        etDescription.setText(addrModel.description)
     }
 }
 
@@ -219,20 +219,20 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         }
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
+    override fun onShowDialog() {
         // Remove buttons and bottom padding.
-        dialog.btnSend.hide()
-        dialog.btnRequest.hide()
-        dialog.rvTransactions.setPadding(0, 0, 0, 0)
+        btnSend.hide()
+        btnRequest.hide()
+        rvTransactions.setPadding(0, 0, 0, 0)
 
-        setupVerticalList(dialog.rvTransactions)
-        dialog.rvTransactions.adapter = TransactionsAdapter(activity!!)
+        setupVerticalList(rvTransactions)
+        rvTransactions.adapter = TransactionsAdapter(activity!!)
         transactionsUpdate.observe(this, Observer { refresh() })
     }
 
     fun refresh() {
         val addr = clsAddress.callAttr("from_string", arguments!!.getString("address")!!)
-        (dialog.rvTransactions.adapter as TransactionsAdapter).submitList(
+        (rvTransactions.adapter as TransactionsAdapter).submitList(
             TransactionsList(daemonModel.wallet!!, addr))
     }
 }

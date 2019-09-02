@@ -1,6 +1,6 @@
 package org.electroncash.electroncash3
 
-import android.arch.lifecycle.MediatorLiveData
+import androidx.lifecycle.MediatorLiveData
 
 
 val EXCHANGE_CALLBACKS = setOf("on_quotes", "on_history")

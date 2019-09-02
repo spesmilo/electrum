@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-<android.support.constraint.ConstraintLayout
+<androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
@@ -35,7 +35,7 @@
         app:layout_constraintTop_toBottomOf="@+id/tvPrompt"
         tools:text="@string/test_seed"/>
 
-    <android.support.constraint.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/passphrasePanel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -65,9 +65,9 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/tvPassphrasePrompt"/>
 
-    </android.support.constraint.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <android.support.constraint.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bip39Panel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -110,8 +110,8 @@
             app:layout_constraintStart_toStartOf="@+id/swBip39"
             app:layout_constraintTop_toBottomOf="@+id/etDerivation"/>
 
-    </android.support.constraint.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-</android.support.constraint.ConstraintLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
 
 </ScrollView>

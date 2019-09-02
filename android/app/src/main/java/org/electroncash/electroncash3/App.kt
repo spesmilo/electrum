@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import android.os.Handler
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import org.acra.ACRA
 import org.acra.annotation.AcraCore
 import org.acra.annotation.AcraDialog
@@ -15,6 +17,15 @@ val DEFAULT_CHANNEL = "default"
 
 lateinit var app: App
 lateinit var mainHandler: Handler
+
+
+val py by lazy {
+    Python.start(AndroidPlatform(app))
+    Python.getInstance()
+}
+fun libMod(name: String) = py.getModule("electroncash.$name")!!
+fun guiMod(name: String) = py.getModule("electroncash_gui.android.$name")!!
+val libNetworks by lazy { libMod("networks") }
 
 
 // Not using reportFields: it doesn't noticably reduce response time.
@@ -39,16 +50,17 @@ class App : Application() {
                                     NotificationManager.IMPORTANCE_DEFAULT))
         }
 
+        // The rest of this method should run in the main process only.
+        if (ACRA.isACRASenderServiceProcess()) return
+
         if (BuildConfig.testnet) {
             libNetworks.callAttr("set_testnet")
         }
 
-        if (!ACRA.isACRASenderServiceProcess()) {
-            initSettings()
-            initDaemon()
-            initNetwork()
-            initExchange()
-        }
+        initSettings()
+        initDaemon()
+        initNetwork()
+        initExchange()
     }
 
 }

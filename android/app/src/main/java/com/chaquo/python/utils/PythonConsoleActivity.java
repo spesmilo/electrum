@@ -1,7 +1,7 @@
 package com.chaquo.python.utils;
 
 import android.app.*;
-import android.arch.lifecycle.*;
+import androidx.lifecycle.*;
 import android.os.*;
 import android.util.*;
 import com.chaquo.python.*;

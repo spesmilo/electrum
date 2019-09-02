@@ -9,7 +9,7 @@
             type="org.electroncash.electroncash3.ContactModel"/>
     </data>
 
-    <android.support.constraint.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         style="@style/Clickable">
@@ -48,5 +48,5 @@
             app:layout_constraintTop_toBottomOf="@+id/tvName"
             tools:text="@string/test_address"/>
 
-    </android.support.constraint.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>

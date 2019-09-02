@@ -1,12 +1,12 @@
 package org.electroncash.electroncash3
 
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Observer
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import android.content.Intent
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v4.app.FragmentActivity
-import android.support.v7.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -97,20 +97,20 @@ class ContactDialog : AlertDialogFragment() {
         }
     }
 
-    override fun onShowDialog(dialog: AlertDialog) {
+    override fun onShowDialog() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
 
         val contact = existingContact
         if (contact == null) {
-            for (btn in listOf(dialog.btnExplore, dialog.btnSend)) {
+            for (btn in listOf(btnExplore, btnSend)) {
                 (btn as View).visibility = View.INVISIBLE
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
         } else {
-            dialog.btnExplore.setOnClickListener {
+            btnExplore.setOnClickListener {
                 exploreAddress(activity!!, contact.addr)
             }
-            dialog.btnSend.setOnClickListener {
+            btnSend.setOnClickListener {
                 try {
                     showDialog(activity!!, SendDialog().apply {
                         arguments = Bundle().apply {
@@ -128,26 +128,26 @@ class ContactDialog : AlertDialogFragment() {
         }
     }
 
-    override fun onFirstShowDialog(dialog: AlertDialog) {
+    override fun onFirstShowDialog() {
         val contact = existingContact
         if (contact != null) {
-            dialog.etName.setText(contact.name)
-            dialog.etAddress.setText(contact.addrUiString)
+            etName.setText(contact.name)
+            etAddress.setText(contact.addrUiString)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
-            dialog.etAddress.setText(result.contents)
+            etAddress.setText(result.contents)
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
     fun onOK() {
-        val name = dialog.etName.text.toString()
-        val address = dialog.etAddress.text.toString()
+        val name = etName.text.toString()
+        val address = etAddress.text.toString()
         try {
             if (name.isEmpty()) {
                 throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
