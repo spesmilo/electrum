@@ -248,6 +248,7 @@ class HistoryModel(QAbstractItemModel, Logger):
         tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(row, 2)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
+        self.parent.utxo_list.update()
 
     def get_domain(self):
         '''Overridden in address_dialog.py'''
