@@ -14,6 +14,8 @@ env/
 bin/
 /app.fil
 .idea
+.mypy_cache
+.vscode
 
 # icons
 electrum/gui/kivy/theming/light-0.png
