@@ -51,7 +51,7 @@ class OceanMainnet:
     GENESIS = "e6d7cd550c53bb3e973e55e996712a2e1b1c74975301ec6a56b03df931b561c3"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
+    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
