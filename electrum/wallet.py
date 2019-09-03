@@ -1147,7 +1147,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 return True
         return False
 
-    def get_input_tx(self, tx_hash, *, ignore_network_issues=False):
+    def get_input_tx(self, tx_hash, *, ignore_network_issues=False) -> Optional[Transaction]:
         # First look up an input transaction in the wallet where it
         # will likely be.  If co-signing a transaction it may not have
         # all the input txs, in which case we ask the network.
@@ -1165,7 +1165,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 tx = Transaction(raw_tx)
         return tx
 
-    def add_hw_info(self, tx):
+    def add_hw_info(self, tx: Transaction) -> None:
         # add previous tx for hw wallets
         for txin in tx.inputs():
             tx_hash = txin['prevout_hash']
@@ -1175,15 +1175,14 @@ class Abstract_Wallet(AddressSynchronizer):
         # add output info for hw wallets
         info = {}
         xpubs = self.get_master_public_keys()
-        for txout in tx.outputs():
-            _type, addr, amount = txout
-            if self.is_mine(addr):
-                index = self.get_address_index(addr)
-                pubkeys = self.get_public_keys(addr)
+        for o in tx.outputs():
+            if self.is_mine(o.address):
+                index = self.get_address_index(o.address)
+                pubkeys = self.get_public_keys(o.address)
                 # sort xpubs using the order of pubkeys
                 sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
                 num_sig = self.m if isinstance(self, Multisig_Wallet) else None
-                info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
+                info[o.address] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
         tx.output_info = info
 
     def sign_transaction(self, tx, password):
