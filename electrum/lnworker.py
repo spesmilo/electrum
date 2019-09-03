@@ -986,7 +986,7 @@ class LNWallet(LNWorker):
         return {
             'type': PR_TYPE_LN,
             'status': status,
-            'amount': amount_sat,
+            'amount': int(amount_sat),
             'time': timestamp,
             'exp': lnaddr.get_expiry(),
             'message': description,
