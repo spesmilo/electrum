@@ -1028,9 +1028,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
-
-    def delete_payment_request(self, addr):
-        self.wallet.remove_payment_request(addr, self.config)
+    def delete_request(self, key):
+        self.wallet.delete_request(key)
         self.request_list.update()
         self.clear_receive_tab()
 

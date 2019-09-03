@@ -33,6 +33,7 @@ from typing import Dict, Optional, Tuple
 import aiohttp
 from aiohttp import web
 from base64 import b64decode
+from collections import defaultdict
 
 import jsonrpcclient
 import jsonrpcserver
@@ -41,6 +42,7 @@ from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
+from .util import PR_PAID, PR_EXPIRED, get_request_status
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -168,6 +170,79 @@ class WatchTowerServer(Logger):
     async def add_sweep_tx(self, *args):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
+class HttpServer(Logger):
+
+    def __init__(self, daemon):
+        Logger.__init__(self)
+        self.daemon = daemon
+        self.config = daemon.config
+        self.pending = defaultdict(asyncio.Event)
+        self.daemon.network.register_callback(self.on_payment, ['payment_received'])
+
+    async def on_payment(self, evt, *args):
+        print(evt, args)
+        #await self.pending[key].set()
+
+    async def run(self):
+        from aiohttp import helpers
+        app = web.Application()
+        #app.on_response_prepare.append(http_server.on_response_prepare)
+        app.add_routes([web.post('/api/create_invoice', self.create_request)])
+        app.add_routes([web.get('/api/get_invoice', self.get_request)])
+        app.add_routes([web.get('/api/get_status', self.get_status)])
+        app.add_routes([web.static('/electrum', 'electrum/www')])
+        runner = web.AppRunner(app)
+        await runner.setup()
+        host = self.config.get('http_host', 'localhost')
+        port = self.config.get('http_port', 8000)
+        site = web.TCPSite(runner, port=port, host=host)
+        await site.start()
+
+    async def create_request(self, request):
+        params = await request.post()
+        wallet = self.daemon.wallet
+        if 'amount_sat' not in params or not params['amount_sat'].isdigit():
+            raise web.HTTPUnsupportedMediaType()
+        amount = int(params['amount_sat'])
+        message = params['message'] or "donation"
+        payment_hash = await wallet.lnworker._add_invoice_coro(amount, message, 3600)
+        key = payment_hash.hex()
+        raise web.HTTPFound('/electrum/index.html?id=' + key)
+
+    async def get_request(self, r):
+        key = r.query_string
+        request = self.daemon.wallet.get_request(key)
+        return web.json_response(request)
+
+    async def get_status(self, request):
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        key = request.query_string
+        info = self.daemon.wallet.get_request(key)
+        if not info:
+            await ws.send_str('unknown invoice')
+            await ws.close()
+            return ws
+        if info.get('status') == PR_PAID:
+            await ws.send_str(f'already paid')
+            await ws.close()
+            return ws
+        if info.get('status') == PR_EXPIRED:
+            await ws.send_str(f'invoice expired')
+            await ws.close()
+            return ws
+        while True:
+            try:
+                await asyncio.wait_for(self.pending[key].wait(), 1)
+                break
+            except asyncio.TimeoutError:
+                # send data on the websocket, to keep it alive
+                await ws.send_str('waiting')
+        await ws.send_str('paid')
+        await ws.close()
+        return ws
+
+
 class AuthenticationError(Exception):
     pass
 
@@ -197,6 +272,9 @@ class Daemon(Logger):
         if listen_jsonrpc:
             jobs.append(self.start_jsonrpc(config, fd))
         # server-side watchtower
+        self.http_server = HttpServer(self)
+        if self.http_server:
+            jobs.append(self.http_server.run())
         self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
         if self.watchtower:
             jobs.append(self.watchtower.run)
@@ -296,6 +374,7 @@ class Daemon(Logger):
         wallet = Wallet(storage)
         wallet.start_network(self.network)
         self.wallets[path] = wallet
+        self.wallet = wallet
         return wallet
 
     def add_wallet(self, wallet: Abstract_Wallet):

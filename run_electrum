@@ -375,15 +375,6 @@ if __name__ == '__main__':
             # run daemon
             init_plugins(config, 'cmdline')
             d = daemon.Daemon(config, fd)
-            if config.get('websocket_server'):
-                from electrum import websockets
-                websockets.WebSocketServer(config, d.network)
-            if config.get('requests_dir'):
-                path = os.path.join(config.get('requests_dir'), 'index.html')
-                if not os.path.exists(path):
-                    print("Requests directory not configured.")
-                    print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                    sys_exit(1)
             d.run_daemon()
             sys_exit(0)
         else:

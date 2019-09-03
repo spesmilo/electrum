@@ -1279,32 +1279,6 @@ class Abstract_Wallet(AddressSynchronizer):
         out['status'] = status
         if conf is not None:
             out['confirmations'] = conf
-        # check if bip70 file exists
-        rdir = config.get('requests_dir')
-        if rdir:
-            key = out.get('id', addr)
-            path = os.path.join(rdir, 'req', key[0], key[1], key)
-            if os.path.exists(path):
-                baseurl = 'file://' + rdir
-                rewrite = config.get('url_rewrite')
-                if rewrite:
-                    try:
-                        baseurl = baseurl.replace(*rewrite)
-                    except BaseException as e:
-                        self.logger.info(f'Invalid config setting for "url_rewrite". err: {e}')
-                out['request_url'] = os.path.join(baseurl, 'req', key[0], key[1], key, key)
-                out['URI'] += '&r=' + out['request_url']
-                out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
-                websocket_server_announce = config.get('websocket_server_announce')
-                if websocket_server_announce:
-                    out['websocket_server'] = websocket_server_announce
-                else:
-                    out['websocket_server'] = config.get('websocket_server', 'localhost')
-                websocket_port_announce = config.get('websocket_port_announce')
-                if websocket_port_announce:
-                    out['websocket_port'] = websocket_port_announce
-                else:
-                    out['websocket_port'] = config.get('websocket_port', 9999)
         return out
 
     def get_request_URI(self, addr):
@@ -1346,11 +1320,19 @@ class Abstract_Wallet(AddressSynchronizer):
             status = PR_INFLIGHT if conf <= 0 else PR_PAID
         return status, conf
 
-    def get_request(self, key, is_lightning):
-        if not is_lightning:
+    def get_request(self, key):
+        from .simple_config import get_config
+        config = get_config()
+        if key in self.receive_requests:
             req = self.get_payment_request(key, {})
         else:
             req = self.lnworker.get_request(key)
+        if not req:
+            return
+        if config.get('http_port', 8000):
+            host = config.get('http_host', 'localhost')
+            port = config.get('http_port', 8000)
+            req['http_url'] = 'http://%s:%d/electrum/index.html?id=%s'%(host, port, key)
         return req
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
@@ -1389,24 +1371,6 @@ class Abstract_Wallet(AddressSynchronizer):
         self.receive_requests[addr] = req
         self.storage.put('payment_requests', self.receive_requests)
         self.set_label(addr, message) # should be a default label
-
-        rdir = config.get('requests_dir')
-        if rdir and amount is not None:
-            key = req.get('id', addr)
-            pr = paymentrequest.make_request(config, req)
-            path = os.path.join(rdir, 'req', key[0], key[1], key)
-            if not os.path.exists(path):
-                try:
-                    os.makedirs(path)
-                except OSError as exc:
-                    if exc.errno != errno.EEXIST:
-                        raise
-            with open(os.path.join(path, key), 'wb') as f:
-                f.write(pr.SerializeToString())
-            # reload
-            req = self.get_payment_request(addr, config)
-            with open(os.path.join(path, key + '.json'), 'w', encoding='utf-8') as f:
-                f.write(json.dumps(req))
         return req
 
     def delete_request(self, key):
@@ -1427,14 +1391,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def remove_payment_request(self, addr, config):
         if addr not in self.receive_requests:
             return False
-        r = self.receive_requests.pop(addr)
-        rdir = config.get('requests_dir')
-        if rdir:
-            key = r.get('id', addr)
-            for s in ['.json', '']:
-                n = os.path.join(rdir, 'req', key[0], key[1], key, key + s)
-                if os.path.exists(n):
-                    os.unlink(n)
+        self.receive_requests.pop(addr)
         self.storage.put('payment_requests', self.receive_requests)
         return True
 

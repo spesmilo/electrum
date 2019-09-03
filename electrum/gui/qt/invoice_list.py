@@ -151,4 +151,4 @@ class InvoiceList(MyTreeView):
     def create_menu_ln_payreq(self, menu, payreq_key):
         req = self.parent.wallet.lnworker.invoices[payreq_key][0]
         menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(payreq_key))
