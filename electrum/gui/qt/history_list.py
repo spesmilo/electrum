@@ -197,7 +197,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
             #elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
-            #        and self.parent.wallet.invoices.paid.get(tx_hash):
+            #        and self.parent.wallet.invoices.get(tx_hash):
             #    return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
                     and role == Qt.ForegroundRole and not is_lightning and tx_item['value'].value < 0:
@@ -602,7 +602,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         height = self.wallet.get_tx_height(tx_hash).height
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
-        pr_key = self.wallet.invoices.paid.get(tx_hash)
+        pr_key = self.wallet.invoices.get(tx_hash)
         menu = QMenu()
         if height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL]:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
