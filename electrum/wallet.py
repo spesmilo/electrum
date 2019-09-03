@@ -46,14 +46,13 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import age
 from .util import PR_TYPE_ADDRESS, PR_TYPE_BIP70, PR_TYPE_LN
 from .simple_config import get_config
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
 from . import keystore
-from .keystore import load_keystore, Hardware_KeyStore
+from .keystore import load_keystore, Hardware_KeyStore, KeyStore
 from .util import multisig_type
 from .storage import STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
@@ -216,6 +215,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.storage = storage
         # load addresses needs to be called before constructor for sanity checks
         self.storage.db.load_addresses(self.wallet_type)
+        self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
         AddressSynchronizer.__init__(self, storage.db)
 
         # saved fields
@@ -234,7 +234,6 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
 
-        # contacts
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
         self.lnworker = LNWallet(self) if get_config().get('lightning') else None
@@ -260,6 +259,9 @@ class Abstract_Wallet(AddressSynchronizer):
         self.load_keystore()
         self.test_addresses_sanity()
         super().load_and_cleanup()
+
+    def load_keystore(self) -> None:
+        raise NotImplementedError()  # implemented by subclasses
 
     def diagnostic_name(self):
         return self.basename()
@@ -1587,21 +1589,21 @@ class Abstract_Wallet(AddressSynchronizer):
                 return p * txin_value/Decimal(COIN)
 
     def is_billing_address(self, addr):
-        # overloaded for TrustedCoin wallets
+        # overridden for TrustedCoin wallets
         return False
 
     def is_watching_only(self) -> bool:
         raise NotImplementedError()
 
+    def get_keystore(self) -> Optional[KeyStore]:
+        return self.keystore
+
+    def get_keystores(self) -> Sequence[KeyStore]:
+        return [self.keystore] if self.keystore else []
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
-
-    def get_keystore(self):
-        return self.keystore
-
-    def get_keystores(self):
-        return [self.keystore]
 
     def is_watching_only(self):
         return self.keystore.is_watching_only()
@@ -1626,9 +1628,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def is_watching_only(self):
         return self.keystore is None
-
-    def get_keystores(self):
-        return [self.keystore] if self.keystore else []
 
     def can_import_privkey(self):
         return bool(self.keystore)

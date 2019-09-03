@@ -26,7 +26,7 @@
 
 from unicodedata import normalize
 import hashlib
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING, Union, Sequence
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import (deserialize_privkey, serialize_privkey,
@@ -41,6 +41,9 @@ from .util import (InvalidPassword, WalletFileException,
 from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
+
+if TYPE_CHECKING:
+    from .transaction import Transaction
 
 
 class KeyStore(Logger):
@@ -92,6 +95,21 @@ class KeyStore(Logger):
 
     def ready_to_sign(self):
         return not self.is_watching_only()
+
+    def dump(self) -> dict:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def is_deterministic(self) -> bool:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def sign_message(self, sequence, message, password) -> bytes:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def decrypt_message(self, sequence, message, password) -> bytes:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def sign_transaction(self, tx: 'Transaction', password) -> None:
+        raise NotImplementedError()  # implemented by subclasses
 
 
 class Software_KeyStore(KeyStore):
@@ -723,7 +741,7 @@ hw_keystores = {}
 def register_keystore(hw_type, constructor):
     hw_keystores[hw_type] = constructor
 
-def hardware_keystore(d):
+def hardware_keystore(d) -> Hardware_KeyStore:
     hw_type = d['hw_type']
     if hw_type in hw_keystores:
         constructor = hw_keystores[hw_type]
@@ -731,7 +749,7 @@ def hardware_keystore(d):
     raise WalletFileException(f'unknown hardware type: {hw_type}. '
                               f'hw_keystores: {list(hw_keystores)}')
 
-def load_keystore(storage, name):
+def load_keystore(storage, name) -> KeyStore:
     d = storage.get(name, {})
     t = d.get('type')
     if not t:
