@@ -962,7 +962,7 @@ class Peer(Logger):
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
-        asyncio.ensure_future(self.add_own_channel(chan))
+        self.add_own_channel(chan)
         self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if forwarding_enabled:
@@ -972,7 +972,7 @@ class Peer(Logger):
             chan_upd = self.get_outgoing_gossip_channel_update_for_chan(chan)
             self.transport.send_bytes(chan_upd)
 
-    async def add_own_channel(self, chan):
+    def add_own_channel(self, chan):
         # add channel to database
         bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
         sorted_node_ids = list(sorted(self.node_ids))
