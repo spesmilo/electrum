@@ -26,6 +26,7 @@ import os, sys, re, json, time
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
+from functools import lru_cache
 import traceback
 import threading
 import hmac
@@ -235,13 +236,6 @@ class DaemonThread(threading.Thread, PrintError):
             self.running = False
 
     def on_stop(self):
-        if 'ANDROID_DATA' in os.environ:
-            try:
-                import jnius
-                jnius.detach()
-                self.print_error("jnius detach")
-            except ImportError:
-                pass  # Chaquopy detaches automatically.
         self.print_error("stopped")
 
 
@@ -344,32 +338,12 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
-def android_ext_dir():
-    try:
-        import jnius
-        env = jnius.autoclass('android.os.Environment')
-    except ImportError:
-        from android.os import Environment as env  # Chaquopy import hook
-    return env.getExternalStorageDirectory().getPath()
-
+@lru_cache()
 def android_data_dir():
-    try:
-        import jnius
-        context = jnius.autoclass('org.kivy.android.PythonActivity').mActivity
-    except ImportError:
-        from com.chaquo.python import Python
-        context = Python.getPlatform().getApplication()
+    from com.chaquo.python import Python
+    context = Python.getPlatform().getApplication()
     return context.getFilesDir().getPath() + '/data'
 
-def android_headers_dir():
-    try:
-        import jnius
-        d = android_ext_dir() + '/org.electron.electron'
-        if not os.path.exists(d):
-            os.mkdir(d)
-        return d
-    except ImportError:
-        return android_data_dir()
 
 def ensure_sparse_file(filename):
     if os.name == "nt":
@@ -379,7 +353,7 @@ def ensure_sparse_file(filename):
             pass
 
 def get_headers_dir(config):
-    return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
+    return android_data_dir() if 'ANDROID_DATA' in os.environ else config.path
 
 def assert_datadir_available(config_path):
     path = config_path
