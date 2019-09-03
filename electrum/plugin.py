@@ -31,7 +31,7 @@ import sys
 from typing import NamedTuple, Any, Union, TYPE_CHECKING, Optional
 
 from .i18n import _
-from .util import (profiler, DaemonThread, UserCancelled, ThreadJob)
+from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
@@ -285,8 +285,7 @@ class BasePlugin(Logger):
         pass
 
 
-class DeviceNotFoundError(Exception): pass
-class DeviceUnpairableError(Exception): pass
+class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
 
 
