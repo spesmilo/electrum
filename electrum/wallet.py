@@ -1274,7 +1274,7 @@ class Abstract_Wallet(AddressSynchronizer):
             return
         out = copy.copy(r)
         out['type'] = PR_TYPE_ADDRESS
-        out['URI'] = 'bitcoin:' + addr + '?amount=' + format_satoshis(out.get('amount'))
+        out['URI'] = self.get_request_URI(addr)
         status, conf = self.get_request_status(addr)
         out['status'] = status
         if conf is not None:
