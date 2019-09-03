@@ -1,20 +1,21 @@
 #
 # build_psbt.py - create a PSBT from (unsigned) transaction and keystore data.
 #
-import io, struct
-from base64 import b64decode
+import io
+import struct
 from binascii import a2b_hex, b2a_hex
 from struct import pack, unpack
 
 from electrum.transaction import (Transaction, multisig_script, parse_redeemScript_multisig,
-                                    NotRecognizedRedeemScript)
+                                  NotRecognizedRedeemScript)
 
 from electrum.logging import get_logger
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
+from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
 from electrum.keystore import xpubkey_to_pubkey, Xpub
 from electrum.util import bfh, bh2u
 from electrum.crypto import hash_160, sha256
 from electrum.bitcoin import DecodeBase58Check
+from electrum.i18n import _
 
 from .basic_psbt import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_GLOBAL_XPUB, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
@@ -22,12 +23,6 @@ from .basic_psbt import (
         PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION,
         PSBT_OUT_REDEEM_SCRIPT, PSBT_OUT_WITNESS_SCRIPT)
 from .basic_psbt import BasicPSBT
-
-from electrum.logging import get_logger
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
-from electrum.util import bfh, bh2u
-from electrum.crypto import hash_160
-from electrum.bitcoin import DecodeBase58Check
 
 
 _logger = get_logger(__name__)
@@ -131,7 +126,7 @@ def my_var_int(l):
     else:
         return pack("<BQ", 255, l)
 
-def build_psbt(tx: Transaction, wallet: Wallet):
+def build_psbt(tx: Transaction, wallet: Abstract_Wallet):
     # Render a PSBT file, for possible upload to Coldcard.
     # 
     # TODO this should be part of Wallet object, or maybe Transaction?
@@ -178,15 +173,14 @@ def build_psbt(tx: Transaction, wallet: Wallet):
         for o in tx.outputs():
             if o.address in tx.output_info:
                 # this address "is_mine" but might not be change (if I send funds to myself)
-                chg_path = tx.output_info.get(o.address).address_index
-
-                if chg_path[0] != 1 or len(chg_path) != 2:
-                    # not change.
+                output_info = tx.output_info.get(o.address)
+                if not output_info.is_change:
                     continue
-
+                chg_path = output_info.address_index
+                assert chg_path[0] == 1 and len(chg_path) == 2, f"unexpected change path: {chg_path}"
                 pubkey = ks.derive_pubkey(True, chg_path[1])
                 subkeys[bfh(pubkey)] = ks_prefix + pack('<II', *chg_path)
-        
+
     for txin in inputs:
         assert txin['type'] != 'coinbase', _("Coinbase not supported")
 
@@ -246,7 +240,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
             # always need a redeem script for multisig
             scr = Transaction.get_preimage_script(txin)
 
-            if 'p2wsh' in txin['type']:
+            if Transaction.is_segwit_input(txin):
                 # needed for both p2wsh-p2sh and p2wsh
                 write_kv(PSBT_IN_WITNESS_SCRIPT, bfh(scr))
             else:
@@ -275,8 +269,9 @@ def build_psbt(tx: Transaction, wallet: Wallet):
 
             if txin['type'] == 'p2wpkh-p2sh':
                 assert len(pubkeys) == 1, 'can be only one redeem script per input'
-                pa = hash_160(k)
-                write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14'+pa)
+                pa = hash_160(pubkey)
+                assert len(pa) == 20
+                write_kv(PSBT_IN_REDEEM_SCRIPT, b'\x00\x14'+pa)
 
             # optional? insert (partial) signatures that we already have
             if sigs and sigs[pk_pos]:
@@ -291,10 +286,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
         if o.address in tx.output_info:
             # this address "is_mine" but might not be change (if I send funds to myself)
             output_info = tx.output_info.get(o.address)
-            chg_path, master_xpubs = output_info.address_index, output_info.sorted_xpubs
-
-            if chg_path[0] == 1 and len(chg_path) == 2:
-                # it is a change output (based on our standard derivation path)
+            if output_info.is_change:
                 pubkeys = [bfh(i) for i in wallet.get_public_keys(o.address)]
 
                 # Add redeem/witness script?
@@ -331,7 +323,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
     return tx.raw_psbt
 
 
-def recover_tx_from_psbt(first: BasicPSBT, wallet: Wallet) -> Transaction:
+def recover_tx_from_psbt(first: BasicPSBT, wallet: Abstract_Wallet) -> Transaction:
     # Take a PSBT object and re-construct the Electrum transaction object.
     # - does not include signatures, see merge_sigs_from_psbt
     # - any PSBT in the group could be used for this purpose; all must share tx details

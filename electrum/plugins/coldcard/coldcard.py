@@ -11,12 +11,10 @@ from electrum.i18n import _
 from electrum.plugin import Device, hook
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction, multisig_script
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
-from electrum.crypto import hash_160
+from electrum.wallet import Standard_Wallet, Multisig_Wallet
 from electrum.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
-from electrum.bitcoin import DecodeBase58Check
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
@@ -34,10 +32,6 @@ try:
     from ckcc.protocol import CCProtoError, CCUserRefused, CCBusyError
     from ckcc.constants import (MAX_MSG_LEN, MAX_BLK_LEN, MSG_SIGNING_MAX_LENGTH, MAX_TXN_LEN,
         AF_CLASSIC, AF_P2SH, AF_P2WPKH, AF_P2WSH, AF_P2WPKH_P2SH, AF_P2WSH_P2SH)
-    #from ckcc.constants import (
-        #PSBT_GLOBAL_UNSIGNED_TX, PSBT_GLOBAL_XPUB, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
-        #PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT,
-        #PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
 
     from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
 
@@ -387,12 +381,6 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         assert self.my_wallet, "Not clear which wallet associated with this Coldcard"
 
         client = self.get_client()
-
-        if 0:
-            from pprint import pprint
-            for n,i in enumerate(tx.inputs()):
-                print('[%d]: ' % n, end='')
-                pprint(i)
 
         assert client.dev.master_fingerprint == self.ckcc_xfp
 
