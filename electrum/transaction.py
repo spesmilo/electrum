@@ -81,9 +81,10 @@ class TxOutputForUI(NamedTuple):
 
 class TxOutputHwInfo(NamedTuple):
     address_index: Tuple
-    sorted_xpubs: Iterable[str]
+    sorted_xpubs: Sequence[str]
     num_sig: Optional[int]
     script_type: str
+    is_change: bool  # whether the wallet considers the output to be change
 
 
 class BIP143SharedTxDigestFields(NamedTuple):

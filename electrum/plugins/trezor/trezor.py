@@ -420,7 +420,7 @@ class TrezorPlugin(HW_PluginBase):
             signatures=signatures,
             m=m)
 
-    def tx_outputs(self, derivation, tx):
+    def tx_outputs(self, derivation, tx: Transaction):
 
         def create_output_by_derivation():
             script_type = self.get_trezor_output_script_type(info.script_type)
@@ -455,12 +455,11 @@ class TrezorPlugin(HW_PluginBase):
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
-                on_change_branch = index[0] == 1
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
                 # note: ^ restriction can be removed once we require fw
                 # that has https://github.com/trezor/trezor-mcu/pull/306
-                if on_change_branch == any_output_on_change_branch:
+                if info.is_change == any_output_on_change_branch:
                     use_create_by_derivation = True
                     has_change = True
 

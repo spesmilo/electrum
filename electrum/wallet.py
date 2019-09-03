@@ -351,10 +351,10 @@ class Abstract_Wallet(AddressSynchronizer):
         except:
             return
 
-    def is_mine(self, address):
+    def is_mine(self, address) -> bool:
         return bool(self.get_address_index(address))
 
-    def is_change(self, address):
+    def is_change(self, address) -> bool:
         if not self.is_mine(address):
             return False
         return self.get_address_index(address)[0]
@@ -1182,7 +1182,12 @@ class Abstract_Wallet(AddressSynchronizer):
                 # sort xpubs using the order of pubkeys
                 sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
                 num_sig = self.m if isinstance(self, Multisig_Wallet) else None
-                info[o.address] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
+                is_change = self.is_change(o.address)
+                info[o.address] = TxOutputHwInfo(address_index=index,
+                                                 sorted_xpubs=sorted_xpubs,
+                                                 num_sig=num_sig,
+                                                 script_type=self.txin_type,
+                                                 is_change=is_change)
         tx.output_info = info
 
     def sign_transaction(self, tx, password):
@@ -1738,7 +1743,7 @@ class Imported_Wallet(Simple_Wallet):
                 self.save_keystore()
         self.storage.write()
 
-    def is_mine(self, address):
+    def is_mine(self, address) -> bool:
         return self.db.has_imported_address(address)
 
     def get_address_index(self, address):
