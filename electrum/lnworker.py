@@ -980,13 +980,13 @@ class LNWallet(LNWorker):
         invoice, direction, is_paid = self.invoices[key]
         status = self.get_invoice_status(key)
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
+        amount_sat = int(lnaddr.amount*COIN) if lnaddr.amount else None
         description = lnaddr.get_description()
         timestamp = lnaddr.date
         return {
             'type': PR_TYPE_LN,
             'status': status,
-            'amount': int(amount_sat),
+            'amount': amount_sat,
             'time': timestamp,
             'exp': lnaddr.get_expiry(),
             'message': description,
