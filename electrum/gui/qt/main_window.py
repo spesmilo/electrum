@@ -1114,11 +1114,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_message(_("Request saved successfully"))
             self.saved = True
 
-    def set_receive_address(self, addr):
-        self.receive_address_e.setText(addr)
-        self.receive_message_e.setText('')
-        self.receive_amount_e.setAmount(None)
-
     def clear_receive_tab(self):
         self.receive_address_e.setText('')
         self.receive_message_e.setText('')
@@ -1152,7 +1147,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.show_receive_tab()
         self.receive_address_e.setText(addr)
-        self.new_request_button.setEnabled(True)
 
     def update_receive_qr(self):
         uri = str(self.receive_address_e.text())
