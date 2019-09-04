@@ -395,7 +395,7 @@ if __name__ == '__main__':
                     print_msg("To run this command without a daemon, use --offline")
                 sys_exit(1)
             except Exception as e:
-                print_stderr(e)
+                print_stderr(str(e) or repr(e))
                 sys_exit(1)
         else:
             if cmd.requires_network:
@@ -406,9 +406,9 @@ if __name__ == '__main__':
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
-                result = fut.result(10)
+                result = fut.result()
             except Exception as e:
-                print_stderr(e)
+                print_stderr(str(e) or repr(e))
                 sys_exit(1)
     if isinstance(result, str):
         print_msg(result)
