@@ -58,6 +58,7 @@ from .simple_config import SimpleConfig
 
 if TYPE_CHECKING:
     from .network import Network
+    from .daemon import Daemon
 
 
 known_commands = {}
@@ -111,7 +112,8 @@ class Commands:
 
     def __init__(self, config: 'SimpleConfig',
                  wallet: Abstract_Wallet,
-                 network: Optional['Network'], daemon=None, callback=None):
+                 network: Optional['Network'],
+                 daemon: 'Daemon' = None, callback=None):
         self.config = config
         self.wallet = wallet
         self.daemon = daemon
@@ -190,13 +192,7 @@ class Commands:
     async def close_wallet(self):
         """Close wallet"""
         path = self.config.get_wallet_path()
-        path = standardize_path(path)
-        if path in self.wallets:
-            self.stop_wallet(path)
-            response = True
-        else:
-            response = False
-        return response
+        return self.daemon.stop_wallet(path)
 
     @command('')
     async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None):

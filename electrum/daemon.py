@@ -394,11 +394,14 @@ class Daemon(Logger):
             return True
         return False
 
-    def stop_wallet(self, path):
+    def stop_wallet(self, path) -> bool:
+        """Returns True iff a wallet was found."""
         path = standardize_path(path)
         wallet = self.wallets.pop(path, None)
-        if not wallet: return
+        if not wallet:
+            return False
         wallet.stop_threads()
+        return True
 
     async def run_cmdline(self, config_options):
         password = config_options.get('password')
