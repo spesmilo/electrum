@@ -183,8 +183,8 @@ class Bitmarket(ExchangeBase):
 class BitPay(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('bitpay.com', '/api/rates/BCH')
-        return dict([(r['code'], PyDecimal(r['rate'])) for r in json])
+        json = self.get_json('bitpay.com', '/rates/BCH')
+        return dict([(r['code'], PyDecimal(r['rate'])) for r in json['data']])
 
 
 class Bitso(ExchangeBase):
