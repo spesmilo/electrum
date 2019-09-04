@@ -37,7 +37,7 @@ from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation
 from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
-from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
+from .storage import (WalletStorage, StorageEncryptionVersion,
                       get_derivation_used_for_hw_device_encryption)
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
@@ -541,7 +541,7 @@ class BaseWizard(Logger):
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=STO_EV_XPUB_PW,
+                    storage_enc_version=StorageEncryptionVersion.XPUB_PASSWORD,
                     encrypt_keystore=False))
         else:
             # reset stack to disable 'back' button in password dialog
@@ -551,12 +551,12 @@ class BaseWizard(Logger):
                 run_next=lambda password, encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=STO_EV_USER_PW,
+                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
                     encrypt_keystore=encrypt_keystore),
                 force_disable_encrypt_cb=not encrypt_keystore)
 
     def on_password(self, password, *, encrypt_storage,
-                    storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD, encrypt_keystore):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)

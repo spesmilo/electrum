@@ -2221,8 +2221,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
-        from electrum.storage import STO_EV_XPUB_PW
-        if self.wallet.get_available_storage_encryption_version() == STO_EV_XPUB_PW:
+        from electrum.storage import StorageEncryptionVersion
+        if self.wallet.get_available_storage_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD:
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
             ok, encrypt_file = d.run()

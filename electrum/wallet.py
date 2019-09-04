@@ -54,7 +54,7 @@ from .crypto import sha256d
 from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore, KeyStore
 from .util import multisig_type
-from .storage import STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
+from .storage import StorageEncryptionVersion, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
@@ -1421,16 +1421,16 @@ class Abstract_Wallet(AddressSynchronizer):
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
 
-    def get_available_storage_encryption_version(self):
+    def get_available_storage_encryption_version(self) -> StorageEncryptionVersion:
         """Returns the type of storage encryption offered to the user.
 
         A wallet file (storage) is either encrypted with this version
         or is stored in plaintext.
         """
         if isinstance(self.keystore, Hardware_KeyStore):
-            return STO_EV_XPUB_PW
+            return StorageEncryptionVersion.XPUB_PASSWORD
         else:
-            return STO_EV_USER_PW
+            return StorageEncryptionVersion.USER_PASSWORD
 
     def has_keystore_encryption(self):
         """Returns whether encryption is enabled for the keystore.
@@ -1462,7 +1462,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if encrypt_storage:
             enc_version = self.get_available_storage_encryption_version()
         else:
-            enc_version = STO_EV_PLAINTEXT
+            enc_version = StorageEncryptionVersion.PLAINTEXT
         self.storage.set_password(new_pw, enc_version)
 
         # note: Encrypting storage with a hw device is currently only
@@ -2029,7 +2029,7 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_available_storage_encryption_version(self):
         # multisig wallets are not offered hw device encryption
-        return STO_EV_USER_PW
+        return StorageEncryptionVersion.USER_PASSWORD
 
     def has_seed(self):
         return self.keystore.has_seed()
