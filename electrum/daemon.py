@@ -194,7 +194,7 @@ class HttpServer(Logger):
         runner = web.AppRunner(app)
         await runner.setup()
         host = self.config.get('http_host', 'localhost')
-        port = self.config.get('http_port', 8000)
+        port = int(self.config.get('http_port'))
         site = web.TCPSite(runner, port=port, host=host)
         await site.start()
 
@@ -271,10 +271,11 @@ class Daemon(Logger):
         # Setup JSONRPC server
         if listen_jsonrpc:
             jobs.append(self.start_jsonrpc(config, fd))
-        # server-side watchtower
-        self.http_server = HttpServer(self)
-        if self.http_server:
+        # request server
+        if self.config.get('http_port'):
+            self.http_server = HttpServer(self)
             jobs.append(self.http_server.run())
+        # server-side watchtower
         self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
         if self.watchtower:
             jobs.append(self.watchtower.run)
