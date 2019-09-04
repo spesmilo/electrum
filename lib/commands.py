@@ -651,7 +651,7 @@ class Commands:
         return self.wallet.get_unused_address().to_ui_string()
 
     @command('w')
-    def addrequest(self, amount, memo='', expiration=None, force=False):
+    def addrequest(self, amount, memo='', expiration=None, force=False, payment_url=None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be condidered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
@@ -667,7 +667,7 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        req = self.wallet.make_payment_request(addr, amount, memo, expiration)
+        req = self.wallet.make_payment_request(addr, amount, memo, expiration, payment_url = payment_url)
         self.wallet.add_payment_request(req, self.config)
         out = self.wallet.get_payment_request(addr, self.config)
         return self._format_request(out)
@@ -780,6 +780,7 @@ command_options = {
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
+    'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
 }
 
 

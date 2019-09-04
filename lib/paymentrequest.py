@@ -253,6 +253,9 @@ class PaymentRequest:
     def get_memo(self):
         return self.memo
 
+    def get_payment_url(self):
+        return self.details.payment_url
+
     def get_dict(self):
         return {
             'requestor': self.get_requestor(),
@@ -261,7 +264,8 @@ class PaymentRequest:
             'amount': self.get_amount(),
             'signature': self.get_verify_status(),
             'txid': self.tx,
-            'outputs': self.get_outputs()
+            'outputs': self.get_outputs(),
+            'payment_url': self.get_payment_url()
         }
 
     def get_id(self):
@@ -324,6 +328,7 @@ def make_unsigned_request(req):
     addr = req['address']
     time = req.get('time', 0)
     exp = req.get('exp', 0)
+    payment_url = req.get('payment_url')
     if time and type(time) != int:
         time = 0
     if exp and type(exp) != int:
@@ -340,6 +345,8 @@ def make_unsigned_request(req):
     pd.time = time
     pd.expires = time + exp if exp else 0
     pd.memo = memo
+    if payment_url:
+        pd.payment_url = payment_url
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = util.to_bytes('')
@@ -700,6 +707,7 @@ class PaymentRequest_BitPay20(PaymentRequest, PrintError):
     #   def get_amount(self) -> int
     #   def get_address(self) -> Address
     #   def get_expiration_date(self) -> float
+    #   def get_payment_url(self) -> str
     #   def has_expired(self) -> bool
 
     def base_url(self):

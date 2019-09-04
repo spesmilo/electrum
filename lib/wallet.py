@@ -1709,7 +1709,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return status, conf
 
     def make_payment_request(self, addr, amount, message, expiration=None, *,
-                             op_return=None, op_return_raw=None):
+                             op_return=None, op_return_raw=None, payment_url=None):
         assert isinstance(addr, Address)
         if op_return and op_return_raw:
             raise ValueError("both op_return and op_return_raw cannot be specified as arguments to make_payment_request")
@@ -1723,6 +1723,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             'memo': message,
             'id': _id
         }
+        if payment_url:
+            d['payment_url'] = payment_url
         if op_return:
             d['op_return'] = op_return
         if op_return_raw:
