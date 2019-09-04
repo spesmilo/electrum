@@ -1459,7 +1459,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
             addrbytes=bytes(data[i1:i2])
             addr=hash160_to_b58_address(addrbytes, addrType)
-            if not is_mine(addr):
+            if not self.is_mine(addr):
                 return
             addrs.append(addr)
 
