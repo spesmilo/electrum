@@ -41,13 +41,14 @@ from jsonrpcserver import response
 from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 
 from .network import Network
-from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
+from .util import json_decode, to_bytes, to_string, profiler, standardize_path
 from .util import PR_PAID, PR_EXPIRED, get_request_status
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
+from .jsonrpc import JsonRpcServer
 from .logging import get_logger, Logger
 
 
@@ -134,35 +135,21 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     return rpc_user, rpc_password
 
 
-class WatchTowerServer(Logger):
+class WatchTowerServer(JsonRpcServer):
 
     def __init__(self, network):
-        Logger.__init__(self)
+        JsonRpcServer.__init__(self)
         self.config = network.config
         self.network = network
         self.lnwatcher = network.local_watchtower
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.get_ctn)
         self.methods.add(self.add_sweep_tx)
 
-    async def handle(self, request):
-        request = await request.text()
-        self.logger.info(f'{request}')
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
-
     async def run(self):
         host = self.config.get('watchtower_host')
         port = self.config.get('watchtower_port', 12345)
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, host, port)
-        await site.start()
+        await self.start_jsonrpc(self.methods, (host, port))
 
     async def get_ctn(self, *args):
         return await self.lnwatcher.sweepstore.get_ctn(*args)
@@ -243,14 +230,11 @@ class HttpServer(Logger):
         return ws
 
 
-class AuthenticationError(Exception):
-    pass
-
-class Daemon(Logger):
+class Daemon(JsonRpcServer):
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
-        Logger.__init__(self)
+        JsonRpcServer.__init__(self)
         self.running = False
         self.running_lock = threading.Lock()
         self.config = config
@@ -281,43 +265,12 @@ class Daemon(Logger):
         if self.network:
             self.network.start(jobs)
 
-    def authenticate(self, headers):
-        if self.rpc_password == '':
-            # RPC authentication is disabled
-            return
-        auth_string = headers.get('Authorization', None)
-        if auth_string is None:
-            raise AuthenticationError('CredentialsMissing')
-        basic, _, encoded = auth_string.partition(' ')
-        if basic != 'Basic':
-            raise AuthenticationError('UnsupportedType')
-        encoded = to_bytes(encoded, 'utf8')
-        credentials = to_string(b64decode(encoded), 'utf8')
-        username, _, password = credentials.partition(':')
-        if not (constant_time_compare(username, self.rpc_user)
-                and constant_time_compare(password, self.rpc_password)):
-            time.sleep(0.050)
-            raise AuthenticationError('Invalid Credentials')
-
-    async def handle(self, request):
-        try:
-            self.authenticate(request.headers)
-        except AuthenticationError:
-            return web.Response(text='Forbidden', status=403)
-        request = await request.text()
-        #self.logger.info(f'handling request: {request}')
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
-            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
-
     async def start_jsonrpc(self, config: SimpleConfig, fd):
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.rpc_user, self.rpc_password = get_rpc_credentials(config)
+        rpc_user, rpc_password = get_rpc_credentials(config)
+        if rpc_password == "":
+            rpcauth = None
+        else:
+            rpcauth = (rpc_user, rpc_password)
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
@@ -327,10 +280,7 @@ class Daemon(Logger):
         self.methods.add(self.run_cmdline)
         self.host = config.get('rpchost', '127.0.0.1')
         self.port = config.get('rpcport', 0)
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
-        await site.start()
+        site = await super().start_jsonrpc(self.methods, (self.host, self.port), rpcauth)
         socket = site._server.sockets[0]
         os.write(fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
         os.close(fd)
