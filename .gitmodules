@@ -6,4 +6,4 @@
 	url = https://github.com/spesmilo/CalinsQRReader
 [submodule "electrum/www"]
 	path = electrum/www
-	url = git@github.com:spesmilo/electrum-http.git
+	url = https://github.com/spesmilo/electrum-http.git
