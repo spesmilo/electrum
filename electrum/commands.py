@@ -221,12 +221,12 @@ class Commands:
         or bitcoin private keys.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
+        # TODO create a separate command that blocks until wallet is synced
         d = restore_wallet_from_text(text,
                                      path=self.config.get_wallet_path(),
                                      passphrase=passphrase,
                                      password=password,
-                                     encrypt_file=encrypt_file,
-                                     network=self.network)
+                                     encrypt_file=encrypt_file)
         return {
             'path': d['wallet'].storage.path,
             'msg': d['msg'],

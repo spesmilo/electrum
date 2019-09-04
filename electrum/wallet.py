@@ -2100,7 +2100,8 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, seed_type=None, gap_limit=None):
+def create_new_wallet(*, path, passphrase=None, password=None,
+                      encrypt_file=True, seed_type=None, gap_limit=None) -> dict:
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
@@ -2121,9 +2122,9 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path, network=None,
+def restore_wallet_from_text(text, *, path,
                              passphrase=None, password=None, encrypt_file=True,
-                             gap_limit=None):
+                             gap_limit=None) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
@@ -2164,17 +2165,8 @@ def restore_wallet_from_text(text, *, path, network=None,
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
-
-    if network:
-        wallet.start_network(network)
-        _logger.info("Recovering wallet...")
-        wallet.wait_until_synchronized()
-        wallet.stop_threads()
-        # note: we don't wait for SPV
-        msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-    else:
-        msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
-               "Start a daemon (not offline) to sync history.")
+    msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
+           "Start a daemon and use load_wallet to sync its history.")
 
     wallet.storage.write()
     return {'wallet': wallet, 'msg': msg}
