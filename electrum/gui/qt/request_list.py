@@ -177,12 +177,14 @@ class RequestList(MyTreeView):
         if column == self.Columns.AMOUNT:
             column_data = column_data.strip()
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
-
-        #menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', addr))
-        menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('URI', self.wallet.get_request_URI(addr)))
+        if request_type == PR_TYPE_ADDRESS:
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', key))
+        if request_type == PR_TYPE_LN:
+            menu.addAction(_("Copy lightning payment request"), lambda: self.parent.do_copy('Request', req['invoice']))
+        else:
+            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', req['URI']))
         if 'http_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['http_url']))
-
         # do bip70 only for browser access
         # so, each request should have an ID, regardless
         #menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
