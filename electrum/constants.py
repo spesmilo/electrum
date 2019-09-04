@@ -51,7 +51,7 @@ class OceanMainnet:
     GENESIS = "e6d7cd550c53bb3e973e55e996712a2e1b1c74975301ec6a56b03df931b561c3"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
+    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
@@ -72,9 +72,9 @@ class OceanMainnet:
     }
     BIP44_COIN_TYPE = 0
 
-    CONTROLER1 = "02ac939ba82f6915c5b2e9232548dd59a97bfdd1891dcd6fb0405acd40c4e35ac1"
-    CONTROLER2 = "021a7d07efe2164258086597e62edd115aba03676cf4d91f3f21ba09b64a926fb2"
-    CONTROLER3 = "0205ed5282cbb8614b0b5ae43e448796846ed24b9406c23a12f6b108a8e37c49ef"
+    CONTROLER1 = "04ac939ba82f6915c5b2e9232548dd59a97bfdd1891dcd6fb0405acd40c4e35ac1398940aac7b5220587a33f260c9cd0906883e54e2880812d7e39188d2d0cd4da"
+    CONTROLER2 = "041a7d07efe2164258086597e62edd115aba03676cf4d91f3f21ba09b64a926fb2ea939b23b851024f49afa3377ac4e8e964d07a011b7bf66caef2f765dc6902a4"
+    CONTROLER3 = "0405ed5282cbb8614b0b5ae43e448796846ed24b9406c23a12f6b108a8e37c49ef9828f92e5cc2237a789030198ed5a7f5d56af7ce27cdd4fa0da6b7e06d154fe8"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
     WHITELISTCOINSDESTINATION = "76a914cb7d39ef3d41ceef1ac6f0bfe3ae2003365158d288ac"
     WHITELISTCOINSADDRESS = "GcPsbwmP3VFFxGWPUw9VkzjZw4q9BkKa8C"
