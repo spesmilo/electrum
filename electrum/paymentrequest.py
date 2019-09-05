@@ -473,8 +473,8 @@ def serialize_request(req):
 
 def make_request(config, req):
     pr = make_unsigned_request(req)
-    key_path = config.get('ssl_privkey')
-    cert_path = config.get('ssl_chain')
+    key_path = config.get('ssl_keyfile')
+    cert_path = config.get('ssl_certfile')
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
     return pr

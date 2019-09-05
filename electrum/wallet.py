@@ -1268,7 +1268,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 return True, conf
         return False, None
 
-    def get_payment_request(self, addr, config):
+    def get_payment_request(self, addr):
         r = self.receive_requests.get(addr)
         if not r:
             return
@@ -1324,15 +1324,22 @@ class Abstract_Wallet(AddressSynchronizer):
         from .simple_config import get_config
         config = get_config()
         if key in self.receive_requests:
-            req = self.get_payment_request(key, {})
+            req = self.get_payment_request(key)
         else:
             req = self.lnworker.get_request(key)
         if not req:
             return
-        if config.get('http_port', 8000):
+        if config.get('http_port'):
             host = config.get('http_host', 'localhost')
-            port = config.get('http_port', 8000)
-            req['http_url'] = 'http://%s:%d/electrum/index.html?id=%s'%(host, port, key)
+            port = config.get('http_port')
+            root = config.get('http_root', '/r')
+            use_ssl = bool(config.get('ssl_keyfile'))
+            protocol = 'https' if use_ssl else 'http'
+            base = '%s://%s:%d'%(protocol, host, port)
+            req['view_url'] = base + root + '/pay?id=' + key
+            if use_ssl and 'URI' in req:
+                request_url = base + '/bip70/' + key + '.bip70'
+                req['bip70_url'] = request_url
         return req
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
@@ -1397,7 +1404,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_sorted_requests(self, config):
         """ sorted by timestamp """
-        out = [self.get_payment_request(x, config) for x in self.receive_requests.keys()]
+        out = [self.get_request(x) for x in self.receive_requests.keys()]
         if self.lnworker:
             out += self.lnworker.get_requests()
         out.sort(key=operator.itemgetter('time'))

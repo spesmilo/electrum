@@ -183,11 +183,8 @@ class RequestList(MyTreeView):
             menu.addAction(_("Copy lightning payment request"), lambda: self.parent.do_copy('Request', req['invoice']))
         else:
             menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', req['URI']))
-        if 'http_url' in req:
-            menu.addAction(_("View in web browser"), lambda: webopen(req['http_url']))
-        # do bip70 only for browser access
-        # so, each request should have an ID, regardless
-        #menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
+        if 'view_url' in req:
+            menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
         run_hook('receive_list_menu', menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))

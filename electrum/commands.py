@@ -702,7 +702,7 @@ class Commands:
     @command('w')
     async def getrequest(self, key):
         """Return a payment request"""
-        r = self.wallet.get_payment_request(key, self.config)
+        r = self.wallet.get_request(key)
         if not r:
             raise Exception("Request not found")
         return self._format_request(r)
@@ -754,7 +754,7 @@ class Commands:
         expiration = int(expiration) if expiration else None
         req = self.wallet.make_payment_request(addr, amount, memo, expiration)
         self.wallet.add_payment_request(req, self.config)
-        out = self.wallet.get_payment_request(addr, self.config)
+        out = self.wallet.get_request(addr)
         return self._format_request(out)
 
     @command('w')

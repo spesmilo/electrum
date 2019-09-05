@@ -34,6 +34,7 @@ import aiohttp
 from aiohttp import web
 from base64 import b64decode
 from collections import defaultdict
+import ssl
 
 import jsonrpcclient
 import jsonrpcserver
@@ -184,18 +185,25 @@ class HttpServer(Logger):
         #await self.pending[key].set()
 
     async def run(self):
-        from aiohttp import helpers
+        host = self.config.get('http_host', 'localhost')
+        port = self.config.get('http_port')
+        root = self.config.get('http_root', '/r')
+        ssl_keyfile = self.config.get('ssl_keyfile')
+        ssl_certfile = self.config.get('ssl_certfile')
+        if ssl_keyfile and ssl_certfile:
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
+        else:
+            ssl_context = None
         app = web.Application()
-        #app.on_response_prepare.append(http_server.on_response_prepare)
         app.add_routes([web.post('/api/create_invoice', self.create_request)])
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
-        app.add_routes([web.static('/electrum', 'electrum/www')])
+        app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
+        app.add_routes([web.static(root, 'electrum/www')])
         runner = web.AppRunner(app)
         await runner.setup()
-        host = self.config.get('http_host', 'localhost')
-        port = int(self.config.get('http_port'))
-        site = web.TCPSite(runner, port=port, host=host)
+        site = web.TCPSite(runner, port=port, host=host, ssl_context=ssl_context)
         await site.start()
 
     async def create_request(self, request):
@@ -207,12 +215,21 @@ class HttpServer(Logger):
         message = params['message'] or "donation"
         payment_hash = await wallet.lnworker._add_invoice_coro(amount, message, 3600)
         key = payment_hash.hex()
-        raise web.HTTPFound('/electrum/index.html?id=' + key)
+        raise web.HTTPFound(self.root + '/pay?id=' + key)
 
     async def get_request(self, r):
         key = r.query_string
         request = self.daemon.wallet.get_request(key)
         return web.json_response(request)
+
+    async def get_bip70_request(self, r):
+        from .paymentrequest import make_request
+        key = r.match_info['key']
+        request = self.daemon.wallet.get_request(key)
+        if not request:
+            return web.HTTPNotFound()
+        pr = make_request(self.config, request)
+        return web.Response(body=pr.SerializeToString(), content_type='application/bitcoin-paymentrequest')
 
     async def get_status(self, request):
         ws = web.WebSocketResponse()

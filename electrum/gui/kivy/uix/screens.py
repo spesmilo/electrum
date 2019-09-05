@@ -429,7 +429,7 @@ class ReceiveScreen(CScreen):
         self.screen.address = addr
 
     def on_address(self, addr):
-        req = self.app.wallet.get_payment_request(addr, self.app.electrum_config)
+        req = self.app.wallet.get_request(addr)
         self.screen.status = ''
         if req:
             self.screen.message = req.get('memo', '')
