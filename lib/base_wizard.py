@@ -289,7 +289,7 @@ class BaseWizard(util.PrintError):
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except BaseException as e:
             self.print_error(traceback.format_exc())
-            self.show_error(e)
+            self.show_error(str(e))
             return
         d = {
             'type': 'hardware',
