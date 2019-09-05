@@ -662,7 +662,7 @@ class Commands:
         return out
 
     @command('n')
-    async def gettransaction(self, txid):
+    async def gettransaction(self, txid, wallet=None):
         """Retrieve a transaction. """
         tx = None
         if wallet:
@@ -689,7 +689,7 @@ class Commands:
         return encrypted.decode('utf-8')
 
     @command('wp')
-    async def decrypt(self, pubkey, encrypted, password=None) -> str:
+    async def decrypt(self, pubkey, encrypted, password=None, wallet=None) -> str:
         """Decrypt a message encrypted with a public key."""
         if not is_hex_str(pubkey):
             raise Exception(f"pubkey must be a hex string instead of {repr(pubkey)}")
