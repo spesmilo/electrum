@@ -883,7 +883,7 @@ class TaskThread(PrintError, QThread):
                 try:
                     result = task.task()
                     self.doneSig.emit(result, task.cb_done, task.cb_success)
-                except BaseException:
+                except:
                     self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
         finally:
             self.print_error("exiting")

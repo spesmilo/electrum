@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# -*- mode: python -*-
 #
-# Electrum - lightweight Bitcoin client
+# Electron Cash - lightweight Bitcoin Cash client
 # Copyright (C) 2016  The Electrum developers
+# Copyright (C) 2019  The Electron Cash developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -57,13 +57,10 @@ class HW_PluginBase(BasePlugin):
                 self._cleanup_keystore_extra(keystore)
 
     def _cleanup_keystore_extra(self, keystore):
-        # awkward cleanup code for the keystore 'thread' object (qt.util.TaskThread object)
-        # we have to do it this way so as to avoid relying on and/or importing gui.qt
+        # awkward cleanup code for the keystore 'thread' object (see qt.py)
         finalization_print_error(keystore)  # track object lifecycle
-        thread = getattr(keystore, 'thread', None)
-        if thread and all(hasattr(thread, attr) for attr in ('isRunning', 'stop')) and thread.isRunning():
-            # was a Qt TaskThread, kill it, and wait up to 5 seconds for it to stop
-            thread.stop(waitTime=5.0)
+        if callable(getattr(keystore.thread, 'stop', None)):
+            keystore.thread.stop()
 
     def show_address(self, wallet, address, keystore=None):
         pass  # implemented in child classes

@@ -182,10 +182,59 @@ class QtHandlerBase(QObject, PrintError):
         self.done.set()
 
 
-
+import sys, queue
 from electroncash.plugins import hook
 from electroncash.util import UserCancelled
 from electroncash_gui.qt.main_window import StatusBarButton
+
+class ThreadJob_TaskThread_Facade(TaskThread):
+    ''' This class is really a ThreadJob intended to mimic the TaskThread's
+    semantics. (Which we need since it can send signals/callbacks to the GUI
+    thread).
+
+    Despite this class inheriting from QThread it does *not* run in its own
+    thread, but instead runs in the Plugins DaemonThread.
+
+    It runs in the 'Plugins' DaemonThread as that's the safest place to put
+    operations that talk to the hardware wallet due to various race condition
+    issues on platforms such as MacOS.  See #1598.
+
+    (The Plugins thread already talks to the HW wallets because of the DeviceMgr
+    class, so we must also live on that same thread). '''
+    def __init__(self, plugin, on_error=None, *, name=None):
+        super().__init__(parent=None, on_error=on_error, name=name)
+        self.plugin = plugin
+        self.plugin.parent.add_jobs([self])  # add self to Plugins thread
+        self.print_error("Started")
+
+    def start(self):
+        ''' Overrides base; is a no-op since we do not want to actually
+        start the QThread object '''
+
+    def run(self):
+        ''' Overrides base. This follows the ThreadJob API -- is called every
+        100ms in a loop from the Plugins DaemonThread. '''
+        while True:
+            try:
+                task = self.tasks.get_nowait()
+                if not task:
+                    return
+            except queue.Empty:
+                return
+            try:
+                result = task.task()
+                self.doneSig.emit(result, task.cb_done, task.cb_success)
+            except:
+                self.doneSig.emit(sys.exc_info(), task.cb_done, task.cb_error)
+
+    def stop(self, *args, **kwargs):
+        ''' Overrides base. Remove us from DaemonThread jobs. '''
+        try:
+            self.plugin.parent.remove_jobs([self])
+            self.print_error("Stopped")
+        except ValueError:
+            ''' Was already removed, silently ignore error. '''
+
 
 class QtPluginBase(object):
 
@@ -211,7 +260,7 @@ class QtPluginBase(object):
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
-            keystore.thread = TaskThread(window, window.on_error, name = wallet.diagnostic_name() + f'/keystore{i}')
+            keystore.thread = ThreadJob_TaskThread_Facade(self, window.on_error, name = wallet.diagnostic_name() + f'/keystore{i}')
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
@@ -228,4 +277,7 @@ class QtPluginBase(object):
         return device_id
 
     def show_settings_dialog(self, window, keystore):
-        device_id = self.choose_device(window, keystore)
+        try:
+            device_id = self.choose_device(window, keystore)
+        except:
+            window.on_error(sys.exc_info())

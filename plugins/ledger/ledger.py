@@ -45,13 +45,13 @@ def test_pin_unlocked(func):
         try:
             return func(self, *args, **kwargs)
         except BTChipException as e:
-            if e.sw == 0x6982:
-                raise Exception(_('Your {} is locked. Please unlock it.').format(self.device))
+            if e.sw in (0x6982, 0x6f04):
+                raise Exception(_('Your {} is locked. Please unlock it.').format(self.device) + '\n\n' + _('After unlocking, may also need to re-open this wallet window as well.')) from e
             else:
                 raise
     return catch_exception
 
-class Ledger_Client():
+class Ledger_Client:
 
     def __init__(self, plugin, hidDevice, isHW1=False):
         self.device = plugin.device
@@ -187,7 +187,7 @@ class Ledger_Client():
                     msg = _('Enter your {} PIN - WARNING: LAST ATTEMPT. If the PIN is not correct, the {} will be wiped.').format(self.device, self.device)
                 confirmed, p, pin = self.password_dialog(msg)
                 if not confirmed:
-                    raise Exception(_('Aborted by user - please unplug the {} and plug it again before retrying').format(self.device))
+                    raise Exception(_('Aborted by user - please unplug the {hw_device_name} and plug it in again before retrying').format(hw_device_name=self.device))
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
 
@@ -195,13 +195,16 @@ class Ledger_Client():
             self.cashaddrSWSupported = 'cashAddr' in gwpkArgSpecs.args
         except BTChipException as e:
             if (e.sw == 0x6faa):
-                raise Exception(_('{} is temporarily locked - please unplug it and replug it again').format(self.device))
+                raise Exception(_("{hw_device_name} is temporarily locked - please unplug and plug it in again."
+                                  "\n\nIf this problem persists please exit and restart the Bitcoin Cash "
+                                  "application running on the device.\n\nYou may also need to re-open this "
+                                  "wallet window as well.").format(hw_device_name=self.device)) from e
             if ((e.sw & 0xFFF0) == 0x63c0):
-                raise Exception(_('Invalid PIN - please unplug the {} and plug it again before retrying').format(self.device))
+                raise Exception(_('Invalid PIN - please unplug the {hw_device_name} and plug it in again before retrying').format(hw_device_name=self.device)) from e
             if e.sw == 0x6f00 and e.message == 'Invalid channel':
                 # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
                 raise Exception(_('Invalid channel.') + '\n' +
-                                _('Please make sure that \'Browser support\' is disabled on your {}.').format(self.device))
+                                _('Please make sure that \'Browser support\' is disabled on your {}.').format(self.device)) from e
             raise e
 
     def checkDevice(self):

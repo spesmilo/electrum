@@ -41,6 +41,7 @@ class KeyStore(PrintError):
     def __init__(self):
         PrintError.__init__(self)
         self.wallet_advice = {}
+        self.thread = None  # Hardware_KeyStore may use this attribute, otherwise stays None
 
     def has_seed(self):
         return False
