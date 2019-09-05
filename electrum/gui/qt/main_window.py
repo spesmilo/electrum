@@ -492,7 +492,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
         wallet_menu.addAction(_("&Register"), self.register_wallet_dialog)
         wallet_menu.addAction(_("&Contract"), self.termsandconditions_dialog)
-        wallet_menu.addAction(_("&Onboard Key"), self.dumponboardkey_dialog)
+        if(constants.net.ENCRYPTED_WHITELIST):
+            wallet_menu.addAction(_("&Onboard Key"), self.dumponboardkey_dialog)
         wallet_menu.addAction(_("&Rescan Blockchain"), self.rescan_blockchain_dialog)
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("&Export KYC Key"), self.dumpkyckey_dialog)
@@ -2718,6 +2719,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.storage.put('registered_addresses', [])
             self.wallet.frozen_addresses = set()
             self.wallet.storage.put('frozen_addresses', [])
+            self.wallet.unassigned_kyc_pubkeys = {}
+            self.wallet.storage.put('unassigned_kyc_pubkeys', {})
             historyBackup = self.wallet.history
             self.wallet.clear_history()
             for it in historyBackup:
