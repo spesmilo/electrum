@@ -496,10 +496,6 @@ class NetworkChoiceLayout(object):
         self.network.set_mapping(get_map, host)
 
     def default_mapping_url(self):
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         mapping_url=self.network.default_mapping()
         self.map_host.setText(mapping_url)
 

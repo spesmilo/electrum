@@ -1950,7 +1950,7 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
         ss = StringIO()
 
-        ss.write(str("contracthash: ") + str(rev_hex(self.contracts[-1]))+str("\n"))
+        ss.write(str("contracthash: ") + str(self.contracts[-1])+str("\n"))
         
         addrs=self.get_addresses()
 

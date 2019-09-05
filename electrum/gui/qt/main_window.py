@@ -600,6 +600,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.network or not self.network.is_connected():
             return
 
+        
         self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
             # Combine the transactions if there are at least three

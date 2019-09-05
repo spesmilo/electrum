@@ -28,6 +28,7 @@ from electrum.i18n import _
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
+from electrum import constants
 
 from .util import *
 

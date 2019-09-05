@@ -684,8 +684,6 @@ def multisig_script(public_keys: Sequence[str], m: int) -> str:
     return op_m + ''.join(keylist) + op_n + 'ae'
 
 
-
-
 class Transaction:
 
     def __str__(self):
@@ -1339,3 +1337,6 @@ def tx_from_str(txt):
     tx_dict = json.loads(str(txt))
     assert "hex" in tx_dict.keys()
     return tx_dict["hex"]
+
+TxOutPoint = NamedTuple("TxOutPoint", [("txid", str),
+                                       ("n", int)])
