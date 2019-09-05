@@ -181,29 +181,38 @@ class SettingsDialog(WindowModalDialog):
         self.alias_e.editingFinished.connect(self.on_alias_edit)
         oa_widgets.append((alias_label, self.alias_e))
 
-        # SSL certificate
-        msg = ' '.join([
-            _('SSL certificate used to sign payment requests.'),
-            _('Use setconfig to set ssl_chain and ssl_privkey.'),
-        ])
-        if self.config.get('ssl_keyfile') and self.config.get('ssl_certfile'):
-            try:
-                SSL_identity = paymentrequest.check_ssl_config(self.config)
-                SSL_error = None
-            except BaseException as e:
-                SSL_identity = "error"
-                SSL_error = repr(e)
-        else:
-            SSL_identity = ""
-            SSL_error = None
-        SSL_id_label = HelpLabel(_('SSL certificate') + ':', msg)
-        SSL_id_e = QLineEdit(SSL_identity)
-        SSL_id_e.setStyleSheet((ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else '')
-        if SSL_error:
-            SSL_id_e.setToolTip(SSL_error)
-        SSL_id_e.setReadOnly(True)
-        server_widgets.append((SSL_id_label, SSL_id_e))
+        # PayServer
+        ssl_cert = self.config.get('ssl_certfile')
+        ssl_cert_label = HelpLabel(_('SSL cert file') + ':', 'certificate file, with intermediate certificates if needed')
+        self.ssl_cert_e = QPushButton(ssl_cert)
+        self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
+        server_widgets.append((ssl_cert_label, self.ssl_cert_e))
 
+        ssl_privkey = self.config.get('ssl_keyfile')
+        ssl_privkey_label = HelpLabel(_('SSL key file') + ':', '')
+        self.ssl_privkey_e = QPushButton(ssl_privkey)
+        self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
+        server_widgets.append((ssl_privkey_label, self.ssl_privkey_e))
+
+        ssl_domain_label = HelpLabel(_('SSL domain') + ':', '')
+        self.ssl_domain_e = QLineEdit('')
+        self.ssl_domain_e.setReadOnly(True)
+        server_widgets.append((ssl_domain_label, self.ssl_domain_e))
+
+        payserver_host = self.config.get('payserver_host', 'localhost')
+        payserver_host_label = HelpLabel(_('Hostname') + ':', 'must match your ssl domain')
+        self.payserver_host_e = QLineEdit(payserver_host)
+        self.payserver_host_e.editingFinished.connect(self.on_payserver_host)
+        server_widgets.append((payserver_host_label, self.payserver_host_e))
+
+        payserver_port = self.config.get('payserver_port')
+        payserver_port_label = HelpLabel(_('Port') + ':', msg)
+        self.payserver_port_e = QLineEdit(str(payserver_port))
+        self.payserver_port_e.editingFinished.connect(self.on_payserver_port)
+        server_widgets.append((payserver_port_label, self.payserver_port_e))
+        self.check_ssl_config()
+
+        # units
         units = base_units_list
         msg = (_('Base unit of your wallet.')
                + '\n1 BTC = 1000 mBTC. 1 mBTC = 1000 bits. 1 bit = 100 sat.\n'
@@ -498,3 +507,44 @@ class SettingsDialog(WindowModalDialog):
         self.config.set_key('alias', alias, True)
         if alias:
             self.window.fetch_alias()
+
+    def select_ssl_certfile(self, b):
+        name = self.config.get('ssl_certfile', '')
+        filename, __ = QFileDialog.getOpenFileName(self, "Select your SSL certificate file", name)
+        if filename:
+            self.config.set_key('ssl_certfile', filename)
+            self.ssl_cert_e.setText(filename)
+            self.check_ssl_config()
+
+    def select_ssl_privkey(self, b):
+        name = self.config.get('ssl_privkey', '')
+        filename, __ = QFileDialog.getOpenFileName(self, "Select your SSL private key file", name)
+        if filename:
+            self.config.set_key('ssl_privkey', filename)
+            self.ssl_cert_e.setText(filename)
+            self.check_ssl_config()
+
+    def check_ssl_config(self):
+        if self.config.get('ssl_keyfile') and self.config.get('ssl_certfile'):
+            try:
+                SSL_identity = paymentrequest.check_ssl_config(self.config)
+                SSL_error = None
+            except BaseException as e:
+                SSL_identity = "error"
+                SSL_error = repr(e)
+        else:
+            SSL_identity = ""
+            SSL_error = None
+        self.ssl_domain_e.setText(SSL_identity)
+        s = (ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else ''
+        self.ssl_domain_e.setStyleSheet(s)
+        if SSL_error:
+            self.ssl_domain_e.setToolTip(SSL_error)
+
+    def on_payserver_host(self):
+        hostname = str(self.payserver_host_e.text())
+        self.config.set_key('payserver_host', hostname, True)
+
+    def on_payserver_port(self):
+        port = int(self.payserver_port_e.text())
+        self.config.set_key('payserver_port', port, True)

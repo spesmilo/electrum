@@ -1329,10 +1329,10 @@ class Abstract_Wallet(AddressSynchronizer):
             req = self.lnworker.get_request(key)
         if not req:
             return
-        if config.get('http_port'):
-            host = config.get('http_host', 'localhost')
-            port = config.get('http_port')
-            root = config.get('http_root', '/r')
+        if config.get('payserver_port'):
+            host = config.get('payserver_host', 'localhost')
+            port = config.get('payserver_port')
+            root = config.get('payserver_root', '/r')
             use_ssl = bool(config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
             base = '%s://%s:%d'%(protocol, host, port)

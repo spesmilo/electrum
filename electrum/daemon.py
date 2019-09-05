@@ -185,9 +185,9 @@ class HttpServer(Logger):
             await self.pending[key].set()
 
     async def run(self):
-        host = self.config.get('http_host', 'localhost')
-        port = self.config.get('http_port')
-        root = self.config.get('http_root', '/r')
+        host = self.config.get('payserver_host', 'localhost')
+        port = self.config.get('payserver_port')
+        root = self.config.get('payserver_root', '/r')
         ssl_keyfile = self.config.get('ssl_keyfile')
         ssl_certfile = self.config.get('ssl_certfile')
         if ssl_keyfile and ssl_certfile:
@@ -289,7 +289,7 @@ class Daemon(Logger):
         if listen_jsonrpc:
             jobs.append(self.start_jsonrpc(config, fd))
         # request server
-        if self.config.get('http_port'):
+        if self.config.get('payserver_port'):
             self.http_server = HttpServer(self)
             jobs.append(self.http_server.run())
         # server-side watchtower
