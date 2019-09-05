@@ -2159,14 +2159,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if pr:
                 refund_address = self.wallet.get_receiving_addresses()[0]
                 ack_status, ack_msg = pr.send_payment(str(tx), refund_address)
-                msg = ack_msg
-                if ack_status:
+                if not ack_status:
+                    if ack_msg == "no url":
+                        # "no url" hard-coded in send_payment method
+                        # it means merchant doesn't need the tx sent to him
+                        # since he didn't specify a POST url.
+                        # so we just broadcast and rely on that result status.
+                        ack_msg = None
+                    else:
+                        return False, ack_msg
+                # at this point either ack_status is True or there is "no url"
+                # and we proceed anyway with the broadcast
+                status, msg = self.network.broadcast_transaction(tx)
+
+                # figure out what to return...
+                msg = ack_msg or msg  # prefer the merchant's ack_msg over the broadcast msg, but fallback to broadcast msg if no ack_msg.
+                status = bool(ack_status or status)  # if both broadcast and merchant ACK failed -- it's a failure. if either succeeded -- it's a success
+
+                if status:
                     self.invoices.set_paid(pr, tx.txid())
                     self.invoices.save()
                     self.payment_request = None
-                    status = True
+
             else:
-                status, msg =  self.network.broadcast_transaction(tx)
+                # Not a PR, just broadcast.
+                status, msg = self.network.broadcast_transaction(tx)
+
             return status, msg
 
         # Check fee and warn if it's below 1.0 sats/B (and not warned already)
