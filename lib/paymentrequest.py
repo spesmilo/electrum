@@ -277,7 +277,7 @@ class PaymentRequest:
     def send_payment(self, raw_tx, refund_addr):
         pay_det = self.details
         if not self.details.payment_url:
-            return False, "no url"
+            return False, "no url"  # note caller is expecting this exact string in the "no payment url specified" case. see main_window.py and/or ios_native/gui.py
         paymnt = pb2.Payment()
         paymnt.merchant_data = pay_det.merchant_data
         paymnt.transactions.append(bfh(raw_tx))
