@@ -1804,7 +1804,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 status, msg = True, tx.txid()
             if pr and status is True:
                 key = pr.get_id()
-                self.wallet.set_invoice_paid(key, tx.txid())
+                #self.wallet.set_invoice_paid(key, tx.txid())
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
                 coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
@@ -2900,7 +2900,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         gui_widgets = []
         fee_widgets = []
         tx_widgets = []
-        id_widgets = []
+        oa_widgets = []
+        server_widgets = []
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -3017,14 +3018,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         set_alias_color()
         self.alias_received_signal.connect(set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
-        id_widgets.append((alias_label, alias_e))
+        oa_widgets.append((alias_label, alias_e))
 
         # SSL certificate
         msg = ' '.join([
             _('SSL certificate used to sign payment requests.'),
             _('Use setconfig to set ssl_chain and ssl_privkey.'),
         ])
-        if self.config.get('ssl_privkey') or self.config.get('ssl_chain'):
+        if self.config.get('ssl_keyfile') and self.config.get('ssl_certfile'):
             try:
                 SSL_identity = paymentrequest.check_ssl_config(self.config)
                 SSL_error = None
@@ -3040,7 +3041,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if SSL_error:
             SSL_id_e.setToolTip(SSL_error)
         SSL_id_e.setReadOnly(True)
-        id_widgets.append((SSL_id_label, SSL_id_e))
+        server_widgets.append((SSL_id_label, SSL_id_e))
 
         units = base_units_list
         msg = (_('Base unit of your wallet.')
@@ -3299,7 +3300,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             (tx_widgets, _('Transactions')),
             (gui_widgets, _('General')),
             (fiat_widgets, _('Fiat')),
-            (id_widgets, _('Identity')),
+            (server_widgets, _('PayServer')),
+            (oa_widgets, _('OpenAlias')),
         ]
         for widgets, name in tabs_info:
             tab = QWidget()
