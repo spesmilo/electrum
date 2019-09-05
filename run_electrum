@@ -211,6 +211,7 @@ async def run_offline_command(config, config_options, plugins):
                 config_options['password'] = password
             storage.decrypt(password)
         wallet = Wallet(storage)
+        config_options['wallet'] = wallet
     else:
         wallet = None
     # check password
@@ -230,8 +231,8 @@ async def run_offline_command(config, config_options, plugins):
     # options
     kwargs = {}
     for x in cmd.options:
-        kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
-    cmd_runner = Commands(config, wallet, None)
+        kwargs[x] = (config_options.get(x) if x in ['wallet', 'password', 'new_password'] else config.get(x))
+    cmd_runner = Commands(config, None, None)
     func = getattr(cmd_runner, cmd.name)
     result = await func(*args, **kwargs)
     # save wallet

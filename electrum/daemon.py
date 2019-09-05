@@ -339,7 +339,7 @@ class Daemon(Logger):
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
-        self.cmd_runner = Commands(self.config, None, self.network, self)
+        self.cmd_runner = Commands(self.config, self.network, self)
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
         self.methods.add(self.run_cmdline)
@@ -435,8 +435,7 @@ class Daemon(Logger):
             wallet = self.wallets.get(path)
             if wallet is None:
                 return {'error': 'Wallet "%s" is not loaded. Use "electrum load_wallet"'%os.path.basename(path) }
-        else:
-            wallet = None
+            config_options['wallet'] = wallet
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
@@ -444,9 +443,8 @@ class Daemon(Logger):
         # options
         kwargs = {}
         for x in cmd.options:
-            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
-        cmd_runner = Commands(config, wallet, self.network, self)
-        func = getattr(cmd_runner, cmd.name)
+            kwargs[x] = (config_options.get(x) if x in ['wallet', 'password', 'new_password'] else config.get(x))
+        func = getattr(self.cmd_runner, cmd.name)
         try:
             result = await func(*args, **kwargs)
         except TypeError as e:
