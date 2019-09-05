@@ -2168,10 +2168,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'bitcoin': bitcoin,
         })
 
-        c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
+        c = commands.Commands(config=self.config,
+                              network=self.network,
+                              callback=lambda: self.console.set_json(True))
         methods = {}
         def mkfunc(f, method):
-            return lambda *args, **kwargs: f(method, args, self.password_dialog, **kwargs)
+            return lambda *args, **kwargs: f(method,
+                                             args,
+                                             self.password_dialog,
+                                             **{**kwargs, 'wallet': self.wallet})
         for m in dir(c):
             if m[0]=='_' or m in ['network','wallet','config']: continue
             methods[m] = mkfunc(c._run, m)

@@ -232,7 +232,7 @@ async def run_offline_command(config, config_options, plugins):
     kwargs = {}
     for x in cmd.options:
         kwargs[x] = (config_options.get(x) if x in ['wallet', 'password', 'new_password'] else config.get(x))
-    cmd_runner = Commands(config, None, None)
+    cmd_runner = Commands(config=config)
     func = getattr(cmd_runner, cmd.name)
     result = await func(*args, **kwargs)
     # save wallet

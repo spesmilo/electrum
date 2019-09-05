@@ -116,8 +116,8 @@ def command(s):
 
 class Commands:
 
-    def __init__(self, config: 'SimpleConfig',
-                 network: Optional['Network'],
+    def __init__(self, *, config: 'SimpleConfig',
+                 network: 'Network' = None,
                  daemon: 'Daemon' = None, callback=None):
         self.config = config
         self.daemon = daemon
@@ -128,7 +128,8 @@ class Commands:
         """This wrapper is called from unit tests and the Qt python console."""
         cmd = known_commands[method]
         password = kwargs.get('password', None)
-        if (cmd.requires_password and wallet.has_password()
+        wallet = kwargs.get('wallet', None)
+        if (cmd.requires_password and wallet and wallet.has_password()
                 and password is None):
             password = password_getter()
             if password is None:

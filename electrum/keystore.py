@@ -264,6 +264,8 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed = self.format_seed(seed)
 
     def get_seed(self, password):
+        if not self.has_seed():
+            raise Exception("This wallet has no seed words")
         return pw_decode(self.seed, password, version=self.pw_hash_version)
 
     def get_passphrase(self, password):

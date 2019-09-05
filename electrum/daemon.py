@@ -339,7 +339,7 @@ class Daemon(Logger):
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
-        self.cmd_runner = Commands(self.config, self.network, self)
+        self.cmd_runner = Commands(config=self.config, network=self.network, daemon=self)
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
         self.methods.add(self.run_cmdline)

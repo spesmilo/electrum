@@ -56,7 +56,7 @@ class TestCommands(unittest.TestCase):
         self.assertTrue(eval_bool("1"))
 
     def test_convert_xkey(self):
-        cmds = Commands(config=None, wallet=None, network=None)
+        cmds = Commands(config=None)
         xpubs = {
             ("xpub6CCWFbvCbqF92kGwm9nV7t7RvVoQUKaq5USMdyVP6jvv1NgN52KAX6NNYCeE8Ca7JQC4K5tZcnQrubQcjJ6iixfPs4pwAQJAQgTt6hBjg11", "standard"),
             ("ypub6X2mZGb7kWnct3U4bWa7KyCw6TwrQwaKzaxaRNPGUkJo4UVbKgUj9A2WZQbp87E2i3Js4ZV85SmQnt2BSzWjXCLzjQXMkK7egQXXVHT4eKn", "p2wpkh-p2sh"),
@@ -79,7 +79,7 @@ class TestCommands(unittest.TestCase):
     def test_encrypt_decrypt(self, mock_write):
         wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN',
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         cleartext = "asdasd this is the message"
         pubkey = "021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da"
         ciphertext = cmds._run('encrypt', (pubkey, cleartext))
@@ -89,7 +89,7 @@ class TestCommands(unittest.TestCase):
     def test_export_private_key_imported(self, mock_write):
         wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         # single address tests
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', ("asdasd",))  # invalid addr, though might raise "not in wallet"
@@ -108,7 +108,7 @@ class TestCommands(unittest.TestCase):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
                                           gap_limit=2,
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         # single address tests
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', ("asdasd",))  # invalid addr, though might raise "not in wallet"
@@ -135,7 +135,7 @@ class TestCommandsTestnet(TestCaseForTestnet):
         self._loop_thread.join(timeout=1)
 
     def test_convert_xkey(self):
-        cmds = Commands(config=None, wallet=None, network=None)
+        cmds = Commands(config=None)
         xpubs = {
             ("tpubD8p5qNfjczgTGbh9qgNxsbFgyhv8GgfVkmp3L88qtRm5ibUYiDVCrn6WYfnGey5XVVw6Bc5QNQUZW5B4jFQsHjmaenvkFUgWtKtgj5AdPm9", "standard"),
             ("upub59wfQ8qJTg6ZSuvwtR313Qdp8gP8TSBwTof5dPQ3QVsYp1N9t29Rr9TGF1pj8kAXUg3mKbmrTKasA2qmBJKb1bGUzB6ApDZpVC7LoHhyvBo", "p2wpkh-p2sh"),
