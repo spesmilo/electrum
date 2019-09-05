@@ -241,11 +241,11 @@ class HttpServer(Logger):
             await ws.close()
             return ws
         if info.get('status') == PR_PAID:
-            await ws.send_str(f'already paid')
+            await ws.send_str(f'paid')
             await ws.close()
             return ws
         if info.get('status') == PR_EXPIRED:
-            await ws.send_str(f'invoice expired')
+            await ws.send_str(f'expired')
             await ws.close()
             return ws
         while True:
