@@ -199,18 +199,19 @@ class SettingsDialog(WindowModalDialog):
         self.ssl_domain_e.setReadOnly(True)
         server_widgets.append((ssl_domain_label, self.ssl_domain_e))
 
+        self.check_ssl_config()
+
         payserver_host = self.config.get('payserver_host', 'localhost')
         payserver_host_label = HelpLabel(_('Hostname') + ':', 'must match your ssl domain')
         self.payserver_host_e = QLineEdit(payserver_host)
         self.payserver_host_e.editingFinished.connect(self.on_payserver_host)
         server_widgets.append((payserver_host_label, self.payserver_host_e))
 
-        payserver_port = self.config.get('payserver_port')
+        payserver_port = self.config.get('payserver_port', '')
         payserver_port_label = HelpLabel(_('Port') + ':', msg)
         self.payserver_port_e = QLineEdit(str(payserver_port))
         self.payserver_port_e.editingFinished.connect(self.on_payserver_port)
         server_widgets.append((payserver_port_label, self.payserver_port_e))
-        self.check_ssl_config()
 
         # units
         units = base_units_list
@@ -539,7 +540,7 @@ class SettingsDialog(WindowModalDialog):
         s = (ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else ''
         self.ssl_domain_e.setStyleSheet(s)
         if SSL_error:
-            self.ssl_domain_e.setToolTip(SSL_error)
+            self.ssl_domain_e.setText(SSL_error)
 
     def on_payserver_host(self):
         hostname = str(self.payserver_host_e.text())
