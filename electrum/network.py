@@ -1160,6 +1160,20 @@ class Network(util.DaemonThread):
             else:
                 self.print_error("chain already catching up with", chain.catch_up.server)
 
+    def rescan_blockchain(self):
+        with self.blockchains_lock:
+            b = self.blockchains[0]
+            filename = b.path()
+            if os.path.exists(filename):
+                os.remove(filename)
+            offset_path = b.offset_path()
+            if os.path.exists(offset_path):
+                os.remove(offset_path)
+            self.sub_cache = {} 
+            self.blockchains = blockchain.read_blockchains(self.config)
+            self.blockchain_index = 0
+            self.init_headers_file()
+
     @with_interface_lock
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:

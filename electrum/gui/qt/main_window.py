@@ -130,6 +130,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_notifications = []
         self.tl_windows = []
         self.tx_external_keypairs = {}
+        self.lock = threading.RLock()
 
 
         self.create_status_bar()
@@ -187,7 +188,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
-        self.notify_transactions_signal.connect(self.notify_transactions)
+        self.notify_transactions_signal.connect(self.notify_transactions, type=Qt.QueuedConnection)
         self.history_list.setFocus(True)
 
         # network callbacks
@@ -491,7 +492,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
         wallet_menu.addAction(_("&Register"), self.register_wallet_dialog)
         wallet_menu.addAction(_("&Contract"), self.termsandconditions_dialog)
+        if(constants.net.ENCRYPTED_WHITELIST):
+            wallet_menu.addAction(_("&Onboard Key"), self.dumponboardkey_dialog)
+        wallet_menu.addAction(_("&Rescan Blockchain"), self.rescan_blockchain_dialog)
         wallet_menu.addSeparator()
+        wallet_menu.addAction(_("&Export KYC Key"), self.dumpkyckey_dialog)
+        wallet_menu.addAction(_("&Import KYC Key"), self.importkyckey_dialog)
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
@@ -594,6 +600,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
             return
+
+        
         self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
             # Combine the transactions if there are at least three
@@ -615,17 +623,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 for tx in tx_processing:
                     if tx:
-                        tx_processing.remove(tx)
                         if self.wallet.parse_policy_tx(tx, self):
                             continue
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                         if v > 0:
                             self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
-
-
-
-
-
+                tx_processing = []
 
     def notify(self, message):
         if self.tray:
@@ -1524,7 +1527,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         rascript = registeraddress_script.RegisterAddressScript(self.wallet)
-        rascript.append(addrs_pending)
+        if "of" in self.wallet.wallet_type:
+            rascript.appendmulti(addrs_pending, self.wallet.m)
+        else:
+            rascript.append(addrs_pending)
 
         #Register the address to the wallet's kyc pubkey
         #Generate a new ephemeral pub key for encryption from the wallet
@@ -2566,11 +2572,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_("This is a watching-only wallet"))
             return
 
-        if isinstance(self.wallet, Multisig_Wallet):
-            self.show_message(_('This is a multi-signature wallet.') + '\n' +
-                            _('Registration is not currently supported.'))
-
-
         kycSuccess, kycfileString=self.wallet.get_kyc_string(password)
         if not kycSuccess:
             txt = "\n".join([
@@ -2711,6 +2712,108 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 3, 0)
         d.exec_()
 
+    def rescan_blockchain_dialog(self):
+        with self.lock:
+            self.wallet.stop_threads()
+            self.wallet.registered_addresses = set()
+            self.wallet.storage.put('registered_addresses', [])
+            self.wallet.frozen_addresses = set()
+            self.wallet.storage.put('frozen_addresses', [])
+            self.wallet.unassigned_kyc_pubkeys = {}
+            self.wallet.storage.put('unassigned_kyc_pubkeys', {})
+            historyBackup = self.wallet.history
+            self.wallet.clear_history()
+            for it in historyBackup:
+                historyBackup[it] = []
+            self.wallet.history = historyBackup
+            self.wallet.start_threads(self.network)
+            self.network.rescan_blockchain()
+
+    def dumpkyckey_dialog(self):
+        kycPubKey = self.wallet.get_kyc_pubkey()
+
+        if kycPubKey is None:
+            self.show_message('Failed to retrieve the KYC Public Key')
+            return False
+
+        d = WindowModalDialog(self, _('KYC Public Key'))
+        d.setMinimumWidth(660)
+        onboardkey_e = QTextEdit()
+
+        layout = QGridLayout(d)
+        onboardkey_e.setText(kycPubKey)
+        onboardkey_e.setReadOnly(True)
+        layout.addWidget(QLabel(_('Share and import this KYC key on other Multisig cosigner wallets to register new addresses.')), 1, 0)
+        layout.addWidget(onboardkey_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("OK"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
+
+    def importkyckey_dialog(self):
+        d = WindowModalDialog(self, _('Import KYC Public Key'))
+        d.setMinimumSize(610, 490)
+
+        layout = QGridLayout(d)
+
+        key_text = QTextEdit()
+        layout.addWidget(QLabel(_('Insert your KYC key:')), 1, 0)
+        layout.addWidget(key_text, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+        b = QPushButton(_("Import"))
+        b.clicked.connect(lambda: self.importkyckey_action(key_text.toPlainText()))
+        hbox.addWidget(b)
+
+        b2 = QPushButton(_("Done"))
+        b2.clicked.connect(d.accept)
+        hbox.addWidget(b2)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
+
+    def importkyckey_action(self, key_text):
+        if key_text is not None and key_text is not "" and len(key_text) == 66:
+            self.wallet.set_kyc_pubkey(key_text)
+            self.show_message(_('KYC Public Key import has been successful'), title=_('Success'))
+        else:
+            self.show_critical(_('Please provide a valid KYC Public Key'), title=_('Failure'))
+
+    def dumponboardkey_dialog(self):
+
+        onboardAddress = self.wallet.get_onboard_address()
+        onboardUserKey = self.wallet.derive_onboard_priv_key(onboardAddress, self, True)
+
+        if onboardUserKey is None:
+            self.show_message('Failed to retrieve the onboarding private key from the stored onboarding address')
+            return False
+
+        d = WindowModalDialog(self, _('Onboard Private Key'))
+        d.setMinimumWidth(660)
+        onboardkey_e = QTextEdit()
+
+        layout = QGridLayout(d)
+        onboardkey_e.setText(onboardUserKey)
+        onboardkey_e.setReadOnly(True)
+        layout.addWidget(QLabel(_('Share and import this onboarding private key via console (importprivkey) on other Multisig cosigner wallets to see whitelisted addresses.')), 1, 0)
+        layout.addWidget(onboardkey_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("OK"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
 
     @protected
     def export_privkeys_dialog(self, password):

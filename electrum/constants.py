@@ -81,7 +81,9 @@ class OceanMainnet:
     WHITELISTASSET="d109a2432528b0a9208e7f4258f569e246c25bd0cd90f4d8160f1704be833c23"
 
     CHALLENGE = "5321024cc60ff6ca8423c8353142fab8b4aa8b42e66eac2ae51a7cde1eaeb54a73a31e21034878127e5f0a5c84e775d754f02bcea9393c17b7fc05a01a2c011f7a419e6f932103b7d99275aba3db614faeeba3920295e8d661a3a0a705d999b8a38aca0f8fc5d321039d1175c43f855f003fd1e980b618b3d504f2099754b8afa3667ead04b9dbb6d921027c2e025fb4d41e7c4b757a722bff6172233fa576b0aac7d5d8e4e32cfbf2a1df55ae"
+    ENCRYPTED_WHITELIST=False
 
+    
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
     TESTNET = True
@@ -116,7 +118,8 @@ class OceanTestnet(OceanMainnet):
     CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
 
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
-
+    ENCRYPTED_WHITELIST=False
+    
 class OceanRegtest(OceanMainnet):
 
     TESTNET = True
@@ -152,7 +155,8 @@ class OceanRegtest(OceanMainnet):
     }
 
     BIP44_COIN_TYPE = 1
-
+    ENCRYPTED_WHITELIST=False
+    
 # don't import net directly, import the module instead (so that net is singleton)
 net = OceanMainnet
 

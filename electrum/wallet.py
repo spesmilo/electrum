@@ -50,11 +50,11 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 
 from .bitcoin import *
 from .version import *
-from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address
+from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address, xpubkey_to_pubkey
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, multisig_script
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
@@ -301,19 +301,23 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_redeem_script(self, address):
         return None
 
-    def export_private_key(self, address, password):
+    def export_private_key(self, address, password, includeRedeemScript = True):
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
 
         # Go through all contracts and no contract to find the
         # private key that corresponds to the address in our wallet
-        pk, compressed = self.get_tweaked_private_key(address, index, password)
+        pk, compressed = self.get_tweaked_private_key(address, index, password, self.get_txin_type(address))
 
         txin_type = self.get_txin_type(address)
-        redeem_script = self.get_redeem_script(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
-        return serialized_privkey, redeem_script
+
+        if includeRedeemScript:
+            redeem_script = self.get_redeem_script(address)
+            return serialized_privkey, redeem_script
+        #Exclude redeem script
+        return serialized_privkey, None
 
     def get_public_keys(self, address, tweaked=True):
         return [self.get_public_key(address, tweaked)]
@@ -869,7 +873,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     # Add private keys
                     keypairs = k.get_tx_derivations(tx)
                     for x_pubkey, (derivation, address) in keypairs.items():
-                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password)
+                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password, self.get_txin_type(address))
                     k.sign_transaction(tx, keypairs)
             except UserCancelled:
                 continue
@@ -1139,11 +1143,18 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.storage.write()
 
-    def get_tweaked_private_key(self, address, sequence, password):
-        for contract_hash in self.contracts + [None]:
-            pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
-            pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
-            if address == self.pubkeys_to_address(pubkey_from_priv):
+    def get_tweaked_private_key(self, address, sequence, password, aType='p2pkh'):
+        if aType == 'p2pkh':
+            for contract_hash in self.contracts + [None]:
+                pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
+                pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+                if address == self.pubkeys_to_address(pubkey_from_priv):
+                    return pk, compressed
+        #May need to somehow modify this code to check p2sh validity in the case where there are several contracts
+        #TODO: if multiple contracts are used this code needs to be changed to verify that the private key is valid instead of returning the first one
+        elif aType == 'p2sh':
+            for contract_hash in self.contracts + [None]:
+                pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
                 return pk, compressed
         # This exception will probably never be thrown since we allow
         # non-tweaked addresses in the above loop (by using 'None')
@@ -1160,15 +1171,29 @@ class Abstract_Wallet(AddressSynchronizer):
         raise WalletFileException('Public key not found. The corresponding '
         'address might have been derived without tweaking or incorrect tweaking.')
 
+    def get_tweaked_multi_public_keys(self, address, pubkeys, m, shouldSort = True):
+        for contract_hash in self.contracts + [None]:
+            unsorted_tweaked_pubkeys = self.tweak_pubkeys(pubkeys, contract_hash)
+            tweaked_pubkeys = sorted(unsorted_tweaked_pubkeys)
+            redeem_script = multisig_script(tweaked_pubkeys, m) 
+            tempAddr = bitcoin.hash160_to_p2sh(hash_160(bfh(redeem_script)))
+            if tempAddr == address:
+                if shouldSort:
+                    return tweaked_pubkeys
+                #Return unsorted pubkeys
+                return unsorted_tweaked_pubkeys
+        raise WalletFileException('Public keys not found. The corresponding '
+        'address might have been derived without tweaking or incorrect tweaking.')
+
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
-        priv, compressed = self.get_tweaked_private_key(address, index, password)
+        priv, compressed = self.get_tweaked_private_key(address, index, password, self.get_txin_type(address))
         return self.keystore.sign_message(priv, compressed, message)
 
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        priv, compressed = self.get_tweaked_private_key(addr, index, password)
+        priv, compressed = self.get_tweaked_private_key(addr, index, password, self.get_txin_type(address))
         return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):
@@ -1257,6 +1282,39 @@ class Abstract_Wallet(AddressSynchronizer):
             input_addresses.add(self.get_txin_address(txin))
         return input_addresses
 
+    def derive_onboard_priv_key(self, onboardAddress, parent_window, return_serialized=False):
+        #Check that this wallet holds the onboard user private key
+        if not self.is_mine(onboardAddress):
+            return None
+
+        password=None
+
+        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
+            if self.storage.is_encrypted_with_hw_device():
+                #TODO - sort out what to do for encrypted wallets.
+                return None
+            else:
+                if self.has_keystore_encryption():
+                    if return_serialized == False:
+                        msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
+                    else:
+                        msg = _('Exporting the onboarding private key.') + '\n' + _('Please enter your password.')
+                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
+                    if not password:
+                        return None
+        try: 
+            onboardUserKey_serialized, redeem_script = self.export_private_key(onboardAddress, password=password, includeRedeemScript=False)  
+            if return_serialized: 
+                return onboardUserKey_serialized
+            #Deserialize it
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
+            return _onboardUserKey
+                
+        except Exception as e:
+            print(e)
+            return None
+
     def parse_registeraddress_data(self, data, tx, parent_window):
         # We must have already been assigned a kyc public key
         if self.kyc_pubkey == None:
@@ -1289,7 +1347,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     if not password:
                         return False
 
-
         try:
             fromKey_serialized, redeem_script=self.export_private_key(fromAddress, password=password)
             txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(fromKey_serialized)
@@ -1314,7 +1371,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
         i1=0
         i2=33
-
         if(len(data)<2*pubKeySize+minPayloadSize):
             return False
 
@@ -1326,7 +1382,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         except ValueError:
             return False
-
         i1=i2
         i2+=33
         userOnboardPubKey = data[i1:i2]
@@ -1336,32 +1391,12 @@ class Abstract_Wallet(AddressSynchronizer):
             return False
         except ValueError:
             return False
-
         #Check that this wallet holds the onboard user private key
         onboardAddress=bitcoin.public_key_to_p2pkh(userOnboardPubKey)
-        if not self.is_mine(onboardAddress):
+        _onboardUserKey = self.derive_onboard_priv_key(onboardAddress, parent_window)
+        if _onboardUserKey is None:
+            print('Failed to retrieve the onboarding private key from the address')
             return False
-
-        password=None
-
-        if self.storage.is_encrypted() or self.storage.get('use_encryption'):
-            if self.storage.is_encrypted_with_hw_device():
-                #TODO - sort out what to do for encrypted wallets.
-                return False
-            else:
-                if self.has_keystore_encryption():
-                    msg = _('Received encrypted address whitelist onboarding transaction.') + '\n' + _('Please enter your password to update wallet whitelist status.')
-                    password = parent_window.password_dialog(msg, parent=parent_window.top_level_window())
-                    if not password:
-                        return False
-
-        try:
-            onboardUserKey_serialized, redeem_script=self.export_private_key(onboardAddress, password=password)
-            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-            _onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        except Exception:
-            return False
-
         i1=i2
         ciphertext=data[i1:]
         try:
@@ -1371,32 +1406,68 @@ class Abstract_Wallet(AddressSynchronizer):
         #Confirm that this was encrypted by the kyc private key owner
         if not ephemeral == _kyc_pubkey:
             return False
-
-
         self.parse_ratx_addresses(plaintext)
 
         self.set_kyc_pubkey(bh2u(kyc_pubkey))
+        self.set_onboard_address(onboardAddress)
 
         return True
 
-    def parse_ratx_addresses(self, data):
+    def parse_ratx_addresses(self, data, registered_state=True):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
-        i3=0
-        ptlen=len(data)
-        addrs=[]
-        while True:
-            i1=i3
-            i2=i1+20
-            i3=i2+33
+        #If it is a multisig wallet then we need to account for the extra byte of N and an extra byte of M
+        i3 = 0
+        ptlen = len(data)
+        addrs = []
+        multiSize = 0
+        addrType = constants.net.ADDRTYPE_P2PKH
+        #string of is contained in multisig addresses (e.g.: 2of2)
+        if "of" in self.wallet_type:
+            multiSize = 1
+            addrType = constants.net.ADDRTYPE_P2SH
+
+        moreLeft = True
+        nBytesInSegment = 0
+        i1 = 0
+        while moreLeft is True:
+            #2 bytes for n and m of multisig if the wallet is multisig type
+            i1 = i1 + nBytesInSegment + multiSize*2
+            #address key id
+            i2 = i1 + 20
+            #first public key of the address (the only if its p2pkh)
+            i3 = i2 + 33
+            bkupI = i2
+
             if i3 > ptlen:
                 break
+
+
+            nMultisig=0
+            #if it is a multisig wallet get the remaining public keys (N)
+            if multiSize != 0:
+                nMultisig = int.from_bytes(bytes(data[i1-1:i1]), "big")
+                for i in range(nMultisig):
+                    pubkeyBytes = bytes(data[bkupI:i3])
+                    bkupI = i3
+                    i3 += 33
+                        
+                    if i3 > ptlen:
+                        moreLeft = False
+                        break
+
             addrbytes=bytes(data[i1:i2])
-            addrs.append(hash160_to_b58_address(addrbytes, constants.net.ADDRTYPE_P2PKH))
+            addr=hash160_to_b58_address(addrbytes, addrType)
+            if not self.is_mine(addr):
+                return
+            addrs.append(addr)
+
+            #Calculate the number of bytes in the current segment so we know where to read the next address
+            nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
 
         self.set_pending_state(addrs, False)
-        self.set_registered_state(addrs, True)
+        self.set_registered_state(addrs, registered_state)
 
     def get_zero_address(self):
         return hash160_to_b58_address(bytearray.fromhex('0'*40) , constants.net.ADDRTYPE_P2PKH)
@@ -1409,7 +1480,7 @@ class Abstract_Wallet(AddressSynchronizer):
             transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
             if len(decoded) is not 0:
                 txtype=decoded['type']
-                if txtype == 'registeraddress':
+                if txtype == 'registeraddress' or txtype == 'deregisteraddress':
                     data=decoded['data']
                     break
                 else:
@@ -1418,11 +1489,13 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        if self.parse_onboard_data(data, parent_window):
-            return True
-
-        if self.parse_registeraddress_data(data, tx, parent_window):
-            return True
+        if txtype == 'registeraddress' and constants.net.ENCRYPTED_WHITELIST:
+            if self.parse_onboard_data(data, parent_window):
+                return True
+            if self.parse_registeraddress_data(data, tx, parent_window):
+                return True
+        else:
+            return self.parse_ratx_addresses(data, txtype != 'deregisteraddress')
 
         return False
 
@@ -1877,6 +1950,8 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
         ss = StringIO()
 
+        ss.write(str("contracthash: ") + str(self.contracts[-1])+str("\n"))
+        
         addrs=self.get_addresses()
 
         address_pubkey_list = []
@@ -1927,6 +2002,87 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, storage)
 
+    def get_kyc_string(self, password=None):
+        address=self.get_unused_encryption_address()
+        if address == None:
+            return "No wallet encryption keys available."
+        onboardUserPubKey=self.get_public_key(address)
+
+        onboardUserKey_serialized, redeem_script = self.export_private_key(address, password, False)   
+        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+        onboardUserKey=ecc.ECPrivkey(secret_bytes)
+      
+        onboardPubKey=self.get_unassigned_kyc_pubkey()
+        if onboardPubKey is None:
+            return "No unassigned KYC public keys available."
+
+        ss = StringIO()
+
+        addrs=self.get_addresses()
+
+        address_pubkey_list = []
+        for addr in addrs:
+            line="{} {}".format(self.m, addr)
+            
+
+            tweakedKeysSorted = self.get_public_keys(addr, True)
+            if not constants.net.CONTRACTINTX:
+                untweakedKeys = self.get_public_keys(addr, False)
+                tweakedKeys = self.get_tweaked_multi_public_keys(addr, untweakedKeys, self.m, False)
+                sortedUntweaked = []
+                for i in range(len(tweakedKeysSorted)):
+                    for j in range(len(tweakedKeys)):
+                        if tweakedKeys[j] == tweakedKeysSorted[i]:
+                            sortedUntweaked.append(untweakedKeys[j])
+                            break
+                for pub in sortedUntweaked:
+                    line+=" {}".format(pub)
+            else:
+                for pub in tweakedKeysSorted:
+                    line+=" {}".format(pub)
+                    
+            address_pubkey_list.append(line)
+            ss.write(line)
+            ss.write("\n")
+
+        #Encrypt the addresses string
+        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+
+        ss2 = StringIO()
+        str_encrypted=str(encrypted)
+        #Remove the b'' characters (first 2 and last characters)
+        str_encrypted=str_encrypted[2:]
+        str_encrypted=str_encrypted[:-1]
+        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write(str_encrypted)
+        kyc_string=ss2.getvalue()
+
+        return kyc_string
+
+    def dumpkycfile(self, filename=None, password=None):
+        kycfile_string = self.get_kyc_string(password)
+
+        if filename:
+            f=open(filename, 'w')
+            f.write(kycfile_string)
+            f.close()
+            return True
+        return False
+
+    def get_public_key(self, address, tweaked=True):
+        r = self.get_address_index(address)
+        if len(r) == 3:
+            e, c, i = self.get_address_index(address)
+        else:
+            c, i = self.get_address_index(address)
+            e = False
+
+        pubkey = self.keystore.derive_pubkey(c, i, e)
+
+        if tweaked:
+            return self.get_tweaked_public_key(address, pubkey)
+        return pubkey
+
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
 
@@ -1934,29 +2090,45 @@ class Multisig_Wallet(Deterministic_Wallet):
         sequence = self.get_address_index(address)
         pubkeys = self.get_pubkeys(*sequence)
         if tweaked:
-            tweaked_pubkeys = []
-            for pubkey in pubkeys:
-                tweaked_pubkeys.append(self.get_tweaked_public_key(address, pubkey))
+            tweaked_pubkeys = self.get_tweaked_multi_public_keys(address, pubkeys, self.m)
             return tweaked_pubkeys
         return pubkeys
 
     def pubkeys_to_address(self, pubkeys):
-        redeem_script = self.pubkeys_to_redeem_script(pubkeys)
-        return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+        #Case when only a singular pubkey is passed that is not inside a list (encryption) it is a string
+        if(len(pubkeys) >= 33):
+            return bitcoin.pubkey_to_address('p2pkh', pubkeys)
+        else:
+            if len(pubkeys) != 1 and self.txin_type == 'p2sh':
+                redeem_script = self.pubkeys_to_redeem_script(pubkeys)
+                return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+            #Case when a singular pubkey is passed but it is inside a list (encryption)
+            else:
+                return bitcoin.pubkey_to_address('p2pkh', pubkeys[0])
 
     def pubkeys_to_redeem_script(self, pubkeys):
-        return transaction.multisig_script(sorted(pubkeys), self.m)
+        #Edge case when a single pubkey is passed to create a redeem script(should not theorhetically happen in our wallet)
+        if(len(pubkeys) >= 33):
+            return multisig_script([pubkeys], self.m)
+        return multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
         pubkeys = self.get_public_keys(address)
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
         return redeem_script
 
-    def derive_pubkeys(self, c, i):
-        return [k.derive_pubkey(c, i) for k in self.get_keystores()]
+    def derive_pubkeys(self, c, i, e=False):
+        if e:  
+            return [self.keystore.derive_pubkey(c, i, e)]
+        #Not for encryption
+        return [k.derive_pubkey(c, i, e) for k in self.get_keystores()]
 
     def tweak_pubkeys(self, c, t):
-        return [k.tweak_pubkey(c, t) for k in self.get_keystores()]
+        #Only a single pubkey is passed (string)
+        if len(c) >= 33 :
+            return [self.keystore.tweak_pubkey(c, t)]
+        else:
+            return [self.keystore.tweak_pubkey(cv, t) for cv in c]
 
     def load_keystore(self):
         self.keystores = {}
@@ -2012,19 +2184,19 @@ class Multisig_Wallet(Deterministic_Wallet):
         return ''.join(sorted(self.get_master_public_keys()))
 
     def add_input_sig_info(self, txin, address):
-        # x_pubkeys are not sorted here because it would be too slow
-        # they are sorted in transaction.get_sorted_pubkeys
-        # pubkeys is set to None to signal that x_pubkeys are unsorted
         derivation = self.get_address_index(address)
         x_pubkeys_expected = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys_expected]
+        pubkeys = self.tweak_pubkeys(pubkeys, self.contracts[-1])
+        pubkeys, x_pubkeys_expected = zip(*sorted(zip(pubkeys, x_pubkeys_expected)))
         x_pubkeys_actual = txin.get('x_pubkeys')
+        pubkeys_actual =  txin.get('pubkeys')
         # if 'x_pubkeys' is already set correctly (ignoring order, as above), leave it.
         # otherwise we might delete signatures
-        if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
+        if x_pubkeys_actual and pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
             return
-        pubkeys = self.get_public_keys(address)
-        txin['x_pubkeys'] = x_pubkeys_expected
-        txin['pubkeys'] = pubkeys
+        txin['x_pubkeys'] = list(x_pubkeys_expected)
+        txin['pubkeys'] = list(pubkeys)
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m

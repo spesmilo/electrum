@@ -30,7 +30,7 @@ from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY, TYPE_DATA
 from .util import PrintError, profiler, bfh, bh2u, VerifiedTxInfo, TxMinedStatus
 from . import transaction
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, TxOutPoint
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
@@ -66,8 +66,12 @@ class AddressSynchronizer(PrintError):
         self.transaction_lock = threading.RLock()
         # address -> list(txid, height)
         # KYC pubkeys reigstered to the blockchain by the policy node, but not yet assigned to a user
-        self.unassigned_kyc_pubkeys = set(storage.get('unassigned_kyc_pubkeys', set()))
+        unassigned_kyc_pubkeys = storage.get('unassigned_kyc_pubkeys', {})
+        self.unassigned_kyc_pubkeys = {}
+        for key, (txid, n) in unassigned_kyc_pubkeys.items():
+            self.unassigned_kyc_pubkeys[key] = TxOutPoint(txid, n)
         self.kyc_pubkey = storage.get('kyc_pubkey', None)
+        self.onboard_address = storage.get('onboard_address', None)
         self.history = storage.get('addr_history',{})
         # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
@@ -84,7 +88,7 @@ class AddressSynchronizer(PrintError):
         self.load_and_cleanup()
 
     def is_unassigned_kyc_pubkey(self, pubkey):
-        return pubkey in self.unassigned_kyc_pubkeys
+        return pubkey in self.unassigned_kyc_pubkeys.keys()
 
     def set_kyc_pubkey(self, pubkey):
         self.kyc_pubkey=pubkey
@@ -92,11 +96,17 @@ class AddressSynchronizer(PrintError):
     def get_kyc_pubkey(self):
         return self.kyc_pubkey
 
+    def set_onboard_address(self, address):
+        self.onboard_address=address
+        
+    def get_onboard_address(self):
+        return self.onboard_address
+
     def get_unassigned_kyc_pubkey(self):
         if len(self.unassigned_kyc_pubkeys) is 0:
             return None
         #remove a random pubkey from the set.
-        return random.sample(self.unassigned_kyc_pubkeys, 1)[0]
+        return random.sample(self.unassigned_kyc_pubkeys.keys(), 1)[0]
 
     def load_and_cleanup(self):
         self.load_transactions()
@@ -133,7 +143,7 @@ class AddressSynchronizer(PrintError):
         prevout_n = txi.get('prevout_n')
         dd = self.txo.get(prevout_hash, {})
         for addr, l in dd.items():
-            for n, v, a, is_cb in l:
+            for n, v, a, is_cb, scriptPubKey in l:
                 if n == prevout_n:
                     return addr
         return None
@@ -144,7 +154,7 @@ class AddressSynchronizer(PrintError):
         prevout_n = txi.get('prevout_n')
         dd = self.txo.get(prevout_hash, {})
         for addr, l in dd.items():
-            for n, v, a, is_cb in l:
+            for n, v, a, is_cb, scriptPubKey in l:
                 if n == prevout_n:
                     return asset
         return None
@@ -186,6 +196,7 @@ class AddressSynchronizer(PrintError):
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()
         self.save_verified_tx()
+        self.save_unassigned_kyc_pubkeys()
         self.storage.write()
 
     def add_address(self, address):
@@ -235,13 +246,14 @@ class AddressSynchronizer(PrintError):
             # being is_mine, as we roll the gap_limit forward
             is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
             tx_height = self.get_tx_height(tx_hash).height
+            is_whitelist = any([txo.asset == constants.net.WHITELISTASSET for txo in tx.outputs()])
             if not allow_unrelated:
                 # note that during sync, if the transactions are not properly sorted,
                 # it could happen that we think tx is unrelated but actually one of the inputs is is_mine.
                 # this is the main motivation for allow_unrelated
                 is_mine = any([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()])
                 is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
-                if not is_mine and not is_for_me:
+                if not is_mine and not is_for_me and not is_whitelist:
                     raise UnrelatedTransactionException()
             # Find all conflicting transactions.
             # In case of a conflict,
@@ -277,9 +289,9 @@ class AddressSynchronizer(PrintError):
                 # note: this nested loop takes linear time in num is_mine outputs of prev_tx
                 for addr, outputs in dd.items():
                     # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
-                    for n, v, a, is_cb in outputs:
+                    for n, v, a, is_cb, scriptPubKey in outputs:
                         if n == prevout_n:
-                            if addr and self.is_mine(addr):
+                            if addr and (self.is_mine(addr) or is_whitelist):
                                 if d.get(addr) is None:
                                     d[addr] = set()
                                 d[addr].add((ser, v, a))
@@ -300,10 +312,10 @@ class AddressSynchronizer(PrintError):
                 a = txo[4]
                 ser = tx_hash + ':%d'%n
                 addr = self.get_txout_address(txo)
-                if addr and self.is_mine(addr):
+                if addr and (self.is_mine(addr) or is_whitelist):
                     if d.get(addr) is None:
                         d[addr] = []
-                    d[addr].append((n, v, a, is_coinbase))
+                    d[addr].append((n, v, a, is_coinbase, txo.scriptPubKey))
                     # give v to txi that spends me
                     next_tx = self.spent_outpoints[tx_hash].get(n)
                     if next_tx is not None:
@@ -451,8 +463,8 @@ class AddressSynchronizer(PrintError):
             self.storage.put('tx_fees', self.tx_fees)
             self.storage.put('addr_history', self.history)
             self.storage.put('spent_outpoints', self.spent_outpoints)
-            self.storage.put('unassigned_kyc_pubkeys', dict.fromkeys(self.unassigned_kyc_pubkeys,0))
             self.storage.put('kyc_pubkey', self.kyc_pubkey)
+            self.storage.put('onboard_address', self.onboard_address)
             if write:
                 self.storage.write()
 
@@ -462,6 +474,13 @@ class AddressSynchronizer(PrintError):
             if write:
                 self.storage.write()
 
+    def save_unassigned_kyc_pubkeys(self, write=False):
+        with self.lock:
+            self.storage.put('unassigned_kyc_pubkeys', self.unassigned_kyc_pubkeys)
+            if write:
+                self.storage.write()
+
+                
     def clear_history(self):
         with self.lock:
             with self.transaction_lock:
@@ -582,6 +601,26 @@ class AddressSynchronizer(PrintError):
         tx_mined_status = self.get_tx_height(tx_hash)
         self.network.trigger_callback('verified', tx_hash, tx_mined_status)
 
+    def add_unassigned_kyc_pubkey(self, key: str, outpoint: TxOutPoint):
+        # Remove from the unverified map and add to the verified map
+        with self.lock:
+            self.unassigned_kyc_pubkeys.pop(key, None)
+            self.unassigned_kyc_pubkeys[key] = outpoint
+            self.set_up_to_date(False)
+
+    def remove_unassigned_kyc_pubkey(self, key: str = None, outpoint: TxOutPoint = None):
+        with self.lock:
+            if key and outpoint:
+                return
+            if key:
+                self.unassigned_kyc_pubkeys.pop(key, None)
+            elif outpoint:
+                for k, o in self.unassigned_kyc_pubkeys:
+                    if o == outpoint:
+                        if o.txid == outpoint.txid and o.n == outpoint.n:
+                            self.unassigned_kyc_pubkeys.pop(k, None)
+            self.set_up_to_date(False)
+        
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
         with self.lock:
@@ -640,6 +679,7 @@ class AddressSynchronizer(PrintError):
             # otherwise it will persist its results when it finishes
             if self.verifier and self.verifier.is_up_to_date():
                 self.save_verified_tx(write=True)
+                self.save_unassigned_kyc_pubkeys(write=True)
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
@@ -657,7 +697,7 @@ class AddressSynchronizer(PrintError):
             delta -= v
         # add the value of the coins received at address
         d = self.txo.get(tx_hash, {}).get(address, [])
-        for n, v, a, cb in d:
+        for n, v, a, cb, scriptPubKey in d:
             delta += v
         return delta
 
@@ -668,7 +708,7 @@ class AddressSynchronizer(PrintError):
             for n, v, a in d:
                 delta -= v
         for addr, d in self.txo.get(txid, {}).items():
-            for n, v, a, cb in d:
+            for n, v, a, cb, scriptPubKey in d:
                 delta += v
         return delta
 
@@ -677,32 +717,32 @@ class AddressSynchronizer(PrintError):
         data = []
         datatype = None
         v_out=0
+
         for txin in tx.inputs():
-            #Check inputs for address data (unassign)
             addr = self.get_txin_address(txin)
-            d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
+            #Check inputs for address data (unassign)
+            prevout_hash=txin['prevout_hash']
+            d = self.txo.get(prevout_hash, {}).get(addr, [])
             prevout_n=txin['prevout_n']
-            for n, v, a, cb in d:
+            for n, v, a, cb, scriptPubKey in d:
                 if n == prevout_n:
                     if a == constants.net.WHITELISTASSET:
-                        if hasattr(d, script) != True:
-                            continue
-                        datatype, payload = transaction.get_data_from_policy_output_script(d.script)
-                        if datatype != TYPE_DATA:
-                            continue
-                        if len(payload) > 3:    
-                            data=bytes(32)
-                            ba1=bytearray(payload[:3])
-                            ba2=bytearray(payload[3:])
-                            ba2.reverse()
-                            data = bh2u(ba1+ba2)
-                            self.unassigned_kyc_pubkeys.remove(data)
+                        outpoint = TxOutPoint(prevout_hash, prevout_n)
+                        self.remove_unassigned_kyc_pubkey(outpoint)
 
         #Check outputs for address data (assign)
+        addresses = set()
+        n_output=-1
         for output in tx.outputs():
+            n_output=n_output+1
+            script = output.scriptPubKey
             if output.asset != constants.net.WHITELISTASSET:
                 continue
-            script = output.scriptPubKey
+            if output.type == transaction.TYPE_ADDRESS:
+                addresses.add(output.address)
+            else:
+                self.network.subscribe_to_scripthash(bitcoin.script_to_scripthash(script))
+                
             datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
             
             if datatype != TYPE_DATA:
@@ -716,8 +756,10 @@ class AddressSynchronizer(PrintError):
                 ba2.reverse()
                 data = bh2u(ba1+ba2)
 
-                self.unassigned_kyc_pubkeys.add(data)
+            outpoint = TxOutPoint(tx.txid(), n_output)    
+            self.add_unassigned_kyc_pubkey(data, outpoint)
 
+        self.synchronizer.subscribe_to_addresses(addresses)
         return (datatype==TYPE_DATA)
 
 
@@ -734,7 +776,7 @@ class AddressSynchronizer(PrintError):
                 is_mine = True
                 is_relevant = True
                 d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
-                for n, v, a, cb in d:
+                for n, v, a, cb, scriptPubKey in d:
                     if n == txin['prevout_n']:
                         value = v
                         break
@@ -779,7 +821,7 @@ class AddressSynchronizer(PrintError):
         sent = {}
         for tx_hash, height in h:
             l = self.txo.get(tx_hash, {}).get(address, [])
-            for n, v, a, is_cb in l:
+            for n, v, a, is_cb, scriptPubKey in l:
                 received[tx_hash + ':%d'%n] = (height, v, a, is_cb)
         for tx_hash, height in h:
             l = self.txi.get(tx_hash, {}).get(address, [])

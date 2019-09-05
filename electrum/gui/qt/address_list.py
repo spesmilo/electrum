@@ -28,6 +28,7 @@ from electrum.i18n import _
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
+from electrum import constants
 
 from .util import *
 
@@ -187,16 +188,18 @@ class AddressList(MyTreeWidget):
             else:
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
             if not self.wallet.is_registered(addr):
-                if not self.wallet.is_pending(addr):
-                    menu.addAction(_("Register"), lambda: self.parent.set_pending_state([addr], True))                
-                else:
-                    menu.addAction(_("UnRegister"), lambda: self.parent.set_pending_state([addr], False))
+                if constants.net.ENCRYPTED_WHITELIST:
+                    if not self.wallet.is_pending(addr):
+                        menu.addAction(_("Register"), lambda: self.parent.set_pending_state([addr], True))                
+                    else:
+                        menu.addAction(_("UnRegister"), lambda: self.parent.set_pending_state([addr], False))
 
         coins = self.wallet.get_utxos(addrs)
         if coins:
             menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
             if not multi_select:
-                menu.addAction(_("Send registeraddress transaction from"), lambda: self.parent.do_register_addresses(coins, addr))
+                if constants.net.ENCRYPTED_WHITELIST:
+                    menu.addAction(_("Send registeraddress transaction from"), lambda: self.parent.do_register_addresses(coins, addr))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
