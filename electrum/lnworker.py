@@ -33,7 +33,7 @@ from .util import ignore_exceptions
 from .util import timestamp_to_datetime
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
-from .lnpeer import Peer
+from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchannel import Channel, ChannelJsonEncoder
@@ -731,7 +731,7 @@ class LNWallet(LNWorker):
     async def _open_channel_coroutine(self, connect_str, local_amount_sat, push_sat, password):
         peer = await self.add_peer(connect_str)
         # peer might just have been connected to
-        await asyncio.wait_for(peer.initialized.wait(), 5)
+        await asyncio.wait_for(peer.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         chan = await peer.channel_establishment_flow(
             password,
             funding_sat=local_amount_sat + push_sat,

@@ -53,6 +53,9 @@ if TYPE_CHECKING:
     from .lnrouter import RouteEdge
 
 
+LN_P2P_NETWORK_TIMEOUT = 20
+
+
 def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
     i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
@@ -308,12 +311,12 @@ class Peer(Logger):
 
     async def query_gossip(self):
         try:
-            await asyncio.wait_for(self.initialized.wait(), 10)
+            await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         except asyncio.TimeoutError as e:
             raise GracefulDisconnect("initialize timed out") from e
         if self.lnworker == self.lnworker.network.lngossip:
             try:
-                ids, complete = await asyncio.wait_for(self.get_channel_range(), 10)
+                ids, complete = await asyncio.wait_for(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
             except asyncio.TimeoutError as e:
                 raise GracefulDisconnect("query_channel_range timed out") from e
             self.logger.info('Received {} channel ids. (complete: {})'.format(len(ids), complete))
@@ -426,7 +429,7 @@ class Peer(Logger):
 
     async def _message_loop(self):
         try:
-            await asyncio.wait_for(self.initialize(), 10)
+            await asyncio.wait_for(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
@@ -480,7 +483,7 @@ class Peer(Logger):
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
                                       password, self.lnworker.config, nonlocal_only=True)
-        await asyncio.wait_for(self.initialized.wait(), 1)
+        await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
@@ -508,7 +511,7 @@ class Peer(Logger):
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=1,
         )
-        payload = await asyncio.wait_for(self.channel_accepted[temp_channel_id].get(), 5)
+        payload = await asyncio.wait_for(self.channel_accepted[temp_channel_id].get(), LN_P2P_NETWORK_TIMEOUT)
         if payload.get('error'):
             raise Exception('Remote Lightning peer reported error: ' + repr(payload.get('error')))
         remote_per_commitment_point = payload['first_per_commitment_point']
@@ -583,13 +586,13 @@ class Peer(Logger):
             funding_txid=funding_txid_bytes,
             funding_output_index=funding_index,
             signature=sig_64)
-        payload = await asyncio.wait_for(self.funding_signed[channel_id].get(), 5)
+        payload = await asyncio.wait_for(self.funding_signed[channel_id].get(), LN_P2P_NETWORK_TIMEOUT)
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
         # TODO make more robust (timeout low? server returns error?)
-        await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 5)
+        await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         return chan
 
@@ -1520,7 +1523,7 @@ class Peer(Logger):
         while True:
             our_sig, closing_tx = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=our_fee)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
-            cs_payload = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), 10)
+            cs_payload = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), LN_P2P_NETWORK_TIMEOUT)
             their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
             their_sig = cs_payload['signature']
             if our_fee == their_fee:
