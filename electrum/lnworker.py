@@ -154,6 +154,7 @@ class LNWorker(Logger):
 
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
+        await self.channel_db.data_loaded.wait()
         recent_peers = self.channel_db.get_recent_peers()
         # maintenance for last tried times
         # due to this, below we can just test membership in _last_tried_peer

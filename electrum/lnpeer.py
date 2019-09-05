@@ -241,6 +241,7 @@ class Peer(Logger):
             await group.spawn(self.process_gossip())
 
     async def process_gossip(self):
+        await self.channel_db.data_loaded.wait()
         # verify in peer's TaskGroup so that we fail the connection
         while True:
             await asyncio.sleep(5)

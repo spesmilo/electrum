@@ -30,6 +30,7 @@ from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
 import binascii
 import base64
+import asyncio
 
 
 from .sql_db import SqlDB, sql
@@ -250,6 +251,7 @@ class ChannelDB(SqlDB):
         self._nodes = {}
         self._addresses = defaultdict(set)
         self._channels_for_node = defaultdict(set)
+        self.data_loaded = asyncio.Event()
 
     def update_counts(self):
         self.num_channels = len(self._channels)
@@ -278,6 +280,7 @@ class ChannelDB(SqlDB):
         return LNPeerAddr(host, port, node_id)
 
     def get_recent_peers(self):
+        assert self.data_loaded.is_set(), "channelDB load_data did not finish yet!"
         r = [self.get_last_good_address(x) for x in self._addresses.keys()]
         r = r[-self.NUM_MAX_RECENT_PEERS:]
         return r
@@ -546,6 +549,7 @@ class ChannelDB(SqlDB):
         self.logger.info(f'load data {len(self._channels)} {len(self._policies)} {len(self._channels_for_node)}')
         self.update_counts()
         self.count_incomplete_channels()
+        self.data_loaded.set()
 
     def count_incomplete_channels(self):
         out = set()
