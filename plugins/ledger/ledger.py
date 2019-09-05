@@ -585,6 +585,9 @@ class LedgerPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        if client is None:
+            # BaseWizard expects this Exception to re-try
+            raise OSError(_('Device id not found or was changed'))
         client.handler = self.create_handler(wizard)
         client.get_xpub("m/44'/0'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
 
