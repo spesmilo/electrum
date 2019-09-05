@@ -1317,7 +1317,7 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 status = PR_UNPAID
         else:
-            status = PR_INFLIGHT if conf <= 0 else PR_PAID
+            status = PR_PAID
         return status, conf
 
     def get_request(self, key):

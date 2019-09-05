@@ -180,9 +180,9 @@ class HttpServer(Logger):
         self.pending = defaultdict(asyncio.Event)
         self.daemon.network.register_callback(self.on_payment, ['payment_received'])
 
-    async def on_payment(self, evt, *args):
-        print(evt, args)
-        #await self.pending[key].set()
+    async def on_payment(self, evt, wallet, key, status):
+        if status == PR_PAID:
+            await self.pending[key].set()
 
     async def run(self):
         host = self.config.get('http_host', 'localhost')
