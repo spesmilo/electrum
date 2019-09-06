@@ -280,7 +280,7 @@ opcodes = Enumeration("Opcodes", [
     "OP_CHECKMULTISIGVERIFY",
     ("OP_NOP1", 0xB0),
     ("OP_CHECKLOCKTIMEVERIFY", 0xB1), ("OP_CHECKSEQUENCEVERIFY", 0xB2),
-    "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_NOP7", "OP_NOP8", "OP_REGISTERADDRESS", "OP_NOP10",
+    "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_DEREGISTERADDRESS", "OP_NOP8", "OP_REGISTERADDRESS", "OP_NOP10",
     ("OP_INVALIDOPCODE", 0xFF),
 ])
 
@@ -459,6 +459,12 @@ def parse_scriptSig(d, _bytes):
     match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         d['type']='registeraddress'
+        d['data']=decoded[1][1]
+        return
+
+    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='deregisteraddress'
         d['data']=decoded[1][1]
         return
 
