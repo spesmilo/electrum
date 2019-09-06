@@ -41,7 +41,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
-                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id)
+                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID)
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -283,7 +283,7 @@ class Peer(Logger):
                     # as it might be for our own direct channel with this peer
                     # (and we might not yet know the short channel id for that)
                     for chan_upd_payload in orphaned:
-                        short_channel_id = chan_upd_payload['short_channel_id']
+                        short_channel_id = ShortChannelID(chan_upd_payload['short_channel_id'])
                         self.orphan_channel_updates[short_channel_id] = chan_upd_payload
                         while len(self.orphan_channel_updates) > 25:
                             self.orphan_channel_updates.popitem(last=False)
@@ -959,7 +959,7 @@ class Peer(Logger):
 
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
-        scid = format_short_channel_id(chan.short_channel_id)
+        scid = chan.short_channel_id
         # only allow state transition to "OPEN" from "OPENING"
         if chan.get_state() != "OPENING":
             return
@@ -1096,7 +1096,7 @@ class Peer(Logger):
         chan = self.channels[channel_id]
         key = (channel_id, htlc_id)
         try:
-            route = self.attempted_route[key]
+            route = self.attempted_route[key]  # type: List[RouteEdge]
         except KeyError:
             # the remote might try to fail an htlc after we restarted...
             # attempted_route is not persisted, so we will get here then
@@ -1310,7 +1310,7 @@ class Peer(Logger):
             return
         dph = processed_onion.hop_data.per_hop
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
-        next_chan_scid = format_short_channel_id(dph.short_channel_id)
+        next_chan_scid = dph.short_channel_id
         next_peer = self.lnworker.peers[next_chan.node_id]
         local_height = self.network.get_local_height()
         if next_chan is None:

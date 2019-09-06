@@ -32,7 +32,8 @@ from Cryptodome.Cipher import ChaCha20
 from . import ecc
 from .crypto import sha256, hmac_oneshot
 from .util import bh2u, profiler, xor_bytes, bfh
-from .lnutil import get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH, NUM_MAX_EDGES_IN_PAYMENT_PATH
+from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
+                     NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID)
 
 if TYPE_CHECKING:
     from .lnrouter import RouteEdge
@@ -51,7 +52,7 @@ class InvalidOnionMac(Exception): pass
 class OnionPerHop:
 
     def __init__(self, short_channel_id: bytes, amt_to_forward: bytes, outgoing_cltv_value: bytes):
-        self.short_channel_id = short_channel_id
+        self.short_channel_id = ShortChannelID(short_channel_id)
         self.amt_to_forward = amt_to_forward
         self.outgoing_cltv_value = outgoing_cltv_value
 

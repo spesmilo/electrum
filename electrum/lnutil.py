@@ -546,17 +546,6 @@ def funding_output_script_from_keys(pubkey1: bytes, pubkey2: bytes) -> str:
     pubkeys = sorted([bh2u(pubkey1), bh2u(pubkey2)])
     return transaction.multisig_script(pubkeys, 2)
 
-def calc_short_channel_id(block_height: int, tx_pos_in_block: int, output_index: int) -> bytes:
-    bh = block_height.to_bytes(3, byteorder='big')
-    tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
-    oi = output_index.to_bytes(2, byteorder='big')
-    return bh + tpos + oi
-
-def invert_short_channel_id(short_channel_id: bytes) -> (int, int, int):
-    bh = int.from_bytes(short_channel_id[:3], byteorder='big')
-    tpos = int.from_bytes(short_channel_id[3:6], byteorder='big')
-    oi = int.from_bytes(short_channel_id[6:8], byteorder='big')
-    return bh, tpos, oi
 
 def get_obscured_ctn(ctn: int, funder: bytes, fundee: bytes) -> int:
     mask = int.from_bytes(sha256(funder + fundee)[-6:], 'big')
@@ -704,6 +693,44 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
+
+
+class ShortChannelID(bytes):
+
+    def __repr__(self):
+        return f"<ShortChannelID: {format_short_channel_id(self)}>"
+
+    def __str__(self):
+        return format_short_channel_id(self)
+
+    @classmethod
+    def from_components(cls, block_height: int, tx_pos_in_block: int, output_index: int) -> 'ShortChannelID':
+        bh = block_height.to_bytes(3, byteorder='big')
+        tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
+        oi = output_index.to_bytes(2, byteorder='big')
+        return ShortChannelID(bh + tpos + oi)
+
+    @classmethod
+    def normalize(cls, data: Union[None, str, bytes, 'ShortChannelID']) -> Optional['ShortChannelID']:
+        if isinstance(data, ShortChannelID) or data is None:
+            return data
+        if isinstance(data, str):
+            return ShortChannelID.fromhex(data)
+        if isinstance(data, bytes):
+            return ShortChannelID(data)
+
+    @property
+    def block_height(self) -> int:
+        return int.from_bytes(self[:3], byteorder='big')
+
+    @property
+    def txpos(self) -> int:
+        return int.from_bytes(self[3:6], byteorder='big')
+
+    @property
+    def output_index(self) -> int:
+        return int.from_bytes(self[6:8], byteorder='big')
+
 
 def format_short_channel_id(short_channel_id: Optional[bytes]):
     if not short_channel_id:
