@@ -44,6 +44,7 @@ from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .util import PR_PAID, PR_EXPIRED, get_request_status
+from .util import log_exceptions, ignore_exceptions
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -184,6 +185,8 @@ class HttpServer(Logger):
         if status == PR_PAID:
             await self.pending[key].set()
 
+    @ignore_exceptions
+    @log_exceptions
     async def run(self):
         host = self.config.get('payserver_host', 'localhost')
         port = self.config.get('payserver_port')
