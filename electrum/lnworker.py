@@ -958,7 +958,8 @@ class LNWallet(LNWorker):
 
     def save_invoice(self, payment_hash:bytes, invoice, direction, status):
         key = bh2u(payment_hash)
-        self.invoices[key] = invoice, direction, status
+        with self.lock:
+            self.invoices[key] = invoice, direction, status
         self.storage.put('lightning_invoices', self.invoices)
         self.storage.write()
 
@@ -1004,7 +1005,9 @@ class LNWallet(LNWorker):
     def get_invoices(self):
         # invoices = outgoing
         out = []
-        for key, (invoice, direction, status) in self.invoices.items():
+        with self.lock:
+            invoice_items = list(self.invoices.items())
+        for key, (invoice, direction, status) in invoice_items:
             if direction == SENT and status != PR_PAID:
                 out.append(self.get_request(key))
         return out
@@ -1013,7 +1016,9 @@ class LNWallet(LNWorker):
     def get_requests(self):
         # requests = incoming
         out = []
-        for key, (invoice, direction, status) in self.invoices.items():
+        with self.lock:
+            invoice_items = list(self.invoices.items())
+        for key, (invoice, direction, status) in invoice_items:
             if direction == RECEIVED and status != PR_PAID:
                 out.append(self.get_request(key))
         return out
@@ -1062,7 +1067,8 @@ class LNWallet(LNWorker):
 
     def delete_invoice(self, payment_hash_hex: str):
         try:
-            del self.invoices[payment_hash_hex]
+            with self.lock:
+                del self.invoices[payment_hash_hex]
         except KeyError:
             return
         self.storage.put('lightning_invoices', self.invoices)
