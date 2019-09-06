@@ -107,18 +107,14 @@ def command(s):
                     wallet_path = kwargs.pop('wallet_path')
                     wallet = daemon.wallets.get(wallet_path)
                     if wallet is None:
-                        return {'error': "Wallet not loaded. try 'electrum load_wallet'" }
+                        raise Exception('wallet not loaded')
                     kwargs['wallet'] = wallet
             else:
-                # we are offline. the wallet must have been passed
-                pass
+                # we are offline. the wallet must have been passed if required
+                wallet = kwargs.get('wallet')
             if cmd.requires_password and password is None and wallet.has_password():
-                return {'error': 'Password required' }
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                #traceback.print_exc(sys.stderr)
-                return {'error':str(e)}
+                raise Exception('Password required')
+            return await func(*args, **kwargs)
         return func_wrapper
     return decorator
 

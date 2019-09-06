@@ -326,10 +326,11 @@ class Daemon(Logger):
         except AuthenticationError:
             return web.Response(text='Forbidden', status=403)
         request = await request.text()
-        #self.logger.info(f'handling request: {request}')
         response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
         if isinstance(response, jsonrpcserver.response.ExceptionResponse):
             self.logger.error(f"error handling request: {request}", exc_info=response.exc)
+            # this exposes the error message to the client
+            response.message = str(response.exc)
         if response.wanted:
             return web.json_response(response.deserialized(), status=response.http_status)
         else:
@@ -441,7 +442,11 @@ class Daemon(Logger):
         for x in cmd.options:
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         func = getattr(self.cmd_runner, cmd.name)
-        result = await func(*args, **kwargs)
+        # fixme: not sure how to retrieve message in jsonrpcclient
+        try:
+            result = await func(*args, **kwargs)
+        except Exception as e:
+            result = {'error':str(e)}
         return result
 
     def run_daemon(self):
