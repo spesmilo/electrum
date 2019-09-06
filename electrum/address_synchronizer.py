@@ -615,7 +615,8 @@ class AddressSynchronizer(PrintError):
             if key:
                 self.unassigned_kyc_pubkeys.pop(key, None)
             elif outpoint:
-                for k, o in self.unassigned_kyc_pubkeys:
+                for k in self.unassigned_kyc_pubkeys:
+                    o = self.unassigned_kyc_pubkeys[k]
                     if o == outpoint:
                         if o.txid == outpoint.txid and o.n == outpoint.n:
                             self.unassigned_kyc_pubkeys.pop(k, None)
@@ -727,8 +728,8 @@ class AddressSynchronizer(PrintError):
             for n, v, a, cb, scriptPubKey in d:
                 if n == prevout_n:
                     if a == constants.net.WHITELISTASSET:
-                        outpoint = TxOutPoint(prevout_hash, prevout_n)
-                        self.remove_unassigned_kyc_pubkey(outpoint)
+                        op = TxOutPoint(prevout_hash, prevout_n)
+                        self.remove_unassigned_kyc_pubkey(outpoint=op)
 
         #Check outputs for address data (assign)
         addresses = set()
