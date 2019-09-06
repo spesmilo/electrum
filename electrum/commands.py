@@ -95,21 +95,30 @@ def command(s):
         name = func.__name__
         known_commands[name] = Command(func, s)
         @wraps(func)
-        def func_wrapper(*args, **kwargs):
-            c = known_commands[func.__name__]
+        async def func_wrapper(*args, **kwargs):
+            cmd_runner = args[0]
+            cmd = known_commands[func.__name__]
             password = kwargs.get('password')
-            wallet = kwargs.get('wallet') # wallet is passed here if we are offline
-            if c.requires_wallet and wallet is None:
-                cmd_runner = args[0]
-                path = cmd_runner.config.get_wallet_path()
-                path = standardize_path(path)
-                wallet = cmd_runner.daemon.wallets.get(path)
-                if wallet is None:
-                    raise Exception("wallet not loaded. Use 'electrum load_wallet'")
-                kwargs['wallet'] = wallet
-            if c.requires_password and password is None and wallet.has_password():
+            daemon = cmd_runner.daemon
+            if daemon:
+                if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
+                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                if cmd.requires_wallet:
+                    wallet_path = kwargs.pop('wallet_path')
+                    wallet = daemon.wallets.get(wallet_path)
+                    if wallet is None:
+                        return {'error': "Wallet not loaded. try 'electrum load_wallet'" }
+                    kwargs['wallet'] = wallet
+            else:
+                # we are offline. the wallet must have been passed
+                pass
+            if cmd.requires_password and password is None and wallet.has_password():
                 return {'error': 'Password required' }
-            return func(*args, **kwargs)
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                #traceback.print_exc(sys.stderr)
+                return {'error':str(e)}
         return func_wrapper
     return decorator
 
@@ -182,27 +191,25 @@ class Commands:
         return [{'path':k, 'synchronized':w.is_up_to_date()} for k, w in self.daemon.wallets.items()]
 
     @command('n')
-    async def load_wallet(self):
+    async def load_wallet(self, wallet_path=None):
         """Open wallet in daemon"""
-        path = self.config.get_wallet_path()
-        wallet = self.daemon.load_wallet(path, self.config.get('password'))
+        wallet = self.daemon.load_wallet(wallet_path, self.config.get('password'))
         if wallet is not None:
             run_hook('load_wallet', wallet, None)
         response = wallet is not None
         return response
 
     @command('n')
-    async def close_wallet(self):
+    async def close_wallet(self, wallet_path=None):
         """Close wallet"""
-        path = self.config.get_wallet_path()
-        return self.daemon.stop_wallet(path)
+        return self.daemon.stop_wallet(wallet_path)
 
     @command('')
-    async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None):
+    async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None):
         """Create a new wallet.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
-        d = create_new_wallet(path=self.config.get_wallet_path(),
+        d = create_new_wallet(path=wallet_path,
                               passphrase=passphrase,
                               password=password,
                               encrypt_file=encrypt_file,
@@ -214,7 +221,7 @@ class Commands:
         }
 
     @command('')
-    async def restore(self, text, passphrase=None, password=None, encrypt_file=True):
+    async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys.
@@ -222,7 +229,7 @@ class Commands:
         """
         # TODO create a separate command that blocks until wallet is synced
         d = restore_wallet_from_text(text,
-                                     path=self.config.get_wallet_path(),
+                                     path=wallet_path,
                                      passphrase=passphrase,
                                      password=password,
                                      encrypt_file=encrypt_file)
@@ -1148,7 +1155,7 @@ def get_parser():
         p = subparsers.add_parser(cmdname, help=cmd.help, description=cmd.description)
         add_global_options(p)
         for optname, default in zip(cmd.options, cmd.defaults):
-            if optname == 'wallet':
+            if optname in ['wallet_path', 'wallet']:
                 continue
             a, help = command_options[optname]
             b = '--' + optname
@@ -1161,7 +1168,7 @@ def get_parser():
                 p.add_argument(*args, dest=optname, action=action, default=default, help=help)
 
         for param in cmd.params:
-            if param == 'wallet':
+            if param in ['wallet_path', 'wallet']:
                 continue
             h = param_descriptions.get(param, '')
             _type = arg_types.get(param, str)

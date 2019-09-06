@@ -203,6 +203,8 @@ async def run_offline_command(config, config_options, plugins):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
+    if 'wallet_path' in cmd.options and config_options.get('wallet_path') is None:
+        config_options['wallet_path'] = config.get_wallet_path()
     if cmd.requires_wallet:
         storage = WalletStorage(config.get_wallet_path())
         if storage.is_encrypted():
@@ -231,7 +233,7 @@ async def run_offline_command(config, config_options, plugins):
     # options
     kwargs = {}
     for x in cmd.options:
-        kwargs[x] = (config_options.get(x) if x in ['wallet', 'password', 'new_password'] else config.get(x))
+        kwargs[x] = (config_options.get(x) if x in ['wallet_path', 'wallet', 'password', 'new_password'] else config.get(x))
     cmd_runner = Commands(config=config)
     func = getattr(cmd_runner, cmd.name)
     result = await func(*args, **kwargs)

@@ -432,13 +432,6 @@ class Daemon(Logger):
         config.mempool_fees  = self.network.config.mempool_fees.copy()
         cmdname = config.get('cmd')
         cmd = known_commands[cmdname]
-        if cmd.requires_wallet:
-            path = config.get_wallet_path()
-            path = standardize_path(path)
-            wallet = self.wallets.get(path)
-            if wallet is None:
-                return {'error': 'Wallet "%s" is not loaded. Use "electrum load_wallet"'%os.path.basename(path) }
-            config_options['wallet'] = wallet
         # arguments passed to function
         args = map(lambda x: config.get(x), cmd.params)
         # decode json arguments
@@ -446,12 +439,9 @@ class Daemon(Logger):
         # options
         kwargs = {}
         for x in cmd.options:
-            kwargs[x] = (config_options.get(x) if x in ['wallet', 'password', 'new_password'] else config.get(x))
+            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         func = getattr(self.cmd_runner, cmd.name)
-        try:
-            result = await func(*args, **kwargs)
-        except TypeError as e:
-            raise Exception("Wrapping TypeError to prevent JSONRPC-Pelix from hiding traceback") from e
+        result = await func(*args, **kwargs)
         return result
 
     def run_daemon(self):
