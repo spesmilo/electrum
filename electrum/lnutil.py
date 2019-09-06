@@ -692,7 +692,7 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
-NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
+NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH
 
 
 class ShortChannelID(bytes):

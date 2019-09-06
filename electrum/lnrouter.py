@@ -175,7 +175,7 @@ class LNPathFinder(Logger):
         if my_channels is None: my_channels = []
         my_channels = {chan.short_channel_id: chan for chan in my_channels}
 
-        # FIXME paths cannot be longer than 21 edges (onion packet)...
+        # FIXME paths cannot be longer than 20 edges (onion packet)...
 
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
