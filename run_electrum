@@ -329,8 +329,6 @@ if __name__ == '__main__':
     # todo: defer this to gui
     config = SimpleConfig(config_options)
 
-    cmdname = config.get('cmd')
-
     if config.get('testnet'):
         constants.set_testnet()
     elif config.get('regtest'):
@@ -338,7 +336,15 @@ if __name__ == '__main__':
     elif config.get('simnet'):
         constants.set_simnet()
     elif config.get('lightning') and not config.get('reckless'):
-        raise Exception('lightning branch not available on mainnet')
+        raise Exception('lightning option not available on mainnet')
+
+    if config.get('lightning'):
+        from electrum.ecc_fast import is_using_fast_ecc
+        if not is_using_fast_ecc():
+            raise Exception('libsecp256k1 library not available. '
+                            'Verifying Lightning channels is too computationally expensive without libsecp256k1, aborting.')
+
+    cmdname = config.get('cmd')
 
     if cmdname == 'daemon' and config.get("detach"):
         # fork before creating the asyncio event loop
