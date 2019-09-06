@@ -1325,8 +1325,10 @@ class Abstract_Wallet(AddressSynchronizer):
         config = get_config()
         if key in self.receive_requests:
             req = self.get_payment_request(key)
-        else:
+        elif self.lnworker:
             req = self.lnworker.get_request(key)
+        else:
+            req = None
         if not req:
             return
         if config.get('payserver_port'):
