@@ -1076,10 +1076,10 @@ class Peer(Logger):
         return h, node_signature, bitcoin_signature
 
     def on_update_fail_htlc(self, payload):
-        self.logger.info("on_update_fail_htlc")
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
         chan = self.channels[channel_id]
+        self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
@@ -1167,7 +1167,8 @@ class Peer(Logger):
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
         if next_htlcs == latest_htlcs and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE):
             return
-        self.logger.info(f'send_commitment. old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
+        self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}. '
+                         f'old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
@@ -1199,7 +1200,7 @@ class Peer(Logger):
         remote_ctn = chan.get_latest_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
-        self.logger.info(f"starting payment. route: {route}. htlc: {htlc}")
+        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. htlc: {htlc}")
         self.send_message("update_add_htlc",
                           channel_id=chan.channel_id,
                           id=htlc.htlc_id,
@@ -1211,6 +1212,7 @@ class Peer(Logger):
         return htlc
 
     def send_revoke_and_ack(self, chan: Channel):
+        self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev, _ = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
         self._local_changed_events[chan.channel_id].set()
@@ -1222,12 +1224,17 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, payload):
-        self.logger.info("on_commitment_signed")
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
-        if (chan.hm.get_htlcs_in_next_ctx(LOCAL) == chan.hm.get_htlcs_in_latest_ctx(LOCAL)
+        next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(LOCAL), chan.hm.get_htlcs_in_latest_ctx(LOCAL)
+        self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}. '
+                         f'old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
+        if (next_htlcs == latest_htlcs
                 and chan.get_next_feerate(LOCAL) == chan.get_latest_feerate(LOCAL)):
+            # TODO if feerate changed A->B->A; so there were updates but the value is identical,
+            #      then it might be legal to send a commitment_signature
+            #      see https://github.com/lightningnetwork/lightning-rfc/pull/618
             raise RemoteMisbehaving('received commitment_signed without pending changes')
         # REMOTE should wait until we have revoked
         if chan.hm.is_revack_pending(LOCAL):
@@ -1238,10 +1245,10 @@ class Peer(Logger):
         self.send_revoke_and_ack(chan)
 
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
-        self.logger.info("on_update_fulfill_htlc")
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
+        self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
@@ -1256,15 +1263,15 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
 
     def on_update_add_htlc(self, payload):
-        self.logger.info('on_update_add_htlc')
         payment_hash = payload["payment_hash"]
         channel_id = payload['channel_id']
+        chan = self.channels[channel_id]
         htlc_id = int.from_bytes(payload["id"], 'big')
+        self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         cltv_expiry = int.from_bytes(payload["cltv_expiry"], 'big')
         amount_msat_htlc = int.from_bytes(payload["amount_msat"], 'big')
         onion_packet = OnionPacket.from_bytes(payload["onion_routing_packet"])
         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
-        chan = self.channels[channel_id]
         if chan.get_state() != "OPEN":
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry >= 500_000_000:
@@ -1414,6 +1421,7 @@ class Peer(Logger):
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
+        self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.settle_htlc(preimage, htlc_id)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
@@ -1425,7 +1433,7 @@ class Peer(Logger):
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
-        self.logger.info(f"failing received htlc {(bh2u(chan.channel_id), htlc_id)}. reason: {reason}")
+        self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
         chan.fail_htlc(htlc_id)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
@@ -1437,9 +1445,9 @@ class Peer(Logger):
         await self.await_remote(chan, remote_ctn)
 
     def on_revoke_and_ack(self, payload):
-        self.logger.info("on_revoke_and_ack")
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
+        self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)
         self._remote_changed_events[chan.channel_id].set()
