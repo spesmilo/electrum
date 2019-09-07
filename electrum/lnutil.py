@@ -5,7 +5,7 @@
 from enum import IntFlag, IntEnum
 import json
 from collections import namedtuple
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict
+from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set
 import re
 
 from .util import bfh, bh2u, inv_dict
@@ -50,7 +50,7 @@ class LocalConfig(NamedTuple):
     funding_locked_received: bool
     was_announced: bool
     current_commitment_signature: Optional[bytes]
-    current_htlc_signatures: List[bytes]
+    current_htlc_signatures: bytes
 
 
 class RemoteConfig(NamedTuple):
@@ -383,10 +383,63 @@ def get_ordered_channel_configs(chan: 'Channel', for_us: bool) -> Tuple[Union[Lo
     return conf, other_conf
 
 
-def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
-                                   we_receive: bool, commit: Transaction,
-                                   htlc: 'UpdateAddHtlc', name: str = None, cltv_expiry: int = 0) -> Tuple[bytes, Transaction]:
+def possible_output_idxs_of_htlc_in_ctx(*, chan: 'Channel', pcp: bytes, subject: 'HTLCOwner',
+                                        htlc_direction: 'Direction', ctx: Transaction,
+                                        htlc: 'UpdateAddHtlc') -> Set[int]:
     amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
+    for_us = subject == LOCAL
+    conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=for_us)
+
+    other_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
+    other_htlc_pubkey = derive_pubkey(other_conf.htlc_basepoint.pubkey, pcp)
+    htlc_pubkey = derive_pubkey(conf.htlc_basepoint.pubkey, pcp)
+    preimage_script = make_htlc_output_witness_script(is_received_htlc=htlc_direction == RECEIVED,
+                                                      remote_revocation_pubkey=other_revocation_pubkey,
+                                                      remote_htlc_pubkey=other_htlc_pubkey,
+                                                      local_htlc_pubkey=htlc_pubkey,
+                                                      payment_hash=payment_hash,
+                                                      cltv_expiry=cltv_expiry)
+    htlc_address = redeem_script_to_address('p2wsh', bh2u(preimage_script))
+    candidates = ctx.get_output_idxs_from_address(htlc_address)
+    return {output_idx for output_idx in candidates
+            if ctx.outputs()[output_idx].value == htlc.amount_msat // 1000}
+
+
+def map_htlcs_to_ctx_output_idxs(*, chan: 'Channel', ctx: Transaction, pcp: bytes,
+                                 subject: 'HTLCOwner', ctn: int) -> Dict[Tuple['Direction', 'UpdateAddHtlc'], Tuple[int, int]]:
+    """Returns a dict from (htlc_dir, htlc) to (ctx_output_idx, htlc_relative_idx)"""
+    htlc_to_ctx_output_idx_map = {}  # type: Dict[Tuple[Direction, UpdateAddHtlc], int]
+    unclaimed_ctx_output_idxs = set(range(len(ctx.outputs())))
+    offered_htlcs = chan.included_htlcs(subject, SENT, ctn=ctn)
+    offered_htlcs.sort(key=lambda htlc: htlc.cltv_expiry)
+    received_htlcs = chan.included_htlcs(subject, RECEIVED, ctn=ctn)
+    received_htlcs.sort(key=lambda htlc: htlc.cltv_expiry)
+    for direction, htlcs in zip([SENT, RECEIVED], [offered_htlcs, received_htlcs]):
+        for htlc in htlcs:
+            cands = sorted(possible_output_idxs_of_htlc_in_ctx(chan=chan,
+                                                               pcp=pcp,
+                                                               subject=subject,
+                                                               htlc_direction=direction,
+                                                               ctx=ctx,
+                                                               htlc=htlc))
+            for ctx_output_idx in cands:
+                if ctx_output_idx in unclaimed_ctx_output_idxs:
+                    unclaimed_ctx_output_idxs.discard(ctx_output_idx)
+                    htlc_to_ctx_output_idx_map[(direction, htlc)] = ctx_output_idx
+                    break
+    # calc htlc_relative_idx
+    inverse_map = {ctx_output_idx: (direction, htlc)
+                   for ((direction, htlc), ctx_output_idx) in htlc_to_ctx_output_idx_map.items()}
+
+    return {inverse_map[ctx_output_idx]: (ctx_output_idx, htlc_relative_idx)
+            for htlc_relative_idx, ctx_output_idx in enumerate(sorted(inverse_map))}
+
+
+def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTLCOwner',
+                                   htlc_direction: 'Direction', commit: Transaction, ctx_output_idx: int,
+                                   htlc: 'UpdateAddHtlc', name: str = None) -> Tuple[bytes, Transaction]:
+    amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
+    for_us = subject == LOCAL
     conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=for_us)
 
     delayedpubkey = derive_pubkey(conf.delayed_basepoint.pubkey, pcp)
@@ -395,8 +448,8 @@ def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
     htlc_pubkey = derive_pubkey(conf.htlc_basepoint.pubkey, pcp)
     # HTLC-success for the HTLC spending from a received HTLC output
     # if we do not receive, and the commitment tx is not for us, they receive, so it is also an HTLC-success
-    is_htlc_success = for_us == we_receive
-    script, htlc_tx_output = make_htlc_tx_output(
+    is_htlc_success = htlc_direction == RECEIVED
+    witness_script_of_htlc_tx_output, htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
         local_feerate = chan.get_next_feerate(LOCAL if for_us else REMOTE),
         revocationpubkey=other_revocation_pubkey,
@@ -409,20 +462,15 @@ def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
                                                       local_htlc_pubkey=htlc_pubkey,
                                                       payment_hash=payment_hash,
                                                       cltv_expiry=cltv_expiry)
-    htlc_address = redeem_script_to_address('p2wsh', bh2u(preimage_script))
-    # FIXME handle htlc_address collision
-    # also: https://github.com/lightningnetwork/lightning-rfc/issues/448
-    prevout_idx = commit.get_output_idx_from_address(htlc_address)
-    assert prevout_idx is not None, (htlc_address, commit.outputs(), extract_ctn_from_tx_and_chan(commit, chan))
     htlc_tx_inputs = make_htlc_tx_inputs(
-        commit.txid(), prevout_idx,
+        commit.txid(), ctx_output_idx,
         amount_msat=amount_msat,
         witness_script=bh2u(preimage_script))
     if is_htlc_success:
         cltv_expiry = 0
     htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output,
         name=name, cltv_expiry=cltv_expiry)
-    return script, htlc_tx
+    return witness_script_of_htlc_tx_output, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
         funding_pos: int, funding_txid: bytes, funding_sat: int):
