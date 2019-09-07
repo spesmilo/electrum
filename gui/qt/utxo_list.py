@@ -26,6 +26,7 @@ from .util import *
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
 from electroncash.address import Address
+from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash import cashacct
 from collections import defaultdict
 from functools import wraps
@@ -70,6 +71,7 @@ class UTXOList(MyTreeWidget):
         self.blue = ColorScheme.BLUE.as_color(True)
         self.cyanBlue = QColor('#3399ff')
         self.slpBG = ColorScheme.SLPGREEN.as_color(True)
+        self.immatureColor = ColorScheme.BLUE.as_color(False)
 
         self.cleaned_up = False
 
@@ -105,6 +107,7 @@ class UTXOList(MyTreeWidget):
 
     @if_not_dead
     def on_update(self):
+        local_maturity_height = (self.wallet.get_local_height()+1) - COINBASE_MATURITY
         prev_selection = self.get_selected() # cache previous selection, if any
         self.clear()
         ca_by_addr = defaultdict(list)
@@ -132,6 +135,7 @@ class UTXOList(MyTreeWidget):
                 address_text = f'{ca_info.emoji} {address_text}'  # prepend the address emoji char
                 tool_tip0 = self.wallet.cashacct.fmt_info(ca_info, emoji=True)
             height = x['height']
+            is_immature = x['coinbase'] and height > local_maturity_height
             name = self.get_name(x)
             name_short = self.get_name_short(x)
             label = self.wallet.get_label(x['prevout_hash'])
@@ -152,7 +156,13 @@ class UTXOList(MyTreeWidget):
             c_frozen = x['is_frozen_coin']
             toolTipMisc = ''
             slp_token = x['slp_token']
-            if slp_token:
+            if is_immature:
+                for colNum in range(self.columnCount()):
+                    if colNum == self.Col.label:
+                        continue  # don't color the label column
+                    utxo_item.setForeground(colNum, self.immatureColor)
+                toolTipMisc = _('Coin is not yet mature')
+            elif slp_token:
                 utxo_item.setBackground(0, self.slpBG)
                 toolTipMisc = _('Coin contains an SLP token')
             elif a_frozen and not c_frozen:
@@ -170,7 +180,7 @@ class UTXOList(MyTreeWidget):
                 utxo_item.setForeground(0, self.cyanBlue)
                 toolTipMisc = _("Coin & Address are frozen")
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
-            utxo_item.setData(0, self.DataRoles.frozen_flags, "{}{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else ""), ("s" if slp_token else "")))
+            utxo_item.setData(0, self.DataRoles.frozen_flags, "{}{}{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else ""), ("s" if slp_token else ""), ("i" if is_immature else "")))
             # store the address
             utxo_item.setData(0, self.DataRoles.address, address)
             # store the ca_info for this address -- if any
@@ -261,8 +271,11 @@ class UTXOList(MyTreeWidget):
                     menu.addAction(_("Unfreeze Address"), lambda: self.set_frozen_addresses_for_coins(list(selected.keys()), False))
                 else:
                     menu.addAction(_("Freeze Address"), lambda: self.set_frozen_addresses_for_coins(list(selected.keys()), True))
-                if slp_token and not spend_action.isEnabled():
-                    spend_action.setText(_("SLP Token: Spend Locked"))
+                if not spend_action.isEnabled():
+                    if slp_token:
+                        spend_action.setText(_("SLP Token: Spend Locked"))
+                    elif 'i' in frozen_flags:  # immature coinbase
+                        spend_action.setText(_("Immature Coinbase: Spend Locked"))
             else:
                 # multi-selection
                 menu.addSeparator()

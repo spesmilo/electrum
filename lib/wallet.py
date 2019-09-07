@@ -790,10 +790,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         received, sent = self.get_addr_io(address)
         return sum([v for height, v, is_cb in received.values()])
 
-    # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
-    # Note that 'exclude_frozen_coins = True' only checks for coin-level freezing, not address-level.
     def get_addr_balance(self, address, exclude_frozen_coins=False):
+        ''' Returns the balance of a bitcoin address as a tuple of:
+            (confirmed_matured, unconfirmed, unmatured)
+            Note that 'exclude_frozen_coins = True' only checks for coin-level
+            freezing, not address-level. '''
         assert isinstance(address, Address)
+        mempoolHeight = self.get_local_height() + 1
         if not exclude_frozen_coins:  # we do not use the cache when excluding frozen coins as frozen status is a dynamic quantity that can change at any time in the UI
             cached = self._addr_bal_cache.get(address)
             if cached is not None:
@@ -805,7 +808,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if exclude_frozen_coins and txo in self.frozen_coins:
                 continue
             had_cb = had_cb or is_cb  # remember if this address has ever seen a coinbase txo
-            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+            if is_cb and tx_height + COINBASE_MATURITY > mempoolHeight:
                 x += v
             elif tx_height > 0:
                 c += v
@@ -870,6 +873,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         Optional kw-only arg `addr_set_out` specifies a set in which to add all
         addresses encountered in the utxos returned. '''
         with self.lock:
+            mempoolHeight = self.get_local_height() + 1
             coins = []
             if domain is None:
                 domain = self.get_addresses()
@@ -885,7 +889,12 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                         continue
                     if confirmed_only and x['height'] <= 0:
                         continue
-                    if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                    # A note about maturity: Previous versions of Electrum
+                    # and Electron Cash were off by one. Maturity is
+                    # calculated based off mempool height (chain tip height + 1).
+                    # See bitcoind consensus/tx_verify.cpp Consensus::CheckTxInputs
+                    # and also txmempool.cpp  CTxMemPool::removeForReorg.
+                    if mature and x['coinbase'] and mempoolHeight - x['height'] < COINBASE_MATURITY:
                         continue
                     coins.append(x)
                 if addr_set_out is not None and len(coins) > len_before:
