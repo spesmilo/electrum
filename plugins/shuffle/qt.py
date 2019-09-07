@@ -40,7 +40,6 @@ from electroncash.i18n import _
 from electroncash.util import print_error, profiler, PrintError, Weak, format_satoshis_plain, finalization_print_error
 from electroncash.network import Network
 from electroncash.address import Address
-from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash.simple_config import SimpleConfig, get_config
 from electroncash.wallet import Abstract_Wallet
@@ -94,10 +93,7 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
             item.setText(5, _("Unconfirmed (reshuf)"))
         else:
             item.setText(5, _("Unconfirmed"))
-# for now we unconditionally disallow coinbase coins. See CashShuffle issue #64
-#    elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
-#        item.setText(5, _("Not mature"))
-    elif utxo['coinbase']:  # we disallow coinbase coins
+    elif utxo['coinbase']:  # we disallow coinbase coins unconditionally -- due to miner feedback (they don't like shuffling these)
         item.setText(5, _("Coinbase"))
     elif (u_value >= BackgroundShufflingThread.LOWER_BOUND
               and u_value < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
