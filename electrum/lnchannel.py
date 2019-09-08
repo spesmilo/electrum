@@ -136,6 +136,7 @@ class Channel(Logger):
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
         self.force_closed = state.get('force_closed')
         self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
+        self.remote_update = bfh(state.get('remote_update')) if state.get('remote_update') else None
 
         log = state.get('log')
         self.hm = HTLCManager(log=log,
@@ -616,6 +617,7 @@ class Channel(Logger):
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "force_closed": self.force_closed,
                 "data_loss_protect_remote_pcp": str_bytes_dict_to_save(self.data_loss_protect_remote_pcp),
+                "remote_update": self.remote_update.hex() if self.remote_update else None
         }
         return to_save
 

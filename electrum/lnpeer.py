@@ -209,7 +209,14 @@ class Peer(Logger):
         self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
+        self.maybe_save_remote_update(payload)
         self.gossip_queue.put_nowait(('channel_update', payload))
+
+    def maybe_save_remote_update(self, payload):
+        for chan in self.channels.values():
+            if chan.short_channel_id == payload['short_channel_id']:
+                chan.remote_update = payload['raw']
+                self.logger.info("saved remote_update")
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -576,6 +583,7 @@ class Peer(Logger):
             "remote_config": remote_config,
             "local_config": local_config,
             "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
+            "remote_update": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -660,6 +668,7 @@ class Peer(Logger):
                 ),
                 "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
+                "remote_update": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -1008,7 +1017,13 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            self.channel_db.add_channel_update(pending_channel_update)
+            chan.remote_update = pending_channel_update['raw']
+        # add remote update with a fresh timestamp
+        if chan.remote_update:
+            now = int(time.time())
+            remote_update_decoded = decode_msg(chan.remote_update)[1]
+            remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
+            self.channel_db.add_channel_update(remote_update_decoded)
 
     def get_outgoing_gossip_channel_update_for_chan(self, chan: Channel) -> bytes:
         if chan._outgoing_channel_update is not None:
@@ -1136,6 +1151,7 @@ class Peer(Logger):
             blacklist = False
             if categorized_chan_upds.good:
                 self.logger.info("applied channel update on our db")
+                self.maybe_save_remote_update(payload)
             elif categorized_chan_upds.orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info("maybe channel update is for private channel?")
