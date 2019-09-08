@@ -96,9 +96,6 @@ class AddressSynchronizer(Logger):
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
-    def synchronize(self):
-        pass
-
     def is_mine(self, address) -> bool:
         return self.db.is_addr_in_history(address)
 

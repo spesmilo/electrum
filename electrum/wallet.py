@@ -973,17 +973,20 @@ class Abstract_Wallet(AddressSynchronizer):
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
-    def address_is_old(self, address, age_limit=2):
-        age = -1
+    def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
+        """Returns whether address has any history that is deeply confirmed.
+
+        Note: this is NOT verified using SPV. (TODO should it be?)
+        """
+        max_conf = -1
         h = self.db.get_addr_history(address)
         for tx_hash, tx_height in h:
             if tx_height <= 0:
                 tx_age = 0
             else:
                 tx_age = self.get_local_height() - tx_height + 1
-            if tx_age > age:
-                age = tx_age
-        return age > age_limit
+            max_conf = max(max_conf, tx_age)
+        return max_conf >= req_conf
 
     def bump_fee(self, *, tx, new_fee_rate, config) -> Transaction:
         """Increase the miner fee of 'tx'.
@@ -1889,6 +1892,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             else:
                 break
 
+    @AddressSynchronizer.with_local_height_cached
     def synchronize(self):
         with self.lock:
             self.synchronize_sequence(False)
