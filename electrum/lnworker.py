@@ -92,6 +92,9 @@ class LNWorker(Logger):
         self.localfeatures = LnLocalFeatures(0)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
 
+    def channels_for_peer(self, node_id):
+        return {}
+
     async def maybe_listen(self):
         listen_addr = self.config.get('lightning_listen')
         if listen_addr:
