@@ -755,6 +755,13 @@ class Transaction:
         return sum(val for tp, addr, val in self.outputs())
 
     def get_fee(self):
+        ''' Try and calculate the fee based on the input data, and returns it as
+        satoshis (int). Can raise one of: (KeyError, TypeError, ValueError) on
+        tx's where fee data is missing, so client code should catch these. '''
+        # first, check if coinbase; coinbase tx always has 0 fee
+        if self._inputs and self._inputs[0].get('type') == 'coinbase':
+            return 0
+        # otherwise just sum up all values - may raise
         return self.input_value() - self.output_value()
 
     @profiler
