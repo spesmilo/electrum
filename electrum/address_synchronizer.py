@@ -551,7 +551,7 @@ class AddressSynchronizer(Logger):
                         txs.add(tx_hash)
         return txs
 
-    def get_local_height(self):
+    def get_local_height(self) -> int:
         """ return last known height if we are offline """
         cached_local_height = getattr(self.threadlocal_cache, 'local_height', None)
         if cached_local_height is not None:
@@ -742,11 +742,11 @@ class AddressSynchronizer(Logger):
         assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
         received, sent = self.get_addr_io(address)
         c = u = x = 0
-        local_height = self.get_local_height()
+        mempool_height = self.get_local_height() + 1  # height of next block
         for txo, (tx_height, v, is_cb) in received.items():
             if txo in excluded_coins:
                 continue
-            if is_cb and tx_height + COINBASE_MATURITY > local_height:
+            if is_cb and tx_height + COINBASE_MATURITY > mempool_height:
                 x += v
             elif tx_height > 0:
                 c += v
@@ -774,6 +774,7 @@ class AddressSynchronizer(Logger):
         domain = set(domain)
         if excluded_addresses:
             domain = set(domain) - set(excluded_addresses)
+        mempool_height = self.get_local_height() + 1  # height of next block
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos.values():
@@ -781,7 +782,7 @@ class AddressSynchronizer(Logger):
                     continue
                 if nonlocal_only and x['height'] == TX_HEIGHT_LOCAL:
                     continue
-                if mature_only and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                if mature_only and x['coinbase'] and x['height'] + COINBASE_MATURITY > mempool_height:
                     continue
                 coins.append(x)
                 continue
