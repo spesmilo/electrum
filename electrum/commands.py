@@ -795,10 +795,16 @@ class Commands:
         return wallet.remove_payment_request(address)
 
     @command('w')
-    async def clearrequests(self, wallet=None):
+    async def clear_requests(self, wallet=None):
         """Remove all payment requests"""
         for k in list(wallet.receive_requests.keys()):
             wallet.remove_payment_request(k)
+
+    @command('w')
+    async def clear_invoices(self, wallet=None):
+        """Remove all invoices"""
+        wallet.clear_invoices()
+        return True
 
     @command('n')
     async def notify(self, address: str, URL: str):

@@ -31,7 +31,7 @@ from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
 from electrum.util import format_time, age, get_request_status
-from electrum.util import PR_TYPE_ADDRESS, PR_TYPE_LN, PR_TYPE_BIP70
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
 from electrum.lnutil import SENT, RECEIVED
 from electrum.plugin import run_hook
@@ -118,35 +118,30 @@ class RequestList(MyTreeView):
             status = req.get('status')
             if status == PR_PAID:
                 continue
-            is_lightning = req['type'] == PR_TYPE_LN
             request_type = req['type']
             timestamp = req.get('time', 0)
+            expiration = req.get('exp', None)
             amount = req.get('amount')
-            message = req['message'] if is_lightning else req['memo']
+            message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             status_str = get_request_status(req)
             labels = [date, message, amount_str, status_str]
+            if request_type == PR_TYPE_LN:
+                key = req['rhash']
+                icon = read_QIcon("lightning.png")
+                tooltip = 'lightning request'
+            elif request_type == PR_TYPE_ONCHAIN:
+                key = req['address']
+                icon = read_QIcon("bitcoin.png")
+                tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
+            items[self.Columns.DATE].setData(key, ROLE_KEY)
+            items[self.Columns.DATE].setIcon(icon)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            if request_type == PR_TYPE_LN:
-                items[self.Columns.DATE].setData(req['rhash'], ROLE_KEY)
-                items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
-            elif request_type == PR_TYPE_ADDRESS:
-                address = req['address']
-                if address not in domain:
-                    continue
-                expiration = req.get('exp', None)
-                signature = req.get('sig')
-                requestor = req.get('name', '')
-                items[self.Columns.DATE].setData(address, ROLE_KEY)
-                if signature is not None:
-                    items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
-                    items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
-                else:
-                    items[self.Columns.DATE].setIcon(read_QIcon("bitcoin.png"))
+            items[self.Columns.DATE].setToolTip(tooltip)
             self.model().insertRow(self.model().rowCount(), items)
         self.filter()
         # sort requests by date
@@ -177,12 +172,10 @@ class RequestList(MyTreeView):
         if column == self.Columns.AMOUNT:
             column_data = column_data.strip()
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
-        if request_type == PR_TYPE_ADDRESS:
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', key))
         if request_type == PR_TYPE_LN:
-            menu.addAction(_("Copy lightning payment request"), lambda: self.parent.do_copy('Request', req['invoice']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Lightning Request', req['invoice']))
         else:
-            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', req['URI']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Bitcoin URI', req['URI']))
         if 'view_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))

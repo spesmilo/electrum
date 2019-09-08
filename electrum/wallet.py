@@ -41,12 +41,13 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence
 
 from .i18n import _
+from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import PR_TYPE_ADDRESS, PR_TYPE_BIP70, PR_TYPE_LN
+from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -505,22 +506,47 @@ class Abstract_Wallet(AddressSynchronizer):
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
+    def create_invoice(self, outputs, message, pr, URI):
+        amount = sum(x[2] for x in outputs)
+        invoice = {
+            'type': PR_TYPE_ONCHAIN,
+            'message': message,
+            'outputs': outputs,
+            'amount': amount,
+        }
+        if pr:
+            invoice['bip70'] = pr.raw.hex()
+            invoice['time'] = pr.get_time()
+            invoice['exp'] = pr.get_expiration_date() - pr.get_time()
+            invoice['requestor'] = pr.get_requestor()
+            invoice['message'] = pr.get_memo()
+        elif URI:
+            timestamp = URI.get('time')
+            if timestamp: invoice['time'] = timestamp
+            exp = URI.get('exp')
+            if exp: invoice['exp'] = exp
+        if 'time' not in invoice:
+            invoice['time'] = int(time.time())
+        return invoice
+
     def save_invoice(self, invoice):
         invoice_type = invoice['type']
         if invoice_type == PR_TYPE_LN:
             self.lnworker.save_new_invoice(invoice['invoice'])
-        else:
-            if invoice_type == PR_TYPE_ADDRESS:
-                key = invoice['address']
-                invoice['time'] = int(time.time())
-            elif invoice_type == PR_TYPE_BIP70:
-                key = invoice['id']
-                invoice['txid'] = None
-            else:
-                raise Exception('Unsupported invoice type')
+        elif invoice_type == PR_TYPE_ONCHAIN:
+            key = bh2u(sha256(repr(invoice))[0:16])
+            invoice['id'] = key
+            invoice['txid'] = None
             self.invoices[key] = invoice
             self.storage.put('invoices', self.invoices)
             self.storage.write()
+        else:
+            raise Exception('Unsupported invoice type')
+
+    def clear_invoices(self):
+        self.invoices = {}
+        self.storage.put('invoices', self.invoices)
+        self.storage.write()
 
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
@@ -1284,7 +1310,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if not r:
             return
         out = copy.copy(r)
-        out['type'] = PR_TYPE_ADDRESS
+        out['type'] = PR_TYPE_ONCHAIN
         out['URI'] = self.get_request_URI(addr)
         status, conf = self.get_request_status(addr)
         out['status'] = status
@@ -1362,9 +1388,10 @@ class Abstract_Wallet(AddressSynchronizer):
                 self.network.trigger_callback('payment_received', self, addr, status)
 
     def make_payment_request(self, addr, amount, message, expiration):
+        from .bitcoin import TYPE_ADDRESS
         timestamp = int(time.time())
         _id = bh2u(sha256d(addr + "%d"%timestamp))[0:10]
-        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
+        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id, 'outputs': [(TYPE_ADDRESS, addr, amount)]}
         return r
 
     def sign_payment_request(self, key, alias, alias_addr, password):
