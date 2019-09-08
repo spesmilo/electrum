@@ -56,7 +56,7 @@ class TestCommands(unittest.TestCase):
         self.assertTrue(eval_bool("1"))
 
     def test_convert_xkey(self):
-        cmds = Commands(config=None, wallet=None, network=None)
+        cmds = Commands(config=None)
         xpubs = {
             ("xpub6CCWFbvCbqF92kGwm9nV7t7RvVoQUKaq5USMdyVP6jvv1NgN52KAX6NNYCeE8Ca7JQC4K5tZcnQrubQcjJ6iixfPs4pwAQJAQgTt6hBjg11", "standard"),
             ("ypub6X2mZGb7kWnct3U4bWa7KyCw6TwrQwaKzaxaRNPGUkJo4UVbKgUj9A2WZQbp87E2i3Js4ZV85SmQnt2BSzWjXCLzjQXMkK7egQXXVHT4eKn", "p2wpkh-p2sh"),
@@ -79,48 +79,48 @@ class TestCommands(unittest.TestCase):
     def test_encrypt_decrypt(self, mock_write):
         wallet = restore_wallet_from_text('p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D',
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         cleartext = "asdasd this is the message"
         pubkey = "021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da"
         ciphertext = cmds._run('encrypt', (pubkey, cleartext))
-        self.assertEqual(cleartext, cmds._run('decrypt', (pubkey, ciphertext)))
+        self.assertEqual(cleartext, cmds._run('decrypt', (pubkey, ciphertext), wallet=wallet))
 
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_export_private_key_imported(self, mock_write):
         wallet = restore_wallet_from_text('p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3',
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         # single address tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', ("asdasd",))  # invalid addr, though might raise "not in wallet"
+            cmds._run('getprivatekeys', ("asdasd",), wallet=wallet)  # invalid addr, though might raise "not in wallet"
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', ("ltc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackqwq8jp",))  # not in wallet
+            cmds._run('getprivatekeys', ("ltc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackqwq8jp",), wallet=wallet)  # not in wallet
         self.assertEqual("p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3",
-                         cmds._run('getprivatekeys', ("ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7",)))
+                         cmds._run('getprivatekeys', ("ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7",), wallet=wallet))
         # list of addresses tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', (['ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', 'asd'], ))
+            cmds._run('getprivatekeys', (['ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', 'asd'], ), wallet=wallet)
         self.assertEqual(['p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3', 'p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D'],
-                         cmds._run('getprivatekeys', (['ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', 'ltc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq7n0qjr'], )))
+                         cmds._run('getprivatekeys', (['ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', 'ltc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq7n0qjr'], ), wallet=wallet))
 
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_export_private_key_deterministic(self, mock_write):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
                                           gap_limit=2,
                                           path='if_this_exists_mocking_failed_648151893')['wallet']
-        cmds = Commands(config=None, wallet=wallet, network=None)
+        cmds = Commands(config=None)
         # single address tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', ("asdasd",))  # invalid addr, though might raise "not in wallet"
+            cmds._run('getprivatekeys', ("asdasd",), wallet=wallet)  # invalid addr, though might raise "not in wallet"
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', ("ltc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackqwq8jp",))  # not in wallet
+            cmds._run('getprivatekeys', ("ltc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackqwq8jp",), wallet=wallet)  # not in wallet
         self.assertEqual("p2wpkh:T6v5Q8KEmjLmJoTxPfXfyNcCEFYC7Lfmwmp9Y8dce9knevo9ZkPk",
-                         cmds._run('getprivatekeys', ("ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e",)))
+                         cmds._run('getprivatekeys', ("ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e",), wallet=wallet))
         # list of addresses tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', (['ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e', 'asd'],))
+            cmds._run('getprivatekeys', (['ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e', 'asd'],), wallet=wallet)
         self.assertEqual(['p2wpkh:T6v5Q8KEmjLmJoTxPfXfyNcCEFYC7Lfmwmp9Y8dce9knevo9ZkPk', 'p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D'],
-                         cmds._run('getprivatekeys', (['ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e', 'ltc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq7n0qjr'], )))
+                         cmds._run('getprivatekeys', (['ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e', 'ltc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq7n0qjr'], ), wallet=wallet))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):
@@ -135,7 +135,7 @@ class TestCommandsTestnet(TestCaseForTestnet):
         self._loop_thread.join(timeout=1)
 
     def test_convert_xkey(self):
-        cmds = Commands(config=None, wallet=None, network=None)
+        cmds = Commands(config=None)
         xpubs = {
             ("tpubD8p5qNfjczgTGbh9qgNxsbFgyhv8GgfVkmp3L88qtRm5ibUYiDVCrn6WYfnGey5XVVw6Bc5QNQUZW5B4jFQsHjmaenvkFUgWtKtgj5AdPm9", "standard"),
             ("upub59wfQ8qJTg6ZSuvwtR313Qdp8gP8TSBwTof5dPQ3QVsYp1N9t29Rr9TGF1pj8kAXUg3mKbmrTKasA2qmBJKb1bGUzB6ApDZpVC7LoHhyvBo", "p2wpkh-p2sh"),

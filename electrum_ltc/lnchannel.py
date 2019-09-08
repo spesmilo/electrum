@@ -31,7 +31,7 @@ from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Itera
 import time
 
 from . import ecc
-from .util import bfh, bh2u
+from .util import bfh, bh2u, PR_PAID, PR_FAILED
 from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
@@ -45,7 +45,8 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc,
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
-                    ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script)
+                    ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
+                    ShortChannelID, map_htlcs_to_ctx_output_idxs)
 from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc
@@ -130,7 +131,7 @@ class Channel(Logger):
         self.constraints = ChannelConstraints(**state["constraints"]) if type(state["constraints"]) is not ChannelConstraints else state["constraints"]
         self.funding_outpoint = Outpoint(**dict(decodeAll(state["funding_outpoint"], False))) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
         self.node_id = bfh(state["node_id"]) if type(state["node_id"]) not in (bytes, type(None)) else state["node_id"]  # type: bytes
-        self.short_channel_id = bfh(state["short_channel_id"]) if type(state["short_channel_id"]) not in (bytes, type(None)) else state["short_channel_id"]
+        self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
         self.force_closed = state.get('force_closed')
@@ -165,8 +166,11 @@ class Channel(Logger):
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
                 if htlc_id in log.get('fails',{}):
-                    continue
-                status = 'settled' if htlc_id in log.get('settles',{}) else 'inflight'
+                    status = 'failed'
+                elif htlc_id in log.get('settles',{}):
+                    status = 'settled'
+                else:
+                    status = 'inflight'
                 direction = SENT if subject is LOCAL else RECEIVED
                 rhash = bh2u(htlc.payment_hash)
                 out[rhash] = (self.channel_id, htlc, direction, status)
@@ -287,24 +291,23 @@ class Channel(Logger):
             self.config[REMOTE].next_per_commitment_point)
         their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
 
-        for_us = False
-
         htlcsigs = []
-        # they sent => we receive
-        for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, SENT, ctn=next_remote_ctn),
-                                                     self.included_htlcs(REMOTE, RECEIVED, ctn=next_remote_ctn)]):
-            for htlc in htlcs:
-                _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
+        htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(chan=self,
+                                                                  ctx=pending_remote_commitment,
                                                                   pcp=self.config[REMOTE].next_per_commitment_point,
-                                                                  for_us=for_us,
-                                                                  we_receive=we_receive,
-                                                                  commit=pending_remote_commitment,
-                                                                  htlc=htlc)
-                sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-                htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
-                htlc_output_idx = htlc_tx.inputs()[0]['prevout_n']
-                htlcsigs.append((htlc_output_idx, htlc_sig))
-
+                                                                  subject=REMOTE,
+                                                                  ctn=next_remote_ctn)
+        for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+            _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
+                                                              pcp=self.config[REMOTE].next_per_commitment_point,
+                                                              subject=REMOTE,
+                                                              htlc_direction=direction,
+                                                              commit=pending_remote_commitment,
+                                                              ctx_output_idx=ctx_output_idx,
+                                                              htlc=htlc)
+            sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
+            htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
+            htlcsigs.append((ctx_output_idx, htlc_sig))
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
 
@@ -325,8 +328,9 @@ class Channel(Logger):
 
         This docstring is from LND.
         """
+        # TODO in many failure cases below, we should "fail" the channel (force-close)
         next_local_ctn = self.get_next_ctn(LOCAL)
-        self.logger.info("receive_new_commitment")
+        self.logger.info(f"receive_new_commitment. ctn={next_local_ctn}, len(htlc_sigs)={len(htlc_sigs)}")
 
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
@@ -338,45 +342,48 @@ class Channel(Logger):
 
         htlc_sigs_string = b''.join(htlc_sigs)
 
-        htlc_sigs = htlc_sigs[:] # copy cause we will delete now
-        for htlcs, we_receive in [(self.included_htlcs(LOCAL, SENT, ctn=next_local_ctn), False),
-                                  (self.included_htlcs(LOCAL, RECEIVED, ctn=next_local_ctn), True)]:
-            # FIXME this is quadratic. BOLT-02: "corresponding to the ordering of the commitment transaction"
-            for htlc in htlcs:
-                idx = self.verify_htlc(htlc, htlc_sigs, we_receive, pending_local_commitment)
-                del htlc_sigs[idx]
-        if len(htlc_sigs) != 0: # all sigs should have been popped above
-            raise Exception('failed verifying HTLC signatures: invalid amount of correct signatures')
+        _secret, pcp = self.get_secret_and_point(subject=LOCAL, ctn=next_local_ctn)
+
+        htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(chan=self,
+                                                                  ctx=pending_local_commitment,
+                                                                  pcp=pcp,
+                                                                  subject=LOCAL,
+                                                                  ctn=next_local_ctn)
+        if len(htlc_to_ctx_output_idx_map) != len(htlc_sigs):
+            raise Exception(f'htlc sigs failure. recv {len(htlc_sigs)} sigs, expected {len(htlc_to_ctx_output_idx_map)}')
+        for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+            htlc_sig = htlc_sigs[htlc_relative_idx]
+            self.verify_htlc(htlc=htlc,
+                             htlc_sig=htlc_sig,
+                             htlc_direction=direction,
+                             pcp=pcp,
+                             ctx=pending_local_commitment,
+                             ctx_output_idx=ctx_output_idx)
 
         self.hm.recv_ctx()
         self.config[LOCAL]=self.config[LOCAL]._replace(
             current_commitment_signature=sig,
             current_htlc_signatures=htlc_sigs_string)
 
-    def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool, ctx) -> int:
-        ctn = extract_ctn_from_tx_and_chan(ctx, self)
-        secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
-        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
-
+    def verify_htlc(self, *, htlc: UpdateAddHtlc, htlc_sig: bytes, htlc_direction: Direction,
+                    pcp: bytes, ctx: Transaction, ctx_output_idx: int) -> None:
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
-                                                          pcp=point,
-                                                          for_us=True,
-                                                          we_receive=we_receive,
+                                                          pcp=pcp,
+                                                          subject=LOCAL,
+                                                          htlc_direction=htlc_direction,
                                                           commit=ctx,
+                                                          ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
         pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
-        remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, point)
-        for idx, sig in enumerate(htlc_sigs):
-            if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
-                return idx
-        else:
-            raise Exception(f'failed verifying HTLC signatures: {htlc}, sigs: {len(htlc_sigs)}, we_receive: {we_receive}')
+        remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
+        if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
+            raise Exception(f'failed verifying HTLC signatures: {htlc} {htlc_direction}')
 
-    def get_remote_htlc_sig_for_htlc(self, htlc: UpdateAddHtlc, we_receive: bool, ctx) -> bytes:
+    def get_remote_htlc_sig_for_htlc(self, *, htlc_relative_idx: int) -> bytes:
         data = self.config[LOCAL].current_htlc_signatures
         htlc_sigs = [data[i:i + 64] for i in range(0, len(data), 64)]
-        idx = self.verify_htlc(htlc, htlc_sigs, we_receive=we_receive, ctx=ctx)
-        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sigs[idx]) + b'\x01'
+        htlc_sig = htlc_sigs[htlc_relative_idx]
+        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sig) + b'\x01'
         return remote_htlc_sig
 
     def revoke_current_commitment(self):
@@ -487,10 +494,10 @@ class Channel(Logger):
         else:
             weight = HTLC_TIMEOUT_WEIGHT
         htlcs = self.hm.htlcs_by_direction(subject, direction, ctn=ctn).values()
-        fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
-        return list(filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs))
+        htlc_value_after_fees = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
+        return list(filter(lambda htlc: htlc_value_after_fees(htlc) >= conf.dust_limit_sat, htlcs))
 
-    def get_secret_and_point(self, subject, ctn) -> Tuple[Optional[bytes], bytes]:
+    def get_secret_and_point(self, subject: HTLCOwner, ctn: int) -> Tuple[Optional[bytes], bytes]:
         assert type(subject) is HTLCOwner
         assert ctn >= 0, ctn
         offset = ctn - self.get_oldest_unrevoked_ctn(subject)
@@ -533,7 +540,7 @@ class Channel(Logger):
         ctn = self.get_oldest_unrevoked_ctn(subject)
         return self.get_commitment(subject, ctn)
 
-    def create_sweeptxs(self, ctn):
+    def create_sweeptxs(self, ctn: int) -> List[Transaction]:
         from .lnsweep import create_sweeptxs_for_watchtower
         secret, ctx = self.get_secret_and_commitment(REMOTE, ctn)
         return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
@@ -563,7 +570,7 @@ class Channel(Logger):
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
         if self.lnworker:
-            self.lnworker.set_paid(htlc.payment_hash)
+            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.logger.info("receive_htlc_settle")
@@ -574,7 +581,7 @@ class Channel(Logger):
         self.hm.recv_settle(htlc_id)
         if self.lnworker:
             self.lnworker.save_preimage(htlc.payment_hash, preimage)
-            self.lnworker.set_paid(htlc.payment_hash)
+            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def fail_htlc(self, htlc_id):
         self.logger.info("fail_htlc")
@@ -750,9 +757,8 @@ class Channel(Logger):
     def sweep_ctx(self, ctx: Transaction):
         txid = ctx.txid()
         if self.sweep_info.get(txid) is None:
-            ctn = extract_ctn_from_tx_and_chan(ctx, self)
-            our_sweep_info = create_sweeptxs_for_our_ctx(self, ctx, ctn, self.sweep_address)
-            their_sweep_info = create_sweeptxs_for_their_ctx(self, ctx, ctn, self.sweep_address)
+            our_sweep_info = create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+            their_sweep_info = create_sweeptxs_for_their_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
             if our_sweep_info is not None:
                 self.sweep_info[txid] = our_sweep_info
                 self.logger.info(f'we force closed.')

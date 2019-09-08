@@ -23,7 +23,9 @@ source.exclude_dirs = bin, build, dist, contrib,
     electrum_ltc/tests,
     electrum_ltc/gui/qt,
     electrum_ltc/gui/kivy/tools,
-    electrum_ltc/gui/kivy/theming/light
+    electrum_ltc/gui/kivy/theming/light,
+    # exclude pycryptodomex built by make_packages; android needs custom version
+    packages_ltc/cryptodome
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -40,7 +42,8 @@ requirements =
     android,
     openssl,
     plyer,
-    kivy==82d561d62577757d478df52173610f925c05ecab,
+    # kivy 1.11.1
+    kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
     libsecp256k1,
     pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
@@ -88,7 +91,7 @@ android.ndk_path = /opt/android/android-ndk
 android.sdk_path = /opt/android/android-sdk
 
 # (str) ANT directory (if empty, it will be automatically downloaded.)
-#android.ant_path =
+android.ant_path = /opt/android/apache-ant
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity
@@ -133,6 +136,7 @@ android.manifest.launch_mode = singleTask
 #android.wakelock = False
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+# note: can be overwritten by APP_ANDROID_ARCH env var
 android.arch = armeabi-v7a
 
 # (list) Android application meta-data to set (key=value format)

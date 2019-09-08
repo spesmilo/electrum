@@ -15,7 +15,6 @@ class TestLightning(unittest.TestCase):
         assert process.returncode == 0
 
     def setUp(self):
-        self.run_shell(['stop'])
         self.run_shell(['init'])
         self.run_shell(['start'])
 

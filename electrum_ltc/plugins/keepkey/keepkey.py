@@ -407,7 +407,7 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return inputs
 
-    def tx_outputs(self, derivation, tx):
+    def tx_outputs(self, derivation, tx: Transaction):
 
         def create_output_by_derivation():
             script_type = self.get_keepkey_output_script_type(info.script_type)
@@ -454,10 +454,9 @@ class KeepKeyPlugin(HW_PluginBase):
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
-                on_change_branch = index[0] == 1
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
-                if on_change_branch == any_output_on_change_branch:
+                if info.is_change == any_output_on_change_branch:
                     use_create_by_derivation = True
                     has_change = True
 

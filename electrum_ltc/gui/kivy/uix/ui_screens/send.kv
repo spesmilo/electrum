@@ -1,10 +1,66 @@
 #:import _ electrum_ltc.gui.kivy.i18n._
-#:import Destination electrum_ltc.gui.kivy.uix.screens.Destination
+#:import Factory kivy.factory.Factory
+#:import PR_TYPE_ADDRESS electrum_ltc.util.PR_TYPE_ADDRESS
+#:import PR_TYPE_LN electrum_ltc.util.PR_TYPE_LN
+#:import PR_TYPE_BIP70 electrum_ltc.util.PR_TYPE_BIP70
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
 #:set font_light 'electrum_ltc/gui/kivy/data/fonts/Roboto-Condensed.ttf'
 
+<PaymentLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<PaymentItem@CardItem>
+    key: ''
+    memo: ''
+    amount: ''
+    status: ''
+    date: ''
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        PaymentLabel:
+            text: root.memo
+            shorten: True
+            shorten_from: 'right'
+        Widget
+        PaymentLabel:
+            text: root.key
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        PaymentLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        PaymentLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: .699, .699, .699, 1
+        Widget
+
+<PaymentRecycleView>:
+    viewclass: 'PaymentItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
 
 SendScreen:
     id: s
@@ -12,7 +68,7 @@ SendScreen:
     address: ''
     amount: ''
     message: ''
-    destinationtype: Destination.Address
+    destinationtype: PR_TYPE_ADDRESS
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -26,7 +82,7 @@ SendScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum_ltc/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrum_ltc/gui/kivy/theming/light/globe' if root.destinationtype != PR_TYPE_LN else 'atlas://electrum_ltc/gui/kivy/theming/light/lightning'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -37,7 +93,7 @@ SendScreen:
                     on_release: Clock.schedule_once(lambda dt: app.show_info(_('Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code.')))
                     #on_release: Clock.schedule_once(lambda dt: app.popup_dialog('contacts'))
             CardSeparator:
-                opacity: int(root.destinationtype == Destination.Address)
+                opacity: int(root.destinationtype == PR_TYPE_ADDRESS)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
@@ -53,10 +109,10 @@ SendScreen:
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    disabled: root.destinationtype == Destination.PR or root.destinationtype == Destination.LN and not s.amount
+                    disabled: root.destinationtype == PR_TYPE_BIP70 or root.destinationtype == PR_TYPE_LN and not s.amount
                     on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
             CardSeparator:
-                opacity: int(root.destinationtype == Destination.Address)
+                opacity: int(root.destinationtype == PR_TYPE_ADDRESS)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 id: message_selection
@@ -70,37 +126,40 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: description
-                    text: s.message if s.message else ({Destination.LN: _('No description'), Destination.Address: _('Description'), Destination.PR: _('No Description')}[root.destinationtype])
-                    disabled: root.destinationtype != Destination.Address
+                    text: s.message if s.message else ({PR_TYPE_LN: _('No description'), PR_TYPE_ADDRESS: _('Description'), PR_TYPE_BIP70: _('No Description')}[root.destinationtype])
+                    disabled: root.destinationtype != PR_TYPE_ADDRESS
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
             CardSeparator:
-                opacity: int(root.destinationtype == Destination.Address)
+                opacity: int(root.destinationtype == PR_TYPE_ADDRESS)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
-                height: blue_bottom.item_height if root.destinationtype != Destination.LN else 0
+                height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
                     source: 'atlas://electrum_ltc/gui/kivy/theming/light/star_big_inactive'
-                    opacity: 0.7 if root.destinationtype != Destination.LN else 0
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: fee_e
                     default_text: _('Fee')
-                    text: app.fee_status if root.destinationtype != Destination.LN else ''
-                    on_release: Clock.schedule_once(lambda dt: app.fee_dialog(s, True)) if root.destinationtype != Destination.LN else None
+                    text: app.fee_status if root.destinationtype != PR_TYPE_LN else ''
+                    on_release: Clock.schedule_once(lambda dt: app.fee_dialog(s, True)) if root.destinationtype != PR_TYPE_LN else None
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
+            IconButton:
+                size_hint: 0.5, 1
+                on_release: s.parent.do_save()
+                icon: 'atlas://electrum_ltc/gui/kivy/theming/light/save'
             IconButton:
                 size_hint: 0.5, 1
                 icon: 'atlas://electrum_ltc/gui/kivy/theming/light/copy'
                 on_release: s.parent.do_paste()
             IconButton:
                 id: qr
-                size_hint: 0.5, 1
+                size_hint: 1, 1
                 on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
                 icon: 'atlas://electrum_ltc/gui/kivy/theming/light/camera'
             Button:
@@ -110,19 +169,10 @@ SendScreen:
             Button:
                 text: _('Pay')
                 size_hint: 1, 1
-                on_release: s.parent.do_send()
+                on_release: s.parent.do_pay()
         Widget:
-            size_hint: 1, 1
-        #BoxLayout:
-        #    size_hint: 1, None
-        #    height: '48dp'
-            #IconButton:
-            #    size_hint: 0.5, 1
-            #    on_release: s.parent.do_save()
-            #    icon: 'atlas://electrum_ltc/gui/kivy/theming/light/save'
-            #IconButton:
-            #    size_hint: 0.5, 1
-            #    icon: 'atlas://electrum_ltc/gui/kivy/theming/light/list'
-            #    on_release: Clock.schedule_once(lambda dt: app.invoices_dialog(s))
-            #Widget:
-            #    size_hint: 2.5, 1
+            size_hint: 1, 0.1
+        PaymentRecycleView:
+            id: payments_container
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'

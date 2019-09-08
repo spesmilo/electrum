@@ -11,11 +11,10 @@ import asyncio
 from electrum_ltc.bitcoin import TYPE_ADDRESS
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.wallet import Wallet, InternalAddressCorruption
-from electrum_ltc.paymentrequest import InvoiceStore
 from electrum_ltc.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_fee_satoshis
-from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum_ltc.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc import blockchain
 from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed
 from .i18n import _
@@ -201,6 +200,19 @@ class ElectrumWindow(App):
         if status == PR_PAID:
             self.show_info(_('Payment Received') + '\n' + key)
 
+    def on_payment_status(self, event, key, status, *args):
+        self.update_tab('send')
+        if status == 'success':
+            self.show_info(_('Payment was sent'))
+            self._trigger_update_history()
+        elif status == 'progress':
+            pass
+        elif status == 'failure':
+            self.show_info(_('Payment failed'))
+        elif status == 'error':
+            e = args[0]
+            self.show_error(_('Error') + '\n' + str(e))
+
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
@@ -343,19 +355,16 @@ class ElectrumWindow(App):
             self.show_error(_('No wallet loaded.'))
             return
         if pr.verify(self.wallet.contacts):
-            key = self.wallet.invoices.add(pr)
-            if self.invoices_screen:
-                self.invoices_screen.update()
-            status = self.wallet.invoices.get_status(key)
-            if status == PR_PAID:
+            key = pr.get_id()
+            invoice = self.wallet.get_invoice(key)
+            if invoice and invoice['status'] == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()
+            elif pr.has_expired():
+                self.show_error(_('Payment request has expired'))
             else:
-                if pr.has_expired():
-                    self.show_error(_('Payment request has expired'))
-                else:
-                    self.switch_to('send')
-                    self.send_screen.set_request(pr)
+                self.switch_to('send')
+                self.send_screen.set_request(pr)
         else:
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
@@ -417,6 +426,19 @@ class ElectrumWindow(App):
         self.request_popup = RequestDialog('Request', request, key)
         self.request_popup.set_status(status)
         self.request_popup.open()
+
+    def show_invoice(self, is_lightning, key):
+        from .uix.dialogs.invoice_dialog import InvoiceDialog
+        invoice = self.wallet.get_invoice(key)
+        if not invoice:
+            return
+        status = invoice['status']
+        if is_lightning:
+            data = invoice['invoice']
+        else:
+            data = key
+        self.invoice_popup = InvoiceDialog('Invoice', data, key)
+        self.invoice_popup.open()
 
     def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
         from .uix.dialogs.qr_dialog import QRDialog
@@ -517,6 +539,9 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
             self.network.register_callback(self.on_payment_received, ['payment_received'])
+            self.network.register_callback(self.on_channels, ['channels'])
+            self.network.register_callback(self.on_channel, ['channel'])
+            self.network.register_callback(self.on_payment_status, ['payment_status'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path())
         # URI passed in config
@@ -636,6 +661,14 @@ class ElectrumWindow(App):
         if self._channels_dialog is None:
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
+
+    def on_channel(self, evt, chan):
+        if self._channels_dialog:
+            Clock.schedule_once(lambda dt: self._channels_dialog.update())
+
+    def on_channels(self, evt):
+        if self._channels_dialog:
+            Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
     def popup_dialog(self, name):
         if name == 'settings':

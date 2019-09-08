@@ -26,7 +26,7 @@ after_success:
     - coveralls
 jobs:
   include:
-    - name: "Regtest"
+    - name: "Regtest functional tests"
       before_install:
         - sudo add-apt-repository -y ppa:litecoin-project/litecoin
         - sudo apt-get -qq update
@@ -40,8 +40,12 @@ jobs:
       script:
         - python -m unittest electrum_ltc/tests/regtest.py
       after_success: True
-    - if: branch = master  # don't build binaries on lightning branch
-      stage: binary builds
+    - name: "Flake8 linter tests"
+      language: python
+      install: pip install flake8
+      script: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    - stage: binary builds
+      if: branch = master
       name: "Windows build"
       language: c
       python: false
@@ -54,7 +58,7 @@ jobs:
       script:
         - sudo docker run --name electrum-ltc-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-ltc --rm --workdir /opt/wine64/drive_c/electrum-ltc/contrib/build-wine electrum-ltc-wine-builder-img ./build.sh
       after_success: true
-    - if: branch = master  # don't build binaries on lightning branch
+    - if: branch = master
       name: "Android build"
       language: python
       python: 3.7
@@ -68,13 +72,13 @@ jobs:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
         - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
-    - if: branch = master  # don't build binaries on lightning branch
+    - if: branch = master
       name: "MacOS build"
       os: osx
       language: c
@@ -86,7 +90,7 @@ jobs:
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
-    - if: branch = master  # don't build binaries on lightning branch
+    - if: branch = master
       name: "AppImage build"
       language: c
       python: false
@@ -97,10 +101,6 @@ jobs:
       script:
         - sudo docker run --name electrum-ltc-appimage-builder-cont -v $PWD:/opt/electrum-ltc --rm --workdir /opt/electrum-ltc/contrib/build-linux/appimage electrum-ltc-appimage-builder-img ./build.sh
       after_success: true
-    - name: "Flake8 tests"
-      language: python
-      install: pip install flake8
-      script: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     - stage: release check
       install:
           - git fetch --all --tags

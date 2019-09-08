@@ -106,29 +106,6 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_daemon(config_options):
-    config = SimpleConfig(config_options)
-    storage = WalletStorage(config.get_wallet_path())
-    if not storage.file_exists():
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
-    if storage.is_encrypted():
-        if storage.is_encrypted_with_hw_device():
-            plugins = init_plugins(config, 'cmdline')
-            password = get_password_for_hw_device_encrypted_storage(plugins)
-        elif config.get('password'):
-            password = config.get('password')
-        else:
-            password = prompt_password('Password:', False)
-            if not password:
-                print_msg("Error: Password required")
-                sys.exit(1)
-    else:
-        password = None
-    config_options['password'] = password
-
-
 def init_cmdline(config_options, server):
     config = SimpleConfig(config_options)
     cmdname = config.get('cmd')
@@ -150,7 +127,7 @@ def init_cmdline(config_options, server):
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
+        sys_exit(1)
 
     # important warning
     if cmd.name in ['getprivatekeys']:
@@ -171,7 +148,7 @@ def init_cmdline(config_options, server):
             password = prompt_password('Password:', False)
             if not password:
                 print_msg("Error: Password required")
-                sys.exit(1)
+                sys_exit(1)
     else:
         password = None
 
@@ -226,6 +203,8 @@ async def run_offline_command(config, config_options, plugins):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
+    if 'wallet_path' in cmd.options and config_options.get('wallet_path') is None:
+        config_options['wallet_path'] = config.get_wallet_path()
     if cmd.requires_wallet:
         storage = WalletStorage(config.get_wallet_path())
         if storage.is_encrypted():
@@ -234,6 +213,7 @@ async def run_offline_command(config, config_options, plugins):
                 config_options['password'] = password
             storage.decrypt(password)
         wallet = Wallet(storage)
+        config_options['wallet'] = wallet
     else:
         wallet = None
     # check password
@@ -253,8 +233,8 @@ async def run_offline_command(config, config_options, plugins):
     # options
     kwargs = {}
     for x in cmd.options:
-        kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
-    cmd_runner = Commands(config, wallet, None)
+        kwargs[x] = (config_options.get(x) if x in ['wallet_path', 'wallet', 'password', 'new_password'] else config.get(x))
+    cmd_runner = Commands(config=config)
     func = getattr(cmd_runner, cmd.name)
     result = await func(*args, **kwargs)
     # save wallet
@@ -349,9 +329,6 @@ if __name__ == '__main__':
     # todo: defer this to gui
     config = SimpleConfig(config_options)
 
-    cmdname = config.get('cmd')
-    subcommand = config.get('subcommand')
-
     if config.get('testnet'):
         constants.set_testnet()
     elif config.get('regtest'):
@@ -359,9 +336,17 @@ if __name__ == '__main__':
     elif config.get('simnet'):
         constants.set_simnet()
     elif config.get('lightning') and not config.get('reckless'):
-        raise Exception('lightning branch not available on mainnet')
+        raise Exception('lightning option not available on mainnet')
 
-    if cmdname == 'daemon' and subcommand == 'start':
+    if config.get('lightning'):
+        from electrum_ltc.ecc_fast import is_using_fast_ecc
+        if not is_using_fast_ecc():
+            raise Exception('libsecp256k1 library not available. '
+                            'Verifying Lightning channels is too computationally expensive without libsecp256k1, aborting.')
+
+    cmdname = config.get('cmd')
+
+    if cmdname == 'daemon' and config.get("detach"):
         # fork before creating the asyncio event loop
         pid = os.fork()
         if pid:
@@ -393,53 +378,47 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
 
-        if subcommand in [None, 'start']:
-            configure_logging(config)
-            fd = daemon.get_file_descriptor(config)
-            if fd is not None:
-                # run daemon
-                init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd)
-                if config.get('websocket_server'):
-                    from electrum_ltc import websockets
-                    websockets.WebSocketServer(config, d.network)
-                if config.get('requests_dir'):
-                    path = os.path.join(config.get('requests_dir'), 'index.html')
-                    if not os.path.exists(path):
-                        print("Requests directory not configured.")
-                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                        sys_exit(1)
-                d.run_daemon()
-                sys_exit(0)
-            else:
-                result = daemon.request(config, 'daemon', (config_options,))
+        configure_logging(config)
+        fd = daemon.get_file_descriptor(config)
+        if fd is not None:
+            # run daemon
+            init_plugins(config, 'cmdline')
+            d = daemon.Daemon(config, fd)
+            d.run_daemon()
+            sys_exit(0)
         else:
-            try:
-                result = daemon.request(config, 'daemon', (config_options,))
-            except daemon.DaemonNotRunning:
-                print_msg("Daemon not running")
-                sys_exit(1)
+            print_msg("Daemon already running")
+            sys_exit(1)
     else:
         # command line
-        try:
+        cmd = known_commands[cmdname]
+        if not config.get('offline'):
             init_cmdline(config_options, True)
             timeout = config_options.get('timeout', 60)
             if timeout: timeout = int(timeout)
-            result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
-        except daemon.DaemonNotRunning:
-            cmd = known_commands[cmdname]
-            if cmd.requires_network:
-                print_msg("Daemon not running; try 'electrum-ltc daemon start'")
+            try:
+                result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
+            except daemon.DaemonNotRunning:
+                print_msg("Daemon not running; try 'electrum-ltc daemon -d'")
+                if not cmd.requires_network:
+                    print_msg("To run this command without a daemon, use --offline")
                 sys_exit(1)
-            else:
-                init_cmdline(config_options, False)
-                plugins = init_plugins(config, 'cmdline')
-                coro = run_offline_command(config, config_options, plugins)
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                result = fut.result(10)
-        except Exception as e:
-            print_stderr(e)
-            sys_exit(1)
+            except Exception as e:
+                print_stderr(str(e) or repr(e))
+                sys_exit(1)
+        else:
+            if cmd.requires_network:
+                print_msg("This command cannot be run offline")
+                sys_exit(1)
+            init_cmdline(config_options, False)
+            plugins = init_plugins(config, 'cmdline')
+            coro = run_offline_command(config, config_options, plugins)
+            fut = asyncio.run_coroutine_threadsafe(coro, loop)
+            try:
+                result = fut.result()
+            except Exception as e:
+                print_stderr(str(e) or repr(e))
+                sys_exit(1)
     if isinstance(result, str):
         print_msg(result)
     elif type(result) is dict and result.get('error'):

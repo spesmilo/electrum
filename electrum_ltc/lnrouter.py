@@ -29,7 +29,7 @@ from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECK
 
 from .util import bh2u, profiler
 from .logging import Logger
-from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH
+from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID
 from .channel_db import ChannelDB, Policy
 
 if TYPE_CHECKING:
@@ -38,7 +38,8 @@ if TYPE_CHECKING:
 
 class NoChannelPolicy(Exception):
     def __init__(self, short_channel_id: bytes):
-        super().__init__(f'cannot find channel policy for short_channel_id: {bh2u(short_channel_id)}')
+        short_channel_id = ShortChannelID.normalize(short_channel_id)
+        super().__init__(f'cannot find channel policy for short_channel_id: {short_channel_id}')
 
 
 def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_proportional_millionths: int) -> int:
@@ -46,12 +47,13 @@ def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_propor
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
 
 
-class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
-                                         ('short_channel_id', bytes),
-                                         ('fee_base_msat', int),
-                                         ('fee_proportional_millionths', int),
-                                         ('cltv_expiry_delta', int)])):
+class RouteEdge(NamedTuple):
     """if you travel through short_channel_id, you will reach node_id"""
+    node_id: bytes
+    short_channel_id: ShortChannelID
+    fee_base_msat: int
+    fee_proportional_millionths: int
+    cltv_expiry_delta: int
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
@@ -61,10 +63,10 @@ class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
     @classmethod
     def from_channel_policy(cls, channel_policy: 'Policy',
                             short_channel_id: bytes, end_node: bytes) -> 'RouteEdge':
-        assert type(short_channel_id) is bytes
+        assert isinstance(short_channel_id, bytes)
         assert type(end_node) is bytes
         return RouteEdge(end_node,
-                         short_channel_id,
+                         ShortChannelID.normalize(short_channel_id),
                          channel_policy.fee_base_msat,
                          channel_policy.fee_proportional_millionths,
                          channel_policy.cltv_expiry_delta)
@@ -119,8 +121,8 @@ class LNPathFinder(Logger):
         self.channel_db = channel_db
         self.blacklist = set()
 
-    def add_to_blacklist(self, short_channel_id):
-        self.logger.info(f'blacklisting channel {bh2u(short_channel_id)}')
+    def add_to_blacklist(self, short_channel_id: ShortChannelID):
+        self.logger.info(f'blacklisting channel {short_channel_id}')
         self.blacklist.add(short_channel_id)
 
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
@@ -173,7 +175,7 @@ class LNPathFinder(Logger):
         if my_channels is None: my_channels = []
         my_channels = {chan.short_channel_id: chan for chan in my_channels}
 
-        # FIXME paths cannot be longer than 21 edges (onion packet)...
+        # FIXME paths cannot be longer than 20 edges (onion packet)...
 
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
@@ -218,7 +220,7 @@ class LNPathFinder(Logger):
                 # so there are duplicates in the queue, that we discard now:
                 continue
             for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode):
-                assert type(edge_channel_id) is bytes
+                assert isinstance(edge_channel_id, bytes)
                 if edge_channel_id in self.blacklist:
                     continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
@@ -237,7 +239,7 @@ class LNPathFinder(Logger):
         return path
 
     def create_route_from_path(self, path, from_node_id: bytes) -> List[RouteEdge]:
-        assert type(from_node_id) is bytes
+        assert isinstance(from_node_id, bytes)
         if path is None:
             raise Exception('cannot create route from None path')
         route = []

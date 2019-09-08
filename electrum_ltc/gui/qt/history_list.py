@@ -196,9 +196,9 @@ class HistoryModel(QAbstractItemModel, Logger):
             elif col != HistoryColumns.STATUS and role == Qt.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
-            elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
-                    and self.parent.wallet.invoices.paid.get(tx_hash):
-                return QVariant(read_QIcon("seal"))
+            #elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
+            #        and self.parent.wallet.invoices.paid.get(tx_hash):
+            #    return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
                     and role == Qt.ForegroundRole and not is_lightning and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
@@ -248,6 +248,7 @@ class HistoryModel(QAbstractItemModel, Logger):
         tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(row, 2)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
+        self.parent.utxo_list.update()
 
     def get_domain(self):
         '''Overridden in address_dialog.py'''
@@ -601,7 +602,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         height = self.wallet.get_tx_height(tx_hash).height
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
-        pr_key = self.wallet.invoices.paid.get(tx_hash)
+        #pr_key = self.wallet.invoices.paid.get(tx_hash)
         menu = QMenu()
         if height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL]:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
@@ -628,8 +629,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-        if pr_key:
-            menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
+        #if pr_key:
+        #    menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))

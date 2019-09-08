@@ -71,7 +71,7 @@ Builder.load_string('''
                 icon: 'atlas://electrum_ltc/gui/kivy/theming/light/camera'
                 size_hint: 0.5, None
                 height: '48dp'
-                on_release: app.scan_qr(on_complete=s.on_pubkey)
+                on_release: app.scan_qr(on_complete=s.on_qr)
             Button:
                 text: _('Suggest')
                 size_hint: 1, None
@@ -121,6 +121,9 @@ class LightningOpenChannelDialog(Factory.Popup):
             self.app.show_info(_("Clipboard is empty"))
             return
         self.pubkey = contents
+
+    def on_qr(self, conn_str):
+        self.pubkey = conn_str
 
     def open_channel(self):
         if not self.pubkey or not self.amount:

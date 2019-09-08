@@ -31,6 +31,7 @@ from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import format_time, age, get_request_status
+from electrum_ltc.util import PR_TYPE_ADDRESS, PR_TYPE_LN, PR_TYPE_BIP70
 from electrum_ltc.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
 from electrum_ltc.lnutil import SENT, RECEIVED
 from electrum_ltc.plugin import run_hook
@@ -39,13 +40,11 @@ from electrum_ltc.bitcoin import COIN
 from electrum_ltc.lnaddr import lndecode
 import electrum_ltc.constants as constants
 
-from .util import MyTreeView, pr_icons, read_QIcon
+from .util import MyTreeView, pr_icons, read_QIcon, webopen
 
-REQUEST_TYPE_BITCOIN = 0
-REQUEST_TYPE_LN = 1
 
 ROLE_REQUEST_TYPE = Qt.UserRole
-ROLE_RHASH_OR_ADDR = Qt.UserRole + 1
+ROLE_KEY = Qt.UserRole + 1
 
 class RequestList(MyTreeView):
 
@@ -75,7 +74,7 @@ class RequestList(MyTreeView):
     def select_key(self, key):
         for i in range(self.model().rowCount()):
             item = self.model().index(i, self.Columns.DATE)
-            row_key = item.data(ROLE_RHASH_OR_ADDR)
+            row_key = item.data(ROLE_KEY)
             if key == row_key:
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
@@ -84,12 +83,12 @@ class RequestList(MyTreeView):
         # TODO use siblingAtColumn when min Qt version is >=5.11
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
-        key = item.data(ROLE_RHASH_OR_ADDR)
-        is_lightning = request_type == REQUEST_TYPE_LN
-        req = self.wallet.get_request(key, is_lightning)
+        key = item.data(ROLE_KEY)
+        req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
+        is_lightning = request_type == PR_TYPE_LN
         text = req.get('invoice') if is_lightning else req.get('URI')
         self.parent.receive_address_e.setText(text)
 
@@ -100,13 +99,14 @@ class RequestList(MyTreeView):
             date_idx = idx.sibling(idx.row(), self.Columns.DATE)
             date_item = m.itemFromIndex(date_idx)
             status_item = m.itemFromIndex(idx)
-            key = date_item.data(ROLE_RHASH_OR_ADDR)
-            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN
-            req = self.wallet.get_request(key, is_lightning)
+            key = date_item.data(ROLE_KEY)
+            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == PR_TYPE_LN
+            req = self.wallet.get_request(key)
             if req:
+                status = req['status']
                 status_str = get_request_status(req)
                 status_item.setText(status_str)
-                status_item.setIcon(read_QIcon(pr_icons.get(req['status'])))
+                status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
         self.wallet = self.parent.wallet
@@ -118,10 +118,11 @@ class RequestList(MyTreeView):
             status = req.get('status')
             if status == PR_PAID:
                 continue
-            request_type = REQUEST_TYPE_LN if req.get('lightning', False) else REQUEST_TYPE_BITCOIN
+            is_lightning = req['type'] == PR_TYPE_LN
+            request_type = req['type']
             timestamp = req.get('time', 0)
             amount = req.get('amount')
-            message = req['memo']
+            message = req['message'] if is_lightning else req['memo']
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             status_str = get_request_status(req)
@@ -130,18 +131,17 @@ class RequestList(MyTreeView):
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            if request_type == REQUEST_TYPE_LN:
-                items[self.Columns.DATE].setData(req['rhash'], ROLE_RHASH_OR_ADDR)
+            if request_type == PR_TYPE_LN:
+                items[self.Columns.DATE].setData(req['rhash'], ROLE_KEY)
                 items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
-                items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            else:
+            elif request_type == PR_TYPE_ADDRESS:
                 address = req['address']
                 if address not in domain:
                     continue
                 expiration = req.get('exp', None)
                 signature = req.get('sig')
                 requestor = req.get('name', '')
-                items[self.Columns.DATE].setData(address, ROLE_RHASH_OR_ADDR)
+                items[self.Columns.DATE].setData(address, ROLE_KEY)
                 if signature is not None:
                     items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
                     items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
@@ -164,13 +164,9 @@ class RequestList(MyTreeView):
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         if not item:
             return
-        addr = item.data(ROLE_RHASH_OR_ADDR)
+        key = item.data(ROLE_KEY)
         request_type = item.data(ROLE_REQUEST_TYPE)
-        assert request_type in [REQUEST_TYPE_BITCOIN, REQUEST_TYPE_LN]
-        if request_type == REQUEST_TYPE_BITCOIN:
-            req = self.wallet.receive_requests.get(addr)
-        elif request_type == REQUEST_TYPE_LN:
-            req = self.wallet.lnworker.invoices[addr][0]
+        req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
@@ -181,19 +177,14 @@ class RequestList(MyTreeView):
         if column == self.Columns.AMOUNT:
             column_data = column_data.strip()
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
-        if request_type == REQUEST_TYPE_BITCOIN:
-            self.create_menu_bitcoin_payreq(menu, addr)
-        elif request_type == REQUEST_TYPE_LN:
-            self.create_menu_ln_payreq(menu, addr, req)
+        if request_type == PR_TYPE_ADDRESS:
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', key))
+        if request_type == PR_TYPE_LN:
+            menu.addAction(_("Copy lightning payment request"), lambda: self.parent.do_copy('Request', req['invoice']))
+        else:
+            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', req['URI']))
+        if 'view_url' in req:
+            menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
+        run_hook('receive_list_menu', menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
-
-    def create_menu_bitcoin_payreq(self, menu, addr):
-        menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', addr))
-        menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', self.wallet.get_request_URI(addr)))
-        menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
-        run_hook('receive_list_menu', menu, addr)
-
-    def create_menu_ln_payreq(self, menu, payreq_key, req):
-        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))

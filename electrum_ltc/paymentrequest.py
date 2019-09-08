@@ -25,12 +25,11 @@
 import hashlib
 import sys
 import time
-import traceback
-import json
 from typing import Optional
+import asyncio
+import urllib.parse
 
 import certifi
-import urllib.parse
 import aiohttp
 
 
@@ -42,6 +41,7 @@ except ImportError:
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from .util import PR_TYPE_BIP70
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
@@ -87,7 +87,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                         data = resp_content
                     data_len = len(data) if data is not None else None
                     _logger.info(f'fetched payment request {url} {data_len}')
-        except aiohttp.ClientError as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             error = f"Error while contacting payment URL: {url}.\nerror type: {type(e)}"
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
@@ -271,13 +271,15 @@ class PaymentRequest:
 
     def get_dict(self):
         return {
+            'type': PR_TYPE_BIP70,
+            'id': self.get_id(),
             'requestor': self.get_requestor(),
-            'memo':self.get_memo(),
-            'exp': self.get_expiration_date(),
+            'message': self.get_memo(),
+            'time': self.get_time(),
+            'exp': self.get_expiration_date() - self.get_time(),
             'amount': self.get_amount(),
-            'signature': self.get_verify_status(),
-            'txid': self.tx,
-            'outputs': self.get_outputs()
+            'outputs': self.get_outputs(),
+            'hex': self.raw.hex(),
         }
 
     def get_id(self):
@@ -420,8 +422,8 @@ def verify_cert_chain(chain):
 
 def check_ssl_config(config):
     from . import pem
-    key_path = config.get('ssl_privkey')
-    cert_path = config.get('ssl_chain')
+    key_path = config.get('ssl_keyfile')
+    cert_path = config.get('ssl_certfile')
     with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
     with open(cert_path, 'r', encoding='utf-8') as f:
@@ -471,99 +473,8 @@ def serialize_request(req):
 
 def make_request(config, req):
     pr = make_unsigned_request(req)
-    key_path = config.get('ssl_privkey')
-    cert_path = config.get('ssl_chain')
+    key_path = config.get('ssl_keyfile')
+    cert_path = config.get('ssl_certfile')
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
     return pr
-
-
-
-class InvoiceStore(Logger):
-
-    def __init__(self, storage):
-        Logger.__init__(self)
-        self.storage = storage
-        self.invoices = {}
-        self.paid = {}
-        d = self.storage.get('invoices', {})
-        self.load(d)
-
-    def set_paid(self, pr, txid):
-        pr.tx = txid
-        pr_id = pr.get_id()
-        self.paid[txid] = pr_id
-        if pr_id not in self.invoices:
-            # in case the user had deleted it previously
-            self.add(pr)
-
-    def load(self, d):
-        for k, v in d.items():
-            try:
-                pr = PaymentRequest(bfh(v.get('hex')))
-                pr.tx = v.get('txid')
-                pr.requestor = v.get('requestor')
-                self.invoices[k] = pr
-                if pr.tx:
-                    self.paid[pr.tx] = k
-            except:
-                continue
-
-    def import_file(self, path):
-        def validate(data):
-            return data  # TODO
-        import_meta(path, validate, self.on_import)
-
-    def on_import(self, data):
-        self.load(data)
-        self.save()
-
-    def export_file(self, filename):
-        export_meta(self.dump(), filename)
-
-    def dump(self):
-        d = {}
-        for k, pr in self.invoices.items():
-            d[k] = {
-                'hex': bh2u(pr.raw),
-                'requestor': pr.requestor,
-                'txid': pr.tx
-            }
-        return d
-
-    def save(self):
-        self.storage.put('invoices', self.dump())
-
-    def get_status(self, key):
-        pr = self.get(key)
-        if pr is None:
-            self.logger.info(f"get_status() can't find pr for {key}")
-            return
-        if pr.tx is not None:
-            return PR_PAID
-        if pr.has_expired():
-            return PR_EXPIRED
-        return PR_UNPAID
-
-    def add(self, pr):
-        key = pr.get_id()
-        self.invoices[key] = pr
-        self.save()
-        return key
-
-    def remove(self, key):
-        self.invoices.pop(key)
-        self.save()
-
-    def get(self, k):
-        return self.invoices.get(k)
-
-    def sorted_list(self):
-        # sort
-        return self.invoices.values()
-
-    def unpaid_invoices(self):
-        return [self.invoices[k] for k in
-                filter(lambda x: self.get_status(x) not in (PR_PAID, None),
-                       self.invoices.keys())
-                ]

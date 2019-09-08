@@ -319,7 +319,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
     @test_pin_unlocked
     @set_and_unset_signing
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx: Transaction, password):
         if tx.is_complete():
             return
         client = self.get_client()
@@ -410,10 +410,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if (info is not None) and len(tx.outputs()) > 1 \
                         and not has_change:
                     index = info.address_index
-                    on_change_branch = index[0] == 1
                     # prioritise hiding outputs on the 'change' branch from user
                     # because no more than one change address allowed
-                    if on_change_branch == any_output_on_change_branch:
+                    if info.is_change == any_output_on_change_branch:
                         changePath = self.get_derivation()[2:] + "/%d/%d"%index
                         has_change = True
                     else:

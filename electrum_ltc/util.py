@@ -73,19 +73,26 @@ base_units_list = ['LTC', 'mLTC', 'uLTC', 'sat']  # list(dict) does not guarante
 
 DECIMAL_POINT_DEFAULT = 8  # LTC
 
+# types of payment requests
+PR_TYPE_ADDRESS = 0
+PR_TYPE_BIP70= 1
+PR_TYPE_LN = 2
+
 # status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_UNKNOWN = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_INFLIGHT = 4    # unconfirmed
+PR_UNPAID   = 0
+PR_EXPIRED  = 1
+PR_UNKNOWN  = 2     # sent but not propagated
+PR_PAID     = 3     # send and propagated
+PR_INFLIGHT = 4     # unconfirmed
+PR_FAILED   = 5
 
 pr_tooltips = {
     PR_UNPAID:_('Pending'),
     PR_PAID:_('Paid'),
     PR_UNKNOWN:_('Unknown'),
     PR_EXPIRED:_('Expired'),
-    PR_INFLIGHT:_('Paid (unconfirmed)')
+    PR_INFLIGHT:_('In progress'),
+    PR_FAILED:_('Failed'),
 }
 
 pr_expiration_values = {
@@ -965,7 +972,9 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except BaseException as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
             pass
     return wrapper
 

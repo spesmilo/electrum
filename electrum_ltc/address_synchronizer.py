@@ -99,7 +99,7 @@ class AddressSynchronizer(Logger):
     def synchronize(self):
         pass
 
-    def is_mine(self, address):
+    def is_mine(self, address) -> bool:
         return self.db.is_addr_in_history(address)
 
     def get_addresses(self):
