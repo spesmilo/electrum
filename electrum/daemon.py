@@ -271,6 +271,7 @@ class Daemon(Logger):
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
+        self.auth_lock = asyncio.Lock()
         self.running = False
         self.running_lock = threading.Lock()
         self.config = config
@@ -302,7 +303,7 @@ class Daemon(Logger):
         if self.network:
             self.network.start(jobs)
 
-    def authenticate(self, headers):
+    async def authenticate(self, headers):
         if self.rpc_password == '':
             # RPC authentication is disabled
             return
@@ -317,14 +318,15 @@ class Daemon(Logger):
         username, _, password = credentials.partition(':')
         if not (constant_time_compare(username, self.rpc_user)
                 and constant_time_compare(password, self.rpc_password)):
-            time.sleep(0.050)
+            await asyncio.sleep(0.050)
             raise AuthenticationError('Invalid Credentials')
 
     async def handle(self, request):
-        try:
-            self.authenticate(request.headers)
-        except AuthenticationError:
-            return web.Response(text='Forbidden', status=403)
+        async with self.auth_lock:
+            try:
+                await self.authenticate(request.headers)
+            except AuthenticationError:
+                return web.Response(text='Forbidden', status=403)
         request = await request.text()
         response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
         if isinstance(response, jsonrpcserver.response.ExceptionResponse):
