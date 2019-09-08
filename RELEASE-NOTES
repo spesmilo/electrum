@@ -708,7 +708,8 @@ and there is no warning message.
   (cculianu)
 * iOS: Added Schnorr signatures. (cculianu)
 * Fixed output script classifaction code to be more correct. (Mark Lundeberg)
-* Qt: Made generated QR codes look better on HighDPI displays. (cculianu, zebra-lucky)
+* Qt: Made generated QR codes look better on HighDPI displays. (cculianu,
+  zebra-lucky)
 * Misc. localization and internationalization fixups. (Axel Gembe)
 * OSX: Minor fixup for Mojave font weights being rendered too thick. (cculianu)
 * Minor bugfix: Guard against "all zero" transactions coming from malicious
@@ -727,3 +728,22 @@ and there is no warning message.
   "Coins" tab and cannot be spent from the UI.  This is to prevent token
   burn, #1602 (cculianu)
 * Android build fixes, #1599. (mhsmith)
+* More Android fixes: Added stability improvements and various corner
+  case bugfixes (see github PR #1605 for details). (mhsmith)
+* Fiat FX Rate: Bitpay.com URL / API endpoint has changed, thus breaking fiat
+  exchange rate sources if "Bitpay" was selected. Fixed. (cculianu)
+* Updated websockets (electrum-merchant): fixed stale/old code which no longer
+  ran, added '--payment_url' option, and other miscellany. (cculianu)
+* Implemented BIP70 properly on Qt and iOS; #1612. (cculianu)
+* MacOS HW Wallets: Fixed SIGSEGV crash due to talking to the device from
+  multiple threads which is not supported on Darwin. (cculianu)
+* Ledger Nano HW support has been vastly improved: It should be less crashy
+  and provide the user with much more meaningful messages for getting the device
+  into the proper state to talk to Electron Cash. (cculianu)
+* Wallet: Fixed erroneous coinbase maturity logic. Immature mined coins were
+  erroneously being withheld from spending for an extra confirmation. (cculianu)
+* Coins tab: Coinbase coins that are not mature are now highlighted in blue
+  text and are not allowed to be selected for individual coin spending
+  (previously you could select them for spending with no way to actually spend
+  them which was bad UX). (cculianu)
+* TxDialog: coinbase tx's now show 0 fee, rather than 'unknown' (cculianu)
