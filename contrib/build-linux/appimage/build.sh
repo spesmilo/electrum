@@ -86,8 +86,8 @@ info "building libsecp256k1."
     git reset --hard "$LIBSECP_VERSION"
     git clean -f -x -q
     export SOURCE_DATE_EPOCH=1530212462
-    ./autogen.sh
     echo "LDFLAGS = -no-undefined" >> Makefile.am
+    ./autogen.sh
     ./configure \
       --prefix="$APPDIR/usr" \
       --enable-module-recovery \
