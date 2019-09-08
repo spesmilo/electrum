@@ -52,6 +52,11 @@ class NetworkDialog(MessageBoxMixin, QDialog):
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
         self.network_updated_signal.connect(self.on_update)
+        # below timer is to work around Qt on Linux display glitches when
+        # showing this window.
+        self.workaround_timer = QTimer()
+        self.workaround_timer.timeout.connect(self._workaround_update)
+        self.workaround_timer.setSingleShot(True)
         network.register_callback(self.on_network, ['blockchain_updated', 'interfaces', 'status'])
 
     def on_network(self, event, *args):
@@ -88,8 +93,19 @@ class NetworkDialog(MessageBoxMixin, QDialog):
                 return
         super().closeEvent(e)
 
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        if not self.isVisible():
+            self.workaround_timer.stop()
+
     def showEvent(self, e):
         super().showEvent(e)
+        if e.isAccepted():
+            # Single-shot. Works around Linux/Qt bugs
+            # -- see _workaround_update below for description.
+            self.workaround_timer.start(500)
+
+    def _workaround_update(self):
         # Hack to work around strange behavior on some Linux:
         # On some Linux systems (Debian based), the dialog sometimes is empty
         # and glitchy if we don't do this. Note this .update() call is a Qt
