@@ -6,13 +6,13 @@ import os
 import sys
 import threading
 import traceback
-from typing import Tuple, List, Callable, NamedTuple, Optional
+from typing import Tuple, List, Callable, NamedTuple, Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
-                             QGridLayout, QSlider, QScrollArea)
+                             QGridLayout, QSlider, QScrollArea, QApplication)
 
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage
@@ -25,7 +25,11 @@ from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
-from electrum.plugin import run_hook
+from electrum.plugin import run_hook, Plugins
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
 
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
                      + _("Leave this field empty if you want to disable encryption.")
@@ -115,7 +119,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
 
-    def __init__(self, config, app, plugins):
+    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
         self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))

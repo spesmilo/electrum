@@ -36,7 +36,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -93,6 +93,10 @@ from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
 
+if TYPE_CHECKING:
+    from . import ElectrumGui
+
+
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
 class StatusBarButton(QPushButton):
@@ -125,7 +129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
 
-    def __init__(self, gui_object, wallet: Abstract_Wallet):
+    def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
 
         self.gui_object = gui_object
