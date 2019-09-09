@@ -624,12 +624,12 @@ class Transaction:
     def inputs(self):
         if self._inputs is None:
             self.deserialize()
-        return self._inputs
+        return self._inputs or []
 
     def outputs(self) -> List[TxOutput]:
         if self._outputs is None:
             self.deserialize()
-        return self._outputs
+        return self._outputs or []
 
     @classmethod
     def get_sorted_pubkeys(self, txin):
