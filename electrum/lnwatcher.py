@@ -268,16 +268,16 @@ class WatchTower(LNWatcher):
             for tx in sweep_txns:
                 await self.broadcast_or_log(funding_outpoint, tx)
 
-    async def broadcast_or_log(self, funding_outpoint, tx):
+    async def broadcast_or_log(self, funding_outpoint: str, tx: Transaction):
         height = self.get_tx_height(tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
             return
         try:
             txid = await self.network.broadcast_transaction(tx)
         except Exception as e:
-            self.logger.info(f'broadcast failure: {tx.name}: {repr(e)}')
+            self.logger.info(f'broadcast failure: txid={tx.txid()}, funding_outpoint={funding_outpoint}: {repr(e)}')
         else:
-            self.logger.info(f'broadcast success: {tx.name}')
+            self.logger.info(f'broadcast success: txid={tx.txid()}, funding_outpoint={funding_outpoint}')
             if funding_outpoint in self.tx_progress:
                 await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid

@@ -553,11 +553,10 @@ class TestLNUtil(unittest.TestCase):
             htlc_output_index=htlc_output_index,
             amount_msat=amount_msat,
             witness_script=bh2u(htlc))
-        our_htlc_tx = make_htlc_tx(cltv_timeout,
+        our_htlc_tx = make_htlc_tx(
+            cltv_expiry=cltv_timeout,
             inputs=our_htlc_tx_inputs,
-            output=our_htlc_tx_output,
-            name='test',
-            cltv_expiry=0)
+            output=our_htlc_tx_output)
 
         local_sig = our_htlc_tx.sign_txin(0, local_privkey[:-1])
 

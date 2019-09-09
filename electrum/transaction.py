@@ -607,9 +607,6 @@ class Transaction:
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
         self.version = 2
-        self.name = None
-        self.csv_delay = 0
-        self.cltv_expiry = 0
         # by default we assume this is a partial txn;
         # this value will get properly set when deserializing
         self.is_partial_originally = True
@@ -720,16 +717,13 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0, version=None, name=None, csv_delay=0, cltv_expiry=0):
+    def from_io(klass, inputs, outputs, *, locktime=0, version=None):
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs
         self.locktime = locktime
         if version is not None:
             self.version = version
-        self.name = name
-        self.csv_delay = csv_delay
-        self.cltv_expiry = cltv_expiry
         self.BIP69_sort()
         return self
 
@@ -1229,9 +1223,6 @@ class Transaction:
             'hex': self.raw,
             'complete': self.is_complete(),
             'final': self.is_final(),
-            'name': self.name,
-            'csv_delay': self.csv_delay,
-            'cltv_expiry': self.cltv_expiry,
         }
         return out
 
@@ -1239,9 +1230,6 @@ class Transaction:
     def from_dict(cls, d):
         tx = cls(d['hex'])
         tx.deserialize(True)
-        tx.name = d.get('name')
-        tx.csv_delay = d.get('csv_delay', 0)
-        tx.cltv_expiry = d.get('cltv_expiry', 0)
         return tx
 
 

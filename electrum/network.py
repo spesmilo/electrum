@@ -62,6 +62,8 @@ from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
+    from .lnworker import LNGossip
+    from .lnwatcher import WatchTower
 
 
 _logger = get_logger(__name__)
@@ -311,8 +313,8 @@ class Network(Logger):
             self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
         else:
             self.channel_db = None  # type: Optional[ChannelDB]
-            self.lngossip = None
-            self.local_watchtower = None
+            self.lngossip = None  # type: Optional[LNGossip]
+            self.local_watchtower = None  # type: Optional[WatchTower]
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'

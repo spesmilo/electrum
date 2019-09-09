@@ -56,6 +56,7 @@ from .lnwatcher import LNWatcher
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+    from .lnsweep import SweepInfo
 
 
 NUM_PEERS_TARGET = 4
@@ -601,11 +602,11 @@ class LNWallet(LNWorker):
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed and set sweep_info
-        sweep_info = chan.sweep_ctx(closing_tx)
-        self.logger.info(f'sweep_info length: {len(sweep_info)}')
+        sweep_info_dict = chan.sweep_ctx(closing_tx)
+        self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
-        for prevout, e_tx in sweep_info.items():
-            name, csv_delay, cltv_expiry, gen_tx = e_tx
+        for prevout, sweep_info in sweep_info_dict.items():
+            name = sweep_info.name
             spender = spenders.get(prevout)
             if spender is not None:
                 spender_tx = await self.network.get_transaction(spender)
@@ -622,31 +623,31 @@ class LNWallet(LNWorker):
                     self.logger.info(f'outpoint already spent {name}: {prevout}')
             else:
                 self.logger.info(f'trying to redeem {name}: {prevout}')
-                await self.try_redeem(prevout, e_tx)
+                await self.try_redeem(prevout, sweep_info)
 
     @log_exceptions
-    async def try_redeem(self, prevout, e_tx):
-        name, csv_delay, cltv_expiry, gen_tx = e_tx
+    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo') -> None:
+        name = sweep_info.name
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
-        if cltv_expiry:
+        if sweep_info.cltv_expiry:
             local_height = self.network.get_local_height()
-            remaining = cltv_expiry - local_height
+            remaining = sweep_info.cltv_expiry - local_height
             if remaining > 0:
                 self.logger.info('waiting for {}: CLTV ({} > {}), prevout {}'
-                                 .format(name, local_height, cltv_expiry, prevout))
+                                 .format(name, local_height, sweep_info.cltv_expiry, prevout))
                 broadcast = False
-        if csv_delay:
+        if sweep_info.csv_delay:
             prev_height = self.lnwatcher.get_tx_height(prev_txid)
-            remaining = csv_delay - prev_height.conf
+            remaining = sweep_info.csv_delay - prev_height.conf
             if remaining > 0:
                 self.logger.info('waiting for {}: CSV ({} >= {}), prevout: {}'
-                                 .format(name, prev_height.conf, csv_delay, prevout))
+                                 .format(name, prev_height.conf, sweep_info.csv_delay, prevout))
                 broadcast = False
-        tx = gen_tx()
-        self.wallet.set_label(tx.txid(), name)
+        tx = sweep_info.gen_tx()
         if tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
+        self.wallet.set_label(tx.txid(), name)
         if broadcast:
             try:
                 await self.network.broadcast_transaction(tx)

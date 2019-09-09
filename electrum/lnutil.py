@@ -318,10 +318,10 @@ def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
     }]
     return c_inputs
 
-def make_htlc_tx(cltv_timeout, inputs, output, name, cltv_expiry):
-    assert type(cltv_timeout) is int
+def make_htlc_tx(*, cltv_expiry: int, inputs, output) -> Transaction:
+    assert type(cltv_expiry) is int
     c_outputs = [output]
-    tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_timeout, version=2, name=name, cltv_expiry=cltv_expiry)
+    tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_expiry, version=2)
     return tx
 
 def make_offered_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
@@ -468,8 +468,7 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
         witness_script=bh2u(preimage_script))
     if is_htlc_success:
         cltv_expiry = 0
-    htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output,
-        name=name, cltv_expiry=cltv_expiry)
+    htlc_tx = make_htlc_tx(cltv_expiry=cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
     return witness_script_of_htlc_tx_output, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
@@ -672,7 +671,8 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
 
 
 def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
-        funding_txid: bytes, funding_pos: int, funding_sat: int, outputs: List[TxOutput]):
+                    funding_txid: bytes, funding_pos: int, funding_sat: int,
+                    outputs: List[TxOutput]) -> Transaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
         funding_pos, funding_txid, funding_sat)
     c_input['sequence'] = 0xFFFF_FFFF

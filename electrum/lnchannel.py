@@ -49,7 +49,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     ShortChannelID, map_htlcs_to_ctx_output_idxs)
 from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
-from .lnsweep import create_sweeptx_for_their_revoked_htlc
+from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
 
 
@@ -146,7 +146,7 @@ class Channel(Logger):
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
         self.set_state('DISCONNECTED')
-        self.sweep_info = {}
+        self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
         self._outgoing_channel_update = None  # type: Optional[bytes]
 
     def get_feerate(self, subject, ctn):
@@ -756,7 +756,7 @@ class Channel(Logger):
         assert tx.is_complete()
         return tx
 
-    def sweep_ctx(self, ctx: Transaction):
+    def sweep_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
         txid = ctx.txid()
         if self.sweep_info.get(txid) is None:
             our_sweep_info = create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
