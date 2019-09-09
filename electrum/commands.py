@@ -105,6 +105,7 @@ def command(s):
                     kwargs['wallet_path'] = daemon.config.get_wallet_path()
                 if cmd.requires_wallet:
                     wallet_path = kwargs.pop('wallet_path')
+                    wallet_path = standardize_path(wallet_path)
                     wallet = daemon.wallets.get(wallet_path)
                     if wallet is None:
                         raise Exception('wallet not loaded')

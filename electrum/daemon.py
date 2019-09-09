@@ -443,6 +443,8 @@ class Daemon(Logger):
         kwargs = {}
         for x in cmd.options:
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
+        if cmd.requires_wallet:
+            kwargs['wallet_path'] = config_options.get('wallet_path')
         func = getattr(self.cmd_runner, cmd.name)
         # fixme: not sure how to retrieve message in jsonrpcclient
         try:
