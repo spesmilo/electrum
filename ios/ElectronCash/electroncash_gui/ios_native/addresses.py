@@ -741,7 +741,7 @@ class AddressData:
                 is_frozen = wallet.is_frozen(address)
                 fiat_balance = (fx.value_str(balance, fx.exchange_rate()) + " " + fx.get_currency()) if fx else ""
                 num_utxos = get_coin_counts([address])
-                #Entry = "address addr_str addr_idx, label, balance_str, fiat_balance_str, num_tx, is_frozen, balance, is_change, is_used, base_unit is_watch_only"
+                #Entry = "address addr_str addr_idx, label, balance_str, fiat_balance_str, num_tx, is_frozen, balance, is_change, is_used, base_unit is_watch_only num_utxos"
                 item = AddressData.Entry(address, address_text, n, label, balance_text, fiat_balance, num,
                                          bool(is_frozen), balance, bool(is_change), bool(is_used), base_unit, is_watch_only, num_utxos)
 
@@ -942,3 +942,15 @@ def _SpendFrom(entry, vc = None):
         coins = parent.wallet.get_spendable_coins([entry.address], parent.config)
         if coins:
             parent.jump_to_send_with_spend_from(coins, vc = vc)
+        else:
+            # Figure out why no coins despite menu option -- and provide
+            # a reasonable error message.
+            coins = parent.wallet.get_addr_utxo(entry.address)
+            msg = _('Address has no spendable coins')
+            if coins:
+                if all(bool(x['slp_token']) for x in coins.values()):
+                    msg = _('Address contains only spend-locked SLP tokens')
+                elif all(bool(x['is_frozen_coin']) for x in coins.values()):
+                    msg = _('Address contains only frozen coins')
+
+            parent.show_error(msg, title = _('Cannot Spend'))

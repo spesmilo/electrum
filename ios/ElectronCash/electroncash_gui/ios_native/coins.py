@@ -16,7 +16,7 @@ from .uikit_bindings import *
 from .custom_objc import *
 from collections import namedtuple
 
-CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit")
+CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit is_slp")
 
 
 class CoinsDetail(CoinsDetailBase):
@@ -134,13 +134,17 @@ class CoinsDetail(CoinsDetailBase):
         self.freezeBut.selected = coin.is_frozen
 
         watch_only = bool(hasattr(parent.wallet,'is_watching_only') and parent.wallet.is_watching_only())
-        self.freezeBut.setHidden_(watch_only)
+        self.freezeBut.setHidden_(bool(watch_only or coin.is_slp))
 
 
         self.status.setText_withKerning_(("Change" if coin.is_change else "Receiving") + " Address", utils._kern)
+        self.slpToken.setHidden_(not coin.is_slp)
 
         color = utils.uicolor_custom('dark')
-        if coin.is_frozen:
+        if coin.is_slp:
+            self.slpToken.setText_withKerning_(_("SLP Token"), 0.0)
+            color = utils.uicolor_custom('frozentext')
+        elif coin.is_frozen:
             self.status.setText_withKerning_(_("Frozen"), 0.0)
             color = utils.uicolor_custom('frozentext')
         self.address.textColor = color
@@ -149,7 +153,7 @@ class CoinsDetail(CoinsDetailBase):
         self.amount.textColor = color
         self.fiatAmount.textColor = color
 
-        self.spendFromBut.setHidden_(coin.is_frozen or watch_only)
+        self.spendFromBut.setHidden_(bool(coin.is_frozen or watch_only or coin.is_slp))
 
         size = CGSizeMake(174.0,174.0) # the returned image has a 10 pix margin -- this compensates for it
         self.qr.contentMode = UIViewContentModeCenter # if the image pix margin changes -- FIX THIS
@@ -403,7 +407,7 @@ class CoinsTableVC(UITableViewController):
         self.selected = self.updateSelectionButtons()
 
         # animate to indicate to user why they were DENIED
-        if not wasSel and index < len(coins) and coins[index].is_frozen:
+        if not wasSel and index < len(coins) and (coins[index].is_frozen or coins[index].is_slp):
             cell.amount.textColorAnimationFromColor_toColor_duration_reverses_completion_(
                 utils.uicolor_custom('frozentext'),
                 utils.uicolor_custom('frozentextbright'),
@@ -469,7 +473,7 @@ class CoinsTableVC(UITableViewController):
             actions = _BuildGenericOptionsList(entry, self.navigationController)
             if not actions: return
 
-            if not watch_only and not entry.is_frozen:
+            if not watch_only and not entry.is_frozen and not entry.is_slp:
                 if len(list(self.updateSelectionButtons())):
                     actions.insert(-1,[ _('Spend from this UTXO + Selected'), lambda: spend_from2([entry.utxo]) ] )
 
@@ -539,7 +543,7 @@ class CoinsTableVC(UITableViewController):
             sels = set(list(self.selected))
             coins = _Get(self)
             for coin in coins:
-                if not coin.is_frozen and coin.name in sels:
+                if not coin.is_frozen and not coin.is_slp and coin.name in sels:
                     newSels.add(coin.name)
             if len(newSels):
                 self.spendBut.enabled = True
@@ -556,9 +560,8 @@ class CoinsTableVC(UITableViewController):
         no_good = parent.wallet is None or parent.wallet.is_watching_only()
         try:
             entry = _Get(self)[index]
-            if entry.is_frozen:
+            if entry.is_frozen or entry.is_slp:
                 no_good = True
-                frozen = True
         except:
             no_good = True
 
@@ -580,7 +583,7 @@ def setup_cell_for_coins_entry(cell : ObjCInstance, entry : CoinsEntry) -> None:
         empty_cell(cell)
         return
 
-    #CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit")
+    #CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit is_slp")
 
 
     cell.address.linkTarget = None # clear objc blocks.. caller sets these
@@ -601,7 +604,10 @@ def setup_cell_for_coins_entry(cell : ObjCInstance, entry : CoinsEntry) -> None:
 
     cell.utxo.setText_withKerning_(str(entry.name), kern)
     specialColor = utils.uicolor_custom('dark')
-    if entry.is_frozen:
+    if entry.is_slp:
+        cell.flags.text = _("SLP Token")
+        specialColor = utils.uicolor_custom('frozentext')
+    elif entry.is_frozen:
         cell.flags.text = _("Frozen")
         specialColor = utils.uicolor_custom('frozentext')
     else:
@@ -634,10 +640,10 @@ def _BuildGenericOptionsList(entry : CoinsEntry, navController : UINavigationCon
 
     watch_only = False if parent.wallet and not parent.wallet.is_watching_only() else True
 
-    if not watch_only:
+    if not watch_only and not entry.is_slp:
         actions.append([ _('Freeze') if not entry.is_frozen else _('Unfreeze'), lambda: toggle_freeze(entry) ])
 
-    if not watch_only and not entry.is_frozen:
+    if not watch_only and not entry.is_frozen and not entry.is_slp:
         actions.append([ _('Spend from this UTXO'), lambda: spend_from([entry.utxo]) ] )
 
     # make sure this is last
@@ -696,21 +702,23 @@ class CoinsMgr(utils.DataMgr):
         utils.NSLog("CoinsMgr: Fetched %d utxo entries [domain=%s] in %f ms", len(c), str(key)[:16], elapsed*1e3)
         return c
 
-def get_coin_counts(domain : list, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False) -> int:
+def get_coin_counts(domain : list, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False,
+                    exclude_slp : bool = False) -> int:
     ''' Like the below but just returns the counts.. a slight optimization for addresses.py which just cares about counts. '''
     parent = gui.ElectrumGui.gui
     wallet = parent.wallet
     if wallet is None:
         utils.NSLog("get_coin_counts: wallet was None, returning early")
         return 0
-    c = wallet.get_utxos(domain, exclude_frozen, mature, confirmed_only)
+    c = wallet.get_utxos(domain, exclude_frozen, mature, confirmed_only, exclude_slp = exclude_slp)
     return len(c) if c else 0
 
-def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False) -> list:
+def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False,
+              exclude_slp : bool = False) -> list:
     ''' For a given set of addresses (or None for all addresses), builds a list of
         CoinsEntry tuples:
 
-        CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit"))
+        CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit is_slp"))
 
     '''
     parent = gui.ElectrumGui.gui
@@ -719,7 +727,7 @@ def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool
     if wallet is None:
         utils.NSLog("get_coins: wallet was None, returning early")
         return coins
-    c = wallet.get_utxos(domain, exclude_frozen, mature, confirmed_only)
+    c = wallet.get_utxos(domain, exclude_frozen, mature, confirmed_only, exclude_slp = exclude_slp)
     def get_name(x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
     base_unit = parent.base_unit()
@@ -734,7 +742,8 @@ def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool
         amount_str = parent.format_amount(amount)
         is_frozen = wallet.is_frozen(address)
         is_change = wallet.is_change(address)
-        entry = CoinsEntry(x, tx_hash, address, address_str, height, name, label, amount, amount_str, is_frozen, is_change, base_unit)
+        is_slp = bool(x['slp_token'])
+        entry = CoinsEntry(x, tx_hash, address, address_str, height, name, label, amount, amount_str, is_frozen, is_change, base_unit, is_slp)
         coins.append(entry)
 
     coins.sort(key=lambda x: [x.address_str, x.amount, x.height], reverse=True)

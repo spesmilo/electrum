@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14490.70" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
     <device id="retina4_7" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14490.49"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -27,6 +27,7 @@
                 <outlet property="height" destination="FRo-O5-qB2" id="Xxw-gV-6c4"/>
                 <outlet property="heightTit" destination="n8G-wW-6W5" id="oQF-Uu-hjF"/>
                 <outlet property="qr" destination="nnX-OG-QpY" id="J1U-yY-JnE"/>
+                <outlet property="slpToken" destination="0nC-0F-msv" id="2R7-f6-BC1"/>
                 <outlet property="spendFromBut" destination="R8A-SG-RzJ" id="kGu-0e-aTw"/>
                 <outlet property="status" destination="6dB-Vg-RGb" id="h7s-wK-yBK"/>
                 <outlet property="statusTopCS" destination="XTT-xn-2r0" id="KTP-3y-CgQ"/>
@@ -224,6 +225,16 @@
                             <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
                             <nil key="highlightedColor"/>
                         </label>
+                        <label opaque="NO" contentMode="left" horizontalHuggingPriority="750" verticalHuggingPriority="251" text="SLP Token" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumFontSize="10" translatesAutoresizingMaskIntoConstraints="NO" id="0nC-0F-msv">
+                            <rect key="frame" x="187.5" y="310" width="172.5" height="18"/>
+                            <gestureRecognizers/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="18" id="I72-b4-0Sp"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" weight="light" pointSize="12"/>
+                            <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
+                            <nil key="highlightedColor"/>
+                        </label>
                     </subviews>
                     <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                     <constraints>
@@ -246,6 +257,7 @@
                         <constraint firstItem="FRo-O5-qB2" firstAttribute="leading" secondItem="n8G-wW-6W5" secondAttribute="leading" id="Rgq-aw-hnQ"/>
                         <constraint firstItem="hU3-ix-UVn" firstAttribute="top" secondItem="OiE-nR-XN3" secondAttribute="bottom" constant="8" id="SGC-Lh-6yQ"/>
                         <constraint firstItem="6dB-Vg-RGb" firstAttribute="top" secondItem="ad3-3I-Jt3" secondAttribute="top" constant="22" id="XTT-xn-2r0"/>
+                        <constraint firstItem="FRo-O5-qB2" firstAttribute="trailing" secondItem="0nC-0F-msv" secondAttribute="trailing" id="Xl6-Wy-zdu"/>
                         <constraint firstItem="qgC-Oh-6iZ" firstAttribute="leading" secondItem="uBv-fh-gAf" secondAttribute="leading" id="YD5-0G-tj3"/>
                         <constraint firstAttribute="trailing" secondItem="n8G-wW-6W5" secondAttribute="trailing" constant="15" id="a7e-wx-qxe"/>
                         <constraint firstAttribute="trailing" relation="greaterThanOrEqual" secondItem="ad3-3I-Jt3" secondAttribute="trailing" constant="15" id="e2h-Ir-Rmm"/>
@@ -261,10 +273,12 @@
                         <constraint firstItem="qgC-Oh-6iZ" firstAttribute="top" secondItem="Fm4-kj-15W" secondAttribute="bottom" constant="24" id="n8y-ff-Gno"/>
                         <constraint firstAttribute="height" constant="950" id="ohW-6L-5tW"/>
                         <constraint firstItem="n8G-wW-6W5" firstAttribute="centerY" secondItem="uBv-fh-gAf" secondAttribute="centerY" id="pfK-nG-Nr3"/>
+                        <constraint firstItem="0nC-0F-msv" firstAttribute="centerY" secondItem="Fm4-kj-15W" secondAttribute="centerY" id="sfT-Ox-D9i"/>
                         <constraint firstItem="uBv-fh-gAf" firstAttribute="width" secondItem="OiE-nR-XN3" secondAttribute="width" id="tFY-ZC-1rf"/>
                         <constraint firstItem="csh-vh-Lpe" firstAttribute="top" secondItem="R8A-SG-RzJ" secondAttribute="bottom" constant="20" id="uyr-wc-BvA"/>
                         <constraint firstItem="7I8-RE-Aqg" firstAttribute="top" secondItem="uBv-fh-gAf" secondAttribute="bottom" constant="8" id="vCb-wh-EGV"/>
                         <constraint firstItem="FRo-O5-qB2" firstAttribute="trailing" secondItem="n8G-wW-6W5" secondAttribute="trailing" id="vgU-Sd-eE0"/>
+                        <constraint firstItem="0nC-0F-msv" firstAttribute="leading" secondItem="FRo-O5-qB2" secondAttribute="leading" id="vog-Jz-Ja6"/>
                         <constraint firstItem="Fm4-kj-15W" firstAttribute="height" secondItem="7I8-RE-Aqg" secondAttribute="height" id="wOd-dt-e4m"/>
                         <constraint firstItem="6dB-Vg-RGb" firstAttribute="trailing" secondItem="ad3-3I-Jt3" secondAttribute="trailing" id="xCX-yd-soL"/>
                         <constraint firstItem="7I8-RE-Aqg" firstAttribute="top" secondItem="uBv-fh-gAf" secondAttribute="bottom" constant="8" id="y6T-HU-cKm"/>
