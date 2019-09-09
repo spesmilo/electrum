@@ -1117,13 +1117,15 @@ def add_global_options(parser):
     group.add_argument("-V", dest="verbosity_shortcuts", help="Set verbosity (shortcut-filter list)", default='')
     group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
-    group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
     group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable lightning")
     group.add_argument("--reckless", action="store_true", dest="reckless", default=False, help="Allow to enable lightning on mainnet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+
+def add_wallet_option(parser):
+    parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
 
 def get_parser():
     # create main parser
@@ -1138,6 +1140,7 @@ def get_parser():
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
+    add_wallet_option(parser_gui)
     add_network_options(parser_gui)
     add_global_options(parser_gui)
     # daemon
@@ -1149,9 +1152,9 @@ def get_parser():
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(cmdname, help=cmd.help, description=cmd.description)
-        add_global_options(p)
         for optname, default in zip(cmd.options, cmd.defaults):
             if optname in ['wallet_path', 'wallet']:
+                add_wallet_option(p)
                 continue
             a, help = command_options[optname]
             b = '--' + optname
@@ -1162,6 +1165,7 @@ def get_parser():
                 p.add_argument(*args, dest=optname, action=action, default=default, help=help, type=_type)
             else:
                 p.add_argument(*args, dest=optname, action=action, default=default, help=help)
+        add_global_options(p)
 
         for param in cmd.params:
             if param in ['wallet_path', 'wallet']:
