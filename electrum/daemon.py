@@ -174,7 +174,7 @@ class WatchTowerServer(Logger):
 
 class HttpServer(Logger):
 
-    def __init__(self, daemon):
+    def __init__(self, daemon: 'Daemon'):
         Logger.__init__(self)
         self.daemon = daemon
         self.config = daemon.config
@@ -287,7 +287,7 @@ class Daemon(Logger):
         self.fx = FxThread(config, self.network)
         self.gui_object = None
         # path -> wallet;   make sure path is standardized.
-        self.wallets = {}  # type: Dict[str, Abstract_Wallet]
+        self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         jobs = [self.fx.run]
         # Setup JSONRPC server
         if listen_jsonrpc:
@@ -379,8 +379,8 @@ class Daemon(Logger):
     def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         # wizard will be launched if we return
-        if path in self.wallets:
-            wallet = self.wallets[path]
+        if path in self._wallets:
+            wallet = self._wallets[path]
             return wallet
         storage = WalletStorage(path, manual_upgrades=True)
         if not storage.file_exists():
@@ -397,38 +397,39 @@ class Daemon(Logger):
             return
         wallet = Wallet(storage)
         wallet.start_network(self.network)
-        self.wallets[path] = wallet
+        self._wallets[path] = wallet
         self.wallet = wallet
         return wallet
 
-    def add_wallet(self, wallet: Abstract_Wallet):
+    def add_wallet(self, wallet: Abstract_Wallet) -> None:
         path = wallet.storage.path
         path = standardize_path(path)
-        self.wallets[path] = wallet
+        self._wallets[path] = wallet
 
-    def get_wallet(self, path):
+    def get_wallet(self, path: str) -> Abstract_Wallet:
         path = standardize_path(path)
-        return self.wallets.get(path)
+        return self._wallets.get(path)
 
-    def delete_wallet(self, path):
+    def get_wallets(self) -> Dict[str, Abstract_Wallet]:
+        return dict(self._wallets)  # copy
+
+    def delete_wallet(self, path: str) -> bool:
         self.stop_wallet(path)
         if os.path.exists(path):
             os.unlink(path)
             return True
         return False
 
-    def stop_wallet(self, path) -> bool:
+    def stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
         path = standardize_path(path)
-        wallet = self.wallets.pop(path, None)
+        wallet = self._wallets.pop(path, None)
         if not wallet:
             return False
         wallet.stop_threads()
         return True
 
     async def run_cmdline(self, config_options):
-        password = config_options.get('password')
-        new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
         # FIXME this is ugly...
         config.fee_estimates = self.network.config.fee_estimates.copy()
@@ -474,7 +475,7 @@ class Daemon(Logger):
         if self.gui_object:
             self.gui_object.stop()
         # stop network/wallets
-        for k, wallet in self.wallets.items():
+        for k, wallet in self._wallets.items():
             wallet.stop_threads()
         if self.network:
             self.logger.info("shutting down network")

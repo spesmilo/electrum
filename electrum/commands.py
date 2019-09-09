@@ -34,7 +34,7 @@ import operator
 import asyncio
 from functools import wraps, partial
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from .daemon import Daemon
 
 
-known_commands = {}
+known_commands = {}  # type: Dict[str, Command]
 
 
 def satoshis(amount):
@@ -96,8 +96,8 @@ def command(s):
         known_commands[name] = Command(func, s)
         @wraps(func)
         async def func_wrapper(*args, **kwargs):
-            cmd_runner = args[0]
-            cmd = known_commands[func.__name__]
+            cmd_runner = args[0]  # type: Commands
+            cmd = known_commands[func.__name__]  # type: Command
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
             if daemon:
@@ -105,8 +105,7 @@ def command(s):
                     kwargs['wallet_path'] = daemon.config.get_wallet_path()
                 if cmd.requires_wallet:
                     wallet_path = kwargs.pop('wallet_path')
-                    wallet_path = standardize_path(wallet_path)
-                    wallet = daemon.wallets.get(wallet_path)
+                    wallet = daemon.get_wallet(wallet_path)
                     if wallet is None:
                         raise Exception('wallet not loaded')
                     kwargs['wallet'] = wallet
@@ -185,7 +184,8 @@ class Commands:
     @command('n')
     async def list_wallets(self):
         """List wallets open in daemon"""
-        return [{'path':k, 'synchronized':w.is_up_to_date()} for k, w in self.daemon.wallets.items()]
+        return [{'path': path, 'synchronized': w.is_up_to_date()}
+                for path, w in self.daemon.get_wallets().items()]
 
     @command('n')
     async def load_wallet(self, wallet_path=None):
