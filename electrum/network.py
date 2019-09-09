@@ -308,7 +308,7 @@ class Network(Logger):
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip(self)
-            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', True) else None
+            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
         else:
             self.channel_db = None  # type: Optional[ChannelDB]
             self.lngossip = None
