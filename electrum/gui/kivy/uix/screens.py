@@ -360,10 +360,9 @@ class SendScreen(CScreen):
 
     def _do_send_onchain(self, amount, message, outputs, rbf):
         # make unsigned transaction
-        config = self.app.electrum_config
-        coins = self.app.wallet.get_spendable_coins(None, config)
+        coins = self.app.wallet.get_spendable_coins(None)
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, None)
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return
@@ -467,7 +466,7 @@ class ReceiveScreen(CScreen):
                 return
             self.screen.address = addr
             req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
-            self.app.wallet.add_payment_request(req, self.app.electrum_config)
+            self.app.wallet.add_payment_request(req)
             key = addr
         self.clear()
         self.update()
@@ -497,7 +496,7 @@ class ReceiveScreen(CScreen):
     def update(self):
         if not self.loaded:
             return
-        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
+        _list = self.app.wallet.get_sorted_requests()
         requests_container = self.screen.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
 
@@ -512,7 +511,7 @@ class ReceiveScreen(CScreen):
         d.open()
 
     def clear_requests_dialog(self):
-        expired = [req for req in self.app.wallet.get_sorted_requests(self.app.electrum_config) if req['status'] == PR_EXPIRED]
+        expired = [req for req in self.app.wallet.get_sorted_requests() if req['status'] == PR_EXPIRED]
         if len(expired) == 0:
             return
         def callback(c):

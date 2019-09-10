@@ -430,20 +430,16 @@ class Daemon(Logger):
         return True
 
     async def run_cmdline(self, config_options):
-        config = SimpleConfig(config_options)
-        # FIXME this is ugly...
-        config.fee_estimates = self.network.config.fee_estimates.copy()
-        config.mempool_fees  = self.network.config.mempool_fees.copy()
-        cmdname = config.get('cmd')
+        cmdname = config_options['cmd']
         cmd = known_commands[cmdname]
         # arguments passed to function
-        args = map(lambda x: config.get(x), cmd.params)
+        args = [config_options.get(x) for x in cmd.params]
         # decode json arguments
         args = [json_decode(i) for i in args]
         # options
         kwargs = {}
         for x in cmd.options:
-            kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
+            kwargs[x] = config_options.get(x)
         if cmd.requires_wallet:
             kwargs['wallet_path'] = config_options.get('wallet_path')
         func = getattr(self.cmd_runner, cmd.name)

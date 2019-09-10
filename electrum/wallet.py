@@ -236,7 +236,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
-        self.lnworker = LNWallet(self) if get_config().get('lightning') else None
+        self.config = get_config()
+        self.lnworker = LNWallet(self) if self.config.get('lightning') else None
 
     def stop_threads(self):
         super().stop_threads()
@@ -408,10 +409,10 @@ class Abstract_Wallet(AddressSynchronizer):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.db.get_tx_fee(tx_hash)
-                    if fee and self.network and self.network.config.has_fee_mempool():
+                    if fee and self.network and self.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
-                        exp_n = self.network.config.fee_to_depth(fee_per_byte)
+                        exp_n = self.config.fee_to_depth(fee_per_byte)
                     can_bump = is_mine and not tx.is_final()
                 else:
                     status = _('Local')
@@ -447,8 +448,8 @@ class Abstract_Wallet(AddressSynchronizer):
             mempool_depth_bytes=exp_n,
         )
 
-    def get_spendable_coins(self, domain, config, *, nonlocal_only=False):
-        confirmed_only = config.get('confirmed_only', False)
+    def get_spendable_coins(self, domain, *, nonlocal_only=False):
+        confirmed_only = self.config.get('confirmed_only', False)
         utxos = self.get_utxos(domain,
                                excluded_addresses=self.frozen_addresses,
                                mature_only=True,
@@ -728,8 +729,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 fee_per_byte = fee / size
                 extra.append(format_fee_satoshis(fee_per_byte) + ' sat/b')
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
-               and self.network and self.network.config.has_fee_mempool():
-                exp_n = self.network.config.fee_to_depth(fee_per_byte)
+               and self.config.has_fee_mempool():
+                exp_n = self.config.fee_to_depth(fee_per_byte)
                 if exp_n:
                     extra.append('%.2f MB'%(exp_n/1000000))
             if height == TX_HEIGHT_LOCAL:
@@ -810,7 +811,7 @@ class Abstract_Wallet(AddressSynchronizer):
         max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
+    def make_unsigned_transaction(self, coins, outputs, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
         i_max = None
@@ -823,7 +824,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     raise Exception("More than one output set to spend max")
                 i_max = i
 
-        if fixed_fee is None and config.fee_per_kb() is None:
+        if fixed_fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
         for item in coins:
@@ -831,7 +832,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = config.estimate_fee
+            fee_estimator = self.config.estimate_fee
         elif isinstance(fixed_fee, Number):
             fee_estimator = lambda size: fixed_fee
         elif callable(fixed_fee):
@@ -841,10 +842,10 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
-            coin_chooser = coinchooser.get_coin_chooser(config)
+            coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
-            if config.get('batch_rbf', False) and base_tx:
+            if self.config.get('batch_rbf', False) and base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c['prevout_hash'] != base_tx.txid()]
                 is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
@@ -894,10 +895,10 @@ class Abstract_Wallet(AddressSynchronizer):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, outputs, password, config, fee=None, change_addr=None,
+    def mktx(self, outputs, password, fee=None, change_addr=None,
              domain=None, rbf=False, nonlocal_only=False, *, tx_version=None):
-        coins = self.get_spendable_coins(domain, config, nonlocal_only=nonlocal_only)
-        tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
+        coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
+        tx = self.make_unsigned_transaction(coins, outputs, fee, change_addr)
         tx.set_rbf(rbf)
         if tx_version is not None:
             tx.version = tx_version
@@ -988,7 +989,7 @@ class Abstract_Wallet(AddressSynchronizer):
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
 
-    def bump_fee(self, *, tx, new_fee_rate, config) -> Transaction:
+    def bump_fee(self, *, tx, new_fee_rate) -> Transaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
         """
@@ -1007,7 +1008,7 @@ class Abstract_Wallet(AddressSynchronizer):
             # method 1: keep all inputs, keep all not is_mine outputs,
             #           allow adding new inputs
             tx_new = self._bump_fee_through_coinchooser(
-                tx=tx, new_fee_rate=new_fee_rate, config=config)
+                tx=tx, new_fee_rate=new_fee_rate)
             method_used = 1
         except CannotBumpFee:
             # method 2: keep all inputs, no new inputs are added,
@@ -1028,7 +1029,7 @@ class Abstract_Wallet(AddressSynchronizer):
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
         return tx_new
 
-    def _bump_fee_through_coinchooser(self, *, tx, new_fee_rate, config):
+    def _bump_fee_through_coinchooser(self, *, tx, new_fee_rate):
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
         tx.remove_signatures()
@@ -1053,12 +1054,12 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 fixed_outputs = old_outputs
 
-        coins = self.get_spendable_coins(None, config)
+        coins = self.get_spendable_coins(None)
         for item in coins:
             self.add_input_info(item)
         def fee_estimator(size):
-            return config.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
-        coin_chooser = coinchooser.get_coin_chooser(config)
+            return self.config.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
+        coin_chooser = coinchooser.get_coin_chooser(self.config)
         try:
             return coin_chooser.make_tx(coins, old_inputs, fixed_outputs, change_addrs,
                                         fee_estimator, self.dust_threshold())
@@ -1324,8 +1325,6 @@ class Abstract_Wallet(AddressSynchronizer):
         return status, conf
 
     def get_request(self, key):
-        from .simple_config import get_config
-        config = get_config()
         if key in self.receive_requests:
             req = self.get_payment_request(key)
         elif self.lnworker:
@@ -1334,11 +1333,11 @@ class Abstract_Wallet(AddressSynchronizer):
             req = None
         if not req:
             return
-        if config.get('payserver_port'):
-            host = config.get('payserver_host', 'localhost')
-            port = config.get('payserver_port')
-            root = config.get('payserver_root', '/r')
-            use_ssl = bool(config.get('ssl_keyfile'))
+        if self.config.get('payserver_port'):
+            host = self.config.get('payserver_host', 'localhost')
+            port = self.config.get('payserver_port')
+            root = self.config.get('payserver_root', '/r')
+            use_ssl = bool(self.config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
             base = '%s://%s:%d'%(protocol, host, port)
             req['view_url'] = base + root + '/pay?id=' + key
@@ -1371,7 +1370,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.receive_requests[key] = req
         self.storage.put('payment_requests', self.receive_requests)
 
-    def add_payment_request(self, req, config):
+    def add_payment_request(self, req):
         addr = req['address']
         if not bitcoin.is_address(addr):
             raise Exception(_('Invalid Bitcoin address.'))
@@ -1388,7 +1387,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def delete_request(self, key):
         """ lightning or on-chain """
         if key in self.receive_requests:
-            self.remove_payment_request(key, {})
+            self.remove_payment_request(key)
         elif self.lnworker:
             self.lnworker.delete_invoice(key)
 
@@ -1400,14 +1399,14 @@ class Abstract_Wallet(AddressSynchronizer):
         elif self.lnworker:
             self.lnworker.delete_invoice(key)
 
-    def remove_payment_request(self, addr, config):
+    def remove_payment_request(self, addr):
         if addr not in self.receive_requests:
             return False
         self.receive_requests.pop(addr)
         self.storage.put('payment_requests', self.receive_requests)
         return True
 
-    def get_sorted_requests(self, config):
+    def get_sorted_requests(self):
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self.receive_requests.keys()]
         if self.lnworker:
@@ -1692,7 +1691,7 @@ class Imported_Wallet(Simple_Wallet):
                 self.unverified_tx.pop(tx_hash, None)
                 self.db.remove_transaction(tx_hash)
         self.set_label(address, None)
-        self.remove_payment_request(address, {})
+        self.remove_payment_request(address)
         self.set_frozen_state_of_addresses([address], False)
         pubkey = self.get_public_key(address)
         self.db.remove_imported_address(address)

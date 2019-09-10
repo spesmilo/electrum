@@ -541,7 +541,7 @@ class Commands:
             fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
         else:
             fee_estimator = fee
-        tx = wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee_estimator, change_addr)
+        tx = wallet.make_unsigned_transaction(coins, final_outputs, fee_estimator, change_addr)
         if locktime is not None:
             tx.locktime = locktime
         if rbf is None:
@@ -724,7 +724,7 @@ class Commands:
     @command('w')
     async def listrequests(self, pending=False, expired=False, paid=False, wallet=None):
         """List the payment requests you made."""
-        out = wallet.get_sorted_requests(self.config)
+        out = wallet.get_sorted_requests()
         if pending:
             f = PR_UNPAID
         elif expired:
@@ -762,7 +762,7 @@ class Commands:
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
         req = wallet.make_payment_request(addr, amount, memo, expiration)
-        wallet.add_payment_request(req, self.config)
+        wallet.add_payment_request(req)
         out = wallet.get_request(addr)
         return self._format_request(out)
 
@@ -787,13 +787,13 @@ class Commands:
     @command('w')
     async def rmrequest(self, address, wallet=None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address, self.config)
+        return wallet.remove_payment_request(address)
 
     @command('w')
     async def clearrequests(self, wallet=None):
         """Remove all payment requests"""
         for k in list(wallet.receive_requests.keys()):
-            wallet.remove_payment_request(k, self.config)
+            wallet.remove_payment_request(k)
 
     @command('n')
     async def notify(self, address: str, URL: str):

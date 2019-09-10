@@ -490,7 +490,7 @@ class Peer(Logger):
         wallet = self.lnworker.wallet
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
-                                      password, self.lnworker.config, nonlocal_only=True)
+                                      password, nonlocal_only=True)
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -570,7 +570,7 @@ class Peer(Logger):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = wallet.mktx([funding_output], password, self.lnworker.config, nonlocal_only=True)
+        funding_tx = wallet.mktx([funding_output], password, nonlocal_only=True)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
