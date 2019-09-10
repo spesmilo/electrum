@@ -234,7 +234,7 @@ class Network(Logger):
 
     LOGGING_SHORTCUT = 'n'
 
-    def __init__(self, config: SimpleConfig=None):
+    def __init__(self, config: SimpleConfig):
         global INSTANCE
         INSTANCE = self
 
@@ -244,9 +244,8 @@ class Network(Logger):
         assert self.asyncio_loop.is_running(), "event loop not running"
         self._loop_thread = None  # type: threading.Thread  # set by caller; only used for sanity checks
 
-        if config is None:
-            config = {}  # Do not use mutables as default values!
-        self.config = SimpleConfig(config) if isinstance(config, dict) else config  # type: SimpleConfig
+        assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
+        self.config = config
         blockchain.read_blockchains(self.config)
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
