@@ -224,7 +224,7 @@ class UntrustedServerReturnedError(NetworkException):
         return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
 
 
-INSTANCE = None
+_INSTANCE = None
 
 
 class Network(Logger):
@@ -235,8 +235,9 @@ class Network(Logger):
     LOGGING_SHORTCUT = 'n'
 
     def __init__(self, config: SimpleConfig):
-        global INSTANCE
-        INSTANCE = self
+        global _INSTANCE
+        assert _INSTANCE is None, "Network is a singleton!"
+        _INSTANCE = self
 
         Logger.__init__(self)
 
@@ -322,7 +323,7 @@ class Network(Logger):
 
     @staticmethod
     def get_instance() -> Optional["Network"]:
-        return INSTANCE
+        return _INSTANCE
 
     def with_recent_servers_lock(func):
         def func_wrapper(self, *args, **kwargs):

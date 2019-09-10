@@ -18,7 +18,6 @@ from datetime import datetime
 
 import aiorpcx
 
-from .simple_config import get_config
 from .crypto import sha256, sha256d
 from . import bitcoin
 from . import ecc

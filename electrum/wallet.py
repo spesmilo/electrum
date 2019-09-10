@@ -47,7 +47,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import PR_TYPE_ADDRESS, PR_TYPE_BIP70, PR_TYPE_LN
-from .simple_config import get_config
+from .simple_config import SimpleConfig
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
@@ -71,7 +71,6 @@ from .paymentrequest import PaymentRequest
 
 if TYPE_CHECKING:
     from .network import Network
-    from .simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -236,7 +235,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
-        self.config = get_config()
+        # TODO config should be passed as a param instead? SimpleConfig should not be a singleton.
+        self.config = SimpleConfig.get_instance()
+        assert self.config is not None, "config must not be None"
         self.lnworker = LNWallet(self) if self.config.get('lightning') else None
 
     def stop_threads(self):

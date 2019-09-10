@@ -35,7 +35,6 @@ from .util import bfh, bh2u, PR_PAID, PR_FAILED
 from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
-from .simple_config import get_config
 from .transaction import Transaction
 from .logging import Logger
 

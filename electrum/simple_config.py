@@ -31,18 +31,8 @@ FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 
-config = {}
 _logger = get_logger(__name__)
 
-
-def get_config():
-    global config
-    return config
-
-
-def set_config(c):
-    global config
-    config = c
 
 def estimate_fee(tx_size_bytes: int) -> int:
     def use_fallback_feerate():
@@ -61,6 +51,10 @@ def estimate_fee(tx_size_bytes: int) -> int:
 FINAL_CONFIG_VERSION = 3
 
 
+_INSTANCE = None
+_ENFORCE_SIMPLECONFIG_SINGLETON = True  # disabled in tests
+
+
 class SimpleConfig(Logger):
     """
     The SimpleConfig class is responsible for handling operations involving
@@ -74,6 +68,12 @@ class SimpleConfig(Logger):
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
+        # note: To be honest, singletons are bad design... :/
+        #       However currently we somewhat rely on config being one.
+        global _INSTANCE
+        if _ENFORCE_SIMPLECONFIG_SINGLETON:
+            assert _INSTANCE is None, "SimpleConfig is a singleton!"
+        _INSTANCE = self
 
         if options is None:
             options = {}
@@ -120,8 +120,9 @@ class SimpleConfig(Logger):
         if self.requires_upgrade():
             self.upgrade()
 
-        # Make a singleton instance of 'self'
-        set_config(self)
+    @staticmethod
+    def get_instance() -> Optional["SimpleConfig"]:
+        return _INSTANCE
 
     def electrum_path(self):
         # Read electrum_path from command line
