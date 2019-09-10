@@ -1950,6 +1950,23 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
     }
 
     @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.electrum_path = tempfile.mkdtemp()
+        cls.config = SimpleConfig({
+            'electrum_path': cls.electrum_path,
+            'skipmerklecheck': True,  # needed for Synchronizer to generate new addresses without SPV
+        })
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.electrum_path)
+        # horrible hack. create a new config to ensure custom settings
+        # don't get persisted in the "singleton" config:
+        SimpleConfig()
+
+    @classmethod
     def create_wallet(cls):
         ks = keystore.from_xpub('vpub5Vhmk4dEJKanDTTw6immKXa3thw45u3gbd1rPYjREB6viP13sVTWcH6kvbR2YeLtGjradr6SFLVt9PxWDBSrvw1Dc1nmd3oko3m24CQbfaJ')
         # seed words: nephew work weather maze pyramid employ check permit garment scene kiwi smooth
