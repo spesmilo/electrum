@@ -1964,7 +1964,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         shutil.rmtree(cls.electrum_path)
         # horrible hack. create a new config to ensure custom settings
         # don't get persisted in the "singleton" config:
-        SimpleConfig()
+        SimpleConfig({'electrum_path': cls.electrum_path})
 
     @classmethod
     def create_wallet(cls):
