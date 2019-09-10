@@ -7,6 +7,7 @@ import traceback
 from decimal import Decimal
 import threading
 import asyncio
+from typing import TYPE_CHECKING
 
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
@@ -76,6 +77,10 @@ from electrum.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_b
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
 
 class ElectrumWindow(App):
 
@@ -311,7 +316,7 @@ class ElectrumWindow(App):
         App.__init__(self)#, **kwargs)
 
         title = _('Electrum App')
-        self.electrum_config = config = kwargs.get('config', None)
+        self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
@@ -543,7 +548,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_payment_status, ['payment_status'])
         # load wallet
-        self.load_wallet_by_name(self.electrum_config.get_wallet_path())
+        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
         uri = self.electrum_config.get('url')
         if uri:
@@ -565,7 +570,8 @@ class ElectrumWindow(App):
         elif not self.wallet:
             # wizard did not return a wallet; and there is no wallet open atm
             # try to open last saved wallet (potentially start wizard again)
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(), ask_if_wizard=True)
+            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
+                                     ask_if_wizard=True)
 
     def load_wallet_by_name(self, path, ask_if_wizard=False):
         if not path:
@@ -1077,7 +1083,7 @@ class ElectrumWindow(App):
         self.stop_wallet()
         os.unlink(wallet_path)
         self.show_error(_("Wallet removed: {}").format(basename))
-        new_path = self.electrum_config.get_wallet_path()
+        new_path = self.electrum_config.get_wallet_path(use_gui_last_wallet=True)
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):

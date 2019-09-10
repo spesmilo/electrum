@@ -366,8 +366,7 @@ class Daemon(Logger):
         config = SimpleConfig(config_options)
         if self.gui_object:
             if hasattr(self.gui_object, 'new_window'):
-                config.open_last_wallet()
-                path = config.get_wallet_path()
+                path = config.get_wallet_path(use_gui_last_wallet=True)
                 self.gui_object.new_window(path, config.get('url'))
                 response = "ok"
             else:

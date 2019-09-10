@@ -265,17 +265,17 @@ class SimpleConfig(Logger):
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
-    def get_wallet_path(self):
+    def get_wallet_path(self, *, use_gui_last_wallet=False):
         """Set the path of the wallet."""
 
         # command line -w option
         if self.get('wallet_path'):
             return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
 
-        # path in config file
-        path = self.get('default_wallet_path')
-        if path and os.path.exists(path):
-            return path
+        if use_gui_last_wallet:
+            path = self.get('gui_last_wallet')
+            if path and os.path.exists(path):
+                return path
 
         # default path
         util.assert_datadir_available(self.path)
@@ -303,12 +303,6 @@ class SimpleConfig(Logger):
 
     def get_session_timeout(self):
         return self.get('session_timeout', 300)
-
-    def open_last_wallet(self):
-        if self.get('wallet_path') is None:
-            last_wallet = self.get('gui_last_wallet')
-            if last_wallet is not None and os.path.exists(last_wallet):
-                self.cmdline_options['default_wallet_path'] = last_wallet
 
     def save_last_wallet(self, wallet):
         if self.get('wallet_path') is None:

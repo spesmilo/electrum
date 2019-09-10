@@ -343,8 +343,7 @@ class ElectrumGui(Logger):
             return
         self.timer.start()
 
-        self.config.open_last_wallet()
-        path = self.config.get_wallet_path()
+        path = self.config.get_wallet_path(use_gui_last_wallet=True)
         if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())

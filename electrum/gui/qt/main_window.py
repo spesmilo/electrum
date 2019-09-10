@@ -556,7 +556,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.recently_visited_menu.setEnabled(len(recent))
 
     def get_wallet_folder(self):
-        return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
+        return os.path.dirname(os.path.abspath(self.wallet.storage.path))
 
     def new_wallet(self):
         try:
