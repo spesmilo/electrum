@@ -363,11 +363,10 @@ class Daemon(Logger):
         return True
 
     async def gui(self, config_options):
-        config = SimpleConfig(config_options)
         if self.gui_object:
             if hasattr(self.gui_object, 'new_window'):
-                path = config.get_wallet_path(use_gui_last_wallet=True)
-                self.gui_object.new_window(path, config.get('url'))
+                path = self.config.get_wallet_path(use_gui_last_wallet=True)
+                self.gui_object.new_window(path, config_options.get('url'))
                 response = "ok"
             else:
                 response = "error: current GUI does not support multiple windows"
