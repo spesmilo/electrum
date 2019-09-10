@@ -193,7 +193,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(grid)
 
         price_per_tx = wallet.price_per_tx
-        n_prepay = wallet.num_prepay(self.config)
+        n_prepay = wallet.num_prepay()
         i = 0
         for k, v in sorted(price_per_tx.items()):
             if k == 1:

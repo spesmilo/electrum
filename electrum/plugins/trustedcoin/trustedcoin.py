@@ -291,14 +291,14 @@ class Wallet_2fa(Multisig_Wallet):
     def min_prepay(self):
         return min(self.price_per_tx.keys())
 
-    def num_prepay(self, config):
+    def num_prepay(self):
         default = self.min_prepay()
-        n = config.get('trustedcoin_prepay', default)
+        n = self.config.get('trustedcoin_prepay', default)
         if n not in self.price_per_tx:
             n = default
         return n
 
-    def extra_fee(self, config):
+    def extra_fee(self):
         if self.can_sign_without_server():
             return 0
         if self.billing_info is None:
@@ -308,17 +308,17 @@ class Wallet_2fa(Multisig_Wallet):
             return 0
         if self.is_billing:
             return 0
-        n = self.num_prepay(config)
+        n = self.num_prepay()
         price = int(self.price_per_tx[n])
         if price > 100000 * n:
             raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
+    def make_unsigned_transaction(self, coins, outputs, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins, o, config, fixed_fee, change_addr)
-        fee = self.extra_fee(config) if not is_sweep else 0
+            self, coins, o, fixed_fee, change_addr)
+        fee = self.extra_fee() if not is_sweep else 0
         if fee:
             address = self.billing_info['billing_address_segwit']
             fee_output = TxOutput(TYPE_ADDRESS, address, fee)
