@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QGridLayout, QSlider, QScrollArea, QApplication)
 
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
@@ -193,8 +193,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(hbox2)
         self.set_layout(vbox, title=_('Electrum wallet'))
 
-        temp_storage = WalletStorage(path, manual_upgrades=True)
-        wallet_folder = os.path.dirname(temp_storage.path)
+        try:
+            temp_storage = WalletStorage(path, manual_upgrades=True)
+        except StorageReadWriteError:
+            temp_storage = None  # type: Optional[WalletStorage]
+        wallet_folder = os.path.dirname(path)
 
         def on_choose():
             path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
@@ -202,19 +205,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.name_e.setText(path)
 
         def on_filename(filename):
+            # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
             nonlocal temp_storage
+            temp_storage = None
             path = os.path.join(wallet_folder, filename)
             wallet_from_memory = get_wallet_from_daemon(path)
             try:
                 if wallet_from_memory:
-                    temp_storage = wallet_from_memory.storage
+                    temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                 else:
                     temp_storage = WalletStorage(path, manual_upgrades=True)
-                self.next_button.setEnabled(True)
-            except BaseException:
+            except StorageReadWriteError:
+                pass
+            except Exception:
                 self.logger.exception('')
-                temp_storage = None
-                self.next_button.setEnabled(False)
+            self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
                 if not temp_storage.file_exists():
@@ -246,12 +251,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         button.clicked.connect(on_choose)
         self.name_e.textChanged.connect(on_filename)
-        n = os.path.basename(temp_storage.path)
-        self.name_e.setText(n)
+        self.name_e.setText(os.path.basename(path))
 
         while True:
             if self.loop.exec_() != 2:  # 2 = next
                 raise UserCancelled
+            assert temp_storage
             if temp_storage.file_exists() and not temp_storage.is_encrypted():
                 break
             if not temp_storage.file_exists():

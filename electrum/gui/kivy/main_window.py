@@ -7,10 +7,10 @@ import traceback
 from decimal import Decimal
 import threading
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from electrum.bitcoin import TYPE_ADDRESS
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet import Wallet, InternalAddressCorruption
 from electrum.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum.plugin import run_hook
@@ -79,7 +79,10 @@ from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 if TYPE_CHECKING:
+    from . import ElectrumGui
     from electrum.simple_config import SimpleConfig
+    from electrum.wallet import Abstract_Wallet
+    from electrum.plugin import Plugins
 
 
 class ElectrumWindow(App):
@@ -309,7 +312,7 @@ class ElectrumWindow(App):
         self.nfcscanner = None
         self.tabs = None
         self.is_exit = False
-        self.wallet = None
+        self.wallet = None  # type: Optional[Abstract_Wallet]
         self.pause_time = 0
         self.asyncio_loop = asyncio.get_event_loop()
 
@@ -330,8 +333,8 @@ class ElectrumWindow(App):
             self.proxy_config = net_params.proxy if net_params.proxy else {}
             self.update_proxy_str(self.proxy_config)
 
-        self.plugins = kwargs.get('plugins', [])
-        self.gui_object = kwargs.get('gui_object', None)
+        self.plugins = kwargs.get('plugins', None)  # type: Plugins
+        self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
 
@@ -548,6 +551,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_payment_status, ['payment_status'])
         # load wallet
+        # FIXME if this raises, the whole app quits, without any user feedback or exc reporting
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
         uri = self.electrum_config.get('url')
@@ -1072,7 +1076,6 @@ class ElectrumWindow(App):
 
     def __delete_wallet(self, pw):
         wallet_path = self.get_wallet_path()
-        dirname = os.path.dirname(wallet_path)
         basename = os.path.basename(wallet_path)
         if self.wallet.has_password():
             try:
