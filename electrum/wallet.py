@@ -976,17 +976,18 @@ class Abstract_Wallet(AddressSynchronizer):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
-        """Returns whether address has any history that is deeply confirmed.
-
-        Note: this is NOT verified using SPV. (TODO should it be?)
-        """
+        """Returns whether address has any history that is deeply confirmed."""
         max_conf = -1
         h = self.db.get_addr_history(address)
+        needs_spv_check = not self.config.get("skipmerklecheck", False)
         for tx_hash, tx_height in h:
-            if tx_height <= 0:
-                tx_age = 0
+            if needs_spv_check:
+                tx_age = self.get_tx_height(tx_hash).conf
             else:
-                tx_age = self.get_local_height() - tx_height + 1
+                if tx_height <= 0:
+                    tx_age = 0
+                else:
+                    tx_age = self.get_local_height() - tx_height + 1
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
 
