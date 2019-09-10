@@ -512,6 +512,19 @@ class ElectrumWindow(App):
             mActivity = python_act.mActivity
             mActivity.moveTaskToBack(True)
 
+    def handle_crash_on_startup(func):
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                from .uix.dialogs.crash_reporter import CrashReporter
+                # show the crash reporter, and when it's closed, shutdown the app
+                cr = CrashReporter(self, exctype=type(e), value=e, tb=e.__traceback__)
+                cr.on_dismiss = lambda: self.stop()
+                Clock.schedule_once(lambda _, cr=cr: cr.open(), 0)
+        return wrapper
+
+    @handle_crash_on_startup
     def on_start(self):
         ''' This is the start point of the kivy ui
         '''
@@ -551,7 +564,6 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_payment_status, ['payment_status'])
         # load wallet
-        # FIXME if this raises, the whole app quits, without any user feedback or exc reporting
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
         uri = self.electrum_config.get('url')
