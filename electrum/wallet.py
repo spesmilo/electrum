@@ -699,9 +699,9 @@ class Abstract_Wallet(AddressSynchronizer):
         return self.labels.get(tx_hash, '') or self.get_default_label(tx_hash)
 
     def get_default_label(self, tx_hash):
-        if not self.db.get_txi(tx_hash):
+        if not self.db.get_txi_addresses(tx_hash):
             labels = []
-            for addr in self.db.get_txo(tx_hash):
+            for addr in self.db.get_txo_addresses(tx_hash):
                 label = self.labels.get(addr)
                 if label:
                     labels.append(label)
@@ -1150,7 +1150,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     txin['value'] = item[1]
             self.add_input_sig_info(txin, address)
 
-    def can_sign(self, tx):
+    def can_sign(self, tx: Transaction) -> bool:
         if tx.is_complete():
             return False
         # add info to inputs if we can; otherwise we might return a false negative:
@@ -1505,7 +1505,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def txin_value(self, txin):
         txid = txin['prevout_hash']
         prev_n = txin['prevout_n']
-        for addr in self.db.get_txo(txid):
+        for addr in self.db.get_txo_addresses(txid):
             d = self.db.get_txo_addr(txid, addr)
             for n, v, cb in d:
                 if n == prev_n:
@@ -1530,7 +1530,7 @@ class Abstract_Wallet(AddressSynchronizer):
         """ Average acquisition price of the inputs of a transaction """
         input_value = 0
         total_price = 0
-        for addr in self.db.get_txi(txid):
+        for addr in self.db.get_txi_addresses(txid):
             d = self.db.get_txi_addr(txid, addr)
             for ser, v in d:
                 input_value += v
@@ -1551,7 +1551,7 @@ class Abstract_Wallet(AddressSynchronizer):
         result = self._coin_price_cache.get(cache_key, None)
         if result is not None:
             return result
-        if self.db.get_txi(txid):
+        if self.db.get_txi_addresses(txid):
             result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
             self._coin_price_cache[cache_key] = result
             return result

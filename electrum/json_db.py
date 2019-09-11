@@ -28,7 +28,7 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple, Set, Iterable
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
@@ -518,20 +518,24 @@ class JsonDB(Logger):
         raise WalletFileException(msg)
 
     @locked
-    def get_txi(self, tx_hash):
+    def get_txi_addresses(self, tx_hash) -> List[str]:
+        """Returns list of is_mine addresses that appear as inputs in tx."""
         return list(self.txi.get(tx_hash, {}).keys())
 
     @locked
-    def get_txo(self, tx_hash):
+    def get_txo_addresses(self, tx_hash) -> List[str]:
+        """Returns list of is_mine addresses that appear as outputs in tx."""
         return list(self.txo.get(tx_hash, {}).keys())
 
     @locked
-    def get_txi_addr(self, tx_hash, address):
-        return self.txi.get(tx_hash, {}).get(address, [])
+    def get_txi_addr(self, tx_hash, address) -> Iterable[Tuple[str, int]]:
+        """Returns an iterable of (prev_outpoint, value)."""
+        return self.txi.get(tx_hash, {}).get(address, []).copy()
 
     @locked
-    def get_txo_addr(self, tx_hash, address):
-        return self.txo.get(tx_hash, {}).get(address, [])
+    def get_txo_addr(self, tx_hash, address) -> Iterable[Tuple[int, int, bool]]:
+        """Returns an iterable of (output_index, value, is_coinbase)."""
+        return self.txo.get(tx_hash, {}).get(address, []).copy()
 
     @modifier
     def add_txi_addr(self, tx_hash, addr, ser, v):
@@ -754,8 +758,11 @@ class JsonDB(Logger):
     @profiler
     def _load_transactions(self):
         # references in self.data
-        self.txi = self.get_data_ref('txi')  # txid -> address -> list of (prev_outpoint, value)
-        self.txo = self.get_data_ref('txo')  # txid -> address -> list of (output_index, value, is_coinbase)
+        # TODO make all these private
+        # txid -> address -> set of (prev_outpoint, value)
+        self.txi = self.get_data_ref('txi')  # type: Dict[str, Dict[str, Set[Tuple[str, int]]]]
+        # txid -> address -> set of (output_index, value, is_coinbase)
+        self.txo = self.get_data_ref('txo')  # type: Dict[str, Dict[str, Set[Tuple[int, int, bool]]]]
         self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_data_ref('spent_outpoints')
         self.history = self.get_data_ref('addr_history')  # address -> list of (txid, height)
@@ -771,7 +778,7 @@ class JsonDB(Logger):
                     d[addr] = set([tuple(x) for x in lst])
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
-            if not self.get_txi(tx_hash) and not self.get_txo(tx_hash):
+            if not self.get_txi_addresses(tx_hash) and not self.get_txo_addresses(tx_hash):
                 self.logger.info(f"removing unreferenced tx: {tx_hash}")
                 self.transactions.pop(tx_hash)
         # remove unreferenced outpoints

@@ -31,7 +31,7 @@ import struct
 import traceback
 import sys
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
-                    Callable, List, Dict, Set)
+                    Callable, List, Dict, Set, TYPE_CHECKING)
 from collections import defaultdict
 
 from . import ecc, bitcoin, constants, segwit_addr
@@ -44,6 +44,9 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 from .logging import get_logger
+
+if TYPE_CHECKING:
+    from .wallet import Abstract_Wallet
 
 
 _logger = get_logger(__name__)
@@ -687,7 +690,7 @@ class Transaction:
         txin['witness'] = None    # force re-serialization
         self.raw = None
 
-    def add_inputs_info(self, wallet):
+    def add_inputs_info(self, wallet: 'Abstract_Wallet') -> None:
         if self.is_complete():
             return
         for txin in self.inputs():

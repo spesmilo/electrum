@@ -125,13 +125,13 @@ class AddressSynchronizer(Logger):
         """Return number of transactions where address is involved."""
         return len(self._history_local.get(addr, ()))
 
-    def get_txin_address(self, txi):
+    def get_txin_address(self, txi) -> Optional[str]:
         addr = txi.get('address')
         if addr and addr != "(pubkey)":
             return addr
         prevout_hash = txi.get('prevout_hash')
         prevout_n = txi.get('prevout_n')
-        for addr in self.db.get_txo(prevout_hash):
+        for addr in self.db.get_txo_addresses(prevout_hash):
             l = self.db.get_txo_addr(prevout_hash, addr)
             for n, v, is_cb in l:
                 if n == prevout_n:
@@ -266,7 +266,7 @@ class AddressSynchronizer(Logger):
             # add inputs
             def add_value_from_prev_output():
                 # note: this nested loop takes linear time in num is_mine outputs of prev_tx
-                for addr in self.db.get_txo(prevout_hash):
+                for addr in self.db.get_txo_addresses(prevout_hash):
                     outputs = self.db.get_txo_addr(prevout_hash, addr)
                     # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
                     for n, v, is_cb in outputs:
@@ -325,7 +325,7 @@ class AddressSynchronizer(Logger):
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
-            for addr in itertools.chain(self.db.get_txi(tx_hash), self.db.get_txo(tx_hash)):
+            for addr in itertools.chain(self.db.get_txi_addresses(tx_hash), self.db.get_txo_addresses(tx_hash)):
                 self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
             self.db.remove_txi(tx_hash)
             self.db.remove_txo(tx_hash)
@@ -384,7 +384,7 @@ class AddressSynchronizer(Logger):
         for addr in hist_addrs_mine:
             hist = self.db.get_addr_history(addr)
             for tx_hash, tx_height in hist:
-                if self.db.get_txi(tx_hash) or self.db.get_txo(tx_hash):
+                if self.db.get_txi_addresses(tx_hash) or self.db.get_txo_addresses(tx_hash):
                     continue
                 tx = self.db.get_transaction(tx_hash)
                 if tx is not None:
@@ -475,7 +475,7 @@ class AddressSynchronizer(Logger):
 
     def _add_tx_to_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.db.get_txi(txid), self.db.get_txo(txid)):
+            for addr in itertools.chain(self.db.get_txi_addresses(txid), self.db.get_txo_addresses(txid)):
                 cur_hist = self._history_local.get(addr, set())
                 cur_hist.add(txid)
                 self._history_local[addr] = cur_hist
@@ -483,7 +483,7 @@ class AddressSynchronizer(Logger):
 
     def _remove_tx_from_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.db.get_txi(txid), self.db.get_txo(txid)):
+            for addr in itertools.chain(self.db.get_txi_addresses(txid), self.db.get_txo_addresses(txid)):
                 cur_hist = self._history_local.get(addr, set())
                 try:
                     cur_hist.remove(txid)
@@ -584,6 +584,7 @@ class AddressSynchronizer(Logger):
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
             elif tx_hash in self.future_tx:
+                # FIXME this is ugly
                 conf = self.future_tx[tx_hash]
                 return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=conf)
             else:
@@ -623,11 +624,11 @@ class AddressSynchronizer(Logger):
     def get_tx_value(self, txid):
         """effect of tx on the entire domain"""
         delta = 0
-        for addr in self.db.get_txi(txid):
+        for addr in self.db.get_txi_addresses(txid):
             d = self.db.get_txi_addr(txid, addr)
             for n, v in d:
                 delta -= v
-        for addr in self.db.get_txo(txid):
+        for addr in self.db.get_txo_addresses(txid):
             d = self.db.get_txo_addr(txid, addr)
             for n, v, cb in d:
                 delta += v
