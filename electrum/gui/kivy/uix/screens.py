@@ -134,6 +134,9 @@ class HistoryScreen(CScreen):
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = "atlas://electrum/gui/kivy/theming/light/lightning"
             message = tx_item['label']
+            fee_msat = tx_item['fee_msat']
+            fee = int(fee_msat/1000) if fee_msat else None
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
@@ -145,15 +148,20 @@ class HistoryScreen(CScreen):
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
             icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
+            fee = tx_item['fee_sat']
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
         ri = {}
         ri['screen'] = self
         ri['key'] = key
         ri['icon'] = icon
         ri['date'] = status_str
         ri['message'] = message
+        ri['fee_text'] = fee_text
         value = tx_item['value'].value
         if value is not None:
-            ri['is_mine'] = value < 0
+            if fee is not None:
+                value = value + int(fee)
+            ri['is_mine'] = value <= 0
             ri['amount'] = self.app.format_amount(value, is_diff = True)
             if 'fiat_value' in tx_item:
                 ri['quote_text'] = str(tx_item['fiat_value'])

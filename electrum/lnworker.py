@@ -453,9 +453,15 @@ class LNWallet(LNWorker):
             elif len(plist) == 1:
                 chan_id, htlc, _direction, status = plist[0]
                 direction = 'sent' if _direction == SENT else 'received'
-                amount_msat= int(_direction) * htlc.amount_msat
+                amount_msat = int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
                 label = self.wallet.get_label(payment_hash)
+                req = self.get_request(payment_hash)
+                if req and _direction == SENT:
+                    req_amount_msat = -req['amount']*1000
+                    fee_msat = req_amount_msat - amount_msat
+                else:
+                    fee_msat = None
             else:
                 # assume forwarding
                 direction = 'forwarding'
@@ -463,15 +469,17 @@ class LNWallet(LNWorker):
                 status = ''
                 label = _('Forwarding')
                 timestamp = min([htlc.timestamp for chan_id, htlc, _direction, status in plist])
+                fee_msat = None # fixme
 
             item = {
                 'type': 'payment',
                 'label': label,
-                'timestamp':timestamp or 0,
+                'timestamp': timestamp or 0,
                 'date': timestamp_to_datetime(timestamp),
                 'direction': direction,
                 'status': status,
                 'amount_msat': amount_msat,
+                'fee_msat': fee_msat,
                 'payment_hash': payment_hash
             }
             out.append(item)

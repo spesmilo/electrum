@@ -591,11 +591,10 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False, wallet=None):
+    async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet=None):
         """Wallet onchain history. Returns the transaction history of your wallet."""
         kwargs = {
             'show_addresses': show_addresses,
-            'show_fees': show_fees,
         }
         if year:
             import time

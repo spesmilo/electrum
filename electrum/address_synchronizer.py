@@ -439,14 +439,16 @@ class AddressSynchronizer(Logger):
         for tx_hash in tx_deltas:
             delta = tx_deltas[tx_hash]
             tx_mined_status = self.get_tx_height(tx_hash)
-            history.append((tx_hash, tx_mined_status, delta))
+            # FIXME: db should only store fees computed by us...
+            fee = self.db.get_tx_fee(tx_hash)
+            history.append((tx_hash, tx_mined_status, delta, fee))
         history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
         c, u, x = self.get_balance(domain)
         balance = c + u + x
         h2 = []
-        for tx_hash, tx_mined_status, delta in history:
-            h2.append((tx_hash, tx_mined_status, delta, balance))
+        for tx_hash, tx_mined_status, delta, fee in history:
+            h2.append((tx_hash, tx_mined_status, delta, fee, balance))
             if balance is None or delta is None:
                 balance = None
             else:

@@ -482,16 +482,17 @@ class Abstract_Wallet(AddressSynchronizer):
         # we also assume that block timestamps are monotonic (which is false...!)
         h = self.get_history(domain)
         balance = 0
-        for tx_hash, tx_mined_status, value, balance in h:
+        for tx_hash, tx_mined_status, value, fee, balance in h:
             if tx_mined_status.timestamp is None or tx_mined_status.timestamp > target_timestamp:
                 return balance - value
         # return last balance
         return balance
 
     def get_onchain_history(self):
-        for tx_hash, tx_mined_status, value, balance in self.get_history():
+        for tx_hash, tx_mined_status, value, fee, balance in self.get_history():
             yield {
                 'txid': tx_hash,
+                'fee_sat': fee,
                 'height': tx_mined_status.height,
                 'confirmations': tx_mined_status.conf,
                 'timestamp': tx_mined_status.timestamp,
@@ -592,7 +593,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     @profiler
     def get_detailed_history(self, from_timestamp=None, to_timestamp=None,
-                             fx=None, show_addresses=False, show_fees=False):
+                             fx=None, show_addresses=False):
         # History with capital gains, using utxo pricing
         # FIXME: Lightning capital gains would requires FIFO
         out = []
@@ -610,10 +611,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 continue
             tx_hash = item['txid']
             tx = self.db.get_transaction(tx_hash)
-            tx_fee = None
-            if show_fees:
-                tx_fee = self.get_tx_fee(tx)
-                item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
+            tx_fee = item['fee_sat']
+            item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
             if show_addresses:
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
                 item['outputs'] = list(map(lambda x:{'address':x.address, 'value':Satoshis(x.value)},
@@ -758,7 +757,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
         candidate = None
-        for tx_hash, tx_mined_status, delta, balance in self.get_history():
+        for tx_hash, tx_mined_status, delta, fee, balance in self.get_history():
             # tx should not be mined yet
             if tx_mined_status.conf > 0: continue
             # tx should be "outgoing" from wallet

@@ -17,6 +17,7 @@
 <HistoryItem@CardItem>
     icon: 'atlas://electrum/gui/kivy/theming/light/important'
     message: ''
+    fee_text: ''
     is_mine: True
     amount: '--'
     amount_color: '#FF6657' if self.is_mine else '#2EA442'
@@ -60,7 +61,7 @@
             font_size: '15sp'
         Widget
         CardLabel:
-            text: ''
+            text: root.fee_text
             halign: 'right'
             font_size: '12sp'
         Widget
