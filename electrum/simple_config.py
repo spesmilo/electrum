@@ -40,11 +40,11 @@ def estimate_fee(tx_size_bytes: int) -> int:
         fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
         return fee
 
-    global config
-    if not config:
+    global _INSTANCE
+    if not _INSTANCE:
         return use_fallback_feerate()
     try:
-        return config.estimate_fee(tx_size_bytes)
+        return _INSTANCE.estimate_fee(tx_size_bytes)
     except NoDynamicFeeEstimates:
         return use_fallback_feerate()
 
