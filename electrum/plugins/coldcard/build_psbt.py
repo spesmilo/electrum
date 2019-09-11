@@ -85,6 +85,10 @@ def xfp_for_keystore(ks):
 
     return xfp
 
+def packed_xfp_path_for_keystore(ks, int_path=[]):
+    # Return XFP + common prefix path for keystore, as binary ready for PSBT
+    derv = getattr(ks, 'derivation', 'm')
+    return packed_xfp_path(xfp_for_keystore(ks), derv[2:], int_path=int_path)
 
 # Serialization/deserialization tools
 def ser_compact_size(l):
@@ -155,7 +159,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
     for ks in wallet.get_keystores():
 
         # XFP + fixed prefix for this keystore
-        ks_prefix = packed_xfp_path(xfp_for_keystore(ks), ks.get_derivation()[2:])
+        ks_prefix = packed_xfp_path_for_keystore(ks)
 
         # all pubkeys needed for input signing
         for xpubkey, derivation in ks.get_tx_derivations(tx).items():
@@ -215,11 +219,9 @@ def build_psbt(tx: Transaction, wallet: Wallet):
 
         # always put the xpubs into the PSBT, useful at least for checking
         for xp, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-            xfp = xfp_for_keystore(ks)
+            ks_prefix = packed_xfp_path_for_keystore(ks)
 
-            dd = getattr(ks, 'derivation', 'm')
-
-            write_kv(PSBT_GLOBAL_XPUB, packed_xfp_path(xfp, dd), DecodeBase58Check(xp))
+            write_kv(PSBT_GLOBAL_XPUB, ks_prefix, DecodeBase58Check(xp))
 
     # end globals section
     out_fd.write(b'\x00')
@@ -262,7 +264,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
                 for ks in wallet.get_keystores():
                     d = ks.get_pubkey_derivation(x_pubkey)
                     if d is not None:
-                        ks_path = packed_xfp_path(xfp_for_keystore(ks), ks.get_derivation()[2:], d)
+                        ks_path = packed_xfp_path_for_keystore(ks, d)
                         write_kv(PSBT_IN_BIP32_DERIVATION, ks_path, pubkey)
                         break
                 else:
