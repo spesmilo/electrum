@@ -348,6 +348,20 @@ def make_unsigned_request(req):
     if payment_url:
         pd.payment_url = payment_url
     pr = pb2.PaymentRequest()
+    
+    # Note: We explicitly set this again here to 1 (default was already 1).
+    # The reason we need to do this is because __setattr__ for this class
+    # will trigger the Serialization to be 4 bytes of this field, rather than 2,
+    # if it was explicitly set programmatically.
+    # 
+    # This works around possible bugs with google protobuf for Javascript
+    # seen in the field -- in particular bitcoin.com was rejecting our BIP70 files
+    # because payment_details_version needed to be 4 bytes, not 2.
+    # Forcing the encoding to 4 bytes for payment_details_version fixed the
+    # rejection.  This workaround is likely needed due to bugs in the protobuf.js
+    # library.
+    pr.payment_details_version = int(pr.payment_details_version)
+    
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = util.to_bytes('')
     return pr
