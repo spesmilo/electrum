@@ -452,8 +452,6 @@ class LNWallet(LNWorker):
                 continue
             elif len(plist) == 1:
                 chan_id, htlc, _direction, status = plist[0]
-                if status != 'settled':
-                    continue
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat= int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
