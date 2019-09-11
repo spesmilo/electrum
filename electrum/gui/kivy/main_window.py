@@ -596,7 +596,7 @@ class ElectrumWindow(App):
             return
         wallet = self.daemon.load_wallet(path, None)
         if wallet:
-            if wallet.has_password():
+            if platform == 'android' and wallet.has_password():
                 self.password_dialog(wallet, _('Enter PIN code'), lambda x: self.load_wallet(wallet), self.stop)
             else:
                 self.load_wallet(wallet)
