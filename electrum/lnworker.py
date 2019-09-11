@@ -447,7 +447,10 @@ class LNWallet(LNWorker):
     def get_history(self):
         out = []
         for payment_hash, plist in self.get_payments().items():
-            if len(plist) == 1:
+            plist = list(filter(lambda x: x[3] == 'settled', plist))
+            if len(plist) == 0:
+                continue
+            elif len(plist) == 1:
                 chan_id, htlc, _direction, status = plist[0]
                 if status != 'settled':
                     continue
