@@ -190,9 +190,10 @@ class LNWatcher(AddressSynchronizer):
             await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
-        else:
-            #self.logger.info(f'we will keep_watching {funding_outpoint}')
-            pass
+
+    async def do_breach_remedy(self, funding_outpoints, spenders):
+        # overloaded in WatchTower
+        pass
 
     def inspect_tx_candidate(self, outpoint, n):
         # FIXME: instead of stopping recursion at n == 2,
