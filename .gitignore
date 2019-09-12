@@ -21,10 +21,6 @@ bin/
 electrum_ltc/gui/kivy/theming/light-0.png
 electrum_ltc/gui/kivy/theming/light-1.png
 electrum_ltc/gui/kivy/theming/light.atlas
-electrum_ltc/gui/kivy/theming/light/network.png
-electrum_ltc/gui/kivy/theming/light/lightning_switch_off.png
-electrum_ltc/gui/kivy/theming/light/lightning_switch_on.png
-electrum_ltc/gui/kivy/theming/light/lightning.png
 
 # tests/tox
 .tox/

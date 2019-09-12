@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 
 try:
@@ -57,6 +57,11 @@ from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 
+if TYPE_CHECKING:
+    from electrum_ltc.daemon import Daemon
+    from electrum_ltc.simple_config import SimpleConfig
+    from electrum_ltc.plugin import Plugins
+
 
 class OpenFileEventFilter(QObject):
     def __init__(self, windows):
@@ -82,7 +87,7 @@ class QNetworkUpdatedSignalObject(QObject):
 class ElectrumGui(Logger):
 
     @profiler
-    def __init__(self, config, daemon, plugins):
+    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', get_default_language()))
         Logger.__init__(self)
         # Uncomment this call to verify objects are being properly
@@ -338,8 +343,7 @@ class ElectrumGui(Logger):
             return
         self.timer.start()
 
-        self.config.open_last_wallet()
-        path = self.config.get_wallet_path()
+        path = self.config.get_wallet_path(use_gui_last_wallet=True)
         if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())

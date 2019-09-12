@@ -134,6 +134,9 @@ class HistoryScreen(CScreen):
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = "atlas://electrum_ltc/gui/kivy/theming/light/lightning"
             message = tx_item['label']
+            fee_msat = tx_item['fee_msat']
+            fee = int(fee_msat/1000) if fee_msat else None
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
@@ -145,15 +148,18 @@ class HistoryScreen(CScreen):
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
             icon = "atlas://electrum_ltc/gui/kivy/theming/light/" + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
+            fee = tx_item['fee_sat']
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
         ri = {}
         ri['screen'] = self
         ri['key'] = key
         ri['icon'] = icon
         ri['date'] = status_str
         ri['message'] = message
+        ri['fee_text'] = fee_text
         value = tx_item['value'].value
         if value is not None:
-            ri['is_mine'] = value < 0
+            ri['is_mine'] = value <= 0
             ri['amount'] = self.app.format_amount(value, is_diff = True)
             if 'fiat_value' in tx_item:
                 ri['quote_text'] = str(tx_item['fiat_value'])
@@ -360,10 +366,9 @@ class SendScreen(CScreen):
 
     def _do_send_onchain(self, amount, message, outputs, rbf):
         # make unsigned transaction
-        config = self.app.electrum_config
-        coins = self.app.wallet.get_spendable_coins(None, config)
+        coins = self.app.wallet.get_spendable_coins(None)
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
+            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, None)
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return
@@ -467,7 +472,7 @@ class ReceiveScreen(CScreen):
                 return
             self.screen.address = addr
             req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
-            self.app.wallet.add_payment_request(req, self.app.electrum_config)
+            self.app.wallet.add_payment_request(req)
             key = addr
         self.clear()
         self.update()
@@ -497,7 +502,7 @@ class ReceiveScreen(CScreen):
     def update(self):
         if not self.loaded:
             return
-        _list = self.app.wallet.get_sorted_requests(self.app.electrum_config)
+        _list = self.app.wallet.get_sorted_requests()
         requests_container = self.screen.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
 
@@ -512,7 +517,7 @@ class ReceiveScreen(CScreen):
         d.open()
 
     def clear_requests_dialog(self):
-        expired = [req for req in self.app.wallet.get_sorted_requests(self.app.electrum_config) if req['status'] == PR_EXPIRED]
+        expired = [req for req in self.app.wallet.get_sorted_requests() if req['status'] == PR_EXPIRED]
         if len(expired) == 0:
             return
         def callback(c):

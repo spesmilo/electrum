@@ -186,12 +186,14 @@ class LNWatcher(AddressSynchronizer):
             self.network.trigger_callback('channel_closed', funding_outpoint, spenders,
                                           funding_txid, funding_height, closing_txid,
                                           closing_height, closing_tx)  # FIXME sooo many args..
-            #await self.do_breach_remedy(funding_outpoint, spenders)
+            # TODO: add tests for local_watchtower
+            await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
-        else:
-            #self.logger.info(f'we will keep_watching {funding_outpoint}')
-            pass
+
+    async def do_breach_remedy(self, funding_outpoints, spenders):
+        # overloaded in WatchTower
+        pass
 
     def inspect_tx_candidate(self, outpoint, n):
         # FIXME: instead of stopping recursion at n == 2,
@@ -267,16 +269,16 @@ class WatchTower(LNWatcher):
             for tx in sweep_txns:
                 await self.broadcast_or_log(funding_outpoint, tx)
 
-    async def broadcast_or_log(self, funding_outpoint, tx):
+    async def broadcast_or_log(self, funding_outpoint: str, tx: Transaction):
         height = self.get_tx_height(tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
             return
         try:
             txid = await self.network.broadcast_transaction(tx)
         except Exception as e:
-            self.logger.info(f'broadcast failure: {tx.name}: {repr(e)}')
+            self.logger.info(f'broadcast failure: txid={tx.txid()}, funding_outpoint={funding_outpoint}: {repr(e)}')
         else:
-            self.logger.info(f'broadcast success: {tx.name}')
+            self.logger.info(f'broadcast success: txid={tx.txid()}, funding_outpoint={funding_outpoint}')
             if funding_outpoint in self.tx_progress:
                 await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid

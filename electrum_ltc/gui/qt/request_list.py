@@ -114,7 +114,7 @@ class RequestList(MyTreeView):
         self.parent.update_receive_address_styling()
         self.model().clear()
         self.update_headers(self.__class__.headers)
-        for req in self.wallet.get_sorted_requests(self.config):
+        for req in self.wallet.get_sorted_requests():
             status = req.get('status')
             if status == PR_PAID:
                 continue

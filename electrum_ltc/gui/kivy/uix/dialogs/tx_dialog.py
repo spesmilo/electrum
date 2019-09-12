@@ -223,8 +223,7 @@ class TxDialog(Factory.Popup):
             return
         try:
             new_tx = self.wallet.bump_fee(tx=self.tx,
-                                          new_fee_rate=new_fee_rate,
-                                          config=self.app.electrum_config)
+                                          new_fee_rate=new_fee_rate)
         except CannotBumpFee as e:
             self.app.show_error(str(e))
             return

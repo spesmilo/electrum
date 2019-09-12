@@ -56,6 +56,7 @@ from .lnwatcher import LNWatcher
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+    from .lnsweep import SweepInfo
 
 
 NUM_PEERS_TARGET = 4
@@ -91,6 +92,9 @@ class LNWorker(Logger):
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.localfeatures = LnLocalFeatures(0)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+
+    def channels_for_peer(self, node_id):
+        return {}
 
     async def maybe_listen(self):
         listen_addr = self.config.get('lightning_listen')
@@ -443,14 +447,21 @@ class LNWallet(LNWorker):
     def get_history(self):
         out = []
         for payment_hash, plist in self.get_payments().items():
-            if len(plist) == 1:
+            plist = list(filter(lambda x: x[3] == 'settled', plist))
+            if len(plist) == 0:
+                continue
+            elif len(plist) == 1:
                 chan_id, htlc, _direction, status = plist[0]
-                if status != 'settled':
-                    continue
                 direction = 'sent' if _direction == SENT else 'received'
-                amount_msat= int(_direction) * htlc.amount_msat
+                amount_msat = int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
                 label = self.wallet.get_label(payment_hash)
+                req = self.get_request(payment_hash)
+                if req and _direction == SENT:
+                    req_amount_msat = -req['amount']*1000
+                    fee_msat = req_amount_msat - amount_msat
+                else:
+                    fee_msat = None
             else:
                 # assume forwarding
                 direction = 'forwarding'
@@ -458,15 +469,17 @@ class LNWallet(LNWorker):
                 status = ''
                 label = _('Forwarding')
                 timestamp = min([htlc.timestamp for chan_id, htlc, _direction, status in plist])
+                fee_msat = None # fixme
 
             item = {
                 'type': 'payment',
                 'label': label,
-                'timestamp':timestamp or 0,
+                'timestamp': timestamp or 0,
                 'date': timestamp_to_datetime(timestamp),
                 'direction': direction,
                 'status': status,
                 'amount_msat': amount_msat,
+                'fee_msat': fee_msat,
                 'payment_hash': payment_hash
             }
             out.append(item)
@@ -598,11 +611,11 @@ class LNWallet(LNWorker):
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed and set sweep_info
-        sweep_info = chan.sweep_ctx(closing_tx)
-        self.logger.info(f'sweep_info length: {len(sweep_info)}')
+        sweep_info_dict = chan.sweep_ctx(closing_tx)
+        self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
-        for prevout, e_tx in sweep_info.items():
-            name, csv_delay, cltv_expiry, gen_tx = e_tx
+        for prevout, sweep_info in sweep_info_dict.items():
+            name = sweep_info.name
             spender = spenders.get(prevout)
             if spender is not None:
                 spender_tx = await self.network.get_transaction(spender)
@@ -619,31 +632,31 @@ class LNWallet(LNWorker):
                     self.logger.info(f'outpoint already spent {name}: {prevout}')
             else:
                 self.logger.info(f'trying to redeem {name}: {prevout}')
-                await self.try_redeem(prevout, e_tx)
+                await self.try_redeem(prevout, sweep_info)
 
     @log_exceptions
-    async def try_redeem(self, prevout, e_tx):
-        name, csv_delay, cltv_expiry, gen_tx = e_tx
+    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo') -> None:
+        name = sweep_info.name
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
-        if cltv_expiry:
+        if sweep_info.cltv_expiry:
             local_height = self.network.get_local_height()
-            remaining = cltv_expiry - local_height
+            remaining = sweep_info.cltv_expiry - local_height
             if remaining > 0:
                 self.logger.info('waiting for {}: CLTV ({} > {}), prevout {}'
-                                 .format(name, local_height, cltv_expiry, prevout))
+                                 .format(name, local_height, sweep_info.cltv_expiry, prevout))
                 broadcast = False
-        if csv_delay:
+        if sweep_info.csv_delay:
             prev_height = self.lnwatcher.get_tx_height(prev_txid)
-            remaining = csv_delay - prev_height.conf
+            remaining = sweep_info.csv_delay - prev_height.conf
             if remaining > 0:
                 self.logger.info('waiting for {}: CSV ({} >= {}), prevout: {}'
-                                 .format(name, prev_height.conf, csv_delay, prevout))
+                                 .format(name, prev_height.conf, sweep_info.csv_delay, prevout))
                 broadcast = False
-        tx = gen_tx()
-        self.wallet.set_label(tx.txid(), name)
+        tx = sweep_info.gen_tx()
         if tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
+        self.wallet.set_label(tx.txid(), name)
         if broadcast:
             try:
                 await self.network.broadcast_transaction(tx)

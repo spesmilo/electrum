@@ -18,7 +18,6 @@ from datetime import datetime
 
 import aiorpcx
 
-from .simple_config import get_config
 from .crypto import sha256, sha256d
 from . import bitcoin
 from . import ecc
@@ -209,7 +208,14 @@ class Peer(Logger):
         self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
+        self.maybe_save_remote_update(payload)
         self.gossip_queue.put_nowait(('channel_update', payload))
+
+    def maybe_save_remote_update(self, payload):
+        for chan in self.channels.values():
+            if chan.short_channel_id == payload['short_channel_id']:
+                chan.remote_update = payload['raw']
+                self.logger.info("saved remote_update")
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -483,7 +489,7 @@ class Peer(Logger):
         wallet = self.lnworker.wallet
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
-                                      password, self.lnworker.config, nonlocal_only=True)
+                                      password, nonlocal_only=True)
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -563,7 +569,7 @@ class Peer(Logger):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = wallet.mktx([funding_output], password, self.lnworker.config, nonlocal_only=True)
+        funding_tx = wallet.mktx([funding_output], password, nonlocal_only=True)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
@@ -576,6 +582,7 @@ class Peer(Logger):
             "remote_config": remote_config,
             "local_config": local_config,
             "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
+            "remote_update": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -660,6 +667,7 @@ class Peer(Logger):
                 ),
                 "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
+                "remote_update": None,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -1008,7 +1016,13 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            self.channel_db.add_channel_update(pending_channel_update)
+            chan.remote_update = pending_channel_update['raw']
+        # add remote update with a fresh timestamp
+        if chan.remote_update:
+            now = int(time.time())
+            remote_update_decoded = decode_msg(chan.remote_update)[1]
+            remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
+            self.channel_db.add_channel_update(remote_update_decoded)
 
     def get_outgoing_gossip_channel_update_for_chan(self, chan: Channel) -> bytes:
         if chan._outgoing_channel_update is not None:
@@ -1136,6 +1150,7 @@ class Peer(Logger):
             blacklist = False
             if categorized_chan_upds.good:
                 self.logger.info("applied channel update on our db")
+                self.maybe_save_remote_update(payload)
             elif categorized_chan_upds.orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info("maybe channel update is for private channel?")

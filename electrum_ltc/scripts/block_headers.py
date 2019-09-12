@@ -7,10 +7,13 @@ import asyncio
 
 from electrum_ltc.network import Network
 from electrum_ltc.util import print_msg, json_encode, create_and_start_event_loop, log_exceptions
+from electrum_ltc.simple_config import SimpleConfig
+
+config = SimpleConfig()
 
 # start network
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 # wait until connected

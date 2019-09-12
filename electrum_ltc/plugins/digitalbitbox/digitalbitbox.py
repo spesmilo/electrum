@@ -570,11 +570,12 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 assert o.type == TYPE_ADDRESS
                 info = tx.output_info.get(o.address)
                 if info is not None:
-                    index = info.address_index
-                    changePath = self.get_derivation() + "/%d/%d" % index
-                    changePubkey = self.derive_pubkey(index[0], index[1])
-                    pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
-                    pubkeyarray.append(pubkeyarray_i)
+                    if info.is_change:
+                        index = info.address_index
+                        changePath = self.get_derivation() + "/%d/%d" % index
+                        changePubkey = self.derive_pubkey(index[0], index[1])
+                        pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
+                        pubkeyarray.append(pubkeyarray_i)
 
             # Special serialization of the unsigned transaction for
             # the mobile verification app.

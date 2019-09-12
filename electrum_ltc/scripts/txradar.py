@@ -2,8 +2,9 @@
 import sys
 import asyncio
 
-from electrum.network import filter_protocol, Network
-from electrum.util import create_and_start_event_loop, log_exceptions
+from electrum_ltc.network import filter_protocol, Network
+from electrum_ltc.util import create_and_start_event_loop, log_exceptions
+from electrum_ltc.simple_config import SimpleConfig
 
 
 try:
@@ -12,9 +13,10 @@ except:
     print("usage: txradar txid")
     sys.exit(1)
 
+config = SimpleConfig()
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 @log_exceptions

@@ -106,8 +106,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_cmdline(config_options, server):
-    config = SimpleConfig(config_options)
+def init_cmdline(config_options, wallet_path, server):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -122,7 +121,7 @@ def init_cmdline(config_options, server):
         cmd.requires_network = True
 
     # instantiate wallet for command-line
-    storage = WalletStorage(config.get_wallet_path())
+    storage = WalletStorage(wallet_path)
 
     if cmd.requires_wallet and not storage.file_exists():
         print_msg("Error: Wallet file not found.")
@@ -324,9 +323,8 @@ if __name__ == '__main__':
         if not uri.startswith('litecoin:'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
-        config_options['url'] = uri
 
-    # todo: defer this to gui
+    # singleton
     config = SimpleConfig(config_options)
 
     if config.get('testnet'):
@@ -392,9 +390,10 @@ if __name__ == '__main__':
     else:
         # command line
         cmd = known_commands[cmdname]
+        wallet_path = config.get_wallet_path()
         if not config.get('offline'):
-            init_cmdline(config_options, True)
-            timeout = config_options.get('timeout', 60)
+            init_cmdline(config_options, wallet_path, True)
+            timeout = config.get('timeout', 60)
             if timeout: timeout = int(timeout)
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
@@ -410,7 +409,7 @@ if __name__ == '__main__':
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
-            init_cmdline(config_options, False)
+            init_cmdline(config_options, wallet_path, False)
             plugins = init_plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)

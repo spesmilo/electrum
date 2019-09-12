@@ -2,6 +2,7 @@ import unittest
 import threading
 
 from electrum_ltc import constants
+from electrum_ltc import simple_config
 
 
 # Set this locally to make the test suite run faster.
@@ -9,6 +10,9 @@ from electrum_ltc import constants
 # will only be run once, using the fastest implementation.
 # e.g. libsecp256k1 vs python-ecdsa. pycryptodomex vs pyaes.
 FAST_TESTS = False
+
+
+simple_config._ENFORCE_SIMPLECONFIG_SINGLETON = False
 
 
 # some unit tests are modifying globals; sorry.
