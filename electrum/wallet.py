@@ -492,7 +492,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_onchain_history(self):
         for hist_item in self.get_history():
             yield {
-                'txid': hist_item.tx_mined_status,
+                'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
                 'height': hist_item.tx_mined_status.height,
                 'confirmations': hist_item.tx_mined_status.conf,
