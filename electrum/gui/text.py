@@ -117,9 +117,9 @@ class ElectrumGui:
 
         b = 0
         self.history = []
-        for tx_hash, tx_mined_status, value, balance in self.wallet.get_history():
-            if tx_mined_status.conf:
-                timestamp = tx_mined_status.timestamp
+        for hist_item in self.wallet.get_history():
+            if hist_item.tx_mined_status.conf:
+                timestamp = hist_item.tx_mined_status.timestamp
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
@@ -127,10 +127,11 @@ class ElectrumGui:
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
-            self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
+            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.value, whitespaces=True),
+                                              format_satoshis(hist_item.balance, whitespaces=True)))
 
 
     def print_balance(self):

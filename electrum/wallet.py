@@ -482,26 +482,27 @@ class Abstract_Wallet(AddressSynchronizer):
         # we also assume that block timestamps are monotonic (which is false...!)
         h = self.get_history(domain)
         balance = 0
-        for tx_hash, tx_mined_status, value, fee, balance in h:
-            if tx_mined_status.timestamp is None or tx_mined_status.timestamp > target_timestamp:
-                return balance - value
+        for hist_item in h:
+            balance = hist_item.balance
+            if hist_item.tx_mined_status.timestamp is None or hist_item.tx_mined_status.timestamp > target_timestamp:
+                return balance - hist_item.delta
         # return last balance
         return balance
 
     def get_onchain_history(self):
-        for tx_hash, tx_mined_status, value, fee, balance in self.get_history():
+        for hist_item in self.get_history():
             yield {
-                'txid': tx_hash,
-                'fee_sat': fee,
-                'height': tx_mined_status.height,
-                'confirmations': tx_mined_status.conf,
-                'timestamp': tx_mined_status.timestamp,
-                'incoming': True if value>0 else False,
-                'bc_value': Satoshis(value),
-                'bc_balance': Satoshis(balance),
-                'date': timestamp_to_datetime(tx_mined_status.timestamp),
-                'label': self.get_label(tx_hash),
-                'txpos_in_block': tx_mined_status.txpos,
+                'txid': hist_item.tx_mined_status,
+                'fee_sat': hist_item.fee,
+                'height': hist_item.tx_mined_status.height,
+                'confirmations': hist_item.tx_mined_status.conf,
+                'timestamp': hist_item.tx_mined_status.timestamp,
+                'incoming': True if hist_item.delta>0 else False,
+                'bc_value': Satoshis(hist_item.delta),
+                'bc_balance': Satoshis(hist_item.balance),
+                'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
+                'label': self.get_label(hist_item.txid),
+                'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
     def save_invoice(self, invoice):
@@ -757,13 +758,18 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
         candidate = None
-        for tx_hash, tx_mined_status, delta, fee, balance in self.get_history():
+        for hist_item in self.get_history():
             # tx should not be mined yet
-            if tx_mined_status.conf > 0: continue
-            # tx should be "outgoing" from wallet
-            if delta >= 0:
+            if hist_item.tx_mined_status.conf > 0: continue
+            # conservative future proofing of code: only allow known unconfirmed types
+            if hist_item.tx_mined_status.height not in (TX_HEIGHT_UNCONFIRMED,
+                                                        TX_HEIGHT_UNCONF_PARENT,
+                                                        TX_HEIGHT_LOCAL):
                 continue
-            tx = self.db.get_transaction(tx_hash)
+            # tx should be "outgoing" from wallet
+            if hist_item.delta >= 0:
+                continue
+            tx = self.db.get_transaction(hist_item.txid)
             if not tx:
                 continue
             # is_mine outputs should not be spent yet
@@ -776,7 +782,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if not all([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()]):
                 continue
             # prefer txns already in mempool (vs local)
-            if tx_mined_status.height == TX_HEIGHT_LOCAL:
+            if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
                 candidate = tx
                 continue
             # tx must have opted-in for RBF

@@ -26,7 +26,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -55,6 +55,14 @@ class AddTransactionException(Exception):
 class UnrelatedTransactionException(AddTransactionException):
     def __str__(self):
         return _("Transaction is unrelated to this wallet.")
+
+
+class HistoryItem(NamedTuple):
+    txid: str
+    tx_mined_status: TxMinedInfo
+    delta: Optional[int]
+    fee: Optional[int]
+    balance: Optional[int]
 
 
 class AddressSynchronizer(Logger):
@@ -418,7 +426,7 @@ class AddressSynchronizer(Logger):
         return f
 
     @with_local_height_cached
-    def get_history(self, domain=None):
+    def get_history(self, domain=None) -> Sequence[HistoryItem]:
         # get domain
         if domain is None:
             domain = self.get_addresses()
@@ -448,7 +456,11 @@ class AddressSynchronizer(Logger):
         balance = c + u + x
         h2 = []
         for tx_hash, tx_mined_status, delta, fee in history:
-            h2.append((tx_hash, tx_mined_status, delta, fee, balance))
+            h2.append(HistoryItem(txid=tx_hash,
+                                  tx_mined_status=tx_mined_status,
+                                  delta=delta,
+                                  fee=fee,
+                                  balance=balance))
             if balance is None or delta is None:
                 balance = None
             else:
