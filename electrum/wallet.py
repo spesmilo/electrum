@@ -409,7 +409,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
-                        fee = self.get_tx_fee(tx_hash, trust_server=True)
+                        fee = self.get_tx_fee(tx_hash)
                     if fee and self.network and self.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
@@ -722,7 +722,7 @@ class Abstract_Wallet(AddressSynchronizer):
             is_final = tx and tx.is_final()
             if not is_final:
                 extra.append('rbf')
-            fee = self.get_tx_fee(tx_hash, trust_server=True)
+            fee = self.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
