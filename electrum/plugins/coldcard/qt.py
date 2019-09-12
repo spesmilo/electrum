@@ -34,23 +34,14 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     @hook
     def receive_menu(self, menu, addrs, wallet):
         # Context menu on each address in the Addresses Tab, right click...
-
-        if type(wallet) is Standard_Wallet:
-            keystore = wallet.get_keystore()
-        else:
-            # find if any devices are connected and ready to go, use first of those.
-            for ks in wallet.get_keystores():
-                if ks.has_usable_connection_with_device():
-                    keystore = ks
-                    break
-            else:
-                # don't hook into menu
-                return
-
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
-            menu.addAction(_("Show on Coldcard ({})").format(keystore.label), show_address)
+        if len(addrs) != 1:
+            return
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class:
+                def show_address(keystore=keystore):
+                    keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
+                device_name = "{} ({})".format(self.device, keystore.label)
+                menu.addAction(_("Show on {}").format(device_name), show_address)
 
     @only_hook_if_libraries_available
     @hook
