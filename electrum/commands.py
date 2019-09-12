@@ -32,6 +32,7 @@ import ast
 import base64
 import operator
 import asyncio
+import inspect
 from functools import wraps, partial
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict
@@ -143,6 +144,11 @@ class Commands:
         f = getattr(self, method)
         if cmd.requires_password:
             kwargs['password'] = password
+
+        if 'wallet' in kwargs:
+            sig = inspect.signature(f)
+            if 'wallet' not in sig.parameters:
+                kwargs.pop('wallet')
 
         coro = f(*args, **kwargs)
         fut = asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop())
