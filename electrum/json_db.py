@@ -699,12 +699,14 @@ class JsonDB(Logger):
         self.tx_fees[txid] = self.tx_fees[txid]._replace(fee=fee_sat, is_calculated_by_us=True)
 
     @locked
-    def get_tx_fee(self, txid: str) -> Optional[Tuple[Optional[int], bool]]:
-        """Returns (tx_fee, is_calculated_by_us)."""
+    def get_tx_fee(self, txid: str, *, trust_server=False) -> Optional[int]:
+        """Returns tx_fee."""
         tx_fees_value = self.tx_fees.get(txid)
         if tx_fees_value is None:
             return None
-        return tx_fees_value.fee, tx_fees_value.is_calculated_by_us
+        if not trust_server and not tx_fees_value.is_calculated_by_us:
+            return None
+        return tx_fees_value.fee
 
     @modifier
     def add_num_inputs_to_tx(self, txid: str, num_inputs: int) -> None:

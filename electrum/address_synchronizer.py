@@ -451,7 +451,7 @@ class AddressSynchronizer(Logger):
         for tx_hash in tx_deltas:
             delta = tx_deltas[tx_hash]
             tx_mined_status = self.get_tx_height(tx_hash)
-            fee, is_calculated_by_us = self.get_tx_fee(tx_hash)
+            fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
         history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
@@ -689,39 +689,37 @@ class AddressSynchronizer(Logger):
             fee = None
         return is_relevant, is_mine, v, fee
 
-    def get_tx_fee(self, txid: str) -> Tuple[Optional[int], bool]:
-        """Returns (tx_fee, is_calculated_by_us)."""
+    def get_tx_fee(self, txid: str) -> Optional[int]:
+        """ Returns tx_fee or None. Use server fee only if tx is unconfirmed and not mine"""
         # check if stored fee is available
-        # return that, if is_calc_by_us
-        fee = None
-        fee_and_bool = self.db.get_tx_fee(txid)
-        if fee_and_bool is not None:
-            fee, is_calc_by_us = fee_and_bool
-            if is_calc_by_us:
-                return fee, is_calc_by_us
-            elif self.get_tx_height(txid).conf > 0:
-                # delete server-sent fee for confirmed txns
-                self.db.add_tx_fee_from_server(txid, None)
-                fee = None
+        fee = self.db.get_tx_fee(txid, trust_server=False)
+        if fee is not None:
+            return fee
+        # delete server-sent fee for confirmed txns
+        confirmed = self.get_tx_height(txid).conf > 0
+        if confirmed:
+            self.db.add_tx_fee_from_server(txid, None)
         # if all inputs are ismine, try to calc fee now;
         # otherwise, return stored value
         num_all_inputs = self.db.get_num_all_inputs_of_tx(txid)
         if num_all_inputs is not None:
+            # check if tx is mine
             num_ismine_inputs = self.db.get_num_ismine_inputs_of_tx(txid)
             assert num_ismine_inputs <= num_all_inputs, (num_ismine_inputs, num_all_inputs)
+            # trust server if tx is unconfirmed and not mine
             if num_ismine_inputs < num_all_inputs:
-                return fee, False
+                return None if confirmed else self.db.get_tx_fee(txid, trust_server=True)
         # lookup tx and deserialize it.
         # note that deserializing is expensive, hence above hacks
         tx = self.db.get_transaction(txid)
         if not tx:
-            return None, False
+            return None
         with self.lock, self.transaction_lock:
             is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
         # save result
         self.db.add_tx_fee_we_calculated(txid, fee)
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))
-        return fee, True
+        return fee
 
     def get_addr_io(self, address):
         with self.lock, self.transaction_lock:

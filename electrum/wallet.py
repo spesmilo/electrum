@@ -409,7 +409,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
-                        fee, _calc_by_us = self.get_tx_fee(tx_hash)
+                        fee = self.get_tx_fee(tx_hash, trust_server=True)
                     if fee and self.network and self.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
@@ -722,7 +722,7 @@ class Abstract_Wallet(AddressSynchronizer):
             is_final = tx and tx.is_final()
             if not is_final:
                 extra.append('rbf')
-            fee, _calc_by_us = self.get_tx_fee(tx_hash)
+            fee = self.get_tx_fee(tx_hash, trust_server=True)
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
@@ -1004,8 +1004,8 @@ class Abstract_Wallet(AddressSynchronizer):
         old_tx_size = tx.estimated_size()
         old_txid = tx.txid()
         assert old_txid
-        old_fee, is_calc_by_us = self.get_tx_fee(old_txid)
-        if old_fee is None or not is_calc_by_us:
+        old_fee = self.get_tx_fee(old_txid)
+        if old_fee is None:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('current fee unknown'))
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
