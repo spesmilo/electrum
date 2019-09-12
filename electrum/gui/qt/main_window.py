@@ -3005,7 +3005,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
-        parent_fee, _calc_by_us = self.wallet.get_tx_fee(parent_txid)
+        parent_fee = self.wallet.get_tx_fee(parent_txid)
         if parent_fee is None:
             self.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return
@@ -3084,8 +3084,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def bump_fee_dialog(self, tx: Transaction):
         txid = tx.txid()
         assert txid
-        fee, is_calc_by_us = self.wallet.get_tx_fee(txid)
-        if fee is None or not is_calc_by_us:
+        fee = self.wallet.get_tx_fee(txid)
+        if fee is None:
             self.show_error(_("Can't bump fee: unknown fee for original transaction."))
             return
         tx_label = self.wallet.get_label(txid)
