@@ -214,9 +214,6 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         else:
             desc = _("Combined from %d PSBT files") % len(psbts)
 
-        # need to associated our pluging to this wallet
-        ColdcardPlugin.link_wallet(wallet)
-
         window.show_transaction(tx, desc)
 
 class Coldcard_Handler(QtHandlerBase):

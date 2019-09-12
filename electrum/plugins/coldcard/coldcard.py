@@ -251,7 +251,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         self.ux_busy = False
 
         # for multisig I need to know what wallet this keystore is part of
-        # this is captured by hooling  make_unsigned_transaction
+        # will be set by link_wallet
         self.my_wallet = None
 
         # Seems like only the derivation path and resulting **derived** xpub is stored in
@@ -660,14 +660,20 @@ class ColdcardPlugin(HW_PluginBase):
     def link_wallet(cls, wallet):
         # PROBLEM: wallet.sign_transaction() does not pass in the wallet to the individual
         # keystores, and we need to know about our co-signers at that time.
+        # FIXME the keystore needs a reference to the wallet object because
+        #       it constructs a PSBT from an electrum tx object inside keystore.sign_transaction.
+        #       instead keystore.sign_transaction's API should be changed such that its input
+        #       *is* a PSBT and not an electrum tx object
         for ks in wallet.get_keystores():
             if type(ks) == Coldcard_KeyStore:
                 if not ks.my_wallet:
                     ks.my_wallet = wallet
 
     @hook
-    def make_unsigned_transaction(self, wallet, tx):
-        # - capture wallet containing each keystore early in the process
+    def load_wallet(self, wallet, window):
+        # make sure hook in superclass also runs:
+        if hasattr(super(), 'load_wallet'):
+            super().load_wallet(wallet, window)
         self.link_wallet(wallet)
 
 # EOF
