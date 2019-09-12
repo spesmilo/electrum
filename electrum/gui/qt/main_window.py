@@ -3001,9 +3001,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def cpfp(self, parent_tx, new_tx):
+    def cpfp(self, parent_tx: Transaction, new_tx: Transaction) -> None:
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
-        parent_fee = self.wallet.get_tx_fee(parent_tx)
+        parent_txid = parent_tx.txid()
+        assert parent_txid
+        parent_fee, _calc_by_us = self.wallet.get_tx_fee(parent_txid)
         if parent_fee is None:
             self.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return
@@ -3079,12 +3081,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         new_tx.set_rbf(True)
         self.show_transaction(new_tx)
 
-    def bump_fee_dialog(self, tx):
-        fee = self.wallet.get_tx_fee(tx)
-        if fee is None:
+    def bump_fee_dialog(self, tx: Transaction):
+        txid = tx.txid()
+        assert txid
+        fee, is_calc_by_us = self.wallet.get_tx_fee(txid)
+        if fee is None or not is_calc_by_us:
             self.show_error(_("Can't bump fee: unknown fee for original transaction."))
             return
-        tx_label = self.wallet.get_label(tx.txid())
+        tx_label = self.wallet.get_label(txid)
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Bump Fee'))

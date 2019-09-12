@@ -409,7 +409,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
                     status = _('Unconfirmed')
                     if fee is None:
-                        fee = self.db.get_tx_fee(tx_hash)
+                        fee, _calc_by_us = self.get_tx_fee(tx_hash)
                     if fee and self.network and self.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
@@ -722,9 +722,7 @@ class Abstract_Wallet(AddressSynchronizer):
             is_final = tx and tx.is_final()
             if not is_final:
                 extra.append('rbf')
-            fee = self.get_wallet_delta(tx)[3]
-            if fee is None:
-                fee = self.db.get_tx_fee(tx_hash)
+            fee, _calc_by_us = self.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
@@ -996,7 +994,7 @@ class Abstract_Wallet(AddressSynchronizer):
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
 
-    def bump_fee(self, *, tx, new_fee_rate) -> Transaction:
+    def bump_fee(self, *, tx: Transaction, new_fee_rate) -> Transaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
         """
@@ -1004,8 +1002,10 @@ class Abstract_Wallet(AddressSynchronizer):
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         old_tx_size = tx.estimated_size()
-        old_fee = self.get_tx_fee(tx)
-        if old_fee is None:
+        old_txid = tx.txid()
+        assert old_txid
+        old_fee, is_calc_by_us = self.get_tx_fee(old_txid)
+        if old_fee is None or not is_calc_by_us:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('current fee unknown'))
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
@@ -1036,7 +1036,7 @@ class Abstract_Wallet(AddressSynchronizer):
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
         return tx_new
 
-    def _bump_fee_through_coinchooser(self, *, tx, new_fee_rate):
+    def _bump_fee_through_coinchooser(self, *, tx: Transaction, new_fee_rate) -> Transaction:
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
         tx.remove_signatures()
@@ -1073,7 +1073,7 @@ class Abstract_Wallet(AddressSynchronizer):
         except NotEnoughFunds as e:
             raise CannotBumpFee(e)
 
-    def _bump_fee_through_decreasing_outputs(self, *, tx, new_fee_rate):
+    def _bump_fee_through_decreasing_outputs(self, *, tx: Transaction, new_fee_rate) -> Transaction:
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
         tx.remove_signatures()
@@ -1115,7 +1115,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return Transaction.from_io(inputs, outputs)
 
-    def cpfp(self, tx, fee):
+    def cpfp(self, tx: Transaction, fee: int) -> Optional[Transaction]:
         txid = tx.txid()
         for i, o in enumerate(tx.outputs()):
             address, value = o.address, o.value
