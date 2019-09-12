@@ -159,8 +159,6 @@ class HistoryScreen(CScreen):
         ri['fee_text'] = fee_text
         value = tx_item['value'].value
         if value is not None:
-            if fee is not None:
-                value = value + int(fee)
             ri['is_mine'] = value <= 0
             ri['amount'] = self.app.format_amount(value, is_diff = True)
             if 'fiat_value' in tx_item:
