@@ -2652,7 +2652,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = PasswordDialog(parent, msg)
         return d.run()
 
-    def tx_from_text(self, txt):
+    def tx_from_text(self, txt) -> Optional[Transaction]:
         from electrum.transaction import tx_from_str
         try:
             tx = tx_from_str(txt)
@@ -2685,7 +2685,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.show_transaction(tx)
 
-    def read_tx_from_file(self):
+    def read_tx_from_file(self) -> Optional[Transaction]:
         fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
         if not fileName:
             return
