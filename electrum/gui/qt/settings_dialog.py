@@ -170,6 +170,64 @@ class SettingsDialog(WindowModalDialog):
         batch_rbf_cb.stateChanged.connect(on_batch_rbf)
         fee_widgets.append((batch_rbf_cb, None))
 
+        # lightning
+        help_lightning = _("""Enable Lightning Network payments. Note that funds stored in
+lightning channels are not recoverable from your seed. You must backup
+your wallet file after every channel creation.""")
+        lightning_widgets = []
+        lightning_cb = QCheckBox(_("Enable Lightning"))
+        lightning_cb.setToolTip(help_lightning)
+        lightning_cb.setChecked(bool(self.config.get('lightning', False)))
+        def on_lightning_checked(x):
+            self.config.set_key('lightning', bool(x))
+        lightning_cb.stateChanged.connect(on_lightning_checked)
+        lightning_widgets.append((lightning_cb, None))
+
+        help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
+        that is always connected to the internet. Your watchtower will be private. Configure 'watchtower_host'
+and 'watchtower_port' in your config if you want it to be public.""")
+        local_wt_cb = QCheckBox(_("Run a local watchtower"))
+        local_wt_cb.setToolTip(help_local_wt)
+        local_wt_cb.setChecked(bool(self.config.get('local_watchtower', False)))
+        def on_local_wt_checked(x):
+            self.config.set_key('local_watchtower', bool(x))
+            self.local_wt_port_e.setEnabled(bool(x))
+        local_wt_cb.stateChanged.connect(on_local_wt_checked)
+        self.local_wt_port_e = QLineEdit(self.config.get('watchtower_port'))
+        self.local_wt_port_e.setEnabled(self.config.get('local_watchtower', False))
+        lightning_widgets.append((local_wt_cb, self.local_wt_port_e))
+
+        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
+you close all your wallet windows. Your local watchtower will keep
+running, and it will protect your channels even if your wallet is not
+open. For this to work, your computer needs to be online regularly.""")
+        persist_cb = QCheckBox(_("Run as daemon after the GUI is closed"))
+        persist_cb.setToolTip(help_persist)
+        persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
+        def on_persist_checked(x):
+            self.config.set_key('persist_daemon', bool(x))
+        persist_cb.stateChanged.connect(on_persist_checked)
+        lightning_widgets.append((persist_cb, None))
+
+        help_remote_wt = _("""To use a remote watchtower, enter the corresponding URL here""")
+        remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
+        remote_wt_cb.setToolTip(help_remote_wt)
+        remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
+        def on_remote_wt_checked(x):
+            self.config.set_key('use_watchtower', bool(x))
+            self.watchtower_url_e.setEnabled(bool(x))
+        remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
+        watchtower_url = self.config.get('watchtower_url')
+        self.watchtower_url_e = QLineEdit(watchtower_url)
+        self.watchtower_url_e.setEnabled(self.config.get('use_watchtower', False))
+        def on_wt_url():
+            url = self.watchtower_url_e.text() or None
+            watchtower_url = self.config.set_key('watchtower_url', url)
+            if url:
+                self.lnwatcher.set_remote_watchtower()
+        self.watchtower_url_e.editingFinished.connect(on_wt_url)
+        lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
+
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
               + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
@@ -466,9 +524,10 @@ class SettingsDialog(WindowModalDialog):
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
         tabs_info = [
+            (gui_widgets, _('General')),
             (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
-            (gui_widgets, _('General')),
+            (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
             (server_widgets, _('PayServer')),
             (oa_widgets, _('OpenAlias')),
