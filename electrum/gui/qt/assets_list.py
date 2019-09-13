@@ -55,7 +55,11 @@ class AssetsList(MyTreeWidget):
                 self.getmap = 'request_exception'
                 return
             self.getmap = 'connected'
-            self.amap = r.json()
+            try:
+                self.amap = r.json()
+            except:
+                self.getmap = 'json_error'
+                return
             self.controller_pubkeys = [constants.net.CONTROLER1,constants.net.CONTROLER2,constants.net.CONTROLER3]
             self.verified = self.verify_mapping_sig()
 
