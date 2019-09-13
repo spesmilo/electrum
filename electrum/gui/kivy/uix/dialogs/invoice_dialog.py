@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from kivy.factory import Factory
 from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
@@ -6,6 +8,9 @@ from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
 from electrum.util import pr_tooltips
+
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
 
 
 Builder.load_string('''
@@ -58,7 +63,7 @@ class InvoiceDialog(Factory.Popup):
 
     def __init__(self, title, data, key):
         Factory.Popup.__init__(self)
-        self.app = App.get_running_app()
+        self.app = App.get_running_app()  # type: ElectrumWindow
         self.title = title
         self.data = data
         self.key = key

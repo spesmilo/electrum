@@ -4,6 +4,7 @@ from decimal import Decimal
 import re
 import threading
 import traceback, sys
+from typing import TYPE_CHECKING, List
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -39,6 +40,9 @@ from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
 from electrum.gui.kivy.i18n import _
 
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
+
 
 class HistoryRecycleView(RecycleView):
     pass
@@ -54,7 +58,7 @@ class CScreen(Factory.Screen):
     action_view = ObjectProperty(None)
     loaded = False
     kvname = None
-    app = App.get_running_app()
+    app = App.get_running_app()  # type: ElectrumWindow
 
     def _change_action_view(self):
         app = App.get_running_app()
@@ -310,7 +314,7 @@ class SendScreen(CScreen):
             if not bitcoin.is_address(address):
                 self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
                 return
-            outputs = [(TYPE_ADDRESS, address, amount)]
+            outputs = [TxOutput(TYPE_ADDRESS, address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
@@ -336,8 +340,8 @@ class SendScreen(CScreen):
             return
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             message = invoice['message']
-            outputs = invoice['outputs']
-            amount = sum(map(lambda x:x[2], outputs))
+            outputs = invoice['outputs']  # type: List[TxOutput]
+            amount = sum(map(lambda x: x.value, outputs))
             do_pay = lambda rbf: self._do_send_onchain(amount, message, outputs, rbf)
             if self.app.electrum_config.get('use_rbf'):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)

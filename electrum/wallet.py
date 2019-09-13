@@ -228,6 +228,12 @@ class Abstract_Wallet(AddressSynchronizer):
         self.receive_requests      = storage.get('payment_requests', {})
         self.invoices              = storage.get('invoices', {})
 
+        # convert invoices
+        for invoice_key, invoice in self.invoices.items():
+            if invoice['type'] == PR_TYPE_ONCHAIN:
+                outputs = [TxOutput(*output) for output in invoice.get('outputs')]
+                invoice['outputs'] = outputs
+
         self.calc_unused_change_addresses()
 
         # save wallet type the first time
