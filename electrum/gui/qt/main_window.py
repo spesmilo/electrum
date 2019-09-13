@@ -142,7 +142,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        self.tabs.setStyleSheet("QTabBar::tab { height: 26px; width: 78px}")
+        self.tabs.setStyleSheet("QTabBar::tab { height: 20px; width: 78px}")
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
@@ -1087,6 +1087,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
+        self.amount_e.setFixedWidth(170)
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter an Ocean address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Ocean address)')
