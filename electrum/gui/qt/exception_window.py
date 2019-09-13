@@ -34,6 +34,7 @@ from electrum.i18n import _
 from electrum.base_crash_reporter import BaseCrashReporter
 from electrum.logging import Logger
 from electrum import constants
+from electrum.simple_config import ConfigVar
 
 from .util import MessageBoxMixin, read_QIcon, WaitingDialog
 
@@ -126,7 +127,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.close()
 
     def show_never(self):
-        self.main_window.config.set_key(BaseCrashReporter.config_key, False)
+        self.main_window.config.set_key(ConfigVar.SHOW_CRASH_REPORTER, False)
         self.close()
 
     def closeEvent(self, event):
@@ -151,7 +152,7 @@ class Exception_Hook(QObject, Logger):
     def __init__(self, main_window, *args, **kwargs):
         QObject.__init__(self, *args, **kwargs)
         Logger.__init__(self)
-        if not main_window.config.get(BaseCrashReporter.config_key, default=True):
+        if not main_window.config.get(ConfigVar.SHOW_CRASH_REPORTER):
             return
         self.main_window = main_window
         sys.excepthook = self.handler

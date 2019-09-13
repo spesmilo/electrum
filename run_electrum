@@ -89,6 +89,7 @@ from electrum.commands import get_parser, known_commands, Commands, config_varia
 from electrum import daemon
 from electrum import keystore
 from electrum.util import create_and_start_event_loop
+from electrum.simple_config import ConfigVar
 
 _logger = get_logger(__name__)
 
@@ -107,6 +108,9 @@ def prompt_password(prompt, confirm=True):
 
 
 def init_cmdline(config_options, wallet_path, server):
+    # FIXME config is used all-over in this method.
+    #       do we mean config_options instead maybe?
+    #       or maybe config should be passed. really not intuitive that this works.
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -302,8 +306,8 @@ if __name__ == '__main__':
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            config_options['auto_connect'] = False
+        if config_options.get(ConfigVar.NETWORK_SERVER.get_key_str()):
+            config_options[ConfigVar.NETWORK_AUTO_CONNECT.get_key_str()] = False
 
     config_options['cwd'] = os.getcwd()
 
@@ -333,10 +337,10 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
-    elif config.get('lightning') and not config.get('reckless'):
+    elif config.get(ConfigVar.LIGHTNING) and not config.get('reckless'):
         raise Exception('lightning option not available on mainnet')
 
-    if config.get('lightning'):
+    if config.get(ConfigVar.LIGHTNING):
         from electrum.ecc_fast import is_using_fast_ecc
         if not is_using_fast_ecc():
             raise Exception('libsecp256k1 library not available. '
@@ -367,7 +371,7 @@ if __name__ == '__main__':
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            plugins = init_plugins(config, config.get('gui', 'qt'))
+            plugins = init_plugins(config, config.get(ConfigVar.GUI))
             d = daemon.Daemon(config, fd)
             d.run_gui(config, plugins)
             sys_exit(0)
@@ -391,9 +395,9 @@ if __name__ == '__main__':
         # command line
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
-        if not config.get('offline'):
+        if not config.get(ConfigVar.NETWORK_OFFLINE):
             init_cmdline(config_options, wallet_path, True)
-            timeout = config.get('timeout', 60)
+            timeout = config.get(ConfigVar.CLI_TIMEOUT)
             if timeout: timeout = int(timeout)
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)

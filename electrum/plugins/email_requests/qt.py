@@ -48,6 +48,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
 from electrum.logging import Logger
+from electrum.simple_config import ConfigVar
 
 
 class Processor(threading.Thread, Logger):
@@ -142,9 +143,9 @@ class Plugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.imap_server = self.config.get('email_server', '')
-        self.username = self.config.get('email_username', '')
-        self.password = self.config.get('email_password', '')
+        self.imap_server = self.config.get(ConfigVar.REMOTE_EMAIL_SERVER)
+        self.username = self.config.get(ConfigVar.REMOTE_EMAIL_USERNAME)
+        self.password = self.config.get(ConfigVar.REMOTE_EMAIL_PASSWORD)
         if self.imap_server and self.username and self.password:
             self.processor = Processor(self.imap_server, self.username, self.password, self.on_receive)
             self.processor.start()
@@ -236,15 +237,15 @@ class Plugin(BasePlugin):
             return
 
         server = str(server_e.text())
-        self.config.set_key('email_server', server)
+        self.config.set_key(ConfigVar.REMOTE_EMAIL_SERVER, server)
         self.imap_server = server
 
         username = str(username_e.text())
-        self.config.set_key('email_username', username)
+        self.config.set_key(ConfigVar.REMOTE_EMAIL_USERNAME, username)
         self.username = username
 
         password = str(password_e.text())
-        self.config.set_key('email_password', password)
+        self.config.set_key(ConfigVar.REMOTE_EMAIL_PASSWORD, password)
         self.password = password
 
         check_connection = CheckConnectionThread(server, username, password)

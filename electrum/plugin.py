@@ -34,7 +34,7 @@ from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
 from . import bip32
 from . import plugins
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, ConfigVar
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
@@ -232,7 +232,7 @@ def run_hook(name, *args):
 
 class BasePlugin(Logger):
 
-    def __init__(self, parent, config, name):
+    def __init__(self, parent, config: SimpleConfig, name):
         self.parent = parent  # The plugins object
         self.name = name
         self.config = config
@@ -370,7 +370,7 @@ class DeviceMgr(ThreadJob):
         thread.'''
         with self.lock:
             clients = list(self.clients.keys())
-        cutoff = time.time() - self.config.get_session_timeout()
+        cutoff = time.time() - self.config.get(ConfigVar.HWD_SESSION_TIMEOUT)
         for client in clients:
             client.timeout(cutoff)
 

@@ -24,13 +24,14 @@
 # SOFTWARE.
 from collections import defaultdict
 from math import floor, log10
-from typing import NamedTuple, List, Callable
+from typing import NamedTuple, List, Callable, TYPE_CHECKING
 from decimal import Decimal
 
 from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
 from .transaction import Transaction, TxOutput
 from .util import NotEnoughFunds
 from .logging import Logger
+from .simple_config import SimpleConfig, ConfigVar
 
 
 # A simple deterministic PRNG.  Used to deterministically shuffle a
@@ -463,15 +464,17 @@ class CoinChooserPrivacy(CoinChooserRandom):
 COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
 }
+assert ConfigVar.WALLET_COIN_CHOOSER_POLICY.get_default_value() in COIN_CHOOSERS
 
-def get_name(config):
-    kind = config.get('coin_chooser')
-    if not kind in COIN_CHOOSERS:
-        kind = 'Privacy'
+
+def get_name(config: 'SimpleConfig') -> str:
+    kind = config.get(ConfigVar.WALLET_COIN_CHOOSER_POLICY)
+    if kind not in COIN_CHOOSERS:
+        kind = ConfigVar.WALLET_COIN_CHOOSER_POLICY.get_default_value()
     return kind
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
     coinchooser = klass()
-    coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
+    coinchooser.enable_output_value_rounding = config.get(ConfigVar.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING)
     return coinchooser

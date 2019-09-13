@@ -35,7 +35,7 @@ import asyncio
 import inspect
 from functools import wraps, partial
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Dict
+from typing import Optional, TYPE_CHECKING, Dict, Union
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
@@ -47,6 +47,7 @@ from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
+from .simple_config import ConfigVar
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
@@ -262,8 +263,8 @@ class Commands:
         return self.config.get(key)
 
     @classmethod
-    def _setconfig_normalize_value(cls, key, value):
-        if key not in ('rpcuser', 'rpcpassword'):
+    def _setconfig_normalize_value(cls, key: str, value):
+        if key not in (ConfigVar.RPC_USERNAME.get_key_str(), ConfigVar.RPC_PASSWORD.get_key_str()):
             value = json_decode(value)
             try:
                 value = ast.literal_eval(value)
@@ -551,7 +552,7 @@ class Commands:
         if locktime is not None:
             tx.locktime = locktime
         if rbf is None:
-            rbf = self.config.get('use_rbf', True)
+            rbf = self.config.get(ConfigVar.WALLET_USE_RBF)
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
@@ -783,7 +784,7 @@ class Commands:
     @command('wp')
     async def signrequest(self, address, password=None, wallet=None):
         "Sign payment request with an OpenAlias"
-        alias = self.config.get('alias')
+        alias = self.config.get(ConfigVar.OPENALIAS_ID)
         if not alias:
             raise Exception('No alias in your configuration')
         alias_addr = wallet.contacts.resolve(alias)['address']
@@ -897,7 +898,7 @@ class Commands:
 
     @command('w')
     async def nodeid(self, wallet=None):
-        listen_addr = self.config.get('lightning_listen')
+        listen_addr = self.config.get(ConfigVar.LIGHTNING_LISTEN)
         return bh2u(wallet.lnworker.node_keypair.pubkey) + (('@' + listen_addr) if listen_addr else '')
 
     @command('w')
@@ -1056,7 +1057,7 @@ config_variables = {
 
     'addrequest': {
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
-        'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
+        'ssl_certfile': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
         'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     },
     'listrequests':{
@@ -1117,11 +1118,11 @@ argparse._SubParsersAction.__call__ = subparser_call
 
 
 def add_network_options(parser):
-    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=None, help="connect to one server only")
-    parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
-    parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
-    parser.add_argument("--noonion", action="store_true", dest="noonion", default=None, help="do not try to connect to onion servers")
-    parser.add_argument("--skipmerklecheck", action="store_true", dest="skipmerklecheck", default=False, help="Tolerate invalid merkle proofs from server")
+    parser.add_argument("-1", "--oneserver", action="store_true", dest=ConfigVar.NETWORK_ONESERVER.get_key_str(), default=None, help="connect to one server only")
+    parser.add_argument("-s", "--server", dest=ConfigVar.NETWORK_SERVER.get_key_str(), default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    parser.add_argument("-p", "--proxy", dest=ConfigVar.NETWORK_PROXY.get_key_str(), default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
+    parser.add_argument("--noonion", action="store_true", dest=ConfigVar.NETWORK_NOONION.get_key_str(), default=None, help="do not try to connect to onion servers")
+    parser.add_argument("--skipmerklecheck", action="store_true", dest=ConfigVar.NETWORK_SKIPMERKLECHECK.get_key_str(), default=None, help="Tolerate invalid merkle proofs from server")
 
 def add_global_options(parser):
     group = parser.add_argument_group('global options')
@@ -1132,9 +1133,10 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable lightning")
+    # note: change 'default' to None when we want this to be settable from the GUI
+    group.add_argument("--lightning", action="store_true", dest=ConfigVar.LIGHTNING.get_key_str(), default=False, help="Enable lightning")
     group.add_argument("--reckless", action="store_true", dest="reckless", default=False, help="Allow to enable lightning on mainnet")
-    group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+    group.add_argument("-o", "--offline", action="store_true", dest=ConfigVar.NETWORK_OFFLINE.get_key_str(), default=None, help="Run offline")
 
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
@@ -1148,9 +1150,9 @@ def get_parser():
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
-    parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
+    parser_gui.add_argument("-g", "--gui", dest=ConfigVar.GUI.get_key_str(), help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
-    parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
+    parser_gui.add_argument("-L", "--lang", dest=ConfigVar.LOCALIZATION_LANGUAGE.get_key_str(), default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
     add_wallet_option(parser_gui)
     add_network_options(parser_gui)

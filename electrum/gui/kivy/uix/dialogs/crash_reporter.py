@@ -1,5 +1,6 @@
 import sys
 import json
+from typing import TYPE_CHECKING
 
 from aiohttp.client_exceptions import ClientError
 from kivy import base, utils
@@ -14,6 +15,10 @@ from electrum.gui.kivy.i18n import _
 
 from electrum.base_crash_reporter import BaseCrashReporter
 from electrum.logging import Logger
+from electrum.simple_config import ConfigVar
+
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
 
 
 Builder.load_string('''
@@ -95,7 +100,7 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
  * Locale: {locale}
         """
 
-    def __init__(self, main_window, exctype, value, tb):
+    def __init__(self, main_window: 'ElectrumWindow', exctype, value, tb):
         BaseCrashReporter.__init__(self, exctype, value, tb)
         Factory.Popup.__init__(self)
         self.main_window = main_window
@@ -150,7 +155,7 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         currentActivity.startActivity(browserIntent)
 
     def show_never(self):
-        self.main_window.electrum_config.set_key(BaseCrashReporter.config_key, False)
+        self.main_window.electrum_config.set_key(ConfigVar.SHOW_CRASH_REPORTER, False)
         self.dismiss()
 
     def get_user_description(self):
@@ -169,11 +174,11 @@ class CrashReportDetails(Factory.Popup):
 
 
 class ExceptionHook(base.ExceptionHandler, Logger):
-    def __init__(self, main_window):
+    def __init__(self, main_window: 'ElectrumWindow'):
         base.ExceptionHandler.__init__(self)
         Logger.__init__(self)
         self.main_window = main_window
-        if not main_window.electrum_config.get(BaseCrashReporter.config_key, default=True):
+        if not main_window.electrum_config.get(ConfigVar.SHOW_CRASH_REPORTER):
             return
         # For exceptions in Kivy:
         base.ExceptionManager.add_handler(self)

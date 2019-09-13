@@ -48,7 +48,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, ConfigVar
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
@@ -219,8 +219,10 @@ class Abstract_Wallet(AddressSynchronizer):
         AddressSynchronizer.__init__(self, storage.db)
 
         # saved fields
-        self.use_change            = storage.get('use_change', True)
-        self.multiple_change       = storage.get('multiple_change', False)
+        self.use_change            = storage.get(ConfigVar.WALLET_USE_CHANGE.get_key_str(),
+                                                 ConfigVar.WALLET_USE_CHANGE.get_default_value())
+        self.multiple_change       = storage.get(ConfigVar.WALLET_USE_MULTIPLE_CHANGE.get_key_str(),
+                                                 ConfigVar.WALLET_USE_MULTIPLE_CHANGE.get_default_value())
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses', []))
         self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
@@ -245,7 +247,7 @@ class Abstract_Wallet(AddressSynchronizer):
         # TODO config should be passed as a param instead? SimpleConfig should not be a singleton.
         self.config = SimpleConfig.get_instance()
         assert self.config is not None, "config must not be None"
-        self.lnworker = LNWallet(self) if self.config.get('lightning') else None
+        self.lnworker = LNWallet(self) if self.config.get(ConfigVar.LIGHTNING) else None
 
     def stop_threads(self):
         super().stop_threads()
@@ -457,7 +459,7 @@ class Abstract_Wallet(AddressSynchronizer):
         )
 
     def get_spendable_coins(self, domain, *, nonlocal_only=False):
-        confirmed_only = self.config.get('confirmed_only', False)
+        confirmed_only = self.config.get(ConfigVar.WALLET_SPEND_CONFIRMED_ONLY)
         utxos = self.get_utxos(domain,
                                excluded_addresses=self.frozen_addresses,
                                mature_only=True,
@@ -884,7 +886,7 @@ class Abstract_Wallet(AddressSynchronizer):
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
-            if self.config.get('batch_rbf', False) and base_tx:
+            if self.config.get(ConfigVar.WALLET_BATCH_RBF) and base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c['prevout_hash'] != base_tx.txid()]
                 is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
@@ -1017,7 +1019,7 @@ class Abstract_Wallet(AddressSynchronizer):
         """Returns whether address has any history that is deeply confirmed."""
         max_conf = -1
         h = self.db.get_addr_history(address)
-        needs_spv_check = not self.config.get("skipmerklecheck", False)
+        needs_spv_check = not self.config.get(ConfigVar.NETWORK_SKIPMERKLECHECK)
         for tx_hash, tx_height in h:
             if needs_spv_check:
                 tx_age = self.get_tx_height(tx_hash).conf
@@ -1375,11 +1377,11 @@ class Abstract_Wallet(AddressSynchronizer):
             req = None
         if not req:
             return
-        if self.config.get('payserver_port'):
-            host = self.config.get('payserver_host', 'localhost')
-            port = self.config.get('payserver_port')
-            root = self.config.get('payserver_root', '/r')
-            use_ssl = bool(self.config.get('ssl_keyfile'))
+        if self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_PORT):
+            host = self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_HOST)
+            port = self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_PORT)
+            root = self.config.get(ConfigVar.LOCAL_PAYSERVER_ROOT)
+            use_ssl = bool(self.config.get(ConfigVar.SSL_PRIVKEY_PATH))
             protocol = 'https' if use_ssl else 'http'
             base = '%s://%s:%d'%(protocol, host, port)
             req['view_url'] = base + root + '/pay?id=' + key

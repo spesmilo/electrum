@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (QGridLayout, QVBoxLayout, QHBoxLayout, QLabel,
 from electrum.plugin import hook
 from electrum.i18n import _
 from electrum.util import make_dir, InvalidPassword, UserCancelled
+from electrum.simple_config import ConfigVar
 from electrum.gui.qt.util import (read_QIcon, EnterButton, WWLabel, icon_path,
                                   WindowModalDialog, Buttons, CloseButton, OkButton)
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
@@ -43,13 +44,8 @@ class Plugin(RevealerPlugin):
         RevealerPlugin.__init__(self, parent, config, name)
         self.base_dir = os.path.join(config.electrum_path(), 'revealer')
 
-        if self.config.get('calibration_h') is None:
-            self.config.set_key('calibration_h', 0)
-        if self.config.get('calibration_v') is None:
-            self.config.set_key('calibration_v', 0)
-
-        self.calibration_h = self.config.get('calibration_h')
-        self.calibration_v = self.config.get('calibration_v')
+        self.calibration_h = self.config.get(ConfigVar.PLUGIN_REVEALER_CALIBRATION_H)
+        self.calibration_v = self.config.get(ConfigVar.PLUGIN_REVEALER_CALIBRATION_V)
 
         self.f_size = QSize(1014*2, 642*2)
         self.abstand_h = 21
@@ -727,8 +723,6 @@ class Plugin(RevealerPlugin):
         vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
                                        _("print the calibration pdf and follow the instructions "), "<br/>","<br/>",
                                     ])))
-        self.calibration_h = self.config.get('calibration_h')
-        self.calibration_v = self.config.get('calibration_v')
         cprint = QPushButton(_("Open calibration pdf"))
         cprint.clicked.connect(self.calibration)
         vbox.addWidget(cprint)
@@ -754,8 +748,8 @@ class Plugin(RevealerPlugin):
             return
 
         self.calibration_h = int(Decimal(horizontal.text()))
-        self.config.set_key('calibration_h', self.calibration_h)
+        self.config.set_key(ConfigVar.PLUGIN_REVEALER_CALIBRATION_H, self.calibration_h)
         self.calibration_v = int(Decimal(vertical.text()))
-        self.config.set_key('calibration_v', self.calibration_v)
+        self.config.set_key(ConfigVar.PLUGIN_REVEALER_CALIBRATION_V, self.calibration_v)
 
 

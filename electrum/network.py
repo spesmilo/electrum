@@ -56,7 +56,7 @@ from .interface import (Interface, serialize_server, deserialize_server,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
                         NetworkException)
 from .version import PROTOCOL_VERSION
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, ConfigVar
 from .i18n import _
 from .logging import get_logger, Logger
 
@@ -249,10 +249,10 @@ class Network(Logger):
         self.config = config
         blockchain.read_blockchains(self.config)
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
-        self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
+        self._blockchain_preferred_block = self.config.get(ConfigVar.BLOCKCHAIN_PREFERRED_BLOCK)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
         # Server for addresses and transactions
-        self.default_server = self.config.get('server', None)
+        self.default_server = self.config.get(ConfigVar.NETWORK_SERVER)
         # Sanitize default server
         if self.default_server:
             try:
@@ -291,7 +291,7 @@ class Network(Logger):
         self.interface = None  # type: Interface
         # set of servers we have an ongoing connection with
         self.interfaces = {}  # type: Dict[str, Interface]
-        self.auto_connect = self.config.get('auto_connect', True)
+        self.auto_connect = self.config.get(ConfigVar.NETWORK_AUTO_CONNECT)
         self.connecting = set()
         self.server_queue = None
         self.proxy = None
@@ -302,7 +302,7 @@ class Network(Logger):
         self._set_status('disconnected')
 
         # lightning network
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             from . import lnwatcher
             from . import lnworker
             from . import lnrouter
@@ -310,7 +310,7 @@ class Network(Logger):
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip(self)
-            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
+            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get(ConfigVar.LOCAL_WATCHTOWER_ENABLED) else None
         else:
             self.channel_db = None  # type: Optional[ChannelDB]
             self.lngossip = None  # type: Optional[LNGossip]
@@ -520,7 +520,7 @@ class Network(Logger):
             else:
                 out[host] = {protocol: port}
         # potentially filter out some
-        if self.config.get('noonion'):
+        if self.config.get(ConfigVar.NETWORK_NOONION):
             out = filter_noonion(out)
         return out
 
@@ -617,14 +617,14 @@ class Network(Logger):
                 int(proxy['port'])
         except:
             return
-        self.config.set_key('auto_connect', net_params.auto_connect, False)
-        self.config.set_key('oneserver', net_params.oneserver, False)
-        self.config.set_key('proxy', proxy_str, False)
-        self.config.set_key('server', server_str, True)
+        self.config.set_key(ConfigVar.NETWORK_AUTO_CONNECT, net_params.auto_connect, False)
+        self.config.set_key(ConfigVar.NETWORK_ONESERVER, net_params.oneserver, False)
+        self.config.set_key(ConfigVar.NETWORK_PROXY, proxy_str, False)
+        self.config.set_key(ConfigVar.NETWORK_SERVER, server_str, True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server_str \
-                or self.config.get('proxy') != proxy_str \
-                or self.config.get('oneserver') != net_params.oneserver:
+        if self.config.get(ConfigVar.NETWORK_SERVER) != server_str \
+                or self.config.get(ConfigVar.NETWORK_PROXY) != proxy_str \
+                or self.config.get(ConfigVar.NETWORK_ONESERVER) != net_params.oneserver:
             return
 
         async with self.restart_lock:
@@ -1103,7 +1103,7 @@ class Network(Logger):
             'height': height,
             'hash': header_hash,
         }
-        self.config.set_key('blockchain_preferred_block', self._blockchain_preferred_block)
+        self.config.set_key(ConfigVar.BLOCKCHAIN_PREFERRED_BLOCK, self._blockchain_preferred_block)
 
     async def follow_chain_given_id(self, chain_id: str) -> None:
         bc = blockchain.blockchains.get(chain_id)
@@ -1153,8 +1153,8 @@ class Network(Logger):
         self.disconnected_servers = set([])
         self.protocol = deserialize_server(self.default_server)[2]
         self.server_queue = queue.Queue()
-        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
-        self._set_oneserver(self.config.get('oneserver', False))
+        self._set_proxy(deserialize_proxy(self.config.get(ConfigVar.NETWORK_PROXY)))
+        self._set_oneserver(self.config.get(ConfigVar.NETWORK_ONESERVER))
         self._start_interface(self.default_server)
 
         if self.lngossip:

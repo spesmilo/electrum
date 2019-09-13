@@ -46,6 +46,7 @@ from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
 from .lnrouter import fee_for_edge_msat
+from .simple_config import ConfigVar
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker
@@ -976,7 +977,7 @@ class Peer(Logger):
         self.network.trigger_callback('channel', chan)
         self.add_own_channel(chan)
         self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
-        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        forwarding_enabled = self.network.config.get(ConfigVar.LIGHTNING_FORWARD_PAYMENTS)
         if forwarding_enabled:
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to to receive payments
@@ -1324,7 +1325,7 @@ class Peer(Logger):
         # Forward HTLC
         # FIXME: this is not robust to us going offline before payment is fulfilled
         # FIXME: there are critical safety checks MISSING here
-        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        forwarding_enabled = self.network.config.get(ConfigVar.LIGHTNING_FORWARD_PAYMENTS)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')

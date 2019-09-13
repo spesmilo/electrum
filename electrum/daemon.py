@@ -47,7 +47,7 @@ from .util import log_exceptions, ignore_exceptions
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, ConfigVar
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
 
@@ -117,8 +117,8 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
 
 
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
-    rpc_user = config.get('rpcuser', None)
-    rpc_password = config.get('rpcpassword', None)
+    rpc_user = config.get(ConfigVar.RPC_USERNAME)
+    rpc_password = config.get(ConfigVar.RPC_PASSWORD)
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         import ecdsa, base64
@@ -128,8 +128,8 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         pw_b64 = base64.b64encode(
             pw_int.to_bytes(nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')
-        config.set_key('rpcuser', rpc_user)
-        config.set_key('rpcpassword', rpc_password, save=True)
+        config.set_key(ConfigVar.RPC_USERNAME, rpc_user)
+        config.set_key(ConfigVar.RPC_PASSWORD, rpc_password, save=True)
     elif rpc_password == '':
         _logger.warning('RPC authentication is disabled.')
     return rpc_user, rpc_password
@@ -158,8 +158,8 @@ class WatchTowerServer(Logger):
             return web.Response()
 
     async def run(self):
-        host = self.config.get('watchtower_host')
-        port = self.config.get('watchtower_port', 12345)
+        host = self.config.get(ConfigVar.LOCAL_WATCHTOWER_EXPOSED_AT_HOST)
+        port = self.config.get(ConfigVar.LOCAL_WATCHTOWER_EXPOSED_AT_PORT)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, host, port, ssl_context=self.config.get_ssl_context())
@@ -188,9 +188,9 @@ class PayServer(Logger):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        host = self.config.get('payserver_host', 'localhost')
-        port = self.config.get('payserver_port')
-        root = self.config.get('payserver_root', '/r')
+        host = self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_HOST)
+        port = self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_PORT)
+        root = self.config.get(ConfigVar.LOCAL_PAYSERVER_ROOT)
         app = web.Application()
         app.add_routes([web.post('/api/create_invoice', self.create_request)])
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
@@ -273,7 +273,7 @@ class Daemon(Logger):
             if fd is None:
                 raise Exception('failed to lock daemon; already running?')
         self.asyncio_loop = asyncio.get_event_loop()
-        if config.get('offline'):
+        if config.get(ConfigVar.NETWORK_OFFLINE):
             self.network = None
         else:
             self.network = Network(config)
@@ -286,11 +286,11 @@ class Daemon(Logger):
         if listen_jsonrpc:
             jobs.append(self.start_jsonrpc(config, fd))
         # request server
-        if self.config.get('payserver_port'):
+        if self.config.get(ConfigVar.LOCAL_PAYSERVER_EXPOSED_AT_PORT):
             self.pay_server = PayServer(self)
             jobs.append(self.pay_server.run())
         # server-side watchtower
-        self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
+        self.watchtower = WatchTowerServer(self.network) if self.config.get(ConfigVar.LOCAL_WATCHTOWER_EXPOSED_AT_HOST) else None
         if self.watchtower:
             jobs.append(self.watchtower.run)
         if self.network:
@@ -342,8 +342,8 @@ class Daemon(Logger):
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
         self.methods.add(self.run_cmdline)
-        self.host = config.get('rpchost', '127.0.0.1')
-        self.port = config.get('rpcport', 0)
+        self.host = config.get(ConfigVar.RPC_HOST)
+        self.port = config.get(ConfigVar.RPC_PORT)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, self.host, self.port)
@@ -472,7 +472,7 @@ class Daemon(Logger):
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')
-        gui_name = config.get('gui', 'qt')
+        gui_name = config.get(ConfigVar.GUI)
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])

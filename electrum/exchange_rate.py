@@ -17,13 +17,8 @@ from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions,
                    make_aiohttp_session, resource_path)
 from .network import Network
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, ConfigVar
 from .logging import Logger
-
-
-DEFAULT_ENABLED = False
-DEFAULT_CURRENCY = "EUR"
-DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -510,43 +505,32 @@ class FxThread(ThreadJob):
                 await self.exchange.update_safe(self.ccy)
 
     def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate', DEFAULT_ENABLED))
+        return bool(self.config.get(ConfigVar.FX_USE_EXCHANGE_RATE))
 
     def set_enabled(self, b):
-        self.config.set_key('use_exchange_rate', bool(b))
+        self.config.set_key(ConfigVar.FX_USE_EXCHANGE_RATE, bool(b))
         self.trigger_update()
 
-    def get_history_config(self, *, default=False):
-        return bool(self.config.get('history_rates', default))
+    def get_history_config(self, *, default=False) -> bool:
+        hist = self.config.get(ConfigVar.FX_HISTORY_RATES)
+        return bool(hist if hist is not None else default)
 
     def set_history_config(self, b):
-        self.config.set_key('history_rates', bool(b))
-
-    def get_history_capital_gains_config(self):
-        return bool(self.config.get('history_rates_capital_gains', False))
-
-    def set_history_capital_gains_config(self, b):
-        self.config.set_key('history_rates_capital_gains', bool(b))
-
-    def get_fiat_address_config(self):
-        return bool(self.config.get('fiat_address'))
-
-    def set_fiat_address_config(self, b):
-        self.config.set_key('fiat_address', bool(b))
+        self.config.set_key(ConfigVar.FX_HISTORY_RATES, bool(b))
 
     def get_currency(self):
         '''Use when dynamic fetching is needed'''
-        return self.config.get("currency", DEFAULT_CURRENCY)
+        return self.config.get(ConfigVar.FX_CURRENCY)
 
     def config_exchange(self):
-        return self.config.get('use_exchange', DEFAULT_EXCHANGE)
+        return self.config.get(ConfigVar.FX_EXCHANGE)
 
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
 
     def set_currency(self, ccy):
         self.ccy = ccy
-        self.config.set_key('currency', ccy, True)
+        self.config.set_key(ConfigVar.FX_CURRENCY, ccy, True)
         self.trigger_update()
         self.on_quotes()
 
@@ -555,10 +539,10 @@ class FxThread(ThreadJob):
             self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
-        class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
+        class_ = globals().get(name) or globals().get(ConfigVar.FX_EXCHANGE.get_default_value())
         self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:
-            self.config.set_key('use_exchange', name, True)
+            self.config.set_key(ConfigVar.FX_EXCHANGE, name, True)
         assert issubclass(class_, ExchangeBase), f"unexpected type {class_} for {name}"
         self.exchange = class_(self.on_quotes, self.on_history)  # type: ExchangeBase
         # A new exchange means new fx quotes, initially empty.  Force
@@ -630,4 +614,4 @@ class FxThread(ThreadJob):
         return self.history_rate(date)
 
 
-assert globals().get(DEFAULT_EXCHANGE), f"default exchange {DEFAULT_EXCHANGE} does not exist"
+assert globals().get(ConfigVar.FX_EXCHANGE.get_default_value()), f"default exchange {ConfigVar.FX_EXCHANGE.get_default_value()} does not exist"

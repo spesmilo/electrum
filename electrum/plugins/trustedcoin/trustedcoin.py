@@ -49,6 +49,7 @@ from electrum.storage import StorageEncryptionVersion
 from electrum.network import Network
 from electrum.base_wizard import BaseWizard, WizardWalletPasswordSetting
 from electrum.logging import Logger
+from electrum.simple_config import ConfigVar
 
 
 def get_signing_xpub(xtype):
@@ -293,7 +294,7 @@ class Wallet_2fa(Multisig_Wallet):
 
     def num_prepay(self):
         default = self.min_prepay()
-        n = self.config.get('trustedcoin_prepay', default)
+        n = self.config.get(ConfigVar.PLUGIN_TRUSTEDCOIN_NUM_PREPAY, override_default=default)
         if n not in self.price_per_tx:
             n = default
         return n

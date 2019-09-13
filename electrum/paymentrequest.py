@@ -46,6 +46,7 @@ from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
 from .network import Network
 from .logging import get_logger, Logger
+from .simple_config import ConfigVar
 
 
 _logger = get_logger(__name__)
@@ -404,8 +405,8 @@ def verify_cert_chain(chain):
 
 def check_ssl_config(config):
     from . import pem
-    key_path = config.get('ssl_keyfile')
-    cert_path = config.get('ssl_certfile')
+    key_path = config.get(ConfigVar.SSL_PRIVKEY_PATH)
+    cert_path = config.get(ConfigVar.SSL_CERTFILE_PATH)
     with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
     with open(cert_path, 'r', encoding='utf-8') as f:
@@ -455,8 +456,8 @@ def serialize_request(req):
 
 def make_request(config, req):
     pr = make_unsigned_request(req)
-    key_path = config.get('ssl_keyfile')
-    cert_path = config.get('ssl_certfile')
+    key_path = config.get(ConfigVar.SSL_PRIVKEY_PATH)
+    cert_path = config.get(ConfigVar.SSL_CERTFILE_PATH)
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
     return pr

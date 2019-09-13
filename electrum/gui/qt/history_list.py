@@ -45,6 +45,7 @@ from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
                            Satoshis, format_time)
 from electrum.logging import get_logger, Logger
+from electrum.simple_config import ConfigVar
 
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
                    filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
@@ -52,6 +53,7 @@ from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
+    from .main_window import ElectrumWindow
 
 
 _logger = get_logger(__name__)
@@ -107,7 +109,7 @@ def get_item_key(tx_item):
 
 class HistoryModel(QAbstractItemModel, Logger):
 
-    def __init__(self, parent):
+    def __init__(self, parent: 'ElectrumWindow'):
         QAbstractItemModel.__init__(self, parent)
         Logger.__init__(self)
         self.parent = parent
@@ -304,7 +306,7 @@ class HistoryModel(QAbstractItemModel, Logger):
         set_visible(HistoryColumns.TXID, False)
         # fiat
         history = self.parent.fx.show_history()
-        cap_gains = self.parent.fx.get_history_capital_gains_config()
+        cap_gains = self.parent.config.get(ConfigVar.FX_HISTORY_RATES_CAPITAL_GAINS)
         set_visible(HistoryColumns.FIAT_VALUE, history)
         set_visible(HistoryColumns.FIAT_ACQ_PRICE, history and cap_gains)
         set_visible(HistoryColumns.FIAT_CAP_GAINS, history and cap_gains)
@@ -467,7 +469,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.hide_rows()
 
     def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_history', state)
+        config.set_key(ConfigVar.GUI_QT_HISTORY_TAB_SHOW_TOOLBAR, state)
 
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)

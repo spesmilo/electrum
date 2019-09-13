@@ -5,15 +5,18 @@ import os
 import stat
 import ssl
 from decimal import Decimal
-from typing import Union, Optional
+from typing import Union, Optional, Any, Dict, Type
 from numbers import Real
+import enum
+from enum import Enum
 
 from copy import deepcopy
 
 from . import util
 from . import constants
 from .util import (user_dir, make_dir,
-                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
+                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate,
+                   DECIMAL_POINT_DEFAULT)
 from .i18n import _
 from .logging import get_logger, Logger
 
@@ -49,6 +52,10 @@ def estimate_fee(tx_size_bytes: int) -> int:
     except NoDynamicFeeEstimates:
         return use_fallback_feerate()
 
+
+class ConfigGetNoDefaultOverride: pass
+
+
 FINAL_CONFIG_VERSION = 3
 
 
@@ -66,6 +73,8 @@ class SimpleConfig(Logger):
         2. User configuration (in the user's config directory)
     They are taken in order (1. overrides config options set in 2.)
     """
+
+    ConfigVar = None  # type: Type[ConfigVar]
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
@@ -101,12 +110,12 @@ class SimpleConfig(Logger):
             self.user_dir = read_user_dir_function
 
         # The command line options
-        self.cmdline_options = deepcopy(options)
+        self.cmdline_options = deepcopy(options)  # type: Dict[str, Any]
         # don't allow to be set on CLI:
         self.cmdline_options.pop('config_version', None)
 
         # Set self.path and read the user config
-        self.user_config = {}  # for self.get in electrum_path()
+        self.user_config = {}  # type: Dict[str, Any]  # for self.get in electrum_path()
         self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
         if not self.user_config:
@@ -115,7 +124,7 @@ class SimpleConfig(Logger):
 
         # config "upgrade" - CLI options
         self.rename_config_keys(
-            self.cmdline_options, {'auto_cycle': 'auto_connect'}, True)
+            self.cmdline_options, {'auto_cycle': ConfigVar.NETWORK_AUTO_CONNECT.get_key_str()}, True)
 
         # config upgrade - user config
         if self.requires_upgrade():
@@ -160,19 +169,25 @@ class SimpleConfig(Logger):
                 updated = True
         return updated
 
-    def set_key(self, key, value, save=True):
+    def set_key(self, key: Union['ConfigVar', str], value, save=True):
+        assert isinstance(key, (ConfigVar, str)), f"key must be either ConfigVar or str, not {repr(key)}"
         if not self.is_modifiable(key):
             self.logger.warning(f"not changing config key '{key}' set on the command line")
             return
+        if isinstance(key, ConfigVar):
+            key_str = key.get_key_str()
+        else:
+            key_str = key
         try:
-            json.dumps(key)
+            json.dumps(key_str)
             json.dumps(value)
         except:
-            self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
+            self.logger.info(f"json error: cannot save {repr(key_str)} ({repr(value)})")
             return
-        self._set_key_in_user_config(key, value, save)
+        self._set_key_in_user_config(key_str, value, save=save)
 
-    def _set_key_in_user_config(self, key, value, save=True):
+    def _set_key_in_user_config(self, key: str, value, *, save=True):
+        assert isinstance(key, str), f"key must be str, not {repr(key)}"
         with self.lock:
             if value is not None:
                 self.user_config[key] = value
@@ -181,11 +196,33 @@ class SimpleConfig(Logger):
             if save:
                 self.save_user_config()
 
-    def get(self, key, default=None):
+    def get(self, key: Union['ConfigVar', str], *, override_default: Any = ConfigGetNoDefaultOverride) -> Any:
+        """Returns the value for a config key.
+        Values set via the cmdline have preference.
+
+        You should almost always provide a ConfigVar `key`.
+        Supplying a str `key` is only allowed due to
+        - how the CLI/parser works,
+        - some dynamic key constructions (plugins, qt tabs)
+        """
+        assert isinstance(key, (ConfigVar, str)), f"key must be either ConfigVar or str, not {repr(key)}"
+        if isinstance(key, ConfigVar):
+            key_str = key.get_key_str()
+        else:
+            key_str = key
+            try:
+                key = ConfigVar(key)
+            except ValueError:
+                pass
         with self.lock:
-            out = self.cmdline_options.get(key)
+            out = self.cmdline_options.get(key_str)
             if out is None:
-                out = self.user_config.get(key, default)
+                out = self.user_config.get(key_str)
+        if out is None:
+            if override_default != ConfigGetNoDefaultOverride:
+                return override_default
+            if isinstance(key, ConfigVar):
+                return key.get_default_value()
         return out
 
     def requires_upgrade(self):
@@ -198,7 +235,7 @@ class SimpleConfig(Logger):
             self.convert_version_2()
             self.convert_version_3()
 
-            self.set_key('config_version', FINAL_CONFIG_VERSION, save=True)
+            self._set_key_in_user_config('config_version', FINAL_CONFIG_VERSION)
 
     def convert_version_2(self):
         if not self._is_upgrade_method_needed(1, 1):
@@ -217,7 +254,7 @@ class SimpleConfig(Logger):
         except BaseException:
             self._set_key_in_user_config('server', None)
 
-        self.set_key('config_version', 2)
+        self._set_key_in_user_config('config_version', 2)
 
     def convert_version_3(self):
         if not self._is_upgrade_method_needed(2, 2):
@@ -230,7 +267,7 @@ class SimpleConfig(Logger):
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
 
-        self.set_key('config_version', 3)
+        self._set_key_in_user_config('config_version', 3)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
         cur_version = self.get_config_version()
@@ -244,14 +281,16 @@ class SimpleConfig(Logger):
             return True
 
     def get_config_version(self):
-        config_version = self.get('config_version', 1)
+        config_version = self.get('config_version', override_default=1)
         if config_version > FINAL_CONFIG_VERSION:
             self.logger.warning('config version ({}) is higher than latest ({})'
                                 .format(config_version, FINAL_CONFIG_VERSION))
         return config_version
 
-    def is_modifiable(self, key):
-        return key not in self.cmdline_options
+    def is_modifiable(self, key: Union['ConfigVar', str]) -> bool:
+        assert isinstance(key, (ConfigVar, str)), f"key must be either ConfigVar or str, not {repr(key)}"
+        key_str = key.get_key_str() if isinstance(key, ConfigVar) else key  # type: str
+        return key_str not in self.cmdline_options
 
     def save_user_config(self):
         if not self.path:
@@ -272,10 +311,10 @@ class SimpleConfig(Logger):
 
         # command line -w option
         if self.get('wallet_path'):
-            return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
+            return os.path.join(self.get('cwd') or '', self.get('wallet_path'))
 
         if use_gui_last_wallet:
-            path = self.get('gui_last_wallet')
+            path = self.get(ConfigVar.GUI_LAST_WALLET)
             if path and os.path.exists(path):
                 return path
 
@@ -294,22 +333,15 @@ class SimpleConfig(Logger):
         return new_path
 
     def remove_from_recently_open(self, filename):
-        recent = self.get('recently_open', [])
+        recent = self.get(ConfigVar.RECENTLY_OPEN_WALLET_FILES) or []
         if filename in recent:
             recent.remove(filename)
-            self.set_key('recently_open', recent)
-
-    def set_session_timeout(self, seconds):
-        self.logger.info(f"session timeout -> {seconds} seconds")
-        self.set_key('session_timeout', seconds)
-
-    def get_session_timeout(self):
-        return self.get('session_timeout', 300)
+            self.set_key(ConfigVar.RECENTLY_OPEN_WALLET_FILES, recent)
 
     def save_last_wallet(self, wallet):
         if self.get('wallet_path') is None:
             path = wallet.storage.path
-            self.set_key('gui_last_wallet', path)
+            self.set_key(ConfigVar.GUI_LAST_WALLET, path)
 
     def impose_hard_limits_on_fee(func):
         def get_fee_within_limits(self, *args, **kwargs):
@@ -452,11 +484,11 @@ class SimpleConfig(Logger):
 
     def get_depth_level(self):
         maxp = len(FEE_DEPTH_TARGETS) - 1
-        return min(maxp, self.get('depth_level', 2))
+        return min(maxp, self.get(ConfigVar.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS))
 
     def get_fee_level(self):
         maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
-        return min(maxp, self.get('fee_level', 2))
+        return min(maxp, self.get(ConfigVar.FEE_EST_DYNAMIC_ETA_SLIDERPOS))
 
     def get_fee_slider(self, dyn, mempool):
         if dyn:
@@ -496,10 +528,10 @@ class SimpleConfig(Logger):
             return self.has_fee_etas()
 
     def is_dynfee(self):
-        return bool(self.get('dynamic_fees', True))
+        return bool(self.get(ConfigVar.FEE_EST_DYNAMIC))
 
     def use_mempool_fees(self):
-        return bool(self.get('mempool_fees', False))
+        return bool(self.get(ConfigVar.FEE_EST_USE_MEMPOOL))
 
     def _feerate_from_fractional_slider_position(self, fee_level: float, dyn: bool,
                                                  mempool: bool) -> Union[int, None]:
@@ -538,7 +570,7 @@ class SimpleConfig(Logger):
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
-            fee_rate = self.get('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
+            fee_rate = self.get(ConfigVar.FEE_EST_STATIC_FEERATE_FALLBACK)
         return fee_rate
 
     def fee_per_byte(self):
@@ -580,14 +612,14 @@ class SimpleConfig(Logger):
         self.last_time_fee_estimates_requested = time.time()
 
     def get_video_device(self):
-        device = self.get("video_device", "default")
+        device = self.get(ConfigVar.VIDEO_DEVICE_PATH) or "default"
         if device == 'default':
             device = ''
         return device
 
     def get_ssl_context(self):
-        ssl_keyfile = self.get('ssl_keyfile')
-        ssl_certfile = self.get('ssl_certfile')
+        ssl_keyfile = self.get(ConfigVar.SSL_PRIVKEY_PATH)
+        ssl_certfile = self.get(ConfigVar.SSL_CERTFILE_PATH)
         if ssl_keyfile and ssl_certfile:
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
@@ -611,3 +643,112 @@ def read_user_config(path):
     if not type(result) is dict:
         return {}
     return result
+
+
+_default_config_values = {}
+def _create_config_key(name: str, default_value: Any) -> str:
+    _default_config_values[name] = default_value
+    return name
+
+
+@enum.unique
+class ConfigVar(Enum):
+
+    NETWORK_AUTO_CONNECT = _create_config_key('auto_connect', True)
+    NETWORK_ONESERVER = _create_config_key('oneserver', False)
+    NETWORK_PROXY = _create_config_key('proxy', None)
+    NETWORK_SERVER = _create_config_key('server', None)
+    NETWORK_NOONION = _create_config_key('noonion', False)
+    NETWORK_OFFLINE = _create_config_key('offline', False)
+    NETWORK_SKIPMERKLECHECK = _create_config_key('skipmerklecheck', False)
+
+    WALLET_USE_RBF = _create_config_key('use_rbf', True)
+    WALLET_BATCH_RBF = _create_config_key('batch_rbf', False)
+    WALLET_USE_CHANGE = _create_config_key('use_change', True)  # note: confusingly, in qt, this is per-wallet
+    WALLET_USE_MULTIPLE_CHANGE = _create_config_key('multiple_change', False)  # note: confusingly, this is per-wallet
+    WALLET_SPEND_CONFIRMED_ONLY = _create_config_key('confirmed_only', False)
+    WALLET_COIN_CHOOSER_POLICY = _create_config_key('coin_chooser', 'Privacy')
+    WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = _create_config_key('coin_chooser_output_rounding', False)
+
+    FEE_ADVANCED_CONTROLS_ENABLED = _create_config_key('show_fee', False)
+    FEE_EST_DYNAMIC = _create_config_key('dynamic_fees', True)
+    FEE_EST_USE_MEMPOOL = _create_config_key('mempool_fees', False)
+    FEE_EST_STATIC_FEERATE_FALLBACK = _create_config_key('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
+    FEE_EST_DYNAMIC_ETA_SLIDERPOS = _create_config_key('fee_level', 2)
+    FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS = _create_config_key('depth_level', 2)
+
+    FX_CURRENCY = _create_config_key('currency', 'EUR')
+    FX_EXCHANGE = _create_config_key('use_exchange', 'CoinGecko')  # default exchange should ideally provide historical rates
+    FX_USE_EXCHANGE_RATE = _create_config_key('use_exchange_rate', False)
+    FX_HISTORY_RATES = _create_config_key('history_rates', None)  # default defined in FxThread.get_history_config()
+    FX_HISTORY_RATES_CAPITAL_GAINS = _create_config_key('history_rates_capital_gains', False)
+    FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES = _create_config_key('fiat_address', False)
+
+    LIGHTNING = _create_config_key('lightning', False)
+    LIGHTNING_LISTEN = _create_config_key('lightning_listen', None)
+    LIGHTNING_FORWARD_PAYMENTS = _create_config_key('lightning_forward_payments', False)
+    LIGHTNING_PEERS = _create_config_key('lightning_peers', None)
+
+    RPC_USERNAME = _create_config_key('rpcuser', None)
+    RPC_PASSWORD = _create_config_key('rpcpassword', None)
+    RPC_HOST = _create_config_key('rpchost', '127.0.0.1')
+    RPC_PORT = _create_config_key('rpcport', 0)
+
+    SSL_CERTFILE_PATH = _create_config_key('ssl_certfile', '')
+    SSL_PRIVKEY_PATH = _create_config_key('ssl_privkey', '')
+
+    LOCAL_WATCHTOWER_ENABLED = _create_config_key('local_watchtower', False)
+    LOCAL_WATCHTOWER_EXPOSED_AT_HOST = _create_config_key('watchtower_host', None)
+    LOCAL_WATCHTOWER_EXPOSED_AT_PORT = _create_config_key('watchtower_port', 12345)
+
+    REMOTE_WATCHTOWER_ENABLED = _create_config_key('use_watchtower', False)
+    REMOTE_WATCHTOWER_URL = _create_config_key('watchtower_url', None)
+
+    LOCAL_PAYSERVER_EXPOSED_AT_HOST = _create_config_key('payserver_host', 'localhost')
+    LOCAL_PAYSERVER_EXPOSED_AT_PORT = _create_config_key('payserver_port', None)
+    LOCAL_PAYSERVER_ROOT = _create_config_key('payserver_root', '/r')
+
+    REMOTE_EMAIL_SERVER = _create_config_key('email_server', '')
+    REMOTE_EMAIL_USERNAME = _create_config_key('email_username', '')
+    REMOTE_EMAIL_PASSWORD = _create_config_key('email_password', '')
+
+    GUI = _create_config_key('gui', 'qt')
+    GUI_LAST_WALLET = _create_config_key('gui_last_wallet', None)
+    GUI_QT_COLOR_THEME = _create_config_key('qt_gui_color_theme', 'default')
+    GUI_QT_DARK_TRAY_ICON = _create_config_key('dark_icon', False)
+    GUI_QT_HISTORY_TAB_SHOW_TOOLBAR = _create_config_key('show_toolbar_history', False)
+    GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR = _create_config_key('show_toolbar_addresses', False)
+    GUI_QT_WINDOW_IS_MAXIMIZED = _create_config_key('is_maximized', None)
+    PERSIST_DAEMON_AFTER_GUI_CLOSES = _create_config_key('persist_daemon', False)
+
+    BITCOIN_AMOUNTS_BASE_UNIT_DECIMAL_POINT = _create_config_key('decimal_point', DECIMAL_POINT_DEFAULT)
+    BITCOIN_AMOUNTS_FORCE_NUM_ZEROS_AFTER_DECIMAL_POINT = _create_config_key('num_zeros', 0)
+    BLOCK_EXPLORER = _create_config_key('block_explorer', 'Blockstream.info')
+    VIDEO_DEVICE_PATH = _create_config_key('video_device', None)
+    OPENALIAS_ID = _create_config_key('alias', None)
+    HWD_SESSION_TIMEOUT = _create_config_key('session_timeout', 300)
+    CLI_TIMEOUT = _create_config_key('timeout', 60)
+    AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = _create_config_key('check_updates', False)
+    WRITE_LOGS_TO_DISK = _create_config_key('log_to_file', False)
+    LOCALIZATION_LANGUAGE = _create_config_key('language', 'en_UK')
+    BLOCKCHAIN_PREFERRED_BLOCK = _create_config_key('blockchain_preferred_block', None)
+    PAYMENT_REQUEST_EXPIRY_SECONDS = _create_config_key('request_expiry', 3600)  # 1 hour
+    SHOW_CRASH_REPORTER = _create_config_key('show_crash_reporter', True)
+    DONT_SHOW_TESTNET_WARNING = _create_config_key('dont_show_testnet_warning', False)
+    RECENTLY_OPEN_WALLET_FILES = _create_config_key('recently_open', None)
+    IO_DIRECTORY = _create_config_key('io_dir', os.path.expanduser('~'))
+
+    PLUGIN_DIGITALBITBOX_SETTINGS = _create_config_key('digitalbitbox', None)
+    PLUGIN_REVEALER_CALIBRATION_H = _create_config_key('calibration_h', 0)
+    PLUGIN_REVEALER_CALIBRATION_V = _create_config_key('calibration_v', 0)
+    PLUGIN_TRUSTEDCOIN_NUM_PREPAY = _create_config_key('trustedcoin_prepay', None)
+
+    def get_key_str(self) -> str:
+        return self.value
+
+    def get_default_value(self):
+        global _default_config_values
+        return _default_config_values[self.value]
+
+
+SimpleConfig.ConfigVar = ConfigVar

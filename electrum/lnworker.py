@@ -52,6 +52,7 @@ from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWatcher
+from .simple_config import ConfigVar
 
 if TYPE_CHECKING:
     from .network import Network
@@ -97,7 +98,7 @@ class LNWorker(Logger):
         return {}
 
     async def maybe_listen(self):
-        listen_addr = self.config.get('lightning_listen')
+        listen_addr = self.config.get(ConfigVar.LIGHTNING_LISTEN)
         if listen_addr:
             addr, port = listen_addr.rsplit(':', 2)
             if addr[0] == '[':
@@ -152,7 +153,7 @@ class LNWorker(Logger):
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
-        peer_list = self.config.get('lightning_peers', [])
+        peer_list = self.config.get('lightning_peers') or []
         for host, port, pubkey in peer_list:
             asyncio.run_coroutine_threadsafe(
                 self._add_peer(host, int(port), bfh(pubkey)),
@@ -345,7 +346,7 @@ class LNWallet(LNWorker):
                 r = await super().request(*args, **kwargs)
                 return r.data.result
         while True:
-            watchtower_url = self.config.get('watchtower_url')
+            watchtower_url = self.config.get(ConfigVar.REMOTE_WATCHTOWER_URL)
             if watchtower_url:
                 try:
                     async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:

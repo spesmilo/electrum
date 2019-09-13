@@ -13,6 +13,7 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import bh2u
+from electrum.simple_config import ConfigVar
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
@@ -417,7 +418,7 @@ class SettingsDialog(WindowModalDialog):
             timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
-            config.set_session_timeout(timeout_slider.sliderPosition() * 60)
+            config.set_key(ConfigVar.HWD_SESSION_TIMEOUT, timeout_slider.sliderPosition() * 60)
 
         # Information tab
         info_tab = QWidget()
@@ -502,7 +503,7 @@ class SettingsDialog(WindowModalDialog):
               "your PIN and passphrase (if enabled) must be "
               "re-entered to use the device."))
         timeout_msg.setWordWrap(True)
-        timeout_slider.setSliderPosition(config.get_session_timeout() // 60)
+        timeout_slider.setSliderPosition(config.get(ConfigVar.HWD_SESSION_TIMEOUT) // 60)
         slider_moved()
         timeout_slider.valueChanged.connect(slider_moved)
         timeout_slider.sliderReleased.connect(slider_released)

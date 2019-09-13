@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
 from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN
+from electrum.simple_config import SimpleConfig, ConfigVar
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -391,7 +392,7 @@ def address_field(addresses):
     return hbox, address_e
 
 
-def filename_field(parent, config, defaultname, select_msg):
+def filename_field(parent, config: 'SimpleConfig', defaultname, select_msg):
 
     vbox = QVBoxLayout()
     vbox.addWidget(QLabel(_("Format")))
@@ -406,7 +407,7 @@ def filename_field(parent, config, defaultname, select_msg):
 
     hbox = QHBoxLayout()
 
-    directory = config.get('io_dir', os.path.expanduser('~'))
+    directory = config.get(ConfigVar.IO_DIRECTORY)
     path = os.path.join( directory, defaultname )
     filename_e = QLineEdit()
     filename_e.setText(path)

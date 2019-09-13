@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
@@ -8,8 +10,13 @@ from electrum.i18n import languages
 from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum import coinchooser
+from electrum.simple_config import ConfigVar
 
 from .choice_dialog import ChoiceDialog
+
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
+
 
 Builder.load_string('''
 #:import partial functools.partial
@@ -96,7 +103,7 @@ Builder.load_string('''
 
 class SettingsDialog(Factory.Popup):
 
-    def __init__(self, app):
+    def __init__(self, app: 'ElectrumWindow'):
         self.app = app
         self.plugins = self.app.plugins
         self.config = self.app.electrum_config
@@ -116,16 +123,16 @@ class SettingsDialog(Factory.Popup):
         self.use_encryption = self.wallet.has_password() if self.wallet else False
 
     def get_language_name(self):
-        return languages.get(self.config.get('language', 'en_UK'), '')
+        return languages.get(self.config.get(ConfigVar.LOCALIZATION_LANGUAGE), '')
 
     def change_password(self, item, dt):
         self.app.change_password(self.update)
 
     def language_dialog(self, item, dt):
         if self._language_dialog is None:
-            l = self.config.get('language', 'en_UK')
+            l = self.config.get(ConfigVar.LOCALIZATION_LANGUAGE)
             def cb(key):
-                self.config.set_key("language", key, True)
+                self.config.set_key(ConfigVar.LOCALIZATION_LANGUAGE, key, True)
                 item.lang = self.get_language_name()
                 self.app.language = key
             self._language_dialog = ChoiceDialog(_('Language'), languages, l, cb)
@@ -148,7 +155,7 @@ class SettingsDialog(Factory.Popup):
             choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
             chooser_name = coinchooser.get_name(self.config)
             def cb(text):
-                self.config.set_key('coin_chooser', text)
+                self.config.set_key(ConfigVar.WALLET_COIN_CHOOSER_POLICY, text)
                 item.status = text
             self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         self._coinselect_dialog.open()

@@ -44,6 +44,7 @@ from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger
 from electrum.base_wizard import GoBack
+from electrum.simple_config import ConfigVar
 
 from .trustedcoin import TrustedCoinPlugin, server
 
@@ -202,7 +203,7 @@ class Plugin(TrustedCoinPlugin):
             grid.addWidget(QLabel(window.format_amount(v/k) + ' ' + window.base_unit() + "/tx"), i, 1)
             b = QRadioButton()
             b.setChecked(k == n_prepay)
-            b.clicked.connect(lambda b, k=k: self.config.set_key('trustedcoin_prepay', k, True))
+            b.clicked.connect(lambda b, k=k: self.config.set_key(ConfigVar.PLUGIN_TRUSTEDCOIN_NUM_PREPAY, k, True))
             grid.addWidget(b, i, 2)
             i += 1
 

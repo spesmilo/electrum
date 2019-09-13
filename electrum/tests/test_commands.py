@@ -6,6 +6,7 @@ from electrum.util import create_and_start_event_loop
 from electrum.commands import Commands, eval_bool
 from electrum import storage
 from electrum.wallet import restore_wallet_from_text
+from electrum.simple_config import ConfigVar
 
 from . import TestCaseForTestnet
 
@@ -40,12 +41,12 @@ class TestCommands(unittest.TestCase):
             Commands._setconfig_normalize_value('url_rewrite', '["file:///var/www/","https://electrum.org"]'))
 
     def test_setconfig_auth(self):
-        self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', "7777"))
-        self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', '7777'))
-        self.assertEqual("7777", Commands._setconfig_normalize_value('rpcpassword', '7777'))
-        self.assertEqual("2asd", Commands._setconfig_normalize_value('rpcpassword', '2asd'))
+        self.assertEqual("7777", Commands._setconfig_normalize_value(ConfigVar.RPC_USERNAME.get_key_str(), "7777"))
+        self.assertEqual("7777", Commands._setconfig_normalize_value(ConfigVar.RPC_USERNAME.get_key_str(), '7777'))
+        self.assertEqual("7777", Commands._setconfig_normalize_value(ConfigVar.RPC_PASSWORD.get_key_str(), '7777'))
+        self.assertEqual("2asd", Commands._setconfig_normalize_value(ConfigVar.RPC_PASSWORD.get_key_str(), '2asd'))
         self.assertEqual("['file:///var/www/','https://electrum.org']",
-            Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.org']"))
+                         Commands._setconfig_normalize_value(ConfigVar.RPC_PASSWORD.get_key_str(), "['file:///var/www/','https://electrum.org']"))
 
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))

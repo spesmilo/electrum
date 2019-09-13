@@ -45,6 +45,7 @@ from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
 from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
+from .simple_config import ConfigVar
 
 if TYPE_CHECKING:
     from .plugin import DeviceInfo
@@ -86,7 +87,7 @@ class BaseWizard(Logger):
         self._stack = []  # type: List[WizardStackItem]
         self.plugin = None
         self.keystores = []
-        self.is_kivy = config.get('gui') == 'kivy'
+        self.is_kivy = config.get(ConfigVar.GUI) == 'kivy'
         self.seed_type = None
 
     def set_icon(self, icon):

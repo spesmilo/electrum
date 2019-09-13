@@ -7,7 +7,7 @@ import asyncio
 
 from electrum import storage, bitcoin, keystore, bip32
 from electrum import Transaction
-from electrum import SimpleConfig
+from electrum.simple_config import SimpleConfig, ConfigVar
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet, restore_wallet_from_text
 from electrum.util import bfh, bh2u
@@ -1144,7 +1144,7 @@ class TestWalletSending(TestCaseForTestnet):
 
     def _rbf_batching(self, *, simulate_moving_txs):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage')
-        wallet.config.set_key('batch_rbf', True)
+        wallet.config.set_key(ConfigVar.WALLET_BATCH_RBF, True)
 
         # bootstrap wallet (incoming funding_tx1)
         funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
@@ -1955,7 +1955,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         cls.electrum_path = tempfile.mkdtemp()
         cls.config = SimpleConfig({
             'electrum_path': cls.electrum_path,
-            'skipmerklecheck': True,  # needed for Synchronizer to generate new addresses without SPV
+            ConfigVar.NETWORK_SKIPMERKLECHECK.get_key_str(): True,  # needed for Synchronizer to generate new addresses without SPV
         })
 
     @classmethod

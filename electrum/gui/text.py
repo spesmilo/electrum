@@ -6,6 +6,7 @@ import locale
 from decimal import Decimal
 import getpass
 import logging
+from typing import TYPE_CHECKING
 
 import electrum
 from electrum.util import format_satoshis
@@ -16,13 +17,19 @@ from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import deserialize_server
 from electrum.logging import console_stderr_handler
+from electrum.simple_config import ConfigVar, SimpleConfig
+
+if TYPE_CHECKING:
+    from electrum.daemon import Daemon
+    from electrum.plugin import Plugins
+
 
 _ = lambda x:x  # i18n
 
 
 class ElectrumGui:
 
-    def __init__(self, config, daemon, plugins):
+    def __init__(self, config: SimpleConfig, daemon: 'Daemon', plugins: 'Plugins'):
 
         self.config = config
         self.network = daemon.network
@@ -404,7 +411,7 @@ class ElectrumGui:
         srv = 'auto-connect' if auto_connect else self.network.default_server
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
-            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
+            {'label':'proxy', 'type':'str', 'value':self.config.get(ConfigVar.NETWORK_PROXY)},
             ], buttons = 1)
         if out:
             if out.get('server'):
@@ -429,7 +436,7 @@ class ElectrumGui:
         if out:
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.set_key('fee_per_kb', fee, True)
+                self.config.set_key(ConfigVar.FEE_EST_STATIC_FEERATE_FALLBACK, fee, True)
 
 
     def password_dialog(self):

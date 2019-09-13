@@ -247,7 +247,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setText(new_url)
         self.previous_payto = new_url
 
-        #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
         self.win.contact_list.update()
 

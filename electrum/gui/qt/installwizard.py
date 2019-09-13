@@ -19,6 +19,7 @@ from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
+from electrum.simple_config import ConfigVar
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
@@ -620,7 +621,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 nlayout.accept()
         else:
             network.auto_connect = True
-            self.config.set_key('auto_connect', True, True)
+            self.config.set_key(ConfigVar.NETWORK_AUTO_CONNECT, True, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

@@ -49,6 +49,7 @@ from electrum.util import (UserCancelled, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.logging import Logger
+from electrum.simple_config import SimpleConfig, ConfigVar
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
@@ -59,7 +60,6 @@ from .lightning_dialog import LightningDialog
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
-    from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
 
@@ -88,7 +88,7 @@ class ElectrumGui(Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        set_language(config.get('language', get_default_language()))
+        set_language(config.get(ConfigVar.LOCALIZATION_LANGUAGE, override_default=get_default_language()))
         Logger.__init__(self)
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
@@ -119,7 +119,7 @@ class ElectrumGui(Logger):
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
         # init tray
-        self.dark_icon = self.config.get("dark_icon", False)
+        self.dark_icon = self.config.get(ConfigVar.GUI_QT_DARK_TRAY_ICON)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
@@ -130,7 +130,7 @@ class ElectrumGui(Logger):
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        use_dark_theme = self.config.get(ConfigVar.GUI_QT_COLOR_THEME) == 'dark'
         if use_dark_theme:
             try:
                 import qdarkstyle
@@ -153,7 +153,7 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             m.addAction(_("Lightning"), self.show_lightning_dialog)
         for window in self.windows:
             name = window.wallet.basename()
@@ -172,7 +172,7 @@ class ElectrumGui(Logger):
 
     def toggle_tray_icon(self):
         self.dark_icon = not self.dark_icon
-        self.config.set_key("dark_icon", self.dark_icon, True)
+        self.config.set_key(ConfigVar.GUI_QT_DARK_TRAY_ICON, self.dark_icon, True)
         self.tray.setIcon(self.tray_icon())
 
     def tray_activated(self, reason):
@@ -326,7 +326,7 @@ class ElectrumGui(Logger):
     def init_network(self):
         # Show network dialog if config does not exist
         if self.daemon.network:
-            if self.config.get('auto_connect') is None:
+            if self.config.get(ConfigVar.NETWORK_AUTO_CONNECT, override_default=None) is None:
                 wizard = InstallWizard(self.config, self.app, self.plugins)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
@@ -356,7 +356,7 @@ class ElectrumGui(Logger):
             with self._num_wizards_lock:
                 if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
                     return
-                if self.config.get('persist_daemon'):
+                if self.config.get(ConfigVar.PERSIST_DAEMON_AFTER_GUI_CLOSES):
                     return
             self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit

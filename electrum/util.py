@@ -743,11 +743,9 @@ def block_explorer_info():
     return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
 def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
-    default_ = 'Blockstream.info'
-    be_key = config.get('block_explorer', default_)
+    be_key = config.get(config.ConfigVar.BLOCK_EXPLORER)
     be = block_explorer_info().get(be_key)
-    return be_key if be is not None else default_
+    return be_key if be is not None else config.ConfigVar.BLOCK_EXPLORER.get_default_value()
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
     return block_explorer_info().get(block_explorer(config))

@@ -34,6 +34,7 @@ from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
 from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
+from electrum.simple_config import ConfigVar
 
 from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
@@ -343,7 +344,7 @@ class SendScreen(CScreen):
             outputs = invoice['outputs']  # type: List[TxOutput]
             amount = sum(map(lambda x: x.value, outputs))
             do_pay = lambda rbf: self._do_send_onchain(amount, message, outputs, rbf)
-            if self.app.electrum_config.get('use_rbf'):
+            if self.app.electrum_config.get(ConfigVar.WALLET_USE_RBF):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)
                 d.open()
             else:
@@ -413,7 +414,7 @@ class ReceiveScreen(CScreen):
         Clock.schedule_interval(lambda dt: self.update(), 5)
 
     def expiry(self):
-        return self.app.electrum_config.get('request_expiry', 3600) # 1 hour
+        return self.app.electrum_config.get(ConfigVar.PAYMENT_REQUEST_EXPIRY_SECONDS)
 
     def clear(self):
         self.screen.address = ''
@@ -503,7 +504,7 @@ class ReceiveScreen(CScreen):
     def expiration_dialog(self, obj):
         from .dialogs.choice_dialog import ChoiceDialog
         def callback(c):
-            self.app.electrum_config.set_key('request_expiry', c)
+            self.app.electrum_config.set_key(ConfigVar.PAYMENT_REQUEST_EXPIRY_SECONDS, c)
         d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()
 

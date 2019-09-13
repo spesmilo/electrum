@@ -31,6 +31,7 @@ from electrum.util import to_string, UserCancelled, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.network import Network
 from electrum.logging import get_logger
+from electrum.simple_config import ConfigVar
 
 
 _logger = get_logger(__name__)
@@ -309,7 +310,7 @@ class DigitalBitbox_Client():
             # import pairing from dbb app
             self.plugin.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY] = dbb_config[ENCRYPTION_PRIVKEY_KEY]
             self.plugin.digitalbitbox_config[CHANNEL_ID_KEY] = dbb_config[CHANNEL_ID_KEY]
-        self.plugin.config.set_key('digitalbitbox', self.plugin.digitalbitbox_config)
+        self.plugin.config.set_key(ConfigVar.PLUGIN_DIGITALBITBOX_SETTINGS, self.plugin.digitalbitbox_config)
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
@@ -704,7 +705,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
-        self.digitalbitbox_config = self.config.get('digitalbitbox', {})
+        self.digitalbitbox_config = self.config.get(ConfigVar.PLUGIN_DIGITALBITBOX_SETTINGS) or {}
 
 
     def get_dbb_device(self, device):

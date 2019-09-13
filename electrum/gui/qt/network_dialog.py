@@ -39,6 +39,7 @@ from electrum import constants, blockchain
 from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
 from electrum.logging import get_logger
+from electrum.simple_config import ConfigVar, SimpleConfig
 
 from .util import Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit
 
@@ -201,7 +202,7 @@ class ServerListWidget(QTreeWidget):
 
 class NetworkChoiceLayout(object):
 
-    def __init__(self, network: Network, config, wizard=False):
+    def __init__(self, network: Network, config: SimpleConfig, wizard=False):
         self.network = network
         self.config = config
         self.protocol = None
@@ -227,7 +228,7 @@ class NetworkChoiceLayout(object):
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(fixed_width_port)
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
-        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
+        self.autoconnect_cb.setEnabled(self.config.is_modifiable(ConfigVar.NETWORK_AUTO_CONNECT))
 
         self.server_host.editingFinished.connect(self.set_server)
         self.server_port.editingFinished.connect(self.set_server)
@@ -340,13 +341,13 @@ class NetworkChoiceLayout(object):
         self.update()
 
     def check_disable_proxy(self, b):
-        if not self.config.is_modifiable('proxy'):
+        if not self.config.is_modifiable(ConfigVar.NETWORK_PROXY):
             b = False
         for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
             w.setEnabled(b)
 
     def enable_set_server(self):
-        if self.config.is_modifiable('server'):
+        if self.config.is_modifiable(ConfigVar.NETWORK_SERVER):
             enabled = not self.autoconnect_cb.isChecked()
             self.server_host.setEnabled(enabled)
             self.server_port.setEnabled(enabled)

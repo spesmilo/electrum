@@ -71,7 +71,7 @@ from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
 from electrum.version import ELECTRUM_VERSION
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
-from electrum.simple_config import SimpleConfig
+from electrum.simple_config import SimpleConfig, ConfigVar
 from electrum.logging import Logger
 from electrum.paymentrequest import PR_PAID
 from electrum.util import pr_expiration_values
@@ -163,12 +163,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.create_status_bar()
         self.need_update = threading.Event()
-        self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        self.decimal_point = config.get(ConfigVar.BITCOIN_AMOUNTS_BASE_UNIT_DECIMAL_POINT)
         try:
             decimal_point_to_base_unit_name(self.decimal_point)
         except UnknownBaseUnit:
             self.decimal_point = DECIMAL_POINT_DEFAULT
-        self.num_zeros = int(config.get('num_zeros', 0))
+        self.num_zeros = int(config.get(ConfigVar.BITCOIN_AMOUNTS_FORCE_NUM_ZEROS_AFTER_DECIMAL_POINT))
 
         self.completions = QStringListModel()
 
@@ -191,11 +191,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tab.tab_description = description
             tab.tab_pos = len(tabs)
             tab.tab_name = name
-            if self.config.get('show_{}_tab'.format(name), False):
+            if self.config.get('show_{}_tab'.format(name), override_default=False):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"), "contacts")
@@ -204,7 +204,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        if self.config.get("is_maximized"):
+        if self.config.get(ConfigVar.LIGHTNING):
             self.showMaximized()
 
         self.setWindowIcon(read_QIcon("electrum.png"))
@@ -248,13 +248,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.fetch_alias()
 
         # If the option hasn't been set yet
-        if config.get('check_updates') is None:
+        if config.get(ConfigVar.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS, override_default=None) is None:
             choice = self.question(title="Electrum - " + _("Enable update check"),
                                    msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
                                        _("Would you like to be notified when there is a newer version of Electrum available?"))
-            config.set_key('check_updates', bool(choice), save=True)
+            config.set_key(ConfigVar.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS, bool(choice), save=True)
 
-        if config.get('check_updates', False):
+        if config.get(ConfigVar.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS):
             # The references to both the thread and the window need to be stored somewhere
             # to prevent GC from getting in our way.
             def on_version_received(v):
@@ -409,7 +409,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def fetch_alias(self):
         self.alias_info = None
-        alias = self.config.get('alias')
+        alias = self.config.get(ConfigVar.OPENALIAS_ID)
         if alias:
             alias = str(alias)
             def f():
@@ -491,7 +491,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not constants.net.TESTNET:
             return
         # user might have opted out already
-        if self.config.get('dont_show_testnet_warning', False):
+        if self.config.get(ConfigVar.DONT_SHOW_TESTNET_WARNING):
             return
         # only show once per process lifecycle
         if getattr(self.gui_object, '_warned_testnet', False):
@@ -510,7 +510,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         cb.stateChanged.connect(on_cb)
         self.show_warning(msg, title=_('Testnet'), checkbox=cb)
         if cb_checked:
-            self.config.set_key('dont_show_testnet_warning', True)
+            self.config.set_key(ConfigVar.DONT_SHOW_TESTNET_WARNING, True)
 
     def open_wallet(self):
         try:
@@ -539,7 +539,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename):
-        recent = self.config.get('recently_open', [])
+        recent = self.config.get(ConfigVar.RECENTLY_OPEN_WALLET_FILES) or []
         try:
             sorted(recent)
         except:
@@ -549,7 +549,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         recent.insert(0, filename)
         recent = [path for path in recent if os.path.exists(path)]
         recent = recent[:5]
-        self.config.set_key('recently_open', recent)
+        self.config.set_key(ConfigVar.RECENTLY_OPEN_WALLET_FILES, recent)
         self.recently_visited_menu.clear()
         for i, k in enumerate(sorted(recent)):
             b = os.path.basename(k)
@@ -617,14 +617,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
 
         def add_toggle_action(view_menu, tab):
-            is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
+            is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), override_default=False)
             item_name = (_("Hide") if is_shown else _("Show")) + " " + tab.tab_description
             tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             add_toggle_action(view_menu, self.channels_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
@@ -634,7 +634,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # Settings / Preferences are all reserved keywords in macOS using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
@@ -740,18 +740,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        directory = self.config.get(ConfigVar.IO_DIRECTORY)
         fileName, __ = QFileDialog.getOpenFileName(self, title, directory, filter)
         if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+            self.config.set_key(ConfigVar.IO_DIRECTORY, os.path.dirname(fileName), True)
         return fileName
 
     def getSaveFileName(self, title, filename, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        directory = self.config.get(ConfigVar.IO_DIRECTORY)
         path = os.path.join( directory, filename )
         fileName, __ = QFileDialog.getSaveFileName(self, title, path, filter)
         if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+            self.config.set_key(ConfigVar.IO_DIRECTORY, os.path.dirname(fileName), True)
         return fileName
 
     def timer_actions(self):
@@ -911,7 +911,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.history_model.set_view(self.history_list)
         l.searchable_list = l
         toolbar = l.create_toolbar(self.config)
-        toolbar_shown = bool(self.config.get('show_toolbar_history', False))
+        toolbar_shown = bool(self.config.get(ConfigVar.GUI_QT_HISTORY_TAB_SHOW_TOOLBAR))
         l.show_toolbar(toolbar_shown)
         return self.create_list_tab(l, toolbar)
 
@@ -951,7 +951,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         evl = sorted(pr_expiration_values.items())
         evl_keys = [i[0] for i in evl]
         evl_values = [i[1] for i in evl]
-        default_expiry = self.config.get('request_expiry', 3600)
+        default_expiry = self.config.get(ConfigVar.PAYMENT_REQUEST_EXPIRY_SECONDS)
         try:
             i = evl_keys.index(default_expiry)
         except ValueError:
@@ -960,7 +960,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_combo.setCurrentIndex(i)
         self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         def on_expiry(i):
-            self.config.set_key('request_expiry', evl_keys[i])
+            self.config.set_key(ConfigVar.PAYMENT_REQUEST_EXPIRY_SECONDS, evl_keys[i])
         self.expires_combo.currentIndexChanged.connect(on_expiry)
         msg = ' '.join([
             _('Expiration date of your request.'),
@@ -985,7 +985,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addStretch(1)
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
-        if self.config.get('lightning'):
+        if self.config.get(ConfigVar.LIGHTNING):
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
             self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
@@ -1047,8 +1047,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.clear_receive_tab()
 
     def sign_payment_request(self, addr):
-        alias = self.config.get('alias')
-        alias_privkey = None
+        alias = self.config.get(ConfigVar.OPENALIAS_ID)
         if alias and self.alias_info:
             alias_addr, alias_name, validated = self.alias_info
             if alias_addr:
@@ -1070,7 +1069,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_invoice(self, is_lightning):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
-        expiry = self.config.get('request_expiry', 3600)
+        expiry = self.config.get(ConfigVar.PAYMENT_REQUEST_EXPIRY_SECONDS)
         if is_lightning:
             payment_hash = self.wallet.lnworker.add_invoice(amount, message, expiry)
             key = bh2u(payment_hash)
@@ -1249,11 +1248,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         def fee_cb(dyn, pos, fee_rate):
             if dyn:
                 if self.config.use_mempool_fees():
-                    self.config.set_key('depth_level', pos, False)
+                    self.config.set_key(ConfigVar.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS, pos, False)
                 else:
-                    self.config.set_key('fee_level', pos, False)
+                    self.config.set_key(ConfigVar.FEE_EST_DYNAMIC_ETA_SLIDERPOS, pos, False)
             else:
-                self.config.set_key('fee_per_kb', fee_rate, False)
+                self.config.set_key(ConfigVar.FEE_EST_STATIC_FEERATE_FALLBACK, fee_rate, False)
 
             if fee_rate:
                 fee_rate = Decimal(fee_rate)
@@ -1340,7 +1339,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         grid.addWidget(self.feecontrol_fields, 5, 1, 1, -1)
 
-        if not self.config.get('show_fee', False):
+        if not self.config.get(ConfigVar.FEE_ADVANCED_CONTROLS_ENABLED):
             self.fee_adv_controls.setVisible(False)
 
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
@@ -1763,7 +1762,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount = tx.output_value() if self.max_button.isChecked() else sum(map(lambda x: x.value, outputs))
         fee = tx.get_fee()
 
-        use_rbf = bool(self.config.get('use_rbf', True))
+        use_rbf = bool(self.config.get(ConfigVar.WALLET_USE_RBF))
         if use_rbf:
             tx.set_rbf(True)
 
@@ -2079,7 +2078,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
         toolbar = l.create_toolbar(self.config)
-        toolbar_shown = bool(self.config.get('show_toolbar_addresses', False))
+        toolbar_shown = bool(self.config.get(ConfigVar.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR))
         l.show_toolbar(toolbar_shown)
         return self.create_list_tab(l, toolbar)
 
@@ -2987,7 +2986,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
-        self.config.set_key("is_maximized", self.isMaximized())
+        self.config.set_key(ConfigVar.GUI_QT_WINDOW_IS_MAXIMIZED, self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()
             self.wallet.storage.put("winpos-qt", [g.left(),g.top(),

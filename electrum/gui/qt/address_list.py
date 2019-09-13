@@ -34,6 +34,7 @@ from electrum.util import block_explorer_URL, profiler
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
+from electrum.simple_config import ConfigVar
 
 from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen
 
@@ -104,11 +105,11 @@ class AddressList(MyTreeView):
         self.update()
 
     def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_addresses', state)
+        config.set_key(ConfigVar.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR, state)
 
     def refresh_headers(self):
         fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
+        if fx and self.config.get(ConfigVar.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES):
             ccy = fx.get_currency()
         else:
             ccy = _('Fiat')
@@ -162,7 +163,7 @@ class AddressList(MyTreeView):
                 continue
             balance_text = self.parent.format_amount(balance, whitespaces=True)
             # create item
-            if fx and fx.get_fiat_address_config():
+            if fx and self.config.get(ConfigVar.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES):
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
             else:
@@ -197,7 +198,7 @@ class AddressList(MyTreeView):
                 set_address = QPersistentModelIndex(address_idx)
         self.set_current_idx(set_address)
         # show/hide columns
-        if fx and fx.get_fiat_address_config():
+        if fx and self.config.get(ConfigVar.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES):
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)

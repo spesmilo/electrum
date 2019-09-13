@@ -18,6 +18,7 @@ from electrum.util import format_satoshis, format_satoshis_plain, format_fee_sat
 from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.simple_config import SimpleConfig, ConfigVar
 from .i18n import _
 
 from kivy.app import App
@@ -80,7 +81,6 @@ from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
-    from electrum.simple_config import SimpleConfig
     from electrum.wallet import Abstract_Wallet
     from electrum.plugin import Plugins
 
@@ -155,18 +155,18 @@ class ElectrumWindow(App):
 
     use_rbf = BooleanProperty(False)
     def on_use_rbf(self, instance, x):
-        self.electrum_config.set_key('use_rbf', self.use_rbf, True)
+        self.electrum_config.set_key(ConfigVar.WALLET_USE_RBF, self.use_rbf, True)
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
         if self.wallet:
             self.wallet.use_change = self.use_change
-            self.wallet.storage.put('use_change', self.use_change)
+            self.wallet.storage.put(ConfigVar.WALLET_USE_CHANGE.get_key_str(), self.use_change)
             self.wallet.storage.write()
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
-        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
+        self.electrum_config.set_key(ConfigVar.WALLET_SPEND_CONFIRMED_ONLY, not self.use_unconfirmed, True)
 
     def set_URI(self, uri):
         self.switch_to('send')
@@ -225,7 +225,7 @@ class ElectrumWindow(App):
             self.show_error(_('Error') + '\n' + str(e))
 
     def _get_bu(self):
-        decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        decimal_point = self.electrum_config.get(ConfigVar.BITCOIN_AMOUNTS_BASE_UNIT_DECIMAL_POINT)
         try:
             return decimal_point_to_base_unit_name(decimal_point)
         except UnknownBaseUnit:
@@ -234,7 +234,7 @@ class ElectrumWindow(App):
     def _set_bu(self, value):
         assert value in base_units.keys()
         decimal_point = base_unit_name_to_decimal_point(value)
-        self.electrum_config.set_key('decimal_point', decimal_point, True)
+        self.electrum_config.set_key(ConfigVar.BITCOIN_AMOUNTS_BASE_UNIT_DECIMAL_POINT, decimal_point, True)
         self._trigger_update_status()
         self._trigger_update_history()
 
@@ -322,7 +322,7 @@ class ElectrumWindow(App):
         App.__init__(self)#, **kwargs)
 
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
-        self.language = config.get('language', 'en')
+        self.language = config.get(ConfigVar.LOCALIZATION_LANGUAGE)
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
             self.num_blocks = self.network.get_local_height()
@@ -340,10 +340,10 @@ class ElectrumWindow(App):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
 
-        self.is_lightning_enabled = bool(config.get('lightning'))
+        self.is_lightning_enabled = bool(config.get(ConfigVar.LIGHTNING))
 
-        self.use_rbf = config.get('use_rbf', True)
-        self.use_unconfirmed = not config.get('confirmed_only', False)
+        self.use_rbf = config.get(ConfigVar.WALLET_USE_RBF)
+        self.use_unconfirmed = not config.get(ConfigVar.WALLET_SPEND_CONFIRMED_ONLY)
 
         # create triggers so as to minimize updating a max of 2 times a sec
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)

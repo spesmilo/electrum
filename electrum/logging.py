@@ -8,8 +8,11 @@ import sys
 import pathlib
 import os
 import platform
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import copy
+
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -227,13 +230,13 @@ class Logger:
         return ''
 
 
-def configure_logging(config):
+def configure_logging(config: 'SimpleConfig'):
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
     _configure_verbosity(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     is_android = 'ANDROID_DATA' in os.environ
-    if is_android or not config.get('log_to_file', False):
+    if is_android or not config.get(config.ConfigVar.WRITE_LOGS_TO_DISK):
         pass  # disable file logging
     else:
         log_directory = pathlib.Path(config.path) / "logs"
