@@ -2852,7 +2852,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         defaultname = 'electrum-private-keys.csv'
         select_msg = _('Select file to export your private keys to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
+        hbox, filename_e, b1, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
 
         b = OkButton(d, _('Export'))
@@ -2863,6 +2863,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         addresses = self.wallet.get_addresses()
         done = False
         cancelled = False
+
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
