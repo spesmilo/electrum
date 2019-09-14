@@ -193,10 +193,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(hbox2)
         self.set_layout(vbox, title=_('Electrum wallet'))
 
-        try:
-            temp_storage = WalletStorage(path, manual_upgrades=True)
-        except (StorageReadWriteError, WalletFileException):
-            temp_storage = None  # type: Optional[WalletStorage]
+        temp_storage = None  # type: Optional[WalletStorage]
         wallet_folder = os.path.dirname(path)
 
         def on_choose():
