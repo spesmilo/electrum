@@ -161,8 +161,8 @@ class Commands:
         except Exception as e:
             raise AddressError(f'Invalid address: {address}') from e
         return {
-            'cashaddr' : addr.to_string(Address.FMT_CASHADDR),
-            'legacy'   : addr.to_string(Address.FMT_LEGACY),
+            'cashaddr' : addr.to_full_string(Address.FMT_CASHADDR),
+            'legacy'   : addr.to_full_string(Address.FMT_LEGACY),
         }
 
     @command('')
