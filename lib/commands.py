@@ -35,7 +35,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from .import util
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 from .import bitcoin
-from .address import Address
+from .address import Address, AddressError
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
 from .transaction import Transaction, multisig_script
@@ -150,6 +150,20 @@ class Commands:
         for k in d.keys():
             d[k] = DoChk(d[k])
         return d
+
+    @command('')
+    def addressconvert(self, address):
+        """Convert to/from Legacy <-> Cash Address.  Address can be either
+        a legacy or a Cash Address and both forms will be returned as a JSON
+        dict."""
+        try:
+            addr = Address.from_string(address)
+        except Exception as e:
+            raise AddressError(f'Invalid address: {address}') from e
+        return {
+            'cashaddr' : addr.to_string(Address.FMT_CASHADDR),
+            'legacy'   : addr.to_string(Address.FMT_LEGACY),
+        }
 
     @command('')
     def commands(self):
