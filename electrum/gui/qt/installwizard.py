@@ -180,7 +180,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox.addWidget(button)
         vbox.addLayout(hbox)
 
-        self.msg_label = QLabel('')
+        self.msg_label = WWLabel('')
         vbox.addWidget(self.msg_label)
         hbox2 = QHBoxLayout()
         self.pw_e = QLineEdit('', self)
@@ -195,7 +195,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         try:
             temp_storage = WalletStorage(path, manual_upgrades=True)
-        except StorageReadWriteError:
+        except (StorageReadWriteError, WalletFileException):
             temp_storage = None  # type: Optional[WalletStorage]
         wallet_folder = os.path.dirname(path)
 
@@ -208,6 +208,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
             nonlocal temp_storage
             temp_storage = None
+            msg = None
             path = os.path.join(wallet_folder, filename)
             wallet_from_memory = get_wallet_from_daemon(path)
             try:
@@ -215,10 +216,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                 else:
                     temp_storage = WalletStorage(path, manual_upgrades=True)
-            except StorageReadWriteError:
-                pass
-            except Exception:
+            except (StorageReadWriteError, WalletFileException) as e:
+                msg = _('Cannot read file') + f'\n{repr(e)}'
+            except Exception as e:
                 self.logger.exception('')
+                msg = _('Cannot read file') + f'\n{repr(e)}'
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
@@ -238,7 +240,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
                         + _("Press 'Next' to create/focus window.")
-            else:
+            if msg is None:
                 msg = _('Cannot read file')
             self.msg_label.setText(msg)
             if user_needs_to_enter_password:
