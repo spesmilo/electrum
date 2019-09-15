@@ -477,6 +477,8 @@ def make_dir(path):
 def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
+    if x is None:
+        return _('Unknown')
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(PyDecimal(x) / scale_factor).rstrip('0').rstrip('.')
 
@@ -488,7 +490,7 @@ _fmt_sats_cache = ExpiringCache(maxlen=20000, name='format_satoshis cache')
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
     global _cached_dp
     if x is None:
-        return 'unknown'
+        return _('Unknown')
     if precision is None:
         precision = decimal_point
     cache_key = (x,num_zeros,decimal_point,precision,is_diff,whitespaces)
