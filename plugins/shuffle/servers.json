@@ -18,13 +18,5 @@
 	"ecdkxftqvnievsmq.onion": {
 		"ssl": false,
 		"info": 8889
-	},
-	"cashshuffle.net": {
-		"ssl": true,
-		"info": 8080
-	},
-	"5sa45npeflx74qmk.onion": {
-		"ssl": false,
-		"info": 8081
 	}
 }
