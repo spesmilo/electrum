@@ -290,7 +290,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     @classmethod
     def from_Address_dict(cls, d):
         '''Convert a dict of Address objects to a dict of strings.'''
-        return {addr.to_string(Address.FMT_LEGACY): value
+        return {addr.to_storage_string(): value
                 for addr, value in d.items()}
 
     def diagnostic_name(self):
@@ -306,10 +306,14 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def load_transactions(self):
         txi = self.storage.get('txi', {})
         self.txi = {tx_hash: self.to_Address_dict(value)
-                    for tx_hash, value in txi.items()}
+                    for tx_hash, value in txi.items()
+                    # skip empty entries to save memory and disk space
+                    if value}
         txo = self.storage.get('txo', {})
         self.txo = {tx_hash: self.to_Address_dict(value)
-                    for tx_hash, value in txo.items()}
+                    for tx_hash, value in txo.items()
+                    # skip empty entries to save memory and disk space
+                    if value}
         self.tx_fees = self.storage.get('tx_fees', {})
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
@@ -317,7 +321,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
-            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None and (tx_hash not in self.pruned_txo.values()):
+            if not self.txi.get(tx_hash) and not self.txo.get(tx_hash) and (tx_hash not in self.pruned_txo.values()):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
                 self.cashacct.remove_transaction_hook(tx_hash)
@@ -331,9 +335,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 tx[k] = str(v)
             self.storage.put('transactions', tx)
             txi = {tx_hash: self.from_Address_dict(value)
-                   for tx_hash, value in self.txi.items()}
+                   for tx_hash, value in self.txi.items()
+                   # skip empty entries to save memory and disk space
+                   if value}
             txo = {tx_hash: self.from_Address_dict(value)
-                   for tx_hash, value in self.txo.items()}
+                   for tx_hash, value in self.txo.items()
+                   # skip empty entries to save memory and disk space
+                   if value}
             self.storage.put('txi', txi)
             self.storage.put('txo', txo)
             self.storage.put('tx_fees', self.tx_fees)
@@ -948,23 +956,29 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             # add inputs
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
+                if txi['type'] == 'coinbase':
+                    continue
                 addr = txi.get('address')
-                if txi['type'] != 'coinbase':
+                # find value from prev output
+                if self.is_mine(addr):
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
-                # find value from prev output
-                if self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
-                            if d.get(addr) is None:
-                                d[addr] = []
-                            d[addr].append((ser, v))
+                            l = d.get(addr)
+                            if l is None:
+                                d[addr] = l = []
+                            l.append((ser, v))
+                            del l
                             break
                     else:
                         self.pruned_txo[ser] = tx_hash
                     self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
+            # don't keep empty entries in self.txi
+            if not d:
+                self.txi.pop(tx_hash, None)
 
             # add outputs
             self.txo[tx_hash] = d = {}
@@ -986,18 +1000,28 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                                 self.cashacct.add_transaction_hook(_tx_hash, _tx, _n, _addr)
                         )
                 elif self.is_mine(addr):
-                    if addr not in d:
-                        d[addr] = []
-                    d[addr].append((n, v, is_coinbase))
+                    l = d.get(addr)
+                    if l is None:
+                        d[addr] = l = []
+                    l.append((n, v, is_coinbase))
+                    del l
                     self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
                 # give v to txi that spends me
-                next_tx = self.pruned_txo.get(ser)
+                next_tx = self.pruned_txo.pop(ser, None)
                 if next_tx is not None:
-                    self.pruned_txo.pop(ser)
-                    dd = self.txi.get(next_tx, {})
-                    if dd.get(addr) is None:
-                        dd[addr] = []
-                    dd[addr].append((ser, v))
+                    dd = self.txi.get(next_tx)
+                    if dd is None:
+                        self.txi[next_tx] = dd = {}
+                    l = dd.get(addr)
+                    if l is None:
+                        dd[addr] = l = []
+                    l.append((ser, v))
+                    del l, dd
+            # don't keep empty entries in self.txo
+            if not d:
+                self.txo.pop(tx_hash, None)
+
+
             # save
             self.transactions[tx_hash] = tx
 
@@ -1015,7 +1039,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def remove_transaction(self, tx_hash):
         with self.lock:
             self.print_error("removing tx from history", tx_hash)
-            #tx = self.transactions.pop(tx_hash, None)
+            # Note that we don't actually remove the tx_hash from
+            # self.transactions, but instead rely on the unreferenced tx being
+            # removed the next time the wallet is loaded in self.load_transactions()
+
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
                     self.pruned_txo.pop(ser)
@@ -1191,7 +1218,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return label
 
     def get_default_label(self, tx_hash):
-        if self.txi.get(tx_hash) == {}:
+        if not self.txi.get(tx_hash):
             d = self.txo.get(tx_hash, {})
             labels = []
             for addr in list(d.keys()):  # use a copy to avoid possibility of dict changing during iteration, see #1328
