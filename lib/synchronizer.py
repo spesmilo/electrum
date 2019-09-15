@@ -189,11 +189,16 @@ class Synchronizer(ThreadJob):
             traceback.print_exc()
             self.print_msg("cannot deserialize transaction, skipping", tx_hash)
             return
-        # NB: this is slow, and I am not sure what bug it fixes. Commenting out.
-        #if tx_hash != tx.txid():
-        #    self.print_error("received tx does not match expected txid ({} != {}), skipping"
-        #                     .format(tx_hash, tx.txid()))
-        #    return
+        # Paranoia - in case server is malicious and serves bogus tx.
+        # We must do this because verifier verifies merkle_proof based on this
+        # tx_hash.
+        chk_txid = tx.txid_fast()
+        if tx_hash != chk_txid:
+            self.print_error("received tx does not match expected txid ({} != {}), skipping"
+                             .format(tx_hash, chk_txid))
+            return
+        del chk_txid
+        # /Paranoia
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
