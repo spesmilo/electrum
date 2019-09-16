@@ -30,6 +30,7 @@
 
 import os
 import threading
+import queue
 import random
 import time
 import json
@@ -193,6 +194,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         finalization_print_error(self.cashacct)  # debug object lifecycle
         finalization_print_error(self.slp)  # debug object lifecycle
 
+        # Removes defunct entries from self.pruned_txo asynchronously
+        self.pruned_txo_cleaner_thread = None
+
         # Cache of Address -> (c,u,x) balance. This cache is used by
         # get_addr_balance to significantly speed it up (it is called a lot).
         # Cache entries are invalidated when tx's are seen involving this
@@ -316,12 +320,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     if value}
         self.tx_fees = self.storage.get('tx_fees', {})
         self.pruned_txo = self.storage.get('pruned_txo', {})
+        self.pruned_txo_values = set(self.pruned_txo.values())
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
-            if not self.txi.get(tx_hash) and not self.txo.get(tx_hash) and (tx_hash not in self.pruned_txo.values()):
+            if not self.txi.get(tx_hash) and not self.txo.get(tx_hash) and (tx_hash not in self.pruned_txo_values):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
                 self.cashacct.remove_transaction_hook(tx_hash)
@@ -365,6 +370,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self.txo = {}
             self.tx_fees = {}
             self.pruned_txo = {}
+            self.pruned_txo_values = set()
             self.slp.clear()
             self.save_transactions()
             self._addr_bal_cache = {}
@@ -392,7 +398,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             hist = self._history[addr]
 
             for tx_hash, tx_height in hist:
-                if tx_hash in self.pruned_txo.values() or self.txi.get(tx_hash) or self.txo.get(tx_hash):
+                if tx_hash in self.pruned_txo_values or self.txi.get(tx_hash) or self.txo.get(tx_hash):
                     continue
                 tx = self.transactions.get(tx_hash)
                 if tx is not None:
@@ -644,7 +650,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         assert isinstance(address, Address)
         "effect of tx on address"
         # pruned
-        if tx_hash in self.pruned_txo.values():
+        if tx_hash in self.pruned_txo_values:
             return None
         delta = 0
         # substract the value of coins sent from address
@@ -946,6 +952,148 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         assert isinstance(address, Address)
         return self._history.get(address, [])
 
+    def _clean_pruned_txo_thread(self):
+        ''' Runs in the thread self.pruned_txo_cleaner_thread which is only
+        active if self.network. Cleans the self.pruned_txo dict and the
+        self.pruned_txo_values set of spends that are not relevant to the
+        wallet. The processing below is needed because as of 9/16/2019, Electron
+        Cash temporarily puts all spends that pass through add_transaction and
+        have an unparseable address (txi['address'] is None) into the dict
+        self.pruned_txo. This is necessary for handling tx's with esoteric p2sh
+        scriptSigs and detecting balance changes properly for txins
+        containing such scriptSigs. See #895. '''
+        def deser(ser):
+            prevout_hash, prevout_n = ser.split(':')
+            prevout_n = int(prevout_n)
+            return prevout_hash, prevout_n
+        def mkser(prevout_hash, prevout_n):
+            return f'{prevout_hash}:{prevout_n}'
+        def rm(ser, pruned_too=True, *, tup = None):
+            h, n = tup or deser(ser)  # tup arg is for performance when caller already knows the info (avoid a redundant .split on ':')
+            s = txid_n[h]
+            s.discard(n)
+            if not s:
+                txid_n.pop(h, None)
+            if pruned_too:
+                with self.lock:
+                    tx_hash = self.pruned_txo.pop(ser, None)
+                    self.pruned_txo_values.discard(tx_hash)
+        def add(ser):
+            prevout_hash, prevout_n = deser(ser)
+            txid_n[prevout_hash].add(prevout_n)
+        def keep_running():
+            return bool(self.network and self.pruned_txo_cleaner_thread is me)
+        def can_do_work():
+            return bool(txid_n and self.is_up_to_date())
+        debug = False  # set this to true here to get more verbose output
+        me = threading.current_thread()
+        q = me.q
+        me.txid_n = txid_n = defaultdict(set)  # dict of prevout_hash -> set of prevout_n (int)
+        last = time.time()
+        try:
+            self.print_error(f"{me.name}: thread started")
+            with self.lock:
+                # Setup -- grab whatever was already in pruned_txo at thread
+                # start
+                for ser in self.pruned_txo:
+                    h, n = deser(ser)
+                    txid_n[h].add(n)
+            while keep_running():
+                try:
+                    ser = q.get(timeout=5.0 if can_do_work() else 20.0)
+                    if ser is None:
+                        # quit thread
+                        return
+                    if ser.startswith('r_'):
+                        # remove requested
+                        rm(ser[2:], False)
+                    else:
+                        # ser was added
+                        add(ser)
+                    del ser
+                except queue.Empty:
+                    pass
+                if not can_do_work():
+                    continue
+                t0 = time.time()
+                if t0 - last < 1.0:  # run no more often than once per second
+                    continue
+                last = t0
+                defunct_ct = 0
+                for prevout_hash, s in txid_n.copy().items():
+                    for prevout_n in s.copy():
+                        ser = mkser(prevout_hash, prevout_n)
+                        with self.lock:
+                            defunct = ser not in self.pruned_txo
+                        if defunct:
+                            #self.print_error(f"{me.name}: skipping already-cleaned", ser)
+                            rm(ser, False, tup=(prevout_hash, prevout_n))
+                            defunct_ct += 1
+                            continue
+                if defunct_ct and debug:
+                    self.print_error(f"{me.name}: DEBUG", defunct_ct, "defunct txos removed in", time.time()-t0, "secs")
+                ct = 0
+                for prevout_hash, s in txid_n.copy().items():
+                    try:
+                        with self.lock:
+                            tx = self.transactions.get(prevout_hash)
+                        if tx is None:
+                            tx = Transaction.tx_cache_get(prevout_hash)
+                        if isinstance(tx, Transaction):
+                            tx = Transaction(tx.raw)  # take a copy
+                        else:
+                            if debug: self.print_error(f"{me.name}: DEBUG retrieving txid", prevout_hash, "...")
+                            t1 = time.time()
+                            tx = Transaction(self.network.synchronous_get(('blockchain.transaction.get', [prevout_hash])))
+                            if debug: self.print_error(f"{me.name}: DEBUG network retrieve took", time.time()-t1, "secs")
+                            # Paranoia; intended side effect of the below assert
+                            # is to also deserialize the tx (by calling the slow
+                            # .txid()) which ensures the tx from the server
+                            # is not junk.
+                            assert prevout_hash == tx.txid(), "txid mismatch"
+                            Transaction.tx_cache_put(tx, prevout_hash)  # will cache a copy
+                    except Exception as e:
+                        self.print_error(f"{me.name}: Error retrieving txid", prevout_hash, ":", repr(e))
+                        if not keep_running():  # in case we got a network timeout *and* the wallet was closed
+                            return
+                        continue
+                    if not keep_running():
+                        return
+                    for prevout_n in s.copy():
+                        ser = mkser(prevout_hash, prevout_n)
+                        try:
+                            txo = tx.outputs()[prevout_n]
+                        except IndexError:
+                            self.print_error(f"{me.name}: ERROR -- could not find output", ser)
+                            rm(ser, True, tup=(prevout_hash, prevout_n))
+                            continue
+                        _typ, addr, v = txo
+                        rm_pruned_too = False
+                        with self.lock:
+                            mine = self.is_mine(addr)
+                            if not mine and ser in self.pruned_txo:
+                                ct += 1
+                                rm_pruned_too = True
+                        rm(ser, rm_pruned_too, tup=(prevout_hash, prevout_n))
+                        if rm_pruned_too and debug:
+                            self.print_error(f"{me.name}: DEBUG removed", ser)
+                if ct:
+                    with self.lock:
+                        # Save changes to storage -- this is cheap and doesn't
+                        # actually write to file yet, just flags storage as
+                        # 'dirty' for when wallet.storage.write() is called
+                        # later.
+                        self.storage.put('pruned_txo', self.pruned_txo)
+                    self.print_error(f"{me.name}: removed", ct,
+                                     "(non-relevant) pruned_txo's in",
+                                     f'{time.time()-t0:3.2f}', "seconds")
+        except:
+            import traceback
+            self.print_error(f"{me.name}:", traceback.format_exc())
+            raise
+        finally:
+            self.print_error(f"{me.name}: thread exiting")
+
     def add_transaction(self, tx_hash, tx):
         if not tx.inputs():
             # bad tx came in off the wire -- all 0's or something, see #987
@@ -953,6 +1101,47 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             return
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
         with self.lock:
+            # HELPER FUNCTIONS
+            def add_to_self_txi(tx_hash, addr, ser, v):
+                ''' addr must be 'is_mine' '''
+                d = self.txi.get(tx_hash)
+                if d is None:
+                    self.txi[tx_hash] = d = {}
+                l = d.get(addr)
+                if l is None:
+                    d[addr] = l = []
+                l.append((ser, v))
+            def find_in_self_txo(prevout_hash: str, prevout_n: int) -> tuple:
+                ''' Returns a tuple of the (Address,value) for a given
+                prevout_hash:prevout_n, or (None, None) if not found. If valid
+                return, the Address object is found by scanning self.txo. The
+                lookup below is relatively fast in practice even on pathological
+                wallets. '''
+                dd = self.txo.get(prevout_hash, {})
+                for addr2, item in dd.items():
+                    for n, v, is_cb in item:
+                        if n == prevout_n:
+                            return addr2, v
+                return (None, None)
+            def txin_get_info(txin):
+                prevout_hash = txi['prevout_hash']
+                prevout_n = txi['prevout_n']
+                ser = prevout_hash + ':%d'%prevout_n
+                return prevout_hash, prevout_n, ser
+            def put_pruned_txo(ser, tx_hash):
+                self.pruned_txo[ser] = tx_hash
+                self.pruned_txo_values.add(tx_hash)
+                t = self.pruned_txo_cleaner_thread
+                if t and t.q: t.q.put(ser)
+            def pop_pruned_txo(ser):
+                next_tx = self.pruned_txo.pop(ser, None)
+                if next_tx:
+                    self.pruned_txo_values.discard(next_tx)
+                    t = self.pruned_txo_cleaner_thread
+                    if t and t.q: t.q.put('r_' + ser)  # notify of removal
+                return next_tx
+            # /HELPER FUNCTIONS
+
             # add inputs
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
@@ -961,21 +1150,48 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 addr = txi.get('address')
                 # find value from prev output
                 if self.is_mine(addr):
-                    prevout_hash = txi['prevout_hash']
-                    prevout_n = txi['prevout_n']
-                    ser = prevout_hash + ':%d'%prevout_n
+                    prevout_hash, prevout_n, ser = txin_get_info(txi)
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
-                            l = d.get(addr)
-                            if l is None:
-                                d[addr] = l = []
-                            l.append((ser, v))
-                            del l
+                            add_to_self_txi(tx_hash, addr, ser, v)
                             break
                     else:
-                        self.pruned_txo[ser] = tx_hash
+                        # Coin's spend tx came in before its receive tx: flag
+                        # the spend for when the receive tx will arrive into
+                        # this function later.
+                        put_pruned_txo(ser, tx_hash)
                     self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
+                    del dd, prevout_hash, prevout_n, ser
+                elif addr is None:
+                    # Unknown/unparsed address.. may be a strange p2sh scriptSig
+                    # Try and find it in txout's if it's one of ours.
+                    # See issue #895.
+                    prevout_hash, prevout_n, ser = txin_get_info(txi)
+                    # Find address in self.txo for this prevout_hash:prevout_n
+                    addr2, v = find_in_self_txo(prevout_hash, prevout_n)
+                    if addr2 is not None and self.is_mine(addr2):
+                        add_to_self_txi(tx_hash, addr2, ser, v)
+                        self._addr_bal_cache.pop(addr2, None)  # invalidate cache entry
+                    else:
+                        # Not found in self.txo. It may still be one of ours
+                        # however since tx's can come in out of order due to
+                        # CTOR, etc, and self.txo may not have it yet. So we
+                        # flag the spend now, and when the out-of-order prevout
+                        # tx comes in later for this input (if it's indeed one
+                        # of ours), the real address for this input will get
+                        # picked up then in the "add outputs" section below in
+                        # this function. At that point, self.txi will be
+                        # properly updated to indicate the coin in question was
+                        # spent via an add_to_self_txi call.
+                        #
+                        # If it's *not* one of ours, however, the below will
+                        # grow pruned_txo with an irrelevant entry. However, the
+                        # irrelevant entry will eventually be reaped and removed
+                        # by the self.pruned_txo_cleaner_thread which runs
+                        # periodically in the background.
+                        put_pruned_txo(ser, tx_hash)
+                    del addr2, v, prevout_hash, prevout_n, ser
             # don't keep empty entries in self.txi
             if not d:
                 self.txi.pop(tx_hash, None)
@@ -987,6 +1203,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
                 _type, addr, v = txo
+                mine = False
                 if isinstance(addr, ScriptOutput):
                     if addr.is_opreturn():
                         op_return_ct += 1
@@ -1000,6 +1217,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                                 self.cashacct.add_transaction_hook(_tx_hash, _tx, _n, _addr)
                         )
                 elif self.is_mine(addr):
+                    # add coin to self.txo since it's mine.
+                    mine = True
                     l = d.get(addr)
                     if l is None:
                         d[addr] = l = []
@@ -1007,16 +1226,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     del l
                     self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
                 # give v to txi that spends me
-                next_tx = self.pruned_txo.pop(ser, None)
-                if next_tx is not None:
-                    dd = self.txi.get(next_tx)
-                    if dd is None:
-                        self.txi[next_tx] = dd = {}
-                    l = dd.get(addr)
-                    if l is None:
-                        dd[addr] = l = []
-                    l.append((ser, v))
-                    del l, dd
+                next_tx = pop_pruned_txo(ser)
+                if next_tx is not None and mine:
+                    add_to_self_txi(next_tx, addr, ser, v)
             # don't keep empty entries in self.txo
             if not d:
                 self.txo.pop(tx_hash, None)
@@ -1024,6 +1236,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
             # save
             self.transactions[tx_hash] = tx
+
 
             # Invoke the cashacct add hook (if defined) here at the end, with
             # the lock held. We accept the cashacct.ScriptOutput only iff
@@ -1046,6 +1259,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
                     self.pruned_txo.pop(ser)
+                    self.pruned_txo_values.discard(hh)
             # add tx to pruned_txo, and undo the txi addition
             for next_tx, dd in self.txi.items():
                 for addr, l in list(dd.items()):
@@ -1057,6 +1271,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                             self._addr_bal_cache.pop(addr, None)  # invalidate cache entry
                             l.remove(item)
                             self.pruned_txo[ser] = next_tx
+                            self.pruned_txo_values.add(next_tx)
                     if l == []:
                         dd.pop(addr)
                     else:
@@ -1441,6 +1656,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def start_threads(self, network):
         self.network = network
         if self.network:
+            self.start_pruned_txo_cleaner_thread()
             self.prepare_for_verifier()
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)
@@ -1466,6 +1682,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self.verifier.release()
             self.synchronizer = None
             self.verifier = None
+            self.stop_pruned_txo_cleaner_thread()
             # Now no references to the syncronizer or verifier
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
@@ -1473,6 +1690,20 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.save_verified_tx()  # implicit cashacct.save
         self.storage.put('frozen_coins', list(self.frozen_coins))
         self.storage.write()
+
+    def start_pruned_txo_cleaner_thread(self):
+        self.pruned_txo_cleaner_thread = threading.Thread(target=self._clean_pruned_txo_thread, daemon=True, name='clean_pruned_txo_thread')
+        self.pruned_txo_cleaner_thread.q = queue.Queue()
+        self.pruned_txo_cleaner_thread.start()
+
+    def stop_pruned_txo_cleaner_thread(self):
+        t = self.pruned_txo_cleaner_thread
+        self.pruned_txo_cleaner_thread = None  # this also signals a stop
+        if t and t.is_alive():
+            t.q.put(None)  # signal stop
+            # if the join times out, it's ok. it means the thread was stuck in
+            # a network call and it will eventually exit.
+            t.join(timeout=3.0)
 
     def wait_until_synchronized(self, callback=None):
         def wait_for_wallet():
