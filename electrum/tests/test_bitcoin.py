@@ -152,6 +152,8 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(inf, A + 2 * G)
         self.assertEqual(inf, D + (-1) * G)
         self.assertNotEqual(A, B)
+        self.assertEqual(2 * G, inf + 2 * G)
+        self.assertEqual(inf, 3 * G + (-3 * G))
 
     @needs_test_with_all_ecc_implementations
     def test_msg_signing(self):
