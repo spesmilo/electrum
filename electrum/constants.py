@@ -41,6 +41,7 @@ def read_json(filename, default):
 class OceanMainnet:
 
     TESTNET = False
+    FIXEDFEE = 50000
     CONTRACTINTX = True
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
