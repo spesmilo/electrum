@@ -34,7 +34,6 @@ import aiohttp
 from aiohttp import web
 from base64 import b64decode
 from collections import defaultdict
-import ssl
 
 import jsonrpcclient
 import jsonrpcserver
@@ -163,7 +162,7 @@ class WatchTowerServer(Logger):
         port = self.config.get('watchtower_port', 12345)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, host, port)
+        site = web.TCPSite(self.runner, host, port, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def get_ctn(self, *args):
@@ -172,7 +171,8 @@ class WatchTowerServer(Logger):
     async def add_sweep_tx(self, *args):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
-class HttpServer(Logger):
+
+class PayServer(Logger):
 
     def __init__(self, daemon: 'Daemon'):
         Logger.__init__(self)
@@ -191,13 +191,6 @@ class HttpServer(Logger):
         host = self.config.get('payserver_host', 'localhost')
         port = self.config.get('payserver_port')
         root = self.config.get('payserver_root', '/r')
-        ssl_keyfile = self.config.get('ssl_keyfile')
-        ssl_certfile = self.config.get('ssl_certfile')
-        if ssl_keyfile and ssl_certfile:
-            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
-        else:
-            ssl_context = None
         app = web.Application()
         app.add_routes([web.post('/api/create_invoice', self.create_request)])
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
@@ -206,7 +199,7 @@ class HttpServer(Logger):
         app.add_routes([web.static(root, 'electrum_ltc/www')])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, port=port, host=host, ssl_context=ssl_context)
+        site = web.TCPSite(runner, port=port, host=host, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def create_request(self, request):
@@ -294,8 +287,8 @@ class Daemon(Logger):
             jobs.append(self.start_jsonrpc(config, fd))
         # request server
         if self.config.get('payserver_port'):
-            self.http_server = HttpServer(self)
-            jobs.append(self.http_server.run())
+            self.pay_server = PayServer(self)
+            jobs.append(self.pay_server.run())
         # server-side watchtower
         self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
         if self.watchtower:

@@ -91,7 +91,7 @@ ReceiveScreen:
                     id: address_label
                     text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Litecoin Address'))
                     shorten: True
-                    on_release: root.is_lightning = not root.is_lightning
+                    on_release: root.is_lightning = not root.is_lightning if app.is_lightning_enabled else False
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color

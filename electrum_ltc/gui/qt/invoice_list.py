@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QHeaderView, QMenu
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import format_time, PR_UNPAID, PR_PAID, get_request_status
-from electrum_ltc.util import PR_TYPE_ADDRESS, PR_TYPE_LN, PR_TYPE_BIP70
+from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_ltc.lnutil import lndecode, RECEIVED
 from electrum_ltc.bitcoin import COIN
 from electrum_ltc import constants
@@ -78,12 +78,11 @@ class InvoiceList(MyTreeView):
             if invoice_type == PR_TYPE_LN:
                 key = item['rhash']
                 icon_name = 'lightning.png'
-            elif invoice_type == PR_TYPE_ADDRESS:
-                key = item['address']
-                icon_name = 'bitcoin.png'
-            elif invoice_type == PR_TYPE_BIP70:
+            elif invoice_type == PR_TYPE_ONCHAIN:
                 key = item['id']
-                icon_name = 'seal.png'
+                icon_name = 'bitcoin.png'
+                if item.get('bip70'):
+                    icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
             status = item['status']
@@ -126,7 +125,6 @@ class InvoiceList(MyTreeView):
             return
         key = item_col0.data(ROLE_REQUEST_ID)
         request_type = item_col0.data(ROLE_REQUEST_TYPE)
-        assert request_type in [PR_TYPE_ADDRESS, PR_TYPE_BIP70, PR_TYPE_LN]
         column = idx.column()
         column_title = self.model().horizontalHeaderItem(column).text()
         column_data = item.text()
@@ -135,20 +133,9 @@ class InvoiceList(MyTreeView):
             if column == self.Columns.AMOUNT:
                 column_data = column_data.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        if request_type in [PR_TYPE_BIP70, PR_TYPE_ADDRESS]:
-            self.create_menu_bitcoin_payreq(menu, key)
-        elif request_type == PR_TYPE_LN:
-            self.create_menu_ln_payreq(menu, key)
+        invoice = self.parent.wallet.get_invoice(key)
+        menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
+        if invoice['status'] == PR_UNPAID:
+            menu.addAction(_("Pay Now"), lambda: self.parent.do_pay_invoice(invoice))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
         menu.exec_(self.viewport().mapToGlobal(position))
-
-    def create_menu_bitcoin_payreq(self, menu, payreq_key):
-        #status = self.parent.wallet.get_invoice_status(payreq_key)
-        menu.addAction(_("Details"), lambda: self.parent.show_invoice(payreq_key))
-        #if status == PR_UNPAID:
-        menu.addAction(_("Pay Now"), lambda: self.parent.do_pay_invoice(payreq_key))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(payreq_key))
-
-    def create_menu_ln_payreq(self, menu, payreq_key):
-        req = self.parent.wallet.lnworker.invoices[payreq_key][0]
-        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(payreq_key))

@@ -31,15 +31,6 @@ from PyQt5.QtWidgets import (QDialog, QWidget, QLabel, QVBoxLayout, QCheckBox,
 from electrum_ltc.i18n import _
 from .util import HelpLabel, MyTreeView, Buttons
 
-help_local = _("""If this option is checked, Electrum will persist as a daemon after
-you close all your wallet windows. Your local watchtower will keep
-running, and it will protect your channels even if your wallet is not
-open. For this to work, your computer needs to be online regularly.""")
-
-help_remote = _("""To setup a remote watchtower, you must run an Electrum daemon on a
-computer that is always connected to the internet. Configure
-'watchtower_host' and 'watchtower_port' in the remote daemon, and
-enter the corresponding URL here""")
 
 class WatcherList(MyTreeView):
     def __init__(self, parent):
@@ -92,46 +83,11 @@ class LightningDialog(QDialog):
         watcher_w = QWidget()
         watcher_vbox = QVBoxLayout(watcher_w)
         watcher_vbox.addWidget(self.watcher_list)
-        # settings
-        settings_w = QWidget()
-        settings_vbox = QVBoxLayout(settings_w)
-        persist_cb = QCheckBox(_("Persist as daemon after GUI is closed"))
-        persist_cb.setToolTip(help_local)
-        persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
-        def on_persist_checked(v):
-            self.config.set_key('persist_daemon', v == Qt.Checked, save=True)
-        persist_cb.stateChanged.connect(on_persist_checked)
 
-        remote_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_cb.setToolTip(help_remote)
-        remote_cb.setChecked(bool(self.config.get('use_watchtower', False)))
-        def on_remote_checked(v):
-            self.config.set_key('use_watchtower', v == Qt.Checked, save=True)
-            self.watchtower_url_e.setEnabled(v == Qt.Checked)
-        remote_cb.stateChanged.connect(on_remote_checked)
-
-        watchtower_url = self.config.get('watchtower_url')
-        self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.get('use_watchtower', False))
-        def on_url():
-            url = self.watchtower_url_e.text() or None
-            watchtower_url = self.config.set_key('watchtower_url', url)
-            if url:
-                self.lnwatcher.set_remote_watchtower()
-        self.watchtower_url_e.editingFinished.connect(on_url)
-
-        g = QGridLayout(settings_w)
-        g.addWidget(persist_cb, 0, 0, 1, 3)
-        g.addWidget(remote_cb, 1, 0, 1, 3)
-        g.addWidget(QLabel(_('URL')), 2, 1)
-        g.addWidget(self.watchtower_url_e, 2, 2)
-        settings_vbox.addLayout(g)
-        settings_vbox.addStretch(1)
         # tabs
         tabs = QTabWidget()
         tabs.addTab(network_w, _('Network'))
         tabs.addTab(watcher_w, _('Watchtower'))
-        tabs.addTab(settings_w, _('Settings'))
         vbox = QVBoxLayout(self)
         vbox.addWidget(tabs)
         b = QPushButton(_('Close'))

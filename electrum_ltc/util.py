@@ -74,8 +74,7 @@ base_units_list = ['LTC', 'mLTC', 'uLTC', 'sat']  # list(dict) does not guarante
 DECIMAL_POINT_DEFAULT = 8  # LTC
 
 # types of payment requests
-PR_TYPE_ADDRESS = 0
-PR_TYPE_BIP70= 1
+PR_TYPE_ONCHAIN = 0
 PR_TYPE_LN = 2
 
 # status of payment requests
@@ -586,12 +585,14 @@ def format_satoshis_plain(x, decimal_point = 8):
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
-DECIMAL_POINT = localeconv()['decimal_point']
+DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
-def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
+def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False) -> str:
     if x is None:
         return 'unknown'
+    if x == '!':
+        return 'max'
     if precision is None:
         precision = decimal_point
     # format string

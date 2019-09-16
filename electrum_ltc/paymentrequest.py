@@ -41,7 +41,6 @@ except ImportError:
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
-from .util import PR_TYPE_BIP70
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
@@ -151,10 +150,6 @@ class PaymentRequest:
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
-    def is_pr(self):
-        return self.get_amount() != 0
-        #return self.get_outputs() != [(TYPE_ADDRESS, self.get_requestor(), self.get_amount())]
-
     def verify(self, contacts):
         if self.error:
             return False
@@ -253,7 +248,7 @@ class PaymentRequest:
         return self.details.expires
 
     def get_amount(self):
-        return sum(map(lambda x:x[2], self.outputs))
+        return sum(map(lambda x:x.value, self.outputs))
 
     def get_address(self):
         o = self.outputs[0]
@@ -268,19 +263,6 @@ class PaymentRequest:
 
     def get_memo(self):
         return self.memo
-
-    def get_dict(self):
-        return {
-            'type': PR_TYPE_BIP70,
-            'id': self.get_id(),
-            'requestor': self.get_requestor(),
-            'message': self.get_memo(),
-            'time': self.get_time(),
-            'exp': self.get_expiration_date() - self.get_time(),
-            'amount': self.get_amount(),
-            'outputs': self.get_outputs(),
-            'hex': self.raw.hex(),
-        }
 
     def get_id(self):
         return self.id if self.requestor else self.get_address()

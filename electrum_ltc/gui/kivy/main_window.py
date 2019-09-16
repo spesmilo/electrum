@@ -159,7 +159,10 @@ class ElectrumWindow(App):
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
-        self.electrum_config.set_key('use_change', self.use_change, True)
+        if self.wallet:
+            self.wallet.use_change = self.use_change
+            self.wallet.storage.put('use_change', self.use_change)
+            self.wallet.storage.write()
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
@@ -318,7 +321,6 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        title = _('Electrum-LTC App')
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
@@ -338,8 +340,9 @@ class ElectrumWindow(App):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
 
+        self.is_lightning_enabled = bool(config.get('lightning'))
+
         self.use_rbf = config.get('use_rbf', True)
-        self.use_change = config.get('use_change', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updating a max of 2 times a sec
@@ -783,7 +786,7 @@ class ElectrumWindow(App):
             self._trigger_update_wallet()
 
     @profiler
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet: 'Abstract_Wallet'):
         if self.wallet:
             self.stop_wallet()
         self.wallet = wallet
@@ -800,6 +803,8 @@ class ElectrumWindow(App):
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
+            return
+        self.use_change = self.wallet.use_change
 
     def update_status(self, *dt):
         if not self.wallet:
