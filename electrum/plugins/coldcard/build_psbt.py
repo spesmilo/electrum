@@ -19,7 +19,8 @@ from electrum.bitcoin import DecodeBase58Check
 from .basic_psbt import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_GLOBAL_XPUB, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
         PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT, PSBT_IN_PARTIAL_SIG,
-        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
+        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION,
+        PSBT_OUT_REDEEM_SCRIPT, PSBT_OUT_WITNESS_SCRIPT)
 from .basic_psbt import BasicPSBT
 
 from electrum.logging import get_logger
@@ -273,8 +274,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
             if txin['type'] == 'p2wpkh-p2sh':
                 assert len(pubkeys) == 1, 'can be only one redeem script per input'
                 pa = hash_160(k)
-                assert len(pa) == 20
-                write_kv(PSBT_IN_REDEEM_SCRIPT, b'\x00\x14'+pa)
+                write_kv(PSBT_OUT_WITNESS_SCRIPT, b'\x00\x14'+pa)
 
             # optional? insert (partial) signatures that we already have
             if sigs and sigs[pk_pos]:
@@ -295,21 +295,23 @@ def build_psbt(tx: Transaction, wallet: Wallet):
                 # it is a change output (based on our standard derivation path)
                 pubkeys = [bfh(i) for i in wallet.get_public_keys(o.address)]
 
-                # always need a redeem script for multisig
+                # Add redeem/witness script?
                 if type(wallet) is Multisig_Wallet:
+                    # always need a redeem script for multisig cases
                     scr = multisig_script([bh2u(i) for i in sorted(pubkeys)], wallet.m)
-                    write_kv(PSBT_OUT_REDEEM_SCRIPT, bfh(scr))
+                    write_kv(PSBT_OUT_WITNESS_SCRIPT if ('p2wsh' in output_info.script_type)
+                                        else PSBT_OUT_REDEEM_SCRIPT, bfh(scr))
 
-                # document change output's bip32 derivation(s)
+                elif output_info.script_type == 'p2wpkh-p2sh':
+                    # need a redeem script when P2SH is used to wrap p2wpkh
+                    assert len(pubkeys) == 1
+                    pa = hash_160(pubkeys[0])
+                    write_kv(PSBT_OUT_WITNESS_SCRIPT, b'\x00\x14' + pa)
+
+                # Document change output's bip32 derivation(s)
                 for pubkey in pubkeys:
                     sk = subkeys[pubkey]
                     write_kv(PSBT_OUT_BIP32_DERIVATION, sk, pubkey)
-
-                    if output_info.script_type == 'p2wpkh-p2sh':
-                        assert len(pa) == 20
-                        assert len(pubkeys) == 1
-                        pa = hash_160(pubkey)
-                        write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14' + pa)
 
         out_fd.write(b'\x00')
 
