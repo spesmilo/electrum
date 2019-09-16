@@ -512,8 +512,11 @@ class Abstract_Wallet(AddressSynchronizer):
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
-    def create_invoice(self, outputs, message, pr, URI):
-        amount = sum(x[2] for x in outputs)
+    def create_invoice(self, outputs: List[TxOutput], message, pr, URI):
+        if '!' in (x.value for x in outputs):
+            amount = '!'
+        else:
+            amount = sum(x.value for x in outputs)
         invoice = {
             'type': PR_TYPE_ONCHAIN,
             'message': message,

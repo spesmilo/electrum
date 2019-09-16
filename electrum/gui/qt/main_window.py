@@ -148,6 +148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.app = gui_object.app
         self.cleaned_up = False
         self.payment_request = None  # type: Optional[paymentrequest.PaymentRequest]
+        self.payto_URI = None
         self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
@@ -1734,9 +1735,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             message = invoice['message']
             outputs = invoice['outputs']
-            amount = sum(map(lambda x:x[2], outputs))
         else:
-            raise Exception('unknowwn invoicce type')
+            raise Exception('unknown invoice type')
 
         if run_hook('abort_send', self):
             return
@@ -1760,7 +1760,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_message(str(e))
             return
 
-        amount = tx.output_value() if self.max_button.isChecked() else sum(map(lambda x:x[2], outputs))
+        amount = tx.output_value() if self.max_button.isChecked() else sum(map(lambda x: x.value, outputs))
         fee = tx.get_fee()
 
         use_rbf = bool(self.config.get('use_rbf', True))
