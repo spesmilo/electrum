@@ -28,14 +28,14 @@
 #   - Multisig_Wallet: several keystores, P2SH
 
 
+import copy
+import errno
+import json
 import os
-import threading
 import queue
 import random
 import time
-import json
-import copy
-import errno
+import threading
 from collections import defaultdict
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
