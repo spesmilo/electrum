@@ -321,7 +321,6 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        title = _('Electrum App')
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
@@ -340,6 +339,8 @@ class ElectrumWindow(App):
         self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
+
+        self.is_lightning_enabled = bool(config.get('lightning'))
 
         self.use_rbf = config.get('use_rbf', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
