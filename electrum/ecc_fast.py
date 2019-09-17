@@ -85,7 +85,7 @@ def load_library():
         secp256k1.secp256k1_ec_pubkey_tweak_mul.argtypes = [c_void_p, c_char_p, c_char_p]
         secp256k1.secp256k1_ec_pubkey_tweak_mul.restype = c_int
 
-        secp256k1.secp256k1_ec_pubkey_combine.argtypes = [c_void_p, c_char_p, POINTER(POINTER(c_char_p)), c_size_t]
+        secp256k1.secp256k1_ec_pubkey_combine.argtypes = [c_void_p, c_char_p, c_void_p, c_size_t]
         secp256k1.secp256k1_ec_pubkey_combine.restype = c_int
 
         secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
@@ -149,10 +149,10 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
         pubkey2 = _get_ptr_to_well_formed_pubkey_string_buffer_from_ecdsa_point(other)
         pubkey_sum = create_string_buffer(64)
 
-        pubkey1 = cast(pubkey1, POINTER(c_char_p))
-        pubkey2 = cast(pubkey2, POINTER(c_char_p))
-        ptr_to_array_of_pubkey_ptrs = (POINTER(c_char_p) * 2)(pubkey1, pubkey2)
-        r = _libsecp256k1.secp256k1_ec_pubkey_combine(_libsecp256k1.ctx, pubkey_sum, ptr_to_array_of_pubkey_ptrs, 2)
+        pubkey1 = cast(pubkey1, c_char_p)
+        pubkey2 = cast(pubkey2, c_char_p)
+        array_of_pubkey_ptrs = (c_char_p * 2)(pubkey1, pubkey2)
+        r = _libsecp256k1.secp256k1_ec_pubkey_combine(_libsecp256k1.ctx, pubkey_sum, array_of_pubkey_ptrs, 2)
         if not r:
             return point_at_infinity
         return _get_ecdsa_point_from_libsecp256k1_pubkey_object(pubkey_sum)
