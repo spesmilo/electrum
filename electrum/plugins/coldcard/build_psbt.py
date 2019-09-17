@@ -13,7 +13,7 @@ from electrum.logging import get_logger
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Wallet
 from electrum.keystore import xpubkey_to_pubkey, Xpub
 from electrum.util import bfh, bh2u
-from electrum.crypto import hash_160
+from electrum.crypto import hash_160, sha256
 from electrum.bitcoin import DecodeBase58Check
 
 from .basic_psbt import (
@@ -67,6 +67,7 @@ def unpacked_xfp_path(xfp, text_path):
     # - binary LE32 values, first one is the fingerprint
     # - but as ints, not bytes yet
     rv = [xfp]
+
     for x in text_path.split('/'):
         if x == 'm': continue
         if x.endswith("'"):
@@ -74,6 +75,7 @@ def unpacked_xfp_path(xfp, text_path):
         else:
             x = int(x)
         rv.append(x)
+
     return rv
 
 def xfp_for_keystore(ks):
@@ -89,7 +91,7 @@ def xfp_for_keystore(ks):
 def packed_xfp_path_for_keystore(ks, int_path=[]):
     # Return XFP + common prefix path for keystore, as binary ready for PSBT
     derv = getattr(ks, 'derivation', 'm')
-    return packed_xfp_path(xfp_for_keystore(ks), derv[2:], int_path=int_path)
+    return packed_xfp_path(xfp_for_keystore(ks), derv[2:] or 'm', int_path=int_path)
 
 # Serialization/deserialization tools
 def ser_compact_size(l):
@@ -274,7 +276,7 @@ def build_psbt(tx: Transaction, wallet: Wallet):
             if txin['type'] == 'p2wpkh-p2sh':
                 assert len(pubkeys) == 1, 'can be only one redeem script per input'
                 pa = hash_160(k)
-                write_kv(PSBT_OUT_WITNESS_SCRIPT, b'\x00\x14'+pa)
+                write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14'+pa)
 
             # optional? insert (partial) signatures that we already have
             if sigs and sigs[pk_pos]:
@@ -298,15 +300,23 @@ def build_psbt(tx: Transaction, wallet: Wallet):
                 # Add redeem/witness script?
                 if type(wallet) is Multisig_Wallet:
                     # always need a redeem script for multisig cases
-                    scr = multisig_script([bh2u(i) for i in sorted(pubkeys)], wallet.m)
-                    write_kv(PSBT_OUT_WITNESS_SCRIPT if ('p2wsh' in output_info.script_type)
-                                        else PSBT_OUT_REDEEM_SCRIPT, bfh(scr))
+                    scr = bfh(multisig_script([bh2u(i) for i in sorted(pubkeys)], wallet.m))
+
+                    if output_info.script_type == 'p2wsh-p2sh':
+                        write_kv(PSBT_OUT_WITNESS_SCRIPT, scr)
+                        write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x20' + sha256(scr))
+                    elif output_info.script_type == 'p2wsh':
+                        write_kv(PSBT_OUT_WITNESS_SCRIPT, scr)
+                    elif output_info.script_type == 'p2sh':
+                        write_kv(PSBT_OUT_REDEEM_SCRIPT, scr)
+                    else:
+                        raise ValueError(output_info.script_type)
 
                 elif output_info.script_type == 'p2wpkh-p2sh':
                     # need a redeem script when P2SH is used to wrap p2wpkh
                     assert len(pubkeys) == 1
                     pa = hash_160(pubkeys[0])
-                    write_kv(PSBT_OUT_WITNESS_SCRIPT, b'\x00\x14' + pa)
+                    write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14' + pa)
 
                 # Document change output's bip32 derivation(s)
                 for pubkey in pubkeys:
