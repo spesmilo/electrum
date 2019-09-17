@@ -1,6 +1,3 @@
-[submodule "contrib/deterministic-build/electrum-icons"]
-	path = contrib/deterministic-build/electrum-icons
-	url = https://github.com/spesmilo/electrum-icons
 [submodule "contrib/deterministic-build/electrum-locale"]
 	path = contrib/deterministic-build/electrum-locale
 	url = https://github.com/spesmilo/electrum-locale
