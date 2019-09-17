@@ -20,6 +20,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from . import constants as cnstnts
 import binascii
 import os, sys, re, json
 from collections import defaultdict
@@ -461,11 +462,11 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".cbwallet")
+        return os.path.join(os.environ["HOME"], "." + cnstnts.net.WALLETPATH)
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "CBWallet")
+        return os.path.join(os.environ["APPDATA"], cnstnts.net.WALLETPATH)
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "CBWallet")
+        return os.path.join(os.environ["LOCALAPPDATA"], cnstnts.net.WALLETPATH)
     else:
         #raise Exception("No home directory found in environment variables.")
         return
@@ -584,7 +585,7 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'cbtexplorer.com': ('https://www.cbtexplorer.com/',
+    'explorer.dgld.ch': ('https://explorer.dgld.ch/',
                         {'tx': 'tx/', 'addr': 'addr/'}),
     'system default': ('blockchain:/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -602,7 +603,7 @@ def block_explorer_info():
     return testnet_block_explorers if constants.net.TESTNET else mainnet_block_explorers
 
 def block_explorer(config):
-    return config.get('block_explorer', 'cbtexplorer.com')
+    return config.get('block_explorer', 'explorer.dgld.ch')
 
 def block_explorer_tuple(config):
     return block_explorer_info().get(block_explorer(config))

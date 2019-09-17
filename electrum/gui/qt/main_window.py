@@ -389,7 +389,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "CB Electrum Testnet" if constants.net.TESTNET else "CB Electrum"
+        name = "Testnet" if constants.net.TESTNET else constants.net.WALLETTITLE
         title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
@@ -3463,13 +3463,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
-        tabs_info = [
-            (fee_widgets, _('Fees')),
-            (tx_widgets, _('Transactions')),
-            (gui_widgets, _('Appearance')),
-            (fiat_widgets, _('Fiat')),
-            (id_widgets, _('Identity')),
-        ]
+        if constants.net.SHOWFX: 
+            tabs_info = [
+                (fee_widgets, _('Fees')),
+                (tx_widgets, _('Transactions')),
+                (gui_widgets, _('Appearance')),
+                (fiat_widgets, _('Fiat')),
+                (id_widgets, _('Identity')),
+            ]
+        else:
+            tabs_info = [
+                (fee_widgets, _('Fees')),
+                (tx_widgets, _('Transactions')),
+                (gui_widgets, _('Appearance')),
+                (id_widgets, _('Identity')),
+            ]
+
         for widgets, name in tabs_info:
             tab = QWidget()
             grid = QGridLayout(tab)

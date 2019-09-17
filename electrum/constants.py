@@ -25,8 +25,8 @@
 
 import os
 import json
-from electrum import bitcoin
-from .bitcoin import *
+#from electrum import bitcoin
+#from .bitcoin import *
 
 
 def read_json(filename, default):
@@ -42,6 +42,9 @@ class OceanMainnet:
 
     TESTNET = False
     FIXEDFEE = 50000
+    SHOWFX = False
+    WALLETPATH = "dgldwallet"
+    WALLETTITLE = "DGLD Wallet"
     CONTRACTINTX = True
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
@@ -49,7 +52,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 38
     ADDRTYPE_P2SH = 97
     SEGWIT_HRP = "bc"
-    GENESIS = "50d305db50537a44fe7559d562097236d11b06fbfbeedc152a88cca29f47b4ce"
+    GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/gtsa-mapping/map.json'

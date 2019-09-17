@@ -1,2 +1,237 @@
-These are the terms and conditions
-Approve to use the gold_main network
+General Terms & Conditions
+
+Of the relationship between holders of DGLD and GTSA as well as the relationships among holders of DGLD
+
+of, September 11, 2019
+
+By,
+
+Gold Token SA, (hereinafter ‘GTSA’)
+c/o MKS (Switzerland) SA, Promenade de Saint-Antoine 10, 1204 Genève, Switzerland
+________________
+
+1. Definitions
+
+“Asset ID” is the serial number and weight of LBMA Gold according to the LBMA Gold Delivery Standard, embossed in the LBMA Gold. 
+“Authorized Participant” shall mean a legal entity accredited with GTSA by an Authorized Participant framework agreement providing LBMA Gold and requesting GTSA to tokenize such LBMA gold.
+“CC” shall mean the Swiss Civil Code (ZGB, SR 210).
+“CO” shall mean the Swiss Code of Obligations (OR, SR 220).
+“Co-owners” shall mean all Tokenholders of DGLD, which are linked to Token Gold having the same Asset ID.
+“Custodian” shall mean PAMP SA or another vaulting service provider engaged by GTSA to vault LBMA Gold.
+“Force Majeure” shall mean any cause beyond the reasonable control of the Party which delays, hinders or prevents (whether partially or wholly) the Party from complying with its obligations towards each other including, but not limited to, any act of God or the elements, war, hostilities, mobilisation, confiscation, terrorism, riots, acts of the public enemy, civil commotion, fires, strikes, labour disputes, accidents, radioactive contamination as well as chemical, biological, bio-chemical and electromagnetic weapons, cyber-attacks, any act in consequence of compliance with any order of any government or governmental or executive authority or any event affecting the supply of energy and raw materials that adversely affects the Party’s ability to make deliveries on time or in full. 
+“DGLD” shall mean an entry in the decentralized ledger of the underlying blockchain which is linked to the Asset ID of a physical gold bar and which can be accessed and controlled by a pair of a Private Key and a Public Key.
+“GT&Cs” shall mean the General Terms and Conditions defined in this document. 
+“LBMA Gold” shall mean LBMA Good Delivery bars (http://www.lbma.org.uk/good-delivery-list-about) deposited with a Custodian by GTSA on behalf of an Authorized Participant. 
+“Management Fee” shall have the meaning as defined in Section 10.1 hereafter. 
+“Platform” shall mean a DLT-based Platform running on blockchain technology including a sidechain and operated by GTSA enabling the issuance of DGLD and the transfer, holding and redemption of DGLD which are unambiguously linked to underlying gold bars. 
+“Private Key” shall mean a string of data that allows a Tokenholder to access the DGLD connected to a particular Public Key and registered on the underlying blockchain. 
+“Public Key” is a cryptographic code that allows GTSA to identify a Tokenholder and the number of tokens they hold.
+“Receipt of Deposit” shall mean the receipt issued by a Custodian confirming the vaulting of LBMA Gold on behalf of GTSA.
+“Redemption Fee” shall have the meaning as defined in Section 10.2 hereafter.
+“Services” shall mean the Services provided by GTSA as part of these GT&Cs.
+“Software” shall mean any and all Software relating to the Platform, including the underlying source code. 
+“Token Gold” shall mean a specific entity of LBMA Gold unambiguously linked to DGLD. 
+“Tokenholder” shall mean the legal entity or individual who can access and dispose of DGLD via the associated Private Key in accordance with these GT&Cs. 
+“Transaction Fee” shall have the meaning as defined in Section 10.3 hereafter. 
+“Wallet” shall mean a Wallet created by an individual or legal entity with the intention to hold DGLD. 
+“Whitelisted Wallet Address” shall mean addresses in a wallet, i.e. a hashes of a public key, which have been approved by GTSA to receive and transfer DGLD as set forth under Section 7.
+
+2. Interpretation
+
+In these GT&Cs,
+ * words denoting the singular shall include the plural and vice versa, and words denoting any gender shall include all genders, in each case, unless the context requires otherwise.
+ * the words “include” and “including” shall be deemed to be qualified by reference to “without limitation”.
+ * any reference in these GT&Cs to a “Section”, “Exhibit” or “Preamble” shall, subject to any contrary indication, be construed as a reference to a section, exhibit or the preamble of these GT&Cs.
+
+3. Scope of these GT&Cs
+
+GTSA is a legal entity with limited liability according to Swiss law and has its registered seat in Geneva, Switzerland. GTSA offers custody and tokenization Services for LBMA gold. As such GTSA issues DGLD to selected Authorized Participants. 
+These GT&Cs govern the general rights and obligations of GTSA and Tokenholders in connection with the holding and transfer of DGLD, the redemption of DGLD against physical LBMA Gold, the co-ownership in the physical gold by Tokenholders as well as the administration of that co-ownership by GTSA. 
+Not regulated by these GT&Cs is the process of the creation of DGLD. Primary issuance of DGLD is done exclusively to Authorized Participants and the respective process is exclusively governed by separate Authorized Participant Agreements.
+
+4. Eligibility
+
+By accepting these GT&Cs and/or accessing the Platform, Tokenholders represent and warrant that the laws applicable to them due to their country of residency and/or citizenship do not prohibit them from using the Services in accordance with these GT&Cs and they acknowledge that GTSA is not liable for their compliance and failure to comply with such laws. 
+Tokenholders represent and warrant that they will not be using any Services for any illegal activity, including, without limitation, money laundering, fraud, blackmail, extortion, ransoming data, financing of terrorism or any other violent activities or prohibited market practices and that they are not listed on any sanction list in any jurisdiction. 
+By using the Services, Tokenholder represent and warrant that they are of the legal age of majority in their jurisdiction or have obtained the necessary approval of the respective person or authority as is required to access the Platform and use the Services and enter into corresponding arrangements, if any. 
+Tokenholder hereby represent and warrant to use and access the Services only in their own name and if they are acting on behalf of a legal entity that they are authorized to use the Services on behalf of this legal entity. 
+Tokenholder hereby further represent and warrant that they are fully able and competent to agree to these GT&Cs and the conditions, obligations, affirmations, representations and warranties set forth herein and to abide by and comply with these GT&Cs. 
+GTSA reserves the right to delist any or all of the users addresses from the whitelist and to file a report to relevant authorities if a Tokenholder fails to comply, or if there is reasonable ground to suspect that the Tokenholder fails to comply with any of the representations and warranties in this Section 4. 
+
+5. Connecting LBMA Gold to DGLD
+
+As part of the issuance process, GTSA issues DGLD and unambiguously links each DGLD to LBMA Gold which is vaulted with a Custodian. GTSA represents and warrants that DGLD are only issued and linked to LBMA Gold once GTSA has received a Receipt of Deposit for the respective LBMA Gold from the Custodian. 
+Newly issued DGLD will exclusively be allocated to a Whitelisted Wallet Address of the Authorized Participant who provided the respective LBMA Gold. The first Tokenholder of newly issued DGLD is always an Authorized Participant. Once a DGLD is allocated to a Whitelisted Wallet Address of an Authorized Participant, the respective Authorized Participant becomes a Tokenholder in the sense of these GT&Cs. At the same time, the LBMA Gold becomes Token Gold. 
+The ratio of the amount of LBMA Gold linked to a DGLD is calculated based on a specific algorithm depending on the actual weight of the LBMA Gold (in fine ounces). GTSA represents and warrants that the ratio between a specific amount of LBMA Gold and DGLD will at all times remain equal for each DGLD. 
+At initiation, 1 DGLD will represent a predefined fraction of a specific entity of Token Gold (e.g. 400 fine ounces of gold) as further specified in Annex 1 (DGLD Ratio Calculation) and be divisible into fractions of 8 decimal points (0.00000001 - 100 millionth of a token).The mass of gold which 1 token (or fraction thereof) represents will then be reduced at 1% per year and the outstanding amount of Token Gold will be accounted for by the issuance of new (additional) DGLD fractions linked to such specific entity of Token Gold. These additional DGLD fractions will accrue to GTSA as its Management Fee (see Section 10.1 hereafter).  
+The re-calculation and Issuance of the new DGLD will be performed automatically every 480 blocks (8 hours). The mass associated with each DGLD will be determined and stored in each new block to provide full audit trail. In order to deliver a clean and simple client experience this process will be transparent to the user of a wallet. The user interface will provide an indication of the number of DGLD the user holds, alongside the associated mass of gold. The mass will update to reflect the token inflation. However, in the interest of full transparency, a user will also be presented with a breakdown of future fees (e.g. in a tabulated form and/or via a real-time calculation). 
+
+6. Vaulting of Token Gold
+
+Token Gold is vaulted with a Custodian in the name of GTSA on behalf of the Tokenholder. The receipt of deposit is not a document of title. It contains, among other information, the place and date of issuance, the name, address and signature of the Custodian, the Asset ID of the LBMA Gold and the exact weight of the LBMA gold in fine ounces. 
+Token Gold comprises exclusively LBMA Gold. 
+GTSA represents and warrants to only enter into deposit agreements with Custodians which contain the following parameters: 
+ * Token Gold is held in a deposit vault of the Custodian allocated to GTSA and shall remain segregated from any other deposits from third parties and the Custodians own inventories; 
+ * GTSA shall at all times have the right audit and inspect the storage of any Token Gold; 
+ * Title to and ownership in Token Gold shall at all times remain with the Tokenholder; 
+ * The Custodian shall be responsible for any loss, damage or deterioration of Token Gold;
+GTSA undertakes to pay any agreed deposit fees and charges to the Custodian in time. 
+Should a Custodian terminate a deposit agreement for Token Gold, GTSA undertakes to have the respective Token Gold transferred to another Custodian. 
+It remains within the full discretion of GTSA to at any time for any reason transfer Token Gold from one Custodian to another. The costs of such transfer are to be borne by GTSA (freight, security, insurance, customs, etc.). 
+
+7. Transfer of DGLD
+
+DGLD may only be transferred between wallet addresses whitelisted by GTSA (Whitelisted Wallet Address). The decision to whitelist a wallet address remains in the full discretion of GTSA. In order to be whitelisted, the person controlling such wallet has to: 
+ * Successfully complete an identity check, 
+ * Successfully pass a PEP check and screenings against sanction lists and 
+ * Explicitly consents to these GT&Cs. 
+The transfer of DGLD is the activation of a Private Key, by which an entry connected to a Public Key is changed on the decentralized ledger of the underlying blockchain. A transfer of DGLD is technically only possible if the transferring and the receiving wallet adresses are at the time of transaction whitelisted. 
+For the purpose of processing identity checks and screening and/or monitoring of individuals and Tokenholders, GTSA is entitled to use respective Services of specialised third-party service providers (see Section 13 hereafter). 
+The identity check is made based on the documents/information listed hereinafter. GTSA and/or the respective service provider of its choice may at any time throughout the contractual relationship with the Tokenholder request additional information. 
+In case a Tokenholder is a natural person, the identity check is based on the collection of: 
+ * Name, address, date of birth, nationality and residence 
+ * A copy of the individual’s passport, driver’s license, national identity card, residence permit card or equivalent document (as far as accepted by the KYC service provider 
+ * E-mail address 
+ * Encrypted wallet address 
+In case a Tokenholder is a legal entity, the identity check is based on the collection of: 
+ * Company name and business address of legal entity 
+ * Name, address, date of birth, nationality and residence of its representative(s). 
+ * Documentation of the power of attorney arrangements of the legal entity (if not apparent from the excerpt of the Commercial Register). 
+ * Excerpt of the Commercial Register, issued by the official registry administrator, a written excerpt from an electronic database, maintained by the official registry authority; or a written excerpt from a private database, maintained by a credible private database provider. 
+ * For legal entities which are neither registered in the Swiss Commercial Register nor in an equivalent foreign register are to be identified by the following documents: Articles of Association, incorporation contract and/or documentation, a confirmation by the auditor, an official permit or notice of granting for the engagement in the field of the relevant activities; and an excerpt from a credible private database. 
+ * Additional due-diligence check in case the legal entity is an exchange. 
+Throughout the contractual relationship, GTSA may monitor the accuracy of the whitelisting and for such purpose conduct regular PEP checks, screenings against sanction lists and/or conduct negative news checks and/or request any additional or updated information from a Tokenholder. 
+GTSA reserves the right to delist Whitelisted Wallet Addresses from the whitelist and to file a report to relevant authorities if an individual controlling such Wallet does not pass a monitoring check e.g. because the respective individual fails a PEP Check, a screening against sanction lists and/or negative news checks and/or fails to provide any information requested. 
+
+8. Co-ownership of Tokenholders in Token Gold
+
+8.1 General 
+All Tokenholders of DGLD, which are linked to Token Gold having the same Asset ID, are Co-owners of the gold bar with the respective Asset ID embossed (art. 646 al. 1 CC). The share of ownership of one Tokenholder in such specific piece of Token Gold depends on the amount of DGLD the respective Tokenholder holds linked to the respective Asset ID and the total amount of DGLD linked to the same piece of Token Gold. The share of co-ownership of one Tokenholder in a specific piece of Token Gold will decrease over time following the algorithm described in Section 5 Recitals 14 and 15 above. 
+These GT&Cs constitute the agreed rules on the use and administration of the co-ownership in the sense of Art. 647 al. 1 CC. In case of inconsistencies between these GT&Cs and the legal framework of art. 646 to art. 654 CC, the GT&Cs shall prevail unless a legal provision shall be mandatorily applicable.  
+The Co-owners agree and confirm by accepting these GT&Cs that they neither have the intention to establish, nor issue, certificated or uncertificated securities on Token Gold. Neither a Receipt of Deposit, nor a DGLD, nor any registration of identity information on Tokenholders by GTSA, nor these GT&Cs shall be qualified as a certificated or uncertificated security in Token Gold. 
+8.2 Rules and Regulations of Co-ownership 
+GTSA is the administrator of the co-ownership. Tokenholders agree and confirm by accepting these GT&Cs that GTSA is entitled to implement and execute any and all administrative measures, be it of ordinary, major, necessary or useful nature, which GTSA deems adequate to maintain, improve or extend the vaulting of Token Gold by Custodians, the tokenization of Token Gold and/or the administration of co-ownership and of Tokenholders. The rights of GTSA as administrator include, but are not limited to: 
+ * Enter into Agreements with Custodians within the preconditions defined in Section 6 Recital 18 above; 
+ * Move Token Gold from one vault of a Custodian to another or from one Custodian to another; 
+ * Enter into any sort of agreement necessary to maintain the safe storage and vaulting of Token Gold; 
+ * Re-link DGLD or a fraction thereof to a different Asset ID as GTSA deems fit and necessary. DGLD will at any time unambiguously be linked to a specific Asset ID of Token Gold; 
+ * Establish and manage a digital register on the identities of Tokenholders, DGLD held by them and Token Gold owned by them; 
+ * Provide information on Tokenholder’s identity ownership in gold bars to the Custodian for KYC/AML prerequisites where necessary; 
+ * Communicate with self-regulation authorities (AML) and other authorities such as FINMA as and to the extent necessary. 
+Co-owners hereby waive any rights to personally attend to any sort of administration of the Token Gold, the tokenization of Token Gold and the administration of co-ownership and of Tokenholders. 
+Co-owners waive their rights to dispose of, alienate or encumber or other wise use their right of co-ownership in Token Gold. This waiver does not include any right to dispose of or alienate a DGLD and/or to encumber, pledge or use a DGLD as security or collateral as far as this is legally possible according to the applicable laws. 
+Costs and expenses of the administration of the co-ownership, of the Token Gold and of the Tokenholders are borne by GTSA. 
+The Co-owners hereby agree to waive their right to request dissolution of co-ownership with respect to a specific piece of Token Gold. The right to redeem DGLD in physical gold according to Section 9 hereafter is reserved. 
+GTSA maintains a database linking Whitelisted Wallet Addresses to “identity keys” that can be used to identify the owners of DGLD via an identity verification service provider (see Section 7. Recital 25 above). This information will be kept confidential and not be made publicly available. 
+8.3 Transfer of (Co-)Ownership in Token Gold 
+Tokenholders hereby agree that ownership or co-ownership in Token Gold can exclusively be transferred by transmission of DGLD from one Wallet to another. For that purpose, Tokenholders hereby agree that any transfer of a DGLD from the Wallet of one Tokenholder to the Wallet of another Tokenholder is a possessive statement in the sense of art. 924 al. 1 CC. Tokenholders waive their potential right to transfer ownership in Token Gold by any other possible mean or legal instrument including the factual transfer of control over a Wallet by a Tokenholder to a third party. Should a third party become entitled to ownership in Token Gold by way of legal succession, such designated owner has to provide proof of the legal succession and fulfil the preconditions of Section 7 Recital 22 above. 
+
+9. Redemption of DGLD
+
+Tokenholders hereby agree that only a Tokenholder which holds DGLD representing one full specific entity of Token Gold has the right to request redemption of the Token Gold linked to these DGLDs. 
+The redemption process is defined by GTSA and may be amended by GTSA unilaterally. The redemption process may be summarised as follows: 
+ * A Tokenholder emails admin@dgld.ch requesting to redeem its DGLD for gold. 
+ * A GTSA Admin replies to the Tokenholder’s email and sends him the latest available gold bar list which the Tokenholder can redeem from. The Admin also informs the Tokenholder on the Redemption Fee and provides the Tokenholder a Redemption Application Form which he must complete. 
+ * Tokenholder sends the GTSA Admin the completed Redemption Application Form including supporting documents and information and transfers the Redemption Fee to the respective wallet address. 
+ * In case the Redemption Application Form is fully completed and all requested information is available and the Redemption Fee is received by GTSA, GTSA Admin sends an acknowledgement via email to Tokenholder, stating that the redemption application is pending and is subject to AML/KYC review by GTSA’s Compliance Officer. 
+ * Tokenholders understand and agree that the redemption of DGLD against delivery of Token Gold is subject to a Tokenholder successfully completing a full AML/KYC check according to the GTSA AML Guidelines. In case an AML/KYC check may not be successfully completed, GTSA informs the Tokenholder via email accordingly. The redemption process is immediately stopped. The paid Redemption Fee is forfeited. Such Tokenholder can at any time recommence a redemption process. 
+ * If the  AML/KYC check is successfully completed, GTSA Admin sends an acknowledgement via email to the Tokenholder of a valid redemption application request.  
+ * Tokenholder transfers the DGLD needed for redemption to a designated redemption address. If sufficient DGLD have been transferred to the redemption address, GTSA Admin enables Tokenholder to send these DGLD to a burn address and instructs Tokenholder to do so. 
+ * The GTSA Admin then confirms via email the (former) Tokenholder of the destruction of DGLD and provides the (former) Tokenholder information on the dispatch of the (former) Token Gold. 
+GTSA represents that throughout the redemption process, the control over any of the redeemed DGLD will remain with the Tokenholder. GTSA further represents that DGLD which had been linked to the delivered Token Gold will in the redemption process be irrevocably burned. 
+Upon completion of the redemption process the (former) Token Gold is delivered to the (former) Tokenholder to the place of delivery indicated by him. Thereby, delivery will only be made to residence of the (former) Tokenholder or to a vault in the name of the (former) Tokenholder in a non-sanctioned country. Any delivery to a third party other than the (former) Tokenholder is excluded. 
+The Incoterms 2010 EXW are applicable and the (former) Tokenholder bears the freight of the transport from the vault of the Custodian to the (former) Tokenholder, customs and the insurance. In case the (former) Tokenholder does not provide any instructions to the Custodian as to what should happen with the Token Gold upon delivery, the Custodian is entitled to vault the gold bar on the risk and costs of the (former) Tokenholder under its own deposit terms. 
+
+10. Remuneration of GTSA
+
+GTSA is entitled to a Management Fee, a Redemption Fee and a Transaction Fee. 
+10.1 Management Fee
+The Management Fee amounts to 1% of the Token Gold per year. The Management Fee accrues to GTSA in form of new DGLD issued on Token Gold according to the inflation scheme as described in Section 5 Recitals 14 and 15. 
+10.2 Redemption Fee
+The Redemption Fee is a flat fee payable in DGLD as published by GTSA. It shall cover the administrative costs of GTSA in connection with the redemption process. 
+DGLD in the amount of the Redemption Fee have to be transferred to GTSA in the beginning of a redemption process. In case the Redemption Fee is not transferred, redemption is not executed. 
+In case the redemption process is abandoned by the Tokenholder or not completed due to unsuccessful AML/KYC check or for any other reason, the Redemption Fee is forfeited and will not be reimbursed. 
+10.3 Transaction Fee 
+For each transfer of DGLD GTSA will charge a Transaction Fee of 0.0005 DGLD.
+
+11. Regulatory and legal qualification of DGLD 
+
+GTSA has obtained a ruling from the Swiss Financial Supervisory Authority FINMA dated February 22, 2019. By this ruling, FINMA confirmed that DGLD qualifies as ‘Payment tokens’ in the sense of the FINMA Guidelines on initial coin offerings published February 16, 2018. FINMA further confirms that DGLD is not to be qualified as securities and that GTSA does not qualify as a bank in the sense of the Swiss Financial Market Regulations. 
+Tokenholder understands and accepts that there may still be some uncertainties regarding how the applied technologies as well as the Services are to be assessed under applicable laws and regulations. There is a possibility that certain jurisdictions will apply existing regulations, or introduce new regulations addressing blockchain technology-based applications, which may be contrary to the current setup of the Platform and/or the terms and conditions herein (e.g. regarding ownership in DGLD, ownership of the underlying Token Gold and/or the valid transfer of ownership in Token Gold by a transfer of DGLD). This may, inter alia, result in modifications of the Platform. Tokenholder are aware that some jurisdictions could qualify DGLD as securities which could trigger specific regulatory consequences notably for individuals professionally trading DGLD. 
+Tokenholder understand and accept that the legal structure of title tokens is relatively new, and no relevant prejudices are available. Therefore, the risk remains that a court may come to a conclusion which may be contrary to the current setup of the Platform and/or the terms and conditions herein (e.g. regarding ownership in DGLD, ownership in the underlying gold and/or the valid transfer of such gold by transfer of the DGLD) and which may, inter alia, result in modification of the current setup of the Platform and/or the terms and conditions herein. 
+
+12. Technology
+
+2.1 Blockchain
+GTSA uses blockchain technology including a sidechain. Tokenholder understands and accepts that the underlying Software application and Platform, other involved Software and technology and technical concepts and theories are still at an early developmental stage and unproven, which is why there is no warranty that the process for receiving and using DGLD will be uninterrupted or error-free and which is why there is an inherent risk that the Software and related technologies and theories could contain weaknesses, vulnerabilities or bugs causing, inter alia, the complete loss of DGLD respectively potential loss of access to the underlying Token Gold. 
+2.2 Wallet
+DGLD can only be accessed by using a Whitelisted Wallet Address using the Tokenholder’s account information (Public Key and Private Key). Tokenholders understand and accept that if his/her private key file or password were stolen, the allocated DGLD associated with the Tokenholder’s Wallet (public address) would be potentially unrecoverable. GTSA has no control over the DGLD; therefore, the Tokenholder shall have no recourse to seek any refunds, recovery or replacements from GTSA in the event that DGLD are stolen. In any case, Tokenholder shall inform GTSA of any loss or theft of his private key file or password. 
+Tokenholder understands and accepts, that only certain Wallet(s) or a Wallet service provider are technically compatible to hold DGLD. The failure to ensure this may result in the Tokenholder failing to gain access to his or its DGLD. 
+Tokenholder understand and accept that the Platform, the underlying Software, other involved Software, other technology components and/or Platforms may be exposed to attacks by hackers or other individuals that could result in theft or loss of DGLD. 
+Tokenholders are required to maintain the security of their Wallet by protecting their personal account information (Private Key) and passwords from unauthorized access or use and undertake to promptly notify GTSA if they discover or suspect any unauthorized access or use of their Wallet or any security breaches related thereto. Tokenholders are responsible for all activities that occur under their Wallet and accept all risks of any authorized or unauthorized access. 
+Tokenholder understands and accepts that the blockchain used for the Platform is susceptible to mining attacks, including but not limited to double-spend attacks, “selfish-mining” attacks, and race condition attacks. Any successful attack presents a risk to the Platform, the execution and sequencing of DGLD and other token transactions and the expected proper execution and sequencing of contract computations. 
+
+13. Subcontracting
+
+GTSA will use third parties as service providers for certain aspects of its administrative tasks (Custodians, backoffice, compliance, etc.). GTSA has limited possibility to control the Software or mechanisms used by such third parties and cannot verify or guarantee the proper functionality of the third-party Software or operations. 
+
+14. Liability 
+
+Any and all liability of GTSA for direct or indirect damages suffered by a Tokenholder or any other individual (e.g. having the intention to acquire DGLD) in connection with the process of whitelisting of such Tokenholder or individual (see section 7 above) or in connection with the KYC/AML check in the redemption process (see section 9 above) or in connection with any other denial of redemption (e.g. Tokenholder does not have enough DGLD) is excluded. It remains in GTSA’s full discretion to decide on the whitelisting of Wallets in a final manner, independent of the result of the ID Check and other preconditions.  
+Neither the Custodian nor GTSA shall be liable for any loss, damage or deterioration caused by any failure or delay in the fulfilment of their obligations under the deposit agreement if such failure or delay arises out of or is caused by Force Majeure. 
+GTSA is not liable or responsible for permanent or temporary inability to access the Platform or use any Services for any reason whatsoever. 
+Tokenholder understand that with regards to DGLD, no market liquidity may be guaranteed and that the value (if any) of the DGLD may therefore temporarily deviate from the market value of the underlying Token Gold. Any respective loss will be borne exclusively by the Tokenholder and any respective liability of GTSA is excluded. 
+GTSA‘s liability for loss or damage to Token Gold or deterioration of Token Gold not caused by Force Majeure is limited to the market value of the Token Gold at the time such loss, damage or deterioration is ascertained. 
+For any other direct or indirect damage suffered by a Tokenholder or any other individual in connection with the Services, GTSA’s liability is excluded unless GTSA caused such damage acting with gross negligence, wilful misconduct or intent. 
+
+15. Data Protection 
+
+Personal data is all information that serves to identify a person or make them identifiable, such as name, address, identification documentation, etc. GTSA only processes personal data if GTSA receives it within the scope of the relationship between GTSA and a Tokenholder, if the Tokenholder has consented or if GTSA is otherwise legally authorized to do so (e.g. to fulfil our obligations under the Swiss Anti-Money Laundering Act [“AMLA”] and other applicable compliance regulations for the fulfilment of contractual obligations or for the purpose of legitimate interests of GTSA). 
+All data processing at GTSA is technically and organizationally designed to comply with the applicable data protection regulations. The technical and organizational measures correspond in particular to the state of the art, the type and scope of data processing and the risks which processing can entail. 
+By acceptance of these GT&Cs, Tokenholder explicitly consents to the following processing activities: 
+ * Establishment of a digital register on the identities of all Tokenholders and the fractions of DGLD held by them; 
+ * Forwarding of all required personal data of Tokenholders to the Custodian for KYC requirements; 
+ * Forwarding of personal data, upon legitimate request, to Custodian and Authorities. 
+ * To guarantee the execution of the contract, i.e. customer management Services and direct advertising Services regarding our products/Services. 
+Personal data is stored on GTSA network drives. The GTSA IT infrastructure is partly supported by selected external service providers with whom GTSA has concluded the legally stipulated order processing contracts. 
+All necessary transfers of personal data to and from third party data recipients will be encrypted to protect the integrity and confidentiality of the personal data of Tokenholders. Some of the data recipients may be located outside of Switzerland. However, GTSA will transfer personal data only to countries for which the EU Commission or the Federal Data Protection and Information Commissioner (FDPIC) has decided that they have an appropriate level of data protection or implement measures to ensure that the data recipients comply with an appropriate level of data protection. 
+The data will only be stored as long as this is necessary for the execution of the relationship and furthermore only if legal storage or documentation regulations prescribe this. If the personal data are no longer required for the above-mentioned purposes, they will be deleted or made anonymous as far as possible. 
+Tokenholders have the right to information, correction, restriction of data processing, deletion of personal data, objection, revocation of the data protection declaration of consent for the future and data transferability within the scope of the data protection law applicable to them and to the extent provided for therein (such as in the case of the GDPR). Tokenholders also have the right to enforce their claims in court or lodge a complaint with the competent data protection authority. The responsible data protection authority in Switzerland is the Federal Data Protection and Information Commissioner. 
+Tokenholders have the right to revoke the consent to the processing of their personal data at any time, without this affecting the lawfulness of the processing carried out on the basis of the consent until revocation. The revocation must be addressed to privacy@dgld.ch Should the consent be revoked by a Tokenholder, GTSA reserves the right to blacklist the respective wallet from the whitelist. 
+GTSA is controller of the data processing, who determines the purposes and means of processing personal data. All contact addresses can be found at DGLD.ch. If you have any questions regarding data protection, please do not hesitate to contact us: 
+   Gold Token SA 
+   Promenade de Saint-Antoine 10 
+   CH-1204 Genève 
+The GTSA data protection coordinator can be reached via the following contact details: 
+E-mail address: privacy@dgld.ch 
+
+16. Taxes 
+
+Tokenholder are solely responsible for complying with an applicable law. They acknowledge and agree that GTSA is not responsible for determining whether or which laws may apply to Tokenholder’s transactions, including tax law. GTSA bears no liability for determining whether taxes apply to Tokenholder’s transactions, or for collecting, reporting or remitting any taxes arising from any transaction. 
+
+17. Severability Clause 
+
+The invalidity or unenforceability of any provision or any covenant of GT&Cs in any jurisdiction shall not affect the validity or enforceability of such provision or covenant in any other jurisdiction or of any other provision or covenant hereof or herein contained, and any invalid provision or covenant shall be deemed to be severable. 
+
+18. Amendment of GT&Cs 
+
+GTSA may make changes at any time to these GT&Cs, including, but not limited to, amendment of processes, development of technology, due to regulation or for other reasons. In case of amendments, GTSA will give notice of such changes by posting the updated Terms on the GTSA website and changing the “Last Updated” date. Further, GTSA will send notices of amendments to all registered Tokenholders. Tokenholders will have to confirm to agree to new GT&Cs in order to maintain their whitelisting. The amended GT&Cs will in any case become effective fourteen (14) days after they are posted, and notice has been given to the registered Tokenholders. Amendments which are necessary due to laws, regulations, orders from competent authorities or court decisions will become immediately effective. 
+
+19. Governing Law and Jurisdiction 
+
+The legal relationship between Tokenholder and GTSA and these GT&Cs and all claims relating to or arising out of this legal relationship or breach of any obligations, whether in contract, tort or otherwise, the acquisition, and loss of title in the Token Gold, the content and exercise of title in the Token Gold, the legal qualification of the DGLD and the use of the Platform as well as the rights and obligations of the Co-owners resp. the co-ownership of Tokenholders shall be governed by Swiss Law, excluding Swiss choice-of-law principles. 
+Any dispute, controversy or claim arising out of or in connection with this legal relationship or the breach, termination, existence, legal competence or invalidity thereof, shall be exclusively settled by the courts of Geneva, Switzerland. 
+
+________________
+
+Annex 1 – Gold Token Ratio Calculation: algorithm defining the ratio between DGLD and LBMA Gold (including example of calculation)
+
+The GTR (Gold Token Ratio) determines the mass of fine gold (in ounces) that can be redeemed for 1 DGLD token. It is defined as follows, with time t = 0 at the launch of the blockchain: 
+GTR = 0.1/(1 + r)^(t/N)
+Where r is the annual inflation rate and N is the number of 8 hours periods in a year (i.e. 3 x 365 = 1095). 
+The annual token inflation rate is defined as: r = 1/(1 - f) - 1 
+where f is the annual fee (demurrage) rate (i.e. with f = 1% then r = 0.0101010101…). 
+
+The GTR applies to both issuance and redemption, so that all DGLD tokens in remain fungible at all times. For example, if a 400 oz (fine mass) bar is deposited at t = 0 then 4000.0 tokens are issued (with a particular token ID) as the GTR at hour t = 0 is 0.1 ounces per token. After exactly 1 year (1095 8 hour periods), the GTR is 0.1/(1 + r) = 0.099 ounces per token, and so 4000.0 tokens can be redeemed for 4000.0 × 0.099 = 396 oz (fine mass) of gold (and 400/0.099 = 4040.40404040 tokens would be required to redeem the original 400 oz bar). 
+If at (8 hour) period 1095 (i.e. after 1 year) another 400 oz bar is deposited, then 400/0.099 = 4040.40404040 tokens (with a specific token ID) are issued. If these tokens were redeemed in the same 8 hour period 4040.40404040 × 0.099 = 400 oz of the bar can be redeemed. If this same amount were redeemed at (8 hour) period 2190 (i.e   exactly two years after launch) the GTR will be 0.1/(1 + r)^2 = 0.09801 and the 4040.40404040 tokens can be redeemed for 4040.40404040 × 0.09801 = 396 oz (fine mass) of gold. A 400 oz bar can be redeemed for 400/0.09801 = 4081.21620243 DGLD tokens. 
+The GTR is updated every 8 hours (i.e. every 480 blocks with a 1 minute block time). Each time the GTR is updated, all issued tokens are inflated by the amount corresponding to the change in the GTR. This inflation is performed via the reissuance of new tokens (for each asset/bar) to GTSA. 
