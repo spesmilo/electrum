@@ -1,14 +1,13 @@
 from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
-from fnmatch import fnmatch
 import json
 import os
 from os.path import exists, join
-import pkg_resources
+import pkgutil
 import unittest
 
-from electroncash import commands, daemon, keystore, simple_config, storage, util
+from electroncash import commands, daemon, keystore, simple_config, storage, tests, util
 from electroncash.i18n import _
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
@@ -182,11 +181,10 @@ class AndroidCommands(commands.Commands):
         """Run all unit tests. Expect failures with functionality not present on Android,
         such as Trezor.
         """
-        test_pkg = "electroncash.tests"
         suite = unittest.defaultTestLoader.loadTestsFromNames(
-            [test_pkg + "." + filename[:-3]
-             for filename in pkg_resources.resource_listdir(test_pkg, "")
-             if fnmatch(filename, "test_*.py")])
+            tests.__name__ + "." + info.name
+            for info in pkgutil.iter_modules(tests.__path__)
+            if info.name.startswith("test_"))
         unittest.TextTestRunner(verbosity=2).run(suite)
 
     # END commands which only exist here.
