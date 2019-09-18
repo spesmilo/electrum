@@ -477,8 +477,11 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                 self.handler.finished()
         except CCProtoError as exc:
             self.logger.exception('Error showing address')
-            self.handler.show_error('{}\n\n{}'.format(
-                _('Error showing address') + ':', str(exc)))
+            self.handler.show_error('{}.\n{}\n\n{}'.format(
+                _('Error showing address'),
+                _('Make sure you have imported the correct wallet description '
+                  'file on the device for this multisig wallet.'),
+                str(exc)))
         except BaseException as exc:
             self.logger.exception('')
             self.handler.show_error(exc)
