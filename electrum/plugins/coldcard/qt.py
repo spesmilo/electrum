@@ -100,10 +100,6 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             # which we don't support here, so do nothing
             return
 
-        # can only expect Coldcard wallets to work with these files (right now)
-        keystore = dia.wallet.get_keystore()
-        assert type(keystore) == self.keystore_class
-
         # convert to PSBT
         build_psbt(tx, dia.wallet)
 
