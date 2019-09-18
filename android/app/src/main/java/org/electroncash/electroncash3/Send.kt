@@ -1,17 +1,17 @@
 package org.electroncash.electroncash3
 
-import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.os.Bundle
-import androidx.appcompat.app.AlertDialog
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
@@ -30,7 +30,7 @@ class SendDialog : AlertDialogFragment() {
     class Model : ViewModel() {
         var paymentRequest: PyObject? = null
     }
-    val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+    val model: Model by viewModels()
 
     init {
         if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
@@ -91,7 +91,7 @@ class SendDialog : AlertDialogFragment() {
                 override fun onStopTrackingTouch(seekBar: SeekBar) {}
             })
         }
-        fiatUpdate.observe(this, Observer { updateUI() })
+        fiatUpdate.observe(this, { updateUI() })
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
@@ -170,7 +170,7 @@ class SendDialog : AlertDialogFragment() {
 
             val r = parsed.callAttr("get", "r")
             if (r != null) {
-                showDialog(activity!!, GetPaymentRequestDialog(this, r.toString()))
+                showDialog(this, GetPaymentRequestDialog(r.toString()))
             } else {
                 setPaymentRequest(null)
                 etAddress.setText(parsed.callAttr("get", "address")?.toString() ?: "")
@@ -215,7 +215,7 @@ class SendDialog : AlertDialogFragment() {
     fun onOK() {
         try {
             makeUnsignedTransaction()  // Validate input before asking for password.
-            showDialog(activity!!, SendPasswordDialog(this))
+            showDialog(this, SendPasswordDialog())
         } catch (e: ToastException) { e.show() }
         // Don't dismiss this dialog yet: the user might want to come back to it.
     }
@@ -223,8 +223,7 @@ class SendDialog : AlertDialogFragment() {
 
 
 class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
-    constructor(sendDialog: SendDialog, url: String) : this() {
-        setTargetFragment(sendDialog, 0)
+    constructor(url: String) : this() {
         arguments = Bundle().apply { putString("url", url) }
     }
 
@@ -271,19 +270,18 @@ class SendContactsDialog : MenuDialog() {
 }
 
 
-class SendPasswordDialog() : PasswordDialog<PyObject>() {
-    constructor(sendDialog: SendDialog) : this(){
-        setTargetFragment(sendDialog, 0)
-    }
-    val sendDialog by lazy { super.getTargetFragment() as SendDialog }
+class SendPasswordDialog : PasswordDialog<Unit>() {
+    val sendDialog by lazy { targetFragment as SendDialog }
     var tx: PyObject by notNull()
+    var description: String by notNull()
 
     override fun onPreExecute() {
         super.onPreExecute()
         tx = sendDialog.makeUnsignedTransaction()
+        description = sendDialog.etDescription.text.toString()
     }
 
-    override fun onPassword(password: String): PyObject {
+    override fun onPassword(password: String) {
         val wallet = daemonModel.wallet!!
         wallet.callAttr("sign_transaction", tx, password)
         if (! daemonModel.isConnected()) {
@@ -300,7 +298,7 @@ class SendPasswordDialog() : PasswordDialog<PyObject>() {
 
         val success = result.get(0).toBoolean()
         if (success) {
-            return tx
+            setDescription(tx.callAttr("txid").toString(), description)
         } else {
             var message = result.get(1).toString()
             val reError = Regex("^error: (.*)")
@@ -311,12 +309,9 @@ class SendPasswordDialog() : PasswordDialog<PyObject>() {
         }
     }
 
-    override fun onPostExecute(result: PyObject) {
+    override fun onPostExecute(result: Unit) {
         sendDialog.dismiss()
         toast(R.string.payment_sent, Toast.LENGTH_SHORT)
-        setDescription(result.callAttr("txid").toString(),
-                       sendDialog.etDescription.text.toString())
-        transactionsUpdate.setValue(Unit)
     }
 }
 

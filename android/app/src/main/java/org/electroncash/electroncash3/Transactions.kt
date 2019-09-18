@@ -1,17 +1,14 @@
 package org.electroncash.electroncash3
 
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.Observer
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.view.View
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.core.content.ContextCompat
-import androidx.appcompat.app.AlertDialog
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
+import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.transaction_detail.*
@@ -19,22 +16,14 @@ import kotlinx.android.synthetic.main.transactions.*
 import kotlin.math.roundToInt
 
 
-val transactionsUpdate = MutableLiveData<Unit>().apply { value = Unit }
-
-
-class TransactionsFragment : Fragment(), MainFragment {
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                              savedInstanceState: Bundle?): View? {
-        return inflater.inflate(R.layout.transactions, container, false)
-    }
-
+class TransactionsFragment : Fragment(R.layout.transactions), MainFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         setupVerticalList(rvTransactions)
         rvTransactions.adapter = TransactionsAdapter(activity!!)
-
-        daemonUpdate.observe(viewLifecycleOwner, Observer { refresh() })
-        transactionsUpdate.observe(viewLifecycleOwner, Observer { refresh() })
-        settings.getString("base_unit").observe(viewLifecycleOwner, Observer { refresh() })
+        TriggerLiveData().apply {
+            addSource(daemonUpdate)
+            addSource(settings.getString("base_unit"))
+        }.observe(viewLifecycleOwner, { refresh() })
 
         btnSend.setOnClickListener {
             try {
@@ -120,7 +109,6 @@ class TransactionDialog() : AlertDialogFragment() {
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok, {_, _ ->
                 setDescription(txid, etDescription.text.toString())
-                transactionsUpdate.setValue(Unit)
             })
     }
 

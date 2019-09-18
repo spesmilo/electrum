@@ -1,13 +1,9 @@
 package org.electroncash.electroncash3
 
 import android.app.Activity
-import androidx.lifecycle.Observer
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
@@ -18,9 +14,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.observe
 import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.change_password.*
 import kotlinx.android.synthetic.main.main.*
+import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
 
@@ -43,10 +44,11 @@ val FRAGMENTS = HashMap<Int, KClass<out Fragment>>().apply {
 interface MainFragment
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(R.layout.main) {
     var cleanStart = true
     var newIntent = true
     var walletName: String? = null
+    var viewStateRestored = false
 
     override fun onCreate(state: Bundle?) {
         // Remove splash screen: doesn't work if called after super.onCreate.
@@ -65,7 +67,6 @@ class MainActivity : AppCompatActivity() {
         }
         super.onCreate(if (!cleanStart) state else null)
 
-        setContentView(R.layout.main)
         setSupportActionBar(toolbar)
         supportActionBar!!.apply {
             setDisplayHomeAsUpEnabled(true)
@@ -78,9 +79,22 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        daemonUpdate.observe(this, Observer { refresh() })
-        settings.getString("base_unit").observe(this, Observer { updateToolbar() })
-        fiatUpdate.observe(this, Observer { updateToolbar() })
+        daemonUpdate.observe(this, { refresh() })
+        settings.getString("base_unit").observe(this, { updateToolbar() })
+        fiatUpdate.observe(this, { updateToolbar() })
+
+        // LiveData observers are activated after onStart returns. But this means that if an
+        // observer modifies a view, the modification could be undone by
+        // onRestoreInstanceState. This isn't a problem in the Fragment lifecycle because it
+        // restores view state before calling onStart. So we do the same at the activity level.
+        //
+        // I considered fixing this by delaying the lifecycle start event until onPostCreate,
+        // but this was more awkward because of the way lifecycle events are driven by
+        // ReportFragment. Also, this would require overriding ComponentActivity.getLifecycle,
+        // whose documentation says it will be made final in a future version.
+        if (state != null) {
+            onRestoreInstanceState(state)
+        }
     }
 
     fun refresh() {
@@ -211,7 +225,7 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.menuChangePassword -> showDialog(this, ChangePasswordDialog())
             R.id.menuShowSeed-> { showDialog(this, ShowSeedPasswordDialog()) }
-            R.id.menuDelete -> showDialog(this, DeleteWalletDialog())
+            R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog())
             R.id.menuClose -> showDialog(this, CloseWalletDialog())
             else -> throw Exception("Unknown item $item")
         }
@@ -225,6 +239,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onRestoreInstanceState(state: Bundle) {
+        if (viewStateRestored) return
+        viewStateRestored = true
+
         if (!cleanStart) {
             super.onRestoreInstanceState(state)
         }
@@ -290,7 +307,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         ft.attach(newFrag)
-        ft.commit()
+        ft.commitNow()
 
         navBottom.visibility = if (newFrag is NoWalletFragment) View.GONE else View.VISIBLE
     }
@@ -307,7 +324,7 @@ class MainActivity : AppCompatActivity() {
             frag = FRAGMENTS[id]!!.java.newInstance()
             supportFragmentManager.beginTransaction()
                 .add(flContent.id, frag, fragTag(id))
-                .commit()
+                .commitNow()
             return frag
         }
     }
@@ -320,7 +337,7 @@ class MainActivity : AppCompatActivity() {
                 ft.remove(frag)
             }
         }
-        ft.commit()
+        ft.commitNow()
     }
 
     fun fragTag(id: Int) = "MainFragment:$id"
@@ -340,9 +357,15 @@ class AboutDialog : AlertDialogFragment() {
         with (builder) {
             val version = app.packageManager.getPackageInfo(app.packageName, 0).versionName
             setTitle(getString(R.string.app_name) + " " + version)
-            val message = SpannableStringBuilder(getString(R.string.copyright_2019) + "\n\n")
-            @Suppress("DEPRECATION")
-            message.append(Html.fromHtml(getString(R.string.made_with)))
+            val message = SpannableStringBuilder()
+            listOf(R.string.copyright_2017, R.string.made_with, R.string.for_support)
+                .forEachIndexed { i, stringId ->
+                    if (i != 0) {
+                        message.append("\n\n")
+                    }
+                    @Suppress("DEPRECATION")
+                    message.append(Html.fromHtml(getString(stringId)))
+                }
             setMessage(message)
         }
     }
@@ -354,36 +377,54 @@ class AboutDialog : AlertDialogFragment() {
 }
 
 
-class DeleteWalletDialog : TaskLauncherDialog<Unit>() {
+class OpenWalletDialog : PasswordDialog<String>() {
+    override fun onPassword(password: String): String {
+        val name = arguments!!.getString("walletName")!!
+        daemonModel.loadWallet(name, password)
+        return name
+    }
+
+    override fun onPostExecute(result: String) {
+        daemonModel.commands.callAttr("select_wallet", result)
+    }
+}
+
+
+class DeleteWalletConfirmDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val message = getString(R.string.do_you_want_to_delete, daemonModel.walletName) +
                       "\n\n" + getString(R.string.if_your)
         builder.setTitle(R.string.confirm_delete)
             .setMessage(message)
-            .setPositiveButton(R.string.delete, null)
+            .setPositiveButton(R.string.delete, { _, _ ->
+                showDialog(activity!!, DeleteWalletDialog())})
             .setNegativeButton(android.R.string.cancel, null)
     }
+}
 
+class DeleteWalletDialog : CloseWalletDialog() {
     override fun doInBackground() {
-        daemonModel.commands.callAttr("delete_wallet", daemonModel.walletName)
+        super.doInBackground()
+        daemonModel.commands.callAttr("delete_wallet", walletName)
     }
 
     override fun onPostExecute(result: Unit) {
-        (activity as MainActivity).openDrawer()
+        (activity as MainActivity).updateDrawer()
+        super.onPostExecute(result)
     }
 }
 
 
-class OpenWalletDialog : PasswordDialog<Unit>() {
-    override fun onPassword(password: String) {
-        daemonModel.loadWallet(arguments!!.getString("walletName")!!, password)
+open class CloseWalletDialog : TaskDialog<Unit>() {
+    var walletName: String by notNull()
+
+    override fun onPreExecute() {
+        walletName = daemonModel.walletName!!
+        daemonModel.commands.callAttr("select_wallet", null)
     }
-}
 
-
-class CloseWalletDialog : TaskDialog<Unit>() {
     override fun doInBackground() {
-        daemonModel.commands.callAttr("close_wallet")
+        daemonModel.commands.callAttr("close_wallet", walletName)
     }
 
     override fun onPostExecute(result: Unit) {

@@ -14,7 +14,10 @@ import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -56,17 +59,21 @@ fun formatSatoshisAndUnit(amount: Long): String {
 }
 
 
-fun showDialog(activity: FragmentActivity, frag: DialogFragment) {
+fun showDialog(target: Fragment, frag: DialogFragment) {
+    showDialog(target.activity!!, frag, target)
+}
+
+fun showDialog(activity: FragmentActivity, frag: DialogFragment, target: Fragment? = null) {
     val fm = activity.supportFragmentManager
     val tag = frag::class.java.name
     if (fm.findFragmentByTag(tag) == null) {
+        if (target != null) {
+            frag.setTargetFragment(target, 0)
+        }
         frag.show(fm, tag)
     }
 }
 
-fun <T: DialogFragment> dismissDialog(activity: FragmentActivity, fragClass: KClass<T>) {
-    findDialog(activity, fragClass)?.dismiss()
-}
 
 fun <T: DialogFragment> findDialog(activity: FragmentActivity, fragClass: KClass<T>) : T? {
     val tag = fragClass.java.name
@@ -178,4 +185,34 @@ private fun menuToList(menu: Menu): List<String> {
         result.add(menu.getItem(i).title.toString())
     }
     return result
+}
+
+
+// When the TriggerLiveData becomes active, it will call its observers at most once, no matter
+// how many sources it has.
+class TriggerLiveData : MediatorLiveData<Unit>() {
+    enum class State {
+        NORMAL, ACTIVATING, ACTIVE
+    }
+    private var state = State.NORMAL
+
+    // Using postValue would also call observers at most once, but some observers need to be
+    // called synchronously. For example, postponing the setup of a RecyclerView adapter would
+    // cause the view to lose its scroll position on rotation.
+    fun addSource(source: LiveData<*>) {
+        addSource(source, {
+            if (state != State.ACTIVE) {
+                setValue(Unit)
+                if (state == State.ACTIVATING) {
+                    state = State.ACTIVE
+                }
+            }
+        })
+    }
+
+    override fun onActive() {
+        state = State.ACTIVATING
+        super.onActive()
+        state = State.NORMAL
+    }
 }

@@ -96,4 +96,5 @@ fun setDescription(key: String, description: String) {
     val wallet = daemonModel.wallet!!
     wallet.callAttr("set_label", key, description)
     wallet.get("storage")!!.callAttr("write")
+    daemonUpdate.postValue(Unit)
 }

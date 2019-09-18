@@ -1,14 +1,8 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProviders
 import android.content.DialogInterface
 import android.os.Bundle
-import androidx.fragment.app.DialogFragment
-import androidx.appcompat.app.AlertDialog
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
@@ -19,9 +13,14 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.observe
 import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.password.*
-import java.lang.IllegalStateException
 import kotlin.properties.Delegates.notNull
 
 
@@ -29,7 +28,7 @@ abstract class AlertDialogFragment : DialogFragment() {
     class Model : ViewModel() {
         var started = false
     }
-    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+    private val model: Model by viewModels()
 
     var started = false
 
@@ -154,16 +153,16 @@ abstract class TaskDialog<Result> : DialogFragment() {
         val result = MutableLiveData<Any?>()
         val exception = MutableLiveData<ToastException>()
     }
-    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+    private val model: Model by viewModels()
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        model.result.observe(this, Observer {
+        model.result.observe(this, {
             onFinished {
                 @Suppress("UNCHECKED_CAST")
                 onPostExecute(it as Result)
             }
         })
-        model.exception.observe(this, Observer {
+        model.exception.observe(this, {
             onFinished { it!!.show() }
         })
 
@@ -221,6 +220,9 @@ abstract class TaskDialog<Result> : DialogFragment() {
 abstract class TaskLauncherDialog<Result> : AlertDialogFragment() {
     override fun onShowDialog() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            // It's possible for multiple button clicks to be queued before the listener runs,
+            // but showDialog will ensure that the progress dialog (and therefore the task) is
+            // only created once.
             showDialog(activity!!, LaunchedTaskDialog<Result>().apply {
                 setTargetFragment(this@TaskLauncherDialog, 0)
             })

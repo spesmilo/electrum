@@ -1,25 +1,22 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import androidx.lifecycle.Observer
 import android.content.Context
 import android.os.Bundle
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.preference.EditTextPreference
-import androidx.preference.EditTextPreferenceDialogFragmentCompat
 import android.text.InputType
 import android.util.AttributeSet
-import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.observe
+import androidx.preference.EditTextPreference
+import androidx.preference.EditTextPreferenceDialogFragmentCompat
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.network.*
@@ -41,25 +38,12 @@ private fun updateNetwork() {
 }
 
 
-class NetworkActivity : AppCompatActivity() {
+class NetworkActivity : AppCompatActivity(R.layout.network) {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        supportFragmentManager.beginTransaction()
-            .replace(android.R.id.content, NetworkFragment()).commit()
-    }
-}
-
-
-class NetworkFragment : Fragment() {
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                              savedInstanceState: Bundle?): View? {
-        return inflater.inflate(R.layout.network, container, false)
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         setupVerticalList(rvIfaces)
-        rvIfaces.adapter = IfacesAdapter(activity!!)
-        daemonUpdate.observe(viewLifecycleOwner, Observer { refresh() })
+        rvIfaces.adapter = IfacesAdapter(this)
+        daemonUpdate.observe(this, { refresh() })
     }
 
     fun refresh() {

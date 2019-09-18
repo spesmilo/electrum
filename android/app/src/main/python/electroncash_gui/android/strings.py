@@ -9,7 +9,7 @@ def _(s):
     return s
 
 _("Block explorer")
-_("Copyright 2019 the Electron Cash developers.")
+_("Copyright © 2017-2019 Electron Cash LLC and the Electron Cash developers.")
 _("Cannot specify private keys and addresses in the same wallet.")
 _("Change password")
 _("Close wallet")
@@ -21,6 +21,8 @@ _("Derivation invalid")
 _("Disconnect")
 _("ID")
 _("Enter password")
+_("For support, please visit us on <a href='https://github.com/Electron-Cash/Electron-Cash/issues'>"
+  "GitHub</a> or on <a href='https://t.me/electroncashwallet'>Telegram</a>.")
 _("Import addresses or private keys")
 _("Invalid address")
 _("Made with <a href='https://chaquo.com/chaquopy'>Chaquopy</a>, the Python SDK for Android.")

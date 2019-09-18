@@ -35,15 +35,17 @@ val libNetworks by lazy { libMod("networks") }
 class App : Application() {
 
     override fun attachBaseContext(base: Context?) {
+        // Set these variables as early as possible, in case ACRA.init tries to send a
+        // saved crash report.
+        app = this
+        mainHandler = Handler()
+
         super.attachBaseContext(base)
         ACRA.init(this)
     }
 
     override fun onCreate() {
         super.onCreate()
-        app = this
-        mainHandler = Handler()
-
         if (Build.VERSION.SDK_INT >= 26) {
             getSystemService(NotificationManager::class).createNotificationChannel(
                 NotificationChannel(DEFAULT_CHANNEL, "Default",

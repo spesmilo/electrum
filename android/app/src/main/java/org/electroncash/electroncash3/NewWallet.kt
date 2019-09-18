@@ -3,11 +3,11 @@ package org.electroncash.electroncash3
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
-import androidx.fragment.app.DialogFragment
-import androidx.appcompat.app.AlertDialog
 import android.text.Selection
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.DialogFragment
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.google.zxing.integration.android.IntentIntegrator
@@ -28,9 +28,12 @@ class NewWalletDialog1 : AlertDialogFragment() {
             .setNegativeButton(R.string.cancel, null)
     }
 
-    override fun onShowDialog() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+    }
 
+    override fun onShowDialog() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val name = etName.text.toString()
@@ -61,7 +64,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                 } else {
                     throw Exception("Unknown item: ${spnType.selectedItem}")
                 }
-                showDialog(activity!!, nextDialog.apply { setArguments(arguments) })
+                showDialog(this, nextDialog.apply { setArguments(arguments) })
             } catch (e: ToastException) { e.show() }
         }
     }
@@ -78,7 +81,7 @@ fun confirmPassword(dialog: Dialog): String {
 }
 
 
-abstract class NewWalletDialog2 : TaskLauncherDialog<Unit>() {
+abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -92,17 +95,19 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<Unit>() {
         input = etInput.text.toString()
     }
 
-    override fun doInBackground() {
+    override fun doInBackground(): String {
         val name = arguments!!.getString("name")!!
         val password = arguments!!.getString("password")!!
         onCreateWallet(name, password)
         daemonModel.loadWallet(name, password)
+        return name
     }
 
     abstract fun onCreateWallet(name: String, password: String)
 
-    override fun onPostExecute(result: Unit) {
-        dismissDialog(activity!!, NewWalletDialog1::class)
+    override fun onPostExecute(result: String) {
+        (targetFragment as NewWalletDialog1).dismiss()
+        daemonModel.commands.callAttr("select_wallet", result)
     }
 }
 
@@ -117,9 +122,9 @@ class NewWalletSeedDialog : NewWalletDialog2() {
         setupSeedDialog(this)
         if (arguments!!.getString("seed") == null) {  // Restore from seed
             bip39Panel.visibility = View.VISIBLE
-            swBip39.setOnCheckedChangeListener { _, isChecked ->
-                etDerivation.isEnabled = isChecked
-            }
+            val bip39Listener = { etDerivation.isEnabled = swBip39.isChecked }
+            swBip39.setOnCheckedChangeListener { _, _ -> bip39Listener() }
+            bip39Listener()
         }
     }
 

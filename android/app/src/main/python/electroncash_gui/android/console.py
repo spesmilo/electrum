@@ -125,24 +125,10 @@ class AndroidCommands(commands.Commands):
             wallet.start_threads(self.network)
             self.daemon.add_wallet(wallet)
 
-        self.wallet = wallet
-        self.network.trigger_callback("wallet_updated", self.wallet)
-        return wallet
-
     def close_wallet(self, name=None):
         """Close a wallet"""
         self._assert_daemon_running()
-        if not name:
-            if not self.wallet:
-                print("Wallet not loaded")  # Same wording as in commands.py.
-                return
-            path = self.wallet.storage.path
-        else:
-            path = self._wallet_path(name)
-        self.daemon.stop_wallet(path)
-        if self.wallet and (path == self.wallet.storage.path):
-            self.wallet = None
-            self.network.trigger_callback("wallet_updated", self.wallet)
+        self.daemon.stop_wallet(self._wallet_path(name))
 
     def create(self, name, password, seed=None, passphrase="", bip39_derivation=None,
                master=None, addresses=None, privkeys=None):
@@ -176,17 +162,21 @@ class AndroidCommands(commands.Commands):
 
     # BEGIN commands which only exist here.
 
+    def select_wallet(self, name):
+        if name is None:
+            self.wallet = None
+        else:
+            self.wallet = self.daemon.wallets[self._wallet_path(name)]
+        self.network.trigger_callback("wallet_updated", self.wallet)
+
     def list_wallets(self):
         """List available wallets"""
         return sorted([name for name in os.listdir(self._wallet_path())
                        if not name.endswith(storage.TMP_SUFFIX)])
 
-    def delete_wallet(self, name):
+    def delete_wallet(self, name=None):
         """Delete a wallet"""
-        path = self._wallet_path(name)
-        if self.wallet and (path == self.wallet.storage.path):
-            self.close_wallet()
-        os.remove(path)
+        os.remove(self._wallet_path(name))
 
     def unit_test(self):
         """Run all unit tests. Expect failures with functionality not present on Android,
@@ -210,9 +200,14 @@ class AndroidCommands(commands.Commands):
         util.print_stderr("[Callback] " + ", ".join(repr(x) for x in args))
 
     def _wallet_path(self, name=""):
-        wallets_dir = join(util.user_dir(), "wallets")
-        util.make_dir(wallets_dir)
-        return util.standardize_path(join(wallets_dir, name))
+        if name is None:
+            if not self.wallet:
+                raise ValueError("No wallet selected")
+            return self.wallet.storage.path
+        else:
+            wallets_dir = join(util.user_dir(), "wallets")
+            util.make_dir(wallets_dir)
+            return util.standardize_path(join(wallets_dir, name))
 
 
 all_commands = commands.known_commands.copy()
