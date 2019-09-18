@@ -290,11 +290,15 @@ def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 
 
-def relayfee(network: 'Network'=None) -> int:
-    from .simple_config import FEERATE_DEFAULT_RELAY
-    MAX_RELAY_FEE = 50000
-    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
-    return min(f, MAX_RELAY_FEE)
+def relayfee(network: 'Network' = None) -> int:
+    from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    if network and network.relay_fee is not None:
+        fee = network.relay_fee
+    else:
+        fee = FEERATE_DEFAULT_RELAY
+    fee = min(fee, FEERATE_MAX_RELAY)
+    fee = max(fee, 0)
+    return fee
 
 
 def dust_threshold(network: 'Network'=None) -> int:
