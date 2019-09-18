@@ -572,26 +572,27 @@ class Network(Logger):
             return True
         def resolve_with_dnspython(host):
             addrs = []
+            expected_dnspython_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer)
             # try IPv6
             try:
                 answers = dns.resolver.query(host, dns.rdatatype.AAAA)
                 addrs += [str(answer) for answer in answers]
-            except dns.exception.DNSException as e:
+            except expected_dnspython_errors as e:
                 pass
             except BaseException as e:
-                _logger.info(f'dnspython failed to resolve dns (AAAA) with error: {e}')
+                _logger.info(f'dnspython failed to resolve dns (AAAA) for {repr(host)} with error: {repr(e)}')
             # try IPv4
             try:
                 answers = dns.resolver.query(host, dns.rdatatype.A)
                 addrs += [str(answer) for answer in answers]
-            except dns.exception.DNSException as e:
+            except expected_dnspython_errors as e:
                 # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
                 # Simply report back failure; except if we already have some results.
                 if not addrs:
                     raise socket.gaierror(11001, 'getaddrinfo failed') from e
             except BaseException as e:
-                # Possibly internal error in dnspython :( see #4483
-                _logger.info(f'dnspython failed to resolve dns (A) with error: {e}')
+                # Possibly internal error in dnspython :( see #4483 and #5638
+                _logger.info(f'dnspython failed to resolve dns (A) for {repr(host)} with error: {repr(e)}')
             if addrs:
                 return addrs
             # Fall back to original socket.getaddrinfo to resolve dns.
