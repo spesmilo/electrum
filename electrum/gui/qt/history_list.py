@@ -52,6 +52,7 @@ from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
+    from .main_window import ElectrumWindow
 
 
 _logger = get_logger(__name__)
@@ -107,7 +108,7 @@ def get_item_key(tx_item):
 
 class HistoryModel(QAbstractItemModel, Logger):
 
-    def __init__(self, parent):
+    def __init__(self, parent: 'ElectrumWindow'):
         QAbstractItemModel.__init__(self, parent)
         Logger.__init__(self)
         self.parent = parent

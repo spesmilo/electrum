@@ -23,25 +23,32 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum.i18n import _
+from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
+
+from electrum.i18n import _
 
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
+
 class AddressHistoryModel(HistoryModel):
-    def __init__(self, parent, address):
+    def __init__(self, parent: 'ElectrumWindow', address):
         super().__init__(parent)
         self.address = address
 
     def get_domain(self):
         return [self.address]
 
+
 class AddressDialog(WindowModalDialog):
 
-    def __init__(self, parent, address):
+    def __init__(self, parent: 'ElectrumWindow', address: str):
         WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
