@@ -25,7 +25,7 @@
 
 import base64
 import hashlib
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 import ecdsa
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
@@ -83,12 +83,12 @@ def sig_string_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return ecdsa.util.sigencode_string_canonize(r, s, order)
 
 
-def point_to_ser(P, compressed=True) -> bytes:
-    if isinstance(P, tuple):
-        assert len(P) == 2, 'unexpected point: %s' % P
-        x, y = P
+def point_to_ser(point, compressed=True) -> Optional[bytes]:
+    if isinstance(point, tuple):
+        assert len(point) == 2, f'unexpected point: {point}'
+        x, y = point
     else:
-        x, y = P.x(), P.y()
+        x, y = point.x(), point.y()
     if x is None or y is None:  # infinity
         return None
     if compressed:
@@ -96,7 +96,7 @@ def point_to_ser(P, compressed=True) -> bytes:
     return bfh('04'+('%064x' % x)+('%064x' % y))
 
 
-def get_y_coord_from_x(x: int, odd: bool=True) -> int:
+def get_y_coord_from_x(x: int, *, odd: bool) -> int:
     curve = curve_secp256k1
     _p = curve.p()
     _a = curve.a()
@@ -117,7 +117,8 @@ def ser_to_point(ser: bytes) -> Tuple[int, int]:
     if ser[0] == 0x04:
         return string_to_number(ser[1:33]), string_to_number(ser[33:])
     x = string_to_number(ser[1:])
-    return x, get_y_coord_from_x(x, ser[0] == 0x03)
+    odd = ser[0] == 0x03
+    return x, get_y_coord_from_x(x, odd=odd)
 
 
 def _ser_to_python_ecdsa_point(ser: bytes) -> ecdsa.ellipticcurve.Point:
@@ -182,7 +183,7 @@ class _PubkeyForPointAtInfinity:
 
 class ECPubkey(object):
 
-    def __init__(self, b: bytes):
+    def __init__(self, b: Optional[bytes]):
         if b is not None:
             assert_bytes(b)
             point = _ser_to_python_ecdsa_point(b)
@@ -434,8 +435,8 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig_string)
         return sig65
 
-    def decrypt_message(self, encrypted: Tuple[str, bytes], magic: bytes=b'BIE1') -> bytes:
-        encrypted = base64.b64decode(encrypted)
+    def decrypt_message(self, encrypted: Union[str, bytes], magic: bytes=b'BIE1') -> bytes:
+        encrypted = base64.b64decode(encrypted)  # type: bytes
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
         magic_found = encrypted[:4]
@@ -446,7 +447,7 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid ciphertext: invalid magic bytes')
         try:
             ecdsa_point = _ser_to_python_ecdsa_point(ephemeral_pubkey_bytes)
-        except AssertionError as e:
+        except InvalidECPointException as e:
             raise Exception('invalid ciphertext: invalid ephemeral pubkey') from e
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ecdsa_point.x(), ecdsa_point.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
