@@ -497,6 +497,7 @@ class LNWallet(LNWorker):
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
                 'timestamp': funding_timestamp,
+                'fee_msat': None,
             }
             out.append(item)
             if not chan.is_closed():
@@ -509,6 +510,7 @@ class LNWallet(LNWorker):
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
                 'timestamp': closing_timestamp,
+                'fee_msat': None,
             }
             out.append(item)
         # sort by timestamp
@@ -820,9 +822,7 @@ class LNWallet(LNWorker):
     async def _pay(self, invoice, amount_sat=None, attempts=1):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         key = bh2u(addr.paymenthash)
-        status = self.get_invoice_status(key)
-        if status == PR_PAID:
-            # fixme: use lightning_preimaages, because invoices are not permanently stored
+        if key in self.preimages:
             raise PaymentFailure(_("This invoice has been paid already"))
         self._check_invoice(invoice, amount_sat)
         self.save_invoice(addr.paymenthash, invoice, SENT, PR_INFLIGHT)
