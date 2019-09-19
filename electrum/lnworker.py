@@ -317,6 +317,8 @@ class LNWallet(LNWorker):
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
+
+        # note: accessing channels (besides simple lookup) needs self.lock!
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
@@ -331,7 +333,9 @@ class LNWallet(LNWorker):
         watchtower = self.network.local_watchtower
         if watchtower:
             while True:
-                for chan in self.channels.values():
+                with self.lock:
+                    channels = list(self.channels.values())
+                for chan in channels:
                     await self.sync_channel_with_watchtower(chan, watchtower.sweepstore)
                 await asyncio.sleep(5)
 
@@ -345,16 +349,19 @@ class LNWallet(LNWorker):
                 r = await super().request(*args, **kwargs)
                 return r.data.result
         while True:
-            watchtower_url = self.config.get('watchtower_url')
-            if watchtower_url:
-                try:
-                    async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-                        watchtower = myAiohttpClient(session, watchtower_url)
-                        for chan in self.channels.values():
-                            await self.sync_channel_with_watchtower(chan, watchtower)
-                except aiohttp.client_exceptions.ClientConnectorError:
-                    self.logger.info(f'could not contact remote watchtower {watchtower_url}')
             await asyncio.sleep(5)
+            watchtower_url = self.config.get('watchtower_url')
+            if not watchtower_url:
+                continue
+            with self.lock:
+                channels = list(self.channels.values())
+            try:
+                async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
+                    watchtower = myAiohttpClient(session, watchtower_url)
+                    for chan in channels:
+                        await self.sync_channel_with_watchtower(chan, watchtower)
+            except aiohttp.client_exceptions.ClientConnectorError:
+                self.logger.info(f'could not contact remote watchtower {watchtower_url}')
 
     async def sync_channel_with_watchtower(self, chan: Channel, watchtower):
         outpoint = chan.funding_outpoint.to_str()
@@ -416,7 +423,9 @@ class LNWallet(LNWorker):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
         out = defaultdict(list)
-        for chan in self.channels.values():
+        with self.lock:
+            channels = list(self.channels.values())
+        for chan in channels:
             d = chan.get_payments()
             for k, v in d.items():
                 out[k].append(v)
@@ -484,7 +493,9 @@ class LNWallet(LNWorker):
             }
             out.append(item)
         # add funding events
-        for chan in self.channels.values():
+        with self.lock:
+            channels = list(self.channels.values())
+        for chan in channels:
             item = self.channel_timestamps.get(chan.channel_id.hex())
             if item is None:
                 continue
@@ -1129,7 +1140,8 @@ class LNWallet(LNWorker):
         # TODO: assert that closing tx is deep-mined and htlcs are swept
         chan = self.channels[chan_id]
         assert chan.is_closed()
-        self.channels.pop(chan_id)
+        with self.lock:
+            self.channels.pop(chan_id)
         self.save_channels()
         self.network.trigger_callback('channels', self.wallet)
         self.network.trigger_callback('wallet_updated', self.wallet)
