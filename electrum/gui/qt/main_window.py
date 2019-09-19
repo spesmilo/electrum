@@ -1686,7 +1686,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif status == 'progress':
             print('on_payment_status', key, status, args)
         elif status == 'failure':
-            self.show_info(_('Payment failed'))
+            self.show_error(_('Payment failed'))
         elif status == 'error':
             e = args[0]
             self.show_error(_('Error') + '\n' + str(e))
