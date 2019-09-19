@@ -29,7 +29,7 @@ from .transaction import Transaction
 from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .util import ignore_exceptions
+from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
@@ -356,7 +356,7 @@ class LNWallet(LNWorker):
             with self.lock:
                 channels = list(self.channels.values())
             try:
-                async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
+                async with make_aiohttp_session(proxy=self.network.proxy) as session:
                     watchtower = myAiohttpClient(session, watchtower_url)
                     for chan in channels:
                         await self.sync_channel_with_watchtower(chan, watchtower)
