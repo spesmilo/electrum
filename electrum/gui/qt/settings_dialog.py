@@ -518,10 +518,10 @@ open. For this to work, your computer needs to be online regularly.""")
 
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
+        fiat_widgets.append((QLabel(_('Source')), ex_combo))
         fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
         fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
-        fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
         tabs_info = [
             (gui_widgets, _('General')),
@@ -534,8 +534,8 @@ open. For this to work, your computer needs to be online regularly.""")
         ]
         for widgets, name in tabs_info:
             tab = QWidget()
-            grid = QGridLayout(tab)
-            grid.setColumnStretch(0,1)
+            tab_vbox = QVBoxLayout(tab)
+            grid = QGridLayout()
             for a,b in widgets:
                 i = grid.rowCount()
                 if b:
@@ -544,6 +544,8 @@ open. For this to work, your computer needs to be online regularly.""")
                     grid.addWidget(b, i, 1)
                 else:
                     grid.addWidget(a, i, 0, 1, 2)
+            tab_vbox.addLayout(grid)
+            tab_vbox.addStretch(1)
             tabs.addTab(tab, name)
 
         vbox.addWidget(tabs)
