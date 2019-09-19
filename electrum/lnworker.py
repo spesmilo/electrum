@@ -822,9 +822,7 @@ class LNWallet(LNWorker):
     async def _pay(self, invoice, amount_sat=None, attempts=1):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         key = bh2u(addr.paymenthash)
-        status = self.get_invoice_status(key)
-        if status == PR_PAID:
-            # fixme: use lightning_preimaages, because invoices are not permanently stored
+        if key in self.preimages:
             raise PaymentFailure(_("This invoice has been paid already"))
         self._check_invoice(invoice, amount_sat)
         self.save_invoice(addr.paymenthash, invoice, SENT, PR_INFLIGHT)
