@@ -497,6 +497,7 @@ class LNWallet(LNWorker):
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
                 'timestamp': funding_timestamp,
+                'fee_msat': None,
             }
             out.append(item)
             if not chan.is_closed():
@@ -509,6 +510,7 @@ class LNWallet(LNWorker):
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
                 'timestamp': closing_timestamp,
+                'fee_msat': None,
             }
             out.append(item)
         # sort by timestamp
