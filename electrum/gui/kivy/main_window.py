@@ -428,14 +428,11 @@ class ElectrumWindow(App):
 
     def show_request(self, is_lightning, key):
         from .uix.dialogs.request_dialog import RequestDialog
-        if is_lightning:
-            request, direction, is_paid = self.wallet.lnworker.invoices.get(key) or (None, None, None)
-            status = self.wallet.lnworker.get_invoice_status(key)
-        else:
-            request = self.wallet.get_request_URI(key)
-            status, conf = self.wallet.get_request_status(key)
-        self.request_popup = RequestDialog('Request', request, key)
-        self.request_popup.set_status(status)
+        request = self.wallet.get_request(key)
+        status = request['status']
+        data = request['invoice'] if is_lightning else request['URI']
+        self.request_popup = RequestDialog('Request', data, key)
+        self.request_popup.set_status(request['status'])
         self.request_popup.open()
 
     def show_invoice(self, is_lightning, key):
@@ -444,10 +441,7 @@ class ElectrumWindow(App):
         if not invoice:
             return
         status = invoice['status']
-        if is_lightning:
-            data = invoice['invoice']
-        else:
-            data = key
+        data = invoice['invoice'] if is_lightning else key
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
         self.invoice_popup.open()
 

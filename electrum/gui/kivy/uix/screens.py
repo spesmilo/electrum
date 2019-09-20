@@ -304,12 +304,7 @@ class SendScreen(CScreen):
             return
         message = self.screen.message
         if self.screen.is_lightning:
-            return {
-                'type': PR_TYPE_LN,
-                'invoice': address,
-                'amount': amount,
-                'message': message,
-            }
+            return self.app.wallet.lnworker.parse_bech32_invoice(address)
         else:
             if not bitcoin.is_address(address):
                 self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)

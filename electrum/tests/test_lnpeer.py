@@ -21,6 +21,7 @@ from electrum.channel_db import ChannelDB
 from electrum.lnworker import LNWallet
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler
+from electrum.lnworker import InvoiceInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
 from . import SequentialTestCase
@@ -80,6 +81,7 @@ class MockWallet:
         pass
 
 class MockLNWallet:
+    storage = MockStorage()
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
         self.chan = chan
         self.remote_keypair = remote_keypair
@@ -87,7 +89,6 @@ class MockLNWallet:
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
         self.invoices = {}
-        self.preimages = {}
         self.inflight = {}
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
@@ -122,7 +123,11 @@ class MockLNWallet:
     def save_invoice(*args, is_paid=False):
         pass
 
-    get_invoice = LNWallet.get_invoice
+    preimages = {}
+    get_invoice_info = LNWallet.get_invoice_info
+    save_invoice_info = LNWallet.save_invoice_info
+    set_invoice_status = LNWallet.set_invoice_status
+    save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
@@ -207,19 +212,20 @@ class TestPeer(SequentialTestCase):
     @staticmethod
     def prepare_invoice(w2 # receiver
             ):
-        amount_btc = 100000/Decimal(COIN)
+        amount_sat = 100000
+        amount_btc = amount_sat/Decimal(COIN)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        addr = LnAddr(
+        info = InvoiceInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
+        w2.save_preimage(RHASH, payment_preimage)
+        w2.save_invoice_info(info)
+        lnaddr = LnAddr(
                     RHASH,
                     amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee')
                          ])
-        pay_req = lnencode(addr, w2.node_keypair.privkey)
-        w2.preimages[bh2u(RHASH)] = bh2u(payment_preimage)
-        w2.invoices[bh2u(RHASH)] = (pay_req, True, False)
-        return pay_req
+        return lnencode(lnaddr, w2.node_keypair.privkey)
 
     def test_payment(self):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()

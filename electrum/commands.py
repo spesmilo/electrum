@@ -716,7 +716,7 @@ class Commands:
     def _format_request(self, out):
         from .util import get_request_status
         out['amount_BTC'] = format_satoshis(out.get('amount'))
-        out['status'] = get_request_status(out)
+        out['status_str'] = get_request_status(out)
         return out
 
     @command('w')
@@ -733,7 +733,7 @@ class Commands:
     #    pass
 
     @command('w')
-    async def listrequests(self, pending=False, expired=False, paid=False, wallet: Abstract_Wallet = None):
+    async def list_requests(self, pending=False, expired=False, paid=False, wallet: Abstract_Wallet = None):
         """List the payment requests you made."""
         out = wallet.get_sorted_requests()
         if pending:
@@ -760,7 +760,7 @@ class Commands:
         return wallet.get_unused_address()
 
     @command('w')
-    async def addrequest(self, amount, memo='', expiration=None, force=False, wallet: Abstract_Wallet = None):
+    async def add_request(self, amount, memo='', expiration=3600, force=False, wallet: Abstract_Wallet = None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
@@ -776,6 +776,12 @@ class Commands:
         wallet.add_payment_request(req)
         out = wallet.get_request(addr)
         return self._format_request(out)
+
+    @command('wn')
+    async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
+        amount_sat = int(satoshis(amount))
+        key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
+        return wallet.get_request(key)['invoice']
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
@@ -894,13 +900,6 @@ class Commands:
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
         return await wallet.lnworker._pay(invoice, attempts=attempts)
 
-    @command('wn')
-    async def addinvoice(self, requested_amount, message, expiration=3600, wallet: Abstract_Wallet = None):
-        # using requested_amount because it is documented in param_descriptions
-        payment_hash = await wallet.lnworker._add_invoice_coro(satoshis(requested_amount), message, expiration)
-        invoice, direction, is_paid = wallet.lnworker.invoices[bh2u(payment_hash)]
-        return invoice
-
     @command('w')
     async def nodeid(self, wallet: Abstract_Wallet = None):
         listen_addr = self.config.get('lightning_listen')
@@ -925,21 +924,8 @@ class Commands:
         self.network.path_finder.blacklist.clear()
 
     @command('w')
-    async def lightning_invoices(self, wallet: Abstract_Wallet = None):
-        from .util import pr_tooltips
-        out = []
-        for payment_hash, (preimage, invoice, is_received, timestamp) in wallet.lnworker.invoices.items():
-            status = wallet.lnworker.get_invoice_status(payment_hash)
-            item = {
-                'date':timestamp_to_datetime(timestamp),
-                'direction': 'received' if is_received else 'sent',
-                'payment_hash':payment_hash,
-                'invoice':invoice,
-                'preimage':preimage,
-                'status':pr_tooltips[status]
-            }
-            out.append(item)
-        return out
+    async def list_invoices(self, wallet: Abstract_Wallet = None):
+        return wallet.get_invoices()
 
     @command('w')
     async def lightning_history(self, wallet: Abstract_Wallet = None):

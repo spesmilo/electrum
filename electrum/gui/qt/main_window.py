@@ -1073,8 +1073,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', 3600)
         if is_lightning:
-            payment_hash = self.wallet.lnworker.add_invoice(amount, message, expiry)
-            key = bh2u(payment_hash)
+            key = self.wallet.lnworker.add_request(amount, message, expiry)
         else:
             key = self.create_bitcoin_request(amount, message, expiry)
             self.address_list.update()
@@ -1698,12 +1697,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         message = self.message_e.text()
         amount = self.amount_e.get_amount()
         if not self.is_onchain:
-            return {
-                'type': PR_TYPE_LN,
-                'invoice': self.payto_e.lightning_invoice,
-                'amount': amount,
-                'message': message,
-            }
+            return self.wallet.lnworker.parse_bech32_invoice(self.payto_e.lightning_invoice)
         else:
             outputs = self.read_outputs()
             if self.check_send_tab_outputs_and_show_errors(outputs):
@@ -1733,7 +1727,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_pay_invoice(self, invoice, preview=False):
         if invoice['type'] == PR_TYPE_LN:
-            self.pay_lightning_invoice(self.payto_e.lightning_invoice)
+            self.pay_lightning_invoice(invoice['invoice'])
             return
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             message = invoice['message']
