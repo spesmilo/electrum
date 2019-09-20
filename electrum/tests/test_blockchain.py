@@ -338,9 +338,13 @@ class TestBlockchain(ElectrumTestCase):
             forkpoint_hash=constants.net.GENESIS, prev_hash=None)
         open(chain_u.path(), 'w+').close()
 
-        chain_u.get_chainwork(constants.net.max_checkpoint())
-        with self.assertRaises(MissingHeader):
-            chain_u.get_chainwork(constants.net.max_checkpoint() + 4032)
+        # Try a variety of checkpoint heights relative to the chunk boundary
+        for height_offset in range(2016):
+            constants.net.VERIFICATION_BLOCK_HEIGHT+=1
+
+            chain_u.get_chainwork(constants.net.max_checkpoint())
+            with self.assertRaises(MissingHeader):
+                chain_u.get_chainwork(constants.net.max_checkpoint() + 4032)
 
 
 class TestVerifyHeader(ElectrumTestCase):
