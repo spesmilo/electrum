@@ -43,6 +43,24 @@ def ngettext(singular: str, plural: str, n: int) -> str:
     global language
     return language.ngettext(singular, plural, n)
 
+def pgettext(context: str, message: str) -> str:
+    """
+    Hack for adding a context to Python gettext.
+
+    Python 3.8 will add native support for pgettext and npgettext, until then we use this hack.
+    """
+    global language
+    formatted = f"{context}\x04{message}"
+    translated = language.gettext(formatted)
+    return message if '\x04' in translated else translated
+
+def npgettext(context: str, singular: str, plural: str, n: int) -> str:
+    global language
+    formatted_singular = f"{context}\x04{singular}"
+    formatted_plural = f"{context}\x04{plural}"
+    translated = language.ngettext(formatted_singular, formatted_plural, n)
+    return message if '\x04' in translated else translated
+
 def set_language(x):
     global language
 
