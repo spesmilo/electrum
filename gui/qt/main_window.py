@@ -42,7 +42,7 @@ from electroncash.address import Address, ScriptOutput
 from electroncash.bitcoin import COIN, TYPE_ADDRESS, TYPE_SCRIPT
 from electroncash import networks
 from electroncash.plugins import run_hook
-from electroncash.i18n import _, ngettext
+from electroncash.i18n import _, ngettext, pgettext
 from electroncash.util import (format_time, format_satoshis, PrintError,
                                format_satoshis_plain, NotEnoughFunds,
                                ExcessiveFee, UserCancelled, InvalidPassword,
@@ -1068,7 +1068,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     f = slf.font(); f.setItalic(False); f.setPointSize(slf.font_default_size); slf.setFont(f)
                     slf.setText(info.emoji + "  " + self.wallet.cashacct.fmt_info(info, minimal_chash=minimal_chash))
                 else:
-                    slf.setText(_("None"))
+                    slf.setText(pgettext("Referencing CashAccount", "None"))
                     f = slf.font(); f.setItalic(True); f.setPointSize(slf.font_default_size-1); slf.setFont(f)
                     slf.ca_copy_b.setDisabled(True)
                 slf.info = info
@@ -4439,7 +4439,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not self.fx: return
             currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
             ccy_combo.clear()
-            ccy_combo.addItems([_('None')] + currencies)
+            ccy_combo.addItems([pgettext('Referencing Fiat currency', 'None')] + currencies)
             if self.fx.is_enabled():
                 ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
 

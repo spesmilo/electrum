@@ -9,7 +9,7 @@ from . import gui
 from . import addrconv
 from . import amountedit
 from electroncash.util import timestamp_to_datetime, base_units, base_unit_labels
-from electroncash.i18n import _, language
+from electroncash.i18n import _, language, pgettext
 import time
 import html
 from .uikit_bindings import *
@@ -107,7 +107,7 @@ class PrefsVC(UITableViewController):
     @objc_method
     def updateCurrencies(self):
         parent = gui.ElectrumGui.gui
-        self.currencies = [_('None')]
+        self.currencies = [pgettext('Referencing Fiat currency', 'None')]
         if not parent.daemon or not parent.daemon.fx: return
         currencies = [self.currencies[0],*sorted(parent.daemon.fx.get_currencies(parent.daemon.fx.get_history_config()))]
         special = [ 'USD', 'EUR', 'GBP', 'CAD', 'AUD' ]
@@ -366,7 +366,7 @@ class PrefsVC(UITableViewController):
                 if b is not None:
                     b.tag = TAG_FIAT_CURRENCY
                     b.enabled = True
-                    curr = fx.get_currency() if fx and fx.is_enabled() else _('None')
+                    curr = fx.get_currency() if fx and fx.is_enabled() else pgettext('Referencing Fiat currency', 'None')
                     b.setTitle_forState_(curr, UIControlStateNormal)
                     if b.allTargets.count <= 0:
                         b.addTarget_action_forControlEvents_(self, SEL(b'onFiatCurrencyBut:'), UIControlEventPrimaryActionTriggered)
@@ -395,7 +395,7 @@ class PrefsVC(UITableViewController):
                 l.text = _('Source')
                 if b is not None:
                     b.tag = TAG_FIAT_EXCHANGE
-                    b.setTitle_forState_(_("None"), UIControlStateNormal)
+                    b.setTitle_forState_(pgettext('Referencing Fiat rate source', 'None'), UIControlStateNormal)
                     self.setFiatExchangeButtonText_(b)
                     if b.allTargets.count <= 0:
                         b.addTarget_action_forControlEvents_(self, SEL(b'onFiatExchangeBut:'), UIControlEventPrimaryActionTriggered)
@@ -409,7 +409,7 @@ class PrefsVC(UITableViewController):
         ex = fx.config_exchange() if fx else None
         ex = ex if ex in self.exchanges else None
         if ex is None:
-            ex = _("None")
+            ex = pgettext('Referencing Fiat rate source', 'None')
             if self.normalButtonColor is None: self.normalButtonColor = b.titleColorForState_(UIControlStateNormal)
             b.setTitleColor_forState_(self.warnButtonColor,UIControlStateNormal)
         elif self.normalButtonColor is not None:

@@ -30,7 +30,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
-from electroncash.i18n import _
+from electroncash.i18n import _, pgettext
 from electroncash import networks
 from electroncash.util import print_error, Weak, PrintError
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
@@ -521,7 +521,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.autoconnect_cb.setChecked(auto_connect)
         self.preferred_only_cb.setChecked(preferred_only)
 
-        host = self.network.interface.host if self.network.interface else _('None')
+        host = self.network.interface.host if self.network.interface else pgettext('Referencing server', 'None')
         self.server_label.setText(host)
 
         self.set_protocol(protocol)
