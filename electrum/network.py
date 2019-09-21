@@ -291,10 +291,13 @@ class Network(Logger):
         self.interface = None  # type: Interface
         # set of servers we have an ongoing connection with
         self.interfaces = {}  # type: Dict[str, Interface]
+        self.interfaces_clean = {}  # type: Dict[str, Interface]
         self.interfaces_for_stream_ids = {}  # type: Dict[str, InterfaceSecondary]
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
+        self.connecting_clean = set()
         self.server_queue = None
+        self.server_queue_clean = None
         self.proxy = None
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
@@ -498,7 +501,13 @@ class Network(Logger):
         with self.interfaces_lock:
             return list(self.interfaces)
 
-    async def get_interface_for_stream_id(self, stream_id) -> Interface:
+    def get_interfaces_clean(self) -> List[str]:
+        """The list of servers for connected interfaces that are ready for
+        future use by stream-isolated operations."""
+        with self.interfaces_lock:
+            return list(self.interfaces_clean)
+
+    def get_interface_for_stream_id(self, stream_id) -> Optional[Interface]:
         """If a proxy is enabled, returns an Interface using a TCP connection
         that is guaranteed to be unique per stream_id.  Otherwise, just returns
         the main Interface.  Useful for improved privacy with Tor stream
@@ -519,15 +528,16 @@ class Network(Logger):
             with self.interfaces_lock:
                 interface = self.interfaces_for_stream_ids[stream_id]
         except KeyError:
-            # Otherwise, create a new interface with a randomly selected
-            # server.  If, for some reason, the interface connection fails,
-            # keep trying with random servers until we get a connection.
-            interface = None
-            while interface is None:
-                server = pick_random_server(self.get_servers())
-                interface = await self._run_new_interface_for_stream_id(server)
+            # An interface doesn't exist for this stream ID, so pick an
+            # interface from the clean pool.
             with self.interfaces_lock:
+                ready_servers = [server for server in self.interfaces_clean if self.interfaces_clean[server].ready.done()]
+                if len(ready_servers) == 0:
+                    return None
+                server = random.choice(ready_servers)
+                interface = self.interfaces_clean[server]
                 self.interfaces_for_stream_ids[stream_id] = interface
+                del self.interfaces_clean[server]
 
         return interface
 
@@ -566,12 +576,25 @@ class Network(Logger):
             self.connecting.add(server)
             self.server_queue.put(server)
 
+    def _start_interface_clean(self, server: str):
+        if server not in self.interfaces_clean and server not in self.connecting_clean:
+            self.connecting_clean.add(server)
+            self.server_queue_clean.put(server)
+
     def _start_random_interface(self):
         with self.interfaces_lock:
             exclude_set = self.disconnected_servers | set(self.interfaces) | self.connecting
         server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self._start_interface(server)
+        return server
+
+    def _start_random_interface_clean(self):
+        with self.interfaces_lock:
+            exclude_set = self.disconnected_servers_clean | set(self.interfaces_clean) | self.connecting_clean
+        server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
+        if server:
+            self._start_interface_clean(server)
         return server
 
     def _set_proxy(self, proxy: Optional[dict]):
@@ -769,12 +792,17 @@ class Network(Logger):
     async def _close_interface(self, interface):
         if interface:
             if isinstance(interface, InterfaceSecondary):
-                # If it's a secondary interface, then remove it for the stream
-                # ID that it's associated with.
-                stream_ids = list(self.interfaces_for_stream_ids)
-                for stream_id in stream_ids:
-                    if self.interfaces_for_stream_ids[stream_id] == interface:
-                        self.interfaces_for_stream_ids.pop(stream_id)
+                with self.interfaces_lock:
+                    # If it's a dirty secondary interface, then remove it for
+                    # the stream ID that it's associated with.
+                    stream_ids = list(self.interfaces_for_stream_ids)
+                    for stream_id in stream_ids:
+                        if self.interfaces_for_stream_ids[stream_id] == interface:
+                            self.interfaces_for_stream_ids.pop(stream_id)
+                    # If it's a clean secondary interface, then remove it from
+                    # the clean interface pool.
+                    if self.interfaces_clean.get(interface.server) == interface:
+                        self.interfaces_clean.pop(interface.server)
             else:
                 with self.interfaces_lock:
                     if self.interfaces.get(interface.server) == interface:
@@ -796,11 +824,16 @@ class Network(Logger):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
         if not interface: return
-        if not isinstance(interface, InterfaceSecondary):
-            server = interface.server
+
+        server = interface.server
+        if isinstance(interface, InterfaceSecondary):
+            if interface in self.interfaces_clean.values():
+                self.disconnected_servers_clean.add(server)
+        else:
             self.disconnected_servers.add(server)
             if server == self.default_server:
                 self._set_status('disconnected')
+
         await self._close_interface(interface)
         self.trigger_callback('network_updated')
 
@@ -839,23 +872,28 @@ class Network(Logger):
 
     @ignore_exceptions  # do not kill main_taskgroup
     @log_exceptions
-    async def _run_new_interface_for_stream_id(self, server):
+    async def _run_new_interface_clean(self, server):
         interface = InterfaceSecondary(self, server, self.proxy)
         # note: using longer timeouts here as DNS can sometimes be slow!
         timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
-            self.logger.info(f"couldn't launch iface {server} -- {repr(e)}")
+            self.logger.info(f"couldn't launch secondary iface {server} -- {repr(e)}")
             await interface.close()
-            return None
+            return
+        else:
+            with self.interfaces_lock:
+                assert server not in self.interfaces_clean
+                self.interfaces_clean[server] = interface
+        finally:
+            try: self.connecting_clean.remove(server)
+            except KeyError: pass
 
         self._add_recent_server(server)
         self.trigger_callback('network_updated')
 
-        return interface
-
-    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
+    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check, check_clean_pool=False) -> bool:
         # main interface is exempt. this makes switching servers easier
         if iface_to_check.is_main_server():
             return True
@@ -863,7 +901,10 @@ class Network(Logger):
             return True
         # bucket connected interfaces
         with self.interfaces_lock:
-            interfaces = list(self.interfaces.values())
+            if not check_clean_pool:
+                interfaces = list(self.interfaces.values())
+            else:
+                interfaces = list(self.interfaces_clean.values())
         if iface_to_check in interfaces:
             interfaces.remove(iface_to_check)
         buckets = defaultdict(list)
@@ -1121,7 +1162,9 @@ class Network(Logger):
     async def get_history_for_scripthash(self, sh: str, stream_id=None) -> List[dict]:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")
-        interface = await self.get_interface_for_stream_id(stream_id)
+        interface = self.get_interface_for_stream_id(stream_id)
+        if interface is None:
+            raise Exception("No clean interface is ready")
         return await interface.session.send_request('blockchain.scripthash.get_history', [sh])
 
     @best_effort_reliable
@@ -1211,11 +1254,13 @@ class Network(Logger):
         assert not self.main_taskgroup
         self.main_taskgroup = main_taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
-        assert not self.connecting and not self.server_queue
+        assert not self.connecting and not self.connecting_clean and not self.server_queue and not self.server_queue_clean
         self.logger.info('starting network')
         self.disconnected_servers = set([])
+        self.disconnected_servers_clean = set([])
         self.protocol = deserialize_server(self.default_server)[2]
         self.server_queue = queue.Queue()
+        self.server_queue_clean = queue.Queue()
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
         self._set_oneserver(self.config.get('oneserver', False))
         self._start_interface(self.default_server)
@@ -1257,7 +1302,9 @@ class Network(Logger):
         self.interfaces = {}  # type: Dict[str, Interface]
         self.interfaces_for_stream_ids = {}  # type: Dict[str, Interface]
         self.connecting.clear()
+        self.connecting_clean.clear()
         self.server_queue = None
+        self.server_queue_clean = None
         if not full_shutdown:
             self.trigger_callback('network_updated')
 
@@ -1289,14 +1336,23 @@ class Network(Logger):
             while self.server_queue.qsize() > 0:
                 server = self.server_queue.get()
                 await self.main_taskgroup.spawn(self._run_new_interface(server))
+            if self.proxy is not None:
+                while self.server_queue_clean.qsize() > 0:
+                    server = self.server_queue_clean.get()
+                    await self.main_taskgroup.spawn(self._run_new_interface_clean(server))
         async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
                 # FIXME this should try to honour "healthy spread of connected servers"
                 self._start_random_interface()
+            if self.proxy is not None:
+                for i in range(self.num_server - len(self.interfaces_clean) - len(self.connecting_clean)):
+                    # FIXME this should try to honour "healthy spread of connected servers"
+                    self._start_random_interface_clean()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.logger.info('network: retrying connections')
                 self.disconnected_servers = set([])
+                self.disconnected_servers_clean = set([])
                 self.nodes_retry_time = now
         async def maintain_healthy_spread_of_connected_servers():
             with self.interfaces_lock: interfaces = list(self.interfaces.values())
@@ -1306,6 +1362,14 @@ class Network(Logger):
                     self.logger.info(f"disconnecting from {iface.server}. too many connected "
                                      f"servers already in bucket {iface.bucket_based_on_ipaddress()}")
                     await self._close_interface(iface)
+            if self.proxy is not None:
+                with self.interfaces_lock: interfaces = list(self.interfaces_clean.values())
+                random.shuffle(interfaces)
+                for iface in interfaces:
+                    if not self.check_interface_against_healthy_spread_of_connected_servers(iface, check_clean_pool=True):
+                        self.logger.info(f"disconnecting from secondary {iface.server}. too many connected "
+                                        f"servers already in bucket {iface.bucket_based_on_ipaddress()}")
+                        await self._close_interface(iface)
         async def maintain_main_interface():
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
