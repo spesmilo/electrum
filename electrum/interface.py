@@ -691,6 +691,30 @@ class Interface(Logger):
         return self._ipaddr_bucket
 
 
+class InterfaceSecondary(Interface):
+    """An Interface that doesn't try to fetch blocks, and instead stays idle
+    until it's explicitly used for something."""
+
+    async def ping(self):
+        # Since InterfaceSecondary doesn't ping periodically, it will time out
+        # if the user stops using it.  That's good, since otherwise we'd
+        # accumulate a giant pile of secondary interfaces for stream ID's that
+        # aren't in use anymore.  TODO: In the future, if we decide to create
+        # secondary interfaces in advance, we might want to change this
+        # behavior so that it pings while waiting to be assigned to a stream
+        # ID, but ceases pinging once it's assigned.
+        pass
+
+    async def run_fetch_blocks(self):
+        if self.ready.cancelled():
+            raise GracefulDisconnect('conn establishment was too slow; *ready* future was cancelled')
+        if self.ready.done():
+            return
+
+        # Without this, the Interface will think the connection timed out.
+        self.ready.set_result(1)
+
+
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
     chain_bad = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
     if chain_bad:

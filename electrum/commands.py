@@ -286,12 +286,12 @@ class Commands:
         return s
 
     @command('n')
-    async def getaddresshistory(self, address):
+    async def getaddresshistory(self, address, stream_id=None):
         """Return the transaction history of any address. Note: This is a
         walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return await self.network.get_history_for_scripthash(sh)
+        return await self.network.get_history_for_scripthash(sh, stream_id=stream_id)
 
     @command('w')
     async def listunspent(self, wallet: Abstract_Wallet = None):
@@ -1025,6 +1025,7 @@ command_options = {
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
+    'stream_id':   (None, "Stream-isolate the network connection using this stream ID (only used with Tor)"),
 }
 
 
