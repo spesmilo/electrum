@@ -696,12 +696,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.parent.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        # FIXME this is currently broken.
-        hist = self.wallet.get_full_history(domain=self.hm.get_domain(),
-                                            from_timestamp=None,
-                                            to_timestamp=None,
-                                            fx=self.parent.fx,
-                                            show_fees=True)
+        hist = self.wallet.get_detailed_history(fx=self.parent.fx)
         txns = hist['transactions']
         lines = []
         if is_csv:
@@ -709,7 +704,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 lines.append([item['txid'],
                               item.get('label', ''),
                               item['confirmations'],
-                              item['value'],
+                              item['bc_value'],
                               item.get('fiat_value', ''),
                               item.get('fee', ''),
                               item.get('fiat_fee', ''),
