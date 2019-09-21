@@ -252,8 +252,12 @@ class HistoryModel(QAbstractItemModel, Logger):
         self.parent.utxo_list.update()
 
     def get_domain(self):
-        '''Overridden in address_dialog.py'''
+        """Overridden in address_dialog.py"""
         return self.parent.wallet.get_addresses()
+
+    def should_include_lightning_payments(self) -> bool:
+        """Overridden in address_dialog.py"""
+        return True
 
     @profiler
     def refresh(self, reason: str):
@@ -268,7 +272,9 @@ class HistoryModel(QAbstractItemModel, Logger):
         if fx: fx.history_used_spot = False
         wallet = self.parent.wallet
         self.set_visibility_of_columns()
-        transactions = wallet.get_full_history(self.parent.fx)
+        transactions = wallet.get_full_history(self.parent.fx,
+                                               onchain_domain=self.get_domain(),
+                                               include_lightning=self.should_include_lightning_payments())
         if transactions == list(self.transactions.values()):
             return
         old_length = len(self.transactions)
@@ -690,6 +696,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.parent.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
+        # FIXME this is currently broken.
         hist = self.wallet.get_full_history(domain=self.hm.get_domain(),
                                             from_timestamp=None,
                                             to_timestamp=None,
