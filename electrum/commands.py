@@ -528,20 +528,22 @@ class Commands:
         message = util.to_bytes(message)
         return ecc.verify_message_with_address(address, sig, message)
 
-    def _mktx(self, wallet: Abstract_Wallet, outputs, *, fee=None, feerate=None, change_addr=None, domain=None,
+    def _mktx(self, wallet: Abstract_Wallet, outputs, *, fee=None, feerate=None, change_addr=None, domain_addr=None, domain_coins=None,
               nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         if fee is not None and feerate is not None:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr, wallet)
-        domain = None if domain is None else map(self._resolver, domain)
+        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr)
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address, wallet)
             amount = satoshis(amount)
             final_outputs.append(TxOutput(TYPE_ADDRESS, address, amount))
 
-        coins = wallet.get_spendable_coins(domain)
+        coins = wallet.get_spendable_coins(domain_addr)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin['prevout_hash'] + ':' + str(coin['prevout_n']) in domain_coins)]
         if feerate is not None:
             fee_per_kb = 1000 * Decimal(feerate)
             fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
@@ -559,17 +561,19 @@ class Commands:
         return tx
 
     @command('wp')
-    async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, change_addr=None,
+    async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                     nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
-        domain = from_addr.split(',') if from_addr else None
+        domain_addr = from_addr.split(',') if from_addr else None
+        domain_coins = from_coins.split(',') if from_coins else None
         tx = self._mktx(wallet,
                         [(destination, amount)],
                         fee=tx_fee,
                         feerate=feerate,
                         change_addr=change_addr,
-                        domain=domain,
+                        domain_addr=domain_addr,
+                        domain_coins=domain_coins,
                         nocheck=nocheck,
                         unsigned=unsigned,
                         rbf=rbf,
@@ -578,17 +582,19 @@ class Commands:
         return tx.as_dict()
 
     @command('wp')
-    async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, change_addr=None,
+    async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                         nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
-        domain = from_addr.split(',') if from_addr else None
+        domain_addr = from_addr.split(',') if from_addr else None
+        domain_coins = from_coins.split(',') if from_coins else None
         tx = self._mktx(wallet,
                         outputs,
                         fee=tx_fee,
                         feerate=feerate,
                         change_addr=change_addr,
-                        domain=domain,
+                        domain_addr=domain_addr,
+                        domain_coins=domain_coins,
                         nocheck=nocheck,
                         unsigned=unsigned,
                         rbf=rbf,
@@ -998,6 +1004,7 @@ command_options = {
     'fee':         ("-f", "Transaction fee (absolute, in BTC)"),
     'feerate':     (None, "Transaction fee rate (in sat/byte)"),
     'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
+    'from_coins':  (None, "Source coins (must be in wallet; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
     'seed_type':   (None, "The type of seed to create, e.g. 'standard' or 'segwit'"),
