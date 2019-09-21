@@ -1294,6 +1294,9 @@ class Abstract_Wallet(AddressSynchronizer):
                     choice = addr
         return choice
 
+    def create_new_address(self, for_change=False):
+        raise Exception("this wallet cannot generate new addresses")
+
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
