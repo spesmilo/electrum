@@ -1,5 +1,6 @@
 import unittest
 import json
+
 from electrum import bitcoin
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
@@ -9,6 +10,9 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              ScriptHtlc, extract_nodeid, calc_onchain_fees, UpdateAddHtlc)
 from electrum.util import bh2u, bfh
 from electrum.transaction import Transaction
+
+from . import ElectrumTestCase
+
 
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'
 funding_output_index = 0
@@ -30,7 +34,8 @@ local_delayedpubkey = bytes.fromhex('03fd5960528dc152014952efdb702a88f71e3c1653b
 local_revocation_pubkey = bytes.fromhex('0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19')
 # funding wscript = 5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae
 
-class TestLNUtil(unittest.TestCase):
+
+class TestLNUtil(ElectrumTestCase):
     def test_shachain_store(self):
         tests = [
             {

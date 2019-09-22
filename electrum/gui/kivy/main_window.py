@@ -576,7 +576,7 @@ class ElectrumWindow(App):
 
     def on_wizard_complete(self, wizard, storage):
         if storage:
-            wallet = Wallet(storage)
+            wallet = Wallet(storage, config=self.electrum_config)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)

@@ -24,7 +24,7 @@ from electrum.logging import console_stderr_handler
 from electrum.lnworker import InvoiceInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
-from . import SequentialTestCase
+from . import ElectrumTestCase
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -173,7 +173,7 @@ def transport_pair(name1, name2):
     t2.other_mock_transport = t1
     return t1, t2
 
-class TestPeer(SequentialTestCase):
+class TestPeer(ElectrumTestCase):
 
     @classmethod
     def setUpClass(cls):

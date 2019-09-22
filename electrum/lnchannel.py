@@ -27,7 +27,7 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import Enum, auto
-from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence
+from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING
 import time
 
 from . import ecc
@@ -50,6 +50,9 @@ from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
+
+if TYPE_CHECKING:
+    from .lnworker import LNWallet
 
 
 class ChannelJsonEncoder(json.JSONEncoder):
@@ -110,7 +113,7 @@ class Channel(Logger):
     def __init__(self, state, *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         Logger.__init__(self)
-        self.lnworker = lnworker
+        self.lnworker = lnworker  # type: Optional[LNWallet]
         self.sweep_address = sweep_address
         assert 'local_state' not in state
         self.config = {}
