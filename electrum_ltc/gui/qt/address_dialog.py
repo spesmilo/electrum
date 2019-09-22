@@ -45,6 +45,9 @@ class AddressHistoryModel(HistoryModel):
     def get_domain(self):
         return [self.address]
 
+    def should_include_lightning_payments(self) -> bool:
+        return False
+
 
 class AddressDialog(WindowModalDialog):
 

@@ -487,7 +487,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def balance_at_timestamp(self, domain, target_timestamp):
         # we assume that get_history returns items ordered by block height
         # we also assume that block timestamps are monotonic (which is false...!)
-        h = self.get_history(domain)
+        h = self.get_history(domain=domain)
         balance = 0
         for hist_item in h:
             balance = hist_item.balance
@@ -496,8 +496,8 @@ class Abstract_Wallet(AddressSynchronizer):
         # return last balance
         return balance
 
-    def get_onchain_history(self):
-        for hist_item in self.get_history():
+    def get_onchain_history(self, *, domain=None):
+        for hist_item in self.get_history(domain=domain):
             yield {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
@@ -584,15 +584,17 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.lnworker:
             return self.lnworker.get_request(key)
 
-
     @profiler
-    def get_full_history(self, fx=None):
+    def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
         transactions = OrderedDictWithIndex()
-        onchain_history = self.get_onchain_history()
+        onchain_history = self.get_onchain_history(domain=onchain_domain)
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions[txid] = tx_item
-        lightning_history = self.lnworker.get_history() if self.lnworker else []
+        if self.lnworker and include_lightning:
+            lightning_history = self.lnworker.get_history()
+        else:
+            lightning_history = []
 
         for i, tx_item in enumerate(lightning_history):
             txid = tx_item.get('txid')
