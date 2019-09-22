@@ -1372,9 +1372,9 @@ class Abstract_Wallet(AddressSynchronizer):
             return
         self.check_if_expired(req)
         # add URL if we are running a payserver
-        if self.config.get('payserver_port'):
+        if self.config.get('run_payserver'):
             host = self.config.get('payserver_host', 'localhost')
-            port = self.config.get('payserver_port')
+            port = self.config.get('payserver_port', 8002)
             root = self.config.get('payserver_root', '/r')
             use_ssl = bool(self.config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
