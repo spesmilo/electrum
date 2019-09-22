@@ -79,7 +79,7 @@ class SettingsDialog(WindowModalDialog):
         fee_widgets = []
         tx_widgets = []
         oa_widgets = []
-        server_widgets = []
+        services_widgets = []
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -183,20 +183,6 @@ your wallet file after every channel creation.""")
         lightning_cb.stateChanged.connect(on_lightning_checked)
         lightning_widgets.append((lightning_cb, None))
 
-        help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
-        that is always connected to the internet. Your watchtower will be private. Configure 'watchtower_host'
-and 'watchtower_port' in your config if you want it to be public.""")
-        local_wt_cb = QCheckBox(_("Run a local watchtower"))
-        local_wt_cb.setToolTip(help_local_wt)
-        local_wt_cb.setChecked(bool(self.config.get('local_watchtower', False)))
-        def on_local_wt_checked(x):
-            self.config.set_key('local_watchtower', bool(x))
-            self.local_wt_port_e.setEnabled(bool(x))
-        local_wt_cb.stateChanged.connect(on_local_wt_checked)
-        self.local_wt_port_e = QLineEdit(self.config.get('watchtower_port'))
-        self.local_wt_port_e.setEnabled(self.config.get('local_watchtower', False))
-        lightning_widgets.append((local_wt_cb, self.local_wt_port_e))
-
         help_persist = _("""If this option is checked, Electrum will persist as a daemon after
 you close all your wallet windows. Your local watchtower will keep
 running, and it will protect your channels even if your wallet is not
@@ -239,37 +225,59 @@ open. For this to work, your computer needs to be online regularly.""")
         self.alias_e.editingFinished.connect(self.on_alias_edit)
         oa_widgets.append((alias_label, self.alias_e))
 
-        # PayServer
+        # Services
         ssl_cert = self.config.get('ssl_certfile')
         ssl_cert_label = HelpLabel(_('SSL cert file') + ':', 'certificate file, with intermediate certificates if needed')
         self.ssl_cert_e = QPushButton(ssl_cert)
         self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
-        server_widgets.append((ssl_cert_label, self.ssl_cert_e))
+        services_widgets.append((ssl_cert_label, self.ssl_cert_e))
 
         ssl_privkey = self.config.get('ssl_keyfile')
         ssl_privkey_label = HelpLabel(_('SSL key file') + ':', '')
         self.ssl_privkey_e = QPushButton(ssl_privkey)
         self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
-        server_widgets.append((ssl_privkey_label, self.ssl_privkey_e))
+        services_widgets.append((ssl_privkey_label, self.ssl_privkey_e))
 
         ssl_domain_label = HelpLabel(_('SSL domain') + ':', '')
         self.ssl_domain_e = QLineEdit('')
         self.ssl_domain_e.setReadOnly(True)
-        server_widgets.append((ssl_domain_label, self.ssl_domain_e))
+        services_widgets.append((ssl_domain_label, self.ssl_domain_e))
 
         self.check_ssl_config()
 
-        payserver_host = self.config.get('payserver_host', 'localhost')
-        payserver_host_label = HelpLabel(_('Hostname') + ':', 'must match your ssl domain')
-        self.payserver_host_e = QLineEdit(payserver_host)
-        self.payserver_host_e.editingFinished.connect(self.on_payserver_host)
-        server_widgets.append((payserver_host_label, self.payserver_host_e))
+        hostname = self.config.get('services_hostname', 'localhost')
+        hostname_label = HelpLabel(_('Hostname') + ':', 'must match your SSL domain')
+        self.hostname_e = QLineEdit(hostname)
+        self.hostname_e.editingFinished.connect(self.on_hostname)
+        services_widgets.append((hostname_label, self.hostname_e))
 
-        payserver_port = self.config.get('payserver_port', '')
-        payserver_port_label = HelpLabel(_('Port') + ':', msg)
+        payserver_cb = QCheckBox(_("Run PayServer"))
+        payserver_cb.setToolTip("Configure a port")
+        payserver_cb.setChecked(bool(self.config.get('run_payserver', False)))
+        def on_payserver_checked(x):
+            self.config.set_key('run_payserver', bool(x))
+            self.payserver_port_e.setEnabled(bool(x))
+        payserver_cb.stateChanged.connect(on_payserver_checked)
+        payserver_port = self.config.get('payserver_port', 8002)
         self.payserver_port_e = QLineEdit(str(payserver_port))
         self.payserver_port_e.editingFinished.connect(self.on_payserver_port)
-        server_widgets.append((payserver_port_label, self.payserver_port_e))
+        self.payserver_port_e.setEnabled(self.config.get('run_payserver', False))
+        services_widgets.append((payserver_cb, self.payserver_port_e))
+
+        help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
+        that is always connected to the internet. Configure a port if you want it to be public.""")
+        local_wt_cb = QCheckBox(_("Run Watchtower"))
+        local_wt_cb.setToolTip(help_local_wt)
+        local_wt_cb.setChecked(bool(self.config.get('run_watchtower', False)))
+        def on_local_wt_checked(x):
+            self.config.set_key('run_watchtower', bool(x))
+            self.local_wt_port_e.setEnabled(bool(x))
+        local_wt_cb.stateChanged.connect(on_local_wt_checked)
+        watchtower_port = self.config.get('watchtower_port', '')
+        self.local_wt_port_e = QLineEdit(str(watchtower_port))
+        self.local_wt_port_e.setEnabled(self.config.get('run_watchtower', False))
+        self.local_wt_port_e.editingFinished.connect(self.on_watchtower_port)
+        services_widgets.append((local_wt_cb, self.local_wt_port_e))
 
         # units
         units = base_units_list
@@ -529,7 +537,7 @@ open. For this to work, your computer needs to be online regularly.""")
             (tx_widgets, _('Transactions')),
             (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
-            (server_widgets, _('PayServer')),
+            (services_widgets, _('Services')),
             (oa_widgets, _('OpenAlias')),
         ]
         for widgets, name in tabs_info:
@@ -603,10 +611,14 @@ open. For this to work, your computer needs to be online regularly.""")
         if SSL_error:
             self.ssl_domain_e.setText(SSL_error)
 
-    def on_payserver_host(self):
-        hostname = str(self.payserver_host_e.text())
-        self.config.set_key('payserver_host', hostname, True)
+    def on_hostname(self):
+        hostname = str(self.hostname_e.text())
+        self.config.set_key('services_hostname', hostname, True)
 
     def on_payserver_port(self):
         port = int(self.payserver_port_e.text())
         self.config.set_key('payserver_port', port, True)
+
+    def on_watchtower_port(self):
+        port = int(self.payserver_port_e.text())
+        self.config.set_key('watchtower_port', port, True)
