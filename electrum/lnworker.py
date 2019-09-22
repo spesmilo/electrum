@@ -312,6 +312,7 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         self.wallet = wallet
         self.storage = wallet.storage
+        self.config = wallet.config
         xprv = self.storage.get('lightning_privkey2')
         if xprv is None:
             # TODO derive this deterministically from wallet.keystore at keystore generation time
@@ -384,7 +385,6 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
 
     def start_network(self, network: 'Network'):
-        self.config = network.config
         self.lnwatcher = LNWatcher(network)
         self.lnwatcher.start_network(network)
         self.network = network

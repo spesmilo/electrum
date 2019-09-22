@@ -386,7 +386,7 @@ class Daemon(Logger):
             return
         if storage.get_action():
             return
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet
         self.wallet = wallet

@@ -211,7 +211,7 @@ async def run_offline_command(config, config_options, plugins):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=config)
         config_options['wallet'] = wallet
     else:
         wallet = None

@@ -308,7 +308,7 @@ class ElectrumGui(Logger):
         # return if wallet creation is not complete
         if storage is None or storage.get_action():
             return
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=self.config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
         return wallet

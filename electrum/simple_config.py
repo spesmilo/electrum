@@ -36,25 +36,7 @@ FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 _logger = get_logger(__name__)
 
 
-def estimate_fee(tx_size_bytes: int) -> int:
-    def use_fallback_feerate():
-        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
-        fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-        return fee
-
-    global _INSTANCE
-    if not _INSTANCE:
-        return use_fallback_feerate()
-    try:
-        return _INSTANCE.estimate_fee(tx_size_bytes)
-    except NoDynamicFeeEstimates:
-        return use_fallback_feerate()
-
 FINAL_CONFIG_VERSION = 3
-
-
-_INSTANCE = None
-_ENFORCE_SIMPLECONFIG_SINGLETON = True  # disabled in tests
 
 
 class SimpleConfig(Logger):
@@ -70,13 +52,6 @@ class SimpleConfig(Logger):
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
-        # note: To be honest, singletons are bad design... :/
-        #       However currently we somewhat rely on config being one.
-        global _INSTANCE
-        if _ENFORCE_SIMPLECONFIG_SINGLETON:
-            assert _INSTANCE is None, "SimpleConfig is a singleton!"
-        _INSTANCE = self
-
         if options is None:
             options = {}
 
@@ -121,10 +96,6 @@ class SimpleConfig(Logger):
         # config upgrade - user config
         if self.requires_upgrade():
             self.upgrade()
-
-    @staticmethod
-    def get_instance() -> Optional["SimpleConfig"]:
-        return _INSTANCE
 
     def electrum_path(self):
         # Read electrum_path from command line
@@ -549,10 +520,14 @@ class SimpleConfig(Logger):
         fee_per_kb = self.fee_per_kb()
         return fee_per_kb / 1000 if fee_per_kb is not None else None
 
-    def estimate_fee(self, size: Union[int, float, Decimal]) -> int:
+    def estimate_fee(self, size: Union[int, float, Decimal], *,
+                     allow_fallback_to_static_rates: bool = False) -> int:
         fee_per_kb = self.fee_per_kb()
         if fee_per_kb is None:
-            raise NoDynamicFeeEstimates()
+            if allow_fallback_to_static_rates:
+                fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+            else:
+                raise NoDynamicFeeEstimates()
         return self.estimate_fee_for_feerate(fee_per_kb, size)
 
     @classmethod

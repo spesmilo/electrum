@@ -33,7 +33,7 @@ class ElectrumGui:
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        self.wallet = Wallet(storage)
+        self.wallet = Wallet(storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
