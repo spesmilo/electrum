@@ -935,6 +935,20 @@ class Network(Logger):
         with b.lock:
             b.update_size()
 
+    def stream_isolated(func):
+        async def wrapper(self, *args, **kwargs):
+            if 'stream_id' in kwargs:
+                kwargs['interface'] = self.get_interface_for_stream_id(kwargs['stream_id'])
+                if kwargs['interface'] is None:
+                    raise Exception("No clean interface is ready")
+                kwargs.pop('stream_id')
+            elif 'interface' not in kwargs:
+                kwargs['interface'] = self.interface
+
+            return await func(self, *args, **kwargs)
+
+        return wrapper
+
     def best_effort_reliable(func):
         async def make_reliable_wrapper(self, *args, **kwargs):
             for i in range(10):
@@ -976,19 +990,21 @@ class Network(Logger):
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int) -> dict:
+    @stream_isolated
+    async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int, interface: Interface = None) -> dict:
         if not is_hash256_str(tx_hash):
             raise Exception(f"{repr(tx_hash)} is not a txid")
         if not is_non_negative_integer(tx_height):
             raise Exception(f"{repr(tx_height)} is not a block height")
-        return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
+        return await interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, *, timeout=None) -> None:
+    @stream_isolated
+    async def broadcast_transaction(self, tx, *, timeout=None, interface: Interface = None) -> None:
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         try:
-            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
+            out = await interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
             # note: both 'out' and exception messages are untrusted input from the server
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through
@@ -1144,47 +1160,50 @@ class Network(Logger):
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
+    @stream_isolated
+    async def request_chunk(self, height: int, tip=None, *, can_return_early=False, interface: Interface = None):
         if not is_non_negative_integer(height):
             raise Exception(f"{repr(height)} is not a block height")
-        return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
+        return await interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
+    @stream_isolated
+    async def get_transaction(self, tx_hash: str, *, timeout=None, interface: Interface = None) -> str:
         if not is_hash256_str(tx_hash):
             raise Exception(f"{repr(tx_hash)} is not a txid")
-        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash],
+        return await interface.session.send_request('blockchain.transaction.get', [tx_hash],
                                                          timeout=timeout)
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_history_for_scripthash(self, sh: str, stream_id=None) -> List[dict]:
+    @stream_isolated
+    async def get_history_for_scripthash(self, sh: str, interface: Interface = None) -> List[dict]:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")
-        interface = self.get_interface_for_stream_id(stream_id)
-        if interface is None:
-            raise Exception("No clean interface is ready")
         return await interface.session.send_request('blockchain.scripthash.get_history', [sh])
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+    @stream_isolated
+    async def listunspent_for_scripthash(self, sh: str, interface: Interface = None) -> List[dict]:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")
-        return await self.interface.session.send_request('blockchain.scripthash.listunspent', [sh])
+        return await interface.session.send_request('blockchain.scripthash.listunspent', [sh])
 
     @best_effort_reliable
     @catch_server_exceptions
-    async def get_balance_for_scripthash(self, sh: str) -> dict:
+    @stream_isolated
+    async def get_balance_for_scripthash(self, sh: str, interface: Interface = None) -> dict:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")
-        return await self.interface.session.send_request('blockchain.scripthash.get_balance', [sh])
+        return await interface.session.send_request('blockchain.scripthash.get_balance', [sh])
 
     @best_effort_reliable
-    async def get_txid_from_txpos(self, tx_height, tx_pos, merkle):
+    @stream_isolated
+    async def get_txid_from_txpos(self, tx_height, tx_pos, merkle, interface: Interface = None):
         command = 'blockchain.transaction.id_from_pos'
-        return await self.interface.session.send_request(command, [tx_height, tx_pos, merkle])
+        return await interface.session.send_request(command, [tx_height, tx_pos, merkle])
 
     def blockchain(self) -> Blockchain:
         interface = self.interface
