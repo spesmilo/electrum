@@ -105,7 +105,10 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(route[0].node_id, start_node)
         self.assertEqual(route[0].short_channel_id, bfh('0000000000000003'))
 
-
+        # need to duplicate tear_down here, as we also need to wait for the sql thread to stop
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
+        cdb.sql_thread.join(timeout=1)
 
     def test_new_onion_packet(self):
         # test vector from bolt-04

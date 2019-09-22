@@ -54,4 +54,5 @@ class SqlDB(Logger):
                     self.conn.commit()
         # write
         self.conn.commit()
+        self.conn.close()
         self.logger.info("SQL thread terminated")
