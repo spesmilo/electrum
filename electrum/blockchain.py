@@ -22,6 +22,7 @@
 # SOFTWARE.
 import os
 import threading
+import struct
 
 from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex, op_push
