@@ -83,7 +83,11 @@ def verify_header_proof(h):
 
     d = {}
     pushdata = op_push(int(len(challenge)/2))
-    parse_scriptSig(d, bytearray.fromhex(proof+pushdata+challenge))
+    try:
+        parse_scriptSig(d, bytearray.fromhex(proof+pushdata+challenge))
+    except struct.error:
+        return False
+
     rhhash = hash_header(h)
     hhash = "".join(reversed([rhhash[i:i+2] for i in range(0, len(rhhash), 2)]))
 
