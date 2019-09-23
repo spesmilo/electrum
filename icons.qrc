@@ -11,10 +11,8 @@
     <file>icons/digitalbitbox.png</file>
     <file>icons/digitalbitbox_unpaired.png</file>
     <file>icons/expired.png</file>
-    <file>icons/electrum_light_icon.png</file>
     <file>icons/electrum_dark_icon.png</file>
     <file>icons/electrumb.png</file>
-    <file>icons/eye1.png</file>
     <file>icons/file.png</file>
     <file>icons/info.png</file>
     <file>icons/keepkey.png</file>
@@ -24,8 +22,6 @@
     <file>icons/ledger_unpaired.png</file>
     <file>icons/lock.png</file>
     <file>icons/microphone.png</file>
-    <file>icons/network.png</file>
-    <file>icons/offline_tx.png</file>
     <file>icons/revealer.png</file>
     <file>icons/revealer_c.png</file>
     <file>icons/qrcode.png</file>
@@ -40,23 +36,13 @@
     <file>icons/status_waiting.png</file>
     <file>icons/status_lagging.png</file>
     <file>icons/seal.png</file>
-    <file>icons/tab_addresses.png</file>
-    <file>icons/tab_coins.png</file>
-    <file>icons/tab_console.png</file>
-    <file>icons/tab_contacts.png</file>
-    <file>icons/tab_history.png</file>
-    <file>icons/tab_receive.png</file>
-    <file>icons/tab_send.png</file>
-    <file>icons/tor_logo.png</file>
     <file>icons/speaker.png</file>
     <file>icons/trezor_unpaired.png</file>
     <file>icons/trezor.png</file>
     <file>icons/trustedcoin-status.png</file>
     <file>icons/trustedcoin-wizard.png</file>
     <file>icons/unconfirmed.png</file>
-    <file>icons/unpaid.png</file>
     <file>icons/unlock.png</file>
     <file>icons/warning.png</file>
-    <file>icons/zoom.png</file>
   </qresource>
 </RCC>

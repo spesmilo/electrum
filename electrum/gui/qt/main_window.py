@@ -579,23 +579,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('No donation address for this server'))
 
     def show_about(self):
-        QMessageBox.about(self, "CommerceBlock token wallet",
+        QMessageBox.about(self, "Ocean platform wallet",
                           (_("Version")+" %s" % self.wallet.electrum_version + "\n\n" +
-                           _("The CB walet focus is on speed and security, with low resource usage and full user control of private keys") + " " +
+                           _("The Ocean walet focus is on speed and security, with low resource usage and full user control of private keys") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are fast because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Ocean system.") + "\n\n" +
-                           _("Uses icons from the Icons8 icon pack (icons8.com).")))
+                              "servers that handle the most complicated parts of the Ocean system.")))
 
     def show_report_bug(self):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             "<a href=\"https://github.com/commerceblock/cb-client-wallet/issues\">https://github.com/commerceblock/cb-client-wallet/issues</a><br/><br/>",
-            _("Before reporting a bug, upgrade to the most recent version of CB wallet (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of the Ocean wallet (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
-        self.show_message(msg, title="CB Wallet - " + _("Reporting Bugs"))
+        self.show_message(msg, title="Ocean Wallet - " + _("Reporting Bugs"))
 
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
@@ -634,9 +633,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("CB Wallet", message, QIcon(":icons/electrum_dark_icon"), 20000)
+                self.tray.showMessage("Ocean Wallet", message, QIcon(":icons/electrum_dark_icon"), 20000)
             except TypeError:
-                self.tray.showMessage("CB Wallet", message, QSystemTrayIcon.Information, 20000)
+                self.tray.showMessage("Ocean Wallet", message, QSystemTrayIcon.Information, 20000)
 
 
 
@@ -743,14 +742,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             if not self.wallet.up_to_date or server_height == 0:
-                text = _("Synchronizing...")
+                text = _("  Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
             elif server_lag > 1:
-                text = _("Server is lagging ({} blocks)").format(server_lag)
+                text = _("  Server is lagging ({} blocks)").format(server_lag)
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u, x = self.wallet.get_balance()
-                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
+                text =  _("  Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
@@ -772,7 +771,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.network.proxy:
                 text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
             else:
-                text = _("Not connected")
+                text = _("  Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))

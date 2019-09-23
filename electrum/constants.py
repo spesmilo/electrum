@@ -44,7 +44,7 @@ class OceanMainnet:
     FIXEDFEE = 50000
     SHOWFX = False
     WALLETPATH = "dgldwallet"
-    WALLETTITLE = "DGLD Wallet"
+    WALLETTITLE = "DGLD"
     CONTRACTINTX = True
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
