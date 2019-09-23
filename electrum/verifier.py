@@ -23,6 +23,7 @@
 
 import asyncio
 from typing import Sequence, Optional, TYPE_CHECKING
+from math import ceil, log
 
 import aiorpcx
 
@@ -82,19 +83,34 @@ class SPV(NetworkJobOnDefaultServer):
             if tx_height <= 0 or tx_height > local_height:
                 continue
             # if it's in the checkpoint region, we still might not have the header
+            use_individual_header_proof = False
             header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
-                    await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
-                continue
+                    # Calculate whether a chunk download or individual header
+                    # downloads will be more bandwidth-efficient...
+                    headers_in_chunk_period = len(set([height for (_, height) in unverified.items() if height // 2016 == tx_height // 2016]))
+                    if is_chunk_cheaper(headers_in_chunk_period):
+                        self.logger.info(f'downloading full chunk for tx {tx_hash} at height {tx_height} because individual header is less efficient')
+                        await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                    else:
+                        self.logger.info(f'skipping chunk for tx {tx_hash} at height {tx_height} because individual header is more efficient')
+                        use_individual_header_proof = True
+                if not use_individual_header_proof:
+                    continue
             # request now
             self.logger.info(f'requested merkle {tx_hash}')
             self.requested_merkle.add(tx_hash)
-            await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+            await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height, use_individual_header_proof)
 
-    async def _request_and_verify_single_proof(self, tx_hash, tx_height):
+    async def _request_and_verify_single_proof(self, tx_hash, tx_height, use_individual_header_proof=False):
         try:
-            merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
+            merkle_getter = self.network.get_merkle_for_transaction(tx_hash, tx_height)
+            if use_individual_header_proof:
+                header_getter = self.network.interface.get_block_header(tx_height, 'SPV verifier', must_provide_proof=True)
+                merkle, (header, proof_was_provided) = await asyncio.gather(merkle_getter, header_getter)
+            else:
+                merkle = await merkle_getter
         except UntrustedServerReturnedError as e:
             if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
                 raise
@@ -110,9 +126,10 @@ class SPV(NetworkJobOnDefaultServer):
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_branch = merkle.get('merkle')
-        # we need to wait if header sync/reorg is still ongoing, hence lock:
-        async with self.network.bhi_lock:
-            header = self.network.blockchain().read_header(tx_height)
+        if not use_individual_header_proof:
+            # we need to wait if header sync/reorg is still ongoing, hence lock:
+            async with self.network.bhi_lock:
+                header = self.network.blockchain().read_header(tx_height)
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
@@ -151,6 +168,17 @@ class SPV(NetworkJobOnDefaultServer):
     def is_up_to_date(self):
         return not self.requested_merkle
 
+
+def is_chunk_cheaper(headers_in_chunk_period: int) -> bool:
+    # 32 bytes per hash
+    branch_len = 32 * ceil(log(constants.net.max_checkpoint() + 1, 2))
+    root_len = 32
+    bare_header_len = 80
+
+    chunk_len = 2016 * bare_header_len + branch_len + root_len
+    individual_headers_len = headers_in_chunk_period * (branch_len + root_len + bare_header_len)
+
+    return chunk_len < individual_headers_len
 
 def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
                           leaf_pos_in_tree: int, block_header: Optional[dict],
