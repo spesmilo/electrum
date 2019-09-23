@@ -31,7 +31,7 @@ from . import utils
 from . import gui
 from .custom_objc import *
 
-from electroncash.i18n import _
+from electroncash.i18n import _, pgettext
 
 import socket
 from collections import namedtuple
@@ -230,7 +230,7 @@ class NetworkDialogVC(UIViewController):
         self.lastPort = at(int(port))
         self.autoServerSW.on = bool(auto_connect)
 
-        host = network.interface.host if network.interface else _('None')
+        host = network.interface.host if network.interface else pgettext('Referencing server', 'None')
         self.serverLbl.text = str(host)
 
         #self.set_protocol(protocol)

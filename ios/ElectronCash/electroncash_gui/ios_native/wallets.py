@@ -8,7 +8,7 @@ from . import utils
 from . import gui
 from . import history
 from . import newwallet
-from electroncash.i18n import _, language
+from electroncash.i18n import _, pgettext, language
 
 from .uikit_bindings import *
 from .custom_objc import *
@@ -593,12 +593,14 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                              message = _("You are requesting the deletion of the currently active wallet. In order to delete this wallet, please switch to another wallet, then select this option again on this wallet."),
                              actions = [ [_("OK") ] ])
             return
+        # TRANSLATORS: This is the text that the user needs to enter to confirm wallet deletion
+        delete_confirm_text = pgettext("iOS wallet delete confirmation", "delete").lower().strip()
         def DeleteChk() -> None:
             nonlocal tf, placeholder, prefill
             prefill = ''
             if tf:
                 txt = str(tf.text).lower().strip()
-                if txt == 'delete' or txt == _("delete"): # support i18n
+                if txt == 'delete' or txt == delete_confirm_text: # support i18n
                     try:
                         os.remove(info.full_path)
                         parent.set_wallet_use_touchid(info.name, None, clear_asked = True) # clear cached password if any
@@ -607,12 +609,12 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                     except:
                         parent.show_error(vc = vc, message = str(sys.exc_info()[1]))
                 else:
-                    parent.show_error(vc = vc, title = _("Not Deleted"), message = _("You didn't enter the text 'delete' in the previous dialog. For your own safety, the wallet file was not deleted."))
+                    parent.show_error(vc = vc, title = _("Not Deleted"), message = _("You didn't enter the text '{delete_confirm_text}' in the previous dialog. For your own safety, the wallet file was not deleted.").format(delete_confirm_text=delete_confirm_text)))
             Release()
-        placeholder = _("Type 'delete' to proceed")
+        placeholder = _("Type '{delete_confirm_text}' to proceed").format(delete_confirm_text=delete_confirm_text)
         utils.show_alert(vc = vc,
                          title = _('Delete Wallet'),
-                         message = _("You are about to delete the wallet '{}'. Unless you have other copies of this wallet or you wrote its seed down, you may lose funds!\n\nIn order to proceed, please type the word 'delete' in the box below:").format(info.name),
+                         message = _("You are about to delete the wallet '{wallet_name}'. Unless you have other copies of this wallet or you wrote its seed down, you may lose funds!\n\nIn order to proceed, please type the word '{delete_confirm_text}' in the box below:").format(wallet_name=info.name, delete_confirm_text=delete_confirm_text),
                          actions = [ [ _("Cancel"), Release ], [ _("Delete"), DeleteChk ]], cancel = _("Cancel"), destructive = _('Delete'),
                          uiTextFieldHandlers = [ TfHandler ])
     def DoOpen() -> None:

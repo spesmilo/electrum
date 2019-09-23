@@ -306,7 +306,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         text = bfh(str(self.tx))
         text = base_encode(text, base=43)
         try:
-            self.main_window.show_qrcode(text, 'Transaction', parent=self)
+            self.main_window.show_qrcode(text, _('Transaction'), parent=self)
         except Exception as e:
             self.show_message(str(e))
 
