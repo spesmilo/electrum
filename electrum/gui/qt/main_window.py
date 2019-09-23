@@ -142,7 +142,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        self.tabs.setStyleSheet("QTabBar::tab { height: 26px; width: 78px}")
+        self.tabs.setStyleSheet("QTabBar::tab { height: 20px; width: 78px}")
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
@@ -389,7 +389,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "CB Electrum Testnet" if constants.net.TESTNET else "CB Electrum"
+        name = "Testnet" if constants.net.TESTNET else constants.net.WALLETTITLE
         title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
@@ -1087,6 +1087,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
+        self.amount_e.setFixedWidth(170)
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter an Ocean address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Ocean address)')
@@ -1149,8 +1150,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addStretch(1)
         grid.addLayout(hbox, 4, 5)
 
-        msg = _('Ocean sidechain transactions require a fee to be processed. ') + '\n\n'\
-              + _('The fee that is required is proportional to the size of the transaction, and can be paid in any asset. ')
+        if constants.net.FIXEDFEE:
+            msg = _('Ocean sidechain transactions require a fee to be processed. ') + '\n\n'\
+                  + _('The fee that is required is determined by the federation signing nodes and is configurable. It can be paid in any asset.')
+        else:
+            msg = _('Ocean sidechain transactions require a fee to be processed. ') + '\n\n'\
+                  + _('The fee that is required is proportional to the size of the transaction, and can be paid in any asset. ')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
 
         def on_fee_or_feerate(edit_changed, editing_finished):
@@ -1170,16 +1175,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             def setAmount(self, byte_size):
                 self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
+        if constants.net.FIXEDFEE:
+            self.fixedfee = QLabel()
+            self.fixedfee.setText(str(constants.net.FIXEDFEE/COIN)+" DGLD")
+
         self.size_e = TxSizeLabel()
         self.size_e.setAlignment(Qt.AlignCenter)
         self.size_e.setAmount(0)
         self.size_e.setFixedWidth(140)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.feerate_e.setReadOnly(True)
-
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
 
         vbox_feelabel = QVBoxLayout()
@@ -1190,9 +1197,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_adv_controls = QWidget()
         hbox = QHBoxLayout(self.fee_adv_controls)
         hbox.setContentsMargins(0, 0, 0, 0)
-        hbox.addWidget(self.feerate_e)
-        hbox.addWidget(self.size_e)
-        hbox.addWidget(self.fee_e)
+        if constants.net.FIXEDFEE:
+            hbox.addWidget(self.fixedfee)
+        else:
+            hbox.addWidget(self.feerate_e)
+            hbox.addWidget(self.size_e)
+            hbox.addWidget(self.fee_e)
         hbox.addStretch(1)
 
         vbox_feecontrol = QVBoxLayout()
@@ -1465,7 +1475,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
         else:
             fee_estimator = None
-        fee_estimator = self.fee_e.get_amount()
+        if constants.net.FIXEDFEE:
+            fee_estimator = constants.net.FIXEDFEE
+        else:
+            fee_estimator = self.fee_e.get_amount()
         return fee_estimator
 
     def read_send_tab(self):
@@ -2377,7 +2390,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if constants.net.CONTRACTINTX:
             asset = coin_vals[0]['asset']
-            contr = self.contracts[-1]
+            contr = self.wallet.storage.get('contracts', [])[-1]
             op_return_script = '6a20' + "".join(reversed([contr[i:i+2] for i in range(0, len(contr), 2)]))
             outputs.append(TxOutput(TYPE_SCRIPT,op_return_script,0,1,asset,1))
 
@@ -2840,7 +2853,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         defaultname = 'electrum-private-keys.csv'
         select_msg = _('Select file to export your private keys to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
+        hbox, filename_e, b1, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
 
         b = OkButton(d, _('Export'))
@@ -2851,6 +2864,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         addresses = self.wallet.get_addresses()
         done = False
         cancelled = False
+
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
@@ -3449,13 +3463,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
 
-        tabs_info = [
-            (fee_widgets, _('Fees')),
-            (tx_widgets, _('Transactions')),
-            (gui_widgets, _('Appearance')),
-            (fiat_widgets, _('Fiat')),
-            (id_widgets, _('Identity')),
-        ]
+        if constants.net.SHOWFX: 
+            tabs_info = [
+                (fee_widgets, _('Fees')),
+                (tx_widgets, _('Transactions')),
+                (gui_widgets, _('Appearance')),
+                (fiat_widgets, _('Fiat')),
+                (id_widgets, _('Identity')),
+            ]
+        else:
+            tabs_info = [
+                (fee_widgets, _('Fees')),
+                (tx_widgets, _('Transactions')),
+                (gui_widgets, _('Appearance')),
+                (id_widgets, _('Identity')),
+            ]
+
         for widgets, name in tabs_info:
             tab = QWidget()
             grid = QGridLayout(tab)

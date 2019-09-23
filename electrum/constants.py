@@ -25,8 +25,8 @@
 
 import os
 import json
-from electrum import bitcoin
-from .bitcoin import *
+#from electrum import bitcoin
+#from .bitcoin import *
 
 
 def read_json(filename, default):
@@ -41,6 +41,10 @@ def read_json(filename, default):
 class OceanMainnet:
 
     TESTNET = False
+    FIXEDFEE = 50000
+    SHOWFX = False
+    WALLETPATH = "dgldwallet"
+    WALLETTITLE = "DGLD Wallet"
     CONTRACTINTX = True
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
@@ -48,7 +52,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 38
     ADDRTYPE_P2SH = 97
     SEGWIT_HRP = "bc"
-    GENESIS = "e6d7cd550c53bb3e973e55e996712a2e1b1c74975301ec6a56b03df931b561c3"
+    GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/gtsa-mapping/map.json'
@@ -72,12 +76,12 @@ class OceanMainnet:
     }
     BIP44_COIN_TYPE = 0
 
-    CONTROLER1 = "04ac939ba82f6915c5b2e9232548dd59a97bfdd1891dcd6fb0405acd40c4e35ac1398940aac7b5220587a33f260c9cd0906883e54e2880812d7e39188d2d0cd4da"
-    CONTROLER2 = "041a7d07efe2164258086597e62edd115aba03676cf4d91f3f21ba09b64a926fb2ea939b23b851024f49afa3377ac4e8e964d07a011b7bf66caef2f765dc6902a4"
-    CONTROLER3 = "0405ed5282cbb8614b0b5ae43e448796846ed24b9406c23a12f6b108a8e37c49ef9828f92e5cc2237a789030198ed5a7f5d56af7ce27cdd4fa0da6b7e06d154fe8"
+    CONTROLER1 = "04103fda45d114931ab5b24b77a383d16c3e510ee83ebf91987436a21e02ad7b6d41dc52d40ac27a3703be934ebd207071ba83b3674ac4fc01bb602fb434eddfee"
+    CONTROLER2 = "04ee4278985ac544f0fec151a1ba21ac97e26fdbf230973e07aeb608ed0a18b535396579ebfbc6a54efa7628f4c7e51cd4ed6c6e6967699d387352efa5971d6548"
+    CONTROLER3 = "04d36a30f4eb8abd75550666e263dde3b302d3fce3847a53ec283b670e9a8387bfa304e4f30e8e4a2392f0c87ce040e11ad9d282c172d0ed8341c046dea9278304"
     #Address the whitelist tokens are initially paid to (defined in the genesis block)
-    WHITELISTCOINSDESTINATION = "76a914cb7d39ef3d41ceef1ac6f0bfe3ae2003365158d288ac"
-    WHITELISTCOINSADDRESS = "GcPsbwmP3VFFxGWPUw9VkzjZw4q9BkKa8C"
+    WHITELISTCOINSDESTINATION = "76a91464e33e58fa0a18348d94f064a09fe6ec65448ef588ac"
+    WHITELISTCOINSADDRESS = "GT3NDU8J5NkBeZf6sU2UoHjc1uaiyES5Ld"
     WHITELISTASSET="d109a2432528b0a9208e7f4258f569e246c25bd0cd90f4d8160f1704be833c23"
 
     CHALLENGE = "5321024cc60ff6ca8423c8353142fab8b4aa8b42e66eac2ae51a7cde1eaeb54a73a31e21034878127e5f0a5c84e775d754f02bcea9393c17b7fc05a01a2c011f7a419e6f932103b7d99275aba3db614faeeba3920295e8d661a3a0a705d999b8a38aca0f8fc5d321039d1175c43f855f003fd1e980b618b3d504f2099754b8afa3667ead04b9dbb6d921027c2e025fb4d41e7c4b757a722bff6172233fa576b0aac7d5d8e4e32cfbf2a1df55ae"
