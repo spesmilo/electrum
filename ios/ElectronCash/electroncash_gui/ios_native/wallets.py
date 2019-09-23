@@ -609,7 +609,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                     except:
                         parent.show_error(vc = vc, message = str(sys.exc_info()[1]))
                 else:
-                    parent.show_error(vc = vc, title = _("Not Deleted"), message = _("You didn't enter the text '{delete_confirm_text}' in the previous dialog. For your own safety, the wallet file was not deleted.").format(delete_confirm_text=delete_confirm_text)))
+                    parent.show_error(vc = vc, title = _("Not Deleted"), message = _("You didn't enter the text '{delete_confirm_text}' in the previous dialog. For your own safety, the wallet file was not deleted.").format(delete_confirm_text=delete_confirm_text))
             Release()
         placeholder = _("Type '{delete_confirm_text}' to proceed").format(delete_confirm_text=delete_confirm_text)
         utils.show_alert(vc = vc,
