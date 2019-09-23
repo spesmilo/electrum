@@ -301,12 +301,6 @@ def script_GetOp(_bytes : bytes):
                 (nSize,) = struct.unpack_from('<H', _bytes, i)
                 i += 2
             elif opcode == opcodes.OP_PUSHDATA4:
-                #if len(_bytes[i:]) <  struct.calcsize('<I'):
-                #    '''Set a tracepoint in the Python debugger that works with Qt'''
-                #    from PyQt5.QtCore import pyqtRemoveInputHook
-                #    from pdb import set_trace
-                #    pyqtRemoveInputHook()
-                #    set_trace()
                 (nSize,) = struct.unpack_from('<I', _bytes, i)
                 i += 4
             vch = _bytes[i:i + nSize]
