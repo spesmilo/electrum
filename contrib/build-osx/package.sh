@@ -17,7 +17,7 @@ export PATH=$PATH:~/bin
 . $(dirname "$0")/base.sh
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 Electrum.app"
+    echo "Usage: $0 Ocean Wallet.app"
     exit -127
 fi
 
@@ -78,11 +78,11 @@ ${genisoimage} \
     -r \
     -dir-mode 0755 \
     -apple \
-    -o Electrum_uncompressed.dmg \
+    -o Ocean_Wallet_uncompressed.dmg \
     /tmp/electrum-macos/image || fail "Unable to create uncompressed dmg"
 
-dmg dmg Electrum_uncompressed.dmg electrum-$VERSION.dmg || fail "Unable to create compressed dmg"
-rm Electrum_uncompressed.dmg
+dmg dmg Ocean_Wallet_uncompressed.dmg electrum-$VERSION.dmg || fail "Unable to create compressed dmg"
+rm Ocean_Wallet_uncompressed.dmg
 
 echo "Done."
 md5sum electrum-$VERSION.dmg

@@ -7,7 +7,7 @@ Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\" electrum %u"
 GenericName[en_US]=Bitcoin Wallet
 GenericName=Ocean Wallet
 Icon=electrum
-Name[en_US]=Electrum Bitcoin Wallet
+Name[en_US]=Ocean Wallet
 Name=Electrum Ocean Wallet
 Categories=Finance;Network;
 StartupNotify=false

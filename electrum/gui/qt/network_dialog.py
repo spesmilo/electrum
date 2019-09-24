@@ -216,8 +216,8 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.clicked.connect(self.update)
 
         msg = ' '.join([
-            _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging.")
+            _("If auto-connect is enabled, Ocean wallet will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. The wallet will warn you if your server is lagging.")
         ])
         grid.addWidget(self.autoconnect_cb, 0, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
@@ -311,29 +311,44 @@ class NetworkChoiceLayout(object):
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
+
+        grid.addWidget(QLabel(_('Chain') + ':'), 0, 0)
+        grid.addWidget(QLabel(constants.net.WALLETTITLE), 0, 1)
+
         msg =  ' '.join([
-            _("Electrum connects to several nodes in order to download block headers and find out the longest blockchain."),
+            _("The genesis hash uniquely identifies the Ocean sidechain in which transactions are verified."),
+            _("The gensis block defines the public keys used for asset issuance.")
+        ])
+        gen_box = QTextEdit()
+        gen_box.setReadOnly(True)
+        gen_box.setText(constants.net.GENESIS)
+        gen_box.setFixedWidth(170)
+        grid.addWidget(gen_box, 0, 2, 1, 2)
+        grid.addWidget(HelpButton(msg), 0, 4)
+
+        msg =  ' '.join([
+            _("The Ocean wallet connects to servers in order to download block headers and verify block signatures. "),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
         self.status_label = QLabel('')
-        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
-        grid.addWidget(self.status_label, 0, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(QLabel(_('Status') + ':'), 1, 0)
+        grid.addWidget(self.status_label, 1, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 1, 4)
 
         self.server_label = QLabel('')
-        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_label, 1, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 1, 4)
+        msg = _("The Ocean wallet sends your wallet addresses to a single server, in order to receive your transaction history.")
+        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
+        grid.addWidget(self.server_label, 2, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 2, 4)
 
         self.height_label = QLabel('')
         msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_('Blockchain') + ':'), 2, 0)
-        grid.addWidget(self.height_label, 2, 1)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(QLabel(_('Blockchain') + ':'), 3, 0)
+        grid.addWidget(self.height_label, 3, 1)
+        grid.addWidget(HelpButton(msg), 3, 4)
 
         self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 3, 0, 1, 3)
+        grid.addWidget(self.split_label, 4, 0, 1, 3)
 
         self.nodes_list_widget = NodesListWidget(self)
         grid.addWidget(self.nodes_list_widget, 5, 0, 1, 5)
