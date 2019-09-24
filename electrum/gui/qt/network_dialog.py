@@ -319,10 +319,10 @@ class NetworkChoiceLayout(object):
             _("The genesis hash uniquely identifies the Ocean sidechain in which transactions are verified."),
             _("The gensis block defines the public keys used for asset issuance.")
         ])
-        gen_box = QTextEdit()
+        gen_box = QLineEdit()
         gen_box.setReadOnly(True)
         gen_box.setText(constants.net.GENESIS)
-        gen_box.setFixedWidth(170)
+        gen_box.setFixedWidth(220)
         grid.addWidget(gen_box, 0, 2, 1, 2)
         grid.addWidget(HelpButton(msg), 0, 4)
 
