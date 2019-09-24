@@ -115,7 +115,7 @@ class ElectrumGui:
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('Electrum')
+        self.tray.setToolTip('Ocean wallet')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -124,7 +124,7 @@ class ElectrumGui:
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'default'
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
                 file = QFile(":/dark.qss")
