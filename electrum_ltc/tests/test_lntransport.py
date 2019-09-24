@@ -1,10 +1,14 @@
-from electrum_ltc.ecc import ECPrivkey
 import asyncio
+
+from electrum_ltc.ecc import ECPrivkey
 from electrum_ltc.lnutil import LNPeerAddr
 from electrum_ltc.lntransport import LNResponderTransport, LNTransport
-from unittest import TestCase
 
-class TestLNTransport(TestCase):
+from . import ElectrumTestCase
+
+
+class TestLNTransport(ElectrumTestCase):
+
     def test_responder(self):
         # local static
         ls_priv=bytes.fromhex('2121212121212121212121212121212121212121212121212121212121212121')
@@ -32,6 +36,7 @@ class TestLNTransport(TestCase):
                     return bytes.fromhex('00b9e3a702e93e3a9948c2ed6e5fd7590a6e1c3a0344cfc9d5b57357049aa22355361aa02e55a8fc28fef5bd6d71ad0c38228dc68b1c466263b47fdf31e560e139ba')
         transport = LNResponderTransport(ls_priv, Reader(), Writer())
         asyncio.get_event_loop().run_until_complete(transport.handshake(epriv=e_priv))
+
     def test_loop(self):
         l = asyncio.get_event_loop()
         responder_shaked = asyncio.Event()

@@ -1402,13 +1402,13 @@ class Peer(Logger):
         await self.await_local(chan, local_ctn)
         await self.await_remote(chan, remote_ctn)
         try:
-            invoice = self.lnworker.get_invoice(htlc.payment_hash)
+            info = self.lnworker.get_invoice_info(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)
         except UnknownPaymentHash:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
-        expected_received_msat = int(invoice.amount * bitcoin.COIN * 1000) if invoice.amount is not None else None
+        expected_received_msat = int(info.amount * 1000) if info.amount is not None else None
         if expected_received_msat is not None and \
                 not (expected_received_msat <= htlc.amount_msat <= 2 * expected_received_msat):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1431,7 +1431,7 @@ class Peer(Logger):
                                                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
-        self.network.trigger_callback('htlc_added', htlc, invoice, RECEIVED)
+        #self.network.trigger_callback('htlc_added', htlc, invoice, RECEIVED)
         await asyncio.sleep(self.network.config.lightning_settle_delay)
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
 

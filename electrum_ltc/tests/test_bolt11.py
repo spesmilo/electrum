@@ -1,17 +1,22 @@
 from hashlib import sha256
-from electrum_ltc.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
 from decimal import Decimal
 from binascii import unhexlify, hexlify
-from electrum_ltc.segwit_addr import bech32_encode, bech32_decode
 import pprint
 import unittest
+
+from electrum_ltc.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
+from electrum_ltc.segwit_addr import bech32_encode, bech32_decode
+
+from . import ElectrumTestCase
+
 
 RHASH=unhexlify('0001020304050607080900010203040506070809000102030405060708090102')
 CONVERSION_RATE=1200
 PRIVKEY=unhexlify('e126f68f7eafcc8b74f54d269fe206be715000f94dac067d1c04a8ca3b2db734')
 PUBKEY=unhexlify('03e7156ae33b0a208d0744199163177e909e80176e55d97a2f221ede0f934dd9ad')
 
-class TestBolt11(unittest.TestCase):
+
+class TestBolt11(ElectrumTestCase):
     def test_shorten_amount(self):
         tests = {
             Decimal(10)/10**12: '10p',

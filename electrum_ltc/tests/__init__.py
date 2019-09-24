@@ -1,8 +1,9 @@
 import unittest
 import threading
+import tempfile
+import shutil
 
 from electrum_ltc import constants
-from electrum_ltc import simple_config
 
 
 # Set this locally to make the test suite run faster.
@@ -12,10 +13,7 @@ from electrum_ltc import simple_config
 FAST_TESTS = False
 
 
-simple_config._ENFORCE_SIMPLECONFIG_SINGLETON = False
-
-
-# some unit tests are modifying globals; sorry.
+# some unit tests are modifying globals...
 class SequentialTestCase(unittest.TestCase):
 
     test_lock = threading.Lock()
@@ -29,7 +27,19 @@ class SequentialTestCase(unittest.TestCase):
         self.test_lock.release()
 
 
-class TestCaseForTestnet(SequentialTestCase):
+class ElectrumTestCase(SequentialTestCase):
+    """Base class for our unit tests."""
+
+    def setUp(self):
+        super().setUpClass()
+        self.electrum_path = tempfile.mkdtemp()
+
+    def tearDown(self):
+        super().tearDownClass()
+        shutil.rmtree(self.electrum_path)
+
+
+class TestCaseForTestnet(ElectrumTestCase):
 
     @classmethod
     def setUpClass(cls):

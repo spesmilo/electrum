@@ -114,7 +114,7 @@ if [[ $1 == "open" ]]; then
 fi
 
 if [[ $1 == "alice_pays_carol" ]]; then
-    request=$($carol addinvoice 0.0001 "blah")
+    request=$($carol add_lightning_request 0.0001 -m "blah")
     $alice lnpay $request
     carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
     echo "carol balance: $carol_balance"
@@ -140,12 +140,12 @@ if [[ $1 == "breach" ]]; then
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
     wait_until_channel_open alice
-    request=$($bob addinvoice 0.01 "blah")
+    request=$($bob add_lightning_request 0.01 -m "blah")
     echo "alice pays"
     $alice lnpay $request
     sleep 2
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
-    request=$($bob addinvoice 0.01 "blah2")
+    request=$($bob add_lightning_request 0.01 -m "blah2")
     echo "alice pays again"
     $alice lnpay $request
     echo "alice broadcasts old ctx"
@@ -168,7 +168,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     new_blocks 6
     sleep 10
     # alice pays bob
-    invoice=$($bob addinvoice 0.05 "test")
+    invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     sleep 1
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
@@ -214,7 +214,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob addinvoice 0.05 "test")
+    invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
@@ -246,7 +246,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob addinvoice 0.05 "test")
+    invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
@@ -310,11 +310,11 @@ if [[ $1 == "watchtower" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice1=$($bob addinvoice 0.05 "invoice1")
+    invoice1=$($bob add_lightning_request 0.05 -m "invoice1")
     $alice lnpay $invoice1
-    invoice2=$($bob addinvoice 0.05 "invoice2")
+    invoice2=$($bob add_lightning_request 0.05 -m "invoice2")
     $alice lnpay $invoice2
-    invoice3=$($bob addinvoice 0.05 "invoice3")
+    invoice3=$($bob add_lightning_request 0.05 -m "invoice3")
     $alice lnpay $invoice3
 
 fi

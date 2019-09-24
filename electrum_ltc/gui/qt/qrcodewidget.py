@@ -1,17 +1,16 @@
-import os
 import qrcode
 
 from PyQt5.QtGui import QColor, QPen
 import PyQt5.QtGui as QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget)
+    QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
+    QFileDialog,
+)
 
-import electrum_ltc
 from electrum_ltc.i18n import _
-from electrum_ltc.simple_config import SimpleConfig
 
-from .util import WindowModalDialog
+from .util import WindowModalDialog, get_parent_main_window
 
 
 class QRCodeWidget(QWidget):
@@ -107,27 +106,30 @@ class QRDialog(WindowModalDialog):
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
-        config = SimpleConfig.get_instance()
-        if config:
-            filename = os.path.join(config.path, "qrcode.png")
+        def print_qr():
+            main_window = get_parent_main_window(self)
+            if main_window:
+                filename = main_window.getSaveFileName(_("Select where to save file"), "qrcode.png")
+            else:
+                filename, __ = QFileDialog.getSaveFileName(self, _("Select where to save file"), "qrcode.png")
+            if not filename:
+                return
+            p = qrw.grab()  # FIXME also grabs neutral colored padding
+            p.save(filename, 'png')
+            self.show_message(_("QR code saved to file") + " " + filename)
 
-            def print_qr():
-                p = qrw.grab()  # FIXME also grabs neutral colored padding
-                p.save(filename, 'png')
-                self.show_message(_("QR code saved to file") + " " + filename)
+        def copy_to_clipboard():
+            p = qrw.grab()
+            QApplication.clipboard().setPixmap(p)
+            self.show_message(_("QR code copied to clipboard"))
 
-            def copy_to_clipboard():
-                p = qrw.grab()
-                QApplication.clipboard().setPixmap(p)
-                self.show_message(_("QR code copied to clipboard"))
+        b = QPushButton(_("Copy"))
+        hbox.addWidget(b)
+        b.clicked.connect(copy_to_clipboard)
 
-            b = QPushButton(_("Copy"))
-            hbox.addWidget(b)
-            b.clicked.connect(copy_to_clipboard)
-
-            b = QPushButton(_("Save"))
-            hbox.addWidget(b)
-            b.clicked.connect(print_qr)
+        b = QPushButton(_("Save"))
+        hbox.addWidget(b)
+        b.clicked.connect(print_qr)
 
         b = QPushButton(_("Close"))
         hbox.addWidget(b)

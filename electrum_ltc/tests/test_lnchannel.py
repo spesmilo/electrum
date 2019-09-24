@@ -35,6 +35,9 @@ from electrum_ltc.lnutil import FeeUpdate
 from electrum_ltc.ecc import sig_string_from_der_sig
 from electrum_ltc.logging import console_stderr_handler
 
+from . import ElectrumTestCase
+
+
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
 def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
@@ -160,7 +163,7 @@ def create_test_channels(feerate=6000, local=None, remote=None):
 
     return alice, bob
 
-class TestFee(unittest.TestCase):
+class TestFee(ElectrumTestCase):
     """
     test
     https://github.com/lightningnetwork/lightning-rfc/blob/e0c436bd7a3ed6a028e1cb472908224658a14eca/03-transactions.md#requirements-2
@@ -169,7 +172,7 @@ class TestFee(unittest.TestCase):
         alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
         self.assertIn(9999817, [x[2] for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
-class TestChannel(unittest.TestCase):
+class TestChannel(ElectrumTestCase):
     maxDiff = 999
 
     def assertOutputExistsByValue(self, tx, amt_sat):
@@ -181,9 +184,11 @@ class TestChannel(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         console_stderr_handler.setLevel(logging.DEBUG)
 
     def setUp(self):
+        super().setUp()
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
         # and Bob having 5 BTC.
@@ -607,7 +612,7 @@ class TestChannel(unittest.TestCase):
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
 
-class TestAvailableToSpend(unittest.TestCase):
+class TestAvailableToSpend(ElectrumTestCase):
     def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels()
 
@@ -645,7 +650,7 @@ class TestAvailableToSpend(unittest.TestCase):
         force_state_transition(alice_channel, bob_channel)
         alice_channel.add_htlc(htlc_dict)
 
-class TestChanReserve(unittest.TestCase):
+class TestChanReserve(ElectrumTestCase):
     def setUp(self):
         alice_channel, bob_channel = create_test_channels()
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
@@ -778,7 +783,7 @@ class TestChanReserve(unittest.TestCase):
         self.assertEqual(self.alice_channel.available_to_spend(REMOTE), amt2)
         self.assertEqual(self.bob_channel.available_to_spend(LOCAL), amt2)
 
-class TestDust(unittest.TestCase):
+class TestDust(ElectrumTestCase):
     def test_DustLimit(self):
         alice_channel, bob_channel = create_test_channels()
 

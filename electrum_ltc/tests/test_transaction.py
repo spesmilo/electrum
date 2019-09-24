@@ -4,7 +4,7 @@ from electrum_ltc.bitcoin import TYPE_ADDRESS
 from electrum_ltc.keystore import xpubkey_to_address
 from electrum_ltc.util import bh2u, bfh
 
-from . import SequentialTestCase, TestCaseForTestnet
+from . import ElectrumTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
 unsigned_blob = '45505446ff0001000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
@@ -14,7 +14,7 @@ signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e850
 
 signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
 
-class TestBCDataStream(SequentialTestCase):
+class TestBCDataStream(ElectrumTestCase):
 
     def test_compact_size(self):
         s = transaction.BCDataStream()
@@ -55,7 +55,7 @@ class TestBCDataStream(SequentialTestCase):
         self.assertEqual(s.read_bytes(4), b'r')
         self.assertEqual(s.read_bytes(1), b'')
 
-class TestTransaction(SequentialTestCase):
+class TestTransaction(ElectrumTestCase):
 
     @needs_test_with_all_ecc_implementations
     def test_tx_unsigned(self):

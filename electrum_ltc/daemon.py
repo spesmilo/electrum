@@ -286,12 +286,12 @@ class Daemon(Logger):
         if listen_jsonrpc:
             jobs.append(self.start_jsonrpc(config, fd))
         # request server
-        if self.config.get('payserver_port'):
+        if self.config.get('run_payserver'):
             self.pay_server = PayServer(self)
             jobs.append(self.pay_server.run())
         # server-side watchtower
-        self.watchtower = WatchTowerServer(self.network) if self.config.get('watchtower_host') else None
-        if self.watchtower:
+        if self.config.get('run_watchtower'):
+            self.watchtower = WatchTowerServer(self.network)
             jobs.append(self.watchtower.run)
         if self.network:
             self.network.start(jobs)
@@ -386,7 +386,7 @@ class Daemon(Logger):
             return
         if storage.get_action():
             return
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet
         self.wallet = wallet

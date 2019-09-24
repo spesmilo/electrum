@@ -1,14 +1,18 @@
 from pprint import pprint
 import unittest
+from typing import NamedTuple
+
 from electrum_ltc.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
 from electrum_ltc.lnhtlc import HTLCManager
-from typing import NamedTuple
+
+from . import ElectrumTestCase
+
 
 class H(NamedTuple):
     owner : str
     htlc_id : int
 
-class TestHTLCManager(unittest.TestCase):
+class TestHTLCManager(ElectrumTestCase):
     def test_adding_htlcs_race(self):
         A = HTLCManager()
         B = HTLCManager()

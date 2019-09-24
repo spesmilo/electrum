@@ -208,10 +208,12 @@ class Abstract_Wallet(AddressSynchronizer):
     max_change_outputs = 3
     gap_limit_for_change = 6
 
-    def __init__(self, storage: WalletStorage):
+    def __init__(self, storage: WalletStorage, *, config: SimpleConfig):
         if not storage.is_ready_to_be_used_by_wallet():
             raise Exception("storage not ready to be used by Abstract_Wallet")
 
+        self.config = config
+        assert self.config is not None, "config must not be None"
         self.storage = storage
         # load addresses needs to be called before constructor for sanity checks
         self.storage.db.load_addresses(self.wallet_type)
@@ -242,9 +244,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
-        # TODO config should be passed as a param instead? SimpleConfig should not be a singleton.
-        self.config = SimpleConfig.get_instance()
-        assert self.config is not None, "config must not be None"
         self.lnworker = LNWallet(self) if self.config.get('lightning') else None
 
     def stop_threads(self):
@@ -541,16 +540,16 @@ class Abstract_Wallet(AddressSynchronizer):
     def save_invoice(self, invoice):
         invoice_type = invoice['type']
         if invoice_type == PR_TYPE_LN:
-            self.lnworker.save_new_invoice(invoice['invoice'])
+            key = invoice['rhash']
         elif invoice_type == PR_TYPE_ONCHAIN:
             key = bh2u(sha256(repr(invoice))[0:16])
             invoice['id'] = key
             invoice['txid'] = None
-            self.invoices[key] = invoice
-            self.storage.put('invoices', self.invoices)
-            self.storage.write()
         else:
             raise Exception('Unsupported invoice type')
+        self.invoices[key] = invoice
+        self.storage.put('invoices', self.invoices)
+        self.storage.write()
 
     def clear_invoices(self):
         self.invoices = {}
@@ -560,29 +559,26 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
         out = [x for x in out if x and x.get('status') != PR_PAID]
-        if self.lnworker:
-            out += self.lnworker.get_invoices()
         out.sort(key=operator.itemgetter('time'))
         return out
 
+    def check_if_expired(self, item):
+        if item['status'] == PR_UNPAID and 'exp' in item and item['time'] + item['exp'] < time.time():
+            item['status'] = PR_EXPIRED
+
     def get_invoice(self, key):
-        if key in self.invoices:
-            item = copy.copy(self.invoices[key])
-            request_type = item.get('type')
-            if request_type is None:
-                # todo: convert old bip70 invoices
-                return
-            # add status
-            if item.get('txid'):
-                status = PR_PAID
-            elif 'exp' in item and item['time'] + item['exp'] < time.time():
-                status = PR_EXPIRED
-            else:
-                status = PR_UNPAID
-            item['status'] = status
-            return item
-        if self.lnworker:
-            return self.lnworker.get_request(key)
+        if key not in self.invoices:
+            return
+        item = copy.copy(self.invoices[key])
+        request_type = item.get('type')
+        if request_type == PR_TYPE_ONCHAIN:
+            item['status'] = PR_PAID if item.get('txid') is not None else PR_UNPAID
+        elif request_type == PR_TYPE_LN:
+            item['status'] = self.lnworker.get_invoice_status(bfh(item['rhash']))
+        else:
+            return
+        self.check_if_expired(item)
+        return item
 
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
@@ -1319,19 +1315,6 @@ class Abstract_Wallet(AddressSynchronizer):
                 return True, conf
         return False, None
 
-    def get_payment_request(self, addr):
-        r = self.receive_requests.get(addr)
-        if not r:
-            return
-        out = copy.copy(r)
-        out['type'] = PR_TYPE_ONCHAIN
-        out['URI'] = self.get_request_URI(addr)
-        status, conf = self.get_request_status(addr)
-        out['status'] = status
-        if conf is not None:
-            out['confirmations'] = conf
-        return out
-
     def get_request_URI(self, addr):
         req = self.receive_requests[addr]
         message = self.labels.get(addr, '')
@@ -1349,11 +1332,10 @@ class Abstract_Wallet(AddressSynchronizer):
         uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
         return str(uri)
 
-    def get_request_status(self, key):
-        r = self.receive_requests.get(key)
+    def get_request_status(self, address):
+        r = self.receive_requests.get(address)
         if r is None:
             return PR_UNKNOWN
-        address = r['address']
         amount = r.get('amount', 0) or 0
         timestamp = r.get('time', 0)
         if timestamp and type(timestamp) != int:
@@ -1372,17 +1354,26 @@ class Abstract_Wallet(AddressSynchronizer):
         return status, conf
 
     def get_request(self, key):
-        if key in self.receive_requests:
-            req = self.get_payment_request(key)
-        elif self.lnworker:
-            req = self.lnworker.get_request(key)
-        else:
-            req = None
+        req = self.receive_requests.get(key)
         if not req:
             return
-        if self.config.get('payserver_port'):
+        req = copy.copy(req)
+        if req['type'] == PR_TYPE_ONCHAIN:
+            addr = req['address']
+            req['URI'] = self.get_request_URI(addr)
+            status, conf = self.get_request_status(addr)
+            req['status'] = status
+            if conf is not None:
+                req['confirmations'] = conf
+        elif req['type'] == PR_TYPE_LN:
+            req['status'] = self.lnworker.get_invoice_status(bfh(key))
+        else:
+            return
+        self.check_if_expired(req)
+        # add URL if we are running a payserver
+        if self.config.get('run_payserver'):
             host = self.config.get('payserver_host', 'localhost')
-            port = self.config.get('payserver_port')
+            port = self.config.get('payserver_port', 8002)
             root = self.config.get('payserver_root', '/r')
             use_ssl = bool(self.config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
@@ -1405,8 +1396,16 @@ class Abstract_Wallet(AddressSynchronizer):
         from .bitcoin import TYPE_ADDRESS
         timestamp = int(time.time())
         _id = bh2u(sha256d(addr + "%d"%timestamp))[0:10]
-        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id, 'outputs': [(TYPE_ADDRESS, addr, amount)]}
-        return r
+        return {
+            'type': PR_TYPE_ONCHAIN,
+            'time':timestamp,
+            'amount':amount,
+            'exp':expiration,
+            'address':addr,
+            'memo':message,
+            'id':_id,
+            'outputs': [(TYPE_ADDRESS, addr, amount)]
+        }
 
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
@@ -1419,17 +1418,23 @@ class Abstract_Wallet(AddressSynchronizer):
         self.storage.put('payment_requests', self.receive_requests)
 
     def add_payment_request(self, req):
-        addr = req['address']
-        if not bitcoin.is_address(addr):
-            raise Exception(_('Invalid Litecoin address.'))
-        if not self.is_mine(addr):
-            raise Exception(_('Address not in wallet.'))
-
+        if req['type'] == PR_TYPE_ONCHAIN:
+            addr = req['address']
+            if not bitcoin.is_address(addr):
+                raise Exception(_('Invalid Litecoin address.'))
+            if not self.is_mine(addr):
+                raise Exception(_('Address not in wallet.'))
+            key = addr
+            message = req['memo']
+        elif req['type'] == PR_TYPE_LN:
+            key = req['rhash']
+            message = req['message']
+        else:
+            raise Exception('Unknown request type')
         amount = req.get('amount')
-        message = req.get('memo')
-        self.receive_requests[addr] = req
+        self.receive_requests[key] = req
         self.storage.put('payment_requests', self.receive_requests)
-        self.set_label(addr, message) # should be a default label
+        self.set_label(key, message) # should be a default label
         return req
 
     def delete_request(self, key):
@@ -1457,8 +1462,6 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_sorted_requests(self):
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self.receive_requests.keys()]
-        if self.lnworker:
-            out += self.lnworker.get_requests()
         out.sort(key=operator.itemgetter('time'))
         return out
 
@@ -1639,8 +1642,8 @@ class Imported_Wallet(Simple_Wallet):
     wallet_type = 'imported'
     txin_type = 'address'
 
-    def __init__(self, storage):
-        Abstract_Wallet.__init__(self, storage)
+    def __init__(self, storage, *, config):
+        Abstract_Wallet.__init__(self, storage, config=config)
 
     def is_watching_only(self):
         return self.keystore is None
@@ -1827,8 +1830,8 @@ class Imported_Wallet(Simple_Wallet):
 
 class Deterministic_Wallet(Abstract_Wallet):
 
-    def __init__(self, storage):
-        Abstract_Wallet.__init__(self, storage)
+    def __init__(self, storage, *, config):
+        Abstract_Wallet.__init__(self, storage, config=config)
         self.gap_limit = storage.get('gap_limit', 20)
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
@@ -1978,8 +1981,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
     """ Deterministic Wallet with a single pubkey per address """
 
-    def __init__(self, storage):
-        Deterministic_Wallet.__init__(self, storage)
+    def __init__(self, storage, *, config):
+        Deterministic_Wallet.__init__(self, storage, config=config)
 
     def get_public_key(self, address):
         sequence = self.get_address_index(address)
@@ -2026,10 +2029,10 @@ class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
     gap_limit = 20
 
-    def __init__(self, storage):
+    def __init__(self, storage, *, config):
         self.wallet_type = storage.get('wallet_type')
         self.m, self.n = multisig_type(self.wallet_type)
-        Deterministic_Wallet.__init__(self, storage)
+        Deterministic_Wallet.__init__(self, storage, config=config)
 
     def get_pubkeys(self, c, i):
         return self.derive_pubkeys(c, i)
@@ -2145,10 +2148,10 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, storage):
+    def __new__(self, storage: WalletStorage, *, config: SimpleConfig):
         wallet_type = storage.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
-        wallet = WalletClass(storage)
+        wallet = WalletClass(storage, config=config)
         return wallet
 
     @staticmethod
@@ -2160,7 +2163,7 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, passphrase=None, password=None,
+def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=None,
                       encrypt_file=True, seed_type=None, gap_limit=None) -> dict:
     """Create a new wallet"""
     storage = WalletStorage(path)
@@ -2173,7 +2176,7 @@ def create_new_wallet(*, path, passphrase=None, password=None,
     storage.put('wallet_type', 'standard')
     if gap_limit is not None:
         storage.put('gap_limit', gap_limit)
-    wallet = Wallet(storage)
+    wallet = Wallet(storage, config=config)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
@@ -2182,7 +2185,7 @@ def create_new_wallet(*, path, passphrase=None, password=None,
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path,
+def restore_wallet_from_text(text, *, path, config: SimpleConfig,
                              passphrase=None, password=None, encrypt_file=True,
                              gap_limit=None) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
@@ -2194,7 +2197,7 @@ def restore_wallet_from_text(text, *, path,
 
     text = text.strip()
     if keystore.is_address_list(text):
-        wallet = Imported_Wallet(storage)
+        wallet = Imported_Wallet(storage, config=config)
         addresses = text.split()
         good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -2203,7 +2206,7 @@ def restore_wallet_from_text(text, *, path,
     elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
         k = keystore.Imported_KeyStore({})
         storage.put('keystore', k.dump())
-        wallet = Imported_Wallet(storage)
+        wallet = Imported_Wallet(storage, config=config)
         keys = keystore.get_private_keys(text, allow_spaces_inside_key=False)
         good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -2220,7 +2223,7 @@ def restore_wallet_from_text(text, *, path,
         storage.put('wallet_type', 'standard')
         if gap_limit is not None:
             storage.put('gap_limit', gap_limit)
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=config)
 
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
