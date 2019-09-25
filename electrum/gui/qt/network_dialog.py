@@ -322,7 +322,9 @@ class NetworkChoiceLayout(object):
         gen_box = QLineEdit()
         gen_box.setReadOnly(True)
         gen_box.setText(constants.net.GENESIS)
-        gen_box.setFixedWidth(220)
+        gen_box.setFixedWidth(200)
+        gen_box.setCursorPosition(0);
+        gen_box.setStyleSheet("color: rgb(90, 90, 90); background: rgb(210, 210, 210)")
         grid.addWidget(gen_box, 0, 2, 1, 2)
         grid.addWidget(HelpButton(msg), 0, 4)
 
