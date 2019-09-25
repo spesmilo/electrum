@@ -5,10 +5,10 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 import sys
 import os
 
-PACKAGE='Electrum'
+PACKAGE='Ocean Wallet'
 PYPKG='electrum'
 MAIN_SCRIPT='run_electrum'
-ICONS_FILE='electrum.icns'
+ICONS_FILE='ocean.icns'
 
 for i, x in enumerate(sys.argv):
     if x == '--name':

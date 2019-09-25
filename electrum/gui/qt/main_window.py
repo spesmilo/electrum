@@ -565,7 +565,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("&Official website"), lambda: webbrowser.open("https://commerceblock.com"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.commerceblock.com/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("https://commerceblock.readthedocs.io/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
 
         self.setMenuBar(menubar)
@@ -579,23 +579,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('No donation address for this server'))
 
     def show_about(self):
-        QMessageBox.about(self, "CommerceBlock token wallet",
+        QMessageBox.about(self, "Ocean platform wallet",
                           (_("Version")+" %s" % self.wallet.electrum_version + "\n\n" +
-                           _("The CB walet focus is on speed and security, with low resource usage and full user control of private keys") + " " +
+                           _("The Ocean walet focus is on speed and security, with low resource usage and full user control of private keys") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are fast because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Ocean system.") + "\n\n" +
-                           _("Uses icons from the Icons8 icon pack (icons8.com).")))
+                              "servers that handle the most complicated parts of the Ocean system.")))
 
     def show_report_bug(self):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             "<a href=\"https://github.com/commerceblock/cb-client-wallet/issues\">https://github.com/commerceblock/cb-client-wallet/issues</a><br/><br/>",
-            _("Before reporting a bug, upgrade to the most recent version of CB wallet (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of the Ocean wallet (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
-        self.show_message(msg, title="CB Wallet - " + _("Reporting Bugs"))
+        self.show_message(msg, title="Ocean Wallet - " + _("Reporting Bugs"))
 
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
@@ -634,9 +633,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("CB Wallet", message, QIcon(":icons/electrum_dark_icon"), 20000)
+                self.tray.showMessage("Ocean Wallet", message, QIcon(":icons/electrum_dark_icon"), 20000)
             except TypeError:
-                self.tray.showMessage("CB Wallet", message, QSystemTrayIcon.Information, 20000)
+                self.tray.showMessage("Ocean Wallet", message, QSystemTrayIcon.Information, 20000)
 
 
 
@@ -743,14 +742,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             if not self.wallet.up_to_date or server_height == 0:
-                text = _("Synchronizing...")
+                text = _("  Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
             elif server_lag > 1:
-                text = _("Server is lagging ({} blocks)").format(server_lag)
+                text = _("  Server is lagging ({} blocks)").format(server_lag)
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u, x = self.wallet.get_balance()
-                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
+                text =  _("  Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
@@ -772,7 +771,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.network.proxy:
                 text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
             else:
-                text = _("Not connected")
+                text = _("  Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
@@ -1177,7 +1176,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if constants.net.FIXEDFEE:
             self.fixedfee = QLabel()
-            self.fixedfee.setText(str(constants.net.FIXEDFEE/COIN)+" DGLD")
+            self.fixedfee.setText(str(int(self.config.get('fixed_fee', constants.net.FIXEDFEE))/COIN)+" DGLD")
 
         self.size_e = TxSizeLabel()
         self.size_e.setAlignment(Qt.AlignCenter)
@@ -1476,7 +1475,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             fee_estimator = None
         if constants.net.FIXEDFEE:
-            fee_estimator = constants.net.FIXEDFEE
+            fee_estimator = self.config.get('fixed_fee', constants.net.FIXEDFEE)
         else:
             fee_estimator = self.fee_e.get_amount()
         return fee_estimator
@@ -3143,40 +3142,73 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        msg = '\n'.join([
-            _('Time based: fee rate is based on average confirmation time estimates'),
-            _('Mempool based: fee rate is targeting a depth in the memory pool')
-            ]
-        )
-        fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
-        fee_type_combo = QComboBox()
-        fee_type_combo.addItems([_('Static'), _('ETA'), _('Mempool')])
-        fee_type_combo.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
-        def on_fee_type(x):
-            self.config.set_key('mempool_fees', x==2)
-            self.config.set_key('dynamic_fees', x>0)
-        fee_type_combo.currentIndexChanged.connect(on_fee_type)
-        fee_widgets.append((fee_type_label, fee_type_combo))
+        if constants.net.FIXEDFEE:
+            msg = '\n'.join([
+                _('Transactions require a fixed fee which is specified by the network rules'),
+                _('The fixed fee can be changed here if required')
+                ]
+            )
+            fixed_fee_label = HelpLabel(_('Fixed fees') + ':', msg)
 
-        feebox_cb = QCheckBox(_('Edit fees manually'))
-        feebox_cb.setChecked(self.config.get('show_fee', False))
-        feebox_cb.setToolTip(_("Show fee edit box in send tab."))
-        def on_feebox(x):
-            self.config.set_key('show_fee', x == Qt.Checked)
-            self.fee_adv_controls.setVisible(bool(x))
-        feebox_cb.stateChanged.connect(on_feebox)
-        fee_widgets.append((feebox_cb, None))
+            fixedfee_e = BTCAmountEdit(self.get_decimal_point)
+            fixedfee_e.setAmount(self.config.get('fixed_fee',constants.net.FIXEDFEE))
+            ffe_label = HelpLabel(_('Transaction fee') + ':', msg)
 
-        use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
-        use_rbf_cb.setChecked(self.config.get('use_rbf', False))
-        use_rbf_cb.setToolTip(
-            _('If you check this box, your transactions will be marked as non-final,') + '\n' + \
-            _('and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees.') + '\n' + \
-            _('Note that some merchants do not accept non-final transactions until they are confirmed.'))
-        def on_use_rbf(x):
-            self.config.set_key('use_rbf', x == Qt.Checked)
-        use_rbf_cb.stateChanged.connect(on_use_rbf)
-        fee_widgets.append((use_rbf_cb, None))
+            feebox_cb = QCheckBox(_('Edit transaction fee'))
+            feebox_cb.setChecked(self.config.get('edit_fee', False))
+            fixedfee_e.setReadOnly(not self.config.get('edit_fee', False))
+            feebox_cb.setToolTip(_("Change fixed fee: only do this if instructed to by network operator"))
+            def on_feebox(x):
+                self.config.set_key('edit_fee', x == Qt.Checked)
+                fixedfee_e.setReadOnly(not bool(x))
+            def update_fee():
+                self.config.set_key('fixed_fee', fixedfee_e.get_amount())
+                self.fixedfee.setText(str(int(fixedfee_e.get_amount())/COIN)+" DGLD")
+
+            feebox_cb.stateChanged.connect(on_feebox)
+            fixedfee_e.textEdited.connect(update_fee)
+            fee_widgets.append((fixed_fee_label, None))
+            fee_widgets.append((feebox_cb, None))
+            fee_widgets.append((ffe_label, fixedfee_e))
+            fee_null = QLabel()
+            fee_widgets.append((fee_null, None))
+            fee_widgets.append((fee_null, None))
+            fee_widgets.append((fee_null, None))
+        else:
+            msg = '\n'.join([
+                _('Time based: fee rate is based on average confirmation time estimates'),
+                _('Mempool based: fee rate is targeting a depth in the memory pool')
+                ]
+            )
+            fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
+            fee_type_combo = QComboBox()
+            fee_type_combo.addItems([_('Static'), _('ETA'), _('Mempool')])
+            fee_type_combo.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
+            def on_fee_type(x):
+                self.config.set_key('mempool_fees', x==2)
+                self.config.set_key('dynamic_fees', x>0)
+            fee_type_combo.currentIndexChanged.connect(on_fee_type)
+            fee_widgets.append((fee_type_label, fee_type_combo))
+
+            feebox_cb = QCheckBox(_('Edit fees manually'))
+            feebox_cb.setChecked(self.config.get('show_fee', False))
+            feebox_cb.setToolTip(_("Show fee edit box in send tab."))
+            def on_feebox(x):
+                self.config.set_key('show_fee', x == Qt.Checked)
+                self.fee_adv_controls.setVisible(bool(x))
+            feebox_cb.stateChanged.connect(on_feebox)
+            fee_widgets.append((feebox_cb, None))
+
+            use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
+            use_rbf_cb.setChecked(self.config.get('use_rbf', False))
+            use_rbf_cb.setToolTip(
+                _('If you check this box, your transactions will be marked as non-final,') + '\n' + \
+                _('and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees.') + '\n' + \
+                _('Note that some merchants do not accept non-final transactions until they are confirmed.'))
+            def on_use_rbf(x):
+                self.config.set_key('use_rbf', x == Qt.Checked)
+            use_rbf_cb.stateChanged.connect(on_use_rbf)
+            fee_widgets.append((use_rbf_cb, None))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\

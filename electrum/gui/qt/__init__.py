@@ -37,7 +37,7 @@ except Exception:
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
                              QMessageBox)
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QFile, QTextStream
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
@@ -52,6 +52,7 @@ from electrum.util import (UserCancelled, print_error,
 # from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard
+import breeze_resources
 
 
 try:
@@ -114,7 +115,7 @@ class ElectrumGui:
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('Electrum')
+        self.tray.setToolTip('Ocean wallet')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -123,14 +124,24 @@ class ElectrumGui:
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'default'
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
-                import qdarkgraystyle
-                self.app.setStyleSheet(qdarkgraystyle.load_stylesheet())
+                file = QFile(":/dark.qss")
+                file.open(QFile.ReadOnly | QFile.Text)
+                stream = QTextStream(file)
+                self.app.setStyleSheet(stream.readAll())
             except BaseException as e:
                 use_dark_theme = False
                 print_error('Error setting dark theme: {}'.format(e))
+        else:
+            try:
+                file = QFile(":/light.qss")
+                file.open(QFile.ReadOnly | QFile.Text)
+                stream = QTextStream(file)
+                self.app.setStyleSheet(stream.readAll())
+            except BaseException as e:
+                print_error('Error setting light theme: {}'.format(e))            
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:

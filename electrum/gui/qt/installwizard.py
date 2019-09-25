@@ -26,7 +26,7 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
                           + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
-WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+WIF_HELP_TEXT = (_('WIF keys are typed in the Ocean protcol, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
                  'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
                  'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
@@ -36,7 +36,7 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                               + _("You have multiple consecutive whitespaces or leading/trailing "
                                   "whitespaces in your passphrase.") + " " \
                               + _("This is discouraged.") + " " \
-                              + _("Due to a bug, old versions of Electrum will NOT be creating the "
+                              + _("Due to a bug, old versions of the Ocean wallet will NOT be creating the "
                                   "same wallet as newer versions or other software.")
 
 
@@ -107,7 +107,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def __init__(self, config, app, plugins, storage):
         BaseWizard.__init__(self, config, plugins, storage)
         QDialog.__init__(self, None)
-        self.setWindowTitle('CB Electrum  -  ' + _('Install Wizard'))
+        self.setWindowTitle('Ocean wallet -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         # Set for base base class
@@ -178,7 +178,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
-        self.set_layout(vbox, title=_('CB wallet'))
+        self.set_layout(vbox, title=_('Ocean wallet'))
 
         wallet_folder = os.path.dirname(self.storage.path)
 
@@ -598,11 +598,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return None
 
     def init_network(self, network):
-        message = _("Electrum communicates with remote servers to get "
-                  "information about your transactions and addresses. The "
-                  "servers all fulfill the same purpose only differing in "
-                  "hardware. In most cases you simply want to let Electrum "
-                  "pick one at random.  However if you prefer feel free to "
+        message = _("The Ocean wallet communicates with remote servers to get "
+                  "information about your transactions and addresses. You can "
+                  "connect to the default configured server or "
                   "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]
         title = _("How do you want to connect to a server? ")

@@ -44,7 +44,7 @@ class OceanMainnet:
     FIXEDFEE = 50000
     SHOWFX = False
     WALLETPATH = "dgldwallet"
-    WALLETTITLE = "DGLD Wallet"
+    WALLETTITLE = "DGLD"
     CONTRACTINTX = True
     BASIC_HEADER_SIZE = 172
     MIN_HEADER_SIZE = 176
@@ -55,7 +55,7 @@ class OceanMainnet:
     GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/gtsa-mapping/map.json'
+    MAPPING_URL = 'https://s3.eu-west-1.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
