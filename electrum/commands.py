@@ -49,6 +49,7 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .verifier import SPV
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnpeer import channel_id_from_funding_tx
@@ -679,17 +680,29 @@ class Commands:
         return out
 
     @command('n')
-    async def gettransaction(self, txid, wallet: Abstract_Wallet = None):
+    async def gettransaction(self, txid, verify=False, height=None, wallet: Abstract_Wallet = None):
         """Retrieve a transaction. """
+        if verify:
+            if height is None:
+                raise Exception("Missing height")
+            verifier = SPV(self.network, None)._request_and_verify_single_proof(txid, height)
         tx = None
         if wallet:
             tx = wallet.db.get_transaction(txid)
         if tx is None:
-            raw = await self.network.get_transaction(txid)
+            raw_getter = self.network.get_transaction(txid)
+            if verify:
+                _, raw = await asyncio.gather(verifier, raw_getter)
+            else:
+                raw = await raw_getter
             if raw:
                 tx = Transaction(raw)
             else:
                 raise Exception("Unknown transaction")
+        elif verify:
+            await verifier
+        if verify and tx.txid() != txid:
+            raise Exception("Wrong txid")
         return tx.as_dict()
 
     @command('')
@@ -1020,6 +1033,8 @@ command_options = {
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
+    'verify':      (None, "Verify transaction via SPV"),
+    'height':      (None, "Block height"),
 }
 
 
