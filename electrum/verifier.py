@@ -49,7 +49,7 @@ class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
 class SPV(NetworkJobOnDefaultServer):
     """ Simple Payment Verification """
 
-    def __init__(self, network: 'Network', wallet: 'AddressSynchronizer'):
+    def __init__(self, network: 'Network', wallet: Optional['AddressSynchronizer']):
         self.wallet = wallet
         NetworkJobOnDefaultServer.__init__(self, network)
 
@@ -63,13 +63,16 @@ class SPV(NetworkJobOnDefaultServer):
             await group.spawn(self.main)
 
     def diagnostic_name(self):
-        return self.wallet.diagnostic_name()
+        if self.wallet is not None:
+            return self.wallet.diagnostic_name()
+        return "SPV"
 
     async def main(self):
         self.blockchain = self.network.blockchain()
         while True:
-            await self._maybe_undo_verifications()
-            await self._request_proofs()
+            if self.wallet is not None:
+                await self._maybe_undo_verifications()
+                await self._request_proofs()
             await asyncio.sleep(0.1)
 
     async def _request_proofs(self):
@@ -98,7 +101,7 @@ class SPV(NetworkJobOnDefaultServer):
         try:
             merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
         except UntrustedServerReturnedError as e:
-            if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
+            if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError) or self.wallet is None:
                 raise
             self.logger.info(f'tx {tx_hash} not at height {tx_height}')
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
@@ -120,6 +123,8 @@ class SPV(NetworkJobOnDefaultServer):
         except MerkleVerificationFailure as e:
             if self.network.config.get("skipmerklecheck"):
                 self.logger.info(f"skipping merkle proof check {tx_hash}")
+            elif self.wallet is None:
+                raise
             else:
                 self.logger.info(repr(e))
                 raise GracefulDisconnect(e) from e
@@ -127,6 +132,8 @@ class SPV(NetworkJobOnDefaultServer):
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         self.requested_merkle.discard(tx_hash)
         self.logger.info(f"verified {tx_hash}")
+        if self.wallet is None:
+            return
         header_hash = hash_header(header)
         tx_info = TxMinedInfo(height=tx_height,
                               timestamp=header.get('timestamp'),
