@@ -232,7 +232,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # convert invoices
         for invoice_key, invoice in self.invoices.items():
-            if invoice['type'] == PR_TYPE_ONCHAIN:
+            if invoice.get('type') == PR_TYPE_ONCHAIN:
                 outputs = [TxOutput(*output) for output in invoice.get('outputs')]
                 invoice['outputs'] = outputs
 
