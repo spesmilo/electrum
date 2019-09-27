@@ -896,6 +896,8 @@ class ElectrumWindow(App):
         # pause nfc
         if self.nfcscanner:
             self.nfcscanner.nfc_disable()
+        if self.wallet:
+            self.electrum_config.save_last_wallet(self.wallet)
         return True
 
     def on_resume(self):
