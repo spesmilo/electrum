@@ -1697,6 +1697,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         message = self.message_e.text()
         amount = self.amount_e.get_amount()
         if not self.is_onchain:
+            if not self.wallet.lnworker:
+                return
             return self.wallet.lnworker.parse_bech32_invoice(self.payto_e.lightning_invoice)
         else:
             outputs = self.read_outputs()
