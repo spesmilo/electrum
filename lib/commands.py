@@ -665,7 +665,7 @@ class Commands:
         return self.wallet.get_unused_address().to_ui_string()
 
     @command('w')
-    def addrequest(self, amount, memo='', expiration=None, force=False, payment_url=None):
+    def addrequest(self, amount, memo='', expiration=None, force=False, payment_url=None, index_url=None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be condidered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
@@ -681,7 +681,7 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        req = self.wallet.make_payment_request(addr, amount, memo, expiration, payment_url = payment_url)
+        req = self.wallet.make_payment_request(addr, amount, memo, expiration, payment_url = payment_url, index_url = index_url)
         self.wallet.add_payment_request(req, self.config)
         out = self.wallet.get_payment_request(addr, self.config)
         return self._format_request(out)
@@ -774,6 +774,7 @@ command_options = {
     'labels':      ("-l", "Show the labels of listed addresses"),
     'nocheck':     (None, "Do not verify aliases"),
     'imax':        (None, "Maximum number of inputs"),
+    'index_url':   (None, 'Override the URL where you would like users to be shown the BIP70 Payment Request'),
     'fee':         ("-f", "Transaction fee (in BCH)"),
     'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
