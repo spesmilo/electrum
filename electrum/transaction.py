@@ -1203,7 +1203,10 @@ class Transaction:
         input_size = len(cls.serialize_input(txin, script)) // 2
 
         if cls.is_segwit_input(txin, guess_for_address=True):
-            witness_size = len(cls.serialize_witness_in(txin, True)) // 2
+            try:
+                witness_size = len(cls.serialize_witness_in(txin, True)) // 2
+            except KeyError:
+                witness_size = 1 if is_segwit_tx else 0
         else:
             witness_size = 1 if is_segwit_tx else 0
 
