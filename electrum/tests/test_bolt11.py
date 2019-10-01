@@ -75,7 +75,7 @@ class TestBolt11(ElectrumTestCase):
 
         # Roundtrip
         for t in tests:
-            o = lndecode(lnencode(t, PRIVKEY), False, t.currency)
+            o = lndecode(lnencode(t, PRIVKEY), expected_hrp=t.currency)
             self.compare(t, o)
 
     def test_n_decoding(self):
@@ -84,7 +84,7 @@ class TestBolt11(ElectrumTestCase):
         hrp, data = bech32_decode(lnencode(LnAddr(RHASH, amount=24, tags=[('d', '')]), PRIVKEY), True)
         databits = u5_to_bitarray(data)
         databits.invert(-1)
-        lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), True)
+        lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), verbose=True)
         assert lnaddr.pubkey.serialize() != PUBKEY
 
         # But not if we supply expliciy `n` specifier!
@@ -94,7 +94,7 @@ class TestBolt11(ElectrumTestCase):
                                            PRIVKEY), True)
         databits = u5_to_bitarray(data)
         databits.invert(-1)
-        lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), True)
+        lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), verbose=True)
         assert lnaddr.pubkey.serialize() == PUBKEY
 
     def test_min_final_cltv_expiry_decoding(self):
