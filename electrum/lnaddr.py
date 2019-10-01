@@ -276,10 +276,14 @@ class LnAddr(object):
         now = time.time()
         return now > self.get_expiry() + self.date
 
-def lndecode(a, verbose=False, expected_hrp=None):
+
+class LnDecodeException(Exception): pass
+
+
+def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
     if expected_hrp is None:
         expected_hrp = constants.net.SEGWIT_HRP
-    hrp, data = bech32_decode(a, ignore_long_length=True)
+    hrp, data = bech32_decode(invoice, ignore_long_length=True)
     if not hrp:
         raise ValueError("Bad bech32 checksum")
 

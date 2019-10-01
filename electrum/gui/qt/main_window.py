@@ -1629,30 +1629,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
         return outputs
 
-    def check_send_tab_outputs_and_show_errors(self, outputs) -> bool:
+    def check_send_tab_onchain_outputs_and_show_errors(self, outputs) -> bool:
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
-        pr = self.payment_request
-        if pr:
-            if pr.has_expired():
-                self.show_error(_('Payment request has expired'))
-                return True
-
-        if not pr:
-            errors = self.payto_e.get_errors()
-            if errors:
-                self.show_warning(_("Invalid Lines found:") + "\n\n" + '\n'.join([ _("Line #") + str(x[0]+1) + ": " + x[1] for x in errors]))
-                return True
-
-            if self.payto_e.is_alias and self.payto_e.validated is False:
-                alias = self.payto_e.toPlainText()
-                msg = _('WARNING: the alias "{}" could not be validated via an additional '
-                        'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
-                msg += _('Do you wish to continue?')
-                if not self.question(msg):
-                    return True
-
         if not outputs:
             self.show_error(_('No outputs'))
             return True
@@ -1667,6 +1647,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
                 return True
+
+        return False  # no errors
+
+    def check_send_tab_payto_line_and_show_errors(self) -> bool:
+        """Returns whether there are errors.
+        Also shows error dialog to user if so.
+        """
+        pr = self.payment_request
+        if pr:
+            if pr.has_expired():
+                self.show_error(_('Payment request has expired'))
+                return True
+
+        if not pr:
+            errors = self.payto_e.get_errors()
+            if errors:
+                self.show_warning(_("Invalid Lines found:") + "\n\n" +
+                                  '\n'.join([_("Line #") + f"{err.idx+1}: {err.line_content[:40]}... ({repr(err.exc)})"
+                                             for err in errors]))
+                return True
+
+            if self.payto_e.is_alias and self.payto_e.validated is False:
+                alias = self.payto_e.toPlainText()
+                msg = _('WARNING: the alias "{}" could not be validated via an additional '
+                        'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
+                msg += _('Do you wish to continue?')
+                if not self.question(msg):
+                    return True
 
         return False  # no errors
 
@@ -1694,14 +1702,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_('Error') + '\n' + str(e))
 
     def read_invoice(self):
-        message = self.message_e.text()
-        amount = self.amount_e.get_amount()
+        if self.check_send_tab_payto_line_and_show_errors():
+            return
         if not self.is_onchain:
-            return self.wallet.lnworker.parse_bech32_invoice(self.payto_e.lightning_invoice)
+            invoice = self.payto_e.lightning_invoice
+            if not invoice:
+                return
+            if not self.wallet.lnworker:
+                self.show_error(_('Lightning is disabled'))
+                return
+            return self.wallet.lnworker.parse_bech32_invoice(invoice)
         else:
             outputs = self.read_outputs()
-            if self.check_send_tab_outputs_and_show_errors(outputs):
+            if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
                 return
+            message = self.message_e.text()
             return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
 
     def do_save_invoice(self):
@@ -1968,8 +1983,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.payment_request_error_signal.emit()
 
     def parse_lightning_invoice(self, invoice):
-        from electrum.lnaddr import lndecode
-        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        """Parse ln invoice, and prepare the send tab for it."""
+        from electrum.lnaddr import lndecode, LnDecodeException
+        try:
+            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        except Exception as e:
+            raise LnDecodeException(e) from e
         pubkey = bh2u(lnaddr.pubkey.serialize())
         for k,v in lnaddr.tags:
             if k == 'd':
