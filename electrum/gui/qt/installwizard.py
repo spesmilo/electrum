@@ -13,6 +13,7 @@ from electrum.storage import WalletStorage
 from electrum.util import UserCancelled, InvalidPassword
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
+from electrum import constants
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
@@ -35,9 +36,7 @@ WIF_HELP_TEXT = (_('WIF keys are typed in the Ocean protcol, based on script typ
 MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                               + _("You have multiple consecutive whitespaces or leading/trailing "
                                   "whitespaces in your passphrase.") + " " \
-                              + _("This is discouraged.") + " " \
-                              + _("Due to a bug, old versions of the Ocean wallet will NOT be creating the "
-                                  "same wallet as newer versions or other software.")
+                              + _("This is discouraged.")
 
 
 class CosignWidget(QWidget):
@@ -285,7 +284,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
-            msg = _("The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+            msg = _("The wallet '{}' contains multiple accounts, which are not supported.\n\n"
                     "Do you want to split your wallet into multiple files?").format(path)
             if not self.question(msg):
                 return
@@ -598,16 +597,25 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return None
 
     def init_network(self, network):
-        message = _("The Ocean wallet communicates with remote servers to get "
-                  "information about your transactions and addresses. You can "
-                  "connect to the default configured server or "
-                  "select a server manually.")
+        message = _("This Ocean wallet is configured to connect to and verify "
+                    "the "+constants.net.WALLETTITLE+" sidechain")
+
+
+
+#            communicates with remote servers to get "
+#                  "information about your transactions and addresses. You can "
+#                  "connect to the default configured server or "
+#                  "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]
+
         title = _("How do you want to connect to a server? ")
+
         clayout = ChoicesLayout(message, choices)
         self.back_button.setText(_('Cancel'))
         self.exec_layout(clayout.layout(), title)
         r = clayout.selected_index()
+
+
         if r == 1:
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
