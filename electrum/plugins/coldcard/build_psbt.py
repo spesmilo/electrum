@@ -14,7 +14,7 @@ from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
 from electrum.keystore import xpubkey_to_pubkey, Xpub
 from electrum.util import bfh, bh2u
 from electrum.crypto import hash_160, sha256
-from electrum.bitcoin import DecodeBase58Check
+from electrum.bitcoin import DecodeBase58Check, int_to_hex
 from electrum.i18n import _
 
 from .basic_psbt import (
@@ -22,7 +22,7 @@ from .basic_psbt import (
         PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT, PSBT_IN_PARTIAL_SIG,
         PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION,
         PSBT_OUT_REDEEM_SCRIPT, PSBT_OUT_WITNESS_SCRIPT)
-from .basic_psbt import BasicPSBT
+from .basic_psbt import BasicPSBT, BasicPSBTInput
 
 
 _logger = get_logger(__name__)
@@ -347,7 +347,7 @@ def recover_tx_from_psbt(first: BasicPSBT, wallet: Abstract_Wallet) -> Transacti
                 raise ValueError("Cannot handle non M-of-N multisig input")
 
             inp['pubkeys'] = pubkeys
-            inp['x_pubkeys'] = pubkeys
+            inp['x_pubkeys'] = get_xpubs_from_psbt(first.inputs[idx], first)
             inp['num_sig'] = M
             inp['type'] = 'p2wsh' if first.inputs[idx].witness_script else 'p2sh'
 
@@ -392,6 +392,35 @@ def merge_sigs_from_psbt(tx: Transaction, psbt: BasicPSBT):
     tx.raw_psbt = None
 
     return count
+
+def get_xpubs_from_psbt(inp: BasicPSBTInput, psbt: BasicPSBT):
+    # Get all XPUBs included in PSBT, and convert to a format Electrum wallets expect
+
+    index_for_key = {}
+
+    # Get indexes for each pubkey
+    for k, v in inp.bip32_paths.items():
+        fingerprint, path = parse_fingerprint_and_deriv_path(v)
+        index_for_key[fingerprint] = path[-1]
+
+    xpubs = []
+    for xpub in psbt.xpubs:
+        fingerprint, path = parse_fingerprint_and_deriv_path(xpub[1])
+        index = index_for_key[fingerprint]
+        xpub_bytes = b'\xff' + xpub[0][1:] + bytearray.fromhex(int_to_hex(index, 4))
+        xpubs.append(xpub_bytes.hex())
+        
+    return xpubs
+
+def parse_fingerprint_and_deriv_path(x):
+    # Returns master key printprint followed by derivation path as list
+    
+    n = 4
+    chunks = [x[i * n:(i + 1) * n] for i in range((len(x) + n - 1) // n )]
+    fingerprint = chunks[0].hex()
+    path = [struct.unpack("<I", x)[0] for x in chunks[1:]]
+    return fingerprint, path
+
 
 # EOF
 
