@@ -20,7 +20,6 @@
 import hashlib
 from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException, sig_string_from_der_sig, construct_sig65
 from electrum.util import to_bytes, bfh, bh2u
-#from electrum.bitcoin import var_int
 from electrum.crypto import sha256d
 from electrum.logging import get_logger
 
@@ -195,45 +194,4 @@ class CardDataParser:
         '''
         sig_string = sig_string_from_der_sig(sigin)
         return construct_sig65(sig_string, recid, compressed)
-        
-        # sigout= bytearray(65*[0])
-        # # parse input 
-        # first= sigin[0]
-        # if first!= 0x30:
-            # raise ValueError("Wrong first byte!")
-        # lt= sigin[1]
-        # check= sigin[2]
-        # if  check!= 0x02:
-            # raise ValueError("Check byte should be 0x02")
-        # # extract r
-        # lr= sigin[3]
-        # for i in range(32):
-            # tmp= sigin[4+lr-1-i]
-            # if lr>=(i+1):
-                # sigout[32-i]= tmp
-            # else:
-                # sigout[32-i]=0 
-        # # extract s
-        # check= sigin[4+lr];
-        # if check!= 0x02:
-            # raise ValueError("Second check byte should be 0x02")
-        # ls= sigin[5+lr]
-        # if lt != (lr+ls+4):
-            # raise ValueError("Wrong lt value")
-        # for i in range(32):
-            # tmp= sigin[5+lr+ls-i]
-            # if ls>=(i+1):
-                # sigout[64-i]= tmp;
-            # else:
-                # sigout[32-i]=0;              
-        # # 1 byte header
-        # if recid>3 or recid<0:
-            # raise ValueError("Wrong recid value")
-        # if compressed:
-            # sigout[0]= 27 + recid + 4 
-        # else:
-            # sigout[0]= 27 + recid             
-        
-        # return sigout;
-     
 
