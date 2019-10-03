@@ -12,6 +12,7 @@ from ..util import bh2u
 unsigned_blob = '010000000149f35e43fefd22d8bb9e4b3ff294c6286154c25712baf6ab77b646e5074d6aed010000005701ff4c53ff0488b21e0000000000000000004f130d773e678a58366711837ec2e33ea601858262f8eaef246a7ebd19909c9a03c3b30e38ca7d797fee1223df1c9827b2a9f3379768f520910260220e0560014600002300feffffffd8e43201000000000118e43201000000001976a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac5fbd0700'
 signed_blob = '010000000149f35e43fefd22d8bb9e4b3ff294c6286154c25712baf6ab77b646e5074d6aed010000006a473044022025bdc804c6fe30966f6822dc25086bc6bb0366016e68e880cf6efd2468921f3202200e665db0404f6d6d9f86f73838306ac55bb0d0f6040ac6047d4e820f24f46885412103b5bbebceeb33c1b61f649596b9c3611c6b2853a1f6b48bce05dd54f667fa2166feffffff0118e43201000000001976a914e158fb15c888037fdc40fb9133b4c1c3c688706488ac5fbd0700'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
+nonmin_blob = '010000000142b88360bd83813139af3a251922b7f3d2ac88e45a2a703c28db8ee8580dc3a300000000654c41151dc44bece88c5933d737176499209a0b1688d5eb51eb6f1fd9fcf2fb32d138c94b96a4311673b75a31c054210b2058735ce6c12e529ddea4a6b91e4a3786d94121034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1feffffff012e030000000000001976a914480d1be8ab76f8cdd85ce4077f51d35b0baaa25a88ac4b521400'
 
 class TestBCDataStream(unittest.TestCase):
 
@@ -63,7 +64,6 @@ class TestTransaction(unittest.TestCase):
                         'prevout_hash': 'ed6a4d07e546b677abf6ba1257c2546128c694f23f4b9ebbd822fdfe435ef349',
                         'prevout_n': 1,
                         'pubkeys': ['03b5bbebceeb33c1b61f649596b9c3611c6b2853a1f6b48bce05dd54f667fa2166'],
-                        'scriptSig': '01ff4c53ff0488b21e0000000000000000004f130d773e678a58366711837ec2e33ea601858262f8eaef246a7ebd19909c9a03c3b30e38ca7d797fee1223df1c9827b2a9f3379768f520910260220e0560014600002300',
                         'sequence': 4294967294,
                         'signatures': [None],
                         'type': 'p2pkh',
@@ -129,6 +129,42 @@ class TestTransaction(unittest.TestCase):
         tx.update_signatures([expected['inputs'][0]['signatures'][0][:-2]])
 
         self.assertEqual(tx.estimated_size(), 191)
+
+    def test_tx_nonminimal_scriptSig(self):
+        # The nonminimal push is the '4c41...' (PUSHDATA1 length=0x41 [...]) at
+        # the start of the scriptSig. Minimal is '41...' (PUSH0x41 [...]).
+        expected = {
+            'inputs': [{'address': Address.from_pubkey('034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1'),
+                        'num_sig': 1,
+                        'prevout_hash': 'a3c30d58e88edb283c702a5ae488acd2f3b72219253aaf39318183bd6083b842',
+                        'prevout_n': 0,
+                        'pubkeys': ['034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1'],
+                        'scriptSig': '4c41151dc44bece88c5933d737176499209a0b1688d5eb51eb6f1fd9fcf2fb32d138c94b96a4311673b75a31c054210b2058735ce6c12e529ddea4a6b91e4a3786d94121034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1',
+                        'sequence': 4294967294,
+                        'signatures': ['151dc44bece88c5933d737176499209a0b1688d5eb51eb6f1fd9fcf2fb32d138c94b96a4311673b75a31c054210b2058735ce6c12e529ddea4a6b91e4a3786d941'],
+                        'type': 'p2pkh',
+                        'x_pubkeys': ['034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1']}],
+            'lockTime': 1331787,
+            'outputs': [{'address': Address.from_pubkey('034a29987f30ad5d23d79ed5215e034c51f6825bdb2aa595c2bdeb37902960b3d1'),
+                         'prevout_n': 0,
+                         'scriptPubKey': '76a914480d1be8ab76f8cdd85ce4077f51d35b0baaa25a88ac',
+                         'type': 0,
+                         'value': 814}],
+            'version': 1
+        }
+        tx = transaction.Transaction(nonmin_blob)
+        self.assertEqual(tx.deserialize(), expected)
+        self.assertEqual(tx.deserialize(), None)
+        self.assertEqual(tx.as_dict(), {'hex': nonmin_blob, 'complete': True, 'final': True})
+
+        self.assertEqual(tx.serialize(), nonmin_blob)
+
+        # if original push is lost, will wrongly be e64808c1eb86e8cab68fcbd8b7f3b01f8cc8f39bd05722f1cf2d7cd9b35fb4e3
+        self.assertEqual(tx.txid(), '66020177ae3273d874728667b6a24e0a1c0200079119f3d0c294da40f0e85d34')
+
+        # cause it to lose the original push, and reserialize with minimal
+        del tx.inputs()[0]['scriptSig']
+        self.assertEqual(tx.txid(), 'e64808c1eb86e8cab68fcbd8b7f3b01f8cc8f39bd05722f1cf2d7cd9b35fb4e3')
 
     def test_errors(self):
         with self.assertRaises(TypeError):

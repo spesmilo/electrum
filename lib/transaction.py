@@ -326,6 +326,7 @@ def parse_input(vds):
             d['address'] = UnknownAddress()
             d['type'] = 'unknown'
         if not Transaction.is_txin_complete(d):
+            del d['scriptSig']
             d['value'] = vds.read_uint64()
     return d
 
@@ -594,9 +595,18 @@ class Transaction:
 
     @classmethod
     def input_script(self, txin, estimate_size=False, sign_schnorr=False):
+        # For already-complete transactions, scriptSig will be set and we prefer
+        # to use it verbatim in order to get an exact reproduction (including
+        # malleated push opcodes, etc.).
+        scriptSig = txin.get('scriptSig', None)
+        if scriptSig is not None:
+            return scriptSig
+
+        # For partially-signed inputs, or freshly signed transactions, the
+        # scriptSig will be missing and so we construct it from pieces.
         _type = txin['type']
         if _type == 'coinbase':
-            return txin['scriptSig']
+            raise RuntimeError('Attempted to serialize coinbase with missing scriptSig')
         pubkeys, sig_list = self.get_siglist(txin, estimate_size, sign_schnorr=sign_schnorr)
         script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
@@ -609,7 +619,7 @@ class Transaction:
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
         elif _type == 'unknown':
-            return txin['scriptSig']
+            raise RuntimeError('Cannot serialize unknown input with missing scriptSig')
         return script
 
     @classmethod
