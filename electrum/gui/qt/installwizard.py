@@ -70,7 +70,7 @@ class CosignWidget(QWidget):
         for i in range(self.n):
             alpha = int(16* 360 * i/self.n)
             alpha2 = int(16* 360 * 1/self.n)
-            qp.setBrush(Qt.green if i<self.m else Qt.gray)
+            qp.setBrush(Qt.darkGreen if i<self.m else Qt.gray)
             qp.drawPie(self.R, alpha, alpha2)
         qp.end()
 
@@ -597,32 +597,52 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return None
 
     def init_network(self, network):
-        message = _("This Ocean wallet is configured to connect to and verify "
-                    "the "+constants.net.WALLETTITLE+" sidechain")
-
-
-
-#            communicates with remote servers to get "
-#                  "information about your transactions and addresses. You can "
-#                  "connect to the default configured server or "
-#                  "select a server manually.")
-        choices = [_("Auto connect"), _("Select server manually")]
-
-        title = _("How do you want to connect to a server? ")
-
-        clayout = ChoicesLayout(message, choices)
-        self.back_button.setText(_('Cancel'))
-        self.exec_layout(clayout.layout(), title)
-        r = clayout.selected_index()
-
-
-        if r == 1:
-            nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
-            if self.exec_layout(nlayout.layout()):
-                nlayout.accept()
+        server_str = ""
+        for server in constants.net.DEFAULT_SERVERS:
+            server_str += server + "\n"
+        title = "Ocean Wallet initialization"
+        logo = QLabel()
+        if self.config.get('qt_gui_color_theme') == 'dark':
+            logo.setPixmap(QPixmap(":icons/dgld_wh.png").scaledToWidth(112, mode=Qt.SmoothTransformation))
         else:
-            network.auto_connect = True
-            self.config.set_key('auto_connect', True, True)
+            logo.setPixmap(QPixmap(":icons/dgld_bl.png").scaledToWidth(112, mode=Qt.SmoothTransformation))
+
+        logo.setMaximumWidth(150)
+        vbox = QVBoxLayout()
+        vbox.addWidget(logo)
+        message1 = _("This Ocean wallet is configured to connect to and verify "
+                    "transactions on the "+constants.net.WALLETTITLE+" blockchain.\n\n"
+                    "Genesis block hash: ")
+
+
+        gen_box = QLineEdit()
+        gen_box.setReadOnly(True)
+        gen_box.setText(constants.net.GENESIS)
+        gen_box.setFixedWidth(400)
+        gen_box.setCursorPosition(0);
+        gen_box.setStyleSheet("color: rgb(90, 90, 90); background: rgb(210, 210, 210); border: none")
+        gen_box.setFont(QFont('Menlo'))
+
+        genlab = QLabel()
+        genlab.setText(constants.net.GENESIS)
+        genlab.setFont(QFont('Menlo',11))
+        genlab.setStyleSheet("color: rgb(90, 90, 90); background: rgb(210, 210, 210)")
+
+        message2 = _("\nThis wallet connects to the "+constants.net.WALLETTITLE+" server at:")
+
+        server_url = QLabel()
+        server_url.setText("                      "+server_str)
+        server_url.setStyleSheet("font-weight: bold")
+
+
+        vbox.addWidget(WWLabel(message1))
+        vbox.addWidget(gen_box)
+        vbox.addWidget(WWLabel(message2))
+        vbox.addWidget(server_url)
+
+        self.back_button.setText(_('Cancel'))
+        self.exec_layout(vbox, title)
+        self.config.set_key('auto_connect', True, True)
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

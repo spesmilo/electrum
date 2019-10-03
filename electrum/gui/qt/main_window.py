@@ -2602,7 +2602,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                               _(""),
                               _("You agree to the terms and conditions, the SHA256 hash of which will be embedded in the exported addresses"),
                               _(""),
-                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."),
+                              _("The file should be uploaded as part of the registration process at https://dgld.ch/wallet-id."),
                               _(""),
                               _("Click \'Export\' to save the file.")
         )
@@ -2677,7 +2677,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(_("kycfile exported."))
         self.address_list.update()
         self.need_update.set()
-        webbrowser.open("http://commerceblock.com")
+        webbrowser.open("https://dgld.ch/wallet-id")
 
     def termsandconditions_dialog(self):
 
