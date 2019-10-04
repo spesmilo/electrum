@@ -158,6 +158,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def run_and_get_wallet(self, get_wallet_from_daemon):
 
         vbox = QVBoxLayout()
+
+        logo = QLabel()
+        if self.config.get('qt_gui_color_theme') == 'dark':
+            logo.setPixmap(QPixmap(":icons/dgld_wh.png").scaledToWidth(96, mode=Qt.SmoothTransformation))
+        else:
+            logo.setPixmap(QPixmap(":icons/dgld_bl.png").scaledToWidth(96, mode=Qt.SmoothTransformation))
+        logo.setMaximumWidth(100)
+        vbox.addWidget(logo)
+
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(_('Wallet') + ':'))
         self.name_e = QLineEdit()
@@ -177,7 +186,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
-        self.set_layout(vbox, title=_('Ocean wallet'))
+        self.set_layout(vbox, title=_('Ocean Wallet - '+constants.net.WALLETTITLE+' blockchain'))
 
         wallet_folder = os.path.dirname(self.storage.path)
 
