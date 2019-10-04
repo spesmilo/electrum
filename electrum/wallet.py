@@ -2004,8 +2004,6 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
-        print("address")
-        print(address)
         if address == None:
             return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
