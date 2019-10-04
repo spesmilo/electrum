@@ -379,7 +379,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('load_wallet', wallet, self)
 
     def init_geometry(self):
-        winpos = self.wallet.storage.get("winpos-qt")
+        maximized = self.config.get("is_maximized")
+
+        if maximized:
+            winpos = (lambda _r: (_r.left(), _r.top(), _r.width(), _r.height()))(self.app.desktop().screenGeometry())
+        else:
+            winpos = self.wallet.storage.get("winpos-qt")
+        
         try:
             screen = self.app.desktop().screenGeometry()
             assert screen.contains(QRect(*winpos))
