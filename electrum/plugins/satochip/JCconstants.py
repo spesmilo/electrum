@@ -101,6 +101,7 @@ class JCconstants:
     INS_COMPUTE_SHA512 =  0x6A;
     INS_COMPUTE_HMACSHA512=  0x6B;
     INS_BIP32_IMPORT_SEED=  0x6C;
+    INS_BIP32_RESET_SEED=  0x77;                                
     INS_BIP32_GET_AUTHENTIKEY=  0x73;
     INS_BIP32_GET_EXTENDED_KEY=  0x6D;
     INS_SIGN_MESSAGE=  0x6E;
@@ -109,6 +110,8 @@ class JCconstants:
     INS_BIP32_SET_EXTENDED_KEY=  0x70;
     INS_PARSE_TRANSACTION =  0x71;
     
+    # 2FA
+    INS_SET_2FA_KEY = 0x79;             
     '''****************************************
        *             Error codes              *
        ****************************************'''	   
