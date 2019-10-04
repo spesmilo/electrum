@@ -2004,6 +2004,8 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
+        print("address")
+        print(address)
         if address == None:
             return "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
@@ -2024,7 +2026,6 @@ class Multisig_Wallet(Deterministic_Wallet):
         for addr in addrs:
             line="{} {}".format(self.m, addr)
             
-
             tweakedKeysSorted = self.get_public_keys(addr, True)
             if not constants.net.CONTRACTINTX:
                 untweakedKeys = self.get_public_keys(addr, False)
@@ -2046,14 +2047,14 @@ class Multisig_Wallet(Deterministic_Wallet):
             ss.write("\n")
 
         #Encrypt the addresses string
-        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+        encrypted = ecc.ECPubkey(bfh(onboardPubKey)).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
 
         ss2 = StringIO()
         str_encrypted=str(encrypted)
         #Remove the b'' characters (first 2 and last characters)
         str_encrypted=str_encrypted[2:]
         str_encrypted=str_encrypted[:-1]
-        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write("{} {} {}\n".format(onboardPubKey, ''.join(onboardUserPubKey), str(len(str_encrypted))))
         ss2.write(str_encrypted)
         kyc_string=ss2.getvalue()
 
