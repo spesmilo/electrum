@@ -259,7 +259,7 @@ class TestPeer(ElectrumTestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._message_loop(), p2._message_loop())
+            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop())
         with self.assertRaises(PaymentFailure):
             run(f())
 

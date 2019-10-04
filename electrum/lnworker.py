@@ -859,26 +859,23 @@ class LNWallet(LNWorker):
         self.wallet.set_label(key, lnaddr.get_description())
         for i in range(attempts):
             route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
-            if not self.get_channel_by_short_id(route[0].short_channel_id):
-                scid = route[0].short_channel_id
-                raise Exception(f"Got route with unknown first channel: {scid}")
             self.network.trigger_callback('payment_status', key, 'progress', i)
-            if await self._pay_to_route(route, lnaddr, invoice):
+            if await self._pay_to_route(route, lnaddr):
                 return True
         return False
 
-    async def _pay_to_route(self, route, addr, invoice):
+    async def _pay_to_route(self, route, lnaddr):
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         if not chan:
             raise Exception(f"PathFinder returned path with short_channel_id "
                             f"{short_channel_id} that is not in channel list")
-        self.set_invoice_status(addr.paymenthash, PR_INFLIGHT)
+        self.set_invoice_status(lnaddr.paymenthash, PR_INFLIGHT)
         peer = self.peers[route[0].node_id]
-        htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
-        self.network.trigger_callback('htlc_added', htlc, addr, SENT)
+        htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+        self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success = await self.pending_payments[(short_channel_id, htlc.htlc_id)]
-        self.set_invoice_status(addr.paymenthash, (PR_PAID if success else PR_UNPAID))
+        self.set_invoice_status(lnaddr.paymenthash, (PR_PAID if success else PR_UNPAID))
         return success
 
     @staticmethod
