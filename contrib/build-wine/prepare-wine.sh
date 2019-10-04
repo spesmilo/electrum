@@ -17,10 +17,7 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
 # ^ tag 3.4, plus a custom commit that fixes cross-compilation with MinGW
 
-#DebugSatochip pyscard
-#PYSCARD_FILENAME=pyscard-1.9.7-cp36-cp36m-win_amd64.whl #python64-bits
-#PYSCARD_URL=https://sourceforge.net/projects/pyscard/files/pyscard/pyscard%201.9.7/pyscard-1.9.7-cp36-cp36m-win_amd64.whl/download
-#PYSCARD_SHA256=c63a87e4e7c87ce4c1299a1d8e0cae4e43f27451ca210f2c54f2dcd7467565c5
+#Satochip pyscard
 PYSCARD_FILENAME=pyscard-1.9.8-cp36-cp36m-win32.whl #python32-bits
 PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/j60tkykj6vh0ppiy/artifacts/dist%2Fpyscard-1.9.8-cp36-cp36m-win32.whl
 PYSCARD_SHA256=4641b5db53fb3562671b7b7c685ddf8f715180e2809106fb2a9361dfad553b4b
@@ -73,7 +70,7 @@ download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
 verify_hash "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_SHA256"
 wine "$CACHEDIR/$ZBAR_FILENAME" /S
 
-#DebugSatochip install pyscard
+#Satochip install pyscard
 info "Installing pyscard..."
 download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
 verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"

@@ -22,6 +22,8 @@ RUN apt-get update -q && \
         gettext=0.18.3.1-1ubuntu3.1 \
         libzbar0=0.10+doc-9build1  \
         libdbus-1-3=1.6.18-0ubuntu4.5 \
+        libpcsclite-dev=1.8.10-1ubuntu1.1 \
+        swig=2.0.11-1ubuntu2 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
