@@ -34,7 +34,7 @@ from .i18n import _
 
 
 class BaseCrashReporter(object):
-    report_server = "https://crashhub.electrum.org"
+    report_server = "https://crashhub.commerceblock.com"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
 <pre>
@@ -43,14 +43,14 @@ class BaseCrashReporter(object):
 
 <h2>Additional information</h2>
 <ul>
-  <li>Electrum version: {app_version}</li>
+  <li>Ocean wallet version: {app_version}</li>
   <li>Python version: {python_version}</li>
   <li>Operating system: {os}</li>
   <li>Wallet type: {wallet_type}</li>
   <li>Locale: {locale}</li>
 </ul>
     """
-    CRASH_MESSAGE = _('Something went wrong while executing Electrum.')
+    CRASH_MESSAGE = _('Something went wrong while executing the Ocean wallet')
     CRASH_TITLE = _('Sorry!')
     REQUEST_HELP_MESSAGE = _('To help us diagnose and fix the problem, you can send us a bug report that contains '
                              'useful debug information:')
@@ -61,9 +61,6 @@ class BaseCrashReporter(object):
         self.exc_args = (exctype, value, tb)
 
     def send_report(self, endpoint="/crash"):
-        if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
-            # Gah! Some kind of altcoin wants to send us crash reports.
-            raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)

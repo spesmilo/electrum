@@ -44,5 +44,7 @@
     <file>icons/unconfirmed.png</file>
     <file>icons/unlock.png</file>
     <file>icons/warning.png</file>
+    <file>icons/dgld_bl.png</file>
+    <file>icons/dgld_wh.png</file>
   </qresource>
 </RCC>
