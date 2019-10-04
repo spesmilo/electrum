@@ -170,6 +170,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(_('Wallet') + ':'))
         self.name_e = QLineEdit()
+        #restrict input to wallet name qlineedit
+        regex=QRegExp("[a-z-A-Z0-9_]+")
+        validator = QRegExpValidator(regex)
+        self.name_e.setValidator(validator)
+
         hbox.addWidget(self.name_e)
         button = QPushButton(_('Choose...'))
         hbox.addWidget(button)
