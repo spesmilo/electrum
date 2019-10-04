@@ -401,14 +401,16 @@ def get_xpubs_from_psbt(inp: BasicPSBTInput, psbt: BasicPSBT):
     # Get indexes for each pubkey
     for k, v in inp.bip32_paths.items():
         fingerprint, path = parse_fingerprint_and_deriv_path(v)
-        index_for_key[fingerprint] = path[-1]
+        index_for_key[fingerprint] = path[-1] & 0x7FFFFFFF
 
     xpubs = []
     for xpub in psbt.xpubs:
         fingerprint, path = parse_fingerprint_and_deriv_path(xpub[1])
         index = index_for_key[fingerprint]
-        xpub_bytes = b'\xff' + xpub[0][1:] + bytearray.fromhex(int_to_hex(index, 4))
-        xpubs.append(xpub_bytes.hex())
+        # Append index to xpub as per keystore get_xpubkey
+        indexed = int_to_hex(index, 2) if index < 0xffff else 'ffff' + int_to_hex(index, 4)
+        xpub_indexed = 'ff' + xpub[0][1:].hex() + ''.join(['0000', indexed])
+        xpubs.append(xpub_indexed)
         
     return xpubs
 
