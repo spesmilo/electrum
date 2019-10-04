@@ -2057,7 +2057,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         ss2.write(str_encrypted)
         kyc_string=ss2.getvalue()
 
-        return kyc_string
+        return True, kyc_string
 
     def dumpkycfile(self, filename=None, password=None):
         kycfile_string = self.get_kyc_string(password)
