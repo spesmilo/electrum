@@ -202,7 +202,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wrtabs = Weak.ref(tabs)  # We use a weak reference here to help along python gc of QShortcut children: prevent the lambdas below from holding a strong ref to self.
         self._shortcuts.add( QShortcut(QKeySequence("Ctrl+W"), self, self.close) )
-        self._shortcuts.add( QShortcut(QKeySequence("Ctrl+Q"), self, self.close) )
         # Below is now addded to the menu as Ctrl+R but we'll also support F5 like browsers do
         self._shortcuts.add( QShortcut(QKeySequence("F5"), self, self.update_wallet) )
         self._shortcuts.add( QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: wrtabs() and wrtabs().setCurrentIndex((wrtabs().currentIndex() - 1)%wrtabs().count())) )
@@ -598,7 +597,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Save Copy") + "...", self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addAction(_("Delete") + "...", self.remove_wallet)
         file_menu.addSeparator()
-        file_menu.addAction(_("&Quit"), self.close)
+        file_menu.addAction(_("&Quit"), self.close).setShortcut(QKeySequence.Quit)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information") + "...", self.show_master_public_keys, QKeySequence("Ctrl+I"))
