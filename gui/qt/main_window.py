@@ -4516,11 +4516,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_address_checkbox.stateChanged.connect(on_fiat_address)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
+        hist_checkbox.setText(_('Show history rates'))
+        fiat_address_checkbox.setText(_('Show fiat balance for addresses'))
+
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency:')), ccy_combo))
-        fiat_widgets.append((QLabel(_('Show history rates:')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show fiat balance for addresses')), fiat_address_checkbox))
         fiat_widgets.append((QLabel(_('Source:')), ex_combo))
+        fiat_widgets.append((hist_checkbox, None))
+        fiat_widgets.append((fiat_address_checkbox, None))
 
         tabs_info = [
             (gui_widgets, _('General')),
