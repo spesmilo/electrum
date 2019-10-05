@@ -390,6 +390,7 @@ class PayToEdit(PrintError, ScanQRTextEdit):
 
         return True
 
+    _rx_split = re.compile(r'(\s+)|(\s*,\s*)')  # split on ',' or on <whitespace>
     def _resolve_cash_accounts(self, skip_verif=False):
         ''' This should be called if not hasFocus(). Will run through the
         text in the payto and rewrite any verified cash accounts we find. '''
@@ -398,7 +399,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         lines_orig = lines.copy()
         need_verif = set()
         for n, line in enumerate(lines):
-            parts = line.split(maxsplit=1)
+            line = line.strip()
+            parts = self._rx_split.split(line, maxsplit=1)
             if not parts:
                 # nothing there..
                 continue
