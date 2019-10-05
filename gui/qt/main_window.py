@@ -604,7 +604,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.password_menu = wallet_menu.addAction(_("&Password") + "...", self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
         wallet_menu.addAction(_("&Delete") + "...", self.remove_wallet)
-        self.private_keys_menu = wallet_menu.addMenu(_("Private keys"))
+        self.private_keys_menu = wallet_menu.addMenu(_("Private Keys"))
         self.private_keys_menu.addAction(_("&Sweep") + "...", self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import") + "...", self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addMenu(_("&Export"))
@@ -612,7 +612,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.export_menu.addAction(_("&BIP38 Encrypted") + "...", self.export_bip38_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses") + "...", self.import_addresses)
         wallet_menu.addSeparator()
-        self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history") + "...", self.rebuild_history)
+        self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild History") + "...", self.rebuild_history)
         self._scan_beyond_gap_action = wallet_menu.addAction(_("Scan &More Addresses..."), self.scan_beyond_gap)
         self._scan_beyond_gap_action.setEnabled(bool(self.wallet.is_deterministic() and self.network))
         wallet_menu.addSeparator()
@@ -664,19 +664,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu.addAction(_("Installed &Plugins") + "...", self.external_plugins_dialog, QKeySequence("Ctrl+P"))
         if sys.platform.startswith('linux'):
             tools_menu.addSeparator()
-            tools_menu.addAction(_("&Hardware wallet support..."), self.hardware_wallet_support)
+            tools_menu.addAction(_("&Hardware Wallet Support..."), self.hardware_wallet_support)
         tools_menu.addSeparator()
-        tools_menu.addAction(_("&Sign/verify message") + "...", self.sign_verify_message)
-        tools_menu.addAction(_("&Encrypt/decrypt message") + "...", self.encrypt_message)
+        tools_menu.addAction(_("&Sign/Verify Message") + "...", self.sign_verify_message)
+        tools_menu.addAction(_("&Encrypt/Decrypt Message") + "...", self.encrypt_message)
         tools_menu.addSeparator()
 
-        paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany, QKeySequence("Ctrl+M"))
+        paytomany_menu = tools_menu.addAction(_("&Pay to Many"), self.paytomany, QKeySequence("Ctrl+M"))
 
-        raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-        raw_transaction_menu.addAction(_("From &file") + "...", self.do_process_from_file)
-        raw_transaction_menu.addAction(_("From &text") + "...", self.do_process_from_text, QKeySequence("Ctrl+T"))
-        raw_transaction_menu.addAction(_("From the &blockchain") + "...", self.do_process_from_txid, QKeySequence("Ctrl+B"))
-        raw_transaction_menu.addAction(_("From &QR code") + "...", self.read_tx_from_qrcode)
+        raw_transaction_menu = tools_menu.addMenu(_("&Load Transaction"))
+        raw_transaction_menu.addAction(_("From &File") + "...", self.do_process_from_file)
+        raw_transaction_menu.addAction(_("From &Text") + "...", self.do_process_from_text, QKeySequence("Ctrl+T"))
+        raw_transaction_menu.addAction(_("From the &Blockchain") + "...", self.do_process_from_txid, QKeySequence("Ctrl+B"))
+        raw_transaction_menu.addAction(_("From &QR Code") + "...", self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
         tools_menu.addSeparator()
         if ColorScheme.dark_scheme and sys.platform != 'darwin':  # use dark icon in menu except for on macOS where we can't be sure it will look right due to the way menus work on macOS
@@ -690,13 +690,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("About Qt"), self.app.aboutQt)
-        help_menu.addAction(_("&Check for updates"), lambda: self.gui_object.show_update_checker(self))
-        help_menu.addAction(_("&Official website"), lambda: webopen("https://electroncash.org"))
+        help_menu.addAction(_("&Check for Updates"), lambda: self.gui_object.show_update_checker(self))
+        help_menu.addAction(_("&Official Website"), lambda: webopen("https://electroncash.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("Documentation"), lambda: webopen("http://electroncash.readthedocs.io/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug..."), self.show_report_bug)
         help_menu.addSeparator()
-        help_menu.addAction(_("&Donate to server") + "...", self.donate_to_server)
+        help_menu.addAction(_("&Donate to Server") + "...", self.donate_to_server)
 
 
     def donate_to_server(self):
