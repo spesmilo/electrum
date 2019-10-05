@@ -4245,7 +4245,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((qr_label, qr_combo))
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Light'), 'default')
+        colortheme_combo.addItem(_('Default'), 'default')  # We can't name this "light" in the UI as sometimes the default is actually dark-looking eg on Mojave or on some Linux desktops.
         colortheme_combo.addItem(_('Dark'), 'dark')
         theme_name = self.config.get('qt_gui_color_theme', 'default')
         dark_theme_available = self.gui_object.is_dark_theme_available()
