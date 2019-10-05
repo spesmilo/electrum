@@ -591,20 +591,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         destroyed_print_error(menubar)
 
         file_menu = menubar.addMenu(_("&File"))
-        self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
+        self.recently_visited_menu = file_menu.addMenu(_("Open &Recent"))
         file_menu.addAction(_("&Open") + "...", self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore") + "...", self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy") + "...", self.backup_wallet).setShortcut(QKeySequence.SaveAs)
-        file_menu.addAction(_("Delete") + "...", self.remove_wallet)
+        file_menu.addAction(_("&Save Copy As") + "...", self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close).setShortcut(QKeySequence.Quit)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_menu.addAction(_("&Information") + "...", self.show_master_public_keys, QKeySequence("Ctrl+I"))
+        wallet_menu.addAction(_("&Information"), self.show_master_public_keys, QKeySequence("Ctrl+I"))
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password") + "...", self.change_password_dialog)
-        self.seed_menu = wallet_menu.addAction(_("&Seed") + "...", self.show_seed_dialog)
-        self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
+        wallet_menu.addAction(_("&Delete") + "...", self.remove_wallet)
+        self.private_keys_menu = wallet_menu.addMenu(_("Private keys"))
         self.private_keys_menu.addAction(_("&Sweep") + "...", self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import") + "...", self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addMenu(_("&Export"))
@@ -612,15 +612,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.export_menu.addAction(_("&BIP38 Encrypted") + "...", self.export_bip38_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses") + "...", self.import_addresses)
         wallet_menu.addSeparator()
-        self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history"), self.rebuild_history)
-        self._scan_beyond_gap_action = wallet_menu.addAction(_("&Scan beyond gap..."), self.scan_beyond_gap)
+        self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history") + "...", self.rebuild_history)
+        self._scan_beyond_gap_action = wallet_menu.addAction(_("Scan &More Addresses..."), self.scan_beyond_gap)
         self._scan_beyond_gap_action.setEnabled(bool(self.wallet.is_deterministic() and self.network))
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
         labels_menu.addAction(_("&Import") + "...", self.do_import_labels)
         labels_menu.addAction(_("&Export") + "...", self.do_export_labels)
-        contacts_menu = wallet_menu.addMenu(_("Contacts"))
+        contacts_menu = wallet_menu.addMenu(_("&Contacts"))
         contacts_menu.addAction(_("&New") + "...", self.new_contact_dialog)
         contacts_menu.addAction(_("Import") + "...", lambda: self.contact_list.import_contacts())
         contacts_menu.addAction(_("Export") + "...", lambda: self.contact_list.export_contacts())
@@ -631,8 +631,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hist_menu.addAction(_("Export") + "...", self.export_history_dialog)
 
         wallet_menu.addSeparator()
-        wallet_menu.addAction(_("Find"), self.toggle_search, QKeySequence("Ctrl+F"))
-        wallet_menu.addAction(_("&Refresh GUI"), self.update_wallet, QKeySequence("Ctrl+R"))
+        wallet_menu.addAction(_("&Find"), self.toggle_search, QKeySequence("Ctrl+F"))
+        wallet_menu.addAction(_("Refresh GUI"), self.update_wallet, QKeySequence("Ctrl+R"))
 
 
         def add_toggle_action(view_menu, tab):
@@ -650,7 +650,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
-        prefs_tit = _("Preferences")  + "..."
+        prefs_tit = _("Preferences") + "..."
         a = tools_menu.addAction(prefs_tit, self.settings_dialog, QKeySequence("Ctrl+,") )  # Note: on macOS this hotkey sequence won't be shown in the menu (since it's reserved by the system), but will still work. :/
         if sys.platform == 'darwin':
             # This turns off the heuristic matching based on name and keeps the
@@ -690,13 +690,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("About Qt"), self.app.aboutQt)
-        help_menu.addAction(_("&Check for updates..."), lambda: self.gui_object.show_update_checker(self))
+        help_menu.addAction(_("&Check for updates"), lambda: self.gui_object.show_update_checker(self))
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electroncash.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("Documentation"), lambda: webopen("http://electroncash.readthedocs.io/")).setShortcut(QKeySequence.HelpContents)
-        help_menu.addAction(_("&Report Bug"), self.show_report_bug)
+        help_menu.addAction(_("&Report Bug..."), self.show_report_bug)
         help_menu.addSeparator()
-        help_menu.addAction(_("&Donate to server"), self.donate_to_server)
+        help_menu.addAction(_("&Donate to server") + "...", self.donate_to_server)
 
 
     def donate_to_server(self):
@@ -4086,7 +4086,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         customfee_e = BTCSatsByteEdit()
         customfee_e.setAmount(self.config.custom_fee_rate() / 1000.0 if self.config.has_custom_fee_rate() else None)
         customfee_e.textChanged.connect(on_customfee)
-        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per byte'))
+        customfee_label = HelpLabel(_('Custom fee rate:'), _('Custom Fee Rate in Satoshis per byte'))
         fee_widgets.append((customfee_label, customfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
@@ -4181,7 +4181,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         block_explorers = web.BE_sorted_list()
         msg = _('Choose which online block explorer to use for functions that open a web browser')
-        block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
+        block_ex_label = HelpLabel(_('Online block explorer') + ':', msg)
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(block_ex_combo.findText(web.BE_from_config(self.config)))
@@ -4192,7 +4192,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((block_ex_label, block_ex_combo))
 
         qr_combo = QComboBox()
-        qr_label = HelpLabel(_('Video Device'), '')
+        qr_label = HelpLabel(_('Video device'), '')
         qr_did_scan = False
         def set_no_camera(e=''):
             # Older Qt or missing libs -- disable GUI control and inform user why
@@ -4200,7 +4200,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             qr_combo.clear()
             qr_combo.addItem(_("Default"), "default")
             qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
-            qr_label.setText(_('Video Device') + ' ' + _('(disabled)') + ':')
+            qr_label.setText(_('Video device') + ' ' + _('(disabled)') + ':')
             qr_label.help_text = qr_combo.toolTip() + "\n\n" + str(e)
             qr_label.setToolTip(qr_combo.toolTip())
         def scan_cameras():
@@ -4218,8 +4218,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             system_cameras = QCameraInfo.availableCameras()
             qr_combo.clear()
             qr_combo.addItem(_("Default"), "default")
-            qr_label.setText(_('Video Device') + ':')
-            qr_label.help_text = _("For scanning Qr codes.")
+            qr_label.setText(_('Video device') + ':')
+            qr_label.help_text = _("For scanning QR codes.")
             qr_combo.setToolTip(qr_label.help_text)
             qr_label.setToolTip(qr_label.help_text)
             for cam in system_cameras:
@@ -4270,7 +4270,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if sys.platform not in ('darwin',):
             # Enable/Disable HighDPI -- this option makes no sense for macOS
             # and thus does not appear on that platform
-            hidpi_chk = QCheckBox(_('Automatic high DPI scaling'))
+            hidpi_chk = QCheckBox(_('Automatic high-DPI scaling'))
             if sys.platform in ('linux',):
                 hidpi_chk.setToolTip(_("Enable/disable this option if you experience graphical glitches (such as overly large status bar icons)"))
             else: # windows
@@ -4420,7 +4420,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         global_tx_widgets.append((opret_cb,None))
 
         # Schnorr
-        use_schnorr_cb = QCheckBox(_("Enable Schnorr signatures"))
+        use_schnorr_cb = QCheckBox(_("Sign with Schnorr signatures"))
         use_schnorr_cb.setChecked(self.wallet.is_schnorr_enabled())
         use_schnorr_cb.stateChanged.connect(self.wallet.set_schnorr_enabled)
         no_schnorr_reason = []
@@ -4517,10 +4517,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         fiat_widgets = []
-        fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
-        fiat_widgets.append((QLabel(_('Source')), ex_combo))
+        fiat_widgets.append((QLabel(_('Fiat currency:')), ccy_combo))
+        fiat_widgets.append((QLabel(_('Show history rates:')), hist_checkbox))
+        fiat_widgets.append((QLabel(_('Show fiat balance for addresses')), fiat_address_checkbox))
+        fiat_widgets.append((QLabel(_('Source:')), ex_combo))
 
         tabs_info = [
             (gui_widgets, _('General')),
