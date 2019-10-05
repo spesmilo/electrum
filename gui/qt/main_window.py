@@ -595,6 +595,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_menu.addAction(_("&Open") + "...", self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore") + "...", self.new_wallet).setShortcut(QKeySequence.New)
         file_menu.addAction(_("&Save Copy As") + "...", self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("&Delete") + "...", self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close).setShortcut(QKeySequence.Quit)
 
@@ -603,7 +604,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password") + "...", self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        wallet_menu.addAction(_("&Delete") + "...", self.remove_wallet)
         self.private_keys_menu = wallet_menu.addMenu(_("Private Keys"))
         self.private_keys_menu.addAction(_("&Sweep") + "...", self.sweep_key_dialog)
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import") + "...", self.do_import_privkey)
