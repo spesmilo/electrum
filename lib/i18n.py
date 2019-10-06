@@ -247,6 +247,10 @@ languages: Dict[str, LanguageDef] = {
         name='Svenska',
         matches=lambda c: re.match('^sv.*', c), excludes=lambda c: False
         ),
+    'sw_KE': LanguageDef(
+        name='Swahili',
+        matches=lambda c: re.match('^sw.*', c), excludes=lambda c: False
+        ),
     'ta_IN': LanguageDef(
         name='தமிழ்',
         matches=lambda c: re.match('^ta.*', c), excludes=lambda c: False
