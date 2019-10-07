@@ -26,7 +26,7 @@ import struct
 
 from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex, op_push
-from .transaction import parse_scriptSig
+from .transaction import parse_redeemScript_multisig, script_GetOp
 from . import constants
 from .util import bfh, bh2u
 from . import ecc 
@@ -80,14 +80,22 @@ def verify_header_proof(h):
     rchallenge = h['challenge']
     proof = "".join(reversed([rproof[i:i+2] for i in range(0, len(rproof), 2)]))
     challenge = "".join(reversed([rchallenge[i:i+2] for i in range(0, len(rchallenge), 2)]))
-    if challenge != constants.net.CHALLENGE: return False
+    if challenge != constants.net.CHALLENGE: 
+        return False
 
-    d = {}
-    pushdata = op_push(int(len(challenge)/2))
     try:
-        parse_scriptSig(d, bytearray.fromhex(proof+pushdata+challenge))
+        m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(bytearray.fromhex(challenge))
+    except:
+        return False
+
+    signatures = []
+    try:
+        decoded = [ x for x in script_GetOp(bytearray.fromhex(proof)) ]
     except struct.error:
         return False
+
+    for element in decoded[1:]:
+        signatures.append(element[1])
 
     rhhash = hash_header(h)
     hhash = "".join(reversed([rhhash[i:i+2] for i in range(0, len(rhhash), 2)]))
@@ -95,9 +103,9 @@ def verify_header_proof(h):
     keyfound = []
     nverified = 0
     #loop over each signature and then check each pubkey in turn
-    for sig in d['signatures']:
-        sig_string = ecc.sig_string_from_der_sig(bfh(sig))
-        for pubkey in d['pubkeys']:
+    for sig in signatures:
+        sig_string = ecc.sig_string_from_der_sig(sig)
+        for pubkey in pubkeys:
             if pubkey in keyfound: continue
             pubpoint = ecc.ser_to_point(bytes.fromhex(pubkey))
             public_key = ecc.ECPubkey.from_point(pubpoint)
@@ -107,7 +115,8 @@ def verify_header_proof(h):
                 nverified += 1
             except:
                 pass
-        if nverified >= d['num_sig']: return True
+        if nverified >= m: 
+            return True
 
     return False
 
