@@ -1358,14 +1358,15 @@ class Abstract_Wallet(AddressSynchronizer):
         if not req:
             return
         req = copy.copy(req)
-        if req['type'] == PR_TYPE_ONCHAIN:
+        _type = req.get('type')
+        if _type == PR_TYPE_ONCHAIN:
             addr = req['address']
             req['URI'] = self.get_request_URI(addr)
             status, conf = self.get_request_status(addr)
             req['status'] = status
             if conf is not None:
                 req['confirmations'] = conf
-        elif self.lnworker and req['type'] == PR_TYPE_LN:
+        elif self.lnworker and _type == PR_TYPE_LN:
             req['status'] = self.lnworker.get_invoice_status(bfh(key))
         else:
             return
