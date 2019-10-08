@@ -37,24 +37,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(bh2u(i.payment_hash))])
         return it
 
-    def append_lnaddr(self, it: HTLCItem, lnaddr: LnAddr):
-        invoice = HTLCItem(_('Invoice'))
-        invoice.appendRow([HTLCItem(_('Remote node public key')), HTLCItem(bh2u(lnaddr.pubkey.serialize()))])
-        invoice.appendRow([HTLCItem(_('Amount in sat')), HTLCItem(str(lnaddr.amount * COIN))]) # might have a comma because mSAT!
-        invoice.appendRow([HTLCItem(_('Description')), HTLCItem(dict(lnaddr.tags).get('d', _('N/A')))])
-        invoice.appendRow([HTLCItem(_('Date')), HTLCItem(format_time(lnaddr.date))])
-        it.appendRow([invoice])
-
-    def make_inflight(self, lnaddr, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
-        it = self.make_htlc_item(i, direction)
-        self.append_lnaddr(it, lnaddr)
-        return it
-
     def make_model(self, htlcs) -> QtGui.QStandardItemModel:
         model = QtGui.QStandardItemModel(0, 2)
         model.setHorizontalHeaderLabels(['HTLC', 'Property value'])
         parentItem = model.invisibleRootItem()
-        folder_types = {'settled': _('Fulfilled HTLCs'), 'inflight': _('HTLCs in current commitment transaction')}
+        folder_types = {'settled': _('Fulfilled HTLCs'), 'inflight': _('HTLCs in current commitment transaction'), 'failed': _('Failed HTLCs')}
         self.folders = {}
         self.keyname_rows = {}
 
@@ -71,20 +58,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         invoices = dict(self.window.wallet.lnworker.invoices)
         for pay_hash, item in htlcs.items():
             chan_id, i, direction, status = item
-            lnaddr = None
-            if pay_hash in invoices:
-                invoice = invoices[pay_hash][0]
-                lnaddr = lndecode(invoice)
-            if status == 'inflight':
-                if lnaddr is not None:
-                    it = self.make_inflight(lnaddr, i, direction)
-                else:
-                    it = self.make_htlc_item(i, direction)
-            elif status == 'settled':
-                it = self.make_htlc_item(i, direction)
-                # if we made the invoice and still have it, we can show more info
-                if lnaddr is not None:
-                    self.append_lnaddr(it, lnaddr)
+            it = self.make_htlc_item(i, direction)
             self.folders[status].appendRow(it)
             mapping[i.payment_hash] = num
             num += 1

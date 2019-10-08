@@ -573,7 +573,7 @@ class Abstract_Wallet(AddressSynchronizer):
         request_type = item.get('type')
         if request_type == PR_TYPE_ONCHAIN:
             item['status'] = PR_PAID if item.get('txid') is not None else PR_UNPAID
-        elif request_type == PR_TYPE_LN:
+        elif self.lnworker and request_type == PR_TYPE_LN:
             item['status'] = self.lnworker.get_invoice_status(bfh(item['rhash']))
         else:
             return
@@ -1358,14 +1358,15 @@ class Abstract_Wallet(AddressSynchronizer):
         if not req:
             return
         req = copy.copy(req)
-        if req['type'] == PR_TYPE_ONCHAIN:
+        _type = req.get('type')
+        if _type == PR_TYPE_ONCHAIN:
             addr = req['address']
             req['URI'] = self.get_request_URI(addr)
             status, conf = self.get_request_status(addr)
             req['status'] = status
             if conf is not None:
                 req['confirmations'] = conf
-        elif req['type'] == PR_TYPE_LN:
+        elif self.lnworker and _type == PR_TYPE_LN:
             req['status'] = self.lnworker.get_invoice_status(bfh(key))
         else:
             return
@@ -1462,6 +1463,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_sorted_requests(self):
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self.receive_requests.keys()]
+        out = [x for x in out if x is not None]
         out.sort(key=operator.itemgetter('time'))
         return out
 
