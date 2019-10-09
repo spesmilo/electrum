@@ -28,7 +28,10 @@ val libNetwork by lazy { libMod("network") }
 
 
 fun initNetwork() {
-    settings.getBoolean("auto_connect").observeForever { updateNetwork() }
+    settings.getBoolean("auto_connect").observeForever { autoConnect ->
+        daemonModel.network.callAttr("set_whitelist_only", autoConnect)  // See #1636.
+        updateNetwork()
+    }
     settings.getString("server").observeForever { updateNetwork() }
 }
 
