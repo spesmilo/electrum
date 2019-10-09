@@ -1267,7 +1267,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
-        self.lnworker.set_invoice_status(payment_hash, PR_PAID)
+        self.lnworker.set_payment_status(payment_hash, PR_PAID)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
 
@@ -1406,7 +1406,7 @@ class Peer(Logger):
         await self.await_local(chan, local_ctn)
         await self.await_remote(chan, remote_ctn)
         try:
-            info = self.lnworker.get_invoice_info(htlc.payment_hash)
+            info = self.lnworker.get_payment_info(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)
         except UnknownPaymentHash:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1443,7 +1443,7 @@ class Peer(Logger):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.settle_htlc(preimage, htlc_id)
         payment_hash = sha256(preimage)
-        self.lnworker.set_invoice_status(payment_hash, PR_PAID)
+        self.lnworker.set_payment_status(payment_hash, PR_PAID)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
