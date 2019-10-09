@@ -18,7 +18,7 @@ from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnLocalFeatures
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet
+from electrum.lnworker import LNWallet, NoPathFound
 from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
@@ -251,9 +251,8 @@ class TestPeer(ElectrumTestCase):
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
-        with self.assertRaises(PaymentFailure) as e:
+        with self.assertRaises(NoPathFound) as e:
             run(w1._create_route_from_invoice(decoded_invoice=addr))
-        self.assertEqual(str(e.exception), 'No path found')
 
         peer = w1.peers[route[0].node_id]
         # AssertionError is ok since we shouldn't use old routes, and the

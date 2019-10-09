@@ -21,7 +21,8 @@ import dns.exception
 
 from . import constants
 from . import keystore
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, profiler
+from .util import profiler
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED
 from .util import PR_TYPE_LN
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -91,6 +92,9 @@ class PaymentInfo(NamedTuple):
     direction: int
     status: int
 
+
+class NoPathFound(PaymentFailure):
+    pass
 
 class LNWorker(Logger):
 
@@ -825,19 +829,9 @@ class LNWallet(LNWorker):
         """
         Can be called from other threads
         """
-        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        key = bh2u(addr.paymenthash)
         coro = self._pay(invoice, amount_sat, attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        try:
-            success = fut.result()
-        except Exception as e:
-            self.network.trigger_callback('payment_status', key, 'error', e)
-            return
-        if success:
-            self.network.trigger_callback('payment_status', key, 'success')
-        else:
-            self.network.trigger_callback('payment_status', key, 'failure')
+        success = fut.result()
 
     def get_channel_by_short_id(self, short_channel_id: ShortChannelID) -> Channel:
         with self.lock:
@@ -848,9 +842,10 @@ class LNWallet(LNWorker):
     @log_exceptions
     async def _pay(self, invoice, amount_sat=None, attempts=1):
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        key = bh2u(lnaddr.paymenthash)
+        payment_hash = lnaddr.paymenthash
+        key = payment_hash.hex()
         amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
-        status = self.get_payment_status(lnaddr.paymenthash)
+        status = self.get_payment_status(payment_hash)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
@@ -859,13 +854,22 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self._check_invoice(invoice, amount_sat)
         self.wallet.set_label(key, lnaddr.get_description())
+        log = []
         for i in range(attempts):
-            route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
-            self.network.trigger_callback('payment_status', key, 'progress', i)
-            success, preimage, reason = await self._pay_to_route(route, lnaddr)
+            try:
+                route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
+            except NoPathFound:
+                success = False
+                break
+            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT, log)
+            success, preimage, failure_node_id, failure_msg = await self._pay_to_route(route, lnaddr)
             if success:
-                return True
-        return False
+                log.append((route, True, preimage))
+                break
+            else:
+                log.append((route, False, (failure_node_id, failure_msg)))
+        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED, log)
+        return success
 
     async def _pay_to_route(self, route, lnaddr):
         short_channel_id = route[0].short_channel_id
@@ -877,7 +881,18 @@ class LNWallet(LNWorker):
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
-        return await self.await_payment(lnaddr.paymenthash)
+        success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
+        if success:
+            failure_node_id = None
+            failure_msg = None
+        else:
+            failure_msg, sender_idx = chan.decode_onion_error(reason, route, htlc.htlc_id)
+            failure_node_id = route[sender_idx].node_id
+            code, data = failure_msg.code, failure_msg.data
+            self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
+            self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
+            self.channel_db.handle_error_code_from_failed_htlc(code, data, sender_idx, route)
+        return success, preimage, failure_node_id, failure_msg
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):
@@ -945,11 +960,11 @@ class LNWallet(LNWorker):
         if route is None:
             path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat, channels)
             if not path:
-                raise PaymentFailure(_("No path found"))
+                raise NoPathFound()
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
-                raise PaymentFailure(_("No path found"))
+                raise NoPathFound()
         return route
 
     def add_request(self, amount_sat, message, expiry):
@@ -1052,6 +1067,7 @@ class LNWallet(LNWorker):
 
     def payment_received(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
+        self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

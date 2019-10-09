@@ -15,7 +15,7 @@ from electrum.wallet import Wallet, InternalAddressCorruption
 from electrum.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain, format_fee_satoshis
-from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_FAILED, PR_INFLIGHT
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from .i18n import _
@@ -205,24 +205,26 @@ class ElectrumWindow(App):
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
 
-    def on_payment_received(self, event, wallet, key, status):
+    def on_request_status(self, event, key, status):
+        if key not in self.wallet.requests:
+            return
+        self.update_tab('receive')
         if self.request_popup and self.request_popup.key == key:
             self.request_popup.set_status(status)
         if status == PR_PAID:
             self.show_info(_('Payment Received') + '\n' + key)
+            self._trigger_update_history()
 
-    def on_payment_status(self, event, key, status, *args):
+    def on_invoice_status(self, event, key, status, log):
+        # todo: update single item
         self.update_tab('send')
-        if status == 'success':
+        if status == PR_PAID:
             self.show_info(_('Payment was sent'))
             self._trigger_update_history()
-        elif status == 'progress':
+        elif status == PR_INFLIGHT:
             pass
-        elif status == 'failure':
+        elif status == PR_FAILED:
             self.show_info(_('Payment failed'))
-        elif status == 'error':
-            e = args[0]
-            self.show_error(_('Error') + '\n' + str(e))
 
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
@@ -556,10 +558,10 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_payment_received, ['payment_received'])
             self.network.register_callback(self.on_channels, ['channels'])
             self.network.register_callback(self.on_channel, ['channel'])
-            self.network.register_callback(self.on_payment_status, ['payment_status'])
+            self.network.register_callback(self.on_invoice_status, ['invoice_status'])
+            self.network.register_callback(self.on_request_status, ['request_status'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config

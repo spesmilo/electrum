@@ -73,7 +73,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.paymentrequest import PR_PAID
+from electrum.util import PR_PAID, PR_UNPAID, PR_INFLIGHT, PR_FAILED
 from electrum.util import pr_expiration_values
 
 from .exception_window import Exception_Hook
@@ -232,8 +232,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels', 'payment_received',
-                         'payment_status']
+                         'on_history', 'channel', 'channels',
+                         'invoice_status', 'request_status']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -382,8 +382,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
             self.update_status()
-        elif event == 'payment_status':
-            self.on_payment_status(*args)
+        elif event == 'request_status':
+            self.on_request_status(*args)
+        elif event == 'invoice_status':
+            self.on_invoice_status(*args)
         elif event == 'status':
             self.update_status()
         elif event == 'banner':
@@ -401,10 +403,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.fee_slider.update()
                 self.require_fee_update = True
             self.history_model.on_fee_histogram()
-        elif event == 'payment_received':
-            wallet, key, status = args
-            if wallet == self.wallet:
-                self.notify(_('Payment received') + '\n' + key)
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
 
@@ -1682,24 +1680,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount_sat = self.amount_e.get_amount()
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
-            self.wallet.lnworker.pay(invoice, amount_sat, attempts)
+            try:
+                self.wallet.lnworker.pay(invoice, amount_sat, attempts)
+            except Exception as e:
+                self.show_error(str(e))
         self.do_clear()
         self.wallet.thread.add(task)
         self.invoice_list.update()
 
-    def on_payment_status(self, key, status, *args):
-        # todo: check that key is in this wallet's invoice list
-        self.invoice_list.update()
-        if status == 'success':
+    def on_request_status(self, key, status):
+        if key not in self.wallet.requests:
+            return
+        if status == PR_PAID:
+            self.notify(_('Payment received') + '\n' + key)
+
+    def on_invoice_status(self, key, status, log):
+        if key not in self.wallet.invoices:
+            return
+        self.invoice_list.update_item(key, status, log)
+        if status == PR_PAID:
             self.show_message(_('Payment succeeded'))
             self.need_update.set()
-        elif status == 'progress':
-            print('on_payment_status', key, status, args)
-        elif status == 'failure':
+        elif status == PR_FAILED:
             self.show_error(_('Payment failed'))
-        elif status == 'error':
-            e = args[0]
-            self.show_error(_('Error') + '\n' + str(e))
+        else:
+            pass
 
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():

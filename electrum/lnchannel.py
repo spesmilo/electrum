@@ -38,6 +38,7 @@ from .crypto import sha256, sha256d
 from .transaction import Transaction
 from .logging import Logger
 
+from .lnonion import decode_onion_error
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
                     sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
@@ -577,6 +578,13 @@ class Channel(Logger):
         log = self.hm.log[LOCAL]
         htlc = log['adds'][htlc_id]
         return htlc.payment_hash
+
+    def decode_onion_error(self, reason, route, htlc_id):
+        failure_msg, sender_idx = decode_onion_error(
+            reason,
+            [x.node_id for x in route],
+            self.onion_keys[htlc_id])
+        return failure_msg, sender_idx
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.logger.info("receive_htlc_settle")
