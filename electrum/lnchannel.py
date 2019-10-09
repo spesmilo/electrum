@@ -572,8 +572,6 @@ class Channel(Logger):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
-        if self.lnworker:
-            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.logger.info("receive_htlc_settle")
