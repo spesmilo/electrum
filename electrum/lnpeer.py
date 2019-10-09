@@ -41,6 +41,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID)
+from .util import PR_PAID
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -85,7 +86,6 @@ class Peer(Logger):
         self.funding_created = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
-        self.payment_preimages = defaultdict(asyncio.Queue)
         #
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
@@ -1262,9 +1262,12 @@ class Peer(Logger):
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
+        payment_hash = sha256(preimage)
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
+        self.lnworker.save_preimage(payment_hash, preimage)
+        self.lnworker.set_invoice_status(payment_hash, PR_PAID)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
 
@@ -1272,7 +1275,6 @@ class Peer(Logger):
     async def _on_update_fulfill_htlc(self, chan, htlc_id, preimage, local_ctn):
         await self.await_local(chan, local_ctn)
         self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(True)
-        self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
@@ -1391,7 +1393,9 @@ class Peer(Logger):
         )
         await next_peer.await_remote(next_chan, next_remote_ctn)
         # wait until we get paid
-        preimage = await next_peer.payment_preimages[next_htlc.payment_hash].get()
+        success = await self.lnworker.pending_payments[(next_chan.short_channel_id, next_htlc.htlc_id)]
+        assert success
+        preimage = self.lnworker.get_preimage(next_htlc.payment_hash)
         # fulfill the original htlc
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
         self.logger.info("htlc forwarded successfully")
