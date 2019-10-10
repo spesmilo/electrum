@@ -172,7 +172,7 @@ class AddressList(MyTreeWidget):
                 name = _("Receiving") if not is_change else _("Change")
                 seq_item = QTreeWidgetItem( [ name, '', '', '', '', ''] )
                 account_item.addChild(seq_item)
-                if not is_change and not had_item_count: # first time we create this widget, auto-expand the default address list
+                if not had_item_count: # first time we create this widget, auto-expand the default address list
                     seq_item.setExpanded(True)
                     expanded_item_names.add(item_path(seq_item))
             else:
