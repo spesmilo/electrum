@@ -1733,11 +1733,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def is_used(self, address):
-        return self.get_address_history(address) and not self.is_empty(address)
+        return self.get_address_history(address) and self.is_empty(address)
 
     def is_empty(self, address):
         assert isinstance(address, Address)
-        return any(self.get_addr_balance(address))
+        return not any(self.get_addr_balance(address))
 
     def address_is_old(self, address, age_limit=2):
         age = -1
