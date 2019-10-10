@@ -11,19 +11,27 @@ from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, Hardw
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType
+from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType, ButtonRequestType
 import trezorlib.btc
 import trezorlib.device
 
 MESSAGES = {
-    3: _("Confirm the transaction output on your {} device"),
-    4: _("Confirm internal entropy on your {} device to begin"),
-    5: _("Write down the seed word shown on your {}"),
-    6: _("Confirm on your {} that you want to wipe it clean"),
-    7: _("Confirm on your {} device the message to sign"),
-    8: _("Confirm the total amount spent and the transaction fee on your {} device"),
-    10: _("Confirm wallet address on your {} device"),
-    14: _("Choose on your {} device where to enter your passphrase"),
+    ButtonRequestType.ConfirmOutput:
+        _("Confirm the transaction output on your {} device"),
+    ButtonRequestType.ResetDevice:
+        _("Complete the initialization process on your {} device"),
+    ButtonRequestType.ConfirmWord:
+        _("Write down the seed word shown on your {}"),
+    ButtonRequestType.WipeDevice:
+        _("Confirm on your {} that you want to wipe it clean"),
+    ButtonRequestType.ProtectCall:
+        _("Confirm on your {} device the message to sign"),
+    ButtonRequestType.SignTx:
+        _("Confirm the total amount spent and the transaction fee on your {} device"),
+    ButtonRequestType.Address:
+        _("Confirm wallet address on your {} device"),
+    ButtonRequestType.PassphraseType:
+        _("Choose on your {} device where to enter your passphrase"),
     'default': _("Check your {} device to continue"),
 }
 
