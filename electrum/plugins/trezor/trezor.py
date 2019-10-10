@@ -112,7 +112,7 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://github.com/trezor/python-trezor'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 11, 0)
+    minimum_library = (0, 11, 5)
     maximum_library = (0, 12)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
