@@ -664,7 +664,8 @@ class Transaction:
         s += script
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
         # offline signing needs to know the input value
-        if ('value' in txin   # Legacy txs
+        if ('value' in txin
+            and txin.get('scriptSig') is None
             and not (estimate_size or self.is_txin_complete(txin))):
             s += int_to_hex(txin['value'], 8)
         return s
