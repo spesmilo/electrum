@@ -1634,7 +1634,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_rbf(True)
 
-        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 and not constants.net.CONTRACTINTX:
             self.show_error('\n'.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server"),
                 _("Raise the fee to the minimum network level")
@@ -2616,7 +2616,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(msg))
 
 
-        defaultfilename = 'kycfile.dat'
+        defaultfilename = 'REGISTRATION.dat'
 
         select_msg = _('Select a filename for the kycfile')
         hbox, filename_e, csv_button, file_button = filename_field(self, self.config, defaultfilename, select_msg, b_csv_select=False)

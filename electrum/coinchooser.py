@@ -119,7 +119,7 @@ class CoinChooserBase(PrintError):
         # Break change up if bigger than max_change
         output_amounts = [o[2] for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
-        max_change = max(max(output_amounts) * 1.25, 0.02 * COIN)
+        max_change = max(max(output_amounts) * 1.25, 100000 * COIN)
 
         # Use N change outputs
         for n in range(1, count + 1):
