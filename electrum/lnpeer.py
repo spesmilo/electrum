@@ -1091,19 +1091,20 @@ class Peer(Logger):
     def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
+        reason = payload["reason"]
         chan = self.channels[channel_id]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
-        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn))
+        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn, reason))
 
     @log_exceptions
-    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn):
+    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn, reason):
         chan = self.channels[channel_id]
         await self.await_local(chan, local_ctn)
         payment_hash = chan.get_payment_hash(htlc_id)
-        self.lnworker.payment_sent(payment_hash, False)
+        self.lnworker.payment_failed(payment_hash, reason)
 
     @log_exceptions
     async def _handle_error_code_from_failed_htlc(self, payload, channel_id, htlc_id):
@@ -1273,7 +1274,7 @@ class Peer(Logger):
     @log_exceptions
     async def _on_update_fulfill_htlc(self, chan, local_ctn, payment_hash):
         await self.await_local(chan, local_ctn)
-        self.lnworker.payment_sent(payment_hash, True)
+        self.lnworker.payment_sent(payment_hash)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
@@ -1391,13 +1392,13 @@ class Peer(Logger):
             onion_routing_packet=processed_onion.next_packet.to_bytes()
         )
         await next_peer.await_remote(next_chan, next_remote_ctn)
-        success, preimage = await self.lnworker.await_payment(next_htlc.payment_hash)
+        success, preimage, reason = await self.lnworker.await_payment(next_htlc.payment_hash)
         if success:
             await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
             self.logger.info("htlc forwarded successfully")
         else:
-            self.logger.info("htlc not fulfilled")
-            # TODO: Read error code and forward it, as follows:
+            # TODO: test this
+            self.logger.info(f"forwarded htlc has failed, {reason}")
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
 
     @log_exceptions

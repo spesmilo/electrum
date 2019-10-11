@@ -862,7 +862,8 @@ class LNWallet(LNWorker):
         for i in range(attempts):
             route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
             self.network.trigger_callback('payment_status', key, 'progress', i)
-            if await self._pay_to_route(route, lnaddr):
+            success, preimage, reason = await self._pay_to_route(route, lnaddr)
+            if success:
                 return True
         return False
 
@@ -876,8 +877,7 @@ class LNWallet(LNWorker):
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
-        success, preimage = await self.await_payment(lnaddr.paymenthash)
-        return success
+        return await self.await_payment(lnaddr.paymenthash)
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):
@@ -1028,10 +1028,9 @@ class LNWallet(LNWorker):
         return status
 
     async def await_payment(self, payment_hash):
-        success = await self.pending_payments[payment_hash]
+        success, preimage, reason = await self.pending_payments[payment_hash]
         self.pending_payments.pop(payment_hash)
-        preimage = self.get_preimage(payment_hash)
-        return success, preimage
+        return success, preimage, reason
 
     def set_payment_status(self, payment_hash: bytes, status):
         try:
@@ -1042,10 +1041,14 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_sent(self, payment_hash: bytes, success):
-        status = PR_PAID if success  else PR_UNPAID
-        self.set_payment_status(payment_hash, status)
-        self.pending_payments[payment_hash].set_result(success)
+    def payment_failed(self, payment_hash: bytes, reason):
+        self.set_payment_status(payment_hash, PR_UNPAID)
+        self.pending_payments[payment_hash].set_result((False, None, reason))
+
+    def payment_sent(self, payment_hash: bytes):
+        self.set_payment_status(payment_hash, PR_PAID)
+        preimage = self.get_preimage(payment_hash)
+        self.pending_payments[payment_hash].set_result((True, preimage, None))
 
     def payment_received(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
