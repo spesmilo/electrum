@@ -1029,6 +1029,7 @@ class LNWallet(LNWorker):
 
     async def await_payment(self, payment_hash):
         success = await self.pending_payments[payment_hash]
+        self.pending_payments.pop(payment_hash)
         preimage = self.get_preimage(payment_hash)
         return success, preimage
 

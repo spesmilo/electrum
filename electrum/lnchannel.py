@@ -574,7 +574,7 @@ class Channel(Logger):
         self.hm.send_settle(htlc_id)
 
     def get_payment_hash(self, htlc_id):
-        log = self.hm.log[REMOTE]
+        log = self.hm.log[LOCAL]
         htlc = log['adds'][htlc_id]
         return htlc.payment_hash
 
