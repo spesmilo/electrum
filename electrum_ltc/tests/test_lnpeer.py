@@ -21,7 +21,7 @@ from electrum_ltc.channel_db import ChannelDB
 from electrum_ltc.lnworker import LNWallet
 from electrum_ltc.lnmsg import encode_msg, decode_msg
 from electrum_ltc.logging import console_stderr_handler
-from electrum_ltc.lnworker import InvoiceInfo, RECEIVED, PR_UNPAID
+from electrum_ltc.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
 from . import ElectrumTestCase
@@ -88,8 +88,7 @@ class MockLNWallet:
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
-        self.invoices = {}
-        self.inflight = {}
+        self.payments = {}
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
         self.pending_payments = defaultdict(asyncio.Future)
@@ -120,13 +119,14 @@ class MockLNWallet:
     def on_channels_updated(self):
         pass
 
-    def save_invoice(*args, is_paid=False):
-        pass
-
     preimages = {}
-    get_invoice_info = LNWallet.get_invoice_info
-    save_invoice_info = LNWallet.save_invoice_info
-    set_invoice_status = LNWallet.set_invoice_status
+    get_payment_info = LNWallet.get_payment_info
+    save_payment_info = LNWallet.save_payment_info
+    set_payment_status = LNWallet.set_payment_status
+    get_payment_status = LNWallet.get_payment_status
+    await_payment = LNWallet.await_payment
+    payment_received = LNWallet.payment_received
+    payment_sent = LNWallet.payment_sent
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice
@@ -216,9 +216,9 @@ class TestPeer(ElectrumTestCase):
         amount_btc = amount_sat/Decimal(COIN)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        info = InvoiceInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
         w2.save_preimage(RHASH, payment_preimage)
-        w2.save_invoice_info(info)
+        w2.save_payment_info(info)
         lnaddr = LnAddr(
                     RHASH,
                     amount_btc,

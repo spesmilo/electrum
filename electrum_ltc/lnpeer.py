@@ -85,7 +85,6 @@ class Peer(Logger):
         self.funding_created = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
-        self.payment_preimages = defaultdict(asyncio.Queue)
         #
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
@@ -1092,18 +1091,20 @@ class Peer(Logger):
     def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
+        reason = payload["reason"]
         chan = self.channels[channel_id]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id)
         local_ctn = chan.get_latest_ctn(LOCAL)
         asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
-        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn))
+        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn, reason))
 
     @log_exceptions
-    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn):
+    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn, reason):
         chan = self.channels[channel_id]
         await self.await_local(chan, local_ctn)
-        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(False)
+        payment_hash = chan.get_payment_hash(htlc_id)
+        self.lnworker.payment_failed(payment_hash, reason)
 
     @log_exceptions
     async def _handle_error_code_from_failed_htlc(self, payload, channel_id, htlc_id):
@@ -1262,17 +1263,18 @@ class Peer(Logger):
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
+        payment_hash = sha256(preimage)
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
+        self.lnworker.save_preimage(payment_hash, preimage)
         local_ctn = chan.get_latest_ctn(LOCAL)
-        asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
+        asyncio.ensure_future(self._on_update_fulfill_htlc(chan, local_ctn, payment_hash))
 
     @log_exceptions
-    async def _on_update_fulfill_htlc(self, chan, htlc_id, preimage, local_ctn):
+    async def _on_update_fulfill_htlc(self, chan, local_ctn, payment_hash):
         await self.await_local(chan, local_ctn)
-        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(True)
-        self.payment_preimages[sha256(preimage)].put_nowait(preimage)
+        self.lnworker.payment_sent(payment_hash)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
@@ -1390,11 +1392,14 @@ class Peer(Logger):
             onion_routing_packet=processed_onion.next_packet.to_bytes()
         )
         await next_peer.await_remote(next_chan, next_remote_ctn)
-        # wait until we get paid
-        preimage = await next_peer.payment_preimages[next_htlc.payment_hash].get()
-        # fulfill the original htlc
-        await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
-        self.logger.info("htlc forwarded successfully")
+        success, preimage, reason = await self.lnworker.await_payment(next_htlc.payment_hash)
+        if success:
+            await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
+            self.logger.info("htlc forwarded successfully")
+        else:
+            # TODO: test this
+            self.logger.info(f"forwarded htlc has failed, {reason}")
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
 
     @log_exceptions
     async def _maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
@@ -1402,7 +1407,7 @@ class Peer(Logger):
         await self.await_local(chan, local_ctn)
         await self.await_remote(chan, remote_ctn)
         try:
-            info = self.lnworker.get_invoice_info(htlc.payment_hash)
+            info = self.lnworker.get_payment_info(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)
         except UnknownPaymentHash:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1438,13 +1443,14 @@ class Peer(Logger):
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.settle_htlc(preimage, htlc_id)
+        payment_hash = sha256(preimage)
+        self.lnworker.payment_received(payment_hash)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,
                           payment_preimage=preimage)
         await self.await_remote(chan, remote_ctn)
-        #self.lnworker.payment_received(htlc_id)
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):

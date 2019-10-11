@@ -31,7 +31,7 @@ from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Itera
 import time
 
 from . import ecc
-from .util import bfh, bh2u, PR_PAID, PR_FAILED
+from .util import bfh, bh2u
 from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
@@ -572,8 +572,11 @@ class Channel(Logger):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
-        if self.lnworker:
-            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
+
+    def get_payment_hash(self, htlc_id):
+        log = self.hm.log[LOCAL]
+        htlc = log['adds'][htlc_id]
+        return htlc.payment_hash
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.logger.info("receive_htlc_settle")
@@ -582,9 +585,6 @@ class Channel(Logger):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.recv_settle(htlc_id)
-        if self.lnworker:
-            self.lnworker.save_preimage(htlc.payment_hash, preimage)
-            self.lnworker.set_invoice_status(htlc.payment_hash, PR_PAID)
 
     def fail_htlc(self, htlc_id):
         self.logger.info("fail_htlc")
