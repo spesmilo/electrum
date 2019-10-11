@@ -853,6 +853,8 @@ class LNWallet(LNWorker):
         status = self.get_payment_status(lnaddr.paymenthash)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
+        if status == PR_INFLIGHT:
+            raise PaymentFailure(_("A payment was already initiated for this invoice"))
         info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self._check_invoice(invoice, amount_sat)
@@ -874,8 +876,7 @@ class LNWallet(LNWorker):
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
-        success = await self.pending_payments[(short_channel_id, htlc.htlc_id)]
-        self.set_payment_status(lnaddr.paymenthash, (PR_PAID if success else PR_UNPAID))
+        success, preimage = await self.await_payment(lnaddr.paymenthash)
         return success
 
     @staticmethod
@@ -1012,6 +1013,7 @@ class LNWallet(LNWorker):
 
     def save_payment_info(self, info):
         key = info.payment_hash.hex()
+        assert info.status in [PR_PAID, PR_UNPAID, PR_INFLIGHT]
         with self.lock:
             self.payments[key] = info.amount, info.direction, info.status
         self.storage.put('lightning_payments', self.payments)
@@ -1020,9 +1022,15 @@ class LNWallet(LNWorker):
     def get_payment_status(self, payment_hash):
         try:
             info = self.get_payment_info(payment_hash)
-            return info.status
+            status = info.status
         except UnknownPaymentHash:
-            return PR_UNKNOWN
+            status = PR_UNPAID
+        return status
+
+    async def await_payment(self, payment_hash):
+        success = await self.pending_payments[payment_hash]
+        preimage = self.get_preimage(payment_hash)
+        return success, preimage
 
     def set_payment_status(self, payment_hash: bytes, status):
         try:
@@ -1032,8 +1040,14 @@ class LNWallet(LNWorker):
             return
         info = info._replace(status=status)
         self.save_payment_info(info)
-        if info.direction == RECEIVED and info.status == PR_PAID:
-            self.network.trigger_callback('payment_received', self.wallet, bh2u(payment_hash), PR_PAID)
+
+    def payment_sent(self, payment_hash: bytes, success):
+        status = PR_PAID if success  else PR_UNPAID
+        self.set_payment_status(payment_hash, status)
+        self.pending_payments[payment_hash].set_result(success)
+
+    def payment_received(self, payment_hash: bytes):
+        self.set_payment_status(payment_hash, PR_PAID)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

@@ -124,6 +124,9 @@ class MockLNWallet:
     save_payment_info = LNWallet.save_payment_info
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
+    await_payment = LNWallet.await_payment
+    payment_received = LNWallet.payment_received
+    payment_sent = LNWallet.payment_sent
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice

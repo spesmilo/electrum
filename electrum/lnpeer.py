@@ -41,7 +41,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID)
-from .util import PR_PAID
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -1103,7 +1102,8 @@ class Peer(Logger):
     async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn):
         chan = self.channels[channel_id]
         await self.await_local(chan, local_ctn)
-        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(False)
+        payment_hash = chan.get_payment_hash(htlc_id)
+        self.lnworker.payment_sent(payment_hash, False)
 
     @log_exceptions
     async def _handle_error_code_from_failed_htlc(self, payload, channel_id, htlc_id):
@@ -1267,14 +1267,13 @@ class Peer(Logger):
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
-        self.lnworker.set_payment_status(payment_hash, PR_PAID)
         local_ctn = chan.get_latest_ctn(LOCAL)
-        asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
+        asyncio.ensure_future(self._on_update_fulfill_htlc(chan, local_ctn, payment_hash))
 
     @log_exceptions
-    async def _on_update_fulfill_htlc(self, chan, htlc_id, preimage, local_ctn):
+    async def _on_update_fulfill_htlc(self, chan, local_ctn, payment_hash):
         await self.await_local(chan, local_ctn)
-        self.lnworker.pending_payments[(chan.short_channel_id, htlc_id)].set_result(True)
+        self.lnworker.payment_sent(payment_hash, True)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
@@ -1392,13 +1391,14 @@ class Peer(Logger):
             onion_routing_packet=processed_onion.next_packet.to_bytes()
         )
         await next_peer.await_remote(next_chan, next_remote_ctn)
-        # wait until we get paid
-        success = await self.lnworker.pending_payments[(next_chan.short_channel_id, next_htlc.htlc_id)]
-        assert success
-        preimage = self.lnworker.get_preimage(next_htlc.payment_hash)
-        # fulfill the original htlc
-        await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
-        self.logger.info("htlc forwarded successfully")
+        success, preimage = await self.lnworker.await_payment(next_htlc.payment_hash)
+        if success:
+            await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
+            self.logger.info("htlc forwarded successfully")
+        else:
+            self.logger.info("htlc not fulfilled")
+            # TODO: Read error code and forward it, as follows:
+            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
 
     @log_exceptions
     async def _maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
@@ -1443,14 +1443,13 @@ class Peer(Logger):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.settle_htlc(preimage, htlc_id)
         payment_hash = sha256(preimage)
-        self.lnworker.set_payment_status(payment_hash, PR_PAID)
+        self.lnworker.payment_received(payment_hash)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,
                           payment_preimage=preimage)
         await self.await_remote(chan, remote_ctn)
-        #self.lnworker.payment_received(htlc_id)
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
