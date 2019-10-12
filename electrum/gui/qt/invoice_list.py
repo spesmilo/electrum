@@ -27,19 +27,20 @@ from enum import IntEnum
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt5.QtWidgets import QHeaderView, QMenu, QVBoxLayout, QGridLayout, QLabel
+from PyQt5.QtWidgets import QHeaderView, QMenu, QVBoxLayout, QGridLayout, QLabel, QTreeWidget, QTreeWidgetItem
 
 from electrum.i18n import _
 from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT
 from electrum.util import get_request_status
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import lndecode, RECEIVED
+from electrum.lnutil import format_short_channel_id
 from electrum.bitcoin import COIN
 from electrum import constants
 
 from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT,
                    import_meta_gui, export_meta_gui, pr_icons)
 from .util import CloseButton, Buttons
+from .util import WindowModalDialog
 
 
 
@@ -168,22 +169,24 @@ class InvoiceList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def show_log(self, key):
-        from .util import WindowModalDialog
         log = self.logs.get(key)
         d = WindowModalDialog(self, _("Payment log"))
         vbox = QVBoxLayout(d)
-        grid = QGridLayout()
-        grid.addWidget(QLabel(_("Node ID")), 0, 0)
-        grid.addWidget(QLabel(_("Message")), 0, 1)
+        log_w = QTreeWidget()
+        log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message')])
         for i, (route, success, failure_data) in enumerate(log):
-            print(route[0].node_id)
+            route_str = '%d'%len(route)
             if not success:
-                failure_node_id, failure_msg = failure_data
-                code, data = failure_msg.code, failure_msg.data
-                grid.addWidget(QLabel(failure_node_id.hex()), i+1, 0)
-                grid.addWidget(QLabel(repr(code)), i+1, 1)
+                sender_idx, failure_msg = failure_data
+                short_channel_id = route[sender_idx].short_channel_id
+                data = failure_msg.data
+                message = repr(failure_msg.code)
             else:
-                pass
-        vbox.addLayout(grid)
+                short_channel_id = route[-1].short_channel_id
+                message = _('Success')
+            chan_str = format_short_channel_id(short_channel_id)
+            x = QTreeWidgetItem([route_str, chan_str, message])
+            log_w.addTopLevelItem(x)
+        vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()

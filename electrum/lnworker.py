@@ -862,12 +862,12 @@ class LNWallet(LNWorker):
                 success = False
                 break
             self.network.trigger_callback('invoice_status', key, PR_INFLIGHT, log)
-            success, preimage, failure_node_id, failure_msg = await self._pay_to_route(route, lnaddr)
+            success, preimage, sender_idx, failure_msg = await self._pay_to_route(route, lnaddr)
             if success:
                 log.append((route, True, preimage))
                 break
             else:
-                log.append((route, False, (failure_node_id, failure_msg)))
+                log.append((route, False, (sender_idx, failure_msg)))
         self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED, log)
         return success
 
@@ -883,16 +883,15 @@ class LNWallet(LNWorker):
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
         if success:
-            failure_node_id = None
             failure_msg = None
+            sender_idx = None
         else:
             failure_msg, sender_idx = chan.decode_onion_error(reason, route, htlc.htlc_id)
-            failure_node_id = route[sender_idx].node_id
             code, data = failure_msg.code, failure_msg.data
             self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
             self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
             self.channel_db.handle_error_code_from_failed_htlc(code, data, sender_idx, route, peer)
-        return success, preimage, failure_node_id, failure_msg
+        return success, preimage, sender_idx, failure_msg
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):
