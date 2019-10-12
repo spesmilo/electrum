@@ -55,7 +55,6 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             mapping = {}
             num = 0
 
-        invoices = dict(self.window.wallet.lnworker.invoices)
         for pay_hash, item in htlcs.items():
             chan_id, i, direction, status = item
             it = self.make_htlc_item(i, direction)

@@ -558,7 +558,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
-        out = [x for x in out if x and x.get('status') != PR_PAID]
         out.sort(key=operator.itemgetter('time'))
         return out
 

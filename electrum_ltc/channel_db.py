@@ -253,11 +253,13 @@ class ChannelDB(SqlDB):
         self._addresses = defaultdict(set)
         self._channels_for_node = defaultdict(set)
         self.data_loaded = asyncio.Event()
+        self.network = network # only for callback
 
     def update_counts(self):
+        self.num_nodes = len(self._nodes)
         self.num_channels = len(self._channels)
         self.num_policies = len(self._policies)
-        self.num_nodes = len(self._nodes)
+        self.network.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
 
     def get_channel_ids(self):
         return set(self._channels.keys())
@@ -489,10 +491,11 @@ class ChannelDB(SqlDB):
 
     def prune_old_policies(self, delta):
         l = self.get_old_policies(delta)
-        for k in l:
-            self._policies.pop(k)
-            self.delete_policy(*k)
         if l:
+            for k in l:
+                self._policies.pop(k)
+                self.delete_policy(*k)
+            self.update_counts()
             self.logger.info(f'Deleting {len(l)} old policies')
 
     def get_orphaned_channels(self):
@@ -501,11 +504,11 @@ class ChannelDB(SqlDB):
 
     def prune_orphaned_channels(self):
         l = self.get_orphaned_channels()
-        for short_channel_id in l:
-            self.remove_channel(short_channel_id)
-            self.delete_channel(short_channel_id)
-        self.update_counts()
         if l:
+            for short_channel_id in l:
+                self.remove_channel(short_channel_id)
+                self.delete_channel(short_channel_id)
+            self.update_counts()
             self.logger.info(f'Deleting {len(l)} orphaned channels')
 
     def add_channel_update_for_private_channel(self, msg_payload: dict, start_node_id: bytes):

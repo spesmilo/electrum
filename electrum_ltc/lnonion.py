@@ -348,7 +348,10 @@ def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRout
     failure_msg = decrypted_error_packet[34:34+failure_len]
     # create failure message object
     failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
-    failure_code = OnionFailureCode(failure_code)
+    try:
+        failure_code = OnionFailureCode(failure_code)
+    except ValueError:
+        pass  # uknown failure code
     failure_data = failure_msg[2:]
     return OnionRoutingFailureMessage(failure_code, failure_data)
 
@@ -386,12 +389,6 @@ class OnionFailureCode(IntEnum):
     FINAL_INCORRECT_HTLC_AMOUNT =             19
     CHANNEL_DISABLED =                        UPDATE | 20
     EXPIRY_TOO_FAR =                          21
-
-    @classmethod
-    def _missing_(cls, value: int) -> int:
-        # note that for unknown error codes, we return an int,
-        # not an instance of cls
-        return value
 
 
 # don't use these elsewhere, the names are ambiguous without context

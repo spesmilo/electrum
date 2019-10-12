@@ -86,7 +86,6 @@ class Peer(Logger):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
         #
-        self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
@@ -294,9 +293,6 @@ class Peer(Logger):
                             self.orphan_channel_updates.popitem(last=False)
                 if categorized_chan_upds.good:
                     self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
-            # refresh gui
-            if chan_anns or node_anns or chan_upds:
-                self.network.lngossip.refresh_gui()
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:
@@ -1096,7 +1092,6 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id)
         local_ctn = chan.get_latest_ctn(LOCAL)
-        asyncio.ensure_future(self._handle_error_code_from_failed_htlc(payload, channel_id, htlc_id))
         asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn, reason))
 
     @log_exceptions
@@ -1105,75 +1100,6 @@ class Peer(Logger):
         await self.await_local(chan, local_ctn)
         payment_hash = chan.get_payment_hash(htlc_id)
         self.lnworker.payment_failed(payment_hash, reason)
-
-    @log_exceptions
-    async def _handle_error_code_from_failed_htlc(self, payload, channel_id, htlc_id):
-        chan = self.channels[channel_id]
-        key = (channel_id, htlc_id)
-        try:
-            route = self.attempted_route[key]  # type: List[RouteEdge]
-        except KeyError:
-            # the remote might try to fail an htlc after we restarted...
-            # attempted_route is not persisted, so we will get here then
-            self.logger.info("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
-            return
-        error_reason = payload["reason"]
-        failure_msg, sender_idx = decode_onion_error(
-            error_reason,
-            [x.node_id for x in route],
-            chan.onion_keys[htlc_id])
-        code, data = failure_msg.code, failure_msg.data
-        self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
-        self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
-        # handle some specific error codes
-        failure_codes = {
-            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
-            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 8,
-            OnionFailureCode.FEE_INSUFFICIENT: 8,
-            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 4,
-            OnionFailureCode.EXPIRY_TOO_SOON: 0,
-            OnionFailureCode.CHANNEL_DISABLED: 2,
-        }
-        if code in failure_codes:
-            offset = failure_codes[code]
-            channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
-            channel_update_as_received = data[offset+2: offset+2+channel_update_len]
-            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
-            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
-            #       we try decoding both ways here.
-            try:
-                message_type, payload = decode_msg(channel_update_typed)
-                payload['raw'] = channel_update_typed
-            except:  # FIXME: too broad
-                message_type, payload = decode_msg(channel_update_as_received)
-                payload['raw'] = channel_update_as_received
-            categorized_chan_upds = self.channel_db.add_channel_updates([payload])
-            blacklist = False
-            if categorized_chan_upds.good:
-                self.logger.info("applied channel update on our db")
-                self.maybe_save_remote_update(payload)
-            elif categorized_chan_upds.orphaned:
-                # maybe it is a private channel (and data in invoice was outdated)
-                self.logger.info("maybe channel update is for private channel?")
-                start_node_id = route[sender_idx].node_id
-                self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-            elif categorized_chan_upds.expired:
-                blacklist = True
-            elif categorized_chan_upds.deprecated:
-                self.logger.info(f'channel update is not more recent.')
-                blacklist = True
-        else:
-            blacklist = True
-        if blacklist:
-            # blacklist channel after reporter node
-            # TODO this should depend on the error (even more granularity)
-            # also, we need finer blacklisting (directed edges; nodes)
-            try:
-                short_chan_id = route[sender_idx + 1].short_channel_id
-            except IndexError:
-                self.logger.info("payment destination reported error")
-            else:
-                self.network.path_finder.add_to_blacklist(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
         # REMOTE should revoke first before we can sign a new ctx
@@ -1215,7 +1141,6 @@ class Peer(Logger):
         htlc = chan.add_htlc(htlc)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         chan.onion_keys[htlc.htlc_id] = secret_key
-        self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
         self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. htlc: {htlc}")
         self.send_message("update_add_htlc",
                           channel_id=chan.channel_id,
