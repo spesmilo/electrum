@@ -173,19 +173,20 @@ class InvoiceList(MyTreeView):
         d = WindowModalDialog(self, _("Payment log"))
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()
-        log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message')])
-        for i, (route, success, failure_data) in enumerate(log):
+        log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message'), _('Blacklist')])
+        for i, (route, success, failure_log) in enumerate(log):
             route_str = '%d'%len(route)
             if not success:
-                sender_idx, failure_msg = failure_data
+                sender_idx, failure_msg, blacklist = failure_log
                 short_channel_id = route[sender_idx+1].short_channel_id
                 data = failure_msg.data
                 message = repr(failure_msg.code)
             else:
                 short_channel_id = route[-1].short_channel_id
                 message = _('Success')
+                blacklist = False
             chan_str = format_short_channel_id(short_channel_id)
-            x = QTreeWidgetItem([route_str, chan_str, message])
+            x = QTreeWidgetItem([route_str, chan_str, message, repr(blacklist)])
             log_w.addTopLevelItem(x)
         vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))

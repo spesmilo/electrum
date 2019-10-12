@@ -864,12 +864,12 @@ class LNWallet(LNWorker):
                 success = False
                 break
             self.network.trigger_callback('invoice_status', key, PR_INFLIGHT, log)
-            success, preimage, sender_idx, failure_msg = await self._pay_to_route(route, lnaddr)
+            success, preimage, failure_log = await self._pay_to_route(route, lnaddr)
             if success:
                 log.append((route, True, preimage))
                 break
             else:
-                log.append((route, False, (sender_idx, failure_msg)))
+                log.append((route, False, failure_log))
         self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED, log)
         return success
 
@@ -885,15 +885,25 @@ class LNWallet(LNWorker):
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
         if success:
-            failure_msg = None
-            sender_idx = None
+            failure_log = None
         else:
             failure_msg, sender_idx = chan.decode_onion_error(reason, route, htlc.htlc_id)
-            code, data = failure_msg.code, failure_msg.data
-            self.handle_error_code_from_failed_htlc(code, data, sender_idx, route, peer)
-        return success, preimage, sender_idx, failure_msg
+            blacklist = self.handle_error_code_from_failed_htlc(failure_msg, sender_idx, route, peer)
+            if blacklist:
+                # blacklist channel after reporter node
+                # TODO this should depend on the error (even more granularity)
+                # also, we need finer blacklisting (directed edges; nodes)
+                try:
+                    short_chan_id = route[sender_idx + 1].short_channel_id
+                except IndexError:
+                    self.logger.info("payment destination reported error")
+                else:
+                    self.network.path_finder.add_to_blacklist(short_chan_id)
+            failure_log = (sender_idx, failure_msg, blacklist)
+        return success, preimage, failure_log
 
-    def handle_error_code_from_failed_htlc(self, code, data, sender_idx, route, peer):
+    def handle_error_code_from_failed_htlc(self, failure_msg, sender_idx, route, peer):
+        code, data = failure_msg.code, failure_msg.data
         self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
         self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
         # handle some specific error codes
@@ -935,16 +945,7 @@ class LNWallet(LNWorker):
                 blacklist = True
         else:
             blacklist = True
-        if blacklist:
-            # blacklist channel after reporter node
-            # TODO this should depend on the error (even more granularity)
-            # also, we need finer blacklisting (directed edges; nodes)
-            try:
-                short_chan_id = route[sender_idx + 1].short_channel_id
-            except IndexError:
-                self.logger.info("payment destination reported error")
-            else:
-                self.network.path_finder.add_to_blacklist(short_chan_id)
+        return blacklist
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):
