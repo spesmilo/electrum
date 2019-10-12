@@ -48,6 +48,8 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnLocalFeatures, format_short_channel_id,
                      ShortChannelID)
+from .lnonion import OnionFailureCode
+from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -888,10 +890,61 @@ class LNWallet(LNWorker):
         else:
             failure_msg, sender_idx = chan.decode_onion_error(reason, route, htlc.htlc_id)
             code, data = failure_msg.code, failure_msg.data
-            self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
-            self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
-            self.channel_db.handle_error_code_from_failed_htlc(code, data, sender_idx, route, peer)
+            self.handle_error_code_from_failed_htlc(code, data, sender_idx, route, peer)
         return success, preimage, sender_idx, failure_msg
+
+    def handle_error_code_from_failed_htlc(self, code, data, sender_idx, route, peer):
+        self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
+        self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
+        # handle some specific error codes
+        failure_codes = {
+            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
+            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 8,
+            OnionFailureCode.FEE_INSUFFICIENT: 8,
+            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 4,
+            OnionFailureCode.EXPIRY_TOO_SOON: 0,
+            OnionFailureCode.CHANNEL_DISABLED: 2,
+        }
+        if code in failure_codes:
+            offset = failure_codes[code]
+            channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
+            channel_update_as_received = data[offset+2: offset+2+channel_update_len]
+            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
+            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
+            #       we try decoding both ways here.
+            try:
+                message_type, payload = decode_msg(channel_update_typed)
+                payload['raw'] = channel_update_typed
+            except:  # FIXME: too broad
+                message_type, payload = decode_msg(channel_update_as_received)
+                payload['raw'] = channel_update_as_received
+            categorized_chan_upds = self.channel_db.add_channel_updates([payload])
+            blacklist = False
+            if categorized_chan_upds.good:
+                self.logger.info("applied channel update on our db")
+                peer.maybe_save_remote_update(payload)
+            elif categorized_chan_upds.orphaned:
+                # maybe it is a private channel (and data in invoice was outdated)
+                self.logger.info("maybe channel update is for private channel?")
+                start_node_id = route[sender_idx].node_id
+                self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+            elif categorized_chan_upds.expired:
+                blacklist = True
+            elif categorized_chan_upds.deprecated:
+                self.logger.info(f'channel update is not more recent.')
+                blacklist = True
+        else:
+            blacklist = True
+        if blacklist:
+            # blacklist channel after reporter node
+            # TODO this should depend on the error (even more granularity)
+            # also, we need finer blacklisting (directed edges; nodes)
+            try:
+                short_chan_id = route[sender_idx + 1].short_channel_id
+            except IndexError:
+                self.logger.info("payment destination reported error")
+            else:
+                self.network.path_finder.add_to_blacklist(short_chan_id)
 
     @staticmethod
     def _check_invoice(invoice, amount_sat=None):

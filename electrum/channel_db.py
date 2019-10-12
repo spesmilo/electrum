@@ -39,8 +39,6 @@ from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enab
 from .logging import Logger
 from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, format_short_channel_id, ShortChannelID
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
-from .lnonion import OnionFailureCode
-from .lnmsg import decode_msg
 
 if TYPE_CHECKING:
     from .network import Network
@@ -386,57 +384,6 @@ class ChannelDB(SqlDB):
         # called from add_own_channel
         # the update may be categorized as deprecated because of caching
         categorized_chan_upds = self.add_channel_updates([payload], verify=False)
-
-    def handle_error_code_from_failed_htlc(self, code, data, sender_idx, route, peer):
-        # handle some specific error codes
-        failure_codes = {
-            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
-            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 8,
-            OnionFailureCode.FEE_INSUFFICIENT: 8,
-            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 4,
-            OnionFailureCode.EXPIRY_TOO_SOON: 0,
-            OnionFailureCode.CHANNEL_DISABLED: 2,
-        }
-        if code in failure_codes:
-            offset = failure_codes[code]
-            channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
-            channel_update_as_received = data[offset+2: offset+2+channel_update_len]
-            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
-            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
-            #       we try decoding both ways here.
-            try:
-                message_type, payload = decode_msg(channel_update_typed)
-                payload['raw'] = channel_update_typed
-            except:  # FIXME: too broad
-                message_type, payload = decode_msg(channel_update_as_received)
-                payload['raw'] = channel_update_as_received
-            categorized_chan_upds = self.add_channel_updates([payload])
-            blacklist = False
-            if categorized_chan_upds.good:
-                self.logger.info("applied channel update on our db")
-                peer.maybe_save_remote_update(payload)
-            elif categorized_chan_upds.orphaned:
-                # maybe it is a private channel (and data in invoice was outdated)
-                self.logger.info("maybe channel update is for private channel?")
-                start_node_id = route[sender_idx].node_id
-                self.add_channel_update_for_private_channel(payload, start_node_id)
-            elif categorized_chan_upds.expired:
-                blacklist = True
-            elif categorized_chan_upds.deprecated:
-                self.logger.info(f'channel update is not more recent.')
-                blacklist = True
-        else:
-            blacklist = True
-        if blacklist:
-            # blacklist channel after reporter node
-            # TODO this should depend on the error (even more granularity)
-            # also, we need finer blacklisting (directed edges; nodes)
-            try:
-                short_chan_id = route[sender_idx + 1].short_channel_id
-            except IndexError:
-                self.logger.info("payment destination reported error")
-            else:
-                self.network.path_finder.add_to_blacklist(short_chan_id)
 
     def create_database(self):
         c = self.conn.cursor()
