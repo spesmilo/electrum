@@ -43,7 +43,6 @@ class LightningDialog(QDialog):
         self.network = gui_object.daemon.network
         self.setWindowTitle(_('Lightning Network'))
         self.setMinimumSize(600, 20)
-
         vbox = QVBoxLayout(self)
         self.num_peers = QLabel('')
         vbox.addWidget(self.num_peers)
@@ -54,16 +53,24 @@ class LightningDialog(QDialog):
         self.status = QLabel('')
         vbox.addWidget(self.status)
         vbox.addStretch(1)
-
         b = QPushButton(_('Close'))
         b.clicked.connect(self.close)
         vbox.addLayout(Buttons(b))
-        self.network.register_callback(self.update_status, ['ln_status'])
+        self.network.register_callback(self.on_channel_db, ['channel_db'])
+        self.network.register_callback(self.set_num_peers, ['gossip_peers'])
+        self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
+        self.network.channel_db.update_counts() # trigger callback
+        self.set_num_peers('', self.network.lngossip.num_peers())
+        self.set_unknown_channels('', len(self.network.lngossip.unknown_ids))
 
-    def update_status(self, event, num_peers, num_nodes, known, unknown):
-        self.num_peers.setText(_(f'Connected to {num_peers} peers'))
+    def on_channel_db(self, event, num_nodes, num_channels, num_policies):
         self.num_nodes.setText(_(f'{num_nodes} nodes'))
-        self.num_channels.setText(_(f'{known} channels'))
+        self.num_channels.setText(_(f'{num_channels} channels'))
+
+    def set_num_peers(self, event, num_peers):
+        self.num_peers.setText(_(f'Connected to {num_peers} peers'))
+
+    def set_unknown_channels(self, event, unknown):
         self.status.setText(_(f'Requesting {unknown} channels...') if unknown else '')
 
     def is_hidden(self):

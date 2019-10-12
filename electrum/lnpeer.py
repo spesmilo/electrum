@@ -293,9 +293,6 @@ class Peer(Logger):
                             self.orphan_channel_updates.popitem(last=False)
                 if categorized_chan_upds.good:
                     self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
-            # refresh gui
-            if chan_anns or node_anns or chan_upds:
-                self.network.lngossip.refresh_gui()
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:

@@ -155,9 +155,10 @@ class LNWorker(Logger):
         peer = Peer(self, node_id, transport)
         await self.network.main_taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
-        #if self.network.lngossip:
-        #    self.network.lngossip.refresh_gui()
         return peer
+
+    def num_peers(self):
+        return sum([p.initialized.is_set() for p in self.peers.values()])
 
     def start_network(self, network: 'Network'):
         self.network = network
@@ -279,28 +280,20 @@ class LNGossip(LNWorker):
         super().start_network(network)
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
 
-    def refresh_gui(self):
-        # refresh gui
-        known = self.channel_db.num_channels
-        unknown = len(self.unknown_ids)
-        num_nodes = self.channel_db.num_nodes
-        num_peers = sum([p.initialized.is_set() for p in self.peers.values()])
-        self.logger.info(f'Channels: {known}. Missing: {unknown}')
-        self.network.trigger_callback('ln_status', num_peers, num_nodes, known, unknown)
-
     async def maintain_db(self):
         await self.channel_db.load_data()
         while True:
             if len(self.unknown_ids) == 0:
                 self.channel_db.prune_old_policies(self.max_age)
                 self.channel_db.prune_orphaned_channels()
-            self.refresh_gui()
             await asyncio.sleep(120)
 
     async def add_new_ids(self, ids):
         known = self.channel_db.get_channel_ids()
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
+        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
+        self.network.trigger_callback('gossip_peers', self.num_peers())
 
     def get_ids_to_query(self):
         N = 500
