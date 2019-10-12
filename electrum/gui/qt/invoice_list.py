@@ -178,7 +178,7 @@ class InvoiceList(MyTreeView):
             route_str = '%d'%len(route)
             if not success:
                 sender_idx, failure_msg = failure_data
-                short_channel_id = route[sender_idx].short_channel_id
+                short_channel_id = route[sender_idx+1].short_channel_id
                 data = failure_msg.data
                 message = repr(failure_msg.code)
             else:
