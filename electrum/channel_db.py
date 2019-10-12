@@ -387,7 +387,7 @@ class ChannelDB(SqlDB):
         # the update may be categorized as deprecated because of caching
         categorized_chan_upds = self.add_channel_updates([payload], verify=False)
 
-    def handle_error_code_from_failed_htlc(self, code, data, sender_idx, route):
+    def handle_error_code_from_failed_htlc(self, code, data, sender_idx, route, peer):
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
@@ -414,7 +414,7 @@ class ChannelDB(SqlDB):
             blacklist = False
             if categorized_chan_upds.good:
                 self.logger.info("applied channel update on our db")
-                #self.maybe_save_remote_update(payload)
+                peer.maybe_save_remote_update(payload)
             elif categorized_chan_upds.orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info("maybe channel update is for private channel?")

@@ -891,7 +891,7 @@ class LNWallet(LNWorker):
             code, data = failure_msg.code, failure_msg.data
             self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
             self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
-            self.channel_db.handle_error_code_from_failed_htlc(code, data, sender_idx, route)
+            self.channel_db.handle_error_code_from_failed_htlc(code, data, sender_idx, route, peer)
         return success, preimage, failure_node_id, failure_msg
 
     @staticmethod
