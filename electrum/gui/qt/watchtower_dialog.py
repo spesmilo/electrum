@@ -32,39 +32,48 @@ from electrum.i18n import _
 from .util import HelpLabel, MyTreeView, Buttons
 
 
+class WatcherList(MyTreeView):
+    def __init__(self, parent):
+        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[])
+        self.setModel(QStandardItemModel(self))
+        self.setSortingEnabled(True)
+        self.update()
+
+    def create_menu(self, x):
+        pass
+
+    def update(self):
+        if self.parent.lnwatcher is None:
+            return
+        self.model().clear()
+        self.update_headers({0:_('Outpoint'), 1:_('Tx'), 2:_('Status')})
+        lnwatcher = self.parent.lnwatcher
+        l = lnwatcher.list_sweep_tx()
+        for outpoint in l:
+            n = lnwatcher.get_num_tx(outpoint)
+            status = lnwatcher.get_channel_status(outpoint)
+            items = [QStandardItem(e) for e in [outpoint, "%d"%n, status]]
+            self.model().insertRow(self.model().rowCount(), items)
 
 
-class LightningDialog(QDialog):
+class WatchtowerDialog(QDialog):
 
     def __init__(self, gui_object):
         QDialog.__init__(self)
         self.gui_object = gui_object
         self.config = gui_object.config
         self.network = gui_object.daemon.network
-        self.setWindowTitle(_('Lightning Network'))
+        self.lnwatcher = self.network.local_watchtower
+        self.setWindowTitle(_('Watchtower'))
         self.setMinimumSize(600, 20)
+        self.watcher_list = WatcherList(self)
 
         vbox = QVBoxLayout(self)
-        self.num_peers = QLabel('')
-        vbox.addWidget(self.num_peers)
-        self.num_nodes = QLabel('')
-        vbox.addWidget(self.num_nodes)
-        self.num_channels = QLabel('')
-        vbox.addWidget(self.num_channels)
-        self.status = QLabel('')
-        vbox.addWidget(self.status)
-        vbox.addStretch(1)
-
+        vbox.addWidget(self.watcher_list)
         b = QPushButton(_('Close'))
         b.clicked.connect(self.close)
         vbox.addLayout(Buttons(b))
-        self.network.register_callback(self.update_status, ['ln_status'])
-
-    def update_status(self, event, num_peers, num_nodes, known, unknown):
-        self.num_peers.setText(_(f'Connected to {num_peers} peers'))
-        self.num_nodes.setText(_(f'{num_nodes} nodes'))
-        self.num_channels.setText(_(f'{known} channels'))
-        self.status.setText(_(f'Requesting {unknown} channels...') if unknown else '')
+        self.watcher_list.update()
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()
@@ -80,5 +89,5 @@ class LightningDialog(QDialog):
         self.raise_()
 
     def closeEvent(self, event):
-        self.gui_object.lightning_dialog = None
+        self.gui_object.watchtower_dialog = None
         event.accept()

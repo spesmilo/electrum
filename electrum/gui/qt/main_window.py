@@ -635,6 +635,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
         if self.config.get('lightning'):
             tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
+            tools_menu.addAction(_("&Watchtower"), self.gui_object.show_watchtower_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
