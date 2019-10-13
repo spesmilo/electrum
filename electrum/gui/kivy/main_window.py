@@ -341,9 +341,6 @@ class ElectrumWindow(App):
         self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
-
-        self.is_lightning_enabled = bool(config.get('lightning'))
-
         self.use_rbf = config.get('use_rbf', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
@@ -558,7 +555,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_channels, ['channels'])
+            self.network.register_callback(self.on_channels, ['channels_updated'])
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_invoice_status, ['invoice_status'])
             self.network.register_callback(self.on_request_status, ['request_status'])
@@ -687,7 +684,7 @@ class ElectrumWindow(App):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
-    def on_channels(self, evt):
+    def on_channels(self, evt, wallet):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 

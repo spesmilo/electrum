@@ -302,7 +302,12 @@ class Network(Logger):
         self._set_status('disconnected')
 
         # lightning network
-        if self.config.get('lightning'):
+        self.channel_db = None  # type: Optional[ChannelDB]
+        self.lngossip = None  # type: Optional[LNGossip]
+        self.local_watchtower = None  # type: Optional[WatchTower]
+
+    def maybe_init_lightning(self):
+        if self.channel_db is None:
             from . import lnwatcher
             from . import lnworker
             from . import lnrouter
@@ -311,10 +316,10 @@ class Network(Logger):
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip(self)
             self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
-        else:
-            self.channel_db = None  # type: Optional[ChannelDB]
-            self.lngossip = None  # type: Optional[LNGossip]
-            self.local_watchtower = None  # type: Optional[WatchTower]
+            self.lngossip.start_network(self)
+            if self.local_watchtower:
+                self.local_watchtower.start_network(self)
+                asyncio.ensure_future(self.local_watchtower.start_watching)
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -1157,12 +1162,6 @@ class Network(Logger):
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
         self._set_oneserver(self.config.get('oneserver', False))
         self._start_interface(self.default_server)
-
-        if self.lngossip:
-            self.lngossip.start_network(self)
-        if self.local_watchtower:
-            self.local_watchtower.start_network(self)
-            await self.local_watchtower.start_watching()
 
         async def main():
             try:

@@ -171,18 +171,7 @@ class SettingsDialog(WindowModalDialog):
         fee_widgets.append((batch_rbf_cb, None))
 
         # lightning
-        help_lightning = _("""Enable Lightning Network payments. Note that funds stored in
-lightning channels are not recoverable from your seed. You must backup
-your wallet file after every channel creation.""")
         lightning_widgets = []
-        lightning_cb = QCheckBox(_("Enable Lightning"))
-        lightning_cb.setToolTip(help_lightning)
-        lightning_cb.setChecked(bool(self.config.get('lightning', False)))
-        def on_lightning_checked(x):
-            self.config.set_key('lightning', bool(x))
-        lightning_cb.stateChanged.connect(on_lightning_checked)
-        lightning_widgets.append((lightning_cb, None))
-
         help_persist = _("""If this option is checked, Electrum will persist as a daemon after
 you close all your wallet windows. Your local watchtower will keep
 running, and it will protect your channels even if your wallet is not

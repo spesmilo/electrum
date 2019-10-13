@@ -307,19 +307,11 @@ class LNGossip(LNWorker):
 
 class LNWallet(LNWorker):
 
-    def __init__(self, wallet: 'Abstract_Wallet'):
+    def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
         self.wallet = wallet
         self.storage = wallet.storage
         self.config = wallet.config
-        xprv = self.storage.get('lightning_privkey2')
-        if xprv is None:
-            # TODO derive this deterministically from wallet.keystore at keystore generation time
-            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
-            seed = os.urandom(32)
-            node = BIP32Node.from_rootseed(seed, xtype='standard')
-            xprv = node.to_xprv()
-            self.storage.put('lightning_privkey2', xprv)
         LNWorker.__init__(self, xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -789,7 +781,7 @@ class LNWallet(LNWorker):
         return chan
 
     def on_channels_updated(self):
-        self.network.trigger_callback('channels')
+        self.network.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
@@ -1211,7 +1203,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self.channels.pop(chan_id)
         self.save_channels()
-        self.network.trigger_callback('channels', self.wallet)
+        self.network.trigger_callback('channels_updated', self.wallet)
         self.network.trigger_callback('wallet_updated', self.wallet)
 
     async def reestablish_peer_for_given_channel(self, chan):
