@@ -260,6 +260,15 @@ class Abstract_Wallet(AddressSynchronizer):
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         ln_xprv = node.to_xprv()
         self.storage.put('lightning_privkey2', ln_xprv)
+        self.storage.write()
+
+    def remove_lightning(self):
+        if not self.storage.get('lightning_privkey2'):
+            return
+        if bool(self.lnworker.channels):
+            raise Exception('Error: This wallet has channels')
+        self.storage.put('lightning_privkey2', None)
+        self.storage.write()
 
     def stop_threads(self):
         super().stop_threads()
