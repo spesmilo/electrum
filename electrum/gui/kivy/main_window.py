@@ -1086,7 +1086,7 @@ class ElectrumWindow(App):
                 self.show_info('This wallet has channels')
         else:
             warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
-            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you crate a new channel.")
+            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
             d = Question(_('Enable Lightning?') + '\n\n' + warning1 + '\n\n' + warning2, self._enable_lightning)
             d.open()
 
