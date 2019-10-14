@@ -299,6 +299,7 @@ class LNGossip(LNWorker):
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
+        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
         return l[0:N]
 
     def peer_closed(self, peer):
