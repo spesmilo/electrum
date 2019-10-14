@@ -763,7 +763,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
                 tokrat = token_ratio(int(self.network.get_local_height()))
                 finemass = c*tokrat/1.0E+8
-                text+=" ("+str("%.6f" % finemass)+" oz)  1 DGLD = "+str("%.6f" % tokrat)+" oz"
+                text+=" ("+str("%.6f" % round(finemass,8))+" oz)  1 DGLD = "+str("%.6f" % round(tokrat,8))+" oz"
 
                 # append fiat balance and price
                 if self.fx.is_enabled():

@@ -824,11 +824,11 @@ def token_ratio(blockheight):
 #The rate is the inflation rate (not the demmurage rate)
     rate = 0.010101010101010101
 #Hourly inflation rate
-    hrate = (1.0 + rate)**(1.0/(365.0*24.0))
+    hrate = (1.0 + rate)**(1.0/(365.0*3.0))
 #The zero ratio is the token ratio at time zero
     zeroratio = 0.1
 #calculate the number of hours based on the blockheight
-    hours = blockheight // 60
+    hours = blockheight // 480
 #calculate the token ratio iteratively based on intermediate rounding to 8 deciaml places
     ratio = 1.0
     for it in range(hours):
