@@ -251,7 +251,7 @@ class LNWorker(Logger):
         return peers
 
     @staticmethod
-    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+    def choose_preferred_address(addr_list: Sequence[Tuple[str, int, int]]) -> Tuple[str, int, int]:
         assert len(addr_list) >= 1
         # choose first one that is an IP
         for host, port, timestamp in addr_list:
@@ -793,9 +793,9 @@ class LNWallet(LNWorker):
                 host, port = split_host_port(rest)
             else:
                 addrs = self.channel_db.get_node_addresses(node_id)
-                if len(addrs) == 0:
+                if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port, _ = self.choose_preferred_address(addrs)
+                host, port, timestamp = self.choose_preferred_address(addrs)
             try:
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
