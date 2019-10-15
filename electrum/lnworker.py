@@ -795,7 +795,7 @@ class LNWallet(LNWorker):
                 addrs = self.channel_db.get_node_addresses(node_id)
                 if len(addrs) == 0:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port = self.choose_preferred_address(addrs)
+                host, port, _ = self.choose_preferred_address(addrs)
             try:
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
