@@ -61,7 +61,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[status].appendRow(it)
             mapping[i.payment_hash] = num
             num += 1
-            self.keyname_rows[keyname] = mapping
+            self.keyname_rows[status] = mapping
         return model
 
     def move(self, fro: str, to: str, payment_hash: bytes):
@@ -77,9 +77,9 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
     def do_htlc_added(self, evtname, htlc, lnaddr, direction):
-        mapping = self.keyname_rows.get('inflight', {})
+        mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
-        self.folders['inflight'].appendRow(self.make_inflight(lnaddr, htlc, direction))
+        self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
     @QtCore.pyqtSlot(str, float, Direction, UpdateAddHtlc, bytes, bytes)
     def do_ln_payment_completed(self, evtname, date, direction, htlc, preimage, chan_id):
