@@ -1690,7 +1690,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.invoice_list.update()
 
     def on_request_status(self, key, status):
-        if key not in self.wallet.requests:
+        if key not in self.wallet.receive_requests:
             return
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
