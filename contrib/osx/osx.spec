@@ -84,6 +84,8 @@ datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
+datas += collect_data_files('jsonrpcserver')
+datas += collect_data_files('jsonrpcclient')
 
 # Add the QR Scanner helper app
 datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
@@ -134,7 +136,7 @@ for x in a.binaries.copy():
             a.binaries.remove(x)
             print('----> Removed x =', x)
 
-# If code signing, monkey-patch in a code signing step to pyinstaller. See: https://github.com/spesmilo/electrum/issues/4994
+# If code signing, monkey-patch in a code signing step to pyinstaller.
 if APP_SIGN:
     monkey_patch_pyinstaller_for_codesigning(APP_SIGN)
 

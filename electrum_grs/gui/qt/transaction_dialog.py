@@ -73,7 +73,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx, parent, desc, prompt_if_unsaved):
+    def __init__(self, tx: Transaction, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -82,12 +82,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = tx = copy.deepcopy(tx)  # type: Transaction
+        self.tx = tx = copy.deepcopy(tx)
         try:
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        self.main_window = parent  # type: ElectrumWindow
+        self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
@@ -191,7 +191,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))
         except Exception as e:
-            self.show_error(_('Failed to display QR code.') + '\n' + str(e))
+            self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
     def sign(self):
         def sign_done(success):

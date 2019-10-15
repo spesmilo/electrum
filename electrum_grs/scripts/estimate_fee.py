@@ -6,10 +6,13 @@ from numbers import Number
 
 from electrum_grs.network import filter_protocol, Network
 from electrum_grs.util import create_and_start_event_loop, log_exceptions
+from electrum_grs.simple_config import SimpleConfig
 
+
+config = SimpleConfig()
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 @log_exceptions

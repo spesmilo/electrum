@@ -21,7 +21,7 @@ here="$(dirname "$(readlink -e "$0")")"
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=3.3.8
+VERSION=4.0.0
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
@@ -50,7 +50,7 @@ $PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-bui
 pushd $WINEPREFIX/drive_c/electrum-grs
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum-GRS. This might take a long time if the project folder is large."
-$PYTHON -m pip install --no-warn-script-location .
+$PYTHON -m pip install --no-dependencies --no-warn-script-location .
 popd
 
 

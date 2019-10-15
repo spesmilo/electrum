@@ -23,9 +23,8 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
 
 from electrum_grs.i18n import _, languages
-from electrum_grs.util import (FileImportFailed, FileExportFailed,
-                           resource_path)
-from electrum_grs.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+from electrum_grs.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrum_grs.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -42,23 +41,15 @@ else:
 dialogs = []
 
 pr_icons = {
+    PR_UNKNOWN:"warning.png",
     PR_UNPAID:"unpaid.png",
     PR_PAID:"confirmed.png",
-    PR_EXPIRED:"expired.png"
+    PR_EXPIRED:"expired.png",
+    PR_INFLIGHT:"unconfirmed.png",
+    PR_FAILED:"warning.png",
 }
 
-pr_tooltips = {
-    PR_UNPAID:_('Pending'),
-    PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired')
-}
 
-expiration_values = [
-    (_('1 hour'), 60*60),
-    (_('1 day'), 24*60*60),
-    (_('1 week'), 7*24*60*60),
-    (_('Never'), None)
-]
 
 
 class EnterButton(QPushButton):
@@ -292,8 +283,9 @@ class WaitingDialog(WindowModalDialog):
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
         WindowModalDialog.__init__(self, parent, _("Please wait"))
+        self.message_label = QLabel(message)
         vbox = QVBoxLayout(self)
-        vbox.addWidget(QLabel(message))
+        vbox.addWidget(self.message_label)
         self.accepted.connect(self.on_accepted)
         self.show()
         self.thread = TaskThread(self)
@@ -305,6 +297,10 @@ class WaitingDialog(WindowModalDialog):
 
     def on_accepted(self):
         self.thread.stop()
+
+    def update(self, msg):
+        print(msg)
+        self.message_label.setText(msg)
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
@@ -463,7 +459,8 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 
 class MyTreeView(QTreeView):
 
-    def __init__(self, parent: 'ElectrumWindow', create_menu, stretch_column=None, editable_columns=None):
+    def __init__(self, parent: 'ElectrumWindow', create_menu, *,
+                 stretch_column=None, editable_columns=None):
         super().__init__(parent)
         self.parent = parent
         self.config = self.parent.config
@@ -473,10 +470,12 @@ class MyTreeView(QTreeView):
         self.setUniformRowHeights(True)
 
         # Control which columns are editable
-        if editable_columns is None:
+        if editable_columns is not None:
+            editable_columns = set(editable_columns)
+        elif stretch_column is not None:
             editable_columns = {stretch_column}
         else:
-            editable_columns = set(editable_columns)
+            editable_columns = {}
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.current_filter = ""

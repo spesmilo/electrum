@@ -1,26 +1,10 @@
 Electrum-GRS - Lightweight Groestlcoin client
 =====================================
 
-::
-
   Licence: MIT Licence
   Author: Groestlcoin Developers
   Language: Python (>= 3.6)
   Homepage: https://groestlcoin.org/
-
-
-.. image:: https://travis-ci.org/groestlcoin/electrum-grs.svg?branch=master
-    :target: https://travis-ci.org/groestlcoin/electrum-grs
-    :alt: Build Status
-.. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
-    :target: https://coveralls.io/github/spesmilo/electrum?branch=master
-    :alt: Test coverage statistics
-.. image:: https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg
-    :target: https://crowdin.com/project/electrum
-    :alt: Help translate Electrum online
-
-
-
 
 Getting started
 ===============
@@ -60,6 +44,7 @@ Check out the code from GitHub::
 
     git clone git://github.com/groestlcoin/electrum-grs.git
     cd electrum-grs
+    git submodule update --init
 
 Run install (this should install dependencies)::
 

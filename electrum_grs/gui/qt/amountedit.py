@@ -25,7 +25,7 @@ class AmountEdit(MyLineEdit):
 
     def __init__(self, base_unit, is_int=False, parent=None):
         QLineEdit.__init__(self, parent)
-        # This seems sufficient for hundred-BTC amounts with 8 decimals
+        # This seems sufficient for hundred-GRS amounts with 8 decimals
         self.setFixedWidth(16 * char_width_in_lineedit())
         self.base_unit = base_unit
         self.textChanged.connect(self.numbify)

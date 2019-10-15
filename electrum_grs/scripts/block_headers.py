@@ -7,10 +7,13 @@ import asyncio
 
 from electrum_grs.network import Network
 from electrum_grs.util import print_msg, json_encode, create_and_start_event_loop, log_exceptions
+from electrum_grs.simple_config import SimpleConfig
+
+config = SimpleConfig()
 
 # start network
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 # wait until connected

@@ -6,6 +6,7 @@ import asyncio
 from electrum_grs.network import Network
 from electrum_grs.util import print_msg, create_and_start_event_loop
 from electrum_grs.synchronizer import SynchronizerBase
+from electrum_grs.simple_config import SimpleConfig
 
 
 try:
@@ -14,9 +15,11 @@ except Exception:
     print("usage: watch_address <groestlcoin_address>")
     sys.exit(1)
 
+config = SimpleConfig()
+
 # start network
 loop = create_and_start_event_loop()[0]
-network = Network()
+network = Network(config)
 network.start()
 
 

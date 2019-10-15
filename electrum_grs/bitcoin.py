@@ -290,11 +290,15 @@ def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 
 
-def relayfee(network: 'Network'=None) -> int:
-    from .simple_config import FEERATE_DEFAULT_RELAY
-    MAX_RELAY_FEE = 50000
-    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
-    return min(f, MAX_RELAY_FEE)
+def relayfee(network: 'Network' = None) -> int:
+    from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    if network and network.relay_fee is not None:
+        fee = network.relay_fee
+    else:
+        fee = FEERATE_DEFAULT_RELAY
+    fee = min(fee, FEERATE_MAX_RELAY)
+    fee = max(fee, 0)
+    return fee
 
 
 def dust_threshold(network: 'Network'=None) -> int:
@@ -400,9 +404,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         return script
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-        script += push_script(bh2u(hash_160_))
-        script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
+        script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
     elif addrtype == net.ADDRTYPE_P2SH:
         script = opcodes.OP_HASH160.hex()
         script += push_script(bh2u(hash_160_))
@@ -421,6 +423,13 @@ def script_to_scripthash(script: str) -> str:
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
     return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
+
+def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
+    script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
+    script += push_script(pubkey_hash160)
+    script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
+    return script
+
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58

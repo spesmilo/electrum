@@ -133,13 +133,14 @@
     font_size: '6pt'
     name: ''
     data: ''
-    text: self.data
+    text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
     on_touch_down:
         touch = args[1]
-        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
-        else: self.touched = False
+        touched = bool(self.collide_point(*touch.pos))
+        if touched: app.on_ref_label(self)
+        if touched: self.touched = True
     canvas.before:
         Color:
             rgb: .3, .3, .3
@@ -231,15 +232,14 @@
             size: self.size
             pos: self.pos
 
-<CardItem@ToggleButtonBehavior+BoxLayout>
+<CardItem@ButtonBehavior+BoxLayout>
     size_hint: 1, None
     height: '65dp'
     group: 'requests'
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_state:
-        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    on_release: self.screen.show_item(args[0])
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
@@ -389,7 +389,7 @@
             slide: 0
         CleanHeader:
             id: history_tab
-            text: _('Balance')
+            text: _('History')
             slide: 1
         CleanHeader:
             id: receive_tab
@@ -449,6 +449,12 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                ActionOvrButton:
+                    name: 'addresses_dialog'
+                    text: _('Addresses')
+                ActionOvrButton:
+                    name: 'lightning_channels_dialog'
+                    text: _('Channels')
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')

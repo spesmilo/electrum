@@ -44,10 +44,12 @@ folder.
 5. Build binaries
 
     ```
+    $ mkdir --parents $PWD/.buildozer/.gradle
     $ sudo docker run -it --rm \
         --name electrum-grs-android-builder-cont \
         -v $PWD:/home/user/wspace/electrum-grs \
-        -v ~/.keystore:/root/.keystore \
+        -v $PWD/.buildozer/.gradle:/home/user/.gradle \
+        -v ~/.keystore:/home/.keystore \
         --workdir /home/user/wspace/electrum-grs \
         electrum-grs-android-builder-img \
         ./contrib/make_apk
@@ -69,7 +71,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
 ```
-$ adb -d install -r bin/Electrum-GRS-*-debug.apk
+$ adb -d install -r bin/Electrum-GRS-*-arm64-v8a-debug.apk
 $ adb shell monkey -p org.groestlcoin.electrumGRS 1
 ```
 
@@ -78,6 +80,7 @@ $ adb shell monkey -p org.groestlcoin.electrumGRS 1
 ```
 $ sudo docker run -it --rm \
     -v $PWD:/home/user/wspace/electrum_grs \
+    -v $PWD/.buildozer/.gradle:/home/user/.gradle \
     --workdir /home/user/wspace/electrum_grs \
     electrum-grs-android-builder-img
 ```

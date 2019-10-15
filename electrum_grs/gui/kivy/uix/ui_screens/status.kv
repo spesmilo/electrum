@@ -30,6 +30,9 @@ Popup:
                         text: _("Wallet type:")
                         value: app.wallet.wallet_type
                     BoxLabel:
+                        text: _("Lightning:")
+                        value: _('Enabled') if app.wallet.has_lightning() else _('Disabled')
+                    BoxLabel:
                         text: _("Balance") + ':'
                         value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
                     BoxLabel:
@@ -59,11 +62,13 @@ Popup:
                     RefLabel:
                         data: app.wallet.get_master_public_key() or 'None'
                         name: _('Master Public Key')
-
-
-                TopLabel:
-                    id: seed_label
-                    text: _('This wallet is watching-only') if root.watching_only else ''
+                    TopLabel:
+                        text: _('This wallet is watching-only') if root.watching_only else _('Seed')
+                    RefLabel:
+                        id: seed_label
+                        data: ''
+                        name: _('Seed')
+                        on_touched: if not self.data and not root.watching_only: app.show_seed(seed_label)
 
         BoxLayout:
             size_hint: 1, None
@@ -71,14 +76,20 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: '' if not root.has_seed else (_('Hide seed') if seed_label.text else _('Show seed'))
-                disabled: not root.has_seed
-                on_release:
-                    setattr(seed_label, 'text', '') if seed_label.text else app.show_seed(seed_label)
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
                 text: _('Delete')
                 on_release:
                     root.dismiss()
                     app.delete_wallet()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Disable LN') if app.wallet.has_lightning() else _('Enable LN')
+                on_release:
+                    root.dismiss()
+                    app.toggle_lightning()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release:
+                    root.dismiss()

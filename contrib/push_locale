@@ -23,13 +23,13 @@ with open("app.fil", "wb") as f:
 print("Found {} files to translate".format(len(files.splitlines())))
 
 # Generate fresh translation template
-if not os.path.exists('electrum/locale'):
-    os.mkdir('electrum/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages.pot'
+if not os.path.exists('electrum_grs/locale'):
+    os.mkdir('electrum_grs/locale')
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum_grs/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
-os.chdir('electrum')
+os.chdir('electrum_grs')
 
 crowdin_identifier = 'electrum'
 crowdin_file_name = 'files[electrum-client/messages.pot]'
@@ -56,4 +56,3 @@ if crowdin_api_key:
     print('Build translations')
     response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key)
     print("", "export:", "-" * 20, response.text, "-" * 20, sep="\n")
-

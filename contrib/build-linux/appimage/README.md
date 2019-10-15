@@ -9,9 +9,7 @@ similar system. The host architecture should be x86_64 (amd64).
 The docker commands should be executed in the project's root folder.
 
 We currently only build a single AppImage, for x86_64 architecture.
-Help to adapt these scripts to build for (some flavor of) ARM would be welcome,
-see [issue #5159](https://github.com/spesmilo/electrum/issues/5159).
-
+Help to adapt these scripts to build for (some flavor of) ARM would be welcome.
 
 1. Install Docker
 

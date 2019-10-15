@@ -1,4 +1,3 @@
-sudo: true
 dist: xenial
 language: python
 python:
@@ -27,9 +26,27 @@ after_success:
     - coveralls
 jobs:
   include:
+    - name: "Regtest functional tests"
+      before_install:
+        - sudo add-apt-repository -y ppa:groestlcoin/groestlcoin
+        - sudo apt-get -qq update
+        - sudo apt-get install -yq groestlcoind
+      install:
+        - pip install -r contrib/requirements/requirements.txt
+        - pip install electrumx
+      before_script:
+          - electrum_grs/tests/regtest/start_groestlcoind.sh
+          - electrum_grs/tests/regtest/start_electrumx.sh
+      script:
+        - python -m unittest electrum_grs/tests/regtest.py
+      after_success: True
+    - name: "Flake8 linter tests"
+      language: python
+      install: pip install flake8
+      script: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     - stage: binary builds
+      if: branch = master
       name: "Windows build"
-      sudo: true
       language: c
       python: false
       env:
@@ -41,7 +58,8 @@ jobs:
       script:
         - sudo docker run --name electrum-grs-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-grs --rm --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine electrum-grs-wine-builder-img ./build.sh
       after_success: true
-    - name: "Android build"
+    - if: branch = master
+      name: "Android build"
       language: python
       python: 3.7
       services:
@@ -54,13 +72,14 @@ jobs:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-grs-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum-grs --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
         - if [ $(ls bin | grep -c Electrum-GRS-*) -eq 0 ]; then exit 1; fi
       after_success: true
-    - name: "MacOS build"
+    - if: branch = master
+      name: "MacOS build"
       os: osx
       language: c
       env:
@@ -71,8 +90,8 @@ jobs:
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
-    - name: "AppImage build"
-      sudo: true
+    - if: branch = master
+      name: "AppImage build"
       language: c
       python: false
       services:

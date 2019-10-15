@@ -101,6 +101,11 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Label')
+                on_release: root.label_dialog()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.dismiss()
 ''')
@@ -218,8 +223,7 @@ class TxDialog(Factory.Popup):
             return
         try:
             new_tx = self.wallet.bump_fee(tx=self.tx,
-                                          new_fee_rate=new_fee_rate,
-                                          config=self.app.electrum_config)
+                                          new_fee_rate=new_fee_rate)
         except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
@@ -270,4 +274,15 @@ class TxDialog(Factory.Popup):
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()
         d = Question(question, on_prompt)
+        d.open()
+
+    def label_dialog(self):
+        from .label_dialog import LabelDialog
+        key = self.tx.txid()
+        text = self.app.wallet.get_label(key)
+        def callback(text):
+            self.app.wallet.set_label(key, text)
+            self.update()
+            self.app.history_screen.update()
+        d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()

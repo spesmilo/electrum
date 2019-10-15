@@ -27,6 +27,7 @@ import os
 import json
 
 from .util import inv_dict
+from . import bitcoin
 
 
 def read_json(filename, default):
@@ -45,9 +46,15 @@ GIT_REPO_ISSUES_URL = "https://github.com/Groestlcoin/electrum-grs/issues"
 
 class AbstractNet:
 
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+
     @classmethod
     def max_checkpoint(cls) -> int:
         return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+
+    @classmethod
+    def rev_genesis_bytes(cls) -> bytes:
+        return bytes.fromhex(bitcoin.rev_hex(cls.GENESIS))
 
 
 class BitcoinMainnet(AbstractNet):
@@ -61,6 +68,7 @@ class BitcoinMainnet(AbstractNet):
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
@@ -79,6 +87,11 @@ class BitcoinMainnet(AbstractNet):
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 17
+    LN_REALM_BYTE = 0
+    LN_DNS_SEEDS = [
+        'lseed1.groestlcoin.org.',
+        'lseed2.groestlcoin.org.',
+    ]
 
 
 class BitcoinTestnet(AbstractNet):
@@ -110,6 +123,11 @@ class BitcoinTestnet(AbstractNet):
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
+    LN_REALM_BYTE = 1
+    LN_DNS_SEEDS = [
+        'test.nodes.lightning.directory.',
+        'lseed.bitcoinstats.com.',
+    ]
 
 
 class BitcoinRegtest(BitcoinTestnet):
@@ -118,14 +136,19 @@ class BitcoinRegtest(BitcoinTestnet):
     GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
+    LN_DNS_SEEDS = []
 
 
 class BitcoinSimnet(BitcoinTestnet):
 
+    WIF_PREFIX = 0x64
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x7b
     SEGWIT_HRP = "sg"
     GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
+    LN_DNS_SEEDS = []
 
 
 # don't import net directly, import the module instead (so that net is singleton)
@@ -138,7 +161,6 @@ def set_simnet():
 def set_mainnet():
     global net
     net = BitcoinMainnet
-
 
 def set_testnet():
     global net
