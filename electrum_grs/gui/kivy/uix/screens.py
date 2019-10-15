@@ -41,7 +41,7 @@ from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 from electrum_grs.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
-    from electrum.gui.kivy.main_window import ElectrumWindow
+    from electrum_grs.gui.kivy.main_window import ElectrumWindow
 
 
 class HistoryRecycleView(RecycleView):

@@ -59,9 +59,9 @@ from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
 
 if TYPE_CHECKING:
-    from electrum.daemon import Daemon
-    from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
+    from electrum_grs.daemon import Daemon
+    from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.plugin import Plugins
 
 
 class OpenFileEventFilter(QObject):

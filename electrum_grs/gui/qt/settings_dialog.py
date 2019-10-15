@@ -39,10 +39,10 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QMenu, QSizePolicy, QStatusBar)
 
-import electrum
-from electrum.i18n import _
-from electrum import util, coinchooser, paymentrequest
-from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
+import electrum_grs
+from electrum_grs.i18n import _
+from electrum_grs import util, coinchooser, paymentrequest
+from electrum_grs.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
@@ -60,8 +60,8 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen)
 
-from electrum.i18n import languages
-from electrum import qrscanner
+from electrum_grs.i18n import languages
+from electrum_grs import qrscanner
 
 class SettingsDialog(WindowModalDialog):
 

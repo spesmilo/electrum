@@ -1,10 +1,10 @@
 from kivy.lang import Builder
 from kivy.factory import Factory
-from electrum.gui.kivy.i18n import _
-from electrum.lnaddr import lndecode
-from electrum.util import bh2u
-from electrum.bitcoin import COIN
-import electrum.simple_config as config
+from electrum_grs.gui.kivy.i18n import _
+from electrum_grs.lnaddr import lndecode
+from electrum_grs.util import bh2u
+from electrum_grs.bitcoin import COIN
+import electrum_grs.simple_config as config
 from .label_dialog import LabelDialog
 
 Builder.load_string('''

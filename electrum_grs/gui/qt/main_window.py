@@ -1990,7 +1990,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def parse_lightning_invoice(self, invoice):
         """Parse ln invoice, and prepare the send tab for it."""
-        from electrum.lnaddr import lndecode, LnDecodeException
+        from electrum_grs.lnaddr import lndecode, LnDecodeException
         try:
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except Exception as e:

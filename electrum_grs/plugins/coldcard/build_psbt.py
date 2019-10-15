@@ -6,16 +6,16 @@ import struct
 from binascii import a2b_hex, b2a_hex
 from struct import pack, unpack
 
-from electrum.transaction import (Transaction, multisig_script, parse_redeemScript_multisig,
+from electrum_grs.transaction import (Transaction, multisig_script, parse_redeemScript_multisig,
                                   NotRecognizedRedeemScript)
 
-from electrum.logging import get_logger
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
-from electrum.keystore import xpubkey_to_pubkey, Xpub
-from electrum.util import bfh, bh2u
-from electrum.crypto import hash_160, sha256
-from electrum.bitcoin import DecodeBase58Check
-from electrum.i18n import _
+from electrum_grs.logging import get_logger
+from electrum_grs.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
+from electrum_grs.keystore import xpubkey_to_pubkey, Xpub
+from electrum_grs.util import bfh, bh2u
+from electrum_grs.crypto import hash_160, sha256
+from electrum_grs.bitcoin import DecodeBase58Check
+from electrum_grs.i18n import _
 
 from .basic_psbt import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_GLOBAL_XPUB, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
@@ -106,7 +106,7 @@ def deser_compact_size(f):
         nit = f.read(1)[0]
     except IndexError:
         return None     # end of file
-    
+
     if nit == 253:
         nit = struct.unpack("<H", f.read(2))[0]
     elif nit == 254:
@@ -128,7 +128,7 @@ def my_var_int(l):
 
 def build_psbt(tx: Transaction, wallet: Abstract_Wallet):
     # Render a PSBT file, for possible upload to Coldcard.
-    # 
+    #
     # TODO this should be part of Wallet object, or maybe Transaction?
 
     if getattr(tx, 'raw_psbt', False):
@@ -255,7 +255,7 @@ def build_psbt(tx: Transaction, wallet: Abstract_Wallet):
             else:
                 # when an input is partly signed, tx.get_tx_derivations()
                 # doesn't include that keystore's value and yet we need it
-                # because we need to show a correct keypath... 
+                # because we need to show a correct keypath...
                 assert x_pubkey[0:2] == 'ff', x_pubkey
 
                 for ks in wallet.get_keystores():
@@ -327,7 +327,7 @@ def recover_tx_from_psbt(first: BasicPSBT, wallet: Abstract_Wallet) -> Transacti
     # Take a PSBT object and re-construct the Electrum transaction object.
     # - does not include signatures, see merge_sigs_from_psbt
     # - any PSBT in the group could be used for this purpose; all must share tx details
-    
+
     tx = Transaction(first.txn.hex())
     tx.deserialize(force_full_parse=True)
 
@@ -386,7 +386,7 @@ def merge_sigs_from_psbt(tx: Transaction, psbt: BasicPSBT):
             count += 1
 
         #print("#%d: sigs = %r" % (inp_idx, tx.inputs()[inp_idx]['signatures']))
-    
+
     # reset serialization of TX
     tx.raw = tx.serialize()
     tx.raw_psbt = None
@@ -394,4 +394,3 @@ def merge_sigs_from_psbt(tx: Transaction, psbt: BasicPSBT):
     return count
 
 # EOF
-

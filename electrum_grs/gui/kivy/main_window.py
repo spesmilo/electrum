@@ -81,9 +81,9 @@ from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
-    from electrum.simple_config import SimpleConfig
-    from electrum.wallet import Abstract_Wallet
-    from electrum.plugin import Plugins
+    from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.wallet import Abstract_Wallet
+    from electrum_grs.plugin import Plugins
 
 
 class ElectrumWindow(App):

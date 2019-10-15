@@ -590,7 +590,7 @@ class ColdcardPlugin(HW_PluginBase):
         # Build the text file Coldcard needs to understand the multisig wallet
         # it is participating in. All involved Coldcards can share same file.
 
-        print('# Exported from Electrum', file=fp)
+        print('# Exported from Electrum-GRS', file=fp)
         print(f'Name: {name:.20s}', file=fp)
         print(f'Policy: {wallet.m} of {wallet.n}', file=fp)
         print(f'Format: {wallet.txin_type.upper()}' , file=fp)

@@ -1,15 +1,15 @@
 import unittest
 import json
 
-from electrum import bitcoin
-from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
+from electrum_grs import bitcoin
+from electrum_grs.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_onchain_fees, UpdateAddHtlc)
-from electrum.util import bh2u, bfh
-from electrum.transaction import Transaction
+from electrum_grs.util import bh2u, bfh
+from electrum_grs.transaction import Transaction
 
 from . import ElectrumTestCase
 

@@ -3,13 +3,13 @@ import tempfile
 import shutil
 import asyncio
 
-from electrum.util import bh2u, bfh, create_and_start_event_loop
-from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
+from electrum_grs.util import bh2u, bfh, create_and_start_event_loop
+from electrum_grs.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
-from electrum import bitcoin, lnrouter
-from electrum.constants import BitcoinTestnet
-from electrum.simple_config import SimpleConfig
+from electrum_grs import bitcoin, lnrouter
+from electrum_grs.constants import BitcoinTestnet
+from electrum_grs.simple_config import SimpleConfig
 
 from . import TestCaseForTestnet
 

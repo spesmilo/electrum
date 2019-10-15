@@ -1,8 +1,8 @@
 import asyncio
 
-from electrum.ecc import ECPrivkey
-from electrum.lnutil import LNPeerAddr
-from electrum.lntransport import LNResponderTransport, LNTransport
+from electrum_grs.ecc import ECPrivkey
+from electrum_grs.lnutil import LNPeerAddr
+from electrum_grs.lntransport import LNResponderTransport, LNTransport
 
 from . import ElectrumTestCase
 

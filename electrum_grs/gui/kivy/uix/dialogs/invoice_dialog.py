@@ -6,11 +6,11 @@ from kivy.core.clipboard import Clipboard
 from kivy.app import App
 from kivy.clock import Clock
 
-from electrum.gui.kivy.i18n import _
-from electrum.util import pr_tooltips
+from electrum_grs.gui.kivy.i18n import _
+from electrum_grs.util import pr_tooltips
 
 if TYPE_CHECKING:
-    from electrum.gui.kivy.main_window import ElectrumWindow
+    from electrum_grs.gui.kivy.main_window import ElectrumWindow
 
 
 Builder.load_string('''

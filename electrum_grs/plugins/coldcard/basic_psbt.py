@@ -10,7 +10,7 @@ from base64 import b64decode
 from binascii import a2b_hex, b2a_hex
 from struct import pack, unpack
 
-from electrum.transaction import Transaction
+from electrum_grs.transaction import Transaction
 
 # BIP-174 (aka PSBT) defined values
 #
@@ -49,7 +49,7 @@ def deser_compact_size(f):
         nit = f.read(1)[0]
     except IndexError:
         return None     # end of file
-    
+
     if nit == 253:
         nit = struct.unpack("<H", f.read(2))[0]
     elif nit == 254:
@@ -153,8 +153,8 @@ class BasicPSBTInput(PSBTSection):
             self.witness_script = val
             assert not key
         elif kt in ( PSBT_IN_REDEEM_SCRIPT,
-                     PSBT_IN_WITNESS_SCRIPT, 
-                     PSBT_IN_FINAL_SCRIPTSIG, 
+                     PSBT_IN_WITNESS_SCRIPT,
+                     PSBT_IN_FINAL_SCRIPTSIG,
                      PSBT_IN_FINAL_SCRIPTWITNESS):
             assert not key
             self.others[kt] = val
@@ -244,7 +244,7 @@ class BasicPSBT:
         self.filename = filename
 
         with io.BytesIO(raw[5:]) as fd:
-            
+
             # globals
             while 1:
                 ks = deser_compact_size(fd)
@@ -310,4 +310,3 @@ class BasicPSBT:
             return fd.getvalue()
 
 # EOF
-

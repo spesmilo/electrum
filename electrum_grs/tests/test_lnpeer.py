@@ -6,22 +6,22 @@ from contextlib import contextmanager
 from collections import defaultdict
 import logging
 
-from electrum.network import Network
-from electrum.ecc import ECPrivkey
-from electrum import simple_config, lnutil
-from electrum.lnaddr import lnencode, LnAddr, lndecode
-from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, create_and_start_event_loop
-from electrum.lnpeer import Peer
-from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum.lnutil import PaymentFailure, LnLocalFeatures
-from electrum.lnrouter import LNPathFinder
-from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, NoPathFound
-from electrum.lnmsg import encode_msg, decode_msg
-from electrum.logging import console_stderr_handler
-from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
+from electrum_grs.network import Network
+from electrum_grs.ecc import ECPrivkey
+from electrum_grs import simple_config, lnutil
+from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
+from electrum_grs.bitcoin import COIN, sha256
+from electrum_grs.util import bh2u, create_and_start_event_loop
+from electrum_grs.lnpeer import Peer
+from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
+from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
+from electrum_grs.lnutil import PaymentFailure, LnLocalFeatures
+from electrum_grs.lnrouter import LNPathFinder
+from electrum_grs.channel_db import ChannelDB
+from electrum_grs.lnworker import LNWallet, NoPathFound
+from electrum_grs.lnmsg import encode_msg, decode_msg
+from electrum_grs.logging import console_stderr_handler
+from electrum_grs.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
 from . import ElectrumTestCase
