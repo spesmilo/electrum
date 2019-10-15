@@ -7,3 +7,6 @@
 [submodule "electrum-grs/www"]
 	path = electrum_grs/www
 	url = https://github.com/Groestlcoin/electrum-http.git
+[submodule "electrum_grs/www"]
+	path = electrum_grs/www
+	url = https://github.com/Groestlcoin/electrum-http.git
