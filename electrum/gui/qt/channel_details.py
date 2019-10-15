@@ -77,7 +77,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
     def do_htlc_added(self, evtname, htlc, lnaddr, direction):
-        mapping = self.keyname_rows['inflight']
+        mapping = self.keyname_rows.get('inflight', {})
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_inflight(lnaddr, htlc, direction))
 
