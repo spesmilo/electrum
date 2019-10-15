@@ -250,7 +250,8 @@ class ChannelDB(SqlDB):
         self._channels = {}  # type: Dict[bytes, ChannelInfo]
         self._policies = {}
         self._nodes = {}
-        self._addresses = defaultdict(set)
+        # node_id -> (host, port, ts)
+        self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
