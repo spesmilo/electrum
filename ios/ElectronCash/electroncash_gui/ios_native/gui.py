@@ -962,14 +962,17 @@ class ElectrumGui(PrintError):
 
     @property
     def prefs_use_schnorr(self) -> bool:
+        if not self.wallet: return False
         return bool(self.wallet.is_schnorr_enabled())
 
     @prefs_use_schnorr.setter
     def prefs_use_schnorr(self, b):
-        self.wallet.set_schnorr_enabled(b)
+        if self.wallet:
+            self.wallet.set_schnorr_enabled(b)
 
     @property
     def prefs_is_schnorr_possible(self) -> bool:
+        if not self.wallet: return False
         return self.wallet.is_schnorr_possible()
 
     def prefs_get_use_change(self) -> tuple: # returns the setting plus a second bool that indicates whether this setting can be modified
