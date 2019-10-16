@@ -47,7 +47,8 @@ from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address
 from . import networks
-from .storage import multisig_type
+from . import keystore
+from .storage import multisig_type, WalletStorage
 
 from . import transaction
 from .transaction import Transaction
@@ -59,6 +60,7 @@ from .verifier import SPV, SPVDelegate
 from . import schnorr
 from . import ecc_fast
 from .blockchain import NULL_HASH_HEX
+from .mnemonic import Mnemonic
 
 
 from . import paymentrequest
@@ -2799,3 +2801,65 @@ class Wallet(object):
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise UnknownWalletType("Unknown wallet type: " + str(wallet_type))
+
+
+def create_new_wallet(*, path, config, passphrase=None, password=None,
+                      encrypt_file=True, seed_type=None, gap_limit=None) -> dict:
+    """Create a new wallet"""
+    storage = WalletStorage(path)
+    if storage.file_exists():
+        raise Exception("Remove the existing wallet first!")
+
+    seed = Mnemonic('en').make_seed(seed_type)
+    k = keystore.from_seed(seed, passphrase, False)
+    storage.put('keystore', k.dump())
+    storage.put('wallet_type', 'standard')
+    if gap_limit is not None:
+        storage.put('gap_limit', gap_limit)
+    wallet = Wallet(storage)
+    wallet.update_password(old_pw=None, new_pw=password, encrypt=encrypt_file)
+    wallet.synchronize()
+    msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+
+    wallet.storage.write()
+    return {'seed': seed, 'wallet': wallet, 'msg': msg}
+
+
+def restore_wallet_from_text(text, *, path, config,
+                             passphrase=None, password=None, encrypt_file=True,
+                             gap_limit=None) -> dict:
+    """Restore a wallet from text. Text can be a seed phrase, a master
+    public key, a master private key, a list of bitcoin addresses
+    or bitcoin private keys."""
+    storage = WalletStorage(path)
+    if storage.file_exists():
+        raise Exception("Remove the existing wallet first!")
+
+    text = text.strip()
+    if keystore.is_address_list(text):
+        wallet = ImportedAddressWallet.from_text(storage, text)
+        wallet.save_addresses()
+    elif keystore.is_private_key_list(text,):
+        k = keystore.Imported_KeyStore({})
+        storage.put('keystore', k.dump())
+        wallet = ImportedPrivkeyWallet.from_text(storage, text, password)
+    else:
+        if keystore.is_master_key(text):
+            k = keystore.from_master_key(text)
+        elif keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase, False)
+        else:
+            raise Exception("Seed or key not recognized")
+        storage.put('keystore', k.dump())
+        storage.put('wallet_type', 'standard')
+        if gap_limit is not None:
+            storage.put('gap_limit', gap_limit)
+        wallet = Wallet(storage)
+
+    wallet.update_password(old_pw=None, new_pw=password, encrypt=encrypt_file)
+    wallet.synchronize()
+    msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
+           "Start a daemon and use load_wallet to sync its history.")
+
+    wallet.storage.write()
+    return {'wallet': wallet, 'msg': msg}
