@@ -54,13 +54,14 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-
-        for pay_hash, item in htlcs.items():
-            chan_id, i, direction, status = item
-            it = self.make_htlc_item(i, direction)
-            self.folders[status].appendRow(it)
-            mapping[i.payment_hash] = num
-            num += 1
+            for pay_hash, item in htlcs.items():
+                chan_id, i, direction, status = item
+                if status != keyname:
+                    continue
+                it = self.make_htlc_item(i, direction)
+                self.folders[keyname].appendRow(it)
+                mapping[i.payment_hash] = num
+                num += 1
             self.keyname_rows[keyname] = mapping
         return model
 
