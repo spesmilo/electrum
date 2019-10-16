@@ -176,6 +176,7 @@ class RequestList(MyTreeView):
             menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Lightning Request', req['invoice']))
         else:
             menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Bitcoin URI', req['URI']))
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Bitcoin Address', req['address']))
         if 'view_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
