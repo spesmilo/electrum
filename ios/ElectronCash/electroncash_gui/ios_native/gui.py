@@ -2050,10 +2050,10 @@ class ElectrumGui(PrintError):
         self.refresh_components('helper')
 
     def is_touchid_possible(self) -> bool:
-        return self.keyEnclave.has_keys()
+        return bool(not utils.is_simulator() and self.keyEnclave.has_keys())
 
     def is_touchid_available(self) -> bool:
-        return self.is_touchid_possible() and self.keyEnclave.biometrics_available()
+        return bool(self.is_touchid_possible() and self.keyEnclave.biometrics_available())
 
     def check_touchid_for_gui(self, onOff : bool) -> bool:
         if not onOff: return False
@@ -2353,9 +2353,11 @@ class ElectrumGui(PrintError):
         self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
 
     def setup_key_enclave(self, completion : Callable[[],None]) -> None:
-        if (not self.keyEnclave.has_keys()
-                # below is a workaround for simulator crash when trying to
-                # create a key (simulator has no biometrics). -Calin 10/16/2019
+        # TODO: Find out why simulator crashes when trying to
+        # create a key (even when simulator has biometrics enabled).
+        #   -Calin 10/16/2019
+        if (not utils.is_simulator()
+                and not self.keyEnclave.has_keys()
                 and self.keyEnclave.biometrics_available()):
             # UGH.. they lost their keys, or never had them.  Zero out our enc_pws and our touchIdAsked files..
             self.encPasswords.clearAll()

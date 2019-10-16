@@ -42,5 +42,13 @@ typedef void(^VoidBlock)(void);
     return NO;
 #endif
 }
-@end
 
++ (BOOL) isSimulator {
+#if TARGET_OS_SIMULATOR
+    return YES;
+#else
+    return NO;
+#endif
+}
+
+@end

@@ -77,6 +77,9 @@ def is_portrait() -> bool:
 def is_debug_build() -> bool:
     return bool(HelpfulGlue.isDebugBuild())
 
+def is_simulator() -> bool:
+    return bool(HelpfulGlue.isSimulator())
+
 def get_fn_and_ext(fileName: str) -> tuple:
     *p1, ext = fileName.split('.')
     fn=''
