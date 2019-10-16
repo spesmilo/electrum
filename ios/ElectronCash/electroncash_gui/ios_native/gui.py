@@ -1053,6 +1053,11 @@ class ElectrumGui(PrintError):
         while pvc and pvc.presentedViewController and not pvc.presentedViewController.isBeingDismissed():
             # keep looking up the view controller hierarchy until we find a modal that is *NOT* being dismissed currently
             pvc = pvc.presentedViewController
+        if pvc and pvc.isBeingDismissed():
+            utils.NSLog("**** WARNING: presentedViewController %s is being dismissed; will default to rootViewController %s", repr(pvc), repr(rvc))
+            # Avoid "being dismissed" viewControllers. This appears redundant
+            # but this check is needed in case the first pvc was "beingDismissed"
+            pvc = None
         return pvc if pvc else rvc
 
     def get_current_nav_controller(self) -> ObjCInstance:
@@ -2369,7 +2374,8 @@ class ElectrumGui(PrintError):
             bug_alert_vc = utils.show_please_wait(vc = vc,
                                                   title = _('Waiting for Touch ID...'),
                                                   message = _('Please touch the home button'),
-                                                  completion = do_it)
+                                                  completion = do_it,
+                                                  animated = False)
         else:
             do_it()
 

@@ -11,7 +11,9 @@ Quick Start Instructions
 ------------------------
 1. Requirements:
 
-   * MacOS 10.11 or above is required with Xcode installed (Xcode >= 10.1)
+   * MacOS 10.11 or above is required with Xcode installed
+   * Xcode >= 10.1 -- but *NOT* Xcode 11.x or above!
+   * **IMPORTANT:** Do **not** use Xcode 11 or above. The app will not run correctly if you use this version of Xcode because Apple changed the ViewController API. See: https://medium.com/@hacknicity/view-controller-presentation-changes-in-ios-13-ac8c901ebc4e
    * MacPorts is required (Brew may work too but is untested)
    * Python 3.6 must be installed via either MacPorts or Brew
    * cookiecutter, briefcase, pbxproj, and setuptools python packages must be installed::
