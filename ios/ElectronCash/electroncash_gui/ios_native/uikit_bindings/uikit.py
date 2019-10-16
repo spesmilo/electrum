@@ -823,3 +823,8 @@ UIBlurEffectStyleProminent = 5#NS_ENUM_AVAILABLE_IOS(10_0), // Adapts to user in
 
 UIBlurEffect = ObjCClass('UIBlurEffect')
 UIVisualEffectView = ObjCClass('UIVisualEffectView')
+
+# Window Level  -- CGFloat, with 0.0 being default for all windows. In case we want to raise/lower window levels...
+UIWindowLevelNormal          = float(c_double.in_dll(uikit, "UIWindowLevelNormal").value)
+UIWindowLevelAlert           = float(c_double.in_dll(uikit, "UIWindowLevelAlert").value)
+UIWindowLevelStatusBar       = float(c_double.in_dll(uikit, "UIWindowLevelStatusBar").value)

@@ -2353,7 +2353,10 @@ class ElectrumGui(PrintError):
         self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
 
     def setup_key_enclave(self, completion : Callable[[],None]) -> None:
-        if not self.keyEnclave.has_keys():
+        if (not self.keyEnclave.has_keys()
+                # below is a workaround for simulator crash when trying to
+                # create a key (simulator has no biometrics). -Calin 10/16/2019
+                and self.keyEnclave.biometrics_available()):
             # UGH.. they lost their keys, or never had them.  Zero out our enc_pws and our touchIdAsked files..
             self.encPasswords.clearAll()
             self.touchIdAsked.clearAll()

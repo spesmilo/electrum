@@ -28,7 +28,7 @@
 import sys, os, json, qrcode, qrcode.image.svg, tempfile, random, queue, threading, time, stat
 from collections import namedtuple
 from inspect import signature
-from typing import Callable, Any
+from typing import Callable, Any, Tuple
 from .uikit_bindings import *
 from .custom_objc import *
 
@@ -50,15 +50,16 @@ def is_iphone4() -> bool:
     # iphone4 has <1136 pix height
     return is_iphone() and ( UIScreen.mainScreen.nativeBounds.size.height - 1136.0 < -0.5 )
 
-IPHONE_X_SIZES = [
-    ( 1125.0, 2436.0 ), # iPhone X & iPhone XS
-    (  828.0, 1792.0 ), # iPhone XR
-    ( 1242.0, 2688.0 ), # iPhone XS Max
-]
 def is_iphoneX() -> bool:
     if is_iphone():
+        def iphone_X_sizes() -> Tuple[CGSize]:
+            return (
+                CGSizeMake( 1125.0, 2436.0 ), # iPhone X & iPhone XS
+                CGSizeMake(  828.0, 1792.0 ), # iPhone XR
+                CGSizeMake( 1242.0, 2688.0 ), # iPhone XS Max
+            )
         size = UIScreen.mainScreen.nativeBounds.size
-        for s in IPHONE_X_SIZES:
+        for s in iphone_X_sizes():
             if abs(s.width - size.width) < 0.5 and abs(s.height - size.height) < 0.5:
                 return True
     return False
@@ -124,8 +125,32 @@ def cleanup_tmp_dir():
         NSLog("Cleanup Tmp Dir: removed %d/%d files from tmp dir in %f ms",ct,tot,(time.time()-t0)*1e3)
 
 def ios_version_string() -> str:
-    dev = UIDevice.currentDevice
-    return "%s %s %s (%s)"%(str(dev.systemName), str(dev.systemVersion), str(dev.model), str(dev.identifierForVendor))
+    return "%s %s %s (%s)"%ios_version_tuple_full()
+
+_VER_TUP_FULL = None
+def ios_version_tuple_full() -> Tuple[str]:
+    global _VER_TUP_FULL
+    if _VER_TUP_FULL is None:
+        dev = UIDevice.currentDevice
+        _VER_TUP_FULL = (str(dev.systemName), str(dev.systemVersion), str(dev.model), str(dev.identifierForVendor))
+    return _VER_TUP_FULL
+
+_VER_TUP = None
+def ios_version_tuple() -> Tuple[int]:
+    global _VER_TUP
+    if _VER_TUP is None:
+        def parse_tup():
+            try:
+                sv = ios_version_tuple_full()[1].split('.')
+                while len(sv) < 3:  # because we can never rely on Apple not making this have 2 or 4 elements, etc...
+                    sv += ['0']
+                sv = tuple(int(x) for x in sv)  # convert to tuple
+                return sv
+            except (IndexError, TypeError, ValueError) as e:
+                print("ERROR in ios_version_tuple, cannot parse", sv, " -- returning (0,0,0); exception was:", repr(e))
+                return 0,0,0
+        _VER_TUP = parse_tup()
+    return _VER_TUP
 
 # new color schem from Max
 _ColorScheme = None
