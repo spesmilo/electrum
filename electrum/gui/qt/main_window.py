@@ -1741,7 +1741,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         if not preview:
             self.wallet.save_invoice(invoice)
-            self.do_clear()
             self.invoice_list.update()
         self.do_pay_invoice(invoice, preview)
 
@@ -1828,9 +1827,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         def sign_done(success):
             if success:
+                self.do_clear()
                 if not tx.is_complete():
                     self.show_transaction(tx)
-                    self.do_clear()
                 else:
                     self.broadcast_transaction(tx, message)
         self.sign_tx_with_password(tx, sign_done, password)
