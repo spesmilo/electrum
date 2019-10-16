@@ -2340,17 +2340,38 @@ class ElectrumGui(PrintError):
 
     def get_wallet_password_using_touchid(self, wallet_name : str, completion : Callable[[str, bool],None], prompt : str = None) -> None:
         hexpass = self.encPasswords.get(wallet_name)
+        bug_alert_vc = None
         if not hexpass:
             completion(None)
             return
-        def MyCallback(pw : str, err : str) -> None:
-            lostKey = False
-            if err:
-                if self.keyEnclave.lastErrorCode == -50:
-                    lostKey = True
-                utils.NSLog("Got error (Code=%d) from enclave attempting to get password for %s: %s", self.keyEnclave.lastErrorCode, wallet_name, err)
-            completion(pw, lostKey)
-        self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
+        #
+        # The below piece of contortion is to effect a workaround for the ios
+        # 13.1.x bugs where the Touch ID dialog doesn't always pop up.
+        # See: https://forums.developer.apple.com/thread/122628
+        #
+        def do_it() -> None:
+            def MyCallback(pw : str, err : str) -> None:
+                nonlocal bug_alert_vc
+                if bug_alert_vc:
+                    bug_alert_vc.dismissViewControllerAnimated_completion_(False, None)
+                    bug_alert_vc = None
+                lostKey = False
+                if err:
+                    if self.keyEnclave.lastErrorCode == -50:
+                        lostKey = True
+                    utils.NSLog("Got error (Code=%d) from enclave attempting to get password for %s: %s", self.keyEnclave.lastErrorCode, wallet_name, err)
+                completion(pw, lostKey)
+            self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
+        vtup = utils.ios_version_tuple()
+        vc = self.get_presented_viewcontroller()
+        if vc and vtup >= (13, 1, 0) and vtup < (13, 2, 0) and not utils.is_iphoneX():
+            # workaround for TouchID prompt missing bug in iOS. https://forums.developer.apple.com/thread/122628
+            bug_alert_vc = utils.show_please_wait(vc = vc,
+                                                  title = _('Waiting for Touch ID...'),
+                                                  message = _('Please touch the home button'),
+                                                  completion = do_it)
+        else:
+            do_it()
 
     def setup_key_enclave(self, completion : Callable[[],None]) -> None:
         # TODO: Find out why simulator crashes when trying to

@@ -412,7 +412,8 @@ def show_share_actions(vc : ObjCInstance,
 ###################################################
 ### Show modal alert
 ###################################################
-def show_please_wait(vc : ObjCInstance, message : str, animated : bool = True, completion : Callable[[],None] = None) -> ObjCInstance:
+def show_please_wait(vc : ObjCInstance, message : str, animated : bool = True, completion : Callable[[],None] = None,
+                     title: str = None) -> ObjCInstance:
     pw = None
     try:
         objs = NSBundle.mainBundle.loadNibNamed_owner_options_("PleaseWait", None, None)
@@ -422,10 +423,11 @@ def show_please_wait(vc : ObjCInstance, message : str, animated : bool = True, c
                 break
     except:
         NSLog("Could not load PleaseWait.nib:",sys.exc_info()[1])
+    title = title or _("Please wait")
     if not pw:
-        return show_alert(vc, title = _("Please wait"), message = message, actions = [], animated = animated, completion = completion)
+        return show_alert(vc, title = title, message = message, actions = [], animated = animated, completion = completion)
     pw.message.text = message
-    pw.pleaseWait.text = _("Please wait")
+    pw.pleaseWait.text = title
     vc.presentViewController_animated_completion_(pw, animated, completion)
     return pw
 
