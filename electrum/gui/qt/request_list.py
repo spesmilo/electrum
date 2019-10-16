@@ -165,13 +165,8 @@ class RequestList(MyTreeView):
         if req is None:
             self.update()
             return
-        column = idx.column()
-        column_title = self.model().horizontalHeaderItem(column).text()
-        column_data = self.model().itemFromIndex(idx).text()
         menu = QMenu(self)
-        if column == self.Columns.AMOUNT:
-            column_data = column_data.strip()
-        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
+        self.add_copy_menu(menu, idx)
         if request_type == PR_TYPE_LN:
             menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Lightning Request', req['invoice']))
         else:

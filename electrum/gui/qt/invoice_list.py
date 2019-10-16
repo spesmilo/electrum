@@ -151,14 +151,8 @@ class InvoiceList(MyTreeView):
             return
         key = item_col0.data(ROLE_REQUEST_ID)
         request_type = item_col0.data(ROLE_REQUEST_TYPE)
-        column = idx.column()
-        column_title = self.model().horizontalHeaderItem(column).text()
-        column_data = item.text()
         menu = QMenu(self)
-        if column_data:
-            if column == self.Columns.AMOUNT:
-                column_data = column_data.strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+        self.add_copy_menu(menu, idx)
         invoice = self.parent.wallet.get_invoice(key)
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if invoice['status'] == PR_UNPAID:

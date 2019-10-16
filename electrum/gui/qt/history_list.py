@@ -589,6 +589,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
         self.parent.show_transaction(tx, label)
 
+    def add_copy_menu(self, menu, idx):
+        cc = menu.addMenu(_("Copy column"))
+        for column in HistoryColumns:
+            column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
+            idx2 = idx.sibling(idx.row(), column)
+            column_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
+            cc.addAction(column_title, lambda t=column_data: self.parent.app.clipboard().setText(t))
+
     def create_menu(self, position: QPoint):
         org_idx: QModelIndex = self.indexAt(position)
         idx = self.proxy.mapToSource(org_idx)
@@ -596,9 +604,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # can happen e.g. before list is populated for the first time
             return
         tx_item = self.hm.transactions.value_from_pos(idx.row())
-        column = idx.column()
-        column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
-        column_data = self.hm.data(idx, Qt.DisplayRole).value()
         if tx_item.get('lightning'):
             return
         tx_hash = tx_item['txid']
@@ -614,12 +619,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL]:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         menu.addAction(_("Copy Transaction ID"), lambda: self.parent.app.clipboard().setText(tx_hash))
-
-        amount_columns = [HistoryColumns.AMOUNT, HistoryColumns.BALANCE,
-                          HistoryColumns.FIAT_VALUE, HistoryColumns.FIAT_ACQ_PRICE, HistoryColumns.FIAT_CAP_GAINS]
-        if column in amount_columns:
-            column_data = column_data.strip()
-        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+        self.add_copy_menu(menu, idx)
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
