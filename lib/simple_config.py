@@ -204,7 +204,7 @@ class SimpleConfig(PrintError):
 
         # command line -w option
         if self.get('wallet_path'):
-            return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
+            return os.path.join(self.get('cwd'), self.get('wallet_path'))
 
         # path in config file
         path = self.get('default_wallet_path')

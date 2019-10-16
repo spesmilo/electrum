@@ -129,7 +129,6 @@ class Mnemonic(object):
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
-        passphrase = passphrase or ''
         passphrase = normalize_text(passphrase)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
@@ -162,9 +161,7 @@ class Mnemonic(object):
         i = self.mnemonic_decode(seed)
         return i % custom_entropy == 0
 
-    def make_seed(self, seed_type=None, num_bits=132, custom_entropy=1):
-        if seed_type is None:
-            seed_type = 'standard'
+    def make_seed(self, seed_type='standard', num_bits=132, custom_entropy=1):
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)

@@ -30,7 +30,3 @@ xcuserdata/
 
 # IntelliJ Pycharm IDE
 /.idea
-# vs code
-.vscode/
-# mypy
-.mypy_cache/
