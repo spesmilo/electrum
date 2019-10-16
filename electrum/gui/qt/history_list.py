@@ -592,6 +592,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy column"))
         for column in HistoryColumns:
+            if self.isColumnHidden(column):
+                continue
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
             column_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
