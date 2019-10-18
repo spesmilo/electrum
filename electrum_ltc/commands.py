@@ -623,6 +623,17 @@ class Commands:
         return json_encode(wallet.get_detailed_history(**kwargs))
 
     @command('w')
+    async def init_lightning(self, wallet: Abstract_Wallet = None):
+        """Enable lightning payments"""
+        wallet.init_lightning()
+        return "Lightning keys have been created."
+
+    @command('w')
+    async def remove_lightning(self, wallet: Abstract_Wallet = None):
+        """Disable lightning payments"""
+        wallet.remove_lightning()
+
+    @command('w')
     async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
         """ lightning history """
         lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
@@ -1127,8 +1138,6 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable lightning")
-    group.add_argument("--reckless", action="store_true", dest="reckless", default=False, help="Allow to enable lightning on mainnet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
 
 def add_wallet_option(parser):

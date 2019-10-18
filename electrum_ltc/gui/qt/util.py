@@ -626,6 +626,13 @@ class MyTreeView(QTreeView):
     def toggle_toolbar(self, config=None):
         self.show_toolbar(not self.toolbar_shown, config)
 
+    def add_copy_menu(self, menu, idx):
+        cc = menu.addMenu(_("Copy column"))
+        for column in self.Columns:
+            column_title = self.model().horizontalHeaderItem(column).text()
+            item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
+            column_data = item_col.text().strip()
+            cc.addAction(column_title, lambda t=column_data: self.parent.app.clipboard().setText(t))
 
 class ButtonsWidget(QWidget):
 

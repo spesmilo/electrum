@@ -251,7 +251,7 @@ class LNWorker(Logger):
         return peers
 
     @staticmethod
-    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+    def choose_preferred_address(addr_list: Sequence[Tuple[str, int, int]]) -> Tuple[str, int, int]:
         assert len(addr_list) >= 1
         # choose first one that is an IP
         for host, port, timestamp in addr_list:
@@ -299,6 +299,7 @@ class LNGossip(LNWorker):
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
+        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
         return l[0:N]
 
     def peer_closed(self, peer):
@@ -307,19 +308,11 @@ class LNGossip(LNWorker):
 
 class LNWallet(LNWorker):
 
-    def __init__(self, wallet: 'Abstract_Wallet'):
+    def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
         self.wallet = wallet
         self.storage = wallet.storage
         self.config = wallet.config
-        xprv = self.storage.get('lightning_privkey2')
-        if xprv is None:
-            # TODO derive this deterministically from wallet.keystore at keystore generation time
-            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
-            seed = os.urandom(32)
-            node = BIP32Node.from_rootseed(seed, xtype='standard')
-            xprv = node.to_xprv()
-            self.storage.put('lightning_privkey2', xprv)
         LNWorker.__init__(self, xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -616,7 +609,7 @@ class LNWallet(LNWorker):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        self.logger.debug(f'on_channel_open {funding_outpoint}')
+        #self.logger.debug(f'on_channel_open {funding_outpoint}')
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, None, None, None
         self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(False)
@@ -628,7 +621,7 @@ class LNWallet(LNWorker):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        self.logger.debug(f'on_channel_closed {funding_outpoint}')
+        #self.logger.debug(f'on_channel_closed {funding_outpoint}')
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
         self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(True)
@@ -789,7 +782,7 @@ class LNWallet(LNWorker):
         return chan
 
     def on_channels_updated(self):
-        self.network.trigger_callback('channels')
+        self.network.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
@@ -800,9 +793,9 @@ class LNWallet(LNWorker):
                 host, port = split_host_port(rest)
             else:
                 addrs = self.channel_db.get_node_addresses(node_id)
-                if len(addrs) == 0:
+                if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port = self.choose_preferred_address(addrs)
+                host, port, timestamp = self.choose_preferred_address(addrs)
             try:
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
@@ -1211,7 +1204,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self.channels.pop(chan_id)
         self.save_channels()
-        self.network.trigger_callback('channels', self.wallet)
+        self.network.trigger_callback('channels_updated', self.wallet)
         self.network.trigger_callback('wallet_updated', self.wallet)
 
     async def reestablish_peer_for_given_channel(self, chan):

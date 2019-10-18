@@ -155,9 +155,8 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        if self.config.get('lightning'):
-            m.addAction(_("Lightning"), self.show_lightning_dialog)
-            m.addAction(_("Watchtower"), self.show_watchtower_dialog)
+        m.addAction(_("Lightning"), self.show_lightning_dialog)
+        m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)

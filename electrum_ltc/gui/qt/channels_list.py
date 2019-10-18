@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout
 from electrum_ltc.util import inv_dict, bh2u, bfh
 from electrum_ltc.i18n import _
 from electrum_ltc.lnchannel import Channel
+from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id
 
 from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog
@@ -21,7 +22,7 @@ ROLE_CHANNEL_ID = Qt.UserRole
 
 
 class ChannelsList(MyTreeView):
-    update_rows = QtCore.pyqtSignal()
+    update_rows = QtCore.pyqtSignal(Abstract_Wallet)
     update_single_row = QtCore.pyqtSignal(Channel)
 
     class Columns(IntEnum):
@@ -102,6 +103,7 @@ class ChannelsList(MyTreeView):
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
+        self.add_copy_menu(menu, idx)
         if not chan.is_closed():
             menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
@@ -121,8 +123,10 @@ class ChannelsList(MyTreeView):
                 for column, v in enumerate(self.format_fields(chan)):
                     self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
 
-    @QtCore.pyqtSlot()
-    def do_update_rows(self):
+    @QtCore.pyqtSlot(Abstract_Wallet)
+    def do_update_rows(self, wallet):
+        if wallet != self.parent.wallet:
+            return
         self.model().clear()
         self.update_headers(self.headers)
         for chan in self.parent.wallet.lnworker.channels.values():

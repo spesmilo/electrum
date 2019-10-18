@@ -41,6 +41,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence
 
 from .i18n import _
+from .bip32 import BIP32Node
 from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
@@ -229,22 +230,45 @@ class Abstract_Wallet(AddressSynchronizer):
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.invoices              = storage.get('invoices', {})
-
         # convert invoices
         for invoice_key, invoice in self.invoices.items():
             if invoice.get('type') == PR_TYPE_ONCHAIN:
                 outputs = [TxOutput(*output) for output in invoice.get('outputs')]
                 invoice['outputs'] = outputs
-
         self.calc_unused_change_addresses()
-
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
-
         self.contacts = Contacts(self.storage)
         self._coin_price_cache = {}
-        self.lnworker = LNWallet(self) if self.config.get('lightning') else None
+        # lightning
+        ln_xprv = self.storage.get('lightning_privkey2')
+        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+
+    def has_lightning(self):
+        return bool(self.lnworker)
+
+    def init_lightning(self):
+        if self.storage.get('lightning_privkey2'):
+            return
+        if not is_using_fast_ecc():
+            raise Exception('libsecp256k1 library not available. '
+                            'Verifying Lightning channels is too computationally expensive without libsecp256k1, aborting.')
+        # TODO derive this deterministically from wallet.keystore at keystore generation time
+        # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
+        seed = os.urandom(32)
+        node = BIP32Node.from_rootseed(seed, xtype='standard')
+        ln_xprv = node.to_xprv()
+        self.storage.put('lightning_privkey2', ln_xprv)
+        self.storage.write()
+
+    def remove_lightning(self):
+        if not self.storage.get('lightning_privkey2'):
+            return
+        if bool(self.lnworker.channels):
+            raise Exception('Error: This wallet has channels')
+        self.storage.put('lightning_privkey2', None)
+        self.storage.write()
 
     def stop_threads(self):
         super().stop_threads()
@@ -261,6 +285,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
         if self.lnworker:
+            network.maybe_init_lightning()
             self.lnworker.start_network(network)
 
     def load_and_cleanup(self):
