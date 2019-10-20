@@ -39,12 +39,6 @@
         "t": "50001",
         "version": "1.4.1"
     },
-    "cash.theblains.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4.1"
-    },
     "crypto.mldlabs.com": {
         "pruning": "-",
         "s": "50002",
@@ -138,4 +132,3 @@
         "version": "1.4"
     }
 }
-
