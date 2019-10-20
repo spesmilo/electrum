@@ -2350,8 +2350,10 @@ class ElectrumGui(PrintError):
             completion(None)
             return
         #
-        # The below piece of contortion is to effect a workaround for the ios
-        # 13.1.x bugs where the Touch ID dialog doesn't always pop up.
+        # The below piece of contortion is to effect a workaround iOS bugs  in
+        # iOS versions in the inclusive range [13.1.0,13.1.2].
+        # The bug is that the Touch ID dialog from the OS libs doesn't always
+        # pop up.
         # See: https://forums.developer.apple.com/thread/122628
         #
         def do_it() -> None:
@@ -2369,8 +2371,10 @@ class ElectrumGui(PrintError):
             self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
         vtup = utils.ios_version_tuple()
         vc = self.get_presented_viewcontroller()
-        if vc and vtup >= (13, 1, 0) and vtup < (13, 2, 0) and not utils.is_iphoneX():
-            # workaround for TouchID prompt missing bug in iOS. https://forums.developer.apple.com/thread/122628
+        if vc and vtup >= (13, 1, 0) and vtup < (13, 1, 3) and not utils.is_iphoneX():
+            # Workaround for TouchID prompt missing bug in iOS.
+            # https://forums.developer.apple.com/thread/122628
+            # Broken for: 13.1.0, 13.1.1, 13.1.2; confirmed fixed in 13.1.3.
             bug_alert_vc = utils.show_please_wait(vc = vc,
                                                   title = _('Waiting for Touch ID...'),
                                                   message = _('Please touch the home button'),
