@@ -1776,13 +1776,8 @@ class boilerplate:
 ### iOS13 Status Bar Workaround stuff
 ###
 def does_status_bar_clash_with_notifications() -> bool:
-    ''' iOS 13.0+ introduced a new "bug" where the top status bar produced by
-    iOS cannot be covered by our popup notification. As a result, if on iOS 13+
-    and on non-iPhoneX, we must hide the iOS built-in status bar otherwise our
-    "Downloading headers..." status notification gets garbled and intermixed
-    with the iOS status bar. On iPhone X or above, the status bar from iOS is in
-    the notch area, and we avoid that area, so we don't need this workaround for
-    latest phones. Just iPhone 5, 6, 7, 8, etc. Grr. Apple. Why?! '''
+    ''' Returns true iff the we are on iOS 13.0+ and not on an iPhoneX.
+    (In that case we need to do the workaround.) Returns false otherwise. '''
     try:
         return bool(ios_version_tuple()[0] >= 13 and not is_iphoneX())
     except Exception as e:
@@ -1790,14 +1785,70 @@ def does_status_bar_clash_with_notifications() -> bool:
         return True
 
 class ios13_status_bar_workaround:
-    ''' Use cls.push() when presenting a new notification and cls.pop()
-    when it is dismissed. Alternatively, you can use __enter__/__exit__ via
-    the `with ios13_status_bar_workaround:` construct.'''
+    ''' iOS 13.0+ introduced a new "bug" where the top status bar produced by
+    iOS cannot be covered by our popup notification. As a result, if on iOS 13+
+    and on non-iPhoneX, we must hide the iOS built-in status bar otherwise our
+    "Downloading headers..." status notification gets garbled and intermixed
+    with the iOS status bar. On iPhone X or above, the status bar from iOS is in
+    the notch area, and we avoid that area, so we don't need this workaround for
+    latest phones. Just iPhone 4, 5, 6, 7, & 8.
+
+    Use cls.push() when presenting a new notification and cls.pop()
+    when it is dismissed.
+
+    When the first notification is presented, the status bar will be hidden.
+    When the last notification is dismissed, the status bar will be shown again.
+
+    Note this mechanism violates encapsulation and accesses the
+    ElectrumWindow.gui.window instance to modify the window geometry. '''
+    # - PRIVATE
     _lock = threading.Lock()
     _ctr = 0
     _needs_workaround = None
     _application = None
 
+    def noop_if_not_needed(func):
+        def wrapper(*args, **kwargs):
+            cls = (args and args[0]) or __class__
+            cls._chk_init_cache_values()
+            if not cls._needs_workaround:
+                return
+            return func(*args, **kwargs)
+        return wrapper
+
+    # + PUBLIC INTERFACE
+    @classmethod
+    @noop_if_not_needed
+    def push(cls):
+        with cls._lock:
+            if not cls._ctr:
+                # latch the status bar as hidden when _ctr is 0
+                cls._status_bar_hide()
+            cls._ctr += 1
+            return cls._ctr
+
+    @classmethod
+    @noop_if_not_needed
+    def pop(cls):
+        with cls._lock:
+            if cls._ctr <= 1:
+                # latch the status bar as visible when the _ctr hits 0
+                cls._status_bar_unhide()
+                cls._ctr = 0
+            else:
+                cls._ctr -= 1
+
+    @classmethod
+    @noop_if_not_needed
+    def on_rotated(cls):
+        with cls._lock:
+            if not cls._ctr:
+                return
+            # at this point we know a notification is up, so readjust our window
+            # (note that the window only readjusts if we are in portrait mode)
+            cls._status_bar_hide()
+
+    # - PRIVATE
     @classmethod
     def _chk_init_cache_values(cls):
         # cache some values
@@ -1806,61 +1857,33 @@ class ios13_status_bar_workaround:
         if cls._application is None:
             cls._application = UIApplication.sharedApplication
 
-    @classmethod
-    def push(cls):
-        cls._chk_init_cache_values()
-        if not cls._needs_workaround:
-            return
-        with cls._lock:
-            if not cls._ctr:
-                # latch the status bar as hidden when _ctr is 0
-                cls._application.setStatusBarHidden_(True)
-                from . import gui
-                g = gui.ElectrumGui.gui
-                if g and g.window:
-                    g.window.frame = r = UIScreen.mainScreen.bounds
-                    # move window down so it doesn't glitch up after we hid the status bar
-                    # TODO: FIXME:
-                    # 1. On device rotation during the time that the window is
-                    #    moved down, this produces unexpected results.
-                    # 2. On iPad in windowed mode likely this is wrong. Check/verify/fix that case.
-                    r.origin.y += 20
-                    r.size.height -= 20
-                    g.window.frame = r
-            cls._ctr += 1
 
     @classmethod
-    def pop(cls):
-        cls._chk_init_cache_values()
-        if not cls._needs_workaround:
-            return
-        with cls._lock:
-            if cls._ctr <= 1:
-                # latch the status bar as visible when the _ctr hits 0
-                cls._application.setStatusBarHidden_(False)
-                from . import gui
-                g = gui.ElectrumGui.gui
-                if g and g.window:
-                    # restore window to its full position.. at this point
-                    # mainScreen.bounds is under the status bar (if visible)
-                    g.window.frame = UIScreen.mainScreen.bounds
-                cls._ctr = 0
-            else:
-                cls._ctr -= 1
+    def _status_bar_hide(cls):
+        ''' latch the status bar off '''
+        cls._application.setStatusBarHidden_(True)
+        from . import gui
+        g = gui.ElectrumGui.gui
+        if g and g.window:
+            g.window.frame = r = UIScreen.mainScreen.bounds
+            # move window down so it doesn't glitch up after we hid the status bar
+            # TODO: FIXME:
+            # - On iPad in windowed mode likely this is wrong. Check/verify/fix
+            #   for iPad/windowed mode
+            if is_portrait():
+                r.origin.y += 20  # TODO: Get this value dynamically rather than hard-coding to future-proof this code!
+                r.size.height -= 20
+            g.window.frame = r
 
     @classmethod
-    def __enter__(cls):
-        cls.push()
-        return cls
-
-    @classmethod
-    def __exit__(cls, etype, value, tb):
-        if tb is None:
-            # no exception
-            cls.pop()
-        else:
-            # exception, suppress underlying exceptions
-            try: cls.pop()
-            except: pass
-        return False
+    def _status_bar_unhide(cls):
+        ''' latch the status bar on '''
+        cls._application.setStatusBarHidden_(False)
+        # portrait mode, hiding the status bar had an effect... adjust the window
+        from . import gui
+        g = gui.ElectrumGui.gui
+        if g and g.window:
+            # restore window to its full position.. at this point
+            # mainScreen.bounds is under the status bar (if visible)
+            g.window.frame = UIScreen.mainScreen.bounds
 #/end ios13_status_bar_workaround

@@ -513,7 +513,7 @@ class ElectrumGui(PrintError):
         #if self.downloadingNotif is not None and self.is_downloading_notif_showing() and self.downloadingNotif_view is not None:
         #    self.dismiss_downloading_notif()
         #    self.show_downloading_notif()
-        pass
+        utils.ios13_status_bar_workaround.on_rotated()
 
     def on_history(self, event, *args):
         utils.NSLog("ON HISTORY '%s' (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
