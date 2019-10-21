@@ -52,7 +52,7 @@ from electrum.util import (UserCancelled, print_error,
 # from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard
-import breeze_resources
+from . import breeze_resources
 
 
 try:
@@ -124,7 +124,7 @@ class ElectrumGui:
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'light') == 'dark'
         if use_dark_theme:
             try:
                 file = QFile(":/dark.qss")
@@ -141,7 +141,7 @@ class ElectrumGui:
                 stream = QTextStream(file)
                 self.app.setStyleSheet(stream.readAll())
             except BaseException as e:
-                print_error('Error setting light theme: {}'.format(e))            
+                print_error('Error setting light theme: {}'.format(e))
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:

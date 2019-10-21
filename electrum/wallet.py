@@ -634,7 +634,10 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if constants.net.CONTRACTINTX:
             asset = tx.outputs()[0].asset
-            contr = self.contracts[-1]
+            try:
+                contr = self.contracts[0]
+            except:
+                contr = self.contracts
             op_return_script = '6a20' + "".join(reversed([contr[i:i+2] for i in range(0, len(contr), 2)]))
             tx.add_outputs([TxOutput(TYPE_SCRIPT,op_return_script,0,1,asset,1)])
 
@@ -1950,7 +1953,10 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
         ss = StringIO()
 
-        ss.write(str("contracthash: ") + str(self.contracts[-1])+str("\n"))
+        try:
+            ss.write(str("contracthash: ") + str(self.contracts[-1])+str("\n"))
+        except:
+            ss.write(str("contracthash: ") + str(self.contracts)+str("\n"))
         
         addrs=self.get_addresses()
 
@@ -2005,7 +2011,7 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_kyc_string(self, password=None):
         address=self.get_unused_encryption_address()
         if address == None:
-            return "No wallet encryption keys available."
+            return False, "No wallet encryption keys available."
         onboardUserPubKey=self.get_public_key(address)
 
         onboardUserKey_serialized, redeem_script = self.export_private_key(address, password, False)   
@@ -2014,9 +2020,14 @@ class Multisig_Wallet(Deterministic_Wallet):
       
         onboardPubKey=self.get_unassigned_kyc_pubkey()
         if onboardPubKey is None:
-            return "No unassigned KYC public keys available."
+            return False, "No unassigned KYC public keys available."
 
         ss = StringIO()
+
+        try:
+            ss.write(str("contracthash: ") + str(self.contracts[-1])+str("\n"))
+        except:
+            ss.write(str("contracthash: ") + str(self.contracts)+str("\n"))
 
         addrs=self.get_addresses()
 
@@ -2024,7 +2035,6 @@ class Multisig_Wallet(Deterministic_Wallet):
         for addr in addrs:
             line="{} {}".format(self.m, addr)
             
-
             tweakedKeysSorted = self.get_public_keys(addr, True)
             if not constants.net.CONTRACTINTX:
                 untweakedKeys = self.get_public_keys(addr, False)
@@ -2046,18 +2056,18 @@ class Multisig_Wallet(Deterministic_Wallet):
             ss.write("\n")
 
         #Encrypt the addresses string
-        encrypted = ecc.ECPubkey(onboardPubKey).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
+        encrypted = ecc.ECPubkey(bfh(onboardPubKey)).encrypt_message(bytes(ss.getvalue(), 'utf-8'), ephemeral=onboardUserKey)
 
         ss2 = StringIO()
         str_encrypted=str(encrypted)
         #Remove the b'' characters (first 2 and last characters)
         str_encrypted=str_encrypted[2:]
         str_encrypted=str_encrypted[:-1]
-        ss2.write("{} {} {}\n".format(bh2u(onboardPubKey), ''.join(onboardUserPubKey), str(len(str_encrypted))))
+        ss2.write("{} {} {}\n".format(onboardPubKey, ''.join(onboardUserPubKey), str(len(str_encrypted))))
         ss2.write(str_encrypted)
         kyc_string=ss2.getvalue()
 
-        return kyc_string
+        return True, kyc_string
 
     def dumpkycfile(self, filename=None, password=None):
         kycfile_string = self.get_kyc_string(password)

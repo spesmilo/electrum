@@ -95,10 +95,10 @@ class AssetsList(MyTreeWidget):
                                 tokens[tokenid] = 0
 
             for myasset in ownassets:
-                rmass = str("%.6f" % (float(ownassets[myasset])*tokrat/1.0E+8))+" oz "
-                tmass = str("%.6f" % (float(self.get_mass_assetid(myasset))))+" oz "
+                rmass = str("%.6f" % (round(float(ownassets[myasset])*tokrat/1.0E+8,6)))+" oz "
+                tmass = str("%.6f" % (round(float(self.get_mass_assetid(myasset)),6)))+" oz "
                 fraction = 100*(float(ownassets[myasset])*tokrat/1.0E+8)/float(self.get_mass_assetid(myasset))
-                fraction_str = str("%.4f" % fraction)+" %"
+                fraction_str = str("%.4f" % round(fraction,4))+" %"
                 asset_ref = myasset.split("-")
                 if len(asset_ref) != 3: return
                 asset_item = SortableTreeWidgetItem([asset_ref[0], asset_ref[1], asset_ref[2], tmass, rmass, fraction_str])
@@ -107,6 +107,7 @@ class AssetsList(MyTreeWidget):
                 asset_item.setFont(2, QFont(MONOSPACE_FONT))
                 asset_item.setFont(3, QFont(MONOSPACE_FONT))
                 asset_item.setFont(4, QFont(MONOSPACE_FONT))
+                asset_item.setFont(5, QFont(MONOSPACE_FONT))
                 self.addChild(asset_item)
 
     def create_menu(self, position):

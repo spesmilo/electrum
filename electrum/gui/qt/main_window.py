@@ -442,7 +442,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 shutil.copy2(path, new_path)
                 self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
             except BaseException as reason:
-                self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+                self.show_critical(_("Ocean wallet was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
 
     def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])
@@ -569,7 +569,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("https://commerceblock.com"))
+        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("https://dgld.ch"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("https://commerceblock.readthedocs.io/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
@@ -591,7 +591,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are fast because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Ocean system.")))
+                              "servers that handle the most complicated parts of the Ocean platform system.")))
 
     def show_report_bug(self):
         msg = ' '.join([
@@ -763,7 +763,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
                 tokrat = token_ratio(int(self.network.get_local_height()))
                 finemass = c*tokrat/1.0E+8
-                text+=" ("+str("%.6f" % finemass)+" oz)  1 DGLD = "+str("%.6f" % tokrat)+" oz"
+                text+=" ("+str("%.6f" % round(finemass,8))+" oz)  1 DGLD = "+str("%.6f" % round(tokrat,8))+" oz"
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -1634,7 +1634,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_rbf(True)
 
-        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 and not constants.net.CONTRACTINTX:
             self.show_error('\n'.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server"),
                 _("Raise the fee to the minimum network level")
@@ -2608,7 +2608,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                               _(""),
                               _("You agree to the terms and conditions, the SHA256 hash of which will be embedded in the exported addresses"),
                               _(""),
-                              _("The file should be uploaded as part of the registration process at http://commerceblock.com."),
+                              _("The file should be uploaded as part of the registration process at https://dgld.ch/wallet-id."),
                               _(""),
                               _("Click \'Export\' to save the file.")
         )
@@ -2616,7 +2616,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addWidget(QLabel(msg))
 
 
-        defaultfilename = 'kycfile.dat'
+        defaultfilename = 'REGISTRATION.dat'
 
         select_msg = _('Select a filename for the kycfile')
         hbox, filename_e, csv_button, file_button = filename_field(self, self.config, defaultfilename, select_msg, b_csv_select=False)
@@ -2683,7 +2683,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(_("kycfile exported."))
         self.address_list.update()
         self.need_update.set()
-        webbrowser.open("http://commerceblock.com")
+        webbrowser.open("https://dgld.ch/wallet-id")
 
     def termsandconditions_dialog(self):
 
@@ -3321,9 +3321,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((qr_label, qr_combo))
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Dark'), 'default')
+        colortheme_combo.addItem(_('Dark'), 'dark')
         colortheme_combo.addItem(_('Light'), 'light')
-        index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
+        index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'light'))
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(_('Color theme') + ':')
         def on_colortheme(x):

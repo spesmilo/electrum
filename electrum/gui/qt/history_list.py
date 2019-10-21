@@ -246,7 +246,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             tokrat = token_ratio(self.wallet.get_block_height())
-            rmass = str("%.6f" % (float(balance)*tokrat/1.0E+8))
+            rmass = str("%.6f" % round((float(balance)*tokrat/1.0E+8),8))
             rmass_str = rmass+" oz "
             entry = ['', tx_hash, status_str, label, v_str, balance_str, rmass_str]
             fiat_value = None

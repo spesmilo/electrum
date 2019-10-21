@@ -1,23 +1,16 @@
 #!/bin/bash
-RED='\033[0;31m'
-BLUE='\033[0,34m'
-NC='\033[0m' # No Color
-function info {
-    printf "\rð ${BLUE}INFO:${NC} ${1}\n"
-}
-function fail {
-    printf "\rð ${RED}ERROR:${NC} ${1}\n"
-    exit 1
-}
 
-build_dir=$(dirname "$0")
-test -n "$build_dir" -a -d "$build_dir" || exit
-cd $build_dir/../..
-
+# Parameterize
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
 PYTHON_VERSION=3.6.4
 
+. $(dirname "$0")/base.sh
+
+build_dir=$(dirname "$0")
+
+test -n "$build_dir" -a -d "$build_dir" || exit
+cd $build_dir/../..
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:$PATH:~/Library/Python/3.6/bin"
