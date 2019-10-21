@@ -41,22 +41,6 @@ class PythonAppDelegate(UIResponder):
         #bgStatus = "Enabled for this app." if UIBackgroundRefreshStatusAvailable == int(application.backgroundRefreshStatus) else "DISABLED"
         #print("Background refresh status: %s\nBackground fetch minimum interval: %f s\nMinimum Keep Alive Timeout: %f s"%(bgStatus,UIApplicationBackgroundFetchIntervalMinimum,UIMinimumKeepAliveTimeout))
 
-        def do_status_bar_workaround():
-            ''' iOS 13.0+ introduced a new "bug" where the top status bar produced by iOS cannot be covered
-            by our popup notification. As a result, if on iOS 13+ and on non-iPhoneX, we must hide the iOS
-            built-in status bar otherwise our "Downloading headers..." status notification gets garbled and
-            intermixed with the iOS status bar. On iPhone X or above, the status bar from iOS is in the
-            notch area, and we avoid that area, so we don't need this workaround for latest phones.
-            Just iPhone 5, 6, 7, 8, etc. Grr. Apple. Why?! '''
-            def should_hide_status_bar():
-                try:
-                    return bool(utils.ios_version_tuple()[0] >= 13 and not utils.is_iphoneX())
-                except Exception as e:
-                    print("ERROR trying to figure out if we should hide the status bar:", repr(e))
-                    return True
-            application.setStatusBarHidden_(should_hide_status_bar())
-        do_status_bar_workaround()
-
         return True
 
     @objc_method

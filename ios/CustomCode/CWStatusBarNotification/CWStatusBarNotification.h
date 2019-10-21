@@ -209,6 +209,20 @@ typedef NS_ENUM(NSInteger, CWNotificationAnimationType) {
                            forDuration:(NSTimeInterval)duration;
 
 /**
+ * Displays a notification with the indicated message for the indicated
+ * duration.  Calls optional dismissedCompletion upon dismissal completion.
+ * @param message
+ *        The content of the message to be displayed.
+ * @param duration
+ *        The amount of seconds for which the notification should be displayed,
+ *        not including the animate in and out times.
+ * @param dismissedCompletion
+ *        If not nil, the block to call upon dismissal (after duration seconds).
+ */
+- (void)displayNotificationWithMessage:(NSString *)message forDuration:(NSTimeInterval)duration
+                   dismissedCompletion:(void (^)(void))dismissedCompletion;
+
+/**
  * Displays a notification with the indicated attributed string and then 
  * performs the completion block once the notification animates in.
  * @param attributedString

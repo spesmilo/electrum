@@ -577,6 +577,7 @@ class ElectrumGui(PrintError):
         def Completion() -> None:
             pass
         self.downloadingNotif_view.removeFromSuperview()
+        utils.ios13_status_bar_workaround.push()
         self.downloadingNotif.displayNotificationWithView_completion_(
             self.downloadingNotif_view,
             Completion
@@ -594,11 +595,12 @@ class ElectrumGui(PrintError):
         def compl() -> None:
             #print("Dismiss completion")
             if (self.downloadingNotif_view is not None
-                and dnf.customView is not None
-                and self.downloadingNotif_view.isDescendantOfView_(dnf.customView)):
+                    and dnf.customView is not None
+                    and self.downloadingNotif_view.isDescendantOfView_(dnf.customView)):
                 activityIndicator = self.downloadingNotif_view.viewWithTag_(1)
                 activityIndicator.animating = False # turn off animation to save CPU cycles
                 self.downloadingNotif_view.removeFromSuperview()
+                utils.ios13_status_bar_workaround.pop()
             dnf.release()
         dnf.dismissNotificationWithCompletion_(compl)
 

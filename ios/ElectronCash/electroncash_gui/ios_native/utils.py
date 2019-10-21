@@ -748,7 +748,8 @@ def show_notification(message : str,
         #print("onTap")
         if onTapCallback is not None: onTapCallback()
         if not cw_notif.notificationIsDismissing and not noTapDismiss:
-            cw_notif.dismissNotification()
+            def _compl() -> None: ios13_status_bar_workaround.pop()
+            cw_notif.dismissNotificationWithCompletion_(_compl)
 
     if isinstance(color, UIColor):
         pass
@@ -779,16 +780,20 @@ def show_notification(message : str,
     message = str(message)
     duration = float(duration) if duration is not None else None
     cw_notif.notificationTappedBlock = onTap
+    ios13_status_bar_workaround.push()
     if duration is None and completion is not None:
-        cw_notif.displayNotificationWithMessage_completion_(message, Block(completion))
+        def _compl() -> None: completion()
+        cw_notif.displayNotificationWithMessage_completion_(message, _compl)
     else:
         if duration is None: duration = 2.0
-        cw_notif.displayNotificationWithMessage_forDuration_(message, duration)
+        def _compl() -> None: ios13_status_bar_workaround.pop()
+        cw_notif.displayNotificationWithMessage_forDuration_dismissedCompletion_(message, duration, _compl)
     return cw_notif
 
 def dismiss_notification(cw_notif : ObjCInstance) -> None:
     if cw_notif is not None and not cw_notif.notificationIsDismissing:
-        cw_notif.dismissNotification()
+        def _compl() -> None: ios13_status_bar_workaround.pop()
+        cw_notif.dismissNotificationWithCompletion_(_compl)
 
  #######################################################
  ### NSLog emulation -- python wrapper for NSLog
@@ -1766,3 +1771,96 @@ class boilerplate:
             blurView.frame = parent.frame
             parent.addSubview_(blurView)
         return blurView
+
+###
+### iOS13 Status Bar Workaround stuff
+###
+def does_status_bar_clash_with_notifications() -> bool:
+    ''' iOS 13.0+ introduced a new "bug" where the top status bar produced by
+    iOS cannot be covered by our popup notification. As a result, if on iOS 13+
+    and on non-iPhoneX, we must hide the iOS built-in status bar otherwise our
+    "Downloading headers..." status notification gets garbled and intermixed
+    with the iOS status bar. On iPhone X or above, the status bar from iOS is in
+    the notch area, and we avoid that area, so we don't need this workaround for
+    latest phones. Just iPhone 5, 6, 7, 8, etc. Grr. Apple. Why?! '''
+    try:
+        return bool(ios_version_tuple()[0] >= 13 and not is_iphoneX())
+    except Exception as e:
+        print("ERROR trying to figure out if we should hide the status bar:", repr(e))
+        return True
+
+class ios13_status_bar_workaround:
+    ''' Use cls.push() when presenting a new notification and cls.pop()
+    when it is dismissed. Alternatively, you can use __enter__/__exit__ via
+    the `with ios13_status_bar_workaround:` construct.'''
+    _lock = threading.Lock()
+    _ctr = 0
+    _needs_workaround = None
+    _application = None
+
+    @classmethod
+    def _chk_init_cache_values(cls):
+        # cache some values
+        if cls._needs_workaround is None:
+            cls._needs_workaround = does_status_bar_clash_with_notifications()
+        if cls._application is None:
+            cls._application = UIApplication.sharedApplication
+
+    @classmethod
+    def push(cls):
+        cls._chk_init_cache_values()
+        if not cls._needs_workaround:
+            return
+        with cls._lock:
+            if not cls._ctr:
+                # latch the status bar as hidden when _ctr is 0
+                cls._application.setStatusBarHidden_(True)
+                from . import gui
+                g = gui.ElectrumGui.gui
+                if g and g.window:
+                    g.window.frame = r = UIScreen.mainScreen.bounds
+                    # move window down so it doesn't glitch up after we hid the status bar
+                    # TODO: FIXME:
+                    # 1. On device rotation during the time that the window is
+                    #    moved down, this produces unexpected results.
+                    # 2. On iPad in windowed mode likely this is wrong. Check/verify/fix that case.
+                    r.origin.y += 20
+                    r.size.height -= 20
+                    g.window.frame = r
+            cls._ctr += 1
+
+    @classmethod
+    def pop(cls):
+        cls._chk_init_cache_values()
+        if not cls._needs_workaround:
+            return
+        with cls._lock:
+            if cls._ctr <= 1:
+                # latch the status bar as visible when the _ctr hits 0
+                cls._application.setStatusBarHidden_(False)
+                from . import gui
+                g = gui.ElectrumGui.gui
+                if g and g.window:
+                    # restore window to its full position.. at this point
+                    # mainScreen.bounds is under the status bar (if visible)
+                    g.window.frame = UIScreen.mainScreen.bounds
+                cls._ctr = 0
+            else:
+                cls._ctr -= 1
+
+    @classmethod
+    def __enter__(cls):
+        cls.push()
+        return cls
+
+    @classmethod
+    def __exit__(cls, etype, value, tb):
+        if tb is None:
+            # no exception
+            cls.pop()
+        else:
+            # exception, suppress underlying exceptions
+            try: cls.pop()
+            except: pass
+        return False
+#/end ios13_status_bar_workaround
