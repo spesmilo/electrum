@@ -1857,22 +1857,23 @@ class ios13_status_bar_workaround:
         if cls._application is None:
             cls._application = UIApplication.sharedApplication
 
-
     @classmethod
     def _status_bar_hide(cls):
         ''' latch the status bar off '''
+        def sb_height():
+            s = cls._application.statusBarFrame.size
+            return min(s.width, s.height)
+        sb_height_was = sb_height() # save current status bar height for adjustment below...
         cls._application.setStatusBarHidden_(True)
         from . import gui
         g = gui.ElectrumGui.gui
         if g and g.window:
-            g.window.frame = r = UIScreen.mainScreen.bounds
-            # move window down so it doesn't glitch up after we hid the status bar
-            # TODO: FIXME:
-            # - On iPad in windowed mode likely this is wrong. Check/verify/fix
-            #   for iPad/windowed mode
-            if is_portrait():
-                r.origin.y += 20  # TODO: Get this value dynamically rather than hard-coding to future-proof this code!
-                r.size.height -= 20
+            g.window.frame = r = UIScreen.mainScreen.bounds  # this breaks on iPad in windowed mode.... TODO: FIX!
+            # Move window down so it doesn't glitch up after we hid the status bar
+            # Note that `sb_height_was` may be 0 if we didn't have a status bar
+            # visible (ie we are in landscape mode).
+            r.origin.y += sb_height_was
+            r.size.height -= sb_height_was
             g.window.frame = r
 
     @classmethod
@@ -1885,5 +1886,5 @@ class ios13_status_bar_workaround:
         if g and g.window:
             # restore window to its full position.. at this point
             # mainScreen.bounds is under the status bar (if visible)
-            g.window.frame = UIScreen.mainScreen.bounds
+            g.window.frame = UIScreen.mainScreen.bounds # this breaks on iPad in windowed mode.... TODO: FIX!
 #/end ios13_status_bar_workaround
