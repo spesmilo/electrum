@@ -190,3 +190,11 @@ RUN cd /opt \
 # build env vars
 ENV USE_SDK_WRAPPER=1
 ENV GRADLE_OPTS="-Xmx1536M -Dorg.gradle.jvmargs='-Xmx1536M'"
+
+# keystore env
+ENV P4A_DEBUG_KEYSTORE=/home/user/.keystore/debug.keystore
+ENV P4A_DEBUG_KEYSTORE_PASSWD=android
+ENV P4A_DEBUG_KEYALIAS=androiddebugkey
+ENV P4A_DEBUG_KEYALIAS_PASSWD=android
+
+
