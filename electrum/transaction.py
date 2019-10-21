@@ -638,7 +638,7 @@ class Transaction:
             return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
-        if pubkeys is None:
+        if pubkeys is None or len(pubkeys) == 0:
             pubkeys = [xpubkey_to_pubkey(x) for x in x_pubkeys]
             pubkeys, x_pubkeys = zip(*sorted(zip(pubkeys, x_pubkeys)))
             txin['pubkeys'] = pubkeys = list(pubkeys)
