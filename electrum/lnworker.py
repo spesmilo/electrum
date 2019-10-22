@@ -320,6 +320,7 @@ class LNWallet(LNWorker):
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
+        self.logs = defaultdict(list)
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self.channels = {}  # type: Dict[bytes, Channel]
@@ -842,21 +843,21 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self._check_invoice(invoice, amount_sat)
         self.wallet.set_label(key, lnaddr.get_description())
-        log = []
+        log = self.logs[key]
         for i in range(attempts):
             try:
                 route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
             except NoPathFound:
                 success = False
                 break
-            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT, log)
+            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT)
             success, preimage, failure_log = await self._pay_to_route(route, lnaddr)
             if success:
                 log.append((route, True, preimage))
                 break
             else:
                 log.append((route, False, failure_log))
-        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED, log)
+        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED)
         return success
 
     async def _pay_to_route(self, route, lnaddr):
