@@ -744,11 +744,16 @@ def show_notification(message : str,
                       ) -> ObjCInstance:
     cw_notif = CWStatusBarNotification.new().autorelease()
 
+    already_dismissed = False
     def onTap() -> None:
         #print("onTap")
         if onTapCallback is not None: onTapCallback()
         if not cw_notif.notificationIsDismissing and not noTapDismiss:
-            def _compl() -> None: ios13_status_bar_workaround.pop()
+            def _compl() -> None:
+                nonlocal already_dismissed
+                if not already_dismissed:
+                    already_dismissed = True
+                    ios13_status_bar_workaround.pop()
             cw_notif.dismissNotificationWithCompletion_(_compl)
 
     if isinstance(color, UIColor):
@@ -786,7 +791,11 @@ def show_notification(message : str,
         cw_notif.displayNotificationWithMessage_completion_(message, _compl)
     else:
         if duration is None: duration = 2.0
-        def _compl() -> None: ios13_status_bar_workaround.pop()
+        def _compl() -> None:
+            nonlocal already_dismissed
+            if not already_dismissed:
+                already_dismissed = True
+                ios13_status_bar_workaround.pop()
         cw_notif.displayNotificationWithMessage_forDuration_dismissedCompletion_(message, duration, _compl)
     return cw_notif
 

@@ -788,32 +788,6 @@ class SendVC(SendBase):
 
         self.navigationController.pushViewController_animated_(txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel), True)
 
-        # For modal do the following:
-        #self.presentViewController_animated_completion_(txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel, asModalNav = True), True, None)
-        '''
-        # Below was used to generate a "please wait" notification but we optimized the code to be fast so this is no longer needed.. I hope!
-        # Keeping it here in case we see slow loads again for tx detail of unsigned tx's... Feel free to remove this code sometime in the future.
-
-        notif = None
-        txvc = None
-        def onAppear():
-            nonlocal notif
-            nonlocal txvc
-            if notif:
-                utils.dismiss_notification(notif.autorelease())
-                notif = None
-            utils.remove_callback(txvc, 'on_appear')
-
-        txvc = txdetail.CreateTxDetailWithEntry(entry, on_label = newLabel, on_appear = onAppear).retain()
-        def notifCompletion() -> None:
-            self.navigationController.pushViewController_animated_(txvc.autorelease(), True)
-        notif = utils.show_notification("Generating Tx, please wait...", duration = None, multiline = True,
-                                        animationDuration = 0.010,
-                                        #color = (.8,.6,.4,1.0),
-                                        noTapDismiss = True, completion = notifCompletion).retain()
-        '''
-
-
     @objc_method
     def doSend_(self, preview : bool) -> None:
         #if run_hook('abort_send', self):
