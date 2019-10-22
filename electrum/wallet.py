@@ -1117,6 +1117,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 fixed_outputs = old_not_is_mine
             else:
                 fixed_outputs = old_outputs
+        if not fixed_outputs:
+            raise CannotBumpFee(_('Cannot bump fee') + ': could not figure out which outputs to keep')
 
         coins = self.get_spendable_coins(None)
         for item in coins:

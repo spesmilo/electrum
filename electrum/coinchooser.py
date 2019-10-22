@@ -273,6 +273,7 @@ class CoinChooserBase(Logger):
 
         Note: fee_estimator_vb expects virtual bytes
         """
+        assert outputs, 'tx outputs cannot be empty'
 
         # Deterministic randomness from coins
         utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
