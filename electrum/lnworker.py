@@ -475,7 +475,7 @@ class LNWallet(LNWorker):
                 if _direction == SENT:
                     try:
                         inv = self.get_payment_info(bfh(key))
-                        fee_msat = inv.amount*1000 - amount_msat if inv.amount else None
+                        fee_msat = - inv.amount*1000 - amount_msat if inv.amount else None
                     except UnknownPaymentHash:
                         fee_msat = None
                 else:
