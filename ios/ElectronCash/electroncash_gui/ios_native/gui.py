@@ -235,6 +235,7 @@ class ElectrumGui(PrintError):
         self.refresh_rate_max = 5.0
         self.refresh_rate_current = self.refresh_rate_min
         self.refresh_cost_stats = dict()
+        self.header_dl_start_height = 0
 
         self.keyEnclave = utils.SecureKeyEnclave(self.appDomain)
         self.encPasswords = utils.FileBackedDict(os.path.join(self.config.path, 'enc_pws.json'))
@@ -507,13 +508,7 @@ class ElectrumGui(PrintError):
             utils.NSDeallocObserver(alert).connect(OnDealloc)
 
     def on_rotated(self): # called by PythonAppDelegate after screen rotation
-        #update status bar label width
-
-        # on rotation sometimes the notif gets messed up.. so re-create it
-        #if self.downloadingNotif is not None and self.is_downloading_notif_showing() and self.downloadingNotif_view is not None:
-        #    self.dismiss_downloading_notif()
-        #    self.show_downloading_notif()
-        pass
+        utils.ios13_status_bar_workaround.on_rotated()
 
     def on_history(self, event, *args):
         utils.NSLog("ON HISTORY '%s' (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
@@ -577,6 +572,7 @@ class ElectrumGui(PrintError):
         def Completion() -> None:
             pass
         self.downloadingNotif_view.removeFromSuperview()
+        utils.ios13_status_bar_workaround.push()
         self.downloadingNotif.displayNotificationWithView_completion_(
             self.downloadingNotif_view,
             Completion
@@ -594,11 +590,12 @@ class ElectrumGui(PrintError):
         def compl() -> None:
             #print("Dismiss completion")
             if (self.downloadingNotif_view is not None
-                and dnf.customView is not None
-                and self.downloadingNotif_view.isDescendantOfView_(dnf.customView)):
+                    and dnf.customView is not None
+                    and self.downloadingNotif_view.isDescendantOfView_(dnf.customView)):
                 activityIndicator = self.downloadingNotif_view.viewWithTag_(1)
                 activityIndicator.animating = False # turn off animation to save CPU cycles
                 self.downloadingNotif_view.removeFromSuperview()
+            utils.ios13_status_bar_workaround.pop()
             dnf.release()
         dnf.dismissNotificationWithCompletion_(compl)
 
@@ -706,8 +703,13 @@ class ElectrumGui(PrintError):
                         int(self.daemon.network.is_connected()))
             '''
             if lh is not None and sh is not None and lh >= 0 and sh > 0 and lh < sh:
-                show_dl_pct = int((lh*100.0)/float(sh))
+                self.header_dl_start_height = lh0 = self.header_dl_start_height or lh
+                if lh0 > lh:
+                    # guard in case cached start height is wonky or there was a reorg
+                    self.header_dl_start_height = lh0 = lh
+                show_dl_pct = int(((lh-lh0)*100.0)/float(sh-lh0))
                 walletStatus = wallets.StatusDownloadingHeaders
+                del lh0
 
             if blockHeightChanged:
                 self.refresh_components('history')
@@ -729,6 +731,7 @@ class ElectrumGui(PrintError):
         if show_dl_pct is not None and self.tabController.didLayout:
             self.show_downloading_notif(_("Downloading headers {}% ...").format(show_dl_pct) if show_dl_pct > 0 else None)
         else:
+            self.header_dl_start_height = 0 # reset the counter
             self.dismiss_downloading_notif()
 
         self.walletsVC.status = walletStatus

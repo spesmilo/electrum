@@ -542,13 +542,21 @@ static void cancel_delayed_block(CWDelayedBlockHandle delayedHandle)
 }
 
 - (void)displayNotificationWithMessage:(NSString *)message forDuration:(NSTimeInterval)duration
+                   dismissedCompletion:(void (^)(void))dismissedCompletion
 {
     [self displayNotificationWithMessage:message completion:^{
         self.dismissHandle = perform_block_after_delay(duration, ^{
-            [self dismissNotification];
+            [self dismissNotificationWithCompletion:dismissedCompletion];
         });
     }];
 }
+
+- (void)displayNotificationWithMessage:(NSString *)message forDuration:(NSTimeInterval)duration
+{
+    [self displayNotificationWithMessage:message forDuration:duration dismissedCompletion:nil];
+}
+
+
 
 - (void)displayNotificationWithAttributedString:(NSAttributedString *)attributedString completion:(void (^)(void))completion
 {
