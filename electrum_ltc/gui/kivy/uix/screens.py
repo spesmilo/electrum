@@ -28,7 +28,7 @@ from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_ltc import bitcoin, constants
 from electrum_ltc.transaction import TxOutput, Transaction, tx_from_str
 from electrum_ltc.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum_ltc.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, TxMinedInfo, get_request_status, pr_expiration_values
+from electrum_ltc.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.wallet import InternalAddressCorruption
 from electrum_ltc import simple_config
@@ -223,20 +223,24 @@ class SendScreen(CScreen):
             self.set_URI(self.payment_request_queued)
             self.payment_request_queued = None
         _list = self.app.wallet.get_invoices()
+        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in self.app.wallet.lnworker.logs]
         payments_container = self.screen.ids.payments_container
-        payments_container.data = [self.get_card(item) for item in _list if item['status'] != PR_PAID]
+        payments_container.data = [self.get_card(item) for item in _list]
 
     def show_item(self, obj):
         self.app.show_invoice(obj.is_lightning, obj.key)
 
     def get_card(self, item):
         invoice_type = item['type']
+        status = item['status']
+        status_str = get_request_status(item) # convert to str
         if invoice_type == PR_TYPE_LN:
             key = item['rhash']
-            status = get_request_status(item) # convert to str
+            log = self.app.wallet.lnworker.logs.get(key)
+            if item['status'] == PR_INFLIGHT and log:
+                status_str += '... (%d)'%len(log)
         elif invoice_type == PR_TYPE_ONCHAIN:
             key = item['id']
-            status = get_request_status(item) # convert to str
         else:
             raise Exception('unknown invoice type')
         return {
@@ -244,6 +248,7 @@ class SendScreen(CScreen):
             'is_bip70': 'bip70' in item,
             'screen': self,
             'status': status,
+            'status_str': status_str,
             'key': key,
             'memo': item['message'],
             'amount': self.app.format_amount_and_units(item['amount'] or 0),
@@ -448,9 +453,7 @@ class ReceiveScreen(CScreen):
         amount = self.app.get_amount(amount) if amount else 0
         message = self.screen.message
         if lightning:
-            payment_hash = self.app.wallet.lnworker.add_invoice(amount, message, self.expiry())
-            request, direction, is_paid = self.app.wallet.lnworker.invoices.get(payment_hash.hex())
-            key = payment_hash.hex()
+            key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
         else:
             addr = self.screen.address or self.app.wallet.get_unused_address()
             if not addr:

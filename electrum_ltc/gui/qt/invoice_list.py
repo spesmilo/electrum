@@ -68,12 +68,11 @@ class InvoiceList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
-        self.logs = {}
         self.setSortingEnabled(True)
         self.setModel(QStandardItemModel(self))
         self.update()
 
-    def update_item(self, key, status, log):
+    def update_item(self, key, status):
         req = self.parent.wallet.get_invoice(key)
         if req is None:
             return
@@ -86,17 +85,16 @@ class InvoiceList(MyTreeView):
             return
         status_item = model.item(row, self.Columns.STATUS)
         status_str = get_request_status(req)
-        if log:
-            self.logs[key] = log
-            if status == PR_INFLIGHT:
-                status_str += '... (%d)'%len(log)
+        log = self.parent.wallet.lnworker.logs.get(key)
+        if log and status == PR_INFLIGHT:
+            status_str += '... (%d)'%len(log)
         status_item.setText(status_str)
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
         _list = self.parent.wallet.get_invoices()
         # filter out paid invoices unless we have the log
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in self.logs]
+        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in self.parent.wallet.lnworker.logs]
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(_list):
@@ -157,13 +155,13 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if invoice['status'] == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
-        if key in self.logs:
-            menu.addAction(_("View log"), lambda: self.show_log(key))
+        log = self.parent.wallet.lnworker.logs.get(key)
+        if log:
+            menu.addAction(_("View log"), lambda: self.show_log(key, log))
         menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def show_log(self, key):
-        log = self.logs.get(key)
+    def show_log(self, key, log):
         d = WindowModalDialog(self, _("Payment log"))
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()

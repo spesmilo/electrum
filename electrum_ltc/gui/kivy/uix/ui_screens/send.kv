@@ -1,4 +1,6 @@
 #:import _ electrum_ltc.gui.kivy.i18n._
+#:import pr_color electrum_ltc.util.pr_color
+#:import PR_UNKNOWN electrum_ltc.util.PR_UNKNOWN
 #:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
@@ -15,7 +17,8 @@
     key: ''
     memo: ''
     amount: ''
-    status: ''
+    status: PR_UNKNOWN
+    status_str: ''
     date: ''
     BoxLayout:
         spacing: '8dp'
@@ -44,10 +47,10 @@
             font_size: '15sp'
         Widget
         PaymentLabel:
-            text: root.status
+            text: root.status_str
             halign: 'right'
             font_size: '13sp'
-            color: .699, .699, .699, 1
+            color: pr_color[root.status]
         Widget
 
 <PaymentRecycleView>:
