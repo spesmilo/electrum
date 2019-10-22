@@ -104,6 +104,11 @@ class ElectrumWindow(App):
     is_fiat = BooleanProperty(False)
     blockchain_forkpoint = NumericProperty(0)
 
+    lightning_gossip_num_peers = NumericProperty(0)
+    lightning_gossip_num_nodes = NumericProperty(0)
+    lightning_gossip_num_channels = NumericProperty(0)
+    lightning_gossip_num_queries = NumericProperty(0)
+
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
         net_params = self.network.get_parameters()
@@ -561,6 +566,9 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_invoice_status, ['invoice_status'])
             self.network.register_callback(self.on_request_status, ['request_status'])
+            self.network.register_callback(self.on_channel_db, ['channel_db'])
+            self.network.register_callback(self.set_num_peers, ['gossip_peers'])
+            self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
@@ -568,6 +576,15 @@ class ElectrumWindow(App):
         if uri:
             self.set_URI(uri)
 
+    def on_channel_db(self, event, num_nodes, num_channels, num_policies):
+        self.lightning_gossip_num_nodes = num_nodes
+        self.lightning_gossip_num_channels = num_channels
+
+    def set_num_peers(self, event, num_peers):
+        self.lightning_gossip_num_peers = num_peers
+
+    def set_unknown_channels(self, event, unknown):
+        self.lightning_gossip_num_queries = unknown
 
     def get_wallet_path(self):
         if self.wallet:

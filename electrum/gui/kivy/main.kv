@@ -421,34 +421,40 @@ BoxLayout:
         ActionView:
             id: av
             ActionPrevious:
-                app_icon: 'atlas://electrum/gui/kivy/theming/light/logo'
-                app_icon_width: '100dp'
                 with_previous: False
-                size_hint_x: None
-                on_release: app.popup_dialog('network')
+                size_hint: None, None
+                size: 0, 0
 
             ActionButton:
-                id: action_status
-                important: True
-                size_hint: 1, 1
+                size_hint_x: 0.5
+                text: app.wallet_name
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
-                text: app.wallet_name
                 font_size: '22dp'
-                #minimum_width: '1dp'
-                on_release: app.popup_dialog('status')
+                on_release:
+                    Clock.schedule_once(lambda dt: app.popup_dialog('wallets'), 0.05)
+                    self.state = 'normal'
+
+            ActionButton:
+                size_hint_x: 0.4
+                text: ''
+                opacity:0
 
             ActionOverflow:
                 id: ao
+                size_hint_x: 0.15
                 ActionOvrButton:
                     name: 'about'
                     text: _('About')
                 ActionOvrButton:
-                    name: 'wallets'
-                    text: _('Wallets')
-                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                ActionOvrButton:
+                    name: 'lightning'
+                    text: _('Lightning')
+                ActionOvrButton:
+                    name: 'status'
+                    text: _('Wallet Info')
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')
@@ -462,6 +468,7 @@ BoxLayout:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
+
     ScreenManager:
         id: manager
         ScreenTabs:
