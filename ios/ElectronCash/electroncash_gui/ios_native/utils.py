@@ -1775,15 +1775,6 @@ class boilerplate:
 ###
 ### iOS13 Status Bar Workaround stuff
 ###
-def does_status_bar_clash_with_notifications() -> bool:
-    ''' Returns true iff the we are on iOS 13.0+ and not on an iPhoneX.
-    (In that case we need to do the workaround.) Returns false otherwise. '''
-    try:
-        return bool(ios_version_tuple()[0] >= 13 and not is_iphoneX())
-    except Exception as e:
-        print("ERROR trying to figure out if we should hide the status bar:", repr(e))
-        return True
-
 class ios13_status_bar_workaround:
     ''' iOS 13.0+ introduced a new "bug" where the top status bar produced by
     iOS cannot be covered by our popup notification. As a result, if on iOS 13+
@@ -1816,7 +1807,37 @@ class ios13_status_bar_workaround:
             return func(*args, **kwargs)
         return wrapper
 
+    # + PUBLIC Helpers
+    @staticmethod
+    def does_status_bar_clash_with_notifications() -> bool:
+        ''' Returns True iff the we are on iOS 13.0+ and not on an iPhoneX.
+        (In that case we need to do the workaround.) Returns False otherwise. '''
+        try:
+            return bool(ios_version_tuple()[0] >= 13 and not is_iphoneX())
+        except Exception as e:
+            print("ERROR trying to figure out if we should hide the status bar:", repr(e))
+            return True
+
+    @staticmethod
+    def is_workaround_possible() -> bool:
+        ''' Returns True iff iPhone, False otherwise. '''
+        return not is_ipad()
+
     # + PUBLIC INTERFACE
+    @classmethod
+    def appdelegate_hook(cls, appdelegate : ObjCInstance, application : ObjCInstance) -> None:
+        ''' Hook intended to be called from the `application:willFinishLaunchingWithOptions:`
+        UIApplicationDelegate method. Basically all it does is unconditionally
+        hide the status bar if on and iPad running iOS >= 13.0, otherwise
+        is essentially a noop. '''
+        cls._application = application  # cache singleton now while we're at it
+        if (cls.does_status_bar_clash_with_notifications()
+                and not cls.is_workaround_possible()):
+            # on iPad we just hide the status bar permanently. If they want to
+            # see it they can always put the app in a window then it will be
+            # visible.
+            application.setStatusBarHidden_(True)
+
     @classmethod
     @noop_if_not_needed
     def push(cls):
@@ -1853,7 +1874,7 @@ class ios13_status_bar_workaround:
     def _chk_init_cache_values(cls):
         # cache some values
         if cls._needs_workaround is None:
-            cls._needs_workaround = does_status_bar_clash_with_notifications()
+            cls._needs_workaround = cls.does_status_bar_clash_with_notifications() and cls.is_workaround_possible()
         if cls._application is None:
             cls._application = UIApplication.sharedApplication
 
