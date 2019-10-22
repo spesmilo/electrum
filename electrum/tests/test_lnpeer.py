@@ -89,6 +89,7 @@ class MockLNWallet:
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
         self.payments = {}
+        self.logs = defaultdict(list)
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
         self.pending_payments = defaultdict(asyncio.Future)
