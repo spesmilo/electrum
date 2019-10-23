@@ -116,7 +116,7 @@ class BIP32Node(NamedTuple):
     eckey: Union[ecc.ECPubkey, ecc.ECPrivkey]
     chaincode: bytes
     depth: int = 0
-    fingerprint: bytes = b'\x00'*4
+    fingerprint: bytes = b'\x00'*4  # as in serialized format, this is the *parent's* fingerprint
     child_number: bytes = b'\x00'*4
 
     @classmethod
@@ -161,7 +161,18 @@ class BIP32Node(NamedTuple):
                          eckey=ecc.ECPrivkey(master_k),
                          chaincode=master_c)
 
+    @classmethod
+    def from_bytes(cls, b: bytes) -> 'BIP32Node':
+        if len(b) != 78:
+            raise Exception(f"unexpected xkey raw bytes len {len(b)} != 78")
+        xkey = EncodeBase58Check(b)
+        return cls.from_xkey(xkey)
+
     def to_xprv(self, *, net=None) -> str:
+        payload = self.to_xprv_bytes(net=net)
+        return EncodeBase58Check(payload)
+
+    def to_xprv_bytes(self, *, net=None) -> bytes:
         if not self.is_private():
             raise Exception("cannot serialize as xprv; private key missing")
         payload = (xprv_header(self.xtype, net=net) +
@@ -172,9 +183,13 @@ class BIP32Node(NamedTuple):
                    bytes([0]) +
                    self.eckey.get_secret_bytes())
         assert len(payload) == 78, f"unexpected xprv payload len {len(payload)}"
-        return EncodeBase58Check(payload)
+        return payload
 
     def to_xpub(self, *, net=None) -> str:
+        payload = self.to_xpub_bytes(net=net)
+        return EncodeBase58Check(payload)
+
+    def to_xpub_bytes(self, *, net=None) -> bytes:
         payload = (xpub_header(self.xtype, net=net) +
                    bytes([self.depth]) +
                    self.fingerprint +
@@ -182,13 +197,19 @@ class BIP32Node(NamedTuple):
                    self.chaincode +
                    self.eckey.get_public_key_bytes(compressed=True))
         assert len(payload) == 78, f"unexpected xpub payload len {len(payload)}"
-        return EncodeBase58Check(payload)
+        return payload
 
     def to_xkey(self, *, net=None) -> str:
         if self.is_private():
             return self.to_xprv(net=net)
         else:
             return self.to_xpub(net=net)
+
+    def to_bytes(self, *, net=None) -> bytes:
+        if self.is_private():
+            return self.to_xprv_bytes(net=net)
+        else:
+            return self.to_xpub_bytes(net=net)
 
     def convert_to_public(self) -> 'BIP32Node':
         if not self.is_private():
@@ -247,6 +268,12 @@ class BIP32Node(NamedTuple):
                          depth=depth,
                          fingerprint=fingerprint,
                          child_number=child_number)
+
+    def calc_fingerprint_of_this_node(self) -> bytes:
+        """Returns the fingerprint of this node.
+        Note that self.fingerprint is of the *parent*.
+        """
+        return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
 def xpub_type(x):

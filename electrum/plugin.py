@@ -449,7 +449,7 @@ class DeviceMgr(ThreadJob):
         handler.update_status(False)
         devices = self.scan_devices()
         xpub = keystore.xpub
-        derivation = keystore.get_derivation()
+        derivation = keystore.get_derivation_prefix()
         client = self.client_by_xpub(plugin, xpub, handler, devices)
         if client is None and force_pair:
             info = self.select_device(plugin, handler, keystore, devices)

@@ -4,6 +4,7 @@ import json
 from io import BytesIO
 import sys
 import platform
+from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
 
@@ -11,6 +12,9 @@ from electrum.plugin import BasePlugin, hook
 from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
 from electrum.i18n import _
 from electrum.logging import get_logger
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.transaction_dialog import TxDialog
 
 
 _logger = get_logger(__name__)
@@ -71,12 +75,12 @@ class Plugin(BasePlugin):
         return bool(d.exec_())
 
     @hook
-    def transaction_dialog(self, dialog):
+    def transaction_dialog(self, dialog: 'TxDialog'):
         b = QPushButton()
         b.setIcon(read_QIcon("speaker.png"))
 
         def handler():
-            blob = json.dumps(dialog.tx.as_dict())
+            blob = dialog.tx.serialize()
             self._send(parent=dialog, blob=blob)
         b.clicked.connect(handler)
         dialog.sharing_buttons.insert(-1, b)

@@ -26,16 +26,15 @@
 
 from unicodedata import normalize
 import hashlib
-from typing import Tuple, TYPE_CHECKING, Union, Sequence
+from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List
 
 from . import bitcoin, ecc, constants, bip32
-from .bitcoin import (deserialize_privkey, serialize_privkey,
-                      public_key_to_p2pkh)
+from .bitcoin import deserialize_privkey, serialize_privkey
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
-                    is_xpub, is_xprv, BIP32Node)
+                    is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation)
 from .ecc import string_to_number, number_to_string
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
-                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
+                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bh2u, bfh, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
@@ -43,7 +42,7 @@ from .plugin import run_hook
 from .logging import Logger
 
 if TYPE_CHECKING:
-    from .transaction import Transaction
+    from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 
 
 class KeyStore(Logger):
@@ -67,25 +66,19 @@ class KeyStore(Logger):
         """Returns whether the keystore can be encrypted with a password."""
         raise NotImplementedError()
 
-    def get_tx_derivations(self, tx):
+    def get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
         keypairs = {}
         for txin in tx.inputs():
-            num_sig = txin.get('num_sig')
-            if num_sig is None:
+            if txin.is_complete():
                 continue
-            x_signatures = txin['signatures']
-            signatures = [sig for sig in x_signatures if sig]
-            if len(signatures) == num_sig:
-                # input is complete
-                continue
-            for k, x_pubkey in enumerate(txin['x_pubkeys']):
-                if x_signatures[k] is not None:
+            for pubkey in txin.pubkeys:
+                if pubkey in txin.part_sigs:
                     # this pubkey already signed
                     continue
-                derivation = self.get_pubkey_derivation(x_pubkey)
+                derivation = self.get_pubkey_derivation(pubkey, txin)
                 if not derivation:
                     continue
-                keypairs[x_pubkey] = derivation
+                keypairs[pubkey.hex()] = derivation
         return keypairs
 
     def can_sign(self, tx):
@@ -108,8 +101,63 @@ class KeyStore(Logger):
     def decrypt_message(self, sequence, message, password) -> bytes:
         raise NotImplementedError()  # implemented by subclasses
 
-    def sign_transaction(self, tx: 'Transaction', password) -> None:
+    def sign_transaction(self, tx: 'PartialTransaction', password) -> None:
         raise NotImplementedError()  # implemented by subclasses
+
+    def get_pubkey_derivation(self, pubkey: bytes,
+                              txinout: Union['PartialTxInput', 'PartialTxOutput'],
+                              *, only_der_suffix=True) \
+            -> Union[Sequence[int], str, None]:
+        """Returns either a derivation int-list if the pubkey can be HD derived from this keystore,
+        the pubkey itself (hex) if the pubkey belongs to the keystore but not HD derived,
+        or None if the pubkey is unrelated.
+        """
+        def test_der_suffix_against_pubkey(der_suffix: Sequence[int], pubkey: bytes) -> bool:
+            if len(der_suffix) != 2:
+                return False
+            if pubkey.hex() != self.derive_pubkey(*der_suffix):
+                return False
+            return True
+
+        if hasattr(self, 'get_root_fingerprint'):
+            if pubkey not in txinout.bip32_paths:
+                return None
+            fp_found, path_found = txinout.bip32_paths[pubkey]
+            der_suffix = None
+            full_path = None
+            # try fp against our root
+            my_root_fingerprint_hex = self.get_root_fingerprint()
+            my_der_prefix_str = self.get_derivation_prefix()
+            ks_der_prefix = convert_bip32_path_to_list_of_uint32(my_der_prefix_str) if my_der_prefix_str else None
+            if (my_root_fingerprint_hex is not None and ks_der_prefix is not None and
+                    fp_found.hex() == my_root_fingerprint_hex):
+                if path_found[:len(ks_der_prefix)] == ks_der_prefix:
+                    der_suffix = path_found[len(ks_der_prefix):]
+                    if not test_der_suffix_against_pubkey(der_suffix, pubkey):
+                        der_suffix = None
+            # try fp against our intermediate fingerprint
+            if (der_suffix is None and hasattr(self, 'xpub') and
+                    fp_found == BIP32Node.from_xkey(self.xpub).calc_fingerprint_of_this_node()):
+                der_suffix = path_found
+                if not test_der_suffix_against_pubkey(der_suffix, pubkey):
+                    der_suffix = None
+            if der_suffix is None:
+                return None
+            if ks_der_prefix is not None:
+                full_path = ks_der_prefix + list(der_suffix)
+            return der_suffix if only_der_suffix else full_path
+        return None
+
+    def find_my_pubkey_in_txinout(
+            self, txinout: Union['PartialTxInput', 'PartialTxOutput'],
+            *, only_der_suffix: bool = False
+    ) -> Tuple[Optional[bytes], Optional[List[int]]]:
+        # note: we assume that this cosigner only has one pubkey in this txin/txout
+        for pubkey in txinout.bip32_paths:
+            path = self.get_pubkey_derivation(pubkey, txinout, only_der_suffix=only_der_suffix)
+            if path and not isinstance(path, (str, bytes)):
+                return pubkey, list(path)
+        return None, None
 
 
 class Software_KeyStore(KeyStore):
@@ -210,14 +258,10 @@ class Imported_KeyStore(Software_KeyStore):
             raise InvalidPassword()
         return privkey, compressed
 
-    def get_pubkey_derivation(self, x_pubkey):
-        if x_pubkey[0:2] in ['02', '03', '04']:
-            if x_pubkey in self.keypairs.keys():
-                return x_pubkey
-        elif x_pubkey[0:2] == 'fd':
-            addr = bitcoin.script_to_address(x_pubkey[2:])
-            if addr in self.addresses:
-                return self.addresses[addr].get('pubkey')
+    def get_pubkey_derivation(self, pubkey, txin, *, only_der_suffix=True):
+        if pubkey.hex() in self.keypairs:
+            return pubkey.hex()
+        return None
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)
@@ -228,7 +272,6 @@ class Imported_KeyStore(Software_KeyStore):
             c = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
             self.keypairs[k] = c
         self.pw_hash_version = PW_HASH_VERSION_LATEST
-
 
 
 class Deterministic_KeyStore(Software_KeyStore):
@@ -277,15 +320,54 @@ class Deterministic_KeyStore(Software_KeyStore):
 
 class Xpub:
 
-    def __init__(self):
+    def __init__(self, *, derivation_prefix: str = None, root_fingerprint: str = None):
         self.xpub = None
         self.xpub_receive = None
         self.xpub_change = None
 
+        # if these are None now, then it is the responsibility of the caller to
+        # also call self.add_derivation_prefix_and_root_fingerprint:
+        self._derivation_prefix = derivation_prefix  # note: subclass should persist this
+        self._root_fingerprint = root_fingerprint  # note: subclass should persist this
+
     def get_master_public_key(self):
         return self.xpub
 
-    def derive_pubkey(self, for_change, n):
+    def get_derivation_prefix(self) -> str:
+        """Returns to bip32 path from some root node to self.xpub"""
+        assert self._derivation_prefix is not None, 'derivation_prefix should have been set already'
+        return self._derivation_prefix
+
+    def get_root_fingerprint(self) -> str:
+        """Returns the bip32 fingerprint of the top level node.
+        This top level node is the node at the beginning of the derivation prefix,
+        i.e. applying the derivation prefix to it will result self.xpub
+        """
+        assert self._root_fingerprint is not None, 'root_fingerprint should have been set already'
+        return self._root_fingerprint
+
+    def add_derivation_prefix_and_root_fingerprint(self, *, derivation_prefix: str, root_node: BIP32Node):
+        assert self.xpub
+        derivation_prefix = normalize_bip32_derivation(derivation_prefix)
+        # try to derive ourselves from what we were given
+        child_node1 = root_node.subkey_at_private_derivation(derivation_prefix)
+        child_pubkey_bytes1 = child_node1.eckey.get_public_key_bytes(compressed=True)
+        child_node2 = BIP32Node.from_xkey(self.xpub)
+        child_pubkey_bytes2 = child_node2.eckey.get_public_key_bytes(compressed=True)
+        if child_pubkey_bytes1 != child_pubkey_bytes2:
+            raise Exception("(xpub, derivation_prefix, root_node) inconsistency")
+        # store
+        self._root_fingerprint = root_node.calc_fingerprint_of_this_node().hex().lower()
+        self._derivation_prefix = derivation_prefix
+
+    def reset_derivation_prefix(self):
+        assert self.xpub
+        self._derivation_prefix = 'm'
+        self._root_fingerprint = BIP32Node.from_xkey(self.xpub).calc_fingerprint_of_this_node().hex().lower()
+
+    def derive_pubkey(self, for_change, n) -> str:
+        for_change = int(for_change)
+        assert for_change in (0, 1)
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
             rootnode = BIP32Node.from_xkey(self.xpub)
@@ -301,54 +383,13 @@ class Xpub:
         node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
         return node.eckey.get_public_key_hex(compressed=True)
 
-    def get_xpubkey(self, c, i):
-        def encode_path_int(path_int) -> str:
-            if path_int < 0xffff:
-                hex = bitcoin.int_to_hex(path_int, 2)
-            else:
-                hex = 'ffff' + bitcoin.int_to_hex(path_int, 4)
-            return hex
-        s = ''.join(map(encode_path_int, (c, i)))
-        return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
-
-    @classmethod
-    def parse_xpubkey(self, pubkey):
-        # type + xpub + derivation
-        assert pubkey[0:2] == 'ff'
-        pk = bfh(pubkey)
-        # xpub:
-        pk = pk[1:]
-        xkey = bitcoin.EncodeBase58Check(pk[0:78])
-        # derivation:
-        dd = pk[78:]
-        s = []
-        while dd:
-            # 2 bytes for derivation path index
-            n = int.from_bytes(dd[0:2], byteorder="little")
-            dd = dd[2:]
-            # in case of overflow, drop these 2 bytes; and use next 4 bytes instead
-            if n == 0xffff:
-                n = int.from_bytes(dd[0:4], byteorder="little")
-                dd = dd[4:]
-            s.append(n)
-        assert len(s) == 2
-        return xkey, s
-
-    def get_pubkey_derivation(self, x_pubkey):
-        if x_pubkey[0:2] != 'ff':
-            return
-        xpub, derivation = self.parse_xpubkey(x_pubkey)
-        if self.xpub != xpub:
-            return
-        return derivation
-
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     type = 'bip32'
 
     def __init__(self, d):
-        Xpub.__init__(self)
+        Xpub.__init__(self, derivation_prefix=d.get('derivation'), root_fingerprint=d.get('root_fingerprint'))
         Deterministic_KeyStore.__init__(self, d)
         self.xpub = d.get('xpub')
         self.xprv = d.get('xprv')
@@ -360,6 +401,8 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         d = Deterministic_KeyStore.dump(self)
         d['xpub'] = self.xpub
         d['xprv'] = self.xprv
+        d['derivation'] = self.get_derivation_prefix()
+        d['root_fingerprint'] = self.get_root_fingerprint()
         return d
 
     def get_master_private_key(self, password):
@@ -388,14 +431,20 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
     def is_watching_only(self):
         return self.xprv is None
 
-    def add_xprv(self, xprv):
+    def add_xpub(self, xpub, *, default_der_prefix=True):
+        self.xpub = xpub
+        if default_der_prefix:
+            self.reset_derivation_prefix()
+
+    def add_xprv(self, xprv, *, default_der_prefix=True):
         self.xprv = xprv
-        self.xpub = bip32.xpub_from_xprv(xprv)
+        self.add_xpub(bip32.xpub_from_xprv(xprv), default_der_prefix=default_der_prefix)
 
     def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
         rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
         node = rootnode.subkey_at_private_derivation(derivation)
-        self.add_xprv(node.to_xprv())
+        self.add_xprv(node.to_xprv(), default_der_prefix=False)
+        self.add_derivation_prefix_and_root_fingerprint(derivation_prefix=derivation, root_node=rootnode)
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
@@ -415,6 +464,7 @@ class Old_KeyStore(Deterministic_KeyStore):
     def __init__(self, d):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
+        self._root_fingerprint = None
 
     def get_hex_seed(self, password):
         return pw_decode(self.seed, password, version=self.pw_hash_version).encode('utf8')
@@ -477,7 +527,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         public_key = master_public_key + z*ecc.generator()
         return public_key.get_public_key_hex(compressed=False)
 
-    def derive_pubkey(self, for_change, n):
+    def derive_pubkey(self, for_change, n) -> str:
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)
 
     def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
@@ -508,31 +558,15 @@ class Old_KeyStore(Deterministic_KeyStore):
     def get_master_public_key(self):
         return self.mpk
 
-    def get_xpubkey(self, for_change, n):
-        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change, n)))
-        return 'fe' + self.mpk + s
+    def get_derivation_prefix(self) -> str:
+        return 'm'
 
-    @classmethod
-    def parse_xpubkey(self, x_pubkey):
-        assert x_pubkey[0:2] == 'fe'
-        pk = x_pubkey[2:]
-        mpk = pk[0:128]
-        dd = pk[128:]
-        s = []
-        while dd:
-            n = int(bitcoin.rev_hex(dd[0:4]), 16)
-            dd = dd[4:]
-            s.append(n)
-        assert len(s) == 2
-        return mpk, s
-
-    def get_pubkey_derivation(self, x_pubkey):
-        if x_pubkey[0:2] != 'fe':
-            return
-        mpk, derivation = self.parse_xpubkey(x_pubkey)
-        if self.mpk != mpk:
-            return
-        return derivation
+    def get_root_fingerprint(self) -> str:
+        if self._root_fingerprint is None:
+            master_public_key = ecc.ECPubkey(bfh('04'+self.mpk))
+            xfp = hash_160(master_public_key.get_public_key_bytes(compressed=True))[0:4]
+            self._root_fingerprint = xfp.hex().lower()
+        return self._root_fingerprint
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)
@@ -554,14 +588,13 @@ class Hardware_KeyStore(KeyStore, Xpub):
     type = 'hardware'
 
     def __init__(self, d):
-        Xpub.__init__(self)
+        Xpub.__init__(self, derivation_prefix=d.get('derivation'), root_fingerprint=d.get('root_fingerprint'))
         KeyStore.__init__(self)
         # Errors and other user interaction is done through the wallet's
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.xpub = d.get('xpub')
         self.label = d.get('label')
-        self.derivation = d.get('derivation')
         self.handler = None
         run_hook('init_keystore', self)
 
@@ -582,7 +615,8 @@ class Hardware_KeyStore(KeyStore, Xpub):
             'type': self.type,
             'hw_type': self.hw_type,
             'xpub': self.xpub,
-            'derivation':self.derivation,
+            'derivation': self.get_derivation_prefix(),
+            'root_fingerprint': self.get_root_fingerprint(),
             'label':self.label,
         }
 
@@ -703,40 +737,6 @@ def xtype_from_derivation(derivation: str) -> str:
                 return script_type
     return 'standard'
 
-
-# extended pubkeys
-
-def is_xpubkey(x_pubkey):
-    return x_pubkey[0:2] == 'ff'
-
-
-def parse_xpubkey(x_pubkey):
-    assert x_pubkey[0:2] == 'ff'
-    return BIP32_KeyStore.parse_xpubkey(x_pubkey)
-
-
-def xpubkey_to_address(x_pubkey):
-    if x_pubkey[0:2] == 'fd':
-        address = bitcoin.script_to_address(x_pubkey[2:])
-        return x_pubkey, address
-    if x_pubkey[0:2] in ['02', '03', '04']:
-        pubkey = x_pubkey
-    elif x_pubkey[0:2] == 'ff':
-        xpub, s = BIP32_KeyStore.parse_xpubkey(x_pubkey)
-        pubkey = BIP32_KeyStore.get_pubkey_from_xpub(xpub, s)
-    elif x_pubkey[0:2] == 'fe':
-        mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
-        pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk, s[0], s[1])
-    else:
-        raise BitcoinException("Cannot parse pubkey. prefix: {}"
-                               .format(x_pubkey[0:2]))
-    if pubkey:
-        address = public_key_to_p2pkh(bfh(pubkey))
-    return pubkey, address
-
-def xpubkey_to_pubkey(x_pubkey):
-    pubkey, address = xpubkey_to_address(x_pubkey)
-    return pubkey
 
 hw_keystores = {}
 
@@ -861,14 +861,12 @@ def from_old_mpk(mpk):
 
 def from_xpub(xpub):
     k = BIP32_KeyStore({})
-    k.xpub = xpub
+    k.add_xpub(xpub)
     return k
 
 def from_xprv(xprv):
-    xpub = bip32.xpub_from_xprv(xprv)
     k = BIP32_KeyStore({})
-    k.xprv = xprv
-    k.xpub = xpub
+    k.add_xprv(xprv)
     return k
 
 def from_master_key(text):

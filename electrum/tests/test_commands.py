@@ -159,3 +159,24 @@ class TestCommandsTestnet(TestCaseForTestnet):
         for xkey1, xtype1 in xprvs:
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, cmds._run('convert_xkey', (xkey1, xtype2)))
+
+    def test_serialize(self):
+        cmds = Commands(config=self.config)
+        jsontx = {
+            "inputs": [
+                {
+                    "prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539",
+                    "prevout_n": 1,
+                    "value": 1000000,
+                    "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD"
+                }
+            ],
+            "outputs": [
+                {
+                    "address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd",
+                    "value": 990000
+                }
+            ]
+        }
+        self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000feffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb02483045022100fa88a9e7930b2af269fd0a5cb7fbbc3d0a05606f3ac6ea8a40686ebf02fdd85802203dd19603b4ee8fdb81d40185572027686f70ea299c6a3e22bc2545e1396398b20121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
+                         cmds._run('serialize', (jsontx,)))

@@ -147,7 +147,7 @@ if [[ $1 == "breach" ]]; then
     echo "alice pays"
     $alice lnpay $request
     sleep 2
-    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    ctx=$($alice get_channel_ctx $channel)
     request=$($bob add_lightning_request 0.01 -m "blah2")
     echo "alice pays again"
     $alice lnpay $request
@@ -224,7 +224,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
         echo "SETTLE_DELAY did not work, $settled != 0"
         exit 1
     fi
-    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    ctx=$($alice get_channel_ctx $channel)
     sleep 5
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "1" ]]; then
@@ -251,7 +251,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo "alice pays bob"
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    ctx=$($alice get_channel_ctx $channel | jq '.hex' | tr -d '"')
+    ctx=$($alice get_channel_ctx $channel)
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
         echo "SETTLE_DELAY did not work, $settled != 0"

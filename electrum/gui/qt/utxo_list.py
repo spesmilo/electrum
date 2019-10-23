@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 from enum import IntEnum
 
 from PyQt5.QtCore import Qt
@@ -31,8 +31,10 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
 from PyQt5.QtWidgets import QAbstractItemView, QMenu
 
 from electrum.i18n import _
+from electrum.transaction import PartialTxInput
 
 from .util import MyTreeView, ColorScheme, MONOSPACE_FONT
+
 
 class UTXOList(MyTreeView):
 
@@ -64,21 +66,21 @@ class UTXOList(MyTreeView):
     def update(self):
         self.wallet = self.parent.wallet
         utxos = self.wallet.get_utxos()
-        self.utxo_dict = {}
+        self.utxo_dict = {}  # type: Dict[str, PartialTxInput]
         self.model().clear()
         self.update_headers(self.__class__.headers)
-        for idx, x in enumerate(utxos):
-            self.insert_utxo(idx, x)
+        for idx, utxo in enumerate(utxos):
+            self.insert_utxo(idx, utxo)
         self.filter()
 
-    def insert_utxo(self, idx, x):
-        address = x['address']
-        height = x.get('height')
-        name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
-        name_short = x.get('prevout_hash')[:16] + '...' + ":%d"%x.get('prevout_n')
-        self.utxo_dict[name] = x
-        label = self.wallet.get_label(x.get('prevout_hash'))
-        amount = self.parent.format_amount(x['value'], whitespaces=True)
+    def insert_utxo(self, idx, utxo: PartialTxInput):
+        address = utxo.address
+        height = utxo.block_height
+        name = utxo.prevout.to_str()
+        name_short = utxo.prevout.txid.hex()[:16] + '...' + ":%d" % utxo.prevout.out_idx
+        self.utxo_dict[name] = utxo
+        label = self.wallet.get_label(utxo.prevout.txid.hex())
+        amount = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
         labels = [name_short, address, label, amount, '%d'%height]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
@@ -89,7 +91,7 @@ class UTXOList(MyTreeView):
         if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
-        if self.wallet.is_frozen_coin(x):
+        if self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is frozen')}")
         else:
@@ -114,26 +116,26 @@ class UTXOList(MyTreeView):
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
         assert len(coins) >= 1, len(coins)
         if len(coins) == 1:
-            utxo_dict = coins[0]
-            addr = utxo_dict['address']
-            txid = utxo_dict['prevout_hash']
+            utxo = coins[0]
+            addr = utxo.address
+            txid = utxo.prevout.txid.hex()
             # "Details"
             tx = self.wallet.db.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label(txid) or None # Prefer None if empty (None hides the Description: field in the window)
-                menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
+                menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))
             # "Copy ..."
             idx = self.indexAt(position)
             if not idx.isValid():
                 return
             self.add_copy_menu(menu, idx)
             # "Freeze coin"
-            if not self.wallet.is_frozen_coin(utxo_dict):
-                menu.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo_dict], True))
+            if not self.wallet.is_frozen_coin(utxo):
+                menu.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], True))
             else:
                 menu.addSeparator()
                 menu.addAction(_("Coin is frozen"), lambda: None).setEnabled(False)
-                menu.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo_dict], False))
+                menu.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], False))
                 menu.addSeparator()
             # "Freeze address"
             if not self.wallet.is_frozen_address(addr):
@@ -146,9 +148,9 @@ class UTXOList(MyTreeView):
         else:
             # multiple items selected
             menu.addSeparator()
-            addrs = [utxo_dict['address'] for utxo_dict in coins]
-            is_coin_frozen = [self.wallet.is_frozen_coin(utxo_dict) for utxo_dict in coins]
-            is_addr_frozen = [self.wallet.is_frozen_address(utxo_dict['address']) for utxo_dict in coins]
+            addrs = [utxo.address for utxo in coins]
+            is_coin_frozen = [self.wallet.is_frozen_coin(utxo) for utxo in coins]
+            is_addr_frozen = [self.wallet.is_frozen_address(utxo.address) for utxo in coins]
             if not all(is_coin_frozen):
                 menu.addAction(_("Freeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, True))
             if any(is_coin_frozen):

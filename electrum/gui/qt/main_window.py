@@ -36,7 +36,7 @@ import base64
 from functools import partial
 import queue
 import asyncio
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
@@ -50,7 +50,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
 import electrum
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
                       coinchooser, paymentrequest)
-from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
@@ -64,7 +64,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            InvalidBitcoinURI, InvoiceError)
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.lnutil import PaymentFailure, SENT, RECEIVED
-from electrum.transaction import Transaction, TxOutput
+from electrum.transaction import (Transaction, PartialTxInput,
+                                  PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption)
@@ -922,7 +923,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def show_transaction(self, tx, *, invoice=None, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, self, invoice=invoice, desc=tx_desc)
+        show_transaction(tx, parent=self, invoice=invoice, desc=tx_desc)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1434,11 +1435,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_fee(self):
         self.require_fee_update = True
 
-    def get_payto_or_dummy(self):
-        r = self.payto_e.get_recipient()
+    def get_payto_or_dummy(self) -> bytes:
+        r = self.payto_e.get_destination_scriptpubkey()
         if r:
             return r
-        return (TYPE_ADDRESS, self.wallet.dummy_address())
+        return bfh(bitcoin.address_to_script(self.wallet.dummy_address()))
 
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
@@ -1461,13 +1462,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         coins = self.get_coins()
 
         if not outputs:
-            _type, addr = self.get_payto_or_dummy()
-            outputs = [TxOutput(_type, addr, amount)]
+            scriptpubkey = self.get_payto_or_dummy()
+            outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)]
         is_sweep = bool(self.tx_external_keypairs)
         make_tx = lambda fee_est: \
             self.wallet.make_unsigned_transaction(
-                coins, outputs,
-                fixed_fee=fee_est, is_sweep=is_sweep)
+                coins=coins,
+                outputs=outputs,
+                fee=fee_est,
+                is_sweep=is_sweep)
         try:
             tx = make_tx(fee_estimator)
             self.not_enough_funds = False
@@ -1546,7 +1549,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
-    def set_pay_from(self, coins):
+    def set_pay_from(self, coins: Sequence[PartialTxInput]):
         self.pay_from = list(coins)
         self.redraw_from_list()
 
@@ -1555,12 +1558,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
 
-        def format(x):
-            h = x.get('prevout_hash')
-            return h[0:10] + '...' + h[-10:] + ":%d"%x.get('prevout_n') + '\t' + "%s"%x.get('address') + '\t'
+        def format(txin: PartialTxInput):
+            h = txin.prevout.txid.hex()
+            out_idx = txin.prevout.out_idx
+            addr = txin.address
+            return h[0:10] + '...' + h[-10:] + ":%d"%out_idx + '\t' + addr + '\t'
 
         for coin in self.pay_from:
-            item = QTreeWidgetItem([format(coin), self.format_amount(coin['value'])])
+            item = QTreeWidgetItem([format(coin), self.format_amount(coin.value_sats())])
             item.setFont(0, QFont(MONOSPACE_FONT))
             self.from_list.addTopLevelItem(item)
 
@@ -1620,14 +1625,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             fee_estimator = None
         return fee_estimator
 
-    def read_outputs(self):
+    def read_outputs(self) -> List[PartialTxOutput]:
         if self.payment_request:
             outputs = self.payment_request.get_outputs()
         else:
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
         return outputs
 
-    def check_send_tab_onchain_outputs_and_show_errors(self, outputs) -> bool:
+    def check_send_tab_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
@@ -1636,11 +1641,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return True
 
         for o in outputs:
-            if o.address is None:
+            if o.scriptpubkey is None:
                 self.show_error(_('Bitcoin Address is None'))
-                return True
-            if o.type == TYPE_ADDRESS and not bitcoin.is_address(o.address):
-                self.show_error(_('Invalid Bitcoin Address'))
                 return True
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
@@ -1749,20 +1751,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             message = invoice['message']
-            outputs = invoice['outputs']
+            outputs = invoice['outputs']  # type: List[PartialTxOutput]
         else:
             raise Exception('unknown invoice type')
 
         if run_hook('abort_send', self):
             return
 
-        outputs = [TxOutput(*x) for x in outputs]
+        for txout in outputs:
+            assert isinstance(txout, PartialTxOutput)
         fee_estimator = self.get_send_fee_estimator()
         coins = self.get_coins()
         try:
             is_sweep = bool(self.tx_external_keypairs)
             tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, fixed_fee=fee_estimator,
+                coins=coins,
+                outputs=outputs,
+                fee=fee_estimator,
                 is_sweep=is_sweep)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             self.show_message(str(e))
@@ -1837,7 +1842,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def sign_tx(self, tx, callback, password):
         self.sign_tx_with_password(tx, callback, password)
 
-    def sign_tx_with_password(self, tx, callback, password):
+    def sign_tx_with_password(self, tx: PartialTransaction, callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
@@ -1849,13 +1854,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if self.tx_external_keypairs:
             # can sign directly
-            task = partial(Transaction.sign, tx, self.tx_external_keypairs)
+            task = partial(tx.sign, self.tx_external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def broadcast_transaction(self, tx, *, invoice=None, tx_desc=None):
+    def broadcast_transaction(self, tx: Transaction, *, invoice=None, tx_desc=None):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1879,7 +1884,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if pr:
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
-                coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
+                coro = pr.send_payment_and_receive_paymentack(tx.serialize(), refund_address)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 ack_status, ack_msg = fut.result(timeout=20)
                 self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
@@ -2077,7 +2082,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_list.update()
         self.update_fee()
 
-    def set_frozen_state_of_coins(self, utxos, freeze: bool):
+    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         self.wallet.set_frozen_state_of_coins(utxos, freeze)
         self.utxo_list.update()
         self.update_fee()
@@ -2124,7 +2129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             return self.wallet.get_spendable_coins(None)
 
-    def spend_coins(self, coins):
+    def spend_coins(self, coins: Sequence[PartialTxInput]):
         self.set_pay_from(coins)
         self.set_onchain(len(coins) > 0)
         self.show_send_tab()
@@ -2527,7 +2532,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not address:
             return
         try:
-            pk, redeem_script = self.wallet.export_private_key(address, password)
+            pk = self.wallet.export_private_key(address, password)
         except Exception as e:
             self.logger.exception('')
             self.show_message(repr(e))
@@ -2542,11 +2547,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         keys_e = ShowQRTextEdit(text=pk)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
-        if redeem_script:
-            vbox.addWidget(QLabel(_("Redeem Script") + ':'))
-            rds_e = ShowQRTextEdit(text=redeem_script)
-            rds_e.addCopyButton(self.app)
-            vbox.addWidget(rds_e)
+        # if redeem_script:
+        #     vbox.addWidget(QLabel(_("Redeem Script") + ':'))
+        #     rds_e = ShowQRTextEdit(text=redeem_script)
+        #     rds_e.addCopyButton(self.app)
+        #     vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2718,11 +2723,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = PasswordDialog(parent, msg)
         return d.run()
 
-    def tx_from_text(self, txt) -> Optional[Transaction]:
-        from electrum.transaction import tx_from_str
+    def tx_from_text(self, txt: Union[str, bytes]) -> Union[None, 'PartialTransaction', 'Transaction']:
+        from electrum.transaction import tx_from_any
         try:
-            tx = tx_from_str(txt)
-            return Transaction(tx)
+            return tx_from_any(txt)
         except BaseException as e:
             self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
@@ -2752,14 +2756,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.show_transaction(tx)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
-        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
+        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn;;*.psbt")
         if not fileName:
             return
         try:
             with open(fileName, "r") as f:
-                file_content = f.read()
+                file_content = f.read()  # type: Union[str, bytes]
         except (ValueError, IOError, os.error) as reason:
-            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason), title=_("Unable to read file or no transaction found"))
+            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
+                               title=_("Unable to read file or no transaction found"))
             return
         return self.tx_from_text(file_content)
 
@@ -2831,7 +2836,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 time.sleep(0.1)
                 if done or cancelled:
                     break
-                privkey = self.wallet.export_private_key(addr, password)[0]
+                privkey = self.wallet.export_private_key(addr, password)
                 private_keys[addr] = privkey
                 self.computing_privkeys_signal.emit()
             if not cancelled:
@@ -3130,7 +3135,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def cpfp(self, parent_tx: Transaction, new_tx: Transaction) -> None:
+    def cpfp(self, parent_tx: Transaction, new_tx: PartialTransaction) -> None:
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
@@ -3257,7 +3262,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_desc=tx_label)
 
-    def save_transaction_into_wallet(self, tx):
+    def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()
         try:
             if not self.wallet.add_transaction(tx.txid(), tx):

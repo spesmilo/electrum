@@ -28,7 +28,7 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple
+from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
@@ -40,15 +40,11 @@ from .logging import Logger
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 19     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 20     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
-class JsonDBJsonEncoder(util.MyEncoder):
-    def default(self, obj):
-        if isinstance(obj, Transaction):
-            return str(obj)
-        return super().default(obj)
+JsonDBJsonEncoder = util.MyEncoder
 
 
 class TxFeesValue(NamedTuple):
@@ -217,6 +213,7 @@ class JsonDB(Logger):
         self._convert_version_17()
         self._convert_version_18()
         self._convert_version_19()
+        self._convert_version_20()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -425,10 +422,10 @@ class JsonDB(Logger):
         for txid, raw_tx in transactions.items():
             tx = Transaction(raw_tx)
             for txin in tx.inputs():
-                if txin['type'] == 'coinbase':
+                if txin.is_coinbase():
                     continue
-                prevout_hash = txin['prevout_hash']
-                prevout_n = txin['prevout_n']
+                prevout_hash = txin.prevout.txid.hex()
+                prevout_n = txin.prevout.out_idx
                 spent_outpoints[prevout_hash][str(prevout_n)] = txid
         self.put('spent_outpoints', spent_outpoints)
 
@@ -448,10 +445,34 @@ class JsonDB(Logger):
         self.put('tx_fees', None)
         self.put('seed_version', 19)
 
-    # def _convert_version_20(self):
-    #     TODO for "next" upgrade:
-    #       - move "pw_hash_version" from keystore to storage
-    #     pass
+    def _convert_version_20(self):
+        # store 'derivation' (prefix) and 'root_fingerprint' in all xpub-based keystores
+        if not self._is_upgrade_method_needed(19, 19):
+            return
+
+        from .bip32 import BIP32Node
+        for ks_name in ('keystore', *['x{}/'.format(i) for i in range(1, 16)]):
+            ks = self.get(ks_name, None)
+            if ks is None: continue
+            xpub = ks.get('xpub', None)
+            if xpub is None: continue
+            # derivation prefix
+            derivation_prefix = ks.get('derivation', 'm')
+            ks['derivation'] = derivation_prefix
+            # root fingerprint
+            root_fingerprint = ks.get('ckcc_xfp', None)
+            if root_fingerprint is not None:
+                root_fingerprint = root_fingerprint.to_bytes(4, byteorder="little", signed=False).hex().lower()
+            if root_fingerprint is None:
+                # if we don't have prior data, we set it to the fp of the xpub
+                # EVEN IF there was already a derivation prefix saved different than 'm'
+                node = BIP32Node.from_xkey(xpub)
+                root_fingerprint = node.calc_fingerprint_of_this_node().hex().lower()
+            ks['root_fingerprint'] = root_fingerprint
+            ks.pop('ckcc_xfp', None)
+            self.put(ks_name, ks)
+
+        self.put('seed_version', 20)
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -758,16 +779,16 @@ class JsonDB(Logger):
 
     @modifier
     def add_change_address(self, addr):
-        self._addr_to_addr_index[addr] = (True, len(self.change_addresses))
+        self._addr_to_addr_index[addr] = (1, len(self.change_addresses))
         self.change_addresses.append(addr)
 
     @modifier
     def add_receiving_address(self, addr):
-        self._addr_to_addr_index[addr] = (False, len(self.receiving_addresses))
+        self._addr_to_addr_index[addr] = (0, len(self.receiving_addresses))
         self.receiving_addresses.append(addr)
 
     @locked
-    def get_address_index(self, address):
+    def get_address_index(self, address) -> Optional[Sequence[int]]:
         return self._addr_to_addr_index.get(address)
 
     @modifier
@@ -801,11 +822,11 @@ class JsonDB(Logger):
                     self.data['addresses'][name] = []
             self.change_addresses = self.data['addresses']['change']
             self.receiving_addresses = self.data['addresses']['receiving']
-            self._addr_to_addr_index = {}  # key: address, value: (is_change, index)
+            self._addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]  # key: address, value: (is_change, index)
             for i, addr in enumerate(self.receiving_addresses):
-                self._addr_to_addr_index[addr] = (False, i)
+                self._addr_to_addr_index[addr] = (0, i)
             for i, addr in enumerate(self.change_addresses):
-                self._addr_to_addr_index[addr] = (True, i)
+                self._addr_to_addr_index[addr] = (1, i)
 
     @profiler
     def _load_transactions(self):

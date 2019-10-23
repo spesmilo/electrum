@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, TYPE_CHECKING
 
 from kivy.app import App
 from kivy.factory import Factory
@@ -16,6 +16,10 @@ from electrum.gui.kivy.i18n import _
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.wallet import CannotBumpFee
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+    from electrum.transaction import Transaction
 
 
 Builder.load_string('''
@@ -121,9 +125,9 @@ class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
         Factory.Popup.__init__(self)
-        self.app = app
+        self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
-        self.tx = tx
+        self.tx = tx  # type: Transaction
         self._action_button_fn = lambda btn: None
 
     def on_open(self):
@@ -166,7 +170,7 @@ class TxDialog(Factory.Popup):
             self.fee_str = _('unknown')
             self.feerate_str = _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
-        self.ids.output_list.update(self.tx.get_outputs_for_UI())
+        self.ids.output_list.update(self.tx.outputs())
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
 
@@ -252,7 +256,7 @@ class TxDialog(Factory.Popup):
 
     def show_qr(self):
         from electrum.bitcoin import base_encode, bfh
-        raw_tx = str(self.tx)
+        raw_tx = self.tx.serialize()
         text = bfh(raw_tx)
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=raw_tx)
