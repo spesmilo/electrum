@@ -112,6 +112,8 @@ pr_expiration_values = {
 
 def get_request_status(req):
     status = req['status']
+    if req['status'] == PR_UNPAID and 'exp' in req and req['time'] + req['exp'] < time.time():
+        status = PR_EXPIRED
     status_str = pr_tooltips[status]
     if status == PR_UNPAID:
         if req.get('exp'):
@@ -119,7 +121,7 @@ def get_request_status(req):
             status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
         else:
             status_str = _('Pending')
-    return status_str
+    return status, status_str
 
 
 class UnknownBaseUnit(Exception): pass

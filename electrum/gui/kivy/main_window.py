@@ -1014,15 +1014,17 @@ class ElectrumWindow(App):
             status, msg = True, tx.txid()
         Clock.schedule_once(lambda dt: on_complete(status, msg))
 
-    def broadcast(self, tx, pr=None):
+    def broadcast(self, tx, invoice=None):
         def on_complete(ok, msg):
             if ok:
                 self.show_info(_('Payment sent.'))
                 if self.send_screen:
                     self.send_screen.do_clear()
-                if pr:
-                    self.wallet.invoices.set_paid(pr, tx.txid())
-                    self.wallet.invoices.save()
+                if invoice:
+                    key = invoice['id']
+                    txid = tx.txid()
+                    self.wallet.set_label(txid, invoice['message'])
+                    self.wallet.set_paid(key, txid)
                     self.update_tab('invoices')
             else:
                 msg = msg or ''

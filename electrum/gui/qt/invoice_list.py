@@ -84,7 +84,7 @@ class InvoiceList(MyTreeView):
         else:
             return
         status_item = model.item(row, self.Columns.STATUS)
-        status_str = get_request_status(req)
+        status, status_str = get_request_status(req)
         log = self.parent.wallet.lnworker.logs.get(key)
         if log and status == PR_INFLIGHT:
             status_str += '... (%d)'%len(log)
@@ -109,8 +109,7 @@ class InvoiceList(MyTreeView):
                     icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
-            status = item['status']
-            status_str = get_request_status(item) # convert to str
+            status, status_str = get_request_status(item)
             message = item['message']
             amount = item['amount']
             timestamp = item.get('time', 0)
