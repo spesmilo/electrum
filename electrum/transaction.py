@@ -38,7 +38,7 @@ from . import ecc, bitcoin, constants, segwit_addr
 from .util import profiler, to_bytes, bh2u, bfh
 from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
-                      hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
+                      hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_XVG, COIN,
                       push_script, int_to_hex, push_script, b58_address_to_hash160,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
 from .crypto import sha256d
@@ -529,7 +529,7 @@ def parse_witness(vds, txin, full_parse: bool):
 def parse_output(vds, i):
     d = {}
     d['value'] = vds.read_int64()
-    if d['value'] > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+    if d['value'] > TOTAL_COIN_SUPPLY_LIMIT_IN_XVG * COIN:
         raise SerializationError('invalid output amount (too large)')
     if d['value'] < 0:
         raise SerializationError('invalid output amount (negative)')
@@ -543,34 +543,38 @@ def parse_output(vds, i):
 def deserialize(raw: str, force_full_parse=False) -> dict:
     raw_bytes = bfh(raw)
     d = {}
-    if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
-        d['partial'] = is_partial = True
-        partial_format_version = raw_bytes[5]
-        if partial_format_version != 0:
-            raise SerializationError('unknown tx partial serialization format version: {}'
-                                     .format(partial_format_version))
-        raw_bytes = raw_bytes[6:]
-    else:
-        d['partial'] = is_partial = False
+    # if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
+    #     d['partial'] = is_partial = True
+    #     partial_format_version = raw_bytes[5]
+    #     if partial_format_version != 0:
+    #         raise SerializationError('unknown tx partial serialization format version: {}'
+    #                                  .format(partial_format_version))
+    #     raw_bytes = raw_bytes[6:]
+    # else:
+
+    d['partial'] = is_partial = False
     full_parse = force_full_parse or is_partial
+
     vds = BCDataStream()
     vds.write(raw_bytes)
+
     d['version'] = vds.read_int32()
+    d['time'] = vds.read_int32()
     n_vin = vds.read_compact_size()
     is_segwit = (n_vin == 0)
-    if is_segwit:
-        marker = vds.read_bytes(1)
-        if marker != b'\x01':
-            raise ValueError('invalid txn marker byte: {}'.format(marker))
-        n_vin = vds.read_compact_size()
+    # if is_segwit:
+    #     marker = vds.read_bytes(1)
+    #     if marker != b'\x01':
+    #         raise ValueError('invalid txn marker byte: {}'.format(marker))
+        # n_vin = vds.read_compact_size()
     d['segwit_ser'] = is_segwit
     d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
-    if is_segwit:
-        for i in range(n_vin):
-            txin = d['inputs'][i]
-            parse_witness(vds, txin, full_parse=full_parse)
+    # if is_segwit:
+    #     for i in range(n_vin):
+    #         txin = d['inputs'][i]
+    #         parse_witness(vds, txin, full_parse=full_parse)
     d['lockTime'] = vds.read_uint32()
     if vds.can_read_more():
         raise SerializationError('extra junk at the end')
@@ -610,6 +614,7 @@ class Transaction:
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
         self.version = 2
+        self.time = 0
         # by default we assume this is a partial txn;
         # this value will get properly set when deserializing
         self.is_partial_originally = True
@@ -715,6 +720,7 @@ class Transaction:
         self._outputs = [TxOutput(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
+        self.time = d['time']
         self.is_partial_originally = d['partial']
         self._segwit_ser = d['segwit_ser']
         return d
@@ -1029,6 +1035,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        nTime = int_to_hex(self.time, 4)
         txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
@@ -1041,7 +1048,7 @@ class Transaction:
             witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
-            return nVersion + txins + txouts + nLocktime
+            return nVersion + nTime + txins + txouts + nLocktime
 
     def txid(self):
         self.deserialize()

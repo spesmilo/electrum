@@ -21,7 +21,7 @@ Builder.load_string('''
                 height: '80dp'
                 Button:
                     background_color: 0, 0, 0, 0
-                    id: btc
+                    id: XVG
                     text: kb.amount + ' ' + app.base_unit
                     color: (0.7, 0.7, 1, 1) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
@@ -49,8 +49,8 @@ Builder.load_string('''
                 amount: ''
                 fiat_amount: ''
                 is_fiat: False
-                on_fiat_amount: if self.is_fiat: self.amount = app.fiat_to_btc(self.fiat_amount)
-                on_amount: if not self.is_fiat: self.fiat_amount = app.btc_to_fiat(self.amount)
+                on_fiat_amount: if self.is_fiat: self.amount = app.fiat_to_XVG(self.fiat_amount)
+                on_amount: if not self.is_fiat: self.fiat_amount = app.XVG_to_fiat(self.amount)
                 size_hint: 1, None
                 update_amount: popup.update_amount
                 height: '300dp'
@@ -112,7 +112,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('OK')
                     on_release:
-                        root.callback(btc.text if kb.amount else '')
+                        root.callback(XVG.text if kb.amount else '')
                         popup.dismiss()
 ''')
 
@@ -144,7 +144,7 @@ class AmountDialog(Factory.Popup):
                 amount += c
             except:
                 pass
-            # truncate btc amounts to max precision:
+            # truncate XVG amounts to max precision:
             if not kb.is_fiat and '.' in amount:
                 p = amount.find('.')
                 amount = amount.replace('.', '')

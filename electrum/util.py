@@ -67,11 +67,11 @@ def inv_dict(d):
 ca_path = certifi.where()
 
 
-base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
+base_units = {'XVG':6, 'mXVG':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['XVG', 'mXVG', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+DECIMAL_POINT_DEFAULT = 5  # mXVG
 
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
@@ -128,7 +128,7 @@ class UnknownBaseUnit(Exception): pass
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
-    # e.g. 8 -> "BTC"
+    # e.g. 8 -> "XVG"
     try:
         return base_units_inverse[dp]
     except KeyError:
@@ -136,7 +136,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
-    # e.g. "BTC" -> 8
+    # e.g. "XVG" -> 8
     try:
         return base_units[unit_name]
     except KeyError:
@@ -599,7 +599,7 @@ def format_satoshis_plain(x, decimal_point = 8):
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
-def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False) -> str:
+def format_satoshis(x, num_zeros=0, decimal_point=6, precision=None, is_diff=False, whitespaces=False) -> str:
     if x is None:
         return 'unknown'
     if x == '!':
@@ -704,23 +704,23 @@ mainnet_block_explorers = {
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
                         {'tx': 'Transaction/', 'addr': 'Address/'}),
-    'Blockchain.info': ('https://blockchain.com/btc/',
+    'Blockchain.info': ('https://blockchain.com/XVG/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'Bitaps.com': ('https://btc.bitaps.com/',
+    'Bitaps.com': ('https://XVG.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://btc.com/',
+    'XVG.com': ('https://XVG.com/',
                         {'tx': '', 'addr': ''}),
     'Chain.so': ('https://www.chain.so/',
-                        {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
+                        {'tx': 'tx/XVG/', 'addr': 'address/XVG/'}),
     'Insight.is': ('https://insight.bitpay.com/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc/',
+    'BlockCypher.com': ('https://live.blockcypher.com/XVG/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Blockchair.com': ('https://blockchair.com/bitcoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
@@ -735,11 +735,11 @@ mainnet_block_explorers = {
 }
 
 testnet_block_explorers = {
-    'Bitaps.com': ('https://tbtc.bitaps.com/',
+    'Bitaps.com': ('https://tXVG.bitaps.com/',
                        {'tx': '', 'addr': ''}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
+    'BlockCypher.com': ('https://live.blockcypher.com/XVG-testnet/',
                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchain.info': ('https://www.blockchain.com/btctest/',
+    'Blockchain.info': ('https://www.blockchain.com/XVGtest/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),

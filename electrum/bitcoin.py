@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
 COINBASE_MATURITY = 100
 COIN = 1000000
-TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 16555000000
+TOTAL_COIN_SUPPLY_LIMIT_IN_XVG = 16555000000
 
 # supported types of transaction outputs
 TYPE_ADDRESS = 0
@@ -270,7 +270,7 @@ def push_script(data: str) -> str:
     choosing canonical opcodes depending on the length of the data.
     hex -> hex
 
-    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    ported from https://github.com/XVGsuite/XVGd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
     data = bfh(data)
     data_len = len(data)

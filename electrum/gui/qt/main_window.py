@@ -77,7 +77,7 @@ from electrum.util import PR_PAID, PR_UNPAID, PR_INFLIGHT, PR_FAILED
 from electrum.util import pr_expiration_values
 
 from .exception_window import Exception_Hook
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
+from .amountedit import AmountEdit, XVGAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -792,7 +792,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point)
 
-    def connect_fields(self, window, btc_e, fiat_e, fee_e):
+    def connect_fields(self, window, XVG_e, fiat_e, fee_e):
 
         def edit_changed(edit):
             if edit.follows:
@@ -803,17 +803,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             rate = self.fx.exchange_rate() if self.fx else Decimal('NaN')
             if rate.is_nan() or amount is None:
                 if edit is fiat_e:
-                    btc_e.setText("")
+                    XVG_e.setText("")
                     if fee_e:
                         fee_e.setText("")
                 else:
                     fiat_e.setText("")
             else:
                 if edit is fiat_e:
-                    btc_e.follows = True
-                    btc_e.setAmount(int(amount / Decimal(rate) * COIN))
-                    btc_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
-                    btc_e.follows = False
+                    XVG_e.follows = True
+                    XVG_e.setAmount(int(amount / Decimal(rate) * COIN))
+                    XVG_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
+                    XVG_e.follows = False
                     if fee_e:
                         window.update_fee()
                 else:
@@ -823,10 +823,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 
-        btc_e.follows = False
+        XVG_e.follows = False
         fiat_e.follows = False
         fiat_e.textChanged.connect(partial(edit_changed, fiat_e))
-        btc_e.textChanged.connect(partial(edit_changed, btc_e))
+        XVG_e.textChanged.connect(partial(edit_changed, XVG_e))
         fiat_e.is_last_edited = False
 
     def update_status(self):
@@ -936,7 +936,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(self.receive_message_e, 0, 1, 1, 4)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
-        self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
+        self.receive_amount_e = XVGAmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Requested amount')), 1, 0)
         grid.addWidget(self.receive_amount_e, 1, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
@@ -1190,7 +1190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.setColumnStretch(3, 1)
 
         from .paytoedit import PayToEdit
-        self.amount_e = BTCAmountEdit(self.get_decimal_point)
+        self.amount_e = XVGAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
               + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
@@ -1293,7 +1293,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.feerate_e.textEdited.connect(partial(on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(on_fee_or_feerate, self.feerate_e, True))
 
-        self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        self.fee_e = XVGAmountEdit(self.get_decimal_point)
         self.fee_e.textEdited.connect(partial(on_fee_or_feerate, self.fee_e, False))
         self.fee_e.editingFinished.connect(partial(on_fee_or_feerate, self.fee_e, True))
 
@@ -3160,7 +3160,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         output_amount = QLabel('')
         grid.addWidget(QLabel(_('Output amount') + ':'), 2, 0)
         grid.addWidget(output_amount, 2, 1)
-        fee_e = BTCAmountEdit(self.get_decimal_point)
+        fee_e = XVGAmountEdit(self.get_decimal_point)
         # FIXME with dyn fees, without estimates, there are all kinds of crashes here
         combined_fee = QLabel('')
         combined_feerate = QLabel('')
