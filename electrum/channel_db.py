@@ -508,7 +508,6 @@ class ChannelDB(SqlDB):
         if l:
             for short_channel_id in l:
                 self.remove_channel(short_channel_id)
-                self.delete_channel(short_channel_id)
             self.update_counts()
             self.logger.info(f'Deleting {len(l)} orphaned channels')
 
@@ -524,6 +523,8 @@ class ChannelDB(SqlDB):
         if channel_info:
             self._channels_for_node[channel_info.node1_id].remove(channel_info.short_channel_id)
             self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
+        # delete from database
+        self.delete_channel(short_channel_id)
 
     def get_node_addresses(self, node_id):
         return self._addresses.get(node_id)
