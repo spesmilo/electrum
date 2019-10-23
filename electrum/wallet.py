@@ -583,6 +583,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
+        out = list(filter(None, out))
         out.sort(key=operator.itemgetter('time'))
         return out
 
