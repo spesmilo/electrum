@@ -1871,9 +1871,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             except BestEffortRequestFailed as e:
                 return False, repr(e)
             # success
-            key = invoice['id']
-            txid = tx.txid()
-            self.wallet.set_paid(key, txid)
+            if invoice:
+                key = invoice['id']
+                txid = tx.txid()
+                self.wallet.set_paid(key, txid)
+                self.wallet.set_label(txid, invoice['message'])
             if pr:
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
@@ -1889,10 +1891,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         def broadcast_done(result):
             # GUI thread
             if result:
-                status, msg = result
-                if status:
-                    if tx_desc is not None and tx.is_complete():
-                        self.wallet.set_label(tx.txid(), tx_desc)
+                success, msg = result
+                if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.do_clear()
