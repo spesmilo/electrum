@@ -864,6 +864,7 @@ class LNWallet(LNWorker):
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         if not chan:
+            self.channel_db.remove_channel(short_channel_id)
             raise Exception(f"PathFinder returned path with short_channel_id "
                             f"{short_channel_id} that is not in channel list")
         self.set_payment_status(lnaddr.paymenthash, PR_INFLIGHT)

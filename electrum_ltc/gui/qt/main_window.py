@@ -920,9 +920,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
-    def show_transaction(self, tx, tx_desc = None):
+    def show_transaction(self, tx, *, invoice=None, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, self, tx_desc)
+        show_transaction(tx, self, invoice=invoice, desc=tx_desc)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1739,9 +1739,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
-        if not preview:
-            self.wallet.save_invoice(invoice)
-            self.invoice_list.update()
+        self.wallet.save_invoice(invoice)
+        self.invoice_list.update()
         self.do_pay_invoice(invoice, preview)
 
     def do_pay_invoice(self, invoice, preview=False):
@@ -1791,7 +1790,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
 
         if preview:
-            self.show_transaction(tx, message)
+            self.show_transaction(tx, invoice=invoice)
             return
 
         if not self.network:
@@ -1829,9 +1828,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if success:
                 self.do_clear()
                 if not tx.is_complete():
-                    self.show_transaction(tx)
+                    self.show_transaction(tx, invoice=invoice)
                 else:
-                    self.broadcast_transaction(tx, message)
+                    self.broadcast_transaction(tx, invoice=invoice)
         self.sign_tx_with_password(tx, sign_done, password)
 
     @protected
@@ -1856,33 +1855,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def broadcast_transaction(self, tx, tx_desc):
+    def broadcast_transaction(self, tx, *, invoice=None, tx_desc=None):
 
         def broadcast_thread():
             # non-GUI thread
             pr = self.payment_request
             if pr and pr.has_expired():
                 self.payment_request = None
-                return False, _("Payment request has expired")
-            status = False
+                return False, _("Invoice has expired")
             try:
                 self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
-                msg = e.get_message_for_gui()
+                return False, e.get_message_for_gui()
             except BestEffortRequestFailed as e:
-                msg = repr(e)
-            else:
-                status, msg = True, tx.txid()
-            if pr and status is True:
-                key = pr.get_id()
-                #self.wallet.set_invoice_paid(key, tx.txid())
+                return False, repr(e)
+            # success
+            txid = tx.txid()
+            if tx_desc:
+                self.wallet.set_label(txid, tx_desc)
+            if invoice:
+                self.wallet.set_paid(invoice['id'], txid)
+                self.wallet.set_label(txid, invoice['message'])
+            if pr:
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
                 coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 ack_status, ack_msg = fut.result(timeout=20)
                 self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
-            return status, msg
+            return True, txid
 
         # Capture current TL window; override might be removed on return
         parent = self.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
@@ -1890,10 +1891,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         def broadcast_done(result):
             # GUI thread
             if result:
-                status, msg = result
-                if status:
-                    if tx_desc is not None and tx.is_complete():
-                        self.wallet.set_label(tx.txid(), tx_desc)
+                success, msg = result
+                if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.do_clear()
@@ -3256,7 +3255,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         if is_final:
             new_tx.set_rbf(False)
-        self.show_transaction(new_tx, tx_label)
+        self.show_transaction(new_tx, tx_desc=tx_label)
 
     def save_transaction_into_wallet(self, tx):
         win = self.top_level_window()

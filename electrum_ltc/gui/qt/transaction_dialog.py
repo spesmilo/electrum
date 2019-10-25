@@ -60,9 +60,9 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
+def show_transaction(tx, parent, *, invoice=None, desc=None, prompt_if_unsaved=False):
     try:
-        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+        d = TxDialog(tx, parent, invoice, desc, prompt_if_unsaved)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -73,7 +73,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx: Transaction, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
+    def __init__(self, tx: Transaction, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -92,6 +92,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
+        self.invoice = invoice
 
         # if the wallet can populate the inputs with more info, do it now.
         # as a result, e.g. we might learn an imported address tx is segwit,
@@ -161,7 +162,7 @@ class TxDialog(QDialog, MessageBoxMixin):
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
-            self.main_window.broadcast_transaction(self.tx, self.desc)
+            self.main_window.broadcast_transaction(self.tx, invoice=self.invoice, tx_desc=self.desc)
         finally:
             self.main_window.pop_top_level_window(self)
         self.saved = True

@@ -103,8 +103,7 @@ class RequestList(MyTreeView):
             is_lightning = date_item.data(ROLE_REQUEST_TYPE) == PR_TYPE_LN
             req = self.wallet.get_request(key)
             if req:
-                status = req['status']
-                status_str = get_request_status(req)
+                status, status_str = get_request_status(req)
                 status_item.setText(status_str)
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
@@ -115,7 +114,7 @@ class RequestList(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests():
-            status = req.get('status')
+            status, status_str = get_request_status(req)
             if status == PR_PAID:
                 continue
             request_type = req['type']
@@ -125,7 +124,6 @@ class RequestList(MyTreeView):
             message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
-            status_str = get_request_status(req)
             labels = [date, message, amount_str, status_str]
             if request_type == PR_TYPE_LN:
                 key = req['rhash']

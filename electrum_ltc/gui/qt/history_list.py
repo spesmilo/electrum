@@ -587,7 +587,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not tx:
             return
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
-        self.parent.show_transaction(tx, label)
+        self.parent.show_transaction(tx, tx_desc=label)
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy column"))

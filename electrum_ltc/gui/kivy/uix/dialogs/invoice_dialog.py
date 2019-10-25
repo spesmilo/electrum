@@ -21,6 +21,7 @@ Builder.load_string('''
     data: ''
     status_color: 1,1,1,1
     status_str:''
+    can_pay: True
     shaded: False
     show_text: False
     AnchorLayout:
@@ -60,7 +61,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('Pay')
                     on_release: root.do_pay()
-                    disabled: not root.can_pay()
+                    disabled: not root.can_pay
 ''')
 
 class InvoiceDialog(Factory.Popup):
@@ -73,13 +74,11 @@ class InvoiceDialog(Factory.Popup):
         self.data = data
         self.key = key
 
-    def can_pay(self):
-        return self.status == PR_UNPAID
-
     def set_status(self, status):
         self.status = status
         self.status_str = pr_tooltips[status]
         self.status_color = pr_color[status]
+        self.can_pay = self.status == PR_UNPAID
 
     def on_dismiss(self):
         self.app.request_popup = None
