@@ -86,6 +86,12 @@
         "t": "50001",
         "version": "1.4.2"
     },
+    "greedyhog.ddns.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    },
     "wallet.satoshiscoffeehouse.com": {
         "pruning": "-",
         "s": "50002",
