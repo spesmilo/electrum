@@ -5,7 +5,8 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum_grs.gui.kivy.i18n import _
-from electrum_grs.util import pr_tooltips
+from electrum_grs.util import pr_tooltips, pr_color
+from electrum_grs.util import PR_UNKNOWN
 
 
 Builder.load_string('''
@@ -13,7 +14,8 @@ Builder.load_string('''
     id: popup
     title: ''
     data: ''
-    status: 'unknown'
+    status_str: ''
+    status_color: 1,1,1,1
     shaded: False
     show_text: False
     AnchorLayout:
@@ -33,7 +35,8 @@ Builder.load_string('''
             TopLabel:
                 text: root.data
             TopLabel:
-                text: _('Status') + ': ' + root.status
+                text: _('Status') + ': ' + root.status_str
+                color: root.status_color
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -64,6 +67,7 @@ Builder.load_string('''
 class RequestDialog(Factory.Popup):
 
     def __init__(self, title, data, key):
+        self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
@@ -74,7 +78,9 @@ class RequestDialog(Factory.Popup):
         self.ids.qr.set_data(self.data)
 
     def set_status(self, status):
-        self.status = pr_tooltips[status]
+        self.status = status
+        self.status_str = pr_tooltips[status]
+        self.status_color = pr_color[status]
 
     def on_dismiss(self):
         self.app.request_popup = None

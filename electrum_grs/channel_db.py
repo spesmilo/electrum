@@ -250,7 +250,8 @@ class ChannelDB(SqlDB):
         self._channels = {}  # type: Dict[bytes, ChannelInfo]
         self._policies = {}
         self._nodes = {}
-        self._addresses = defaultdict(set)
+        # node_id -> (host, port, ts)
+        self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
@@ -507,7 +508,6 @@ class ChannelDB(SqlDB):
         if l:
             for short_channel_id in l:
                 self.remove_channel(short_channel_id)
-                self.delete_channel(short_channel_id)
             self.update_counts()
             self.logger.info(f'Deleting {len(l)} orphaned channels')
 
@@ -523,6 +523,8 @@ class ChannelDB(SqlDB):
         if channel_info:
             self._channels_for_node[channel_info.node1_id].remove(channel_info.short_channel_id)
             self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
+        # delete from database
+        self.delete_channel(short_channel_id)
 
     def get_node_addresses(self, node_id):
         return self._addresses.get(node_id)

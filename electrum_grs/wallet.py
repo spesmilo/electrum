@@ -583,12 +583,17 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
+        out = list(filter(None, out))
         out.sort(key=operator.itemgetter('time'))
         return out
 
-    def check_if_expired(self, item):
-        if item['status'] == PR_UNPAID and 'exp' in item and item['time'] + item['exp'] < time.time():
-            item['status'] = PR_EXPIRED
+    def set_paid(self, key, txid):
+        if key not in self.invoices:
+            return
+        invoice = self.invoices[key]
+        assert invoice.get('type') == PR_TYPE_ONCHAIN
+        invoice['txid'] = txid
+        self.storage.put('invoices', self.invoices)
 
     def get_invoice(self, key):
         if key not in self.invoices:
@@ -601,7 +606,6 @@ class Abstract_Wallet(AddressSynchronizer):
             item['status'] = self.lnworker.get_payment_status(bfh(item['rhash']))
         else:
             return
-        self.check_if_expired(item)
         return item
 
     @profiler
@@ -1117,6 +1121,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 fixed_outputs = old_not_is_mine
             else:
                 fixed_outputs = old_outputs
+        if not fixed_outputs:
+            raise CannotBumpFee(_('Cannot bump fee') + ': could not figure out which outputs to keep')
 
         coins = self.get_spendable_coins(None)
         for item in coins:
@@ -1394,7 +1400,6 @@ class Abstract_Wallet(AddressSynchronizer):
             req['status'] = self.lnworker.get_payment_status(bfh(key))
         else:
             return
-        self.check_if_expired(req)
         # add URL if we are running a payserver
         if self.config.get('run_payserver'):
             host = self.config.get('payserver_host', 'localhost')

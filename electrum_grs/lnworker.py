@@ -253,7 +253,7 @@ class LNWorker(Logger):
         return peers
 
     @staticmethod
-    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+    def choose_preferred_address(addr_list: Sequence[Tuple[str, int, int]]) -> Tuple[str, int, int]:
         assert len(addr_list) >= 1
         # choose first one that is an IP
         for host, port, timestamp in addr_list:
@@ -322,6 +322,7 @@ class LNWallet(LNWorker):
         self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
+        self.logs = defaultdict(list)
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self.channels = {}  # type: Dict[bytes, Channel]
@@ -476,7 +477,7 @@ class LNWallet(LNWorker):
                 if _direction == SENT:
                     try:
                         inv = self.get_payment_info(bfh(key))
-                        fee_msat = inv.amount*1000 - amount_msat if inv.amount else None
+                        fee_msat = - inv.amount*1000 - amount_msat if inv.amount else None
                     except UnknownPaymentHash:
                         fee_msat = None
                 else:
@@ -795,9 +796,9 @@ class LNWallet(LNWorker):
                 host, port = split_host_port(rest)
             else:
                 addrs = self.channel_db.get_node_addresses(node_id)
-                if len(addrs) == 0:
+                if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port = self.choose_preferred_address(addrs)
+                host, port, timestamp = self.choose_preferred_address(addrs)
             try:
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
@@ -844,27 +845,28 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self._check_invoice(invoice, amount_sat)
         self.wallet.set_label(key, lnaddr.get_description())
-        log = []
+        log = self.logs[key]
         for i in range(attempts):
             try:
                 route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
             except NoPathFound:
                 success = False
                 break
-            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT, log)
+            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT)
             success, preimage, failure_log = await self._pay_to_route(route, lnaddr)
             if success:
                 log.append((route, True, preimage))
                 break
             else:
                 log.append((route, False, failure_log))
-        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED, log)
+        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED)
         return success
 
     async def _pay_to_route(self, route, lnaddr):
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         if not chan:
+            self.channel_db.remove_channel(short_channel_id)
             raise Exception(f"PathFinder returned path with short_channel_id "
                             f"{short_channel_id} that is not in channel list")
         self.set_payment_status(lnaddr.paymenthash, PR_INFLIGHT)

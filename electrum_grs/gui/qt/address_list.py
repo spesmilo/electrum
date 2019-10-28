@@ -217,20 +217,13 @@ class AddressList(MyTreeView):
             idx = self.indexAt(position)
             if not idx.isValid():
                 return
-            col = idx.column()
             item = self.model().itemFromIndex(idx)
             if not item:
                 return
             addr = addrs[0]
-
             addr_column_title = self.model().horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
-
-            column_title = self.model().horizontalHeaderItem(col).text()
-            copy_text = self.model().itemFromIndex(idx).text()
-            if col == self.Columns.COIN_BALANCE or col == self.Columns.FIAT_BALANCE:
-                copy_text = copy_text.strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.place_text_on_clipboard(copy_text))
+            self.add_copy_menu(menu, idx)
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))

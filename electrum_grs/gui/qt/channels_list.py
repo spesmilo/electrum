@@ -103,6 +103,7 @@ class ChannelsList(MyTreeView):
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
+        self.add_copy_menu(menu, idx)
         if not chan.is_closed():
             menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))

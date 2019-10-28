@@ -7,7 +7,8 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum_grs.gui.kivy.i18n import _
-from electrum_grs.util import pr_tooltips
+from electrum_grs.util import pr_tooltips, pr_color
+from electrum_grs.util import PR_UNKNOWN, PR_UNPAID
 
 if TYPE_CHECKING:
     from electrum_grs.gui.kivy.main_window import ElectrumWindow
@@ -18,7 +19,9 @@ Builder.load_string('''
     id: popup
     title: ''
     data: ''
-    status: 'unknown'
+    status_color: 1,1,1,1
+    status_str:''
+    can_pay: True
     shaded: False
     show_text: False
     AnchorLayout:
@@ -31,7 +34,8 @@ Builder.load_string('''
             TopLabel:
                 text: root.data
             TopLabel:
-                text: _('Status') + ': ' + root.status
+                text: _('Status') + ': ' + root.status_str
+                color: root.status_color
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -57,22 +61,24 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('Pay')
                     on_release: root.do_pay()
+                    disabled: not root.can_pay
 ''')
 
 class InvoiceDialog(Factory.Popup):
 
     def __init__(self, title, data, key):
+        self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()  # type: ElectrumWindow
         self.title = title
         self.data = data
         self.key = key
 
-    #def on_open(self):
-    #    self.ids.qr.set_data(self.data)
-
     def set_status(self, status):
-        self.status = pr_tooltips[status]
+        self.status = status
+        self.status_str = pr_tooltips[status]
+        self.status_color = pr_color[status]
+        self.can_pay = self.status == PR_UNPAID
 
     def on_dismiss(self):
         self.app.request_popup = None

@@ -85,6 +85,15 @@ PR_PAID     = 3     # send and propagated
 PR_INFLIGHT = 4     # unconfirmed
 PR_FAILED   = 5
 
+pr_color = {
+    PR_UNPAID:   (.7, .7, .7, 1),
+    PR_PAID:     (.2, .9, .2, 1),
+    PR_UNKNOWN:  (.7, .7, .7, 1),
+    PR_EXPIRED:  (.9, .2, .2, 1),
+    PR_INFLIGHT: (.9, .6, .3, 1),
+    PR_FAILED:   (.9, .2, .2, 1),
+}
+
 pr_tooltips = {
     PR_UNPAID:_('Pending'),
     PR_PAID:_('Paid'),
@@ -103,6 +112,8 @@ pr_expiration_values = {
 
 def get_request_status(req):
     status = req['status']
+    if req['status'] == PR_UNPAID and 'exp' in req and req['time'] + req['exp'] < time.time():
+        status = PR_EXPIRED
     status_str = pr_tooltips[status]
     if status == PR_UNPAID:
         if req.get('exp'):
@@ -110,7 +121,7 @@ def get_request_status(req):
             status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
         else:
             status_str = _('Pending')
-    return status_str
+    return status, status_str
 
 
 class UnknownBaseUnit(Exception): pass
