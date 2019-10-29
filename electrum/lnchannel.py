@@ -26,7 +26,7 @@ import os
 from collections import namedtuple, defaultdict
 import binascii
 import json
-from enum import Enum, auto
+from enum import IntEnum
 from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING
 import time
 
@@ -54,6 +54,42 @@ from .lnhtlc import HTLCManager
 if TYPE_CHECKING:
     from .lnworker import LNWallet
 
+
+# lightning channel states
+class channel_states(IntEnum):
+    PREOPENING      = 0 # negociating
+    OPENING         = 1 # awaiting funding tx
+    FUNDED          = 2 # funded (requires min_depth and tx verification)
+    OPEN            = 3 # both parties have sent funding_locked
+    FORCE_CLOSING   = 4 # force-close tx has been broadcast
+    CLOSING         = 5 # closing negociation
+    CLOSED          = 6 # funding txo has been spent
+    REDEEMED        = 7 # we can stop watching
+
+class peer_states(IntEnum):
+    DISCONNECTED   = 0
+    REESTABLISHING = 1
+    GOOD           = 2
+
+cs = channel_states
+state_transitions = [
+    (cs.PREOPENING, cs.OPENING),
+    (cs.OPENING, cs.FUNDED),
+    (cs.FUNDED, cs.OPEN),
+    (cs.OPENING, cs.CLOSING),
+    (cs.FUNDED, cs.CLOSING),
+    (cs.OPEN, cs.CLOSING),
+    (cs.OPENING, cs.FORCE_CLOSING),
+    (cs.FUNDED, cs.FORCE_CLOSING),
+    (cs.OPEN, cs.FORCE_CLOSING),
+    (cs.CLOSING, cs.FORCE_CLOSING),
+    (cs.OPENING, cs.CLOSED),
+    (cs.FUNDED, cs.CLOSED),
+    (cs.OPEN, cs.CLOSED),
+    (cs.CLOSING, cs.CLOSED),
+    (cs.FORCE_CLOSING, cs.CLOSED),
+    (cs.CLOSED, cs.REDEEMED),
+]
 
 class ChannelJsonEncoder(json.JSONEncoder):
     def default(self, o):
@@ -136,18 +172,13 @@ class Channel(Logger):
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
-        self.force_closed = state.get('force_closed')
         self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
         self.remote_update = bfh(state.get('remote_update')) if state.get('remote_update') else None
 
         log = state.get('log')
-        self.hm = HTLCManager(log=log,
-                              initial_feerate=initial_feerate)
-
-
-        self._is_funding_txo_spent = None  # "don't know"
-        self._state = None
-        self.set_state('DISCONNECTED')
+        self.hm = HTLCManager(log=log, initial_feerate=initial_feerate)
+        self._state = channel_states[state['state']]
+        self.peer_state = peer_states.DISCONNECTED
         self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
         self._outgoing_channel_update = None  # type: Optional[bytes]
 
@@ -184,26 +215,31 @@ class Channel(Logger):
                                                            next_per_commitment_point=None)
         self.config[LOCAL] = self.config[LOCAL]._replace(current_commitment_signature=remote_sig)
         self.hm.channel_open_finished()
-        self.set_state('OPENING')
+        self.peer_state = peer_states.GOOD
+        self.set_state(channel_states.OPENING)
 
-    def set_force_closed(self):
-        self.force_closed = True
-
-    def set_state(self, state: str):
+    def set_state(self, state):
+        """ set on-chain state """
+        if (self._state, state) not in state_transitions:
+            raise Exception(f"Transition not allowed: {self._state.name} -> {state.name}")
         self._state = state
+        self.logger.debug(f'Setting channel state: {state.name}')
+        if self.lnworker:
+            self.lnworker.save_channel(self)
+            self.lnworker.network.trigger_callback('channel', self)
 
     def get_state(self):
         return self._state
 
     def is_closed(self):
-        return self.force_closed or self.get_state() in ['CLOSED', 'CLOSING']
+        return self.get_state() > channel_states.OPEN
 
     def _check_can_pay(self, amount_msat: int) -> None:
         # TODO check if this method uses correct ctns (should use "latest" + 1)
         if self.is_closed():
             raise PaymentFailure('Channel closed')
-        if self.get_state() != 'OPEN':
-            raise PaymentFailure('Channel not open')
+        if self.get_state() != channel_states.OPEN:
+            raise PaymentFailure('Channel not open', self.get_state())
         if self.available_to_spend(LOCAL) < amount_msat:
             raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
@@ -222,12 +258,8 @@ class Channel(Logger):
             return False
         return True
 
-    def set_funding_txo_spentness(self, is_spent: bool):
-        assert isinstance(is_spent, bool)
-        self._is_funding_txo_spent = is_spent
-
     def should_try_to_reestablish_peer(self) -> bool:
-        return self._is_funding_txo_spent is False and self._state == 'DISCONNECTED'
+        return self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
@@ -624,7 +656,7 @@ class Channel(Logger):
                 "node_id": self.node_id,
                 "log": self.hm.to_save(),
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
-                "force_closed": self.force_closed,
+                "state": self._state.name,
                 "data_loss_protect_remote_pcp": str_bytes_dict_to_save(self.data_loss_protect_remote_pcp),
                 "remote_update": self.remote_update.hex() if self.remote_update else None
         }

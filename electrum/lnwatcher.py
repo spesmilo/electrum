@@ -190,7 +190,7 @@ class LNWatcher(AddressSynchronizer):
                 return
             self.network.trigger_callback('update_closed_channel', funding_outpoint, spenders,
                                           funding_txid, funding_height, closing_txid,
-                                          closing_height, closing_tx)  # FIXME sooo many args..
+                                          closing_height, closing_tx, keep_watching)  # FIXME sooo many args..
             # TODO: add tests for local_watchtower
             await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:

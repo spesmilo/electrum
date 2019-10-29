@@ -90,6 +90,10 @@ if [[ $1 == "init" ]]; then
     new_blocks 1
 fi
 
+if [[ $1 == "new_block" ]]; then
+    new_blocks 1
+fi
+
 # start daemons. Bob is started first because he is listening
 if [[ $1 == "start" ]]; then
     $bob daemon -d

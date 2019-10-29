@@ -435,7 +435,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
         if wallet.lnworker:
-            wallet.lnworker.on_channels_updated()
+            wallet.network.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus

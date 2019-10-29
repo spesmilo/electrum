@@ -136,10 +136,11 @@ class ChannelDetailsPopup(Popup):
 
     def details(self):
         chan = self.chan
+        status = self.app.wallet.lnworker.get_channel_status(chan)
         return {
             _('Short Chan ID'): format_short_channel_id(chan.short_channel_id),
             _('Initiator'): 'Local' if chan.constraints.is_initiator else 'Remote',
-            _('State'): chan.get_state(),
+            _('State'): status,
             _('Local CTN'): chan.get_latest_ctn(LOCAL),
             _('Remote CTN'): chan.get_latest_ctn(REMOTE),
             _('Capacity'): self.app.format_amount_and_units(chan.constraints.capacity),
@@ -181,7 +182,7 @@ class ChannelDetailsPopup(Popup):
     def _force_close(self, b):
         if not b:
             return
-        if self.chan.get_state() == 'CLOSED':
+        if self.chan.is_closed():
             self.app.show_error(_('Channel already closed'))
             return
         loop = self.app.wallet.network.asyncio_loop
@@ -223,7 +224,7 @@ class LightningChannelsDialog(Factory.Popup):
 
     def update_item(self, item):
         chan = item._chan
-        item.status = chan.get_state()
+        item.status = self.app.wallet.lnworker.get_channel_status(chan)
         item.short_channel_id = format_short_channel_id(chan.short_channel_id)
         l, r = self.format_fields(chan)
         item.local_balance = _('Local') + ':' + l
