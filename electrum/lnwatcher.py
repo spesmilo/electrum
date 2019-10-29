@@ -150,7 +150,9 @@ class LNWatcher(AddressSynchronizer):
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 
-    def add_channel(self, outpoint, address):
+    def add_channel(self, outpoint: str, address: str) -> None:
+        assert isinstance(outpoint, str)
+        assert isinstance(address, str)
         self.add_address(address)
         self.channels[address] = outpoint
 
