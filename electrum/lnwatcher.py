@@ -135,7 +135,7 @@ class SweepStore(SqlDB):
 
 
 class LNWatcher(AddressSynchronizer):
-    verbosity_filter = 'W'
+    LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
         AddressSynchronizer.__init__(self, JsonDB({}, manual_upgrades=False))
@@ -247,7 +247,7 @@ class LNWatcher(AddressSynchronizer):
 
 class WatchTower(LNWatcher):
 
-    verbosity_filter = 'W'
+    LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network):
         LNWatcher.__init__(self, network)
