@@ -638,18 +638,18 @@ class LNWallet(LNWorker):
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name
-            spender = spenders.get(prevout)
-            if spender is not None:
-                spender_tx = await self.network.get_transaction(spender)
+            spender_txid = spenders.get(prevout)
+            if spender_txid is not None:
+                spender_tx = await self.network.get_transaction(spender_txid)
                 spender_tx = Transaction(spender_tx)
                 e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)
                 if e_htlc_tx:
-                    spender2 = spenders.get(spender_tx.outputs()[0])
+                    spender2 = spenders.get(spender_txid+':0')
                     if spender2:
                         self.logger.info(f'htlc is already spent {name}: {prevout}')
                     else:
                         self.logger.info(f'trying to redeem htlc {name}: {prevout}')
-                        await self.try_redeem(spender+':0', e_htlc_tx)
+                        await self.try_redeem(spender_txid+':0', e_htlc_tx)
                 else:
                     self.logger.info(f'outpoint already spent {name}: {prevout}')
             else:
