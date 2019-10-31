@@ -36,6 +36,7 @@ from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
                     Callable, List, Dict, Set, TYPE_CHECKING)
 from collections import defaultdict
 from enum import IntEnum
+import itertools
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
@@ -1535,6 +1536,27 @@ class PartialTransaction(Transaction):
         # output sections
         for txout, other_txout in zip(self.outputs(), other_tx.outputs()):
             txout.combine_with_other_txout(other_txout)
+        self.invalidate_ser_cache()
+
+    def join_with_other_psbt(self, other_tx: 'PartialTransaction') -> None:
+        """Adds inputs and outputs from other_tx into this one."""
+        if not isinstance(other_tx, PartialTransaction):
+            raise Exception('Can only join partial transactions.')
+        # make sure there are no duplicate prevouts
+        prevouts = set()
+        for txin in itertools.chain(self.inputs(), other_tx.inputs()):
+            prevout_str = txin.prevout.to_str()
+            if prevout_str in prevouts:
+                raise Exception(f"Duplicate inputs! "
+                                f"Transactions that spend the same prevout cannot be joined.")
+            prevouts.add(prevout_str)
+        # copy global PSBT section
+        self.xpubs.update(other_tx.xpubs)
+        self._unknown.update(other_tx._unknown)
+        # copy and add inputs and outputs
+        self.add_inputs(list(other_tx.inputs()))
+        self.add_outputs(list(other_tx.outputs()))
+        self.remove_signatures()
         self.invalidate_ser_cache()
 
     def inputs(self) -> Sequence[PartialTxInput]:
