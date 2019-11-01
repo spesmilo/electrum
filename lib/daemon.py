@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import ast
-import atexit
 import os
 import time
 import sys
@@ -66,19 +65,7 @@ def get_fd_or_server(config):
     latest_exc = None
     for n in range(limit):
         try:
-            ret = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
-            # New: No sense in keeping the file around. It causes problems on
-            # some Linux where jsonrpc goes out to lunch truing to contact the
-            # non-existing daemon.
-            #
-            # See: https://github.com/joshmarshall/jsonrpclib/issues/12
-            #
-            # The above issue still happens occasionally. This should ensure it
-            # will be unlikely to happen. # The real fix is to implement a
-            # timeout in jsonrpclib's handler, but it's not trivial to do so --
-            # and this should work most of the time. -Calin, Oct 2019
-            atexit.register(remove_lockfile, lockfile)
-            return ret
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
         except PermissionError as e:
             sys.exit(f"Unable to create lockfile due to file system permission problems: {e}")
         except NotADirectoryError as e:
@@ -112,23 +99,17 @@ def get_server(config, timeout=2.0):
                     server_url = 'http://%s:%s@%s:%d' % (
                         rpc_user, rpc_password, host, port)
                 server = jsonrpclib.Server(server_url)
-            # Test that the daemon is running.
-            # Note: On some Linux installs this potentially hangs forever here.
-            # See: https://github.com/joshmarshall/jsonrpclib/issues/12.
-            # The real fix here would be to specify a timeout somehow on the
-            # socket. For me to implement that, I have to discover how the
-            # jsonrpclib can be monkeyu-patched. I opted to not really fix it
-            # yet, but instead delete the lockfile on app exit. -Calin, Oct 2019
+            # Test daemon is running
             server.ping()
             return server
         except Exception as e:
             print_error("[get_server]", e)
         # Note that the create_time may be in the future if there was a clock
         # adjustment by system ntp, etc. We guard against this, with some
-        # tolerance. The net effect here is in normal cases we wait for the
+        # tolerance.  The net effect here is in normal cases we wait for the
         # daemon, giving up after timeout seconds (or at worst timeout*2 seconds
-        # in the pathological case of a clock adjustment happening at the
-        # precise time the daemon was starting up).
+        # in the pathological case of a clock adjustment happening
+        # at the precise time the daemon was starting up).
         if not create_time or abs(time.time() - create_time) > timeout:
             return None
         # Sleep a bit and try again; it might have just been started
