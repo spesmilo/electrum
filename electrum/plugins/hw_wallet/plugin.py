@@ -72,6 +72,9 @@ class HW_PluginBase(BasePlugin):
         """
         raise NotImplementedError()
 
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True):
+        raise NotImplementedError()
+
     def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
         pass  # implemented in child classes
 

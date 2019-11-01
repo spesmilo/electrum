@@ -446,28 +446,39 @@ class JsonDB(Logger):
         self.put('seed_version', 19)
 
     def _convert_version_20(self):
-        # store 'derivation' (prefix) and 'root_fingerprint' in all xpub-based keystores
+        # store 'derivation' (prefix) and 'root_fingerprint' in all xpub-based keystores.
+        # store explicit None values if we cannot retroactively determine them
         if not self._is_upgrade_method_needed(19, 19):
             return
 
-        from .bip32 import BIP32Node
+        from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+        # note: This upgrade method reimplements bip32.root_fp_and_der_prefix_from_xkey.
+        #       This is done deliberately, to avoid introducing that method as a dependency to this upgrade.
         for ks_name in ('keystore', *['x{}/'.format(i) for i in range(1, 16)]):
             ks = self.get(ks_name, None)
             if ks is None: continue
             xpub = ks.get('xpub', None)
             if xpub is None: continue
+            bip32node = BIP32Node.from_xkey(xpub)
             # derivation prefix
-            derivation_prefix = ks.get('derivation', 'm')
-            ks['derivation'] = derivation_prefix
+            derivation_prefix = ks.get('derivation', None)
+            if derivation_prefix is None:
+                assert bip32node.depth >= 0, bip32node.depth
+                if bip32node.depth == 0:
+                    derivation_prefix = 'm'
+                elif bip32node.depth == 1:
+                    child_number_int = int.from_bytes(bip32node.child_number, 'big')
+                    derivation_prefix = convert_bip32_intpath_to_strpath([child_number_int])
+                ks['derivation'] = derivation_prefix
             # root fingerprint
             root_fingerprint = ks.get('ckcc_xfp', None)
             if root_fingerprint is not None:
                 root_fingerprint = root_fingerprint.to_bytes(4, byteorder="little", signed=False).hex().lower()
             if root_fingerprint is None:
-                # if we don't have prior data, we set it to the fp of the xpub
-                # EVEN IF there was already a derivation prefix saved different than 'm'
-                node = BIP32Node.from_xkey(xpub)
-                root_fingerprint = node.calc_fingerprint_of_this_node().hex().lower()
+                if bip32node.depth == 0:
+                    root_fingerprint = bip32node.calc_fingerprint_of_this_node().hex().lower()
+                elif bip32node.depth == 1:
+                    root_fingerprint = bip32node.fingerprint.hex()
             ks['root_fingerprint'] = root_fingerprint
             ks.pop('ckcc_xfp', None)
             self.put(ks_name, ks)

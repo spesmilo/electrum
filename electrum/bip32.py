@@ -3,7 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import hashlib
-from typing import List, Tuple, NamedTuple, Union, Iterable
+from typing import List, Tuple, NamedTuple, Union, Iterable, Sequence, Optional
 
 from .util import bfh, bh2u, BitcoinException
 from . import constants
@@ -335,7 +335,7 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
     return path
 
 
-def convert_bip32_intpath_to_strpath(path: List[int]) -> str:
+def convert_bip32_intpath_to_strpath(path: Sequence[int]) -> str:
     s = "m/"
     for child_index in path:
         if not isinstance(child_index, int):
@@ -363,8 +363,28 @@ def is_bip32_derivation(s: str) -> bool:
         return True
 
 
-def normalize_bip32_derivation(s: str) -> str:
+def normalize_bip32_derivation(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
     if not is_bip32_derivation(s):
         raise ValueError(f"invalid bip32 derivation: {s}")
     ints = convert_bip32_path_to_list_of_uint32(s)
     return convert_bip32_intpath_to_strpath(ints)
+
+
+def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional[str]]:
+    """Returns the root bip32 fingerprint and the derivation path from the
+    root to the given xkey, if they can be determined. Otherwise (None, None).
+    """
+    node = BIP32Node.from_xkey(xkey)
+    derivation_prefix = None
+    root_fingerprint = None
+    assert node.depth >= 0, node.depth
+    if node.depth == 0:
+        derivation_prefix = 'm'
+        root_fingerprint = node.calc_fingerprint_of_this_node().hex().lower()
+    elif node.depth == 1:
+        child_number_int = int.from_bytes(node.child_number, 'big')
+        derivation_prefix = convert_bip32_intpath_to_strpath([child_number_int])
+        root_fingerprint = node.fingerprint.hex()
+    return root_fingerprint, derivation_prefix

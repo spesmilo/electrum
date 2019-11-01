@@ -285,6 +285,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def stop_threads(self):
         super().stop_threads()
+        if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
+            self.save_keystore()
         self.storage.write()
 
     def set_up_to_date(self, b):
@@ -317,6 +319,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_master_public_key(self):
         return None
+
+    def get_master_public_keys(self):
+        return []
 
     def basename(self) -> str:
         return os.path.basename(self.storage.path)
@@ -1224,6 +1229,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def _add_input_sig_info(self, txin: PartialTxInput, address: str) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
+    def _add_txinout_derivation_info(self, txinout: Union[PartialTxInput, PartialTxOutput], address: str) -> None:
+        pass  # implemented by subclasses
+
     def _add_input_utxo_info(self, txin: PartialTxInput, address: str) -> None:
         if Transaction.is_segwit_input(txin):
             if txin.witness_utxo is None:
@@ -1312,16 +1320,7 @@ class Abstract_Wallet(AddressSynchronizer):
         txout.is_change = self.is_change(address)
         if isinstance(self, Multisig_Wallet):
             txout.num_sig = self.m
-        if isinstance(self, Deterministic_Wallet):
-            if not txout.pubkeys or len(txout.pubkeys) != len(txout.bip32_paths):
-                pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-                txout.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
-                for pubkey_hex in pubkey_deriv_info:
-                    ks, der_suffix = pubkey_deriv_info[pubkey_hex]
-                    xfp_bytes = bfh(ks.get_root_fingerprint())
-                    der_prefix = bip32.convert_bip32_path_to_list_of_uint32(ks.get_derivation_prefix())
-                    der_full = der_prefix + list(der_suffix)
-                    txout.bip32_paths[bfh(pubkey_hex)] = (xfp_bytes, der_full)
+        self._add_txinout_derivation_info(txout, address)
         if txout.redeem_script is None:
             try:
                 redeem_script_hex = self.get_redeem_script(address)
@@ -1721,6 +1720,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_keystores(self) -> Sequence[KeyStore]:
         return [self.keystore] if self.keystore else []
 
+    def save_keystore(self):
+        raise NotImplementedError()
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -1772,9 +1774,6 @@ class Imported_Wallet(Simple_Wallet):
 
     def is_change(self, address):
         return False
-
-    def get_master_public_keys(self):
-        return []
 
     def is_beyond_limit(self, address):
         return False
@@ -1903,7 +1902,8 @@ class Imported_Wallet(Simple_Wallet):
         return self.db.get_imported_address(address).get('type', 'address')
 
     def _add_input_sig_info(self, txin, address):
-        assert self.is_mine(address)
+        if not self.is_mine(address):
+            return
         if txin.script_type in ('unknown', 'address'):
             return
         elif txin.script_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
@@ -2014,15 +2014,17 @@ class Deterministic_Wallet(Abstract_Wallet):
                 for k in self.get_keystores()}
 
     def _add_input_sig_info(self, txin, address):
-        assert self.is_mine(address)
+        self._add_txinout_derivation_info(txin, address)
+
+    def _add_txinout_derivation_info(self, txinout, address):
+        if not self.is_mine(address):
+            return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txin.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
+        txinout.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
         for pubkey_hex in pubkey_deriv_info:
             ks, der_suffix = pubkey_deriv_info[pubkey_hex]
-            xfp_bytes = bfh(ks.get_root_fingerprint())
-            der_prefix = bip32.convert_bip32_path_to_list_of_uint32(ks.get_derivation_prefix())
-            der_full = der_prefix + list(der_suffix)
-            txin.bip32_paths[bfh(pubkey_hex)] = (xfp_bytes, der_full)
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix)
+            txinout.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
 
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool

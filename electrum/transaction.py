@@ -1453,7 +1453,8 @@ class PartialTransaction(Transaction):
                         raise SerializationError(f"duplicate key: {repr(kt)}")
                     xfp, path = unpack_bip32_root_fingerprint_and_int_path(val)
                     if bip32node.depth != len(path):
-                        raise SerializationError(f"PSBT global xpub has mismatching depth and derivation prefix len")
+                        raise SerializationError(f"PSBT global xpub has mismatching depth ({bip32node.depth}) "
+                                                 f"and derivation prefix len ({len(path)})")
                     child_number_of_xpub = int.from_bytes(bip32node.child_number, 'big')
                     if not ((bip32node.depth == 0 and child_number_of_xpub == 0)
                             or (bip32node.depth != 0 and child_number_of_xpub == path[-1])):
@@ -1736,10 +1737,9 @@ class PartialTransaction(Transaction):
         from .keystore import Xpub
         for ks in wallet.get_keystores():
             if isinstance(ks, Xpub):
-                bip32node = BIP32Node.from_xkey(ks.get_master_public_key())
-                xfp_bytes = bfh(ks.get_root_fingerprint())
-                der_prefix = bip32.convert_bip32_path_to_list_of_uint32(ks.get_derivation_prefix())
-                self.xpubs[bip32node] = (xfp_bytes, der_prefix)
+                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[])
+                bip32node = BIP32Node.from_xkey(ks.get_xpub_to_be_used_in_partial_tx())
+                self.xpubs[bip32node] = (fp_bytes, der_full)
         for txin in self.inputs():
             wallet.add_input_info(txin)
         for txout in self.outputs():

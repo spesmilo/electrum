@@ -266,13 +266,18 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         d['ckcc_xpub'] = self.ckcc_xpub
         return d
 
+    def get_xfp_int(self) -> int:
+        xfp = self.get_root_fingerprint()
+        assert xfp is not None
+        return xfp_int_from_xfp_bytes(bfh(xfp))
+
     def get_client(self):
         # called when user tries to do something like view address, sign somthing.
         # - not called during probing/setup
         # - will fail if indicated device can't produce the xpub (at derivation) expected
         rv = self.plugin.get_client(self)
         if rv:
-            xfp_int = xfp_int_for_keystore(self)
+            xfp_int = self.get_xfp_int()
             rv.verify_connection(xfp_int, self.ckcc_xpub)
 
         return rv
@@ -363,7 +368,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         client = self.get_client()
 
-        assert client.dev.master_fingerprint == xfp_int_for_keystore(self)
+        assert client.dev.master_fingerprint == self.get_xfp_int()
 
         raw_psbt = tx.serialize_as_bytes()
 
@@ -570,9 +575,11 @@ class ColdcardPlugin(HW_PluginBase):
         xpubs = []
         derivs = set()
         for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-            der_prefix = ks.get_derivation_prefix()
-            xpubs.append( (ks.get_root_fingerprint(), xpub, der_prefix) )
-            derivs.add(der_prefix)
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[])
+            fp_hex = fp_bytes.hex().upper()
+            der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
+            xpubs.append( (fp_hex, xpub, der_prefix_str) )
+            derivs.add(der_prefix_str)
 
         # Derivation doesn't matter too much to the Coldcard, since it
         # uses key path data from PSBT or USB request as needed. However,
@@ -613,10 +620,9 @@ class ColdcardPlugin(HW_PluginBase):
             xfp_paths = []
             for pubkey_hex in pubkey_deriv_info:
                 ks, der_suffix = pubkey_deriv_info[pubkey_hex]
-                xfp_int = xfp_int_for_keystore(ks)
-                der_prefix = bip32.convert_bip32_path_to_list_of_uint32(ks.get_derivation_prefix())
-                der_full = der_prefix + list(der_suffix)
-                xfp_paths.append([xfp_int] + der_full)
+                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix)
+                xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
+                xfp_paths.append([xfp_int] + list(der_full))
 
             script = bfh(wallet.pubkeys_to_scriptcode(pubkeys))
 
@@ -627,9 +633,8 @@ class ColdcardPlugin(HW_PluginBase):
             return
 
 
-def xfp_int_for_keystore(keystore: Xpub) -> int:
-    xfp = keystore.get_root_fingerprint()
-    return int.from_bytes(bfh(xfp), byteorder="little", signed=False)
+def xfp_int_from_xfp_bytes(fp_bytes: bytes) -> int:
+    return int.from_bytes(fp_bytes, byteorder="little", signed=False)
 
 
 def xfp2str(xfp: int) -> str:
