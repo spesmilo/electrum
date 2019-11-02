@@ -20,7 +20,7 @@ Electron Cash - Lightweight Bitcoin Cash client
 Getting started
 ===============
 
-*Note: If running from source, Python 3.6 or above is required to run Electron Cash. If your system lacks Python 3.6, 
+*Note: If running from source, Python 3.6 or above is required to run Electron Cash. If your system lacks Python 3.6,
 you have other options, such as the* `binary releases <https://github.com/Electron-Cash/Electron-Cash/releases/>`_.
 
 Electron Cash is a pure python application forked from Electrum. If you want to use the Qt interface, install the Qt dependencies::
@@ -61,19 +61,17 @@ If you still have problems connecting to your Nano S please have a look at this
 Development version
 ===================
 
+Check your python version >= 3.6, and install pyqt5, as instructed above in the
+`Getting started`_ section.
+
 Check out the code from Github::
 
     git clone https://github.com/Electron-Cash/Electron-Cash
     cd Electron-Cash
 
-Run install (this should install dependencies)::
+Install the python dependencies::
 
-    python3 setup.py install
-
-or for Debian based systems ( tested on Debian v9 Stretch )::
-
-    sudo apt update
-    sudo apt install python3-dnspython python3-pyaes libsecp256k1-0 python3-protobuf python3-jsonrpclib-pelix python3-ecdsa python3-qrcode python3-pyqt5 python3-socks
+    pip3 install -r contrib/requirements/requirements.txt --user
 
 Then
 
@@ -89,6 +87,7 @@ Create translations (optional)::
 
 Compile libsecp256k1 (optional, yet highly recommended)::
 
+    sudo apt-get install libtool automake
     ./contrib/make_secp
 
 For plugin development, see the `plugin documentation <plugins/README.rst>`_.
