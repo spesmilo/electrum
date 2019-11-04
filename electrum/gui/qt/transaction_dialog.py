@@ -96,7 +96,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # if the wallet can populate the inputs with more info, do it now.
         # as a result, e.g. we might learn an imported address tx is segwit,
-        # in which case it's ok to display txid
+        # or that a beyond-gap-limit address is is_mine
         tx.add_info_from_wallet(self.wallet)
 
         self.setMinimumWidth(950)

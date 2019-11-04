@@ -1226,10 +1226,11 @@ class Abstract_Wallet(AddressSynchronizer):
         locktime = get_locktime_for_new_transaction(self.network)
         return PartialTransaction.from_io(inputs, outputs, locktime=locktime)
 
-    def _add_input_sig_info(self, txin: PartialTxInput, address: str) -> None:
+    def _add_input_sig_info(self, txin: PartialTxInput, address: str, *, only_der_suffix: bool = True) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
-    def _add_txinout_derivation_info(self, txinout: Union[PartialTxInput, PartialTxOutput], address: str) -> None:
+    def _add_txinout_derivation_info(self, txinout: Union[PartialTxInput, PartialTxOutput],
+                                     address: str, *, only_der_suffix: bool = True) -> None:
         pass  # implemented by subclasses
 
     def _add_input_utxo_info(self, txin: PartialTxInput, address: str) -> None:
@@ -1255,7 +1256,7 @@ class Abstract_Wallet(AddressSynchronizer):
         """
         return False  # implemented by subclasses
 
-    def add_input_info(self, txin: PartialTxInput) -> None:
+    def add_input_info(self, txin: PartialTxInput, *, only_der_suffix: bool = True) -> None:
         address = self.get_txin_address(txin)
         if not self.is_mine(address):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
@@ -1277,7 +1278,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 txin.witness_script = bfh(witness_script_hex) if witness_script_hex else None
             except UnknownTxinType:
                 pass
-        self._add_input_sig_info(txin, address)
+        self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
@@ -1309,7 +1310,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 tx = Transaction(raw_tx)
         return tx
 
-    def add_output_info(self, txout: PartialTxOutput) -> None:
+    def add_output_info(self, txout: PartialTxOutput, *, only_der_suffix: bool = True) -> None:
         address = txout.address
         if not self.is_mine(address):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txout, address)
@@ -1320,7 +1321,7 @@ class Abstract_Wallet(AddressSynchronizer):
         txout.is_change = self.is_change(address)
         if isinstance(self, Multisig_Wallet):
             txout.num_sig = self.m
-        self._add_txinout_derivation_info(txout, address)
+        self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
         if txout.redeem_script is None:
             try:
                 redeem_script_hex = self.get_redeem_script(address)
@@ -1339,14 +1340,21 @@ class Abstract_Wallet(AddressSynchronizer):
             return
         if not isinstance(tx, PartialTransaction):
             return
-        tx.add_info_from_wallet(self)
+        # add info to a temporary tx copy; including xpubs
+        # and full derivation paths as hw keystores might want them
+        tmp_tx = copy.deepcopy(tx)
+        tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
         # sign. start with ready keystores.
         for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
-                if k.can_sign(tx):
-                    k.sign_transaction(tx, password)
+                if k.can_sign(tmp_tx):
+                    k.sign_transaction(tmp_tx, password)
             except UserCancelled:
                 continue
+        # remove sensitive info; then copy back details from temporary tx
+        tmp_tx.remove_xpubs_and_bip32_paths()
+        tx.combine_with_other_psbt(tmp_tx)
+        tx.add_info_from_wallet(self, include_xpubs_and_full_paths=False)
         return tx
 
     def try_detecting_internal_addresses_corruption(self):
@@ -1901,7 +1909,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_txin_type(self, address):
         return self.db.get_imported_address(address).get('type', 'address')
 
-    def _add_input_sig_info(self, txin, address):
+    def _add_input_sig_info(self, txin, address, *, only_der_suffix=True):
         if not self.is_mine(address):
             return
         if txin.script_type in ('unknown', 'address'):
@@ -2013,17 +2021,18 @@ class Deterministic_Wallet(Abstract_Wallet):
         return {k.derive_pubkey(*der_suffix): (k, der_suffix)
                 for k in self.get_keystores()}
 
-    def _add_input_sig_info(self, txin, address):
-        self._add_txinout_derivation_info(txin, address)
+    def _add_input_sig_info(self, txin, address, *, only_der_suffix=True):
+        self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
 
-    def _add_txinout_derivation_info(self, txinout, address):
+    def _add_txinout_derivation_info(self, txinout, address, *, only_der_suffix=True):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
         txinout.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
         for pubkey_hex in pubkey_deriv_info:
             ks, der_suffix = pubkey_deriv_info[pubkey_hex]
-            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix)
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
+                                                                                   only_der_suffix=only_der_suffix)
             txinout.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
 
     def create_new_address(self, for_change=False):

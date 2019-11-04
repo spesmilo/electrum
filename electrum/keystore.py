@@ -349,14 +349,15 @@ class Xpub:
         """
         return self._root_fingerprint
 
-    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int]) -> Tuple[bytes, Sequence[int]]:
-        """Returns fingerprint and 'full' derivation path corresponding to a derivation suffix.
-        The fingerprint is either the root fp or the intermediate fp, depending on what is available,
-        and the 'full' derivation path is adjusted accordingly.
+    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int], *,
+                                                       only_der_suffix: bool = True) -> Tuple[bytes, Sequence[int]]:
+        """Returns fingerprint and derivation path corresponding to a derivation suffix.
+        The fingerprint is either the root fp or the intermediate fp, depending on what is available
+        and 'only_der_suffix', and the derivation path is adjusted accordingly.
         """
         fingerprint_hex = self.get_root_fingerprint()
         der_prefix_str = self.get_derivation_prefix()
-        if fingerprint_hex is not None and der_prefix_str is not None:
+        if not only_der_suffix and fingerprint_hex is not None and der_prefix_str is not None:
             # use root fp, and true full path
             fingerprint_bytes = bfh(fingerprint_hex)
             der_prefix_ints = convert_bip32_path_to_list_of_uint32(der_prefix_str)
@@ -367,9 +368,10 @@ class Xpub:
         der_full = der_prefix_ints + list(der_suffix)
         return fingerprint_bytes, der_full
 
-    def get_xpub_to_be_used_in_partial_tx(self) -> str:
+    def get_xpub_to_be_used_in_partial_tx(self, *, only_der_suffix: bool) -> str:
         assert self.xpub
-        fp_bytes, der_full = self.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[])
+        fp_bytes, der_full = self.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[],
+                                                                                 only_der_suffix=only_der_suffix)
         bip32node = BIP32Node.from_xkey(self.xpub)
         depth = len(der_full)
         child_number_int = der_full[-1] if len(der_full) >= 1 else 0
@@ -603,7 +605,8 @@ class Old_KeyStore(Deterministic_KeyStore):
         return self._root_fingerprint
 
     # TODO Old_KeyStore and Xpub could share a common baseclass?
-    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int]) -> Tuple[bytes, Sequence[int]]:
+    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int], *,
+                                                       only_der_suffix: bool = True) -> Tuple[bytes, Sequence[int]]:
         fingerprint_hex = self.get_root_fingerprint()
         der_prefix_str = self.get_derivation_prefix()
         fingerprint_bytes = bfh(fingerprint_hex)

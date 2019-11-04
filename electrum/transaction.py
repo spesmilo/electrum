@@ -1731,19 +1731,46 @@ class PartialTransaction(Transaction):
         txin.witness = None
         self.invalidate_ser_cache()
 
-    def add_info_from_wallet(self, wallet: 'Abstract_Wallet') -> None:
+    def add_info_from_wallet(self, wallet: 'Abstract_Wallet', *,
+                             include_xpubs_and_full_paths: bool = False) -> None:
         if self.is_complete():
             return
-        from .keystore import Xpub
-        for ks in wallet.get_keystores():
-            if isinstance(ks, Xpub):
-                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[])
-                bip32node = BIP32Node.from_xkey(ks.get_xpub_to_be_used_in_partial_tx())
-                self.xpubs[bip32node] = (fp_bytes, der_full)
+        only_der_suffix = not include_xpubs_and_full_paths
+        if include_xpubs_and_full_paths:
+            from .keystore import Xpub
+            for ks in wallet.get_keystores():
+                if isinstance(ks, Xpub):
+                    fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[],
+                                                                                           only_der_suffix=only_der_suffix)
+                    xpub = ks.get_xpub_to_be_used_in_partial_tx(only_der_suffix=only_der_suffix)
+                    bip32node = BIP32Node.from_xkey(xpub)
+                    self.xpubs[bip32node] = (fp_bytes, der_full)
         for txin in self.inputs():
-            wallet.add_input_info(txin)
+            wallet.add_input_info(txin, only_der_suffix=only_der_suffix)
         for txout in self.outputs():
-            wallet.add_output_info(txout)
+            wallet.add_output_info(txout, only_der_suffix=only_der_suffix)
+
+    def remove_xpubs_and_bip32_paths(self) -> None:
+        self.xpubs.clear()
+        for txin in self.inputs():
+            txin.bip32_paths.clear()
+        for txout in self.outputs():
+            txout.bip32_paths.clear()
+
+    def prepare_for_export_for_coinjoin(self) -> None:
+        """Removes all sensitive details."""
+        # globals
+        self.xpubs.clear()
+        self._unknown.clear()
+        # inputs
+        for txin in self.inputs():
+            txin.bip32_paths.clear()
+        # outputs
+        for txout in self.outputs():
+            txout.redeem_script = None
+            txout.witness_script = None
+            txout.bip32_paths.clear()
+            txout._unknown.clear()
 
     def remove_signatures(self):
         for txin in self.inputs():

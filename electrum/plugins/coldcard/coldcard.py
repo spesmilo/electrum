@@ -575,7 +575,7 @@ class ColdcardPlugin(HW_PluginBase):
         xpubs = []
         derivs = set()
         for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[])
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[], only_der_suffix=False)
             fp_hex = fp_bytes.hex().upper()
             der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
             xpubs.append( (fp_hex, xpub, der_prefix_str) )
@@ -620,7 +620,7 @@ class ColdcardPlugin(HW_PluginBase):
             xfp_paths = []
             for pubkey_hex in pubkey_deriv_info:
                 ks, der_suffix = pubkey_deriv_info[pubkey_hex]
-                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix)
+                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix, only_der_suffix=False)
                 xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
                 xfp_paths.append([xfp_int] + list(der_full))
 
