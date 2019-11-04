@@ -28,7 +28,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
@@ -144,16 +144,13 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.clicked.connect(self.close)
         b.setDefault(True)
 
-        export_actions_menu = QMenu()
-        action = QAction(_("Copy to clipboard"), self)
-        action.triggered.connect(lambda: parent.app.clipboard().setText((lambda: str(self.tx))()))
-        export_actions_menu.addAction(action)
-        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
-        action.triggered.connect(self.show_qr)
-        export_actions_menu.addAction(action)
-        action = QAction(_("Export to file"), self)
-        action.triggered.connect(self.export)
-        export_actions_menu.addAction(action)
+        self.export_actions_menu = export_actions_menu = QMenu()
+        self.add_export_actions_to_menu(export_actions_menu)
+        export_actions_menu.addSeparator()
+        if isinstance(tx, PartialTransaction):
+            export_for_coinjoin_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
+            self.add_export_actions_to_menu(export_for_coinjoin_submenu, gettx=self._gettx_for_coinjoin)
+
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Export"))
         self.export_actions_button.setMenu(export_actions_menu)
@@ -167,7 +164,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         ptx_join_txs_action.triggered.connect(self.join_tx_with_another)
         partial_tx_actions_menu.addAction(ptx_join_txs_action)
         self.partial_tx_actions_button = QToolButton()
-        self.partial_tx_actions_button.setText(_("Combine with other"))
+        self.partial_tx_actions_button.setText(_("Combine"))
         self.partial_tx_actions_button.setMenu(partial_tx_actions_menu)
         self.partial_tx_actions_button.setPopupMode(QToolButton.InstantPopup)
 
@@ -212,8 +209,39 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Override escape-key to close normally (and invoke closeEvent)
         self.close()
 
-    def show_qr(self):
-        text = self.tx.serialize_as_bytes()
+    def add_export_actions_to_menu(self, menu: QMenu, *, gettx: Callable[[], Transaction] = None) -> None:
+        if gettx is None:
+            gettx = lambda: None
+
+        action = QAction(_("Copy to clipboard"), self)
+        action.triggered.connect(lambda: self.copy_to_clipboard(tx=gettx()))
+        menu.addAction(action)
+
+        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
+        action.triggered.connect(lambda: self.show_qr(tx=gettx()))
+        menu.addAction(action)
+
+        action = QAction(_("Export to file"), self)
+        action.triggered.connect(lambda: self.export_to_file(tx=gettx()))
+        menu.addAction(action)
+
+    def _gettx_for_coinjoin(self) -> PartialTransaction:
+        if not isinstance(self.tx, PartialTransaction):
+            raise Exception("Can only export partial transactions for coinjoins.")
+        tx = copy.deepcopy(self.tx)
+        tx.prepare_for_export_for_coinjoin()
+        return tx
+
+    def copy_to_clipboard(self, *, tx: Transaction = None):
+        if tx is None:
+            tx = self.tx
+        self.main_window.app.clipboard().setText(str(tx))
+
+    def show_qr(self, *, tx: Transaction = None):
+        if tx is None:
+            tx = self.tx
+        text = tx.serialize_as_bytes()
         text = base_encode(text, base=43)
         try:
             self.main_window.show_qrcode(text, 'Transaction', parent=self)
@@ -245,24 +273,26 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.saved = True
         self.main_window.pop_top_level_window(self)
 
-    def export(self):
-        if isinstance(self.tx, PartialTransaction):
-            self.tx.finalize_psbt()
-        if self.tx.is_complete():
-            name = 'signed_%s.txn' % (self.tx.txid()[0:8])
+    def export_to_file(self, *, tx: Transaction = None):
+        if tx is None:
+            tx = self.tx
+        if isinstance(tx, PartialTransaction):
+            tx.finalize_psbt()
+        if tx.is_complete():
+            name = 'signed_%s.txn' % (tx.txid()[0:8])
         else:
             name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M.psbt')
         fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn;;*.psbt")
         if not fileName:
             return
-        if self.tx.is_complete():  # network tx hex
+        if tx.is_complete():  # network tx hex
             with open(fileName, "w+") as f:
-                network_tx_hex = self.tx.serialize_to_network()
+                network_tx_hex = tx.serialize_to_network()
                 f.write(network_tx_hex + '\n')
         else:  # if partial: PSBT bytes
-            assert isinstance(self.tx, PartialTransaction)
+            assert isinstance(tx, PartialTransaction)
             with open(fileName, "wb+") as f:
-                f.write(self.tx.serialize_as_bytes())
+                f.write(tx.serialize_as_bytes())
 
         self.show_message(_("Transaction exported successfully"))
         self.saved = True

@@ -1,15 +1,17 @@
 import time, os
 from functools import partial
+import copy
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
-from PyQt5.QtWidgets import QFileDialog
+
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrum.gui.qt.transaction_dialog import TxDialog
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet, Multisig_Wallet
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
-from electrum.transaction import Transaction
+from electrum.wallet import Multisig_Wallet
+from electrum.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -67,6 +69,24 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             with open(fileName, "wt") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
+
+    @hook
+    def transaction_dialog(self, dia: TxDialog):
+        # if not a Coldcard wallet, hide feature
+        if not any(type(ks) == self.keystore_class for ks in dia.wallet.get_keystores()):
+            return
+
+        def gettx_for_coldcard_export() -> PartialTransaction:
+            if not isinstance(dia.tx, PartialTransaction):
+                raise Exception("Can only export partial transactions for coinjoins.")
+            tx = copy.deepcopy(dia.tx)
+            tx.add_info_from_wallet(dia.wallet, include_xpubs_and_full_paths=True)
+            return tx
+
+        # add a new "export" option
+        if isinstance(dia.tx, PartialTransaction):
+            export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
+            dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
