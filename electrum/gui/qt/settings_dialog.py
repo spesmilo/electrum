@@ -120,15 +120,6 @@ class SettingsDialog(WindowModalDialog):
         fee_type_combo.currentIndexChanged.connect(on_fee_type)
         fee_widgets.append((fee_type_label, fee_type_combo))
 
-        feebox_cb = QCheckBox(_('Edit fees manually'))
-        feebox_cb.setChecked(bool(self.config.get('show_fee', False)))
-        feebox_cb.setToolTip(_("Show fee edit box in send tab."))
-        def on_feebox(x):
-            self.config.set_key('show_fee', x == Qt.Checked)
-            self.window.fee_adv_controls.setVisible(bool(x))
-        feebox_cb.stateChanged.connect(on_feebox)
-        fee_widgets.append((feebox_cb, None))
-
         use_rbf = bool(self.config.get('use_rbf', True))
         use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
         use_rbf_cb.setChecked(use_rbf)
@@ -320,6 +311,14 @@ that is always connected to the internet. Configure a port if you want it to be 
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
         gui_widgets.append((filelogging_cb, None))
+
+        preview_cb = QCheckBox(_('Advanced preview'))
+        preview_cb.setChecked(bool(self.config.get('advanced_preview', False)))
+        preview_cb.setToolTip(_("Open advanced transaction preview dialog when 'Pay' is clicked."))
+        def on_preview(x):
+            self.config.set_key('advanced_preview', x == Qt.Checked)
+        preview_cb.stateChanged.connect(on_preview)
+        tx_widgets.append((preview_cb, None))
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.window.wallet.use_change)

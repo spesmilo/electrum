@@ -28,12 +28,12 @@ from enum import IntEnum
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
-from PyQt5.QtWidgets import QAbstractItemView, QMenu
+from PyQt5.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
 
 from electrum.i18n import _
 from electrum.transaction import PartialTxInput
 
-from .util import MyTreeView, ColorScheme, MONOSPACE_FONT
+from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
 
 
 class UTXOList(MyTreeView):
@@ -58,6 +58,9 @@ class UTXOList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.LABEL,
                          editable_columns=[])
+        self.cc_label = QLabel('')
+        self.clear_cc_button = EnterButton(_('Reset'), lambda: self.set_spend_list([]))
+        self.spend_list = []
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -72,6 +75,11 @@ class UTXOList(MyTreeView):
         for idx, utxo in enumerate(utxos):
             self.insert_utxo(idx, utxo)
         self.filter()
+        self.clear_cc_button.setEnabled(bool(self.spend_list))
+        coins = [self.utxo_dict[x] for x in self.spend_list] or utxos
+        amount = sum(x.value_sats() for x in coins)
+        amount_str = self.parent.format_amount_and_units(amount)
+        self.cc_label.setText('%d outputs, %s'%(len(coins), amount_str))
 
     def insert_utxo(self, idx, utxo: PartialTxInput):
         address = utxo.address
@@ -88,10 +96,13 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
-        if self.wallet.is_frozen_address(address):
+        if name in self.spend_list:
+            for i in range(5):
+                utxo_item[i].setBackground(ColorScheme.GREEN.as_color(True))
+        elif self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
-        if self.wallet.is_frozen_coin(utxo):
+        elif self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is frozen')}")
         else:
@@ -106,6 +117,20 @@ class UTXOList(MyTreeView):
             return None
         return [x.data(Qt.UserRole) for x in items]
 
+    def set_spend_list(self, coins):
+        self.spend_list = [utxo.prevout.to_str() for utxo in coins]
+        self.update()
+
+    def get_spend_list(self):
+        return [self.utxo_dict[x] for x in self.spend_list]
+
+    def get_toolbar(self):
+        h = QHBoxLayout()
+        h.addWidget(self.cc_label)
+        h.addStretch()
+        h.addWidget(self.clear_cc_button)
+        return h
+
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
         if not selected:
@@ -113,7 +138,7 @@ class UTXOList(MyTreeView):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         coins = [self.utxo_dict[name] for name in selected]
-        menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
+        menu.addAction(_("Spend"), lambda: self.set_spend_list(coins))
         assert len(coins) >= 1, len(coins)
         if len(coins) == 1:
             utxo = coins[0]

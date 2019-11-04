@@ -27,6 +27,7 @@ from enum import IntEnum
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QHeaderView, QMenu, QVBoxLayout, QGridLayout, QLabel, QTreeWidget, QTreeWidgetItem
 
 from electrum.i18n import _
@@ -70,6 +71,7 @@ class InvoiceList(MyTreeView):
                          editable_columns=[])
         self.setSortingEnabled(True)
         self.setModel(QStandardItemModel(self))
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
     def update_item(self, key, status):
@@ -143,6 +145,10 @@ class InvoiceList(MyTreeView):
         export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
+        items = self.selected_in_column(0)
+        if len(items) > 1:
+            print(items)
+            return
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
         item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
