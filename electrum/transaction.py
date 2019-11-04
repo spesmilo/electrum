@@ -1744,7 +1744,11 @@ class PartialTransaction(Transaction):
         if self.is_complete():
             return
         only_der_suffix = not include_xpubs_and_full_paths
-        if include_xpubs_and_full_paths:
+        # only include xpubs for multisig wallets; currently only they need it in practice,
+        # and also the coldcard fw have a limitation that if they are included then all
+        # inputs are assumed to be multisig... https://github.com/spesmilo/electrum/pull/5440#issuecomment-549504761
+        from .wallet import Multisig_Wallet
+        if include_xpubs_and_full_paths and isinstance(wallet, Multisig_Wallet):
             from .keystore import Xpub
             for ks in wallet.get_keystores():
                 if isinstance(ks, Xpub):
