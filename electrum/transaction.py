@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
 
 _logger = get_logger(__name__)
+DEBUG_PSBT_PARSING = False
 
 
 class SerializationError(Exception):
@@ -1075,7 +1076,7 @@ class PartialTxInput(TxInput, PSBTSection):
             kt = PSBTInputType(kt)
         except ValueError:
             pass  # unknown type
-        #print(f"{repr(kt)} {key.hex()} {val.hex()}")
+        if DEBUG_PSBT_PARSING: print(f"{repr(kt)} {key.hex()} {val.hex()}")
         if kt == PSBTInputType.NON_WITNESS_UTXO:
             if self.utxo is not None:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
@@ -1150,7 +1151,7 @@ class PartialTxInput(TxInput, PSBTSection):
             wr(PSBTInputType.REDEEM_SCRIPT, self.redeem_script)
         if self.witness_script is not None:
             wr(PSBTInputType.WITNESS_SCRIPT, self.witness_script)
-        for k in self.bip32_paths:
+        for k in sorted(self.bip32_paths):
             packed_path = pack_bip32_root_fingerprint_and_int_path(*self.bip32_paths[k])
             wr(PSBTInputType.BIP32_DERIVATION, packed_path, k)
         if self.script_sig is not None:
@@ -1330,7 +1331,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
             kt = PSBTOutputType(kt)
         except ValueError:
             pass  # unknown type
-        #print(f"{repr(kt)} {key.hex()} {val.hex()}")
+        if DEBUG_PSBT_PARSING: print(f"{repr(kt)} {key.hex()} {val.hex()}")
         if kt == PSBTOutputType.REDEEM_SCRIPT:
             if self.redeem_script is not None:
                 raise SerializationError(f"duplicate key: {repr(kt)}")
@@ -1359,7 +1360,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
             wr(PSBTOutputType.REDEEM_SCRIPT, self.redeem_script)
         if self.witness_script is not None:
             wr(PSBTOutputType.WITNESS_SCRIPT, self.witness_script)
-        for k in self.bip32_paths:
+        for k in sorted(self.bip32_paths):
             packed_path = pack_bip32_root_fingerprint_and_int_path(*self.bip32_paths[k])
             wr(PSBTOutputType.BIP32_DERIVATION, packed_path, k)
         for full_key, val in sorted(self._unknown.items()):
@@ -1452,7 +1453,7 @@ class PartialTransaction(Transaction):
                     kt = PSBTGlobalType(kt)
                 except ValueError:
                     pass  # unknown type
-                #print(f"{repr(kt)} {key.hex()} {val.hex()}")
+                if DEBUG_PSBT_PARSING: print(f"{repr(kt)} {key.hex()} {val.hex()}")
                 if kt == PSBTGlobalType.UNSIGNED_TX:
                     pass  # already handled during "first" parsing pass
                 elif kt == PSBTGlobalType.XPUB:
@@ -1477,9 +1478,11 @@ class PartialTransaction(Transaction):
             try:
                 # inputs sections
                 for txin in tx.inputs():
+                    if DEBUG_PSBT_PARSING: print("-> new input starts")
                     txin._populate_psbt_fields_from_fd(fd)
                 # outputs sections
                 for txout in tx.outputs():
+                    if DEBUG_PSBT_PARSING: print("-> new output starts")
                     txout._populate_psbt_fields_from_fd(fd)
             except UnexpectedEndOfStream:
                 raise UnexpectedEndOfStream('Unexpected end of stream. Num input and output maps provided does not match unsigned tx.') from None
@@ -1680,17 +1683,23 @@ class PartialTransaction(Transaction):
         return s, r
 
     def serialize(self) -> str:
+        """Returns PSBT as base64 text, or raw hex of network tx (if complete)."""
         self.finalize_psbt()
         if self.is_complete():
             return Transaction.serialize(self)
-        return self.serialize_as_base64()
+        return self._serialize_as_base64()
 
-    def serialize_as_bytes(self) -> bytes:
-        with io.BytesIO() as fd:
-            self._serialize_psbt(fd)
-            return fd.getvalue()
+    def serialize_as_bytes(self, *, force_psbt: bool = False) -> bytes:
+        """Returns PSBT as raw bytes, or raw bytes of network tx (if complete)."""
+        self.finalize_psbt()
+        if force_psbt or not self.is_complete():
+            with io.BytesIO() as fd:
+                self._serialize_psbt(fd)
+                return fd.getvalue()
+        else:
+            return Transaction.serialize_as_bytes(self)
 
-    def serialize_as_base64(self) -> str:
+    def _serialize_as_base64(self) -> str:
         raw_bytes = self.serialize_as_bytes()
         return base64.b64encode(raw_bytes).decode('ascii')
 
