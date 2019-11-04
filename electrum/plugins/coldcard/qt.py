@@ -201,7 +201,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         else:
             desc = _("Combined from %d PSBT files") % len(psbts)
 
-        window.show_transaction(tx, desc)
+        window.show_transaction(tx, tx_desc=desc)
 
 class Coldcard_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
