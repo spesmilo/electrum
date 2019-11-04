@@ -2041,6 +2041,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 self.show_error(_('CoinText: Please specify an amount'))
 
+    def _chk_no_segwit_suspects(self):
+        ''' Makes sure the payto_e has no addresses that might be BTC segwit
+        in it and if it does, warn user. Intended to be called from do_send.
+        Returns True if no segwit suspects were detected in the payto_e,
+        False otherwise.  If False is returned, a suitable error dialog
+        will have already been presented to the user. '''
+        if bool(self.config.get('allow_legacy_p2sh', False)):
+            return True
+        segwits = set()
+        prefix_char = '3' if not networks.net.TESTNET else '2'
+        for line in self.payto_e.lines():
+            line = line.strip()
+            if ':' in line and line.lower().startswith(networks.net.CASHADDR_PREFIX + ":"):
+                line = line.split(':', 1)[1]  # strip bitcoincash: prefix
+            if ',' in line:
+                line = line.split(',', 1)[0]  # if address, amount line, strip address out and ignore rest
+            line = line.strip()
+            if line.startswith(prefix_char) and Address.is_valid(line):
+                segwits.add(line)
+        if segwits:
+            msg = ngettext("Possible BTC Segwit address in 'Pay to' field. "
+                           "Please use CashAddr format for p2sh addresses.\n\n{segwit_addresses}",
+                           "Possible BTC Segwit addresses in 'Pay to' field. "
+                           "Please use CashAddr format for p2sh addresses.\n\n{segwit_addresses}",
+                           len(segwits)).format(segwit_addresses='\n'.join(segwits))
+            detail = _("Legacy '{prefix_char}...' p2sh address support in the Send tab is "
+                       "restricted by default in order to prevent inadvertently "
+                       "sending BCH to Segwit BTC addresses.\n\n"
+                       "If you are an expert user, go to 'Preferences -> Transactions' "
+                       "to enable the use of legacy p2sh addresses in the Send tab.").format(prefix_char=prefix_char)
+            self.show_error(msg, detail_text=detail)
+            return False
+        return True
+
     def do_preview(self):
         self.do_send(preview = True)
 
@@ -2051,6 +2085,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # paranoia -- force a resolve right away in case user pasted an
         # openalias or cashacct and hit preview too quickly.
         self.payto_e.resolve(force_if_has_focus=True)
+
+        if not self._chk_no_segwit_suspects():
+            return
 
         r = self.read_send_tab()
         if not r:
@@ -4355,7 +4392,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         notify_tx_cb.stateChanged.connect(on_notify_tx)
         per_wallet_tx_widgets.append((notify_tx_cb, None))
 
-
         usechange_cb = QCheckBox(_('Use change addresses'))
         if self.force_use_single_change_addr:
             usechange_cb.setChecked(True)
@@ -4422,6 +4458,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         opret_cb.setChecked(enable_opreturn)
         opret_cb.stateChanged.connect(self.on_toggled_opreturn)
         global_tx_widgets.append((opret_cb,None))
+
+        # Legacy BCT Segwit Send Protection™
+        legacy_p2sh_cb = QCheckBox(_('Allow legacy p2sh in the Send tab'))
+        prefix_char = '3' if not networks.net.TESTNET else '2'
+        legacy_p2sh_cb.setToolTip(_('If enabled, you will be allowed to use legacy \'{prefix_char}...\' style addresses in the Send tab.\nOtherwise you must use CashAddr for p2sh in the UI.').format(prefix_char=prefix_char))
+        legacy_p2sh_cb.setChecked(bool(self.config.get('allow_legacy_p2sh', False)))
+        def on_legacy_p2sh_cb(b):
+            self.config.set_key('allow_legacy_p2sh', bool(b))
+        legacy_p2sh_cb.stateChanged.connect(on_legacy_p2sh_cb)
+        global_tx_widgets.append((legacy_p2sh_cb, None))
+
 
         # Schnorr
         use_schnorr_cb = QCheckBox(_("Sign with Schnorr signatures"))
