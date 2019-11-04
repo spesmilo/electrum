@@ -96,6 +96,22 @@ class TxOutput:
         return cls(scriptpubkey=bfh(bitcoin.address_to_script(address)),
                    value=value)
 
+    def serialize_to_network(self) -> bytes:
+        buf = int.to_bytes(self.value, 8, byteorder="little", signed=False)
+        script = self.scriptpubkey
+        buf += bfh(var_int(len(script.hex()) // 2))
+        buf += script
+        return buf
+
+    @classmethod
+    def from_network_bytes(cls, raw: bytes) -> 'TxOutput':
+        vds = BCDataStream()
+        vds.write(raw)
+        txout = parse_output(vds)
+        if vds.can_read_more():
+            raise SerializationError('extra junk at the end of TxOutput bytes')
+        return txout
+
     def to_legacy_tuple(self) -> Tuple[int, str, Union[int, str]]:
         if self.address:
             return TYPE_ADDRESS, self.address, self.value
@@ -686,20 +702,12 @@ class Transaction:
         s += int_to_hex(txin.nsequence, 4)
         return s
 
-    @classmethod
-    def serialize_output(cls, output: TxOutput) -> str:
-        s = int_to_hex(output.value, 8)
-        script = output.scriptpubkey.hex()
-        s += var_int(len(script)//2)
-        s += script
-        return s
-
     def _calc_bip143_shared_txdigest_fields(self) -> BIP143SharedTxDigestFields:
         inputs = self.inputs()
         outputs = self.outputs()
         hashPrevouts = bh2u(sha256d(b''.join(txin.prevout.serialize_to_network() for txin in inputs)))
         hashSequence = bh2u(sha256d(bfh(''.join(int_to_hex(txin.nsequence, 4) for txin in inputs))))
-        hashOutputs = bh2u(sha256d(bfh(''.join(self.serialize_output(o) for o in outputs))))
+        hashOutputs = bh2u(sha256d(bfh(''.join(o.serialize_to_network().hex() for o in outputs))))
         return BIP143SharedTxDigestFields(hashPrevouts=hashPrevouts,
                                           hashSequence=hashSequence,
                                           hashOutputs=hashOutputs)
@@ -738,7 +746,7 @@ class Transaction:
             return ''
         txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, create_script_sig(txin))
                                                for txin in inputs)
-        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+        txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
 
         use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
         use_segwit_ser_for_actual_use = not estimate_size and self.is_segwit()
@@ -996,7 +1004,7 @@ class PartialTxInput(TxInput, PSBTSection):
     def __init__(self, *args, **kwargs):
         TxInput.__init__(self, *args, **kwargs)
         self.utxo = None  # type: Optional[Transaction]
-        self.witness_utxo = None  # type: Optional[bytes]
+        self.witness_utxo = None  # type: Optional[TxOutput]
         self.part_sigs = {}  # type: Dict[bytes, bytes]  # pubkey -> sig
         self.sighash = None  # type: Optional[int]
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
@@ -1020,7 +1028,7 @@ class PartialTxInput(TxInput, PSBTSection):
             'value_sats': self.value_sats(),
             'address': self.address,
             'utxo': str(self.utxo) if self.utxo else None,
-            'witness_utxo': self.witness_utxo.hex() if self.witness_utxo else None,
+            'witness_utxo': self.witness_utxo.serialize_to_network().hex() if self.witness_utxo else None,
             'sighash': self.sighash,
             'redeem_script': self.redeem_script.hex() if self.redeem_script else None,
             'witness_script': self.witness_script.hex() if self.witness_script else None,
@@ -1081,7 +1089,7 @@ class PartialTxInput(TxInput, PSBTSection):
                 raise SerializationError(f"duplicate key: {repr(kt)}")
             if self.utxo is not None:
                 raise SerializationError(f"PSBT input cannot have both PSBT_IN_NON_WITNESS_UTXO and PSBT_IN_WITNESS_UTXO")
-            self.witness_utxo = val
+            self.witness_utxo = TxOutput.from_network_bytes(val)
             if key: raise SerializationError(f"key for {repr(kt)} must be empty")
         elif kt == PSBTInputType.PARTIAL_SIG:
             if key in self.part_sigs:
@@ -1131,7 +1139,7 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def serialize_psbt_section_kvs(self, wr):
         if self.witness_utxo:
-            wr(PSBTInputType.WITNESS_UTXO, self.witness_utxo)
+            wr(PSBTInputType.WITNESS_UTXO, self.witness_utxo.serialize_to_network())
         elif self.utxo:
             wr(PSBTInputType.NON_WITNESS_UTXO, bfh(self.utxo.serialize_to_network(include_sigs=True)))
         for pk, val in sorted(self.part_sigs.items()):
@@ -1159,7 +1167,7 @@ class PartialTxInput(TxInput, PSBTSection):
             out_idx = self.prevout.out_idx
             return self.utxo.outputs()[out_idx].value
         if self.witness_utxo:
-            return int.from_bytes(self.witness_utxo[:8], byteorder="little", signed=True)
+            return self.witness_utxo.value
         return None
 
     @property
@@ -1179,7 +1187,7 @@ class PartialTxInput(TxInput, PSBTSection):
             out_idx = self.prevout.out_idx
             return self.utxo.outputs()[out_idx].scriptpubkey
         if self.witness_utxo:
-            return self.witness_utxo[8:]
+            return self.witness_utxo.scriptpubkey
         return None
 
     def is_complete(self) -> bool:
@@ -1625,7 +1633,7 @@ class PartialTransaction(Transaction):
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, preimage_script if txin_index==k else '')
                                                    for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+            txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
 

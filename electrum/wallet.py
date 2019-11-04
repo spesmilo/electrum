@@ -58,7 +58,7 @@ from .keystore import load_keystore, Hardware_KeyStore, KeyStore
 from .util import multisig_type
 from .storage import StorageEncryptionVersion, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
-from .transaction import (Transaction, TxInput, UnknownTxinType,
+from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
@@ -1240,8 +1240,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 item = received.get(txin.prevout.to_str())
                 if item:
                     txin_value = item[1]
-                    txin_value_bytes = txin_value.to_bytes(8, byteorder="little", signed=True)
-                    txin.witness_utxo = txin_value_bytes + bfh(bitcoin.address_to_script(address))
+                    txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
         else:  # legacy input
             if txin.utxo is None:
                 # note: for hw wallets, for legacy inputs, ignore_network_issues used to be False
