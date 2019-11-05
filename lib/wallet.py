@@ -446,6 +446,20 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
 
+    def is_fully_settled_down(self):
+        ''' Returns True iff the wallet is up to date and its synchronizer
+        and verifier aren't busy doing work, and its pruned_txo_values list
+        is currently empty.  This is used as a final check by the Qt GUI
+        to decide if it should do a final refresh of all tabs in some cases.'''
+        with self.lock:
+            ret = self.up_to_date
+            if ret and self.verifier:
+                ret = self.verifier.is_up_to_date()
+            if ret and self.synchronizer:
+                ret = self.synchronizer.is_up_to_date()
+            ret = ret and not self.pruned_txo_values
+            return bool(ret)
+
     def set_label(self, name, text = None):
         with self.lock:
             if isinstance(name, Address):

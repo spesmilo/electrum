@@ -5251,6 +5251,9 @@ class TxUpdateMgr(QObject, PrintError):
         self.weakParent = Weak.ref(main_window_parent)
         main_window_parent.history_updated_signal.connect(self.verifs_get_and_clear, Qt.DirectConnection)  # immediately clear verif_q on history update because it would be redundant to keep the verify queue around after a history list update
         main_window_parent.on_timer_signal.connect(self.do_check, Qt.DirectConnection)  # hook into main_window's timer_actions function
+        self.full_hist_refresh_timer = QTimer(self)
+        self.full_hist_refresh_timer.setInterval(1000); self.full_hist_refresh_timer.setSingleShot(False)
+        self.full_hist_refresh_timer.timeout.connect(self.schedule_full_hist_refresh_maybe)
 
     def diagnostic_name(self):
         return ((self.weakParent() and self.weakParent().diagnostic_name()) or "???") + "." + __class__.__name__
@@ -5340,6 +5343,36 @@ class TxUpdateMgr(QObject, PrintError):
                 parent.history_list.setSortingEnabled(True)
             parent.history_list.setUpdatesEnabled(True)
             parent.update_status()
+            if parent.history_list.has_unknown_balances:
+                self.print_error("History tab: 'Unknown' balances detected, will schedule a GUI refresh after wallet settles")
+                self._full_refresh_ctr = 0
+                self.full_hist_refresh_timer.start()
+
+    _full_refresh_ctr = 0
+    def schedule_full_hist_refresh_maybe(self):
+        ''' self.full_hist_refresh_timer timeout slot. May schedule a full
+        history refresh after wallet settles if we have "Unknown" balances. '''
+        parent = self.weakParent()
+        if self._full_refresh_ctr > 60:
+            # Too many retries. Give up.
+            self.print_error("History tab: Full refresh scheduler timed out.. wallet hasn't settled in 1 minute. Giving up.")
+            self.full_hist_refresh_timer.stop()
+        elif parent and parent.history_list.has_unknown_balances:
+            # Still have 'Unknown' balance. Check if wallet is settled.
+            if self.need_process_v or not parent.wallet.is_fully_settled_down():
+                # Wallet not fully settled down yet... schedule this function to run later
+                self.print_error("History tab: Wallet not yet settled.. will try again in 1 second...")
+            else:
+                # Wallet has settled. Schedule an update. Note this function may be called again
+                # in 1 second to check if the 'Unknown' situation has corrected itself.
+                self.print_error("History tab: Wallet has settled down, latching need_update to true")
+                parent.need_update.set()
+            self._full_refresh_ctr += 1
+        else:
+            # No more polling is required. 'Unknown' balance disappeared from
+            # GUI (or parent window was just closed).
+            self.full_hist_refresh_timer.stop()
+            self._full_refresh_ctr = 0
 
     @rate_limited(5.0, classlevel=True)
     def process_notifs(self):
