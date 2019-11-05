@@ -256,11 +256,11 @@ class BCDataStream(object):
         self.write_compact_size(len(string))
         self.write(string)
 
-    def read_bytes(self, length):
+    def read_bytes(self, length) -> bytes:
         try:
-            result = self.input[self.read_cursor:self.read_cursor+length]
+            result = self.input[self.read_cursor:self.read_cursor+length]  # type: bytearray
             self.read_cursor += length
-            return result
+            return bytes(result)
         except IndexError:
             raise SerializationError("attempt to read past end of buffer") from None
 
