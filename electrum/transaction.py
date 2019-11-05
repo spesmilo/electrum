@@ -1034,7 +1034,8 @@ class PartialTxInput(TxInput, PSBTSection):
             'redeem_script': self.redeem_script.hex() if self.redeem_script else None,
             'witness_script': self.witness_script.hex() if self.witness_script else None,
             'part_sigs': {pubkey.hex(): sig.hex() for pubkey, sig in self.part_sigs.items()},
-            'bip32_paths': {pubkey.hex(): (xfp.hex(), path) for pubkey, (xfp, path) in self.bip32_paths.items()},
+            'bip32_paths': {pubkey.hex(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))
+                            for pubkey, (xfp, path) in self.bip32_paths.items()},
             'unknown_psbt_fields': {key.hex(): val.hex() for key, val in self._unknown.items()},
         })
         return d
@@ -1315,7 +1316,8 @@ class PartialTxOutput(TxOutput, PSBTSection):
         d.update({
             'redeem_script': self.redeem_script.hex() if self.redeem_script else None,
             'witness_script': self.witness_script.hex() if self.witness_script else None,
-            'bip32_paths': {pubkey.hex(): (xfp.hex(), path) for pubkey, (xfp, path) in self.bip32_paths.items()},
+            'bip32_paths': {pubkey.hex(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))
+                            for pubkey, (xfp, path) in self.bip32_paths.items()},
             'unknown_psbt_fields': {key.hex(): val.hex() for key, val in self._unknown.items()},
         })
         return d
@@ -1390,7 +1392,8 @@ class PartialTransaction(Transaction):
     def to_json(self) -> dict:
         d = super().to_json()
         d.update({
-            'xpubs': {bip32node.to_xpub(): (xfp.hex(), path) for bip32node, (xfp, path) in self.xpubs.items()},
+            'xpubs': {bip32node.to_xpub(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))
+                      for bip32node, (xfp, path) in self.xpubs.items()},
             'unknown_psbt_fields': {key.hex(): val.hex() for key, val in self._unknown.items()},
         })
         return d
