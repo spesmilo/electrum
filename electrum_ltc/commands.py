@@ -701,6 +701,8 @@ class Commands:
                 tx = Transaction(raw)
             else:
                 raise Exception("Unknown transaction")
+        if tx.txid() != txid:
+            raise Exception("Mismatching txid")
         return tx.as_dict()
 
     @command('')

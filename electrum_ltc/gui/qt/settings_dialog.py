@@ -22,50 +22,33 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import sys
-import time
-import threading
-import os
-import traceback
-import json
-from decimal import Decimal
 
-from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
-from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
-from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
-                             QSpinBox, QMenuBar, QFileDialog, QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit, QTreeWidgetItem,
-                             QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
-                             QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QMenu, QSizePolicy, QStatusBar)
+from typing import Optional, TYPE_CHECKING
 
-import electrum_ltc as electrum
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
+                             QSpinBox,  QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit,
+                             QPushButton, QWidget)
+
 from electrum_ltc.i18n import _
 from electrum_ltc import util, coinchooser, paymentrequest
-from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis,
-                               format_satoshis_plain, NotEnoughFunds,
-                               UserCancelled, NoDynamicFeeEstimates, profiler,
-                               export_meta, import_meta, bh2u, bfh, InvalidPassword,
-                               base_units, base_units_list, base_unit_name_to_decimal_point,
-                               decimal_point_to_base_unit_name, quantize_feerate,
-                               UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
-                               get_new_wallet_name, send_exception_to_crash_reporter,
-                               InvalidBitcoinURI, InvoiceError)
+from electrum_ltc.util import base_units_list, base_unit_name_to_decimal_point
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
-from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
-                       WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
-                       OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
-                       CloseButton, HelpButton, MessageBoxMixin, EnterButton,
-                       ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
-                       filename_field, address_field, char_width_in_lineedit, webopen)
+from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
+                   CloseButton)
 
 from electrum_ltc.i18n import languages
 from electrum_ltc import qrscanner
 
+if TYPE_CHECKING:
+    from electrum_ltc.simple_config import SimpleConfig
+    from .main_window import ElectrumWindow
+
+
 class SettingsDialog(WindowModalDialog):
 
-    def __init__(self, parent, config):
+    def __init__(self, parent: 'ElectrumWindow', config: 'SimpleConfig'):
         WindowModalDialog.__init__(self, parent, _('Preferences'))
         self.config = config
         self.window = parent
@@ -224,7 +207,7 @@ open. For this to work, your computer needs to be online regularly.""")
         ssl_privkey = self.config.get('ssl_keyfile')
         ssl_privkey_label = HelpLabel(_('SSL key file') + ':', '')
         self.ssl_privkey_e = QPushButton(ssl_privkey)
-        self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
+        self.ssl_privkey_e.clicked.connect(self.select_ssl_privkey)
         services_widgets.append((ssl_privkey_label, self.ssl_privkey_e))
 
         ssl_domain_label = HelpLabel(_('SSL domain') + ':', '')
@@ -254,7 +237,7 @@ open. For this to work, your computer needs to be online regularly.""")
         services_widgets.append((payserver_cb, self.payserver_port_e))
 
         help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
-        that is always connected to the internet. Configure a port if you want it to be public.""")
+that is always connected to the internet. Configure a port if you want it to be public.""")
         local_wt_cb = QCheckBox(_("Run Watchtower"))
         local_wt_cb.setToolTip(help_local_wt)
         local_wt_cb.setChecked(bool(self.config.get('run_watchtower', False)))
@@ -576,10 +559,10 @@ open. For this to work, your computer needs to be online regularly.""")
             self.check_ssl_config()
 
     def select_ssl_privkey(self, b):
-        name = self.config.get('ssl_privkey', '')
+        name = self.config.get('ssl_keyfile', '')
         filename, __ = QFileDialog.getOpenFileName(self, "Select your SSL private key file", name)
         if filename:
-            self.config.set_key('ssl_privkey', filename)
+            self.config.set_key('ssl_keyfile', filename)
             self.ssl_cert_e.setText(filename)
             self.check_ssl_config()
 
@@ -604,10 +587,26 @@ open. For this to work, your computer needs to be online regularly.""")
         hostname = str(self.hostname_e.text())
         self.config.set_key('services_hostname', hostname, True)
 
+    def _get_int_port_from_port_text(self, port_text) -> Optional[int]:
+        if not port_text:
+            return
+        try:
+            port = int(port_text)
+            if not (0 < port < 2 ** 16):
+                raise Exception('port out of range')
+        except Exception:
+            self.window.show_error("invalid port")
+            return
+        return port
+
     def on_payserver_port(self):
-        port = int(self.payserver_port_e.text())
+        port_text = self.payserver_port_e.text()
+        port = self._get_int_port_from_port_text(port_text)
+        if port is None: return
         self.config.set_key('payserver_port', port, True)
 
     def on_watchtower_port(self):
-        port = int(self.payserver_port_e.text())
+        port_text = self.payserver_port_e.text()
+        port = self._get_int_port_from_port_text(port_text)
+        if port is None: return
         self.config.set_key('watchtower_port', port, True)

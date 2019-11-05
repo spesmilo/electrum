@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
-                             QTextEdit, QFrame)
+                             QTextEdit, QFrame, QAction, QToolButton, QMenu)
 import qrcode
 from qrcode import exceptions
 
@@ -132,23 +132,29 @@ class TxDialog(QDialog, MessageBoxMixin):
             b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
         b.clicked.connect(self.save)
 
-        self.export_button = b = QPushButton(_("Export"))
-        b.clicked.connect(self.export)
-
         self.cancel_button = b = QPushButton(_("Close"))
         b.clicked.connect(self.close)
         b.setDefault(True)
 
-        self.qr_button = b = QPushButton()
-        b.setIcon(read_QIcon(qr_icon))
-        b.clicked.connect(self.show_qr)
-
-        self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
+        export_actions_menu = QMenu()
+        action = QAction(_("Copy to clipboard"), self)
+        action.triggered.connect(lambda: parent.app.clipboard().setText((lambda: str(self.tx))()))
+        export_actions_menu.addAction(action)
+        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
+        action.triggered.connect(self.show_qr)
+        export_actions_menu.addAction(action)
+        action = QAction(_("Export to file"), self)
+        action.triggered.connect(self.export)
+        export_actions_menu.addAction(action)
+        self.export_actions_button = QToolButton()
+        self.export_actions_button.setText(_("Export"))
+        self.export_actions_button.setMenu(export_actions_menu)
+        self.export_actions_button.setPopupMode(QToolButton.InstantPopup)
 
         # Action buttons
         self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button, self.save_button]
+        self.sharing_buttons = [self.export_actions_button, self.save_button]
 
         run_hook('transaction_dialog', self)
 
