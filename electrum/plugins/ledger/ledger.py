@@ -4,7 +4,9 @@ import sys
 import traceback
 
 from electrum import ecc
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int, is_segwit_script_type
+from electrum import bip32
+from electrum.crypto import hash_160
+from electrum.bitcoin import int_to_hex, var_int, is_segwit_script_type
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
@@ -78,9 +80,6 @@ class Ledger_Client():
     def label(self):
         return ""
 
-    def i4b(self, x):
-        return pack('>I', x)
-
     def has_usable_connection_with_device(self):
         try:
             self.dongleObject.getFirmwareVersion()
@@ -101,29 +100,27 @@ class Ledger_Client():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
         if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
-        splitPath = bip32_path.split('/')
-        if splitPath[0] == 'm':
-            splitPath = splitPath[1:]
-            bip32_path = bip32_path[2:]
-        fingerprint = 0
-        if len(splitPath) > 1:
-            prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+        bip32_path = bip32.normalize_bip32_derivation(bip32_path)
+        bip32_intpath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        bip32_path = bip32_path[2:]  # cut off "m/"
+        if len(bip32_intpath) >= 1:
+            prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]
             nodeData = self.dongleObject.getWalletPublicKey(prevPath)
             publicKey = compress_public_key(nodeData['publicKey'])
-            h = hashlib.new('ripemd160')
-            h.update(hashlib.sha256(publicKey).digest())
-            fingerprint = unpack(">I", h.digest()[0:4])[0]
+            fingerprint_bytes = hash_160(publicKey)[0:4]
+            childnum_bytes = bip32_intpath[-1].to_bytes(length=4, byteorder="big")
+        else:
+            fingerprint_bytes = bytes(4)
+            childnum_bytes = bytes(4)
         nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
         publicKey = compress_public_key(nodeData['publicKey'])
-        depth = len(splitPath)
-        lastChild = splitPath[len(splitPath) - 1].split('\'')
-        childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
+        depth = len(bip32_intpath)
         return BIP32Node(xtype=xtype,
                          eckey=ecc.ECPubkey(publicKey),
                          chaincode=nodeData['chainCode'],
                          depth=depth,
-                         fingerprint=self.i4b(fingerprint),
-                         child_number=self.i4b(childnum)).to_xpub()
+                         fingerprint=fingerprint_bytes,
+                         child_number=childnum_bytes).to_xpub()
 
     def has_detached_pin_support(self, client):
         try:
@@ -345,7 +342,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             my_pubkey, full_path = self.find_my_pubkey_in_txinout(txin)
             if not full_path:
                 self.give_error("No matching pubkey for sign_transaction")  # should never happen
-            full_path = convert_bip32_intpath_to_strpath(full_path)
+            full_path = convert_bip32_intpath_to_strpath(full_path)[2:]
 
             redeemScript = Transaction.get_preimage_script(txin)
             txin_prev_tx = txin.utxo
@@ -393,7 +390,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     if txout.is_change == any_output_on_change_branch:
                         my_pubkey, changePath = self.find_my_pubkey_in_txinout(txout)
                         assert changePath
-                        changePath = convert_bip32_intpath_to_strpath(changePath)
+                        changePath = convert_bip32_intpath_to_strpath(changePath)[2:]
                         has_change = True
                     else:
                         output = txout.address
