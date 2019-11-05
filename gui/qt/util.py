@@ -1229,7 +1229,7 @@ def webopen(url: str):
         if os.fork() == 0:
             del os.environ['LD_LIBRARY_PATH']
             webbrowser.open(url)
-            sys.exit(0)
+            os._exit(0)  # Python docs advise doing this after forking to prevent atexit handlers from executing.
     else:
         webbrowser.open(url)
 
