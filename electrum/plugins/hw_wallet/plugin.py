@@ -24,16 +24,16 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Dict, List, Union, Tuple
+from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.bip32 import BIP32Node
 
 if TYPE_CHECKING:
-    from electrum.bip32 import BIP32Node
     from electrum.wallet import Abstract_Wallet
     from electrum.keystore import Hardware_KeyStore
 
@@ -162,7 +162,11 @@ def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
     xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
                        in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
     xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
-    xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    try:
+        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    except KeyError as e:
+        raise Exception(f"Partial transaction is missing global xpub for "
+                        f"fingerprint ({str(e)}) in input/output") from e
     xpubs_and_deriv_suffixes = []
     for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
         xfp, path = txinout.bip32_paths[pubkey]

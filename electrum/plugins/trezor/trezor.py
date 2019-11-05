@@ -365,8 +365,11 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
-                    multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                    if len(txin.pubkeys) > 1:
+                        xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
+                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                    else:
+                        multisig = None
                     script_type = self.get_trezor_input_script_type(txin.script_type)
                     txinputtype = TxInputType(
                         script_type=script_type,
@@ -401,12 +404,15 @@ class TrezorPlugin(HW_PluginBase):
             signatures=[b''] * len(pubkeys),
             m=m)
 
-    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore' = None):
+    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore'):
 
         def create_output_by_derivation():
             script_type = self.get_trezor_output_script_type(txout.script_type)
-            xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
-            multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+            if len(txout.pubkeys) > 1:
+                xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
+                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+            else:
+                multisig = None
             my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)
             assert full_path
             txoutputtype = TxOutputType(
