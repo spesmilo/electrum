@@ -12,7 +12,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
 from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32,
-                            normalize_bip32_derivation)
+                            normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
@@ -493,6 +493,14 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual("m", normalize_bip32_derivation("m////"))
         self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
         self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
+
+    def test_is_all_public_derivation(self):
+        self.assertFalse(is_all_public_derivation("m/0/1'/1'"))
+        self.assertFalse(is_all_public_derivation("m/0/2/1'"))
+        self.assertFalse(is_all_public_derivation("m/0/1'/1'/5"))
+        self.assertTrue(is_all_public_derivation("m"))
+        self.assertTrue(is_all_public_derivation("m/0"))
+        self.assertTrue(is_all_public_derivation("m/75/22/3"))
 
     def test_xtype_from_derivation(self):
         self.assertEqual('standard', xtype_from_derivation("m/44'"))

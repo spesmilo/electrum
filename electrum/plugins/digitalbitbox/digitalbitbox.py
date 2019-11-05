@@ -19,7 +19,7 @@ import copy
 from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
                               is_address)
-from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum import ecc
 from electrum.ecc import msg_magic
 from electrum.wallet import Standard_Wallet
@@ -741,6 +741,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
+        if is_all_public_derivation(derivation):
+            raise Exception(f"The {self.device} does not reveal xpubs corresponding to non-hardened paths. (path: {derivation})")
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)

@@ -372,6 +372,18 @@ def normalize_bip32_derivation(s: Optional[str]) -> Optional[str]:
     return convert_bip32_intpath_to_strpath(ints)
 
 
+def is_all_public_derivation(path: Union[str, Iterable[int]]) -> bool:
+    """Returns whether all levels in path use non-hardened derivation."""
+    if isinstance(path, str):
+        path = convert_bip32_path_to_list_of_uint32(path)
+    for child_index in path:
+        if child_index < 0:
+            raise ValueError('the bip32 index needs to be non-negative')
+        if child_index & BIP32_PRIME:
+            return False
+    return True
+
+
 def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional[str]]:
     """Returns the root bip32 fingerprint and the derivation path from the
     root to the given xkey, if they can be determined. Otherwise (None, None).
