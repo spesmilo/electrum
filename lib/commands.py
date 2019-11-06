@@ -519,7 +519,7 @@ class Commands:
                 assert tmp == op_return_raw.lower()
                 op_return_raw = tmp
             except Exception as e:
-                raise RuntimeError("op_return_raw must be an even number of be hex digits") from e
+                raise RuntimeError("op_return_raw must be an even number of hex digits") from e
             final_outputs.append(self._output_for_opreturn_rawhex(op_return_raw))
         for address, amount in outputs:
             address = self._resolver(address)
