@@ -337,7 +337,30 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
+android_storage_permissions = ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE']
+
+def android_acquire_storage_permissions(timeout=30):
+    import time
+    import jnius
+
+    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
+    ContextCompat = jnius.autoclass('android.support.v4.content.ContextCompat')
+
+    currentActivity = jnius.cast('android.app.Activity', PythonActivity.mActivity)
+    if all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in android_storage_permissions):
+        return
+    
+    currentActivity.requestPermissions(android_storage_permissions, 0)
+   
+    haveperms = False
+    t0 = time.time()
+    while time.time() - t0 < timeout and not haveperms:
+        haveperms = all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in android_storage_permissions)
+    if not haveperms:
+        raise RuntimeError("Storage permissions not granted")
+
 def android_ext_dir():
+    android_acquire_storage_permissions()
     import jnius
     env = jnius.autoclass('android.os.Environment')
     return env.getExternalStorageDirectory().getPath()
@@ -896,7 +919,8 @@ def make_dir(path, allow_symlink=True):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        if 'ANDROID_DATA' not in os.environ:
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
 TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),

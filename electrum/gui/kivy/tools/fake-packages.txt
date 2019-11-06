@@ -1,0 +1,68 @@
+Package: python3
+Status: install ok installed
+Priority: important
+Section: python
+Installed-Size: 187
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: allowed
+Source: python3-defaults
+Version: 3.6.7-1~18.04
+Replaces: python3-minimal (<< 3.1.2-2)
+Provides: python3-profiler
+Depends: python3.7 (>= 3.7~), libpython3-stdlib (= 3.6.7-1~18.04)
+Pre-Depends: python3-minimal (= 3.6.7-1~18.04)
+Suggests: python3-doc (>= 3.6.7-1~18.04), python3-tk (>= 3.6.7-1~), python3-venv (>= 3.7~)
+Description: interactive high-level object-oriented language (default python3 version)
+ Python, the high-level, interactive object oriented language,
+ includes an extensive class library with lots of goodies for
+ network programming, system administration, sounds and graphics.
+ .
+ This package is a dependency package, which depends on Debian's default
+ Python 3 version (currently v3.6).
+Homepage: https://www.python.org/
+Cnf-Extra-Commands: python
+Cnf-Priority-Bonus: 5
+Original-Maintainer: Matthias Klose <doko@debian.org>
+
+Package: python3-minimal
+Status: install ok installed
+Priority: important
+Section: python
+Installed-Size: 121
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: allowed
+Source: python3-defaults
+Version: 3.6.7-1~18.04
+Depends: dpkg (>= 1.13.20)
+Pre-Depends: python3.7-minimal (>= 3.7~)
+Description: minimal subset of the Python language (default python3 version)
+ This package contains the interpreter and some essential modules.  It's used
+ in the boot process for some basic tasks.
+ See /usr/share/doc/python3.6-minimal/README.Debian for a list of the modules
+ contained in this package.
+Homepage: https://www.python.org/
+Original-Maintainer: Matthias Klose <doko@debian.org>
+
+Package: libpython3-stdlib
+Status: install ok installed
+Priority: important
+Section: python
+Installed-Size: 37
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: same
+Source: python3-defaults
+Version: 3.6.7-1~18.04
+Depends: libpython3.7-stdlib (>= 3.7~)
+Description: interactive high-level object-oriented language (default python3 version)
+ Python, the high-level, interactive object oriented language,
+ includes an extensive class library with lots of goodies for
+ network programming, system administration, sounds and graphics.
+ .
+ This package is a dependency package, which depends on Debian's default
+ Python 3 version (currently v3.6).
+Homepage: https://www.python.org/
+Original-Maintainer: Matthias Klose <doko@debian.org>
+

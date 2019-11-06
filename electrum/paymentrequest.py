@@ -35,7 +35,7 @@ import urllib.parse
 try:
     from . import paymentrequest_pb2 as pb2
 except ImportError:
-    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
+    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'. Also make sure to install the package 'protobuf'.")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import print_error, bh2u, bfh

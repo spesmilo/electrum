@@ -38,6 +38,15 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/ele
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
+#if is_android:
+#    from os import listdir, getcwd
+#    print(getcwd())
+#    print(listdir(getcwd()))
+#    print(listdir(getcwd() + '/electrum'))
+#
+#    sys.path.append(getcwd() + '/electrum')
+#    print(sys.path)
+
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
