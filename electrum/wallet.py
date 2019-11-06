@@ -996,8 +996,8 @@ class Abstract_Wallet(AddressSynchronizer):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, *, outputs: List[PartialTxOutput], password, fee=None, change_addr=None,
-             domain=None, rbf=False, nonlocal_only=False, tx_version=None) -> PartialTransaction:
+    def mktx(self, *, outputs: List[PartialTxOutput], password=None, fee=None, change_addr=None,
+             domain=None, rbf=False, nonlocal_only=False, tx_version=None, sign=True) -> PartialTransaction:
         coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
         tx = self.make_unsigned_transaction(coins=coins,
                                             outputs=outputs,
@@ -1006,7 +1006,8 @@ class Abstract_Wallet(AddressSynchronizer):
         tx.set_rbf(rbf)
         if tx_version is not None:
             tx.version = tx_version
-        self.sign_transaction(tx, password)
+        if sign:
+            self.sign_transaction(tx, password)
         return tx
 
     def is_frozen_address(self, addr: str) -> bool:
