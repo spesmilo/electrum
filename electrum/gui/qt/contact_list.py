@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import webbrowser
 from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -35,7 +34,7 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeView, import_meta_gui, export_meta_gui
+from .util import MyTreeView, import_meta_gui, export_meta_gui, webopen
 
 
 class ContactList(MyTreeView):
@@ -97,7 +96,7 @@ class ContactList(MyTreeView):
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(selected_keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, selected_keys)]
             if URLs:
-                menu.addAction(_("View on block explorer"), lambda: [webbrowser.open(u) for u in URLs])
+                menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
 
         run_hook('create_contact_menu', menu, selected_keys)
         menu.exec_(self.viewport().mapToGlobal(position))

@@ -127,6 +127,8 @@ USER ${USER}
 
 
 RUN python3 -m pip install --upgrade cython==0.28.6
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --user wheel
 
 # prepare git
 RUN git config --global user.name "John Doe" \
@@ -136,8 +138,8 @@ RUN git config --global user.name "John Doe" \
 RUN cd /opt \
     && git clone https://github.com/kivy/buildozer \
     && cd buildozer \
-    && git checkout 88e4a4b0c7733eec1d14c00579ec412fb59ad7f2 \
-    && python3 -m pip install -e .
+    && git checkout 678b1bf52cf63daa51b06e86a43ea4e2ea8a0b24 \
+    && python3 -m pip install --user -e .
 
 # install python-for-android
 RUN cd /opt \
@@ -145,12 +147,14 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout dec1badc3bd134a9a1c69275339423a95d63413e \
+    && git checkout ccb0f8e1bab36f1b7d1508216b4b4afb076e614f \
        # allowBackup="false":
     && git cherry-pick d7f722e4e5d4b3e6f5b1733c95e6a433f78ee570 \
-       # enable IPv6:
-    && git cherry-pick a607f4a446773ac0b0a5150171092b0617fbe670 \
-    && python3 -m pip install -e .
+       # fix gradle "versionCode" overflow:
+    && git cherry-pick ed20e196fbcdce718a180f88f23bb2d165c4c5d8 \
+       # gradle: persist debug keystore:
+    && git cherry-pick aaa0d5d0e7a334631df71e0a9bf127817e0ab9ab \
+    && python3 -m pip install --user -e .
 
 # build env vars
 ENV USE_SDK_WRAPPER=1

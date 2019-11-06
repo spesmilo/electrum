@@ -533,14 +533,16 @@ class SimpleConfig(Logger):
         fee_per_kb = self.fee_per_kb()
         return fee_per_kb / 1000 if fee_per_kb is not None else None
 
-    def estimate_fee(self, size):
+    def estimate_fee(self, size: Union[int, float, Decimal]) -> int:
         fee_per_kb = self.fee_per_kb()
         if fee_per_kb is None:
             raise NoDynamicFeeEstimates()
         return self.estimate_fee_for_feerate(fee_per_kb, size)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb, size):
+    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
+                                 size: Union[int, float, Decimal]) -> int:
+        size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
         # to be consistent with what is displayed in the GUI,

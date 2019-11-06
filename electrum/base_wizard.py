@@ -42,8 +42,9 @@ from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
-from .plugin import Plugins
+from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
+from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
 
 if TYPE_CHECKING:
     from .plugin import DeviceInfo
@@ -255,7 +256,8 @@ class BaseWizard(Logger):
 
         def failed_getting_device_infos(name, e):
             nonlocal debug_msg
-            self.logger.info(f'error getting device infos for {name}: {e}')
+            err_str_oneline = ' // '.join(str(e).splitlines())
+            self.logger.warning(f'error getting device infos for {name}: {err_str_oneline}')
             indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
             debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
 
@@ -281,6 +283,9 @@ class BaseWizard(Logger):
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     device_infos = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices,
                                                                 include_failing_clients=True)
+                except HardwarePluginLibraryUnavailable as e:
+                    failed_getting_device_infos(name, e)
+                    continue
                 except BaseException as e:
                     self.logger.exception('')
                     failed_getting_device_infos(name, e)
@@ -293,14 +298,16 @@ class BaseWizard(Logger):
         if not debug_msg:
             debug_msg = '  {}'.format(_('No exceptions encountered.'))
         if not devices:
-            msg = ''.join([
-                _('No hardware device detected.') + '\n',
-                _('To trigger a rescan, press \'Next\'.') + '\n\n',
-                _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
-                _('On Linux, you might have to add a new permission to your udev rules.') + '\n\n',
-                _('Debug message') + '\n',
-                debug_msg
-            ])
+            msg = (_('No hardware device detected.') + '\n' +
+                   _('To trigger a rescan, press \'Next\'.') + '\n\n')
+            if sys.platform == 'win32':
+                msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
+                         'and do "Remove device". Then, plug your device again.') + '\n'
+                msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
+            else:
+                msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
+            msg += '\n\n'
+            msg += _('Debug message') + '\n' + debug_msg
             self.confirm_dialog(title=title, message=msg,
                                 run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
             return
@@ -319,7 +326,7 @@ class BaseWizard(Logger):
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
     def on_device(self, name, device_info, *, purpose, storage=None):
-        self.plugin = self.plugins.get_plugin(name)
+        self.plugin = self.plugins.get_plugin(name)  # type: HW_PluginBase
         try:
             self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
@@ -329,6 +336,14 @@ class BaseWizard(Logger):
                             + _('Please try again.'))
             devmgr = self.plugins.device_manager
             devmgr.unpair_id(device_info.device.id_)
+            self.choose_hw_device(purpose, storage=storage)
+            return
+        except OutdatedHwFirmwareException as e:
+            if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
+                self.plugin.set_ignore_outdated_fw()
+                # will need to re-pair
+                devmgr = self.plugins.device_manager
+                devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose, storage=storage)
             return
         except (UserCancelled, GoBack):

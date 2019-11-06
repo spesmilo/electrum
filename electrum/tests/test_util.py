@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
-                           is_hash256_str)
+                           is_hash256_str, chunks)
 
 from . import SequentialTestCase
 
@@ -104,3 +104,9 @@ class TestUtil(SequentialTestCase):
         self.assertFalse(is_hash256_str('qweqwe'))
         self.assertFalse(is_hash256_str(None))
         self.assertFalse(is_hash256_str(7))
+
+    def test_chunks(self):
+        self.assertEqual([[1, 2], [3, 4], [5]],
+                         list(chunks([1, 2, 3, 4, 5], 2)))
+        with self.assertRaises(ValueError):
+            list(chunks([1, 2, 3], 0))

@@ -57,31 +57,3 @@ if crowdin_api_key:
     response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key)
     print("", "export:", "-" * 20, response.text, "-" * 20, sep="\n")
 
-# Download & unzip
-print('Download translations')
-s = requests.request('GET', 'https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip').content
-zfobj = zipfile.ZipFile(io.BytesIO(s))
-
-print('Unzip translations')
-for name in zfobj.namelist():
-    if not name.startswith('electrum-client/locale'):
-        continue
-    if name.endswith('/'):
-        if not os.path.exists(name[16:]):
-            os.mkdir(name[16:])
-    else:
-        with open(name[16:], 'wb') as output:
-            output.write(zfobj.read(name))
-
-# Convert .po to .mo
-print('Installing')
-for lang in os.listdir('locale'):
-    if lang.startswith('messages'):
-        continue
-    # Check LC_MESSAGES folder
-    mo_dir = 'locale/%s/LC_MESSAGES' % lang
-    if not os.path.exists(mo_dir):
-        os.mkdir(mo_dir)
-    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
-    print('Installing', lang)
-    os.system(cmd)

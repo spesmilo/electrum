@@ -476,20 +476,26 @@ class Network(Logger):
 
     @with_recent_servers_lock
     def get_servers(self):
-        # start with hardcoded servers
-        out = dict(constants.net.DEFAULT_SERVERS)  # copy
+        # note: order of sources when adding servers here is crucial!
+        # don't let "server_peers" overwrite anything,
+        # otherwise main server can eclipse the client
+        out = dict()
+        # add servers received from main interface
+        server_peers = self.server_peers
+        if server_peers:
+            out.update(filter_version(server_peers.copy()))
+        # hardcoded servers
+        out.update(constants.net.DEFAULT_SERVERS)
         # add recent servers
         for s in self.recent_servers:
             try:
                 host, port, protocol = deserialize_server(s)
             except:
                 continue
-            if host not in out:
+            if host in out:
+                out[host].update({protocol: port})
+            else:
                 out[host] = {protocol: port}
-        # add servers received from main interface
-        server_peers = self.server_peers
-        if server_peers:
-            out.update(filter_version(server_peers.copy()))
         # potentially filter out some
         if self.config.get('noonion'):
             out = filter_noonion(out)

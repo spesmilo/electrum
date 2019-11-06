@@ -38,14 +38,14 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence
 
 from .i18n import _
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
@@ -206,13 +206,13 @@ class Abstract_Wallet(AddressSynchronizer):
     gap_limit_for_change = 6
 
     def __init__(self, storage: WalletStorage):
-        if storage.requires_upgrade():
-            raise Exception("storage must be upgraded before constructing wallet")
+        if not storage.is_ready_to_be_used_by_wallet():
+            raise Exception("storage not ready to be used by Abstract_Wallet")
 
+        self.storage = storage
         # load addresses needs to be called before constructor for sanity checks
-        storage.db.load_addresses(self.wallet_type)
-
-        AddressSynchronizer.__init__(self, storage)
+        self.storage.db.load_addresses(self.wallet_type)
+        AddressSynchronizer.__init__(self, storage.db)
 
         # saved fields
         self.use_change            = storage.get('use_change', True)
@@ -234,6 +234,18 @@ class Abstract_Wallet(AddressSynchronizer):
         self.contacts = Contacts(self.storage)
 
         self._coin_price_cache = {}
+
+    def stop_threads(self):
+        super().stop_threads()
+        self.storage.write()
+
+    def set_up_to_date(self, b):
+        super().set_up_to_date(b)
+        if b: self.storage.write()
+
+    def clear_history(self):
+        super().clear_history()
+        self.storage.write()
 
     def load_and_cleanup(self):
         self.load_keystore()
@@ -346,7 +358,11 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def export_private_key(self, address, password):
         if self.is_watching_only():
-            return []
+            raise Exception(_("This is a watching-only wallet"))
+        if not is_address(address):
+            raise Exception(f"Invalid bitcoin address: {address}")
+        if not self.is_mine(address):
+            raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
         txin_type = self.get_txin_type(address)
@@ -389,6 +405,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
+                    can_bump = is_mine and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -429,8 +446,15 @@ class Abstract_Wallet(AddressSynchronizer):
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
 
+    def get_receiving_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence:
+        raise NotImplementedError()  # implemented by subclasses
+
+    def get_change_addresses(self, *, slice_start=None, slice_stop=None) -> Sequence:
+        raise NotImplementedError()  # implemented by subclasses
+
     def dummy_address(self):
-        return self.get_receiving_addresses()[0]
+        # first receiving address
+        return self.get_receiving_addresses(slice_start=0, slice_stop=1)[0]
 
     def get_frozen_balance(self):
         if not self.frozen_coins:  # shortcut
@@ -670,6 +694,33 @@ class Abstract_Wallet(AddressSynchronizer):
             return tx
         return candidate
 
+    def get_change_addresses_for_new_transaction(self, preferred_change_addr=None) -> List[str]:
+        change_addrs = []
+        if preferred_change_addr:
+            if isinstance(preferred_change_addr, (list, tuple)):
+                change_addrs = list(preferred_change_addr)
+            else:
+                change_addrs = [preferred_change_addr]
+        elif self.use_change:
+            # Recalc and get unused change addresses
+            addrs = self.calc_unused_change_addresses()
+            # New change addresses are created only after a few
+            # confirmations.
+            if addrs:
+                # if there are any unused, select all
+                change_addrs = addrs
+            else:
+                # if there are none, take one randomly from the last few
+                addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
+                change_addrs = [random.choice(addrs)] if addrs else []
+        for addr in change_addrs:
+            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            # note that change addresses are not necessarily ismine
+            # in which case this is a no-op
+            self.check_address(addr)
+        max_change = self.max_change_outputs if self.multiple_change else 1
+        return change_addrs[:max_change]
+
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
@@ -689,28 +740,6 @@ class Abstract_Wallet(AddressSynchronizer):
         for item in coins:
             self.add_input_info(item)
 
-        # change address
-        # if we leave it empty, coin_chooser will set it
-        change_addrs = []
-        if change_addr:
-            change_addrs = [change_addr]
-        elif self.use_change:
-            # Recalc and get unused change addresses
-            addrs = self.calc_unused_change_addresses()
-            # New change addresses are created only after a few
-            # confirmations.
-            if addrs:
-                # if there are any unused, select all
-                change_addrs = addrs
-            else:
-                # if there are none, take one randomly from the last few
-                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-                change_addrs = [random.choice(addrs)] if addrs else []
-        for addr in change_addrs:
-            # note that change addresses are not necessarily ismine
-            # in which case this is a no-op
-            self.check_address(addr)
-
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee
@@ -723,32 +752,44 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
-            max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
             if config.get('batch_rbf', False) and base_tx:
+                # make sure we don't try to spend change from the tx-to-be-replaced:
+                coins = [c for c in coins if c['prevout_hash'] != base_tx.txid()]
                 is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
                 base_tx = Transaction(base_tx.serialize())
                 base_tx.deserialize(force_full_parse=True)
                 base_tx.remove_signatures()
                 base_tx.add_inputs_info(self)
                 base_tx_fee = base_tx.get_fee()
-                relayfeerate = self.relayfee() / 1000
+                relayfeerate = Decimal(self.relayfee()) / 1000
                 original_fee_estimator = fee_estimator
-                def fee_estimator(size: int) -> int:
+                def fee_estimator(size: Union[int, float, Decimal]) -> int:
+                    size = Decimal(size)
                     lower_bound = base_tx_fee + round(size * relayfeerate)
                     lower_bound = lower_bound if not is_local else 0
-                    return max(lower_bound, original_fee_estimator(size))
+                    return int(max(lower_bound, original_fee_estimator(size)))
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
+                old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
             else:
                 txi = []
                 txo = []
-            tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs[:max_change],
+                old_change_addrs = []
+            # change address. if empty, coin_chooser will set it
+            change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
+            tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs,
                                       fee_estimator, self.dust_threshold())
         else:
-            # FIXME?? this might spend inputs with negative effective value...
+            # "spend max" branch
+            # note: This *will* spend inputs with negative effective value (if there are any).
+            #       Given as the user is spending "max", and so might be abandoning the wallet,
+            #       try to include all UTXOs, otherwise leftover might remain in the UTXO set
+            #       forever. see #5433
+            # note: Actually it might be the case that not all UTXOs from the wallet are
+            #       being spent if the user manually selected UTXOs.
             sendable = sum(map(lambda x:x['value'], coins))
             outputs[i_max] = outputs[i_max]._replace(value=0)
             tx = Transaction.from_io(coins, outputs[:])
@@ -855,43 +896,124 @@ class Abstract_Wallet(AddressSynchronizer):
                 age = tx_age
         return age > age_limit
 
-    def bump_fee(self, tx, delta):
+    def bump_fee(self, *, tx, new_fee_rate, config) -> Transaction:
+        """Increase the miner fee of 'tx'.
+        'new_fee_rate' is the target min rate in sat/vbyte
+        """
         if tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
+        new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
+        old_tx_size = tx.estimated_size()
+        old_fee = self.get_tx_fee(tx)
+        if old_fee is None:
+            raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('current fee unknown'))
+        old_fee_rate = old_fee / old_tx_size  # sat/vbyte
+        if new_fee_rate <= old_fee_rate:
+            raise CannotBumpFee(_('Cannot bump fee') + ': ' + _("The new fee rate needs to be higher than the old fee rate."))
+
+        try:
+            # method 1: keep all inputs, keep all not is_mine outputs,
+            #           allow adding new inputs
+            tx_new = self._bump_fee_through_coinchooser(
+                tx=tx, new_fee_rate=new_fee_rate, config=config)
+            method_used = 1
+        except CannotBumpFee:
+            # method 2: keep all inputs, no new inputs are added,
+            #           allow decreasing and removing outputs (change is decreased first)
+            # This is less "safe" as it might end up decreasing e.g. a payment to a merchant;
+            # but e.g. if the user has sent "Max" previously, this is the only way to RBF.
+            tx_new = self._bump_fee_through_decreasing_outputs(
+                tx=tx, new_fee_rate=new_fee_rate)
+            method_used = 2
+
+        target_min_fee = new_fee_rate * tx_new.estimated_size()
+        actual_fee = tx_new.get_fee()
+        if actual_fee + 1 < target_min_fee:
+            raise Exception(f"bump_fee fee target was not met (method: {method_used}). "
+                            f"got {actual_fee}, expected >={target_min_fee}. "
+                            f"target rate was {new_fee_rate}")
+
+        tx_new.locktime = get_locktime_for_new_transaction(self.network)
+        return tx_new
+
+    def _bump_fee_through_coinchooser(self, *, tx, new_fee_rate, config):
+        tx = Transaction(tx.serialize())
+        tx.deserialize(force_full_parse=True)  # need to parse inputs
+        tx.remove_signatures()
+        tx.add_inputs_info(self)
+        old_inputs = tx.inputs()[:]
+        old_outputs = tx.outputs()[:]
+        # change address
+        old_change_addrs = [o.address for o in old_outputs if self.is_change(o.address)]
+        change_addrs = self.get_change_addresses_for_new_transaction(old_change_addrs)
+        # which outputs to keep?
+        if old_change_addrs:
+            fixed_outputs = list(filter(lambda o: not self.is_change(o.address), old_outputs))
+        else:
+            if all(self.is_mine(o.address) for o in old_outputs):
+                # all outputs are is_mine and none of them are change.
+                # we bail out as it's unclear what the user would want!
+                # the coinchooser bump fee method is probably not a good idea in this case
+                raise CannotBumpFee(_('Cannot bump fee') + ': all outputs are non-change is_mine')
+            old_not_is_mine = list(filter(lambda o: not self.is_mine(o.address), old_outputs))
+            if old_not_is_mine:
+                fixed_outputs = old_not_is_mine
+            else:
+                fixed_outputs = old_outputs
+
+        coins = self.get_spendable_coins(None, config)
+        for item in coins:
+            self.add_input_info(item)
+        def fee_estimator(size):
+            return config.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
+        coin_chooser = coinchooser.get_coin_chooser(config)
+        try:
+            return coin_chooser.make_tx(coins, old_inputs, fixed_outputs, change_addrs,
+                                        fee_estimator, self.dust_threshold())
+        except NotEnoughFunds as e:
+            raise CannotBumpFee(e)
+
+    def _bump_fee_through_decreasing_outputs(self, *, tx, new_fee_rate):
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
         tx.remove_signatures()
         tx.add_inputs_info(self)
         inputs = tx.inputs()
         outputs = tx.outputs()
+
         # use own outputs
-        s = list(filter(lambda x: self.is_mine(x[1]), outputs))
+        s = list(filter(lambda o: self.is_mine(o.address), outputs))
         # ... unless there is none
         if not s:
             s = outputs
             x_fee = run_hook('get_tx_extra_fee', self, tx)
             if x_fee:
                 x_fee_address, x_fee_amount = x_fee
-                s = filter(lambda x: x[1]!=x_fee_address, s)
+                s = filter(lambda o: o.address != x_fee_address, s)
+        if not s:
+            raise CannotBumpFee(_('Cannot bump fee') + ': no outputs at all??')
 
         # prioritize low value outputs, to get rid of dust
-        s = sorted(s, key=lambda x: x[2])
+        s = sorted(s, key=lambda o: o.value)
         for o in s:
+            target_fee = int(round(tx.estimated_size() * new_fee_rate))
+            delta = target_fee - tx.get_fee()
             i = outputs.index(o)
             if o.value - delta >= self.dust_threshold():
-                outputs[i] = o._replace(value=o.value-delta)
+                new_output_value = o.value - delta
+                assert isinstance(new_output_value, int)
+                outputs[i] = o._replace(value=new_output_value)
                 delta = 0
                 break
             else:
                 del outputs[i]
                 delta -= o.value
-                if delta > 0:
-                    continue
+                # note: delta might be negative now, in which case
+                # the value of the next output will be increased
         if delta > 0:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
-        locktime = get_locktime_for_new_transaction(self.network)
-        tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
-        return tx_new
+
+        return Transaction.from_io(inputs, outputs)
 
     def cpfp(self, tx, fee):
         txid = tx.txid()
@@ -1408,10 +1530,10 @@ class Imported_Wallet(Simple_Wallet):
         # note: overridden so that the history can be cleared
         return self.db.get_imported_addresses()
 
-    def get_receiving_addresses(self):
+    def get_receiving_addresses(self, **kwargs):
         return self.get_addresses()
 
-    def get_change_addresses(self):
+    def get_change_addresses(self, **kwargs):
         return []
 
     def import_addresses(self, addresses: List[str], *,
@@ -1485,7 +1607,7 @@ class Imported_Wallet(Simple_Wallet):
         return self.db.has_imported_address(address)
 
     def get_address_index(self, address):
-        # returns None is address is not mine
+        # returns None if address is not mine
         return self.get_public_key(address)
 
     def get_public_key(self, address):
@@ -1563,16 +1685,15 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_addresses(self):
         # note: overridden so that the history can be cleared.
         # addresses are ordered based on derivation
-        out = []
-        out += self.get_receiving_addresses()
+        out = self.get_receiving_addresses()
         out += self.get_change_addresses()
         return out
 
-    def get_receiving_addresses(self):
-        return self.db.get_receiving_addresses()
+    def get_receiving_addresses(self, *, slice_start=None, slice_stop=None):
+        return self.db.get_receiving_addresses(slice_start=slice_start, slice_stop=slice_stop)
 
-    def get_change_addresses(self):
-        return self.db.get_change_addresses()
+    def get_change_addresses(self, *, slice_start=None, slice_stop=None):
+        return self.db.get_change_addresses(slice_start=slice_start, slice_stop=slice_stop)
 
     @profiler
     def try_detecting_internal_addresses_corruption(self):
@@ -1650,11 +1771,15 @@ class Deterministic_Wallet(Abstract_Wallet):
     def synchronize_sequence(self, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
-            addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
-            if len(addresses) < limit:
+            num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
+            if num_addr < limit:
                 self.create_new_address(for_change)
                 continue
-            if any(map(self.address_is_old, addresses[-limit:])):
+            if for_change:
+                last_few_addresses = self.get_change_addresses(slice_start=-limit)
+            else:
+                last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
+            if any(map(self.address_is_old, last_few_addresses)):
                 self.create_new_address(for_change)
             else:
                 break
@@ -1666,11 +1791,15 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def is_beyond_limit(self, address):
         is_change, i = self.get_address_index(address)
-        addr_list = self.get_change_addresses() if is_change else self.get_receiving_addresses()
         limit = self.gap_limit_for_change if is_change else self.gap_limit
         if i < limit:
             return False
-        prev_addresses = addr_list[max(0, i - limit):max(0, i)]
+        slice_start = max(0, i - limit)
+        slice_stop = max(0, i)
+        if is_change:
+            prev_addresses = self.get_change_addresses(slice_start=slice_start, slice_stop=slice_stop)
+        else:
+            prev_addresses = self.get_receiving_addresses(slice_start=slice_start, slice_stop=slice_stop)
         for addr in prev_addresses:
             if self.db.get_addr_history(addr):
                 return False
@@ -1875,7 +2004,7 @@ class Wallet(object):
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
 
 
-def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True):
+def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True, gap_limit=None):
     """Create a new wallet"""
     storage = WalletStorage(path)
     if storage.file_exists():
@@ -1886,6 +2015,8 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
     k = keystore.from_seed(seed, passphrase)
     storage.put('keystore', k.dump())
     storage.put('wallet_type', 'standard')
+    if gap_limit is not None:
+        storage.put('gap_limit', gap_limit)
     wallet = Wallet(storage)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
@@ -1896,7 +2027,8 @@ def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True
 
 
 def restore_wallet_from_text(text, *, path, network=None,
-                             passphrase=None, password=None, encrypt_file=True):
+                             passphrase=None, password=None, encrypt_file=True,
+                             gap_limit=None):
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
@@ -1922,14 +2054,16 @@ def restore_wallet_from_text(text, *, path, network=None,
         if not good_inputs:
             raise Exception("None of the given privkeys can be imported")
     else:
-        if keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase)
-        elif keystore.is_master_key(text):
+        if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
+        elif keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase)
         else:
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
+        if gap_limit is not None:
+            storage.put('gap_limit', gap_limit)
         wallet = Wallet(storage)
 
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"

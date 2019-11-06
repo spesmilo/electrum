@@ -27,7 +27,11 @@ class QRCodeWidget(QWidget):
         if self.data != data:
             self.data = data
         if self.data:
-            self.qr = qrcode.QRCode()
+            self.qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=0,
+            )
             self.qr.add_data(self.data)
             if not self.fixedSize:
                 k = len(self.qr.get_matrix())

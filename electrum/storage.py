@@ -58,6 +58,7 @@ class WalletStorage(Logger):
         DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
+        # TODO we should test r/w permissions here (whether file exists or not)
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
@@ -225,6 +226,9 @@ class WalletStorage(Logger):
             raise Exception("storage not yet decrypted!")
         return self.db.requires_upgrade()
 
+    def is_ready_to_be_used_by_wallet(self):
+        return not self.requires_upgrade() and self.db._called_after_upgrade_tasks
+
     def upgrade(self):
         self.db.upgrade()
         self.write()
@@ -239,6 +243,7 @@ class WalletStorage(Logger):
             path = self.path + '.' + data['suffix']
             storage = WalletStorage(path)
             storage.db.data = data
+            storage.db._called_after_upgrade_tasks = False
             storage.db.upgrade()
             storage.write()
             out.append(path)

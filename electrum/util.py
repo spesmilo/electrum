@@ -520,6 +520,14 @@ def is_non_negative_integer(val) -> bool:
     return False
 
 
+def chunks(items, size: int):
+    """Break up items, an iterable, into chunks of length size."""
+    if size < 1:
+        raise ValueError(f"size must be positive, not {repr(size)}")
+    for i in range(0, len(items), size):
+        yield items[i: i + size]
+
+
 def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
@@ -644,7 +652,7 @@ mainnet_block_explorers = {
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
                         {'tx': 'Transaction/', 'addr': 'Address/'}),
-    'Blockchain.info': ('https://blockchain.info/',
+    'Blockchain.info': ('https://blockchain.com/btc/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
                         {'tx': 'tx/', 'addr': 'address/'}),
@@ -652,8 +660,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Bitaps.com': ('https://btc.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://chain.btc.com/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://btc.com/',
+                        {'tx': '', 'addr': ''}),
     'Chain.so': ('https://www.chain.so/',
                         {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
     'Insight.is': ('https://insight.bitpay.com/',
@@ -679,12 +687,10 @@ testnet_block_explorers = {
                        {'tx': '', 'addr': ''}),
     'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchain.info': ('https://testnet.blockchain.info/',
+    'Blockchain.info': ('https://www.blockchain.com/btctest/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'BTC.com': ('https://tchain.btc.com/',
-                       {'tx': '', 'addr': ''}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
@@ -720,18 +726,25 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_URI(uri: str, on_pr: Callable=None) -> dict:
+class InvalidBitcoinURI(Exception): pass
+
+
+def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
+    """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN
 
+    if not isinstance(uri, str):
+        raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
+
     if ':' not in uri:
         if not bitcoin.is_address(uri):
-            raise Exception("Not a bitcoin address")
+            raise InvalidBitcoinURI("Not a bitcoin address")
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
     if u.scheme != 'bitcoin':
-        raise Exception("Not a bitcoin URI")
+        raise InvalidBitcoinURI("Not a bitcoin URI")
     address = u.path
 
     # python for android fails to parse query
@@ -742,37 +755,50 @@ def parse_URI(uri: str, on_pr: Callable=None) -> dict:
         pq = urllib.parse.parse_qs(u.query)
 
     for k, v in pq.items():
-        if len(v)!=1:
-            raise Exception('Duplicate Key', k)
+        if len(v) != 1:
+            raise InvalidBitcoinURI(f'Duplicate Key: {repr(k)}')
 
     out = {k: v[0] for k, v in pq.items()}
     if address:
         if not bitcoin.is_address(address):
-            raise Exception("Invalid bitcoin address:" + address)
+            raise InvalidBitcoinURI(f"Invalid bitcoin address: {address}")
         out['address'] = address
     if 'amount' in out:
         am = out['amount']
-        m = re.match(r'([0-9.]+)X([0-9])', am)
-        if m:
-            k = int(m.group(2)) - 8
-            amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
-        else:
-            amount = Decimal(am) * COIN
-        out['amount'] = int(amount)
+        try:
+            m = re.match(r'([0-9.]+)X([0-9])', am)
+            if m:
+                k = int(m.group(2)) - 8
+                amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+            else:
+                amount = Decimal(am) * COIN
+            out['amount'] = int(amount)
+        except Exception as e:
+            raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
     if 'message' in out:
         out['message'] = out['message']
         out['memo'] = out['message']
     if 'time' in out:
-        out['time'] = int(out['time'])
+        try:
+            out['time'] = int(out['time'])
+        except Exception as e:
+            raise InvalidBitcoinURI(f"failed to parse 'time' field: {repr(e)}") from e
     if 'exp' in out:
-        out['exp'] = int(out['exp'])
+        try:
+            out['exp'] = int(out['exp'])
+        except Exception as e:
+            raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
     if 'sig' in out:
-        out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
+        try:
+            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
+        except Exception as e:
+            raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
 
     r = out.get('r')
     sig = out.get('sig')
     name = out.get('name')
     if on_pr and (r or (name and sig)):
+        @log_exceptions
         async def get_payment_request():
             from . import paymentrequest as pr
             if name and sig:
@@ -782,7 +808,7 @@ def parse_URI(uri: str, on_pr: Callable=None) -> dict:
                 request = await pr.get_payment_request(r)
             if on_pr:
                 on_pr(request)
-        loop = asyncio.get_event_loop()
+        loop = loop or asyncio.get_event_loop()
         asyncio.run_coroutine_threadsafe(get_payment_request(), loop)
 
     return out

@@ -28,6 +28,7 @@ import ssl
 import sys
 import traceback
 import asyncio
+import socket
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address
@@ -37,7 +38,8 @@ import logging
 import aiorpcx
 from aiorpcx import RPCSession, Notification, NetAddress
 from aiorpcx.curio import timeout_after, TaskTimeout
-from aiorpcx.jsonrpc import JSONRPC
+from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
+from aiorpcx.rawsocket import RSClient
 import certifi
 
 from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
@@ -106,11 +108,16 @@ class NotificationSession(RPCSession):
         msg_id = next(self._msg_counter)
         self.maybe_log(f"<-- {args} {kwargs} (id: {msg_id})")
         try:
+            # note: RPCSession.send_request raises TaskTimeout in case of a timeout.
+            # TaskTimeout is a subclass of CancelledError, which is *suppressed* in TaskGroups
             response = await asyncio.wait_for(
                 super().send_request(*args, **kwargs),
                 timeout)
         except (TaskTimeout, asyncio.TimeoutError) as e:
             raise RequestTimedOut(f'request timed out: {args} (id: {msg_id})') from e
+        except CodeMessageError as e:
+            self.maybe_log(f"--> {repr(e)} (id: {msg_id})")
+            raise
         else:
             self.maybe_log(f"--> {response} (id: {msg_id})")
             return response
@@ -166,6 +173,16 @@ class RequestTimedOut(GracefulDisconnect):
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ConnectError(Exception): pass
+
+
+class _RSClient(RSClient):
+    async def create_connection(self):
+        try:
+            return await super().create_connection()
+        except OSError as e:
+            # note: using "from e" here will set __cause__ of ConnectError
+            raise ConnectError(e) from e
 
 
 def deserialize_server(server_str: str) -> Tuple[str, str, str]:
@@ -242,11 +259,11 @@ class Interface(Logger):
         """
         try:
             await self.open_session(ca_ssl_context, exit_early=True)
-        except ssl.SSLError as e:
-            if e.reason == 'CERTIFICATE_VERIFY_FAILED':
+        except ConnectError as e:
+            cause = e.__cause__
+            if isinstance(cause, ssl.SSLError) and cause.reason == 'CERTIFICATE_VERIFY_FAILED':
                 # failures due to self-signed certs are normal
                 return False
-            # e.g. too weak crypto
             raise
         return True
 
@@ -295,7 +312,7 @@ class Interface(Logger):
         if not self._is_saved_ssl_cert_available():
             try:
                 await self._try_saving_ssl_cert_for_first_time(ca_sslc)
-            except (OSError, aiorpcx.socks.SOCKSError) as e:
+            except (OSError, ConnectError, aiorpcx.socks.SOCKSError) as e:
                 raise ErrorGettingSSLCertFromServer(e) from e
         # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
@@ -314,9 +331,13 @@ class Interface(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.log(e.log_level, f"disconnecting due to {repr(e)}")
+            except aiorpcx.jsonrpc.RPCError as e:
+                self.logger.warning(f"disconnecting due to {repr(e)}")
+                self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
                 await self.network.connection_down(self)
-                self.got_disconnected.set_result(1)
+                if not self.got_disconnected.done():
+                    self.got_disconnected.set_result(1)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
         return wrapper_func
@@ -332,7 +353,7 @@ class Interface(Logger):
             return
         try:
             await self.open_session(ssl_context)
-        except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSError) as e:
+        except (asyncio.CancelledError, ConnectError, aiorpcx.socks.SOCKSError) as e:
             self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
@@ -379,10 +400,10 @@ class Interface(Logger):
     async def get_certificate(self):
         sslc = ssl.SSLContext()
         try:
-            async with aiorpcx.Connector(RPCSession,
-                                         host=self.host, port=self.port,
-                                         ssl=sslc, proxy=self.proxy) as session:
-                return session.transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
+            async with _RSClient(session_factory=RPCSession,
+                                 host=self.host, port=self.port,
+                                 ssl=sslc, proxy=self.proxy) as session:
+                return session.transport._asyncio_transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
         except ValueError:
             return None
 
@@ -417,9 +438,9 @@ class Interface(Logger):
         return self.network.default_server == self.server
 
     async def open_session(self, sslc, exit_early=False):
-        async with aiorpcx.Connector(NotificationSession,
-                                     host=self.host, port=self.port,
-                                     ssl=sslc, proxy=self.proxy) as session:
+        async with _RSClient(session_factory=NotificationSession,
+                             host=self.host, port=self.port,
+                             ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
             self.session.interface = self
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
@@ -440,8 +461,10 @@ class Interface(Logger):
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
             except aiorpcx.jsonrpc.RPCError as e:
-                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE, JSONRPC.SERVER_BUSY):
-                    raise GracefulDisconnect(e, log_level=logging.ERROR) from e
+                if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE,
+                              JSONRPC.SERVER_BUSY,
+                              JSONRPC.METHOD_NOT_FOUND):
+                    raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
 
     async def monitor_connection(self):

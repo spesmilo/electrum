@@ -3,8 +3,10 @@
 from decimal import Decimal
 
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPalette, QPainter
+from PyQt5.QtGui import QPalette, QPainter, QFontMetrics
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
+
+from .util import char_width_in_lineedit
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                            FEERATE_PRECISION, quantize_feerate)
@@ -24,7 +26,7 @@ class AmountEdit(MyLineEdit):
     def __init__(self, base_unit, is_int=False, parent=None):
         QLineEdit.__init__(self, parent)
         # This seems sufficient for hundred-BTC amounts with 8 decimals
-        self.setFixedWidth(140)
+        self.setFixedWidth(16 * char_width_in_lineedit())
         self.base_unit = base_unit
         self.textChanged.connect(self.numbify)
         self.is_int = is_int

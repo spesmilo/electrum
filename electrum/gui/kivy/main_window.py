@@ -6,6 +6,7 @@ import datetime
 import traceback
 from decimal import Decimal
 import threading
+import asyncio
 
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
@@ -13,7 +14,7 @@ from electrum.wallet import Wallet, InternalAddressCorruption
 from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum.plugin import run_hook
-from electrum.util import format_satoshis, format_satoshis_plain
+from electrum.util import format_satoshis, format_satoshis_plain, format_fee_satoshis
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
@@ -280,6 +281,7 @@ class ElectrumWindow(App):
         self.is_exit = False
         self.wallet = None
         self.pause_time = 0
+        self.asyncio_loop = asyncio.get_event_loop()
 
         App.__init__(self)#, **kwargs)
 
@@ -433,7 +435,8 @@ class ElectrumWindow(App):
                 msg += '\n' + _('Text copied to clipboard.')
                 self._clipboard.copy(text_for_clipboard)
             Clock.schedule_once(lambda dt: self.show_info(msg))
-        popup = QRDialog(title, data, show_text, on_qr_failure)
+        popup = QRDialog(title, data, show_text, failure_cb=on_qr_failure,
+                         text_for_clipboard=text_for_clipboard)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -454,6 +457,8 @@ class ElectrumWindow(App):
                     String = autoclass("java.lang.String")
                     contents = intent.getStringExtra(String("text"))
                     on_complete(contents)
+            except Exception as e:  # exc would otherwise get lost
+                send_exception_to_crash_reporter(e)
             finally:
                 activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)
@@ -802,6 +807,10 @@ class ElectrumWindow(App):
 
     def format_amount_and_units(self, x):
         return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+
+    def format_fee_rate(self, fee_rate):
+        # fee_rate is in sat/kB
+        return format_fee_satoshis(fee_rate/1000) + ' sat/byte'
 
     #@profiler
     def update_wallet(self, *dt):

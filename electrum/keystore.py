@@ -282,7 +282,13 @@ class Xpub:
         return node.eckey.get_public_key_hex(compressed=True)
 
     def get_xpubkey(self, c, i):
-        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
+        def encode_path_int(path_int) -> str:
+            if path_int < 0xffff:
+                hex = bitcoin.int_to_hex(path_int, 2)
+            else:
+                hex = 'ffff' + bitcoin.int_to_hex(path_int, 4)
+            return hex
+        s = ''.join(map(encode_path_int, (c, i)))
         return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
 
     @classmethod
@@ -296,11 +302,14 @@ class Xpub:
         # derivation:
         dd = pk[78:]
         s = []
-        # FIXME: due to an oversight, levels in the derivation are only
-        # allocated 2 bytes, instead of 4 (in bip32)
         while dd:
-            n = int(bitcoin.rev_hex(bh2u(dd[0:2])), 16)
+            # 2 bytes for derivation path index
+            n = int.from_bytes(dd[0:2], byteorder="little")
             dd = dd[2:]
+            # in case of overflow, drop these 2 bytes; and use next 4 bytes instead
+            if n == 0xffff:
+                n = int.from_bytes(dd[0:4], byteorder="little")
+                dd = dd[4:]
             s.append(n)
         assert len(s) == 2
         return xkey, s

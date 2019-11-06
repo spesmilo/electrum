@@ -15,7 +15,7 @@ from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable)
+                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
 
 _logger = get_logger(__name__)
 
@@ -23,6 +23,7 @@ _logger = get_logger(__name__)
 try:
     import trezorlib
     import trezorlib.transport
+    from trezorlib.transport.bridge import BridgeTransport, call_bridge
 
     from .clientbase import TrezorClientBase
 
@@ -137,7 +138,16 @@ class TrezorPlugin(HW_PluginBase):
             raise LibraryFoundButUnusable(library_version=version)
 
     def enumerate(self):
-        devices = trezorlib.transport.enumerate_devices()
+        # If there is a bridge, prefer that.
+        # On Windows, the bridge runs as Admin (and Electrum usually does not),
+        # so the bridge has better chances of finding devices. see #5420
+        # This also avoids duplicate entries.
+        try:
+            call_bridge("enumerate")
+        except Exception:
+            devices = trezorlib.transport.enumerate_devices()
+        else:
+            devices = BridgeTransport.enumerate()
         return [Device(path=d.get_path(),
                        interface_number=-1,
                        id_=d.get_path(),
@@ -275,7 +285,7 @@ class TrezorPlugin(HW_PluginBase):
             msg = (_('Outdated {} firmware for device labelled {}. Please '
                      'download the updated firmware from {}')
                    .format(self.device, client.label(), self.firmware_URL))
-            raise UserFacingException(msg)
+            raise OutdatedHwFirmwareException(msg)
 
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)

@@ -1,7 +1,5 @@
 from functools import partial
 
-#from btchip.btchipPersoWizard import StartBTChipPersoDialog
-
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QInputDialog, QLabel, QVBoxLayout, QLineEdit
 
@@ -83,6 +81,3 @@ class Ledger_Handler(QtHandlerBase):
         
     def setup_dialog(self):
         self.show_error(_('Initialization of Ledger HW devices is currently disabled.'))
-        return
-        dialog = StartBTChipPersoDialog()
-        dialog.exec_()

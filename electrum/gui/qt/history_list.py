@@ -24,7 +24,6 @@
 # SOFTWARE.
 
 import os
-import webbrowser
 import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
@@ -47,7 +46,7 @@ from electrum.logging import get_logger, Logger
 
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
                    filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
-                   CloseButton)
+                   CloseButton, webopen)
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -149,7 +148,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 HistoryColumns.STATUS_ICON:
                     # height breaks ties for unverified txns
                     # txpos breaks ties for verified same block txns
-                    (status, conf, -height, -txpos),
+                    (conf, -status, -height, -txpos),
                 HistoryColumns.STATUS_TEXT: status_str,
                 HistoryColumns.DESCRIPTION: tx_item['label'],
                 HistoryColumns.COIN_VALUE:  tx_item['value'].value,
@@ -608,7 +607,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if pr_key:
             menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
-            menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
+            menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, delete_tx):

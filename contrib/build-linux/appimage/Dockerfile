@@ -21,7 +21,7 @@ RUN apt-get update -q && \
         libudev-dev=204-5ubuntu20.31 \
         gettext=0.18.3.1-1ubuntu3.1 \
         libzbar0=0.10+doc-9build1  \
-        faketime=0.9.5-2 \
+        libdbus-1-3=1.6.18-0ubuntu4.5 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

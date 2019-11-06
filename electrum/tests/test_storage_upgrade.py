@@ -305,7 +305,13 @@ class TestStorageUpgrade(WalletTestCase):
             storage2 = self._load_storage_from_json_string(wallet_json=wallet_json,
                                                            path=path2,
                                                            manual_upgrades=False)
+            storage2.write()
             self._sanity_check_upgraded_storage(storage2)
+            # test opening upgraded storages again
+            s1 = WalletStorage(path2, manual_upgrades=False)
+            self._sanity_check_upgraded_storage(s1)
+            s2 = WalletStorage(path2, manual_upgrades=True)
+            self._sanity_check_upgraded_storage(s2)
         else:
             storage = self._load_storage_from_json_string(wallet_json=wallet_json,
                                                           path=self.wallet_path,

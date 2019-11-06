@@ -15,6 +15,7 @@ from electrum.gui.kivy.i18n import _
 
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum.wallet import CannotBumpFee
 
 
 Builder.load_string('''
@@ -27,6 +28,7 @@ Builder.load_string('''
     can_broadcast: False
     can_rbf: False
     fee_str: ''
+    feerate_str: ''
     date_str: ''
     date_label:''
     amount_str: ''
@@ -65,6 +67,9 @@ Builder.load_string('''
                     BoxLabel:
                         text: _('Transaction fee') if root.fee_str else ''
                         value: root.fee_str
+                    BoxLabel:
+                        text: _('Transaction fee rate') if root.feerate_str else ''
+                        value: root.feerate_str
                 TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
@@ -148,7 +153,13 @@ class TxDialog(Factory.Popup):
         else:
             self.is_mine = True
             self.amount_str = format_amount(-amount)
-        self.fee_str = format_amount(fee) if fee is not None else _('unknown')
+        if fee is not None:
+            self.fee_str = format_amount(fee)
+            fee_per_kb = fee / self.tx.estimated_size() * 1000
+            self.feerate_str = self.app.format_fee_rate(fee_per_kb)
+        else:
+            self.fee_str = _('unknown')
+            self.feerate_str = _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.get_outputs_for_UI())
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
@@ -184,7 +195,7 @@ class TxDialog(Factory.Popup):
             self._action_button_fn = dropdown.open
             for option in options:
                 if option.enabled:
-                    btn = Button(text=option.text, size_hint_y=None, height=48)
+                    btn = Button(text=option.text, size_hint_y=None, height='48dp')
                     btn.bind(on_release=option.func)
                     dropdown.add_widget(btn)
 
@@ -202,16 +213,14 @@ class TxDialog(Factory.Popup):
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
 
-    def _do_rbf(self, old_fee, new_fee, is_final):
-        if new_fee is None:
-            return
-        delta = new_fee - old_fee
-        if delta < 0:
-            self.app.show_error("fee too low")
+    def _do_rbf(self, new_fee_rate, is_final):
+        if new_fee_rate is None:
             return
         try:
-            new_tx = self.wallet.bump_fee(self.tx, delta)
-        except BaseException as e:
+            new_tx = self.wallet.bump_fee(tx=self.tx,
+                                          new_fee_rate=new_fee_rate,
+                                          config=self.app.electrum_config)
+        except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
         if is_final:
