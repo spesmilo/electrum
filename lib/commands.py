@@ -35,8 +35,8 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from .import util
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 from .import bitcoin
-from .address import Address, AddressError
-from .bitcoin import hash_160, COIN, TYPE_ADDRESS
+from .address import Address, AddressError, ScriptOutput
+from .bitcoin import hash_160, COIN, TYPE_ADDRESS, TYPE_SCRIPT
 from .i18n import _
 from .transaction import Transaction, multisig_script
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -471,12 +471,56 @@ class Commands:
         message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
 
+    @staticmethod
+    def _output_for_opreturn_stringdata(op_return):
+        ''' This is more or less lifted from main_window.py. TODO: Join the two in a lib. '''
+        if not isinstance(op_return, str):
+            raise RuntimeError('OP_RETURN parameter needs to be of type str!')
+        op_return_code = "OP_RETURN "
+        op_return_encoded = op_return.encode('utf-8')
+        if len(op_return_encoded) > 220:
+            raise RuntimeError(_("OP_RETURN message too large, needs to be no longer than 220 bytes"))
+        op_return_payload = op_return_encoded.hex()
+        script = op_return_code + op_return_payload
+        amount = 0
+        return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
+
+    @staticmethod
+    def _output_for_opreturn_rawhex(op_return):
+        ''' This is more or less lifted from main_window.py. TODO: Join the two in a lib. '''
+        if not isinstance(op_return, str):
+            raise RuntimeError('OP_RETURN parameter needs to be of type str!')
+        if op_return == 'empty':
+            op_return = ''
+        try:
+            op_return_script = b'\x6a' + bytes.fromhex(op_return.strip())
+        except ValueError:
+            raise RuntimeError(_('OP_RETURN script expected to be hexadecimal bytes'))
+        if len(op_return_script) > 223:
+            raise RuntimeError(_("OP_RETURN script too large, needs to be no longer than 223 bytes"))
+        amount = 0
+        return (TYPE_SCRIPT, ScriptOutput.protocol_factory(op_return_script), amount)
+
+
     def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
-              unsigned=False, password=None, locktime=None):
+              unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None):
+        if op_return and op_return_raw:
+            raise RuntimeError('Both op_return and op_return_raw cannot be specified together!')
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
         final_outputs = []
+        if op_return:
+            final_outputs.append(self._output_for_opreturn_stringdata(op_return))
+        elif op_return_raw:
+            try:
+                op_return_raw = op_return_raw.strip()
+                tmp = bytes.fromhex(op_return_raw).hex()
+                assert tmp == op_return_raw.lower()
+                op_return_raw = tmp
+            except Exception as e:
+                raise RuntimeError("op_return_raw must be an even number of be hex digits") from e
+            final_outputs.append(self._output_for_opreturn_rawhex(op_return_raw))
         for address, amount in outputs:
             address = self._resolver(address)
             amount = satoshis(amount)
@@ -492,11 +536,12 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
+              op_return=None, op_return_raw=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw)
         return tx.as_dict()
 
     @command('wp')
@@ -796,6 +841,8 @@ command_options = {
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
     'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
+    'op_return':   (None, "Specify string data to add to the transaction as an OP_RETURN output"),
+    'op_return_raw': (None, 'Specify raw hex data to add to the transaction as an OP_RETURN output (0x6a aka the OP_RETURN byte will be auto-prepended for you so do not include it)'),
 }
 
 
