@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 
 try:
@@ -51,12 +51,17 @@ from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
-
-
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
+from .lightning_dialog import LightningDialog
+from .watchtower_dialog import WatchtowerDialog
+
+if TYPE_CHECKING:
+    from electrum.daemon import Daemon
+    from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
 
 
 class OpenFileEventFilter(QObject):
@@ -83,7 +88,7 @@ class QNetworkUpdatedSignalObject(QObject):
 class ElectrumGui(Logger):
 
     @profiler
-    def __init__(self, config, daemon, plugins):
+    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', get_default_language()))
         Logger.__init__(self)
         # Uncomment this call to verify objects are being properly
@@ -109,7 +114,9 @@ class ElectrumGui(Logger):
         self.timer.setSingleShot(False)
         self.timer.setInterval(500)  # msec
 
-        self.nd = None
+        self.network_dialog = None
+        self.lightning_dialog = None
+        self.watchtower_dialog = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
@@ -148,8 +155,11 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
+        m.addAction(_("Lightning"), self.show_lightning_dialog)
+        m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
-            submenu = m.addMenu(window.wallet.basename())
+            name = window.wallet.basename()
+            submenu = m.addMenu(name)
             submenu.addAction(_("Show/Hide"), window.show_or_hide)
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
@@ -179,23 +189,39 @@ class ElectrumGui(Logger):
     def close(self):
         for window in self.windows:
             window.close()
+        if self.network_dialog:
+            self.network_dialog.close()
+        if self.lightning_dialog:
+            self.lightning_dialog.close()
+        if self.watchtower_dialog:
+            self.watchtower_dialog.close()
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
 
+    def show_lightning_dialog(self):
+        if not self.lightning_dialog:
+            self.lightning_dialog = LightningDialog(self)
+        self.lightning_dialog.bring_to_top()
+
+    def show_watchtower_dialog(self):
+        if not self.watchtower_dialog:
+            self.watchtower_dialog = WatchtowerDialog(self)
+        self.watchtower_dialog.bring_to_top()
+
     def show_network_dialog(self, parent):
         if not self.daemon.network:
             parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
             return
-        if self.nd:
-            self.nd.on_update()
-            self.nd.show()
-            self.nd.raise_()
+        if self.network_dialog:
+            self.network_dialog.on_update()
+            self.network_dialog.show()
+            self.network_dialog.raise_()
             return
-        self.nd = NetworkDialog(self.daemon.network, self.config,
+        self.network_dialog = NetworkDialog(self.daemon.network, self.config,
                                 self.network_updated_signal_obj)
-        self.nd.show()
+        self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
@@ -230,7 +256,7 @@ class ElectrumGui(Logger):
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
                                title=_('Error'),
-                               text=_('Cannot load wallet') + ' (1):\n' + str(e))
+                               text=_('Cannot load wallet') + ' (1):\n' + repr(e))
             # if app is starting, still let wizard to appear
             if not app_is_starting:
                 return
@@ -242,7 +268,7 @@ class ElectrumGui(Logger):
                 custom_message_box(icon=QMessageBox.Warning,
                                    parent=None,
                                    title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (2):\n' + str(e))
+                                   text=_('Cannot load wallet') + ' (2):\n' + repr(e))
         if not wallet:
             return
         # create or raise window
@@ -257,7 +283,7 @@ class ElectrumGui(Logger):
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
                                title=_('Error'),
-                               text=_('Cannot create window for wallet') + ':\n' + str(e))
+                               text=_('Cannot create window for wallet') + ':\n' + repr(e))
             if app_is_starting:
                 wallet_dir = os.path.dirname(path)
                 path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
@@ -291,7 +317,7 @@ class ElectrumGui(Logger):
         # return if wallet creation is not complete
         if storage is None or storage.get_action():
             return
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config=self.config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
         return wallet
@@ -325,8 +351,8 @@ class ElectrumGui(Logger):
             self.logger.exception('')
             return
         self.timer.start()
-        self.config.open_last_wallet()
-        path = self.config.get_wallet_path()
+
+        path = self.config.get_wallet_path(use_gui_last_wallet=True)
         if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
@@ -338,6 +364,8 @@ class ElectrumGui(Logger):
             # check if a wizard is in progress
             with self._num_wizards_lock:
                 if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                    return
+                if self.config.get('persist_daemon'):
                     return
             self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit

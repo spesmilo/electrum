@@ -7,10 +7,10 @@ import shutil
 from io import StringIO
 from electrum.simple_config import (SimpleConfig, read_user_config)
 
-from . import SequentialTestCase
+from . import ElectrumTestCase
 
 
-class Test_SimpleConfig(SequentialTestCase):
+class Test_SimpleConfig(ElectrumTestCase):
 
     def setUp(self):
         super(Test_SimpleConfig, self).setUp()
@@ -147,7 +147,7 @@ class Test_SimpleConfig(SequentialTestCase):
         self.assertEqual(36495000, config.fee_to_depth(0.5))
 
 
-class TestUserConfig(SequentialTestCase):
+class TestUserConfig(ElectrumTestCase):
 
     def setUp(self):
         super(TestUserConfig, self).setUp()

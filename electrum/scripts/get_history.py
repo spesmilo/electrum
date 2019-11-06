@@ -6,6 +6,7 @@ import asyncio
 from electrum import bitcoin
 from electrum.network import Network
 from electrum.util import json_encode, print_msg, create_and_start_event_loop, log_exceptions
+from electrum.simple_config import SimpleConfig
 
 
 try:
@@ -14,8 +15,10 @@ except Exception:
     print("usage: get_history <bitcoin_address>")
     sys.exit(1)
 
+config = SimpleConfig()
+
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 @log_exceptions

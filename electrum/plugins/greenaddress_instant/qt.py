@@ -106,6 +106,6 @@ class Plugin(BasePlugin):
                 d.show_warning(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
         except BaseException as e:
             self.logger.exception('')
-            d.show_error(str(e))
+            d.show_error(repr(e))
         finally:
             d.verify_button.setText(self.button_label)

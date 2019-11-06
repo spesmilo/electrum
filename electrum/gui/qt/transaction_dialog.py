@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
-                             QTextEdit, QFrame)
+                             QTextEdit, QFrame, QAction, QToolButton, QMenu)
 import qrcode
 from qrcode import exceptions
 
@@ -60,9 +60,9 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
+def show_transaction(tx, parent, *, invoice=None, desc=None, prompt_if_unsaved=False):
     try:
-        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+        d = TxDialog(tx, parent, invoice, desc, prompt_if_unsaved)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -73,7 +73,7 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx, parent, desc, prompt_if_unsaved):
+    def __init__(self, tx: Transaction, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -82,16 +82,17 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = tx = copy.deepcopy(tx)  # type: Transaction
+        self.tx = tx = copy.deepcopy(tx)
         try:
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        self.main_window = parent  # type: ElectrumWindow
+        self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
+        self.invoice = invoice
 
         # if the wallet can populate the inputs with more info, do it now.
         # as a result, e.g. we might learn an imported address tx is segwit,
@@ -131,23 +132,29 @@ class TxDialog(QDialog, MessageBoxMixin):
             b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
         b.clicked.connect(self.save)
 
-        self.export_button = b = QPushButton(_("Export"))
-        b.clicked.connect(self.export)
-
         self.cancel_button = b = QPushButton(_("Close"))
         b.clicked.connect(self.close)
         b.setDefault(True)
 
-        self.qr_button = b = QPushButton()
-        b.setIcon(read_QIcon(qr_icon))
-        b.clicked.connect(self.show_qr)
-
-        self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
+        export_actions_menu = QMenu()
+        action = QAction(_("Copy to clipboard"), self)
+        action.triggered.connect(lambda: parent.app.clipboard().setText((lambda: str(self.tx))()))
+        export_actions_menu.addAction(action)
+        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
+        action.triggered.connect(self.show_qr)
+        export_actions_menu.addAction(action)
+        action = QAction(_("Export to file"), self)
+        action.triggered.connect(self.export)
+        export_actions_menu.addAction(action)
+        self.export_actions_button = QToolButton()
+        self.export_actions_button.setText(_("Export"))
+        self.export_actions_button.setMenu(export_actions_menu)
+        self.export_actions_button.setPopupMode(QToolButton.InstantPopup)
 
         # Action buttons
         self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button, self.save_button]
+        self.sharing_buttons = [self.export_actions_button, self.save_button]
 
         run_hook('transaction_dialog', self)
 
@@ -161,7 +168,7 @@ class TxDialog(QDialog, MessageBoxMixin):
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
-            self.main_window.broadcast_transaction(self.tx, self.desc)
+            self.main_window.broadcast_transaction(self.tx, invoice=self.invoice, tx_desc=self.desc)
         finally:
             self.main_window.pop_top_level_window(self)
         self.saved = True
@@ -191,7 +198,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))
         except Exception as e:
-            self.show_error(_('Failed to display QR code.') + '\n' + str(e))
+            self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
     def sign(self):
         def sign_done(success):

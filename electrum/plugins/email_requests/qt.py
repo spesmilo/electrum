@@ -196,7 +196,7 @@ class Plugin(BasePlugin):
             self.processor.send(recipient, message, payload)
         except BaseException as e:
             self.logger.exception('')
-            window.show_message(str(e))
+            window.show_message(repr(e))
         else:
             window.show_message(_('Request sent.'))
 
@@ -269,4 +269,4 @@ class CheckConnectionThread(QThread):
             conn = imaplib.IMAP4_SSL(self.server)
             conn.login(self.username, self.password)
         except BaseException as e:
-            self.connection_error_signal.emit(str(e))
+            self.connection_error_signal.emit(repr(e))

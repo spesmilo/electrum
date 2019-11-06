@@ -133,13 +133,14 @@
     font_size: '6pt'
     name: ''
     data: ''
-    text: self.data
+    text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
     on_touch_down:
         touch = args[1]
-        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
-        else: self.touched = False
+        touched = bool(self.collide_point(*touch.pos))
+        if touched: app.on_ref_label(self)
+        if touched: self.touched = True
     canvas.before:
         Color:
             rgb: .3, .3, .3
@@ -231,15 +232,14 @@
             size: self.size
             pos: self.pos
 
-<CardItem@ToggleButtonBehavior+BoxLayout>
+<CardItem@ButtonBehavior+BoxLayout>
     size_hint: 1, None
     height: '65dp'
     group: 'requests'
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_state:
-        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    on_release: self.screen.show_item(args[0])
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
@@ -345,6 +345,7 @@
     description: ''
     size_hint: 1, None
     height: '60dp'
+    action: lambda x: None
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
@@ -389,7 +390,7 @@
             slide: 0
         CleanHeader:
             id: history_tab
-            text: _('Balance')
+            text: _('History')
             slide: 1
         CleanHeader:
             id: receive_tab
@@ -421,34 +422,46 @@ BoxLayout:
         ActionView:
             id: av
             ActionPrevious:
-                app_icon: 'atlas://electrum/gui/kivy/theming/light/logo'
-                app_icon_width: '100dp'
                 with_previous: False
-                size_hint_x: None
-                on_release: app.popup_dialog('network')
+                size_hint: None, None
+                size: 0, 0
 
             ActionButton:
-                id: action_status
-                important: True
-                size_hint: 1, 1
+                size_hint_x: 0.5
+                text: app.wallet_name
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
-                text: app.wallet_name
                 font_size: '22dp'
-                #minimum_width: '1dp'
-                on_release: app.popup_dialog('status')
+                on_release:
+                    Clock.schedule_once(lambda dt: app.popup_dialog('wallets'), 0.05)
+                    self.state = 'normal'
+
+            ActionButton:
+                size_hint_x: 0.4
+                text: ''
+                opacity:0
 
             ActionOverflow:
                 id: ao
+                size_hint_x: 0.15
                 ActionOvrButton:
                     name: 'about'
                     text: _('About')
                 ActionOvrButton:
-                    name: 'wallets'
-                    text: _('Wallets')
-                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                ActionOvrButton:
+                    name: 'lightning'
+                    text: _('Lightning')
+                ActionOvrButton:
+                    name: 'status'
+                    text: _('Wallet Info')
+                ActionOvrButton:
+                    name: 'addresses_dialog'
+                    text: _('Addresses')
+                ActionOvrButton:
+                    name: 'lightning_channels_dialog'
+                    text: _('Channels')
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')
@@ -456,6 +469,7 @@ BoxLayout:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
+
     ScreenManager:
         id: manager
         ScreenTabs:

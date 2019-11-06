@@ -1,57 +1,78 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
 #:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
 
 
+<RequestLabel@Label>
+    #color: .305, .309, .309, 1
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+
+<RequestItem@CardItem>
+    is_expired: False
+    address: ''
+    memo: ''
+    amount: ''
+    status: ''
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.memo
+            shorten: True
+        Widget
+        RequestLabel:
+            text: root.address
+            color: .699, .699, .699, 1
+            font_size: '13sp'
+            shorten: True
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        RequestLabel:
+            text: root.amount
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+        RequestLabel:
+            text: root.status
+            halign: 'right'
+            font_size: '13sp'
+            color: (1., .2, .2, 1) if root.is_expired else (.7, .7, .7, 1)
+        Widget
+
+<RequestRecycleView>:
+    viewclass: 'RequestItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
+
 
 ReceiveScreen:
     id: s
     name: 'receive'
-
     address: ''
     amount: ''
     message: ''
     status: ''
-
-    on_address:
-        self.parent.on_address(self.address)
-    on_amount:
-        self.parent.on_amount_or_message()
-    on_message:
-        self.parent.on_amount_or_message()
+    is_lightning: False
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
         orientation: 'vertical'
-        size_hint: 1, 1
-        FloatLayout:
-            id: bl
-            QRCodeWidget:
-                id: qr
-                size_hint: None, 1
-                width: min(self.height, bl.width)
-                pos_hint: {'center': (.5, .5)}
-                shaded: False
-                foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
-                on_touch_down:
-                    touch = args[1]
-                    if self.collide_point(*touch.pos): self.shaded = not self.shaded
-            Label:
-                text: root.status
-                opacity: 1 if root.status else 0
-                pos_hint: {'center': (.5, .5)}
-                size_hint: None, 1
-                width: min(self.height, bl.width)
-                bcolor: 0.3, 0.3, 0.3, 0.9
-                canvas.before:
-                    Color:
-                        rgba: self.bcolor
-                    Rectangle:
-                        pos: self.pos
-                        size: self.size
 
         SendReceiveBlueBottom:
             id: blue_bottom
@@ -62,15 +83,15 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if root.is_lightning else 'atlas://electrum/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: address_label
-                    text: s.address if s.address else _('Bitcoin Address')
+                    text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
                     shorten: True
-                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
+                    on_release: root.is_lightning = not root.is_lightning if app.wallet.has_lightning() else False
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -111,32 +132,28 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/save'
-                size_hint: 0.6, None
+                icon: 'atlas://electrum/gui/kivy/theming/light/list'
+                size_hint: 0.5, None
                 height: '48dp'
-                on_release: s.parent.do_save()
-            Button:
-                text: _('Requests')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
-            Button:
-                text: _('Copy')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: s.parent.do_copy()
+                on_release: Clock.schedule_once(lambda dt: s.clear_requests_dialog())
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/share'
-                size_hint: 0.6, None
+                icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
+                size_hint: 0.5, None
                 height: '48dp'
-                on_release: s.parent.do_share()
-        BoxLayout:
-            size_hint: 1, None
-            height: '48dp'
-            Widget
-                size_hint: 2, 1
+                on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
             Button:
-                text: _('New')
+                text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.do_new())
+                on_release: Clock.schedule_once(lambda dt: s.parent.clear())
+            Button:
+                text: _('Request')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: s.parent.new_request(root.is_lightning))
+        Widget:
+            size_hint: 1, 0.1
+        RequestRecycleView:
+            id: requests_container
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'

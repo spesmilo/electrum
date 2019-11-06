@@ -178,7 +178,7 @@ class Plugin(BasePlugin):
             e = exc_info[1]
             try: self.logger.error("on_failure", exc_info=exc_info)
             except OSError: pass
-            window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + str(e))
+            window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + repr(e))
 
         for window, xpub, K, _hash in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
@@ -226,7 +226,7 @@ class Plugin(BasePlugin):
             message = bh2u(privkey.decrypt_message(message))
         except Exception as e:
             self.logger.exception('')
-            window.show_error(_('Error decrypting message') + ':\n' + str(e))
+            window.show_error(_('Error decrypting message') + ':\n' + repr(e))
             return
 
         self.listener.clear(keyhash)

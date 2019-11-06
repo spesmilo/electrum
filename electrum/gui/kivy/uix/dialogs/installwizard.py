@@ -9,6 +9,7 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, StringProperty, OptionProperty
 from kivy.core.window import Window
 from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
@@ -314,13 +315,33 @@ Builder.load_string('''
     valign: 'middle'
     border: 4, 4, 4, 4
 
+<SeedDialogHeader@GridLayout>
+    text: ''
+    options_dialog: None
+    rows: 1
+    orientation: 'horizontal'
+    size_hint: 1, None
+    height: self.minimum_height
+    BigLabel:
+        size_hint: 9, None
+        text: root.text
+    IconButton:
+        id: options_button
+        height: '30dp'
+        width: '30dp'
+        size_hint: 1, None
+        icon: 'atlas://electrum/gui/kivy/theming/light/gear'
+        on_release:
+            root.options_dialog() if root.options_dialog else None
 
 <RestoreSeedDialog>
     message: ''
     word: ''
-    BigLabel:
-        text: "ENTER YOUR SEED PHRASE"
-    GridLayout
+    SeedDialogHeader:
+        id: seed_dialog_header
+        text: 'ENTER YOUR SEED PHRASE'
+        options_dialog: root.options_dialog
+    GridLayout:
         cols: 1
         padding: 0, '12dp'
         orientation: 'vertical'
@@ -331,7 +352,6 @@ Builder.load_string('''
             id: text_input_seed
             text: ''
             on_text: Clock.schedule_once(root.on_text)
-            on_release: root.options_dialog()
         SeedLabel:
             text: root.message
         BoxLayout:
@@ -488,12 +508,12 @@ Builder.load_string('''
             text: _('Share')
             on_release: root.do_share()
 
-
 <ShowSeedDialog>
     spacing: '12dp'
     value: 'next'
-    BigLabel:
+    SeedDialogHeader:
         text: "PLEASE WRITE DOWN YOUR SEED PHRASE"
+        options_dialog: root.options_dialog
     GridLayout:
         id: grid
         cols: 1
@@ -504,13 +524,10 @@ Builder.load_string('''
         spacing: '12dp'
         SeedButton:
             text: root.seed_text
-            on_release: root.options_dialog()
         SeedLabel:
             text: root.message
 
-
 <LineDialog>
-
     BigLabel:
         text: root.title
     SeedLabel:
@@ -519,9 +536,29 @@ Builder.load_string('''
         id: passphrase_input
         multiline: False
         size_hint: 1, None
-        height: '27dp'
+        height: '48dp'
     SeedLabel:
         text: root.warning
+
+<ChoiceLineDialog>
+    BigLabel:
+        text: root.title
+    SeedLabel:
+        text: root.message1
+    GridLayout:
+        row_default_height: '48dp'
+        orientation: 'vertical'
+        id: choices
+        cols: 1
+        spacing: '14dp'
+        size_hint: 1, None
+    SeedLabel:
+        text: root.message2
+    TextInput:
+        id: text_input
+        multiline: False
+        size_hint: 1, None
+        height: '48dp'
 
 ''')
 
@@ -533,15 +570,20 @@ class WizardDialog(EventsDialog):
     crcontent = ObjectProperty(None)
 
     def __init__(self, wizard, **kwargs):
+        self.auto_dismiss = False
         super(WizardDialog, self).__init__()
         self.wizard = wizard
         self.ids.back.disabled = not wizard.can_go_back()
         self.app = App.get_running_app()
         self.run_next = kwargs['run_next']
-        _trigger_size_dialog = Clock.create_trigger(self._size_dialog)
-        Window.bind(size=_trigger_size_dialog,
-                    rotation=_trigger_size_dialog)
-        _trigger_size_dialog()
+
+        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog)
+        # note: everything bound here needs to be unbound as otherwise the
+        # objects will be kept around and keep receiving the callbacks
+        Window.bind(size=self._trigger_size_dialog,
+                    rotation=self._trigger_size_dialog,
+                    on_keyboard=self.on_keyboard)
+        self._trigger_size_dialog()
         self._on_release = False
 
     def _size_dialog(self, dt):
@@ -562,7 +604,24 @@ class WizardDialog(EventsDialog):
         else:
             self.crcontent.add_widget(widget, index=index)
 
+    def on_keyboard(self, instance, key, keycode, codepoint, modifier):
+        if key == 27:
+            if self.wizard.can_go_back():
+                self.wizard.go_back()
+            else:
+                app = App.get_running_app()
+                if not app.is_exit:
+                    app.is_exit = True
+                    app.show_info(_('Press again to exit'))
+                else:
+                    self._on_release = False
+                    self.dismiss()
+            return True
+
     def on_dismiss(self):
+        Window.unbind(size=self._trigger_size_dialog,
+                      rotation=self._trigger_size_dialog,
+                      on_keyboard=self.on_keyboard)
         app = App.get_running_app()
         if app.wallet is None and not self._on_release:
             app.stop()
@@ -684,12 +743,17 @@ class WizardConfirmDialog(WizardDialog):
     def get_params(self, button):
         return (True,)
 
+
 class WizardChoiceDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
+        self.title = kwargs.get('message', '')
         self.message = kwargs.get('message', '')
         choices = kwargs.get('choices', [])
+        self.init_choices(choices)
+
+    def init_choices(self, choices):
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
         for action, text in choices:
@@ -708,7 +772,6 @@ class WizardChoiceDialog(WizardDialog):
         return (button.action,)
 
 
-
 class LineDialog(WizardDialog):
     title = StringProperty('')
     message = StringProperty('')
@@ -716,10 +779,47 @@ class LineDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         WizardDialog.__init__(self, wizard, **kwargs)
+        self.title = kwargs.get('title', '')
+        self.message = kwargs.get('message', '')
         self.ids.next.disabled = False
 
     def get_params(self, b):
         return (self.ids.passphrase_input.text,)
+
+class CLButton(ToggleButton):
+    def on_release(self):
+        self.root.script_type = self.script_type
+        self.root.set_text(self.value)
+
+class ChoiceLineDialog(WizardChoiceDialog):
+    title = StringProperty('')
+    message1 = StringProperty('')
+    message2 = StringProperty('')
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.title = kwargs.get('title', '')
+        self.message1 = kwargs.get('message1', '')
+        self.message2 = kwargs.get('message2', '')
+        self.choices = kwargs.get('choices', [])
+        default_choice_idx = kwargs.get('default_choice_idx', 0)
+        self.ids.next.disabled = False
+        layout = self.ids.choices
+        layout.bind(minimum_height=layout.setter('height'))
+        for idx, (script_type, title, text) in enumerate(self.choices):
+            b = CLButton(text=title, height='30dp', group=self.title, allow_no_selection=False)
+            b.script_type = script_type
+            b.root = self
+            b.value = text
+            layout.add_widget(b)
+            if idx == default_choice_idx:
+                b.trigger_action(duration=0)
+
+    def set_text(self, value):
+        self.ids.text_input.text = value
+
+    def get_params(self, b):
+        return (self.ids.text_input.text, self.script_type)
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
@@ -737,9 +837,9 @@ class ShowSeedDialog(WizardDialog):
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
-        def callback(status):
-            self.ext = status
-        d = SeedOptionsDialog(self.ext, callback)
+        def callback(ext, _):
+            self.ext = ext
+        d = SeedOptionsDialog(self.ext, None, callback)
         d.open()
 
     def get_params(self, b):
@@ -765,12 +865,15 @@ class RestoreSeedDialog(WizardDialog):
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
+        self.bip39 = False
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
-        def callback(status):
-            self.ext = status
-        d = SeedOptionsDialog(self.ext, callback)
+        def callback(ext, bip39):
+            self.ext = ext
+            self.bip39 = bip39
+            self.update_next_button()
+        d = SeedOptionsDialog(self.ext, self.bip39, callback)
         d.open()
 
     def get_suggestions(self, prefix):
@@ -778,8 +881,11 @@ class RestoreSeedDialog(WizardDialog):
             if w.startswith(prefix):
                 yield w
 
+    def update_next_button(self):
+        self.ids.next.disabled = False if self.bip39 else not bool(self._test(self.get_text()))
+
     def on_text(self, dt):
-        self.ids.next.disabled = not bool(self._test(self.get_text()))
+        self.update_next_button()
 
         text = self.ids.text_input_seed.text
         if not text:
@@ -865,10 +971,15 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), False, self.ext)
+        return (self.get_text(), self.bip39, self.ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
+
+    def __init__(self, *args, **kwargs):
+        RestoreSeedDialog.__init__(self, *args, **kwargs)
+        self.ids.seed_dialog_header.ids.options_button.disabled = True
+
     def get_params(self, b):
         return (self.get_text(),)
     def options_dialog(self):
@@ -991,6 +1102,7 @@ class InstallWizard(BaseWizard, Widget):
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
     def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
+    def choice_and_line_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')

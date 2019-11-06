@@ -157,7 +157,10 @@ class NotificationSession(RPCSession):
             self.interface.logger.debug(msg)
 
 
-class GracefulDisconnect(Exception):
+class NetworkException(Exception): pass
+
+
+class GracefulDisconnect(NetworkException):
     log_level = logging.INFO
 
     def __init__(self, *args, log_level=None, **kwargs):
@@ -173,7 +176,7 @@ class RequestTimedOut(GracefulDisconnect):
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
-class ConnectError(Exception): pass
+class ConnectError(NetworkException): pass
 
 
 class _RSClient(RSClient):
