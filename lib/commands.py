@@ -35,10 +35,10 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from .import util
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 from .import bitcoin
-from .address import Address, AddressError, ScriptOutput
-from .bitcoin import hash_160, COIN, TYPE_ADDRESS, TYPE_SCRIPT
+from .address import Address, AddressError
+from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
-from .transaction import Transaction, multisig_script
+from .transaction import Transaction, multisig_script, OPReturn
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugins import run_hook
 
@@ -471,47 +471,16 @@ class Commands:
         message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
 
-    @staticmethod
-    def _output_for_opreturn_stringdata(op_return):
-        ''' This is more or less lifted from main_window.py. TODO: Join the two in a lib. '''
-        if not isinstance(op_return, str):
-            raise RuntimeError('OP_RETURN parameter needs to be of type str!')
-        op_return_code = "OP_RETURN "
-        op_return_encoded = op_return.encode('utf-8')
-        if len(op_return_encoded) > 220:
-            raise RuntimeError(_("OP_RETURN message too large, needs to be no longer than 220 bytes"))
-        op_return_payload = op_return_encoded.hex()
-        script = op_return_code + op_return_payload
-        amount = 0
-        return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
-
-    @staticmethod
-    def _output_for_opreturn_rawhex(op_return):
-        ''' This is more or less lifted from main_window.py. TODO: Join the two in a lib. '''
-        if not isinstance(op_return, str):
-            raise RuntimeError('OP_RETURN parameter needs to be of type str!')
-        if op_return == 'empty':
-            op_return = ''
-        try:
-            op_return_script = b'\x6a' + bytes.fromhex(op_return.strip())
-        except ValueError:
-            raise RuntimeError(_('OP_RETURN script expected to be hexadecimal bytes'))
-        if len(op_return_script) > 223:
-            raise RuntimeError(_("OP_RETURN script too large, needs to be no longer than 223 bytes"))
-        amount = 0
-        return (TYPE_SCRIPT, ScriptOutput.protocol_factory(op_return_script), amount)
-
-
     def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
               unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None):
         if op_return and op_return_raw:
-            raise RuntimeError('Both op_return and op_return_raw cannot be specified together!')
+            raise ValueError('Both op_return and op_return_raw cannot be specified together!')
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
         final_outputs = []
         if op_return:
-            final_outputs.append(self._output_for_opreturn_stringdata(op_return))
+            final_outputs.append(OPReturn.output_for_stringdata(op_return))
         elif op_return_raw:
             try:
                 op_return_raw = op_return_raw.strip()
@@ -519,8 +488,8 @@ class Commands:
                 assert tmp == op_return_raw.lower()
                 op_return_raw = tmp
             except Exception as e:
-                raise RuntimeError("op_return_raw must be an even number of hex digits") from e
-            final_outputs.append(self._output_for_opreturn_rawhex(op_return_raw))
+                raise ValueError("op_return_raw must be an even number of hex digits") from e
+            final_outputs.append(OPReturn.output_for_rawhex(op_return_raw))
         for address, amount in outputs:
             address = self._resolver(address)
             amount = satoshis(amount)
@@ -636,7 +605,7 @@ class Commands:
     def encrypt(self, pubkey, message):
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
         if not isinstance(pubkey, (str, bytes, bytearray)) or not isinstance(message, (str, bytes, bytearray)):
-            raise RuntimeError("pubkey and message text must both be strings")
+            raise ValueError("pubkey and message text must both be strings")
         message = to_bytes(message)
         res =  bitcoin.encrypt_message(message, pubkey)
         if isinstance(res, (bytes, bytearray)):
@@ -649,7 +618,7 @@ class Commands:
     def decrypt(self, pubkey, encrypted, password=None):
         """Decrypt a message encrypted with a public key."""
         if not isinstance(pubkey, str) or not isinstance(encrypted, str):
-            raise RuntimeError("pubkey and encrypted text must both be strings")
+            raise ValueError("pubkey and encrypted text must both be strings")
         res = self.wallet.decrypt_message(pubkey, encrypted, password)
         if isinstance(res, (bytes, bytearray)):
             # prevent "JSON serializable" errors in case this came from

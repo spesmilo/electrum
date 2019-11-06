@@ -966,12 +966,6 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
 
-class OPReturnError(Exception):
-    """ thrown when the OP_RETURN for a tx not of the right format """
-
-class OPReturnTooLarge(OPReturnError):
-    """ thrown when the OP_RETURN for a tx is >220 bytes """
-
 class RateLimiter(PrintError):
     ''' Manages the state of a @rate_limited decorated function, collating
     multiple invocations. This class is not intented to be used directly. Instead,

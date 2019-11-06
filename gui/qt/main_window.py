@@ -52,6 +52,7 @@ import electroncash.web as web
 from electroncash import Transaction
 from electroncash import util, bitcoin, commands, cashacct
 from electroncash import paymentrequest
+from electroncash.transaction import OPReturn
 from electroncash.wallet import Multisig_Wallet, sweep_preparations
 from electroncash.contacts import Contact
 try:
@@ -1699,34 +1700,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fee_rate is None: fee_rate = self.config.custom_fee_rate() / 1000.0
             return str(round(fee_rate*100)/100) + " sats/B"
 
-    @staticmethod
-    def output_for_opreturn_stringdata(op_return):
-        if not isinstance(op_return, str):
-            raise OPReturnError('OP_RETURN parameter needs to be of type str!')
-        op_return_code = "OP_RETURN "
-        op_return_encoded = op_return.encode('utf-8')
-        if len(op_return_encoded) > 220:
-            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be no longer than 220 bytes"))
-        op_return_payload = op_return_encoded.hex()
-        script = op_return_code + op_return_payload
-        amount = 0
-        return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
-
-    @staticmethod
-    def output_for_opreturn_rawhex(op_return):
-        if not isinstance(op_return, str):
-            raise OPReturnError('OP_RETURN parameter needs to be of type str!')
-        if op_return == 'empty':
-            op_return = ''
-        try:
-            op_return_script = b'\x6a' + bytes.fromhex(op_return.strip())
-        except ValueError:
-            raise OPReturnError(_('OP_RETURN script expected to be hexadecimal bytes'))
-        if len(op_return_script) > 223:
-            raise OPReturnTooLarge(_("OP_RETURN script too large, needs to be no longer than 223 bytes"))
-        amount = 0
-        return (TYPE_SCRIPT, ScriptOutput.protocol_factory(op_return_script), amount)
-
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
@@ -1750,9 +1723,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 opreturn_message = self.message_opreturn_e.text() if self.config.get('enable_opreturn') else None
                 if opreturn_message:
                     if self.opreturn_rawhex_cb.isChecked():
-                        outputs.append(self.output_for_opreturn_rawhex(opreturn_message))
+                        outputs.append(OPReturn.output_for_rawhex(opreturn_message))
                     else:
-                        outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
+                        outputs.append(OPReturn.output_for_stringdata(opreturn_message))
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
                 self.op_return_toolong = False
@@ -1761,10 +1734,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if not freeze_fee:
                     self.fee_e.setAmount(None)
                 return
-            except OPReturnTooLarge:
+            except OPReturn.TooLarge:
                 self.op_return_toolong = True
                 return
-            except OPReturnError as e:
+            except OPReturn.Error as e:
                 self.statusBar().showMessage(str(e))
                 return
             except BaseException:
@@ -1959,13 +1932,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             opreturn_message = self.message_opreturn_e.text()
             if opreturn_message:
                 if self.opreturn_rawhex_cb.isChecked():
-                    outputs.append(self.output_for_opreturn_rawhex(opreturn_message))
+                    outputs.append(OPReturn.output_for_rawhex(opreturn_message))
                 else:
-                    outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
-        except OPReturnTooLarge as e:
+                    outputs.append(OPReturn.output_for_stringdata(opreturn_message))
+        except OPReturn.TooLarge as e:
             self.show_error(str(e))
             return
-        except OPReturnError as e:
+        except OPReturn.Error as e:
             self.show_error(str(e))
             return
 

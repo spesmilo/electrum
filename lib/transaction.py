@@ -1261,3 +1261,45 @@ def tx_from_str(txt):
     tx_dict = json.loads(str(txt))
     assert "hex" in tx_dict.keys()
     return tx_dict["hex"]
+
+
+# ---
+class OPReturn:
+    ''' OPReturn helper namespace. Used by GUI main_window.py and also
+    lib/commands.py '''
+    class Error(Exception):
+        """ thrown when the OP_RETURN for a tx not of the right format """
+
+    class TooLarge(Error):
+        """ thrown when the OP_RETURN for a tx is >220 bytes """
+
+    @staticmethod
+    def output_for_stringdata(op_return):
+        from .i18n import _
+        if not isinstance(op_return, str):
+            raise OPReturn.Error('OP_RETURN parameter needs to be of type str!')
+        op_return_code = "OP_RETURN "
+        op_return_encoded = op_return.encode('utf-8')
+        if len(op_return_encoded) > 220:
+            raise OPReturn.TooLarge(_("OP_RETURN message too large, needs to be no longer than 220 bytes"))
+        op_return_payload = op_return_encoded.hex()
+        script = op_return_code + op_return_payload
+        amount = 0
+        return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
+
+    @staticmethod
+    def output_for_rawhex(op_return):
+        from .i18n import _
+        if not isinstance(op_return, str):
+            raise OPReturn.Error('OP_RETURN parameter needs to be of type str!')
+        if op_return == 'empty':
+            op_return = ''
+        try:
+            op_return_script = b'\x6a' + bytes.fromhex(op_return.strip())
+        except ValueError:
+            raise OPReturn.Error(_('OP_RETURN script expected to be hexadecimal bytes'))
+        if len(op_return_script) > 223:
+            raise OPReturn.TooLarge(_("OP_RETURN script too large, needs to be no longer than 223 bytes"))
+        amount = 0
+        return (TYPE_SCRIPT, ScriptOutput.protocol_factory(op_return_script), amount)
+# /OPReturn
