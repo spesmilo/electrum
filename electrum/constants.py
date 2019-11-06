@@ -98,7 +98,7 @@ class OceanTestnet(OceanMainnet):
     ADDRTYPE_P2SH = 75
     WHITELISTCOINSDESTINATION = "76a914f9203678f55c1fd3d99831836ff01fbe1071ccd788ac"
     WHITELISTCOINSADDRESS = "2dx91EU6mn4yqAJhrqhi4fbywMeW3LbLRzD"
-    GENESIS = "8fe2b5ce49136a9dd9052717a4dd43ebd884d599de66dde590cd13a448f5f55e"
+    GENESIS = "9e18c41bcffcb32e1fe3ec5f305baa61696e21fba1e570cfafc3a250013cce26"
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv

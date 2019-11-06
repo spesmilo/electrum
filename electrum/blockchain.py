@@ -39,7 +39,14 @@ class MissingHeader(Exception):
     pass
 
 class InvalidHeader(Exception):
-    pass
+    "Header downloaded from network is invalid."
+
+class InvalidFile(Exception):
+    "Data stored locally are invalid."
+    
+    def __init__(self, filename, *messages):
+        super().__init__(*messages)
+        self.filename = filename
 
 def serialize_header(res, get_hash = False):
     s = int_to_hex(res.get('version'), 4) \
@@ -447,7 +454,7 @@ class Blockchain(util.PrintError):
             f.seek(self.dynamic_header_offset(delta))
             h = f.read(self.dynamic_header_len(delta))
             if len(h) < constants.net.MIN_HEADER_SIZE:
-                raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
+                raise InvalidFile(name, 'Expected to read a full header. This was only {} bytes'.format(len(h)))
         if h == bytes([0])*(constants.net.MIN_HEADER_SIZE):
             return None
 
@@ -468,22 +475,27 @@ class Blockchain(util.PrintError):
 
     def can_connect(self, header, check_height=True):
         if header is None:
+            self.print_error("header is None")
             return False
         height = header['block_height']
         if check_height and self.height() != height - 1:
-            #self.print_error("cannot connect at height", height)
+            self.print_error("cannot connect at height", height)
             return False
         if height == 0:
+            self.print_error(hash_header(header), "==", constants.net.GENESIS)
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-        except:
+        except Exception as e:
+            self.print_error("get_hash:", str(e))
             return False
         if prev_hash != header.get('prev_block_hash'):
+            self.print_error(prev_hash, "!=", header.get('prev_block_hash'))
             return False
         try:
             self.verify_header(header, prev_hash)
         except BaseException as e:
+            self.print_error("verify_header:", str(e))
             return False
         if not verify_header_proof(header):
             self.print_error("invalid block proof at height ", height)

@@ -47,7 +47,7 @@ from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from .i18n import _
-from .blockchain import InvalidHeader
+from .blockchain import InvalidHeader, InvalidFile
 
 
 NODES_RETRY_INTERVAL = 60
@@ -1079,7 +1079,7 @@ class Network(util.DaemonThread):
 
     def init_headers_file(self):
         b = self.blockchains[0]
-        filename = b.path()
+        filename = b.path() # "header_offsets"
         length = 80 * len(constants.net.CHECKPOINTS) * 2016
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
@@ -1099,7 +1099,13 @@ class Network(util.DaemonThread):
         self.init_headers_file()
         while self.is_running():
             self.maintain_sockets()
-            self.wait_on_sockets()
+            try:
+                self.wait_on_sockets()
+            except InvalidFile:
+                self.print_error("Headers file is invalid and needs to be recreated.")
+                os.remove(self.blockchains[0].offset_path())
+                self.init_headers_file()
+                continue # TODO: The app will wait until the request times out. Faster solution needed.
             self.maintain_requests()
             self.run_jobs()    # Synchronizer and Verifier
             self.process_pending_sends()
