@@ -180,13 +180,14 @@ cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail
 
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
+# "-R .comment" also strips the GCC version information
 strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
     printf '%s\0' "$APPDIR/usr/bin/python3.6"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
-  } | xargs -0 --no-run-if-empty --verbose -n1 strip -R .note.gnu.build-id
+  } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
 strip_binaries
 
