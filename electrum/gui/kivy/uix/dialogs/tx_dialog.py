@@ -130,6 +130,11 @@ class TxDialog(Factory.Popup):
         self.tx = tx  # type: Transaction
         self._action_button_fn = lambda btn: None
 
+        # if the wallet can populate the inputs with more info, do it now.
+        # as a result, e.g. we might learn an imported address tx is segwit,
+        # or that a beyond-gap-limit address is is_mine
+        tx.add_info_from_wallet(self.wallet)
+
     def on_open(self):
         self.update()
 
