@@ -920,6 +920,7 @@ def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transact
 class PSBTGlobalType(IntEnum):
     UNSIGNED_TX = 0
     XPUB = 1
+    VERSION = 0xFB
 
 
 class PSBTInputType(IntEnum):
@@ -1155,7 +1156,6 @@ class PartialTxInput(TxInput, PSBTSection):
             self.witness = val
             if key: raise SerializationError(f"key for {repr(kt)} must be empty")
         else:
-            assert kt not in list(PSBTInputType)
             full_key = self.get_fullkey_from_keytype_and_key(kt, key)
             if full_key in self._unknown:
                 raise SerializationError(f'duplicate key. PSBT input key for unknown type: {full_key}')
@@ -1379,7 +1379,6 @@ class PartialTxOutput(TxOutput, PSBTSection):
                 raise SerializationError(f"key for {repr(kt)} has unexpected length: {len(key)}")
             self.bip32_paths[key] = unpack_bip32_root_fingerprint_and_int_path(val)
         else:
-            assert kt not in list(PSBTOutputType)
             full_key = self.get_fullkey_from_keytype_and_key(kt, key)
             if full_key in self._unknown:
                 raise SerializationError(f'duplicate key. PSBT output key for unknown type: {full_key}')
@@ -1501,8 +1500,14 @@ class PartialTransaction(Transaction):
                             or (bip32node.depth != 0 and child_number_of_xpub == path[-1])):
                         raise SerializationError(f"PSBT global xpub has inconsistent child_number and derivation prefix")
                     tx.xpubs[bip32node] = xfp, path
+                elif kt == PSBTGlobalType.VERSION:
+                    if len(val) > 4:
+                        raise SerializationError(f"value for {repr(kt)} has unexpected length: {len(val)} > 4")
+                    psbt_version = int.from_bytes(val, byteorder='little', signed=False)
+                    if psbt_version > 0:
+                        raise SerializationError(f"Only PSBTs with version 0 are supported. Found version: {psbt_version}")
+                    if key: raise SerializationError(f"key for {repr(kt)} must be empty")
                 else:
-                    assert kt not in list(PSBTGlobalType)
                     full_key = PSBTSection.get_fullkey_from_keytype_and_key(kt, key)
                     if full_key in tx._unknown:
                         raise SerializationError(f'duplicate key. PSBT global key for unknown type: {full_key}')
