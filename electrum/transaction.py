@@ -914,7 +914,9 @@ def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transact
         return PartialTransaction.from_raw_psbt(raw)
     except BadHeaderMagic:
         pass
-    return Transaction(raw)
+    tx = Transaction(raw)
+    tx.deserialize()
+    return tx
 
 
 class PSBTGlobalType(IntEnum):

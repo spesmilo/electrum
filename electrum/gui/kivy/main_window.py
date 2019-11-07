@@ -397,12 +397,9 @@ class ElectrumWindow(App):
             self.set_ln_invoice(data)
             return
         # try to decode transaction
-        from electrum.transaction import Transaction
-        from electrum.util import bh2u
+        from electrum.transaction import tx_from_any
         try:
-            text = bh2u(base_decode(data, None, base=43))
-            tx = Transaction(text)
-            tx.deserialize()
+            tx = tx_from_any(data)
         except:
             tx = None
         if tx:

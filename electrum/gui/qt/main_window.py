@@ -2723,10 +2723,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = PasswordDialog(parent, msg)
         return d.run()
 
-    def tx_from_text(self, txt: Union[str, bytes]) -> Union[None, 'PartialTransaction', 'Transaction']:
+    def tx_from_text(self, data: Union[str, bytes]) -> Union[None, 'PartialTransaction', 'Transaction']:
         from electrum.transaction import tx_from_any
         try:
-            return tx_from_any(txt)
+            return tx_from_any(data)
         except BaseException as e:
             self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
@@ -2745,11 +2745,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        try:
-            data = bh2u(bitcoin.base_decode(data, length=None, base=43))
-        except BaseException as e:
-            self.show_error((_('Could not decode QR code')+':\n{}').format(repr(e)))
-            return
         tx = self.tx_from_text(data)
         if not tx:
             return
