@@ -474,7 +474,7 @@ class Peer(Logger):
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
-            current_htlc_signatures=[],
+            current_htlc_signatures=b'',
         )
         return local_config
 
@@ -1487,10 +1487,10 @@ class Peer(Logger):
             our_fee = their_fee
         # add signatures
         closing_tx.add_signature_to_txin(txin_idx=0,
-                                         signing_pubkey=chan.config[LOCAL].multisig_key.pubkey,
+                                         signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
                                          sig=bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
         closing_tx.add_signature_to_txin(txin_idx=0,
-                                         signing_pubkey=chan.config[REMOTE].multisig_key.pubkey,
+                                         signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
                                          sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
         await self.network.broadcast_transaction(closing_tx)

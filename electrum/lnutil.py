@@ -27,8 +27,14 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
-Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
-OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
+
+class Keypair(NamedTuple):
+    pubkey: bytes
+    privkey: bytes
+
+
+class OnlyPubkeyKeypair(NamedTuple):
+    pubkey: bytes
 
 
 # NamedTuples cannot subclass NamedTuples :'(   https://github.com/python/typing/issues/427
@@ -55,19 +61,19 @@ class LocalConfig(NamedTuple):
 
 class RemoteConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
-    payment_basepoint: 'Keypair'
-    multisig_key: 'Keypair'
-    htlc_basepoint: 'Keypair'
-    delayed_basepoint: 'Keypair'
-    revocation_basepoint: 'Keypair'
+    payment_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    multisig_key: Union['Keypair', 'OnlyPubkeyKeypair']
+    htlc_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    delayed_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    revocation_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
     to_self_delay: int
     dust_limit_sat: int
     max_htlc_value_in_flight_msat: int
     max_accepted_htlcs: int
     initial_msat: int
     reserve_sat: int
-    htlc_minimum_msat: int
     # specific to "REMOTE" config
+    htlc_minimum_msat: int
     next_per_commitment_point: bytes
     revocation_store: 'RevocationStore'
     current_per_commitment_point: Optional[bytes]
