@@ -39,6 +39,7 @@ from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase
+    from .keystore import Hardware_KeyStore
 
 
 _logger = get_logger(__name__)
@@ -442,20 +443,23 @@ class DeviceMgr(ThreadJob):
         self.scan_devices()
         return self.client_lookup(id_)
 
-    def client_for_keystore(self, plugin, handler, keystore, force_pair):
+    def client_for_keystore(self, plugin, handler, keystore: 'Hardware_KeyStore', force_pair):
         self.logger.info("getting client for keystore")
         if handler is None:
             raise Exception(_("Handler not found for") + ' ' + plugin.name + '\n' + _("A library is probably missing."))
         handler.update_status(False)
         devices = self.scan_devices()
         xpub = keystore.xpub
-        derivation = keystore.get_derivation()
+        derivation = keystore.get_derivation_prefix()
+        assert derivation is not None
         client = self.client_by_xpub(plugin, xpub, handler, devices)
         if client is None and force_pair:
             info = self.select_device(plugin, handler, keystore, devices)
             client = self.force_pair_xpub(plugin, handler, info, xpub, derivation, devices)
         if client:
             handler.update_status(True)
+        if client:
+            keystore.opportunistically_fill_in_missing_info_from_device(client)
         self.logger.info("end client for keystore")
         return client
 

@@ -3,7 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import hashlib
-from typing import List, Tuple, NamedTuple, Union, Iterable
+from typing import List, Tuple, NamedTuple, Union, Iterable, Sequence, Optional
 
 from .util import bfh, bh2u, BitcoinException
 from . import constants
@@ -116,7 +116,7 @@ class BIP32Node(NamedTuple):
     eckey: Union[ecc.ECPubkey, ecc.ECPrivkey]
     chaincode: bytes
     depth: int = 0
-    fingerprint: bytes = b'\x00'*4
+    fingerprint: bytes = b'\x00'*4  # as in serialized format, this is the *parent's* fingerprint
     child_number: bytes = b'\x00'*4
 
     @classmethod
@@ -161,7 +161,18 @@ class BIP32Node(NamedTuple):
                          eckey=ecc.ECPrivkey(master_k),
                          chaincode=master_c)
 
+    @classmethod
+    def from_bytes(cls, b: bytes) -> 'BIP32Node':
+        if len(b) != 78:
+            raise Exception(f"unexpected xkey raw bytes len {len(b)} != 78")
+        xkey = EncodeBase58Check(b)
+        return cls.from_xkey(xkey)
+
     def to_xprv(self, *, net=None) -> str:
+        payload = self.to_xprv_bytes(net=net)
+        return EncodeBase58Check(payload)
+
+    def to_xprv_bytes(self, *, net=None) -> bytes:
         if not self.is_private():
             raise Exception("cannot serialize as xprv; private key missing")
         payload = (xprv_header(self.xtype, net=net) +
@@ -172,9 +183,13 @@ class BIP32Node(NamedTuple):
                    bytes([0]) +
                    self.eckey.get_secret_bytes())
         assert len(payload) == 78, f"unexpected xprv payload len {len(payload)}"
-        return EncodeBase58Check(payload)
+        return payload
 
     def to_xpub(self, *, net=None) -> str:
+        payload = self.to_xpub_bytes(net=net)
+        return EncodeBase58Check(payload)
+
+    def to_xpub_bytes(self, *, net=None) -> bytes:
         payload = (xpub_header(self.xtype, net=net) +
                    bytes([self.depth]) +
                    self.fingerprint +
@@ -182,13 +197,19 @@ class BIP32Node(NamedTuple):
                    self.chaincode +
                    self.eckey.get_public_key_bytes(compressed=True))
         assert len(payload) == 78, f"unexpected xpub payload len {len(payload)}"
-        return EncodeBase58Check(payload)
+        return payload
 
     def to_xkey(self, *, net=None) -> str:
         if self.is_private():
             return self.to_xprv(net=net)
         else:
             return self.to_xpub(net=net)
+
+    def to_bytes(self, *, net=None) -> bytes:
+        if self.is_private():
+            return self.to_xprv_bytes(net=net)
+        else:
+            return self.to_xpub_bytes(net=net)
 
     def convert_to_public(self) -> 'BIP32Node':
         if not self.is_private():
@@ -247,6 +268,12 @@ class BIP32Node(NamedTuple):
                          depth=depth,
                          fingerprint=fingerprint,
                          child_number=child_number)
+
+    def calc_fingerprint_of_this_node(self) -> bytes:
+        """Returns the fingerprint of this node.
+        Note that self.fingerprint is of the *parent*.
+        """
+        return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
 def xpub_type(x):
@@ -308,7 +335,7 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
     return path
 
 
-def convert_bip32_intpath_to_strpath(path: List[int]) -> str:
+def convert_bip32_intpath_to_strpath(path: Sequence[int]) -> str:
     s = "m/"
     for child_index in path:
         if not isinstance(child_index, int):
@@ -336,8 +363,40 @@ def is_bip32_derivation(s: str) -> bool:
         return True
 
 
-def normalize_bip32_derivation(s: str) -> str:
+def normalize_bip32_derivation(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
     if not is_bip32_derivation(s):
         raise ValueError(f"invalid bip32 derivation: {s}")
     ints = convert_bip32_path_to_list_of_uint32(s)
     return convert_bip32_intpath_to_strpath(ints)
+
+
+def is_all_public_derivation(path: Union[str, Iterable[int]]) -> bool:
+    """Returns whether all levels in path use non-hardened derivation."""
+    if isinstance(path, str):
+        path = convert_bip32_path_to_list_of_uint32(path)
+    for child_index in path:
+        if child_index < 0:
+            raise ValueError('the bip32 index needs to be non-negative')
+        if child_index & BIP32_PRIME:
+            return False
+    return True
+
+
+def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional[str]]:
+    """Returns the root bip32 fingerprint and the derivation path from the
+    root to the given xkey, if they can be determined. Otherwise (None, None).
+    """
+    node = BIP32Node.from_xkey(xkey)
+    derivation_prefix = None
+    root_fingerprint = None
+    assert node.depth >= 0, node.depth
+    if node.depth == 0:
+        derivation_prefix = 'm'
+        root_fingerprint = node.calc_fingerprint_of_this_node().hex().lower()
+    elif node.depth == 1:
+        child_number_int = int.from_bytes(node.child_number, 'big')
+        derivation_prefix = convert_bip32_intpath_to_strpath([child_number_int])
+        root_fingerprint = node.fingerprint.hex()
+    return root_fingerprint, derivation_prefix

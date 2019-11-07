@@ -840,13 +840,16 @@ def export_meta_gui(electrum_window, title, exporter):
 def get_parent_main_window(widget):
     """Returns a reference to the ElectrumWindow this widget belongs to."""
     from .main_window import ElectrumWindow
+    from .transaction_dialog import TxDialog
     for _ in range(100):
         if widget is None:
             return None
-        if not isinstance(widget, ElectrumWindow):
-            widget = widget.parentWidget()
-        else:
+        if isinstance(widget, ElectrumWindow):
             return widget
+        elif isinstance(widget, TxDialog):
+            return widget.main_window
+        else:
+            widget = widget.parentWidget()
     return None
 
 

@@ -375,7 +375,7 @@ class LNWallet(LNWorker):
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs(ctn)
             for tx in sweeptxs:
-                await watchtower.add_sweep_tx(outpoint, ctn, tx.prevout(0), str(tx))
+                await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
         self.lnwatcher = LNWatcher(network)

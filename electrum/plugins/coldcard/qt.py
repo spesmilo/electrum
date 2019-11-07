@@ -1,25 +1,22 @@
 import time, os
 from functools import partial
+import copy
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
-from PyQt5.QtWidgets import QFileDialog
+
+from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrum.gui.qt.transaction_dialog import TxDialog
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet, Multisig_Wallet
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
-from electrum.transaction import Transaction
+from electrum.wallet import Multisig_Wallet
+from electrum.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 
-from binascii import a2b_hex
-from base64 import b64encode, b64decode
-
-from .basic_psbt import BasicPSBT
-from .build_psbt import build_psbt, merge_sigs_from_psbt, recover_tx_from_psbt
 
 CC_DEBUG = False
 
@@ -73,135 +70,29 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
 
-    @only_hook_if_libraries_available
     @hook
-    def transaction_dialog(self, dia):
-        # see gui/qt/transaction_dialog.py
-
+    def transaction_dialog(self, dia: TxDialog):
         # if not a Coldcard wallet, hide feature
         if not any(type(ks) == self.keystore_class for ks in dia.wallet.get_keystores()):
             return
 
-        # - add a new button, near "export"
-        btn = QPushButton(_("Save PSBT"))
-        btn.clicked.connect(lambda unused: self.export_psbt(dia))
-        if dia.tx.is_complete():
-            # but disable it for signed transactions (nothing to do if already signed)
-            btn.setDisabled(True)
+        def gettx_for_coldcard_export() -> PartialTransaction:
+            if not isinstance(dia.tx, PartialTransaction):
+                raise Exception("Can only export partial transactions for coinjoins.")
+            tx = copy.deepcopy(dia.tx)
+            tx.add_info_from_wallet(dia.wallet, include_xpubs_and_full_paths=True)
+            return tx
 
-        dia.sharing_buttons.append(btn)
-
-    def export_psbt(self, dia):
-        # Called from hook in transaction dialog
-        tx = dia.tx
-
-        if tx.is_complete():
-            # if they sign while dialog is open, it can transition from unsigned to signed,
-            # which we don't support here, so do nothing
-            return
-
-        # convert to PSBT
-        build_psbt(tx, dia.wallet)
-
-        name = (dia.wallet.basename() + time.strftime('-%y%m%d-%H%M.psbt'))\
-                    .replace(' ', '-').replace('.json', '')
-        fileName = dia.main_window.getSaveFileName(_("Select where to save the PSBT file"),
-                                                        name, "*.psbt")
-        if fileName:
-            with open(fileName, "wb+") as f:
-                f.write(tx.raw_psbt)
-            dia.show_message(_("Transaction exported successfully"))
-            dia.saved = True
+        # add a new "export" option
+        if isinstance(dia.tx, PartialTransaction):
+            export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
+            dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
         # - doesn't matter if device not connected, continue
         CKCCSettingsDialog(window, self, keystore).exec_()
 
-    @hook
-    def init_menubar_tools(self, main_window, tools_menu):
-        # add some PSBT-related tools to the "Load Transaction" menu.
-        rt = main_window.raw_transaction_menu
-        wallet = main_window.wallet
-        rt.addAction(_("From &PSBT File or Files"), lambda: self.psbt_combiner(main_window, wallet))
-
-    def psbt_combiner(self, window, wallet):
-        title = _("Select the PSBT file to load or PSBT files to combine")
-        directory = ''
-        fnames, __ = QFileDialog.getOpenFileNames(window, title, directory, "PSBT Files (*.psbt)")
-
-        psbts = []
-        for fn in fnames:
-            try:
-                with open(fn, "rb") as f:
-                    raw = f.read()
-
-                    psbt = BasicPSBT()
-                    psbt.parse(raw, fn)
-
-                    psbts.append(psbt)
-            except (AssertionError, ValueError, IOError, os.error) as reason:
-                window.show_critical(_("Electrum was unable to open your PSBT file") + "\n" + str(reason), title=_("Unable to read file"))
-                return
-
-        warn = []
-        if not psbts: return        # user picked nothing
-
-        # Consistency checks and warnings.
-        try:
-            first = psbts[0]
-            for p in psbts:
-                fn = os.path.split(p.filename)[1]
-
-                assert (p.txn == first.txn), \
-                    "All must relate to the same unsigned transaction."
-
-                for idx, inp in enumerate(p.inputs):
-                    if not inp.part_sigs:
-                        warn.append(fn + ':\n  ' + _("No partial signatures found for input #%d") % idx)
-
-                    assert first.inputs[idx].redeem_script == inp.redeem_script, "Mismatched redeem scripts"
-                    assert first.inputs[idx].witness_script == inp.witness_script, "Mismatched witness"
-                    
-        except AssertionError as exc:
-            # Fatal errors stop here.
-            window.show_critical(str(exc),
-                    title=_("Unable to combine PSBT files, check: ")+p.filename)
-            return
-
-        if warn:
-            # Lots of potential warnings...
-            window.show_warning('\n\n'.join(warn), title=_("PSBT warnings"))
-
-        # Construct an Electrum transaction object from data in first PSBT file.
-        try:
-            tx = recover_tx_from_psbt(first, wallet)
-        except BaseException as exc:
-            if CC_DEBUG:
-                from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
-                import pdb; pdb.post_mortem()
-            window.show_critical(str(exc), title=_("Unable to understand PSBT file"))
-            return
-
-        # Combine the signatures from all the PSBTS (may do nothing if unsigned PSBTs)
-        for p in psbts:
-            try:
-                merge_sigs_from_psbt(tx, p)
-            except BaseException as exc:
-                if CC_DEBUG:
-                    from PyQt5.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
-                    import pdb; pdb.post_mortem()
-                window.show_critical("Unable to merge signatures: " + str(exc), 
-                    title=_("Unable to combine PSBT file: ") + p.filename)
-                return
-
-        # Display result, might not be complete yet, but hopefully it's ready to transmit!
-        if len(psbts) == 1:
-            desc = _("From PSBT file: ") + fn
-        else:
-            desc = _("Combined from %d PSBT files") % len(psbts)
-
-        window.show_transaction(tx, tx_desc=desc)
 
 class Coldcard_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
@@ -307,7 +198,7 @@ class CKCCSettingsDialog(WindowModalDialog):
 
     def show_placeholders(self, unclear_arg):
         # device missing, so hide lots of detail.
-        self.xfp.setText('<tt>%s' % xfp2str(self.keystore.ckcc_xfp))
+        self.xfp.setText('<tt>%s' % self.keystore.get_root_fingerprint())
         self.serial.setText('(not connected)')
         self.fw_version.setText('')
         self.fw_built.setText('')

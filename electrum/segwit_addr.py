@@ -103,6 +103,8 @@ def convertbits(data, frombits, tobits, pad=True):
 
 def decode(hrp, addr):
     """Decode a segwit address."""
+    if addr is None:
+        return (None, None)
     hrpgot, data = bech32_decode(addr)
     if hrpgot != hrp:
         return (None, None)

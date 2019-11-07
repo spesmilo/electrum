@@ -9,7 +9,6 @@ import threading
 import asyncio
 from typing import TYPE_CHECKING, Optional
 
-from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet import Wallet, InternalAddressCorruption
 from electrum.util import profiler, InvalidPassword, send_exception_to_crash_reporter
@@ -398,12 +397,9 @@ class ElectrumWindow(App):
             self.set_ln_invoice(data)
             return
         # try to decode transaction
-        from electrum.transaction import Transaction
-        from electrum.util import bh2u
+        from electrum.transaction import tx_from_any
         try:
-            text = bh2u(base_decode(data, None, base=43))
-            tx = Transaction(text)
-            tx.deserialize()
+            tx = tx_from_any(data)
         except:
             tx = None
         if tx:
@@ -855,7 +851,7 @@ class ElectrumWindow(App):
             self._trigger_update_status()
 
     def get_max_amount(self):
-        from electrum.transaction import TxOutput
+        from electrum.transaction import PartialTxOutput
         if run_hook('abort_send', self):
             return ''
         inputs = self.wallet.get_spendable_coins(None)
@@ -866,9 +862,9 @@ class ElectrumWindow(App):
             addr = str(self.send_screen.screen.address)
         if not addr:
             addr = self.wallet.dummy_address()
-        outputs = [TxOutput(TYPE_ADDRESS, addr, '!')]
+        outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
         try:
-            tx = self.wallet.make_unsigned_transaction(inputs, outputs)
+            tx = self.wallet.make_unsigned_transaction(coins=inputs, outputs=outputs)
         except NoDynamicFeeEstimates as e:
             Clock.schedule_once(lambda dt, bound_e=e: self.show_error(str(bound_e)))
             return ''
@@ -1199,7 +1195,7 @@ class ElectrumWindow(App):
             if not self.wallet.can_export():
                 return
             try:
-                key = str(self.wallet.export_private_key(addr, password)[0])
+                key = str(self.wallet.export_private_key(addr, password))
                 pk_label.data = key
             except InvalidPassword:
                 self.show_error("Invalid PIN")

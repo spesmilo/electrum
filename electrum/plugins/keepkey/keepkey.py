@@ -1,19 +1,23 @@
 from binascii import hexlify, unhexlify
 import traceback
 import sys
+from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
 from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
 from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum.bip32 import BIP32Node
 from electrum import constants
 from electrum.i18n import _
-from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
+from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
+                                get_xpubs_and_der_suffixes_from_txinout)
 
+if TYPE_CHECKING:
+    from .client import KeepKeyClient
 
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -23,8 +27,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
     hw_type = 'keepkey'
     device = 'KeepKey'
 
-    def get_derivation(self):
-        return self.derivation
+    plugin: 'KeepKeyPlugin'
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
@@ -34,7 +37,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
-        address_path = self.get_derivation() + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
         msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
@@ -44,22 +47,13 @@ class KeepKey_KeyStore(Hardware_KeyStore):
             return
         # previous transactions used as inputs
         prev_tx = {}
-        # path of the xpubs that are involved
-        xpub_path = {}
         for txin in tx.inputs():
-            pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
-            tx_hash = txin['prevout_hash']
-            if txin.get('prev_tx') is None and not Transaction.is_segwit_input(txin):
-                raise UserFacingException(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
-            prev_tx[tx_hash] = txin['prev_tx']
-            for x_pubkey in x_pubkeys:
-                if not is_xpubkey(x_pubkey):
-                    continue
-                xpub, s = parse_xpubkey(x_pubkey)
-                if xpub == self.get_master_public_key():
-                    xpub_path[xpub] = self.get_derivation()
+            tx_hash = txin.prevout.txid.hex()
+            if txin.utxo is None and not Transaction.is_segwit_input(txin):
+                raise UserFacingException(_('Missing previous tx for legacy input.'))
+            prev_tx[tx_hash] = txin.utxo
 
-        self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
+        self.plugin.sign_transaction(self, tx, prev_tx)
 
 
 class KeepKeyPlugin(HW_PluginBase):
@@ -164,7 +158,7 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return client
 
-    def get_client(self, keystore, force_pair=True):
+    def get_client(self, keystore, force_pair=True) -> Optional['KeepKeyClient']:
         devmgr = self.device_manager()
         handler = keystore.handler
         with devmgr.hid_lock:
@@ -306,12 +300,11 @@ class KeepKeyPlugin(HW_PluginBase):
             return self.types.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
-    def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
+    def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         self.prev_tx = prev_tx
-        self.xpub_path = xpub_path
         client = self.get_client(keystore)
-        inputs = self.tx_inputs(tx, True)
-        outputs = self.tx_outputs(keystore.get_derivation(), tx)
+        inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
+        outputs = self.tx_outputs(tx, keystore=keystore)
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs,
                                     lock_time=tx.locktime, version=tx.version)[0]
         signatures = [(bh2u(x) + '01') for x in signatures]
@@ -326,137 +319,118 @@ class KeepKeyPlugin(HW_PluginBase):
         if not client.atleast_version(1, 3):
             keystore.handler.show_error(_("Your device firmware is too old"))
             return
-        change, index = wallet.get_address_index(address)
-        derivation = keystore.derivation
-        address_path = "%s/%d/%d"%(derivation, change, index)
+        deriv_suffix = wallet.get_address_index(address)
+        derivation = keystore.get_derivation_prefix()
+        address_path = "%s/%d/%d"%(derivation, *deriv_suffix)
         address_n = client.expand_path(address_path)
+        script_type = self.get_keepkey_input_script_type(wallet.txin_type)
+
+        # prepare multisig, if available:
         xpubs = wallet.get_master_public_keys()
-        if len(xpubs) == 1:
-            script_type = self.get_keepkey_input_script_type(wallet.txin_type)
-            client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
-        else:
-            def f(xpub):
-                return self._make_node_path(xpub, [change, index])
+        if len(xpubs) > 1:
             pubkeys = wallet.get_public_keys(address)
             # sort xpubs using the order of pubkeys
-            sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
-            pubkeys = list(map(f, sorted_xpubs))
-            multisig = self.types.MultisigRedeemScriptType(
-               pubkeys=pubkeys,
-               signatures=[b''] * wallet.n,
-               m=wallet.m,
-            )
-            script_type = self.get_keepkey_input_script_type(wallet.txin_type)
-            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig, script_type=script_type)
+            sorted_pairs = sorted(zip(pubkeys, xpubs))
+            multisig = self._make_multisig(
+                wallet.m,
+                [(xpub, deriv_suffix) for pubkey, xpub in sorted_pairs])
+        else:
+            multisig = None
 
-    def tx_inputs(self, tx, for_sig=False):
+        client.get_address(self.get_coin_name(), address_n, True, multisig=multisig, script_type=script_type)
+
+    def tx_inputs(self, tx: Transaction, *, for_sig=False, keystore: 'KeepKey_KeyStore' = None):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
-            if txin['type'] == 'coinbase':
+            if txin.is_coinbase():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:
                 if for_sig:
-                    x_pubkeys = txin['x_pubkeys']
-                    if len(x_pubkeys) == 1:
-                        x_pubkey = x_pubkeys[0]
-                        xpub, s = parse_xpubkey(x_pubkey)
-                        xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
-                        txinputtype.address_n.extend(xpub_n + s)
-                        txinputtype.script_type = self.get_keepkey_input_script_type(txin['type'])
+                    assert isinstance(tx, PartialTransaction)
+                    assert isinstance(txin, PartialTxInput)
+                    assert keystore
+                    if len(txin.pubkeys) > 1:
+                        xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
+                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
                     else:
-                        def f(x_pubkey):
-                            xpub, s = parse_xpubkey(x_pubkey)
-                            return self._make_node_path(xpub, s)
-                        pubkeys = list(map(f, x_pubkeys))
-                        multisig = self.types.MultisigRedeemScriptType(
-                            pubkeys=pubkeys,
-                            signatures=map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures')),
-                            m=txin.get('num_sig'),
-                        )
-                        script_type = self.get_keepkey_input_script_type(txin['type'])
-                        txinputtype = self.types.TxInputType(
-                            script_type=script_type,
-                            multisig=multisig
-                        )
-                        # find which key is mine
-                        for x_pubkey in x_pubkeys:
-                            if is_xpubkey(x_pubkey):
-                                xpub, s = parse_xpubkey(x_pubkey)
-                                if xpub in self.xpub_path:
-                                    xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
-                                    txinputtype.address_n.extend(xpub_n + s)
-                                    break
+                        multisig = None
+                    script_type = self.get_keepkey_input_script_type(txin.script_type)
+                    txinputtype = self.types.TxInputType(
+                        script_type=script_type,
+                        multisig=multisig)
+                    my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
+                    if full_path:
+                        txinputtype.address_n.extend(full_path)
 
-                prev_hash = unhexlify(txin['prevout_hash'])
-                prev_index = txin['prevout_n']
+                prev_hash = txin.prevout.txid
+                prev_index = txin.prevout.out_idx
 
-            if 'value' in txin:
-                txinputtype.amount = txin['value']
+            if txin.value_sats() is not None:
+                txinputtype.amount = txin.value_sats()
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
-            if txin.get('scriptSig') is not None:
-                script_sig = bfh(txin['scriptSig'])
-                txinputtype.script_sig = script_sig
+            if txin.script_sig is not None:
+                txinputtype.script_sig = txin.script_sig
 
-            txinputtype.sequence = txin.get('sequence', 0xffffffff - 1)
+            txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
 
         return inputs
 
-    def tx_outputs(self, derivation, tx: Transaction):
+    def _make_multisig(self, m, xpubs):
+        if len(xpubs) == 1:
+            return None
+        pubkeys = [self._make_node_path(xpub, deriv) for xpub, deriv in xpubs]
+        return self.types.MultisigRedeemScriptType(
+            pubkeys=pubkeys,
+            signatures=[b''] * len(pubkeys),
+            m=m)
+
+    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'KeepKey_KeyStore'):
 
         def create_output_by_derivation():
-            script_type = self.get_keepkey_output_script_type(info.script_type)
-            if len(xpubs) == 1:
-                address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
-                txoutputtype = self.types.TxOutputType(
-                    amount=amount,
-                    script_type=script_type,
-                    address_n=address_n,
-                )
+            script_type = self.get_keepkey_output_script_type(txout.script_type)
+            if len(txout.pubkeys) > 1:
+                xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
+                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
             else:
-                address_n = self.client_class.expand_path("/%d/%d" % index)
-                pubkeys = [self._make_node_path(xpub, address_n) for xpub in xpubs]
-                multisig = self.types.MultisigRedeemScriptType(
-                    pubkeys=pubkeys,
-                    signatures=[b''] * len(pubkeys),
-                    m=m)
-                txoutputtype = self.types.TxOutputType(
-                    multisig=multisig,
-                    amount=amount,
-                    address_n=self.client_class.expand_path(derivation + "/%d/%d" % index),
-                    script_type=script_type)
+                multisig = None
+            my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)
+            assert full_path
+            txoutputtype = self.types.TxOutputType(
+                multisig=multisig,
+                amount=txout.value,
+                address_n=full_path,
+                script_type=script_type)
             return txoutputtype
 
         def create_output_by_address():
             txoutputtype = self.types.TxOutputType()
-            txoutputtype.amount = amount
-            if _type == TYPE_SCRIPT:
-                txoutputtype.script_type = self.types.PAYTOOPRETURN
-                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(o)
-            elif _type == TYPE_ADDRESS:
+            txoutputtype.amount = txout.value
+            if address:
                 txoutputtype.script_type = self.types.PAYTOADDRESS
                 txoutputtype.address = address
+            else:
+                txoutputtype.script_type = self.types.PAYTOOPRETURN
+                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(txout)
             return txoutputtype
 
         outputs = []
         has_change = False
         any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
 
-        for o in tx.outputs():
-            _type, address, amount = o.type, o.address, o.value
+        for txout in tx.outputs():
+            address = txout.address
             use_create_by_derivation = False
 
-            info = tx.output_info.get(address)
-            if info is not None and not has_change:
-                index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
+            if txout.is_mine and not has_change:
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
-                if info.is_change == any_output_on_change_branch:
+                if txout.is_change == any_output_on_change_branch:
                     use_create_by_derivation = True
                     has_change = True
 
@@ -468,20 +442,20 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return outputs
 
-    def electrum_tx_to_txtype(self, tx):
+    def electrum_tx_to_txtype(self, tx: Optional[Transaction]):
         t = self.types.TransactionType()
         if tx is None:
             # probably for segwit input and we don't need this prev txn
             return t
-        d = deserialize(tx.raw)
-        t.version = d['version']
-        t.lock_time = d['lockTime']
+        tx.deserialize()
+        t.version = tx.version
+        t.lock_time = tx.locktime
         inputs = self.tx_inputs(tx)
         t.inputs.extend(inputs)
-        for vout in d['outputs']:
+        for out in tx.outputs():
             o = t.bin_outputs.add()
-            o.amount = vout['value']
-            o.script_pubkey = bfh(vout['scriptPubKey'])
+            o.amount = out.value
+            o.script_pubkey = out.scriptpubkey
         return t
 
     # This function is called from the TREZOR libraries (via tx_api)

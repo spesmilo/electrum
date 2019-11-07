@@ -77,9 +77,11 @@ class SweepStore(SqlDB):
         return set([r[0] for r in c.fetchall()])
 
     @sql
-    def add_sweep_tx(self, funding_outpoint, ctn, prevout, tx):
+    def add_sweep_tx(self, funding_outpoint, ctn, prevout, tx: Transaction):
         c = self.conn.cursor()
-        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, bfh(str(tx))))
+        assert tx.is_complete()
+        raw_tx = bfh(tx.serialize())
+        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, raw_tx))
         self.conn.commit()
 
     @sql

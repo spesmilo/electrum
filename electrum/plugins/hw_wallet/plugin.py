@@ -24,11 +24,18 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence
+
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import TxOutput, Transaction
+from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.bip32 import BIP32Node
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+    from electrum.keystore import Hardware_KeyStore
 
 
 class HW_PluginBase(BasePlugin):
@@ -65,7 +72,10 @@ class HW_PluginBase(BasePlugin):
         """
         raise NotImplementedError()
 
-    def show_address(self, wallet, address, keystore=None):
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True):
+        raise NotImplementedError()
+
+    def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
         pass  # implemented in child classes
 
     def show_address_helper(self, wallet, address, keystore=None):
@@ -132,26 +142,37 @@ class HW_PluginBase(BasePlugin):
         return self._ignore_outdated_fw
 
 
-def is_any_tx_output_on_change_branch(tx: Transaction) -> bool:
-    if not tx.output_info:
-        return False
-    for o in tx.outputs():
-        info = tx.output_info.get(o.address)
-        if info is not None:
-            return info.is_change
-    return False
+def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
+    return any([txout.is_change for txout in tx.outputs()])
 
 
 def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
-    if output.type != TYPE_SCRIPT:
-        raise Exception("Unexpected output type: {}".format(output.type))
-    script = bfh(output.address)
+    script = output.scriptpubkey
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
         raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
     if output.value != 0:
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
     return script[2:]
+
+
+def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
+                                            txinout: Union[PartialTxInput, PartialTxOutput]) \
+        -> List[Tuple[str, List[int]]]:
+    xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
+                       in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
+    xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
+    try:
+        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    except KeyError as e:
+        raise Exception(f"Partial transaction is missing global xpub for "
+                        f"fingerprint ({str(e)}) in input/output") from e
+    xpubs_and_deriv_suffixes = []
+    for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
+        xfp, path = txinout.bip32_paths[pubkey]
+        der_suffix = list(path)[bip32node.depth:]
+        xpubs_and_deriv_suffixes.append((bip32node.to_xpub(), der_suffix))
+    return xpubs_and_deriv_suffixes
 
 
 def only_hook_if_libraries_available(func):
