@@ -240,6 +240,7 @@ def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
     # "CompactSize"
+    assert i >= 0, i
     if i<0xfd:
         return int_to_hex(i)
     elif i<=0xffff:
