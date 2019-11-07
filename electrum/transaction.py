@@ -913,7 +913,10 @@ def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transact
     try:
         return PartialTransaction.from_raw_psbt(raw)
     except BadHeaderMagic:
-        pass
+        if raw[:10] == b'EPTF\xff'.hex():
+            raise Exception("Partial transactions generated with old Electrum versions "
+                            "(< 4.0) are no longer supported. Please upgrade Electrum on "
+                            "the other machine where this transaction was created.")
     tx = Transaction(raw)
     tx.deserialize()
     return tx
