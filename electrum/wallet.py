@@ -457,6 +457,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_tx_info(self, tx) -> TxWalletDetails:
         is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+        if fee is None and isinstance(tx, PartialTransaction):
+            fee = tx.get_fee()
         exp_n = None
         can_broadcast = False
         can_bump = False

@@ -81,6 +81,10 @@ class MalformedBitcoinScript(Exception):
     pass
 
 
+class MissingTxInputAmount(Exception):
+    pass
+
+
 SIGHASH_ALL = 1
 
 
@@ -1605,13 +1609,19 @@ class PartialTransaction(Transaction):
         self.invalidate_ser_cache()
 
     def input_value(self) -> int:
-        return sum(txin.value_sats() for txin in self.inputs())
+        input_values = [txin.value_sats() for txin in self.inputs()]
+        if any([val is None for val in input_values]):
+            raise MissingTxInputAmount()
+        return sum(input_values)
 
     def output_value(self) -> int:
         return sum(o.value for o in self.outputs())
 
-    def get_fee(self) -> int:
-        return self.input_value() - self.output_value()
+    def get_fee(self) -> Optional[int]:
+        try:
+            return self.input_value() - self.output_value()
+        except MissingTxInputAmount:
+            return None
 
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:

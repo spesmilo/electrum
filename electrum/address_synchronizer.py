@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequen
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY
 from .util import profiler, bfh, TxMinedInfo
-from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint
+from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
@@ -650,6 +650,8 @@ class AddressSynchronizer(Logger):
                         break
                 else:
                     value = None
+                if value is None:
+                    value = txin.value_sats()
                 if value is None:
                     is_pruned = True
                 else:
