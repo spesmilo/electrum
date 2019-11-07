@@ -1252,7 +1252,7 @@ class Abstract_Wallet(AddressSynchronizer):
         # This could have happened if previously another wallet had put a NON-WITNESS UTXO for txin,
         # as they did not know if it was segwit. This switch is needed to interop with bitcoin core.
         if txin.utxo and Transaction.is_segwit_input(txin):
-            txin.witness_utxo = txin.utxo.outputs()[txin.prevout.out_idx]
+            txin.convert_utxo_to_witness_utxo()
         txin.ensure_there_is_only_one_utxo()
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],

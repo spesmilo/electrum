@@ -1057,7 +1057,10 @@ class PartialTxInput(TxInput, PSBTSection):
             if self.prevout.txid.hex() != self.utxo.txid():
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a non-witness UTXO is provided, its hash must match the hash specified in the prevout")
-        if for_signing:
+        # The following test is disabled, so we are willing to sign non-segwit inputs
+        # without verifying the input amount. This means, given a maliciously modified PSBT,
+        # for non-segwit inputs, we might end up burning coins as miner fees.
+        if for_signing and False:
             if not Transaction.is_segwit_input(self) and self.witness_utxo:
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a witness UTXO is provided, no non-witness signature may be created")
@@ -1264,6 +1267,11 @@ class PartialTxInput(TxInput, PSBTSection):
                 self.utxo = None
             else:
                 self.witness_utxo = None
+
+    def convert_utxo_to_witness_utxo(self) -> None:
+        if self.utxo:
+            self.witness_utxo = self.utxo.outputs()[self.prevout.out_idx]
+            self.utxo = None  # type: Optional[Transaction]
 
     def is_native_segwit(self) -> Optional[bool]:
         """Whether this input is native segwit. None means inconclusive."""
@@ -1806,6 +1814,33 @@ class PartialTransaction(Transaction):
             txout.witness_script = None
             txout.bip32_paths.clear()
             txout._unknown.clear()
+
+    def convert_all_utxos_to_witness_utxos(self) -> None:
+        """Replaces all NON-WITNESS-UTXOs with WITNESS-UTXOs.
+        This will likely make an exported PSBT invalid spec-wise,
+        but it makes e.g. QR codes significantly smaller.
+        """
+        for txin in self.inputs():
+            txin.convert_utxo_to_witness_utxo()
+
+    def is_there_risk_of_burning_coins_as_fees(self) -> bool:
+        """Returns whether there is risk of burning coins as fees if we sign.
+
+        Note:
+            - legacy sighash does not commit to any input amounts
+            - BIP-0143 sighash only commits to the *corresponding* input amount
+            - BIP-taproot sighash commits to *all* input amounts
+        """
+        for txin in self.inputs():
+            # if we have full previous tx, we *know* the input amount
+            if txin.utxo:
+                continue
+            # if we have just the previous output, we only have guarantees if
+            # the sighash commits to this data
+            if txin.witness_utxo and Transaction.is_segwit_input(txin):
+                continue
+            return True
+        return False
 
     def remove_signatures(self):
         for txin in self.inputs():

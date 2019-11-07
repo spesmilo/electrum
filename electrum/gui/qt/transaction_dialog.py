@@ -31,7 +31,7 @@ import time
 from typing import TYPE_CHECKING, Callable
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
+from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
                              QTextEdit, QFrame, QAction, QToolButton, QMenu)
 import qrcode
@@ -45,8 +45,9 @@ from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
 from electrum.logging import get_logger
 
-from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
-                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog)
+from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton, icon_path,
+                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
+                   char_width_in_lineedit)
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -241,6 +242,10 @@ class TxDialog(QDialog, MessageBoxMixin):
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
+        tx = copy.deepcopy(tx)  # make copy as we mutate tx
+        if isinstance(tx, PartialTransaction):
+            # this makes QR codes a lot smaller (or just possible in the first place!)
+            tx.convert_all_utxos_to_witness_utxos()
         text = tx.serialize_as_bytes()
         text = base_encode(text, base=43)
         try:
@@ -389,6 +394,10 @@ class TxDialog(QDialog, MessageBoxMixin):
             feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
             if fee_rate > feerate_warning:
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
+        if isinstance(self.tx, PartialTransaction):
+            risk_of_burning_coins = (can_sign and fee is not None
+                                     and self.tx.is_there_risk_of_burning_coins_as_fees())
+            self.fee_warning_icon.setVisible(risk_of_burning_coins)
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
@@ -464,8 +473,24 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox_left.addWidget(self.date_label)
         self.amount_label = TxDetailLabel()
         vbox_left.addWidget(self.amount_label)
+
+        fee_hbox = QHBoxLayout()
         self.fee_label = TxDetailLabel()
-        vbox_left.addWidget(self.fee_label)
+        fee_hbox.addWidget(self.fee_label)
+        self.fee_warning_icon = QLabel()
+        pixmap = QPixmap(icon_path("warning"))
+        pixmap_size = round(2 * char_width_in_lineedit())
+        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.fee_warning_icon.setPixmap(pixmap)
+        self.fee_warning_icon.setToolTip(_("Warning") + ": "
+                                         + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
+                                             "if this transaction was maliciously modified before you sign,\n"
+                                             "you might end up paying a higher mining fee than displayed."))
+        self.fee_warning_icon.setVisible(False)
+        fee_hbox.addWidget(self.fee_warning_icon)
+        fee_hbox.addStretch(1)
+        vbox_left.addLayout(fee_hbox)
+
         vbox_left.addStretch(1)
         hbox_stats.addLayout(vbox_left, 50)
 

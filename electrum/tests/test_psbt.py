@@ -1,4 +1,5 @@
 from pprint import pprint
+import unittest
 
 from electrum import constants
 from electrum.transaction import (tx_from_any, PartialTransaction, BadHeaderMagic, UnexpectedEndOfStream,
@@ -223,6 +224,7 @@ class TestInvalidPSBT(TestCaseForTestnet):
 class TestPSBTSignerChecks(TestCaseForTestnet):
     # test cases from BIP-0174
 
+    @unittest.skip("the check this test is testing is intentionally disabled in transaction.py")
     def test_psbt_fails_signer_checks_001(self):
         # Case: A Witness UTXO is provided for a non-witness input
         with self.assertRaises(PSBTInputConsistencyFailure):

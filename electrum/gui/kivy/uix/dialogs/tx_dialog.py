@@ -1,3 +1,4 @@
+import copy
 from datetime import datetime
 from typing import NamedTuple, Callable, TYPE_CHECKING
 
@@ -16,10 +17,10 @@ from electrum.gui.kivy.i18n import _
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.wallet import CannotBumpFee
+from electrum.transaction import Transaction, PartialTransaction
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
-    from electrum.transaction import Transaction
 
 
 Builder.load_string('''
@@ -159,6 +160,7 @@ class TxDialog(Factory.Popup):
             self.date_label = ''
             self.date_str = ''
 
+        self.can_sign = self.wallet.can_sign(self.tx)
         if amount is None:
             self.amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -167,14 +169,17 @@ class TxDialog(Factory.Popup):
         else:
             self.is_mine = True
             self.amount_str = format_amount(-amount)
-        if fee is not None:
+        risk_of_burning_coins = (isinstance(self.tx, PartialTransaction)
+                                 and self.can_sign
+                                 and fee is not None
+                                 and self.tx.is_there_risk_of_burning_coins_as_fees())
+        if fee is not None and not risk_of_burning_coins:
             self.fee_str = format_amount(fee)
             fee_per_kb = fee / self.tx.estimated_size() * 1000
             self.feerate_str = self.app.format_fee_rate(fee_per_kb)
         else:
             self.fee_str = _('unknown')
             self.feerate_str = _('unknown')
-        self.can_sign = self.wallet.can_sign(self.tx)
         self.ids.output_list.update(self.tx.outputs())
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
@@ -261,10 +266,15 @@ class TxDialog(Factory.Popup):
 
     def show_qr(self):
         from electrum.bitcoin import base_encode, bfh
-        raw_tx = self.tx.serialize()
-        text = bfh(raw_tx)
+        original_raw_tx = str(self.tx)
+        tx = copy.deepcopy(self.tx)  # make copy as we mutate tx
+        if isinstance(tx, PartialTransaction):
+            # this makes QR codes a lot smaller (or just possible in the first place!)
+            tx.convert_all_utxos_to_witness_utxos()
+
+        text = tx.serialize_as_bytes()
         text = base_encode(text, base=43)
-        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=raw_tx)
+        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):
         txid = self.tx.txid()
