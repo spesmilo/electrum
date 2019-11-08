@@ -883,10 +883,10 @@ class Transaction:
 def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     """Sanitizes tx-describing input (hex/base43/base64) into
     raw tx hex string."""
-    if isinstance(raw, str):
-        raw = raw.strip()
     if not raw:
         raise ValueError("empty string")
+    raw_unstripped = raw
+    raw = raw.strip()
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
@@ -903,9 +903,9 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
             return base64.b64decode(raw).hex()
         except:
             pass
-    # raw bytes
-    if isinstance(raw, bytes):
-        return raw.hex()
+    # raw bytes (do not strip whitespaces in this case)
+    if isinstance(raw_unstripped, bytes):
+        return raw_unstripped.hex()
     raise ValueError(f"failed to recognize transaction encoding for txt: {raw[:30]}...")
 
 
@@ -1451,7 +1451,7 @@ class PartialTransaction(Transaction):
     def from_raw_psbt(cls, raw) -> 'PartialTransaction':
         # auto-detect and decode Base64 and Hex.
         if raw[0:10].lower() in (b'70736274ff', '70736274ff'):  # hex
-            raw = bytes.fromhex(raw.strip())
+            raw = bytes.fromhex(raw)
         elif raw[0:6] in (b'cHNidP', 'cHNidP'):  # base64
             raw = base64.b64decode(raw)
         if not isinstance(raw, (bytes, bytearray)) or raw[0:5] != b'psbt\xff':
