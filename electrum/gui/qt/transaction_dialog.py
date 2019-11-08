@@ -47,7 +47,7 @@ from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
-                   char_width_in_lineedit)
+                   char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER)
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -287,7 +287,9 @@ class TxDialog(QDialog, MessageBoxMixin):
             name = 'signed_%s.txn' % (tx.txid()[0:8])
         else:
             name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M.psbt')
-        fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn;;*.psbt")
+        fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"),
+                                                    name,
+                                                    TRANSACTION_FILE_EXTENSION_FILTER)
         if not fileName:
             return
         if tx.is_complete():  # network tx hex

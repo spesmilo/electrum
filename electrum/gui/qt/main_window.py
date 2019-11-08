@@ -89,7 +89,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   MONOSPACE_FONT)
+                   MONOSPACE_FONT, TRANSACTION_FILE_EXTENSION_FILTER)
 from .util import ButtonsTextEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -2751,7 +2751,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.show_transaction(tx)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
-        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn;;*.psbt")
+        fileName = self.getOpenFileName(_("Select your transaction file"),
+                                        TRANSACTION_FILE_EXTENSION_FILTER)
         if not fileName:
             return
         try:

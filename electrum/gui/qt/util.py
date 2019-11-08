@@ -50,6 +50,8 @@ pr_icons = {
 }
 
 
+# filter tx files in QFileDialog:
+TRANSACTION_FILE_EXTENSION_FILTER = "Transaction (*.txn *.psbt);;All files (*)"
 
 
 class EnterButton(QPushButton):
