@@ -422,6 +422,8 @@ class Abstract_Wallet(AddressSynchronizer):
         if txin_type == 'p2wpkh-p2sh':
             pubkey = self.get_public_key(address)
             return bitcoin.p2wpkh_nested_script(pubkey)
+        if txin_type == 'address':
+            return None
         raise UnknownTxinType(f'unexpected txin_type {txin_type}')
 
     def get_witness_script(self, address: str) -> Optional[str]:
