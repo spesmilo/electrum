@@ -2755,7 +2755,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not fileName:
             return
         try:
-            with open(fileName, "r") as f:
+            with open(fileName, "rb") as f:
                 file_content = f.read()  # type: Union[str, bytes]
         except (ValueError, IOError, os.error) as reason:
             self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
