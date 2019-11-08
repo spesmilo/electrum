@@ -37,6 +37,7 @@ from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
 from collections import defaultdict
 from enum import IntEnum
 import itertools
+import binascii
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
@@ -428,7 +429,7 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     return None
 
 
-def parse_input(vds) -> TxInput:
+def parse_input(vds: BCDataStream) -> TxInput:
     prevout_hash = vds.read_bytes(32)[::-1]
     prevout_n = vds.read_uint32()
     prevout = TxOutpoint(txid=prevout_hash, out_idx=prevout_n)
@@ -879,47 +880,53 @@ class Transaction:
         return self.get_output_idxs_from_scriptpubkey(script)
 
 
-def convert_tx_str_to_hex(txt: str) -> str:
+def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     """Sanitizes tx-describing input (hex/base43/base64) into
     raw tx hex string."""
-    assert isinstance(txt, str), f"txt must be str, not {type(txt)}"
-    txt = txt.strip()
-    if not txt:
+    if isinstance(raw, str):
+        raw = raw.strip()
+    if not raw:
         raise ValueError("empty string")
     # try hex
     try:
-        bfh(txt)
-        return txt
+        return binascii.unhexlify(raw).hex()
     except:
         pass
     # try base43
     try:
-        return base_decode(txt, length=None, base=43).hex()
+        return base_decode(raw, length=None, base=43).hex()
     except:
         pass
     # try base64
-    if txt[0:6] == 'cHNidP':  # base64 psbt
+    if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
         try:
-            return base64.b64decode(txt).hex()
+            return base64.b64decode(raw).hex()
         except:
             pass
-    raise ValueError(f"failed to recognize transaction encoding for txt: {txt[:30]}...")
+    # raw bytes
+    if isinstance(raw, bytes):
+        return raw.hex()
+    raise ValueError(f"failed to recognize transaction encoding for txt: {raw[:30]}...")
 
 
 def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transaction']:
-    if isinstance(raw, (bytes, bytearray)):
-        raw = raw.hex()
-    raw = convert_tx_str_to_hex(raw)
+    if isinstance(raw, bytearray):
+        raw = bytes(raw)
+    raw = convert_raw_tx_to_hex(raw)
     try:
         return PartialTransaction.from_raw_psbt(raw)
     except BadHeaderMagic:
         if raw[:10] == b'EPTF\xff'.hex():
-            raise Exception("Partial transactions generated with old Electrum versions "
-                            "(< 4.0) are no longer supported. Please upgrade Electrum on "
-                            "the other machine where this transaction was created.")
-    tx = Transaction(raw)
-    tx.deserialize()
-    return tx
+            raise SerializationError("Partial transactions generated with old Electrum versions "
+                                     "(< 4.0) are no longer supported. Please upgrade Electrum on "
+                                     "the other machine where this transaction was created.")
+    try:
+        tx = Transaction(raw)
+        tx.deserialize()
+        return tx
+    except Exception as e:
+        raise SerializationError(f"Failed to recognise tx encoding, or to parse transaction. "
+                                 f"raw: {raw[:30]}...") from e
 
 
 class PSBTGlobalType(IntEnum):

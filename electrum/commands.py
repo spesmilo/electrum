@@ -1052,7 +1052,7 @@ command_options = {
 
 
 # don't use floats because of rounding errors
-from .transaction import convert_tx_str_to_hex
+from .transaction import convert_raw_tx_to_hex
 json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
 arg_types = {
     'num': int,
@@ -1061,7 +1061,7 @@ arg_types = {
     'year': int,
     'from_height': int,
     'to_height': int,
-    'tx': convert_tx_str_to_hex,
+    'tx': convert_raw_tx_to_hex,
     'pubkeys': json_loads,
     'jsontx': json_loads,
     'inputs': json_loads,
