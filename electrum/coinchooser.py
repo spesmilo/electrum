@@ -405,7 +405,10 @@ class CoinChooserRandom(CoinChooserBase):
                 already_selected_buckets += bkts_choose_from
                 already_selected_buckets_value_sum += sum(bucket.value for bucket in bkts_choose_from)
         else:
-            raise NotEnoughFunds()
+            if sufficient_funds([], bucket_value_sum=0):
+                candidates = [[]]
+            else:
+                raise NotEnoughFunds()
 
         candidates = [(already_selected_buckets + c) for c in candidates]
         return [strip_unneeded(c, sufficient_funds) for c in candidates]
