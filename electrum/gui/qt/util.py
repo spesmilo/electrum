@@ -629,7 +629,7 @@ class MyTreeView(QTreeView):
         self.show_toolbar(not self.toolbar_shown, config)
 
     def add_copy_menu(self, menu, idx):
-        cc = menu.addMenu(_("Copy column"))
+        cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
