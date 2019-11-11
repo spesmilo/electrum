@@ -349,7 +349,10 @@ class CoinChooserRandom(CoinChooserBase):
     def bucket_candidates_any(self, buckets: List[Bucket], sufficient_funds) -> List[List[Bucket]]:
         '''Returns a list of bucket sets.'''
         if not buckets:
-            raise NotEnoughFunds()
+            if sufficient_funds([], bucket_value_sum=0):
+                return [[]]
+            else:
+                raise NotEnoughFunds()
 
         candidates = set()
 
