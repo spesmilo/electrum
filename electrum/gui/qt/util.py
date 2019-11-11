@@ -634,7 +634,11 @@ class MyTreeView(QTreeView):
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
             column_data = item_col.text().strip()
-            cc.addAction(column_title, lambda t=column_data: self.parent.app.clipboard().setText(t))
+            cc.addAction(column_title, lambda t=column_data: self.place_text_on_clipboard(t))
+
+    def place_text_on_clipboard(self, text):
+        self.parent.app.clipboard().setText(text)
+
 
 class ButtonsWidget(QWidget):
 
