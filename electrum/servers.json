@@ -1,4 +1,15 @@
 {
+    "bitcoin.lukechilds.co": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "lukebtc46ko5kgsp.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
     "3smoooajg7qqac2y.onion": {
         "pruning": "-",
         "s": "50002",
