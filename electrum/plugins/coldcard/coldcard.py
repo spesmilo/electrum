@@ -18,7 +18,7 @@ from electrum.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
 
-from ..hw_wallet import HW_PluginBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
 if TYPE_CHECKING:
@@ -60,9 +60,8 @@ except ImportError:
 
 CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
-class CKCCClient:
-    # Challenge: I haven't found anywhere that defines a base class for this 'client',
-    # nor an API (interface) to be met. Winging it. Gets called from lib/plugins.py mostly?
+
+class CKCCClient(HardwareClientBase):
 
     def __init__(self, plugin, handler, dev_path, is_simulator=False):
         self.device = plugin.device
@@ -463,11 +462,9 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.handler.show_error(exc)
 
 
-
 class ColdcardPlugin(HW_PluginBase):
     keystore_class = Coldcard_KeyStore
     minimum_library = (0, 7, 7)
-    client = None
 
     DEVICE_IDS = [
         (COINKITE_VID, CKCC_PID),

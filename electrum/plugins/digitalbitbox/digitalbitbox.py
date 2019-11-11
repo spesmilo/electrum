@@ -27,11 +27,12 @@ from electrum import constants
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from ..hw_wallet import HW_PluginBase
 from electrum.util import to_string, UserCancelled, UserFacingException, bfh
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.network import Network
 from electrum.logging import get_logger
+
+from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 
 _logger = get_logger(__name__)
@@ -63,7 +64,7 @@ MIN_MAJOR_VERSION = 5
 ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
 CHANNEL_ID_KEY = 'comserverchannelid'
 
-class DigitalBitbox_Client():
+class DigitalBitbox_Client(HardwareClientBase):
 
     def __init__(self, plugin, hidDevice):
         self.plugin = plugin

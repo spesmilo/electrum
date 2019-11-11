@@ -45,6 +45,7 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+    from .plugins.hw_wallet import HW_PluginBase
 
 
 class KeyStore(Logger):
@@ -624,12 +625,10 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.pw_hash_version = PW_HASH_VERSION_LATEST
 
 
-
 class Hardware_KeyStore(KeyStore, Xpub):
-    # Derived classes must set:
-    #   - device
-    #   - DEVICE_IDS
-    #   - wallet_type
+    hw_type: str
+    device: str
+    plugin: 'HW_PluginBase'
 
     type = 'hardware'
 

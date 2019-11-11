@@ -24,9 +24,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence
+from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
 
-from electrum.plugin import BasePlugin, hook
+from electrum.plugin import BasePlugin, hook, Device, DeviceMgr
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
@@ -39,11 +39,7 @@ if TYPE_CHECKING:
 
 
 class HW_PluginBase(BasePlugin):
-    # Derived classes provide:
-    #
-    #  class-static variables: client_class, firmware_URL, handler_class,
-    #     libraries_available, libraries_URL, minimum_firmware,
-    #     wallet_class, ckd_public, types, HidTransport
+    keystore_class: Type['Hardware_KeyStore']
 
     minimum_library = (0, )
 
@@ -56,11 +52,11 @@ class HW_PluginBase(BasePlugin):
     def is_enabled(self):
         return True
 
-    def device_manager(self):
+    def device_manager(self) -> 'DeviceMgr':
         return self.parent.device_manager
 
     @hook
-    def close_wallet(self, wallet):
+    def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
@@ -140,6 +136,38 @@ class HW_PluginBase(BasePlugin):
 
     def is_outdated_fw_ignored(self) -> bool:
         return self._ignore_outdated_fw
+
+    def create_client(self, device: 'Device', handler) -> Optional['HardwareClientBase']:
+        raise NotImplementedError()
+
+    def get_xpub(self, device_id, derivation: str, xtype, wizard) -> str:
+        raise NotImplementedError()
+
+
+class HardwareClientBase:
+
+    def is_pairable(self) -> bool:
+        raise NotImplementedError()
+
+    def close(self):
+        raise NotImplementedError()
+
+    def timeout(self, cutoff) -> None:
+        pass
+
+    def is_initialized(self) -> bool:
+        """True if initialized, False if wiped."""
+        raise NotImplementedError()
+
+    def label(self) -> str:
+        """The name given by the user to the device."""
+        raise NotImplementedError()
+
+    def has_usable_connection_with_device(self) -> bool:
+        raise NotImplementedError()
+
+    def get_xpub(self, bip32_path: str, xtype) -> str:
+        raise NotImplementedError()
 
 
 def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
