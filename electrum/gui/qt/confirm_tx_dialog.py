@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import copy
 
 from PyQt5.QtCore import Qt, QSize
@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPush
 from electrum.i18n import _
 from electrum.util import quantize_feerate, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.plugin import run_hook
-from electrum.transaction import TxOutput
+from electrum.transaction import TxOutput, Transaction
 from electrum.simple_config import SimpleConfig, FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
@@ -51,11 +51,11 @@ if TYPE_CHECKING:
 
 class TxEditor:
 
-    def __init__(self, window, inputs, outputs, external_keypairs):
+    def __init__(self, window: 'ElectrumWindow', inputs, outputs, external_keypairs):
         self.main_window = window
         self.outputs = outputs
         self.get_coins = inputs
-        self.tx = None
+        self.tx = None  # type: Optional[Transaction]
         self.config = window.config
         self.wallet = window.wallet
         self.external_keypairs = external_keypairs
@@ -169,7 +169,6 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.pw.setVisible(self.password_required)
         grid.addWidget(self.pw_label, 8, 0)
         grid.addWidget(self.pw, 8, 1, 1, -1)
-        vbox.addLayout(grid)
         self.preview_button = QPushButton(_('Advanced'))
         self.preview_button.clicked.connect(self.on_preview)
         grid.addWidget(self.preview_button, 0, 2)
