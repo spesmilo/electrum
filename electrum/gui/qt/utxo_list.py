@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Sequence
 from enum import IntEnum
 
 from PyQt5.QtCore import Qt
@@ -60,7 +60,7 @@ class UTXOList(MyTreeView):
                          editable_columns=[])
         self.cc_label = QLabel('')
         self.clear_cc_button = EnterButton(_('Reset'), lambda: self.set_spend_list([]))
-        self.spend_list = []
+        self.spend_list = []  # type: Sequence[str]
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -69,6 +69,7 @@ class UTXOList(MyTreeView):
     def update(self):
         self.wallet = self.parent.wallet
         utxos = self.wallet.get_utxos()
+        self._maybe_reset_spend_list(utxos)
         self.utxo_dict = {}  # type: Dict[str, PartialTxInput]
         self.model().clear()
         self.update_headers(self.__class__.headers)
@@ -76,10 +77,13 @@ class UTXOList(MyTreeView):
             self.insert_utxo(idx, utxo)
         self.filter()
         self.clear_cc_button.setEnabled(bool(self.spend_list))
+        # update cc_label
         coins = [self.utxo_dict[x] for x in self.spend_list] or utxos
+        coins = self._filter_frozen_coins(coins)
         amount = sum(x.value_sats() for x in coins)
         amount_str = self.parent.format_amount_and_units(amount)
-        self.cc_label.setText('%d outputs, %s'%(len(coins), amount_str))
+        num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(utxos))
+        self.cc_label.setText(f'{num_outputs_str}, {amount_str}')
 
     def insert_utxo(self, idx, utxo: PartialTxInput):
         address = utxo.address
@@ -96,17 +100,21 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
+        SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if name in self.spend_list:
-            for i in range(5):
-                utxo_item[i].setBackground(ColorScheme.GREEN.as_color(True))
-        elif self.wallet.is_frozen_address(address):
+            for col in utxo_item:
+                col.setBackground(ColorScheme.GREEN.as_color(True))
+                if col != self.Columns.OUTPOINT:
+                    col.setToolTip(SELECTED_TO_SPEND_TOOLTIP)
+        if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
-        elif self.wallet.is_frozen_coin(utxo):
+        if self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is frozen')}")
         else:
-            utxo_item[self.Columns.OUTPOINT].setToolTip(name)
+            tooltip = ("\n" + SELECTED_TO_SPEND_TOOLTIP) if name in self.spend_list else ""
+            utxo_item[self.Columns.OUTPOINT].setToolTip(name + tooltip)
         self.model().insertRow(idx, utxo_item)
 
     def get_selected_outpoints(self) -> Optional[List[str]]:
@@ -117,12 +125,25 @@ class UTXOList(MyTreeView):
             return None
         return [x.data(Qt.UserRole) for x in items]
 
-    def set_spend_list(self, coins):
+    def _filter_frozen_coins(self, coins: List[PartialTxInput]) -> List[PartialTxInput]:
+        coins = [utxo for utxo in coins
+                 if (not self.wallet.is_frozen_address(utxo.address) and
+                     not self.wallet.is_frozen_coin(utxo))]
+        return coins
+
+    def set_spend_list(self, coins: List[PartialTxInput]):
+        coins = self._filter_frozen_coins(coins)
         self.spend_list = [utxo.prevout.to_str() for utxo in coins]
         self.update()
 
-    def get_spend_list(self):
+    def get_spend_list(self) -> Sequence[PartialTxInput]:
         return [self.utxo_dict[x] for x in self.spend_list]
+
+    def _maybe_reset_spend_list(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
+        # if we spent one of the selected UTXOs, just reset selection
+        utxo_set = {utxo.prevout.to_str() for utxo in current_wallet_utxos}
+        if not all([prevout_str in utxo_set for prevout_str in self.spend_list]):
+            self.spend_list = []
 
     def get_toolbar(self):
         h = QHBoxLayout()
