@@ -444,7 +444,12 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         run_hook('transaction_dialog_update', self)
 
     def update_io(self):
-        self.inputs_header.setText(_("Inputs") + ' (%d)'%len(self.tx.inputs()))
+        inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
+        if not self.finalized:
+            num_utxos = len(self.main_window.get_manually_selected_coins())
+            if num_utxos > 0:
+                inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(num_utxos)
+        self.inputs_header.setText(inputs_header_text)
         ext = QTextCharFormat()
         rec = QTextCharFormat()
         rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
@@ -481,7 +486,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 addr = self.wallet.get_txin_address(txin)
                 if addr is None:
                     addr = ''
-                #cursor.insertText(addr, text_format(addr))
+                cursor.insertText(addr, text_format(addr))
                 if isinstance(txin, PartialTxInput) and txin.value_sats() is not None:
                     cursor.insertText(format_amount(txin.value_sats()), ext)
             cursor.insertBlock()
@@ -644,6 +649,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feecontrol_fields = QWidget()
         vbox_feecontrol = QVBoxLayout(self.feecontrol_fields)
         vbox_feecontrol.setContentsMargins(0, 0, 0, 0)
+        vbox_feecontrol.addWidget(QLabel(_("Target fee:")))
         vbox_feecontrol.addWidget(self.fee_adv_controls)
         vbox_feecontrol.addWidget(self.fee_slider)
 

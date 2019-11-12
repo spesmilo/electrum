@@ -1451,8 +1451,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             raise Exception('unknown invoice type')
 
     def get_coins(self):
-        coins = self.utxo_list.get_spend_list()
+        coins = self.get_manually_selected_coins()
         return coins or self.wallet.get_spendable_coins(None)
+
+    def get_manually_selected_coins(self) -> Sequence[PartialTxInput]:
+        return self.utxo_list.get_spend_list()
 
     def pay_onchain_dialog(self, inputs, outputs, invoice=None, external_keypairs=None):
         # trustedcoin requires this
@@ -1563,7 +1566,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def open_channel(self, connect_str, local_amt, push_amt):
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
-        # however, the user must be allowed to broadcast early
+        # however, the user must not be allowed to broadcast early
         funding_sat = local_amt + push_amt
         inputs = self.get_coins
         outputs = [PartialTxOutput.from_address_and_value(self.wallet.dummy_address(), funding_sat)]
