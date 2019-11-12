@@ -78,15 +78,15 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
         def gettx_for_coldcard_export() -> PartialTransaction:
             if not isinstance(dia.tx, PartialTransaction):
-                raise Exception("Can only export partial transactions for coinjoins.")
+                raise Exception("Can only export partial transactions for {}.".format(self.device))
             tx = copy.deepcopy(dia.tx)
             tx.add_info_from_wallet(dia.wallet, include_xpubs_and_full_paths=True)
             return tx
 
         # add a new "export" option
-        if isinstance(dia.tx, PartialTransaction):
-            export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
-            dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
+        export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
+        dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
+        dia.psbt_only_widgets.append(export_submenu)
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.

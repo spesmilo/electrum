@@ -149,25 +149,26 @@ class Plugin(BasePlugin):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
         b.clicked.connect(lambda: self.do_send(d.tx))
         d.buttons.insert(0, b)
-        self.transaction_dialog_update(d)
+        b.setVisible(False)
 
     @hook
     def transaction_dialog_update(self, d: 'TxDialog'):
         if d.tx.is_complete() or d.wallet.can_sign(d.tx):
-            d.cosigner_send_button.hide()
+            d.cosigner_send_button.setVisible(False)
             return
         for window, xpub, K, _hash in self.cosigner_list:
             if window.wallet == d.wallet and self.cosigner_can_sign(d.tx, xpub):
-                d.cosigner_send_button.show()
+                d.cosigner_send_button.setVisible(True)
                 break
         else:
-            d.cosigner_send_button.hide()
+            d.cosigner_send_button.setVisible(False)
 
     def cosigner_can_sign(self, tx: Transaction, cosigner_xpub: str) -> bool:
         if not isinstance(tx, PartialTransaction):
             return False
         if tx.is_complete():
             return False
+        # TODO this is broken currently as it assumes tx.xpubs
         return cosigner_xpub in {bip32node.to_xpub() for bip32node in tx.xpubs}
 
     def do_send(self, tx: Union[Transaction, PartialTransaction]):

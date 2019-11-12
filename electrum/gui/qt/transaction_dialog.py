@@ -28,7 +28,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional, List
 from functools import partial
 from decimal import Decimal
 
@@ -110,6 +110,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.setMinimumWidth(950)
         self.set_title()
 
+        self.psbt_only_widgets = []  # type: List[QWidget]
+
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
@@ -155,9 +157,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.export_actions_menu = export_actions_menu = QMenu()
         self.add_export_actions_to_menu(export_actions_menu)
         export_actions_menu.addSeparator()
-        #if isinstance(tx, PartialTransaction):
-        export_for_coinjoin_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
-        self.add_export_actions_to_menu(export_for_coinjoin_submenu, gettx=self._gettx_for_coinjoin)
+        export_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
+        self.add_export_actions_to_menu(export_submenu, gettx=self._gettx_for_coinjoin)
+        self.psbt_only_widgets.append(export_submenu)
 
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Export"))
@@ -178,12 +180,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.partial_tx_actions_button.setText(_("Combine"))
         self.partial_tx_actions_button.setMenu(partial_tx_actions_menu)
         self.partial_tx_actions_button.setPopupMode(QToolButton.InstantPopup)
+        self.psbt_only_widgets.append(self.partial_tx_actions_button)
 
         # Action buttons
-        self.buttons = []
-        #if isinstance(tx, PartialTransaction):
-        self.buttons.append(self.partial_tx_actions_button)
-        self.buttons += [self.sign_button, self.broadcast_button, self.cancel_button]
+        self.buttons = [self.partial_tx_actions_button, self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
         self.sharing_buttons = [self.finalize_button, self.export_actions_button, self.save_button]
         run_hook('transaction_dialog', self)
@@ -389,7 +389,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         size = self.tx.estimated_size()
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
-            (self.wallet.can_sign(self.tx) or bool(self.main_window.tx_external_keypairs))
+            (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
         self.sign_button.setEnabled(can_sign)
         self.tx_hash_e.setText(tx_details.txid or _('Unknown'))
         if desc is None:
@@ -441,6 +441,14 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
+
+        show_psbt_only_widgets = self.finalized and isinstance(self.tx, PartialTransaction)
+        for widget in self.psbt_only_widgets:
+            if isinstance(widget, QMenu):
+                widget.menuAction().setVisible(show_psbt_only_widgets)
+            else:
+                widget.setVisible(show_psbt_only_widgets)
+
         run_hook('transaction_dialog_update', self)
 
     def update_io(self):

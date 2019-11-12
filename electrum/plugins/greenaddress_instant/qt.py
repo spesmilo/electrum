@@ -47,8 +47,8 @@ class Plugin(BasePlugin):
     def transaction_dialog(self, d: 'TxDialog'):
         d.verify_button = QPushButton(self.button_label)
         d.verify_button.clicked.connect(lambda: self.do_verify(d))
+        d.verify_button.setVisible(False)
         d.buttons.insert(0, d.verify_button)
-        self.transaction_dialog_update(d)
 
     def get_my_addr(self, d: 'TxDialog'):
         """Returns the address for given tx which can be used to request
@@ -61,9 +61,9 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog_update(self, d: 'TxDialog'):
         if d.tx.is_complete() and self.get_my_addr(d):
-            d.verify_button.show()
+            d.verify_button.setVisible(True)
         else:
-            d.verify_button.hide()
+            d.verify_button.setVisible(False)
 
     def do_verify(self, d: 'TxDialog'):
         tx = d.tx
