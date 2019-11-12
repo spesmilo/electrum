@@ -28,7 +28,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Optional
 from functools import partial
 from decimal import Decimal
 
@@ -60,9 +60,11 @@ from .amountedit import FeerateEdit, BTCAmountEdit
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
+
 class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
+
 
 class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
@@ -90,12 +92,13 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', invoice=None,
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved, finalized):
+    def __init__(self, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved, finalized: bool):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
         # We want to be a top-level window
         QDialog.__init__(self, parent=None)
+        self.tx = None  # type: Optional[Transaction]
         self.finalized = finalized
         self.main_window = parent
         self.config = parent.config
@@ -202,7 +205,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         for b in [self.finalize_button]:
             b.setVisible(not self.finalized)
 
-    def set_tx(self, tx):
+    def set_tx(self, tx: 'Transaction'):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
@@ -407,7 +410,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         else:
             self.date_label.hide()
         self.locktime_label.setText(f"LockTime: {self.tx.locktime}")
-        self.rbf_label.setText(f"Replace by Fee: {not self.tx.is_final()}")
+        self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
 
         if tx_mined_status.header_hash:
             self.block_hash_label.setText(_("Included in block: {}")
@@ -545,6 +548,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.rbf_label = TxDetailLabel()
         vbox_right.addWidget(self.rbf_label)
         self.rbf_cb = QCheckBox(_('Replace by fee'))
+        self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
         vbox_right.addWidget(self.rbf_cb)
         self.rbf_label.setVisible(self.finalized)
         self.rbf_cb.setVisible(not self.finalized)
@@ -564,19 +568,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
 
     def on_finalize(self):
-        self.finalized = True
-        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb]:
-            widget.setEnabled(False)
-            widget.setVisible(False)
-        for widget in [self.rbf_label]:
-            widget.setVisible(True)
-        self.set_title()
-        self.set_buttons_visibility()
-
-
-class QTextEditWithDefaultSize(QTextEdit):
-    def sizeHint(self):
-        return QSize(0, 100)
+        pass  # overridden in subclass
 
 
 class TxDetailLabel(QLabel):
@@ -772,3 +764,15 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.set_feerounding_text(int(feerounding))
         self.feerounding_icon.setToolTip(self.feerounding_text)
         self.feerounding_icon.setVisible(abs(feerounding) >= 1)
+
+    def on_finalize(self):
+        self.finalized = True
+        self.tx.set_rbf(self.rbf_cb.isChecked())
+        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb]:
+            widget.setEnabled(False)
+            widget.setVisible(False)
+        for widget in [self.rbf_label]:
+            widget.setVisible(True)
+        self.set_title()
+        self.set_buttons_visibility()
+        self.update()
