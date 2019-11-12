@@ -15,6 +15,7 @@ from electrum.util import profiler, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.util import android_acquire_camera_permissions
 from .i18n import _
 
 from kivy.app import App
@@ -409,6 +410,9 @@ class ElectrumWindow(App):
     def scan_qr(self, on_complete):
         if platform != 'android':
             return
+
+        android_acquire_camera_permissions()
+
         from jnius import autoclass, cast
         from android import activity
         PythonActivity = autoclass('org.kivy.android.PythonActivity')

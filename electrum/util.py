@@ -46,9 +46,9 @@ def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-base_units = {'DGLD':8, 'mDGLD':5, 'Au':0}
+base_units = {'DGLD':8, 'mDGLD':5, 'Au':0, 'test':3}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['DGLD', 'mDGLD', 'Au']  # list(dict) does not guarantee order
+base_units_list = ['DGLD', 'mDGLD', 'Au', 'test']  # list(dict) does not guarantee order
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
@@ -337,9 +337,7 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
-android_storage_permissions = ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE']
-
-def android_acquire_storage_permissions(timeout=30):
+def android_acquire_permissions(permission_list, timeout):
     import time
     import jnius
 
@@ -347,17 +345,31 @@ def android_acquire_storage_permissions(timeout=30):
     ContextCompat = jnius.autoclass('android.support.v4.content.ContextCompat')
 
     currentActivity = jnius.cast('android.app.Activity', PythonActivity.mActivity)
-    if all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in android_storage_permissions):
+    if all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in permission_list):
         return
     
-    currentActivity.requestPermissions(android_storage_permissions, 0)
-   
+    currentActivity.requestPermissions(permission_list, 0)
+    
     haveperms = False
     t0 = time.time()
     while time.time() - t0 < timeout and not haveperms:
-        haveperms = all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in android_storage_permissions)
+        haveperms = all(ContextCompat.checkSelfPermission(currentActivity, _p) == 0 for _p in permission_list)
     if not haveperms:
-        raise RuntimeError("Storage permissions not granted")
+        raise RuntimeError("Permissions not granted")
+
+
+android_storage_permissions = ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE']
+
+def android_acquire_storage_permissions(timeout=30):
+    android_acquire_permissions(android_storage_permissions, timeout)
+
+
+android_camera_permissions = ['android.permission.CAMERA']
+
+def android_acquire_camera_permissions(timeout=30):
+    android_acquire_permissions(android_camera_permissions, timeout)
+
+
 
 def android_ext_dir():
     android_acquire_storage_permissions()

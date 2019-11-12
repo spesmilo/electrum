@@ -365,7 +365,7 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
-            'verbosity': '',
+            'verbosity': '*', # TODO: disable messages on Android in release version
             'cmd': 'gui',
             'gui': 'kivy',
         }
@@ -385,8 +385,7 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
-    # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbosity') if config_options.get('gui') != 'kivy' else '')
+    set_verbosity(config_options.get('verbosity'))
 
     # check uri
     uri = config_options.get('url')
