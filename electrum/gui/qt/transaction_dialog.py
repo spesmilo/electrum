@@ -84,7 +84,6 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', invoice=None,
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
     else:
-        dialogs.append(d)
         d.show()
 
 
@@ -194,6 +193,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
         self.set_buttons_visibility()
+
+        dialogs.append(self)
 
     def set_buttons_visibility(self):
         for b in [self.export_actions_button, self.save_button, self.sign_button, self.broadcast_button, self.partial_tx_actions_button]:
