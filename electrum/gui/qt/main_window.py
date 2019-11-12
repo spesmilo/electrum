@@ -1435,6 +1435,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_clear()
         self.do_pay_invoice(invoice)
 
+    def pay_multiple_invoices(self, invoices):
+        outputs = []
+        for invoice in invoices:
+            outputs += invoice['outputs']
+        self.pay_onchain_dialog(self.get_coins, outputs)
+
     def do_pay_invoice(self, invoice):
         if invoice['type'] == PR_TYPE_LN:
             self.pay_lightning_invoice(invoice['invoice'])

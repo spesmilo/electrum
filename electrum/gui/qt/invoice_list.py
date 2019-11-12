@@ -146,8 +146,14 @@ class InvoiceList(MyTreeView):
 
     def create_menu(self, position):
         items = self.selected_in_column(0)
-        if len(items) > 1:
-            print(items)
+        if len(items)>1:
+            keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
+            invoices = [ self.parent.wallet.get_invoice(key) for key in keys]
+            invoices = [ invoice for invoice in invoices if invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN]
+            if len(invoices) > 1:
+                menu = QMenu(self)
+                menu.addAction(_("Pay multiple invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
+                menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
