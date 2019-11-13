@@ -7,6 +7,7 @@ import tlslite
 from electrum_ltc.transaction import Transaction
 from electrum_ltc import paymentrequest
 from electrum_ltc import paymentrequest_pb2 as pb2
+from electrum_ltc.bitcoin import address_to_script
 
 chain_file = 'mychain.pem'
 cert_file = 'mycert.pem'
@@ -26,7 +27,7 @@ certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
 with open(cert_file, 'r') as f:
     rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
 
-script = Transaction.pay_script('address', address).decode('hex')
+script = address_to_script(address)
 
 pr_string = paymentrequest.make_payment_request(amount, script, memo, rsakey)
 

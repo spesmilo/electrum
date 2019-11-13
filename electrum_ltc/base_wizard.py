@@ -33,7 +33,7 @@ from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 from . import bitcoin
 from . import keystore
 from . import mnemonic
-from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation
+from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
 from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
@@ -230,7 +230,7 @@ class BaseWizard(Logger):
                 assert bitcoin.is_private_key(pk)
                 txin_type, pubkey = k.import_privkey(pk, None)
                 addr = bitcoin.pubkey_to_address(txin_type, pubkey)
-                self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':None}
+                self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
             return self.terminate()
@@ -394,7 +394,7 @@ class BaseWizard(Logger):
             # For segwit, a custom path is used, as there is no standard at all.
             default_choice_idx = 2
             choices = [
-                ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
+                ('standard',   'legacy multisig (p2sh)',            normalize_bip32_derivation("m/45'/0")),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
@@ -420,16 +420,19 @@ class BaseWizard(Logger):
         from .keystore import hardware_keystore
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
+            root_xpub = self.plugin.get_xpub(device_info.device.id_, 'm', 'standard', self)
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
             return
+        xfp = BIP32Node.from_xkey(root_xpub).calc_fingerprint_of_this_node().hex().lower()
         d = {
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
+            'root_fingerprint': xfp,
             'xpub': xpub,
             'label': device_info.label,
         }

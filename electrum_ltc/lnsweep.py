@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Calla
 from enum import Enum, auto
 
 from .util import bfh, bh2u
-from .bitcoin import TYPE_ADDRESS, redeem_script_to_address, dust_threshold
+from .bitcoin import redeem_script_to_address, dust_threshold
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -15,7 +15,8 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      get_ordered_channel_configs, privkey_to_pubkey, get_per_commitment_secret_from_seed,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction)
-from .transaction import Transaction, TxOutput, construct_witness
+from .transaction import (Transaction, TxOutput, construct_witness, PartialTransaction, PartialTxInput,
+                          PartialTxOutput, TxOutpoint)
 from .simple_config import SimpleConfig
 from .logging import get_logger
 
@@ -254,7 +255,7 @@ def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
             is_revocation=False,
             config=chan.lnworker.config)
         # side effect
-        txs[htlc_tx.prevout(0)] = SweepInfo(name='first-stage-htlc',
+        txs[htlc_tx.inputs()[0].prevout.to_str()] = SweepInfo(name='first-stage-htlc',
                                             csv_delay=0,
                                             cltv_expiry=htlc_tx.locktime,
                                             gen_tx=lambda: htlc_tx)
@@ -336,7 +337,7 @@ def create_sweeptxs_for_their_ctx(*, chan: 'Channel', ctx: Transaction,
         gen_tx = create_sweeptx_for_their_revoked_ctx(chan, ctx, per_commitment_secret, chan.sweep_address)
         if gen_tx:
             tx = gen_tx()
-            txs[tx.prevout(0)] = SweepInfo(name='to_local_for_revoked_ctx',
+            txs[tx.inputs()[0].prevout.to_str()] = SweepInfo(name='to_local_for_revoked_ctx',
                                            csv_delay=0,
                                            cltv_expiry=0,
                                            gen_tx=gen_tx)
@@ -433,66 +434,58 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
     local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_privkey))
     txin = htlc_tx.inputs()[0]
     witness_program = bfh(Transaction.get_preimage_script(txin))
-    txin['witness'] = bh2u(make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program))
+    txin.witness = make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program)
     return witness_script, htlc_tx
 
 
 def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep_address: str,
                                   preimage: Optional[bytes], output_idx: int,
                                   privkey: bytes, is_revocation: bool,
-                                  cltv_expiry: int, config: SimpleConfig) -> Optional[Transaction]:
+                                  cltv_expiry: int, config: SimpleConfig) -> Optional[PartialTransaction]:
     assert type(cltv_expiry) is int
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
-    sweep_inputs = [{
-        'scriptSig': '',
-        'type': 'p2wsh',
-        'signatures': [],
-        'num_sig': 0,
-        'prevout_n': output_idx,
-        'prevout_hash': ctx.txid(),
-        'value': val,
-        'coinbase': False,
-        'preimage_script': bh2u(witness_script),
-    }]
+    prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.witness_script = witness_script
+    txin.script_sig = b''
+    sweep_inputs = [txin]
     tx_size_bytes = 200  # TODO (depends on offered/received and is_revocation)
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_expiry)
+    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_expiry)
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
         witness = construct_witness([sig, preimage, witness_script])
     else:
         revocation_pubkey = privkey_to_pubkey(privkey)
         witness = construct_witness([sig, revocation_pubkey, witness_script])
-    tx.inputs()[0]['witness'] = witness
+    tx.inputs()[0].witness = bfh(witness)
     assert tx.is_complete()
     return tx
 
 
 def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, output_idx: int,
                                        our_payment_privkey: ecc.ECPrivkey,
-                                       config: SimpleConfig) -> Optional[Transaction]:
+                                       config: SimpleConfig) -> Optional[PartialTransaction]:
     our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
     val = ctx.outputs()[output_idx].value
-    sweep_inputs = [{
-        'type': 'p2wpkh',
-        'x_pubkeys': [our_payment_pubkey],
-        'num_sig': 1,
-        'prevout_n': output_idx,
-        'prevout_hash': ctx.txid(),
-        'value': val,
-        'coinbase': False,
-        'signatures': [None],
-    }]
+    prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.script_type = 'p2wpkh'
+    txin.pubkeys = [bfh(our_payment_pubkey)]
+    txin.num_sig = 1
+    sweep_inputs = [txin]
     tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs)
+    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
+    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
     sweep_tx.set_rbf(True)
     sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
     if not sweep_tx.is_complete():
@@ -502,7 +495,7 @@ def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, out
 
 def create_sweeptx_ctx_to_local(*, sweep_address: str, ctx: Transaction, output_idx: int, witness_script: str,
                                 privkey: bytes, is_revocation: bool, config: SimpleConfig,
-                                to_self_delay: int=None) -> Optional[Transaction]:
+                                to_self_delay: int=None) -> Optional[PartialTransaction]:
     """Create a txn that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
 
@@ -510,61 +503,51 @@ def create_sweeptx_ctx_to_local(*, sweep_address: str, ctx: Transaction, output_
     is_revocation: tells us which ^
     """
     val = ctx.outputs()[output_idx].value
-    sweep_inputs = [{
-        'scriptSig': '',
-        'type': 'p2wsh',
-        'signatures': [],
-        'num_sig': 0,
-        'prevout_n': output_idx,
-        'prevout_hash': ctx.txid(),
-        'value': val,
-        'coinbase': False,
-        'preimage_script': witness_script,
-    }]
+    prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.script_sig = b''
+    txin.witness_script = bfh(witness_script)
+    sweep_inputs = [txin]
     if not is_revocation:
         assert isinstance(to_self_delay, int)
-        sweep_inputs[0]['sequence'] = to_self_delay
+        sweep_inputs[0].nsequence = to_self_delay
     tx_size_bytes = 121  # approx size of to_local -> p2wpkh
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
     if outvalue <= dust_threshold():
         return None
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
+    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
     sig = sweep_tx.sign_txin(0, privkey)
     witness = construct_witness([sig, int(is_revocation), witness_script])
-    sweep_tx.inputs()[0]['witness'] = witness
+    sweep_tx.inputs()[0].witness = bfh(witness)
     return sweep_tx
 
 
 def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(*,
         htlc_tx: Transaction, htlctx_witness_script: bytes, sweep_address: str,
         privkey: bytes, is_revocation: bool, to_self_delay: int,
-        config: SimpleConfig) -> Optional[Transaction]:
+        config: SimpleConfig) -> Optional[PartialTransaction]:
     val = htlc_tx.outputs()[0].value
-    sweep_inputs = [{
-        'scriptSig': '',
-        'type': 'p2wsh',
-        'signatures': [],
-        'num_sig': 0,
-        'prevout_n': 0,
-        'prevout_hash': htlc_tx.txid(),
-        'value': val,
-        'coinbase': False,
-        'preimage_script': bh2u(htlctx_witness_script),
-    }]
+    prevout = TxOutpoint(txid=bfh(htlc_tx.txid()), out_idx=0)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.script_sig = b''
+    txin.witness_script = htlctx_witness_script
+    sweep_inputs = [txin]
     if not is_revocation:
         assert isinstance(to_self_delay, int)
-        sweep_inputs[0]['sequence'] = to_self_delay
+        sweep_inputs[0].nsequence = to_self_delay
     tx_size_bytes = 200  # TODO
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
 
     sig = bfh(tx.sign_txin(0, privkey))
     witness = construct_witness([sig, int(is_revocation), htlctx_witness_script])
-    tx.inputs()[0]['witness'] = witness
+    tx.inputs()[0].witness = bfh(witness)
     assert tx.is_complete()
     return tx

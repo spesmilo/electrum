@@ -590,7 +590,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.parent.show_transaction(tx, tx_desc=label)
 
     def add_copy_menu(self, menu, idx):
-        cc = menu.addMenu(_("Copy column"))
+        cc = menu.addMenu(_("Copy"))
         for column in HistoryColumns:
             if self.isColumnHidden(column):
                 continue

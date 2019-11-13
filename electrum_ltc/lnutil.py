@@ -10,11 +10,11 @@ import re
 
 from .util import bfh, bh2u, inv_dict
 from .crypto import sha256
-from .transaction import Transaction
+from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
+                          PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
-from .transaction import opcodes, TxOutput, Transaction
-from .bitcoin import push_script, redeem_script_to_address, TYPE_ADDRESS
+from .bitcoin import push_script, redeem_script_to_address, address_to_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
@@ -27,8 +27,14 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
-Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
-OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
+
+class Keypair(NamedTuple):
+    pubkey: bytes
+    privkey: bytes
+
+
+class OnlyPubkeyKeypair(NamedTuple):
+    pubkey: bytes
 
 
 # NamedTuples cannot subclass NamedTuples :'(   https://github.com/python/typing/issues/427
@@ -55,19 +61,19 @@ class LocalConfig(NamedTuple):
 
 class RemoteConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
-    payment_basepoint: 'Keypair'
-    multisig_key: 'Keypair'
-    htlc_basepoint: 'Keypair'
-    delayed_basepoint: 'Keypair'
-    revocation_basepoint: 'Keypair'
+    payment_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    multisig_key: Union['Keypair', 'OnlyPubkeyKeypair']
+    htlc_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    delayed_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
+    revocation_basepoint: Union['Keypair', 'OnlyPubkeyKeypair']
     to_self_delay: int
     dust_limit_sat: int
     max_htlc_value_in_flight_msat: int
     max_accepted_htlcs: int
     initial_msat: int
     reserve_sat: int
-    htlc_minimum_msat: int
     # specific to "REMOTE" config
+    htlc_minimum_msat: int
     next_per_commitment_point: bytes
     revocation_store: 'RevocationStore'
     current_per_commitment_point: Optional[bytes]
@@ -97,6 +103,7 @@ class ScriptHtlc(NamedTuple):
     htlc: 'UpdateAddHtlc'
 
 
+# FIXME duplicate of TxOutpoint in transaction.py??
 class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
     def to_str(self):
         return "{}:{}".format(self.txid, self.output_index)
@@ -287,7 +294,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     fee = fee // 1000 * 1000
     final_amount_sat = (amount_msat - fee) // 1000
     assert final_amount_sat > 0, final_amount_sat
-    output = TxOutput(bitcoin.TYPE_ADDRESS, p2wsh, final_amount_sat)
+    output = PartialTxOutput.from_address_and_value(p2wsh, final_amount_sat)
     return script, output
 
 def make_htlc_tx_witness(remotehtlcsig: bytes, localhtlcsig: bytes,
@@ -299,29 +306,23 @@ def make_htlc_tx_witness(remotehtlcsig: bytes, localhtlcsig: bytes,
     return bfh(transaction.construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
 
 def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
-                        amount_msat: int, witness_script: str) -> List[dict]:
+                        amount_msat: int, witness_script: str) -> List[PartialTxInput]:
     assert type(htlc_output_txid) is str
     assert type(htlc_output_index) is int
     assert type(amount_msat) is int
     assert type(witness_script) is str
-    c_inputs = [{
-        'scriptSig': '',
-        'type': 'p2wsh',
-        'signatures': [],
-        'num_sig': 0,
-        'prevout_n': htlc_output_index,
-        'prevout_hash': htlc_output_txid,
-        'value': amount_msat // 1000,
-        'coinbase': False,
-        'sequence': 0x0,
-        'preimage_script': witness_script,
-    }]
+    txin = PartialTxInput(prevout=TxOutpoint(txid=bfh(htlc_output_txid), out_idx=htlc_output_index),
+                          nsequence=0)
+    txin.witness_script = bfh(witness_script)
+    txin.script_sig = b''
+    txin._trusted_value_sats = amount_msat // 1000
+    c_inputs = [txin]
     return c_inputs
 
-def make_htlc_tx(*, cltv_expiry: int, inputs, output) -> Transaction:
+def make_htlc_tx(*, cltv_expiry: int, inputs: List[PartialTxInput], output: PartialTxOutput) -> PartialTransaction:
     assert type(cltv_expiry) is int
     c_outputs = [output]
-    tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_expiry, version=2)
+    tx = PartialTransaction.from_io(inputs, c_outputs, locktime=cltv_expiry, version=2)
     return tx
 
 def make_offered_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
@@ -437,7 +438,7 @@ def map_htlcs_to_ctx_output_idxs(*, chan: 'Channel', ctx: Transaction, pcp: byte
 
 def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTLCOwner',
                                    htlc_direction: 'Direction', commit: Transaction, ctx_output_idx: int,
-                                   htlc: 'UpdateAddHtlc', name: str = None) -> Tuple[bytes, Transaction]:
+                                   htlc: 'UpdateAddHtlc', name: str = None) -> Tuple[bytes, PartialTransaction]:
     amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
     for_us = subject == LOCAL
     conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=for_us)
@@ -472,19 +473,15 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
     return witness_script_of_htlc_tx_output, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
-        funding_pos: int, funding_txid: bytes, funding_sat: int):
+        funding_pos: int, funding_txid: str, funding_sat: int) -> PartialTxInput:
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     # commitment tx input
-    c_input = {
-        'type': 'p2wsh',
-        'x_pubkeys': pubkeys,
-        'signatures': [None, None],
-        'num_sig': 2,
-        'prevout_n': funding_pos,
-        'prevout_hash': funding_txid,
-        'value': funding_sat,
-        'coinbase': False,
-    }
+    prevout = TxOutpoint(txid=bfh(funding_txid), out_idx=funding_pos)
+    c_input = PartialTxInput(prevout=prevout)
+    c_input.script_type = 'p2wsh'
+    c_input.pubkeys = [bfh(pk) for pk in pubkeys]
+    c_input.num_sig = 2
+    c_input._trusted_value_sats = funding_sat
     return c_input
 
 class HTLCOwner(IntFlag):
@@ -504,18 +501,18 @@ RECEIVED = Direction.RECEIVED
 LOCAL = HTLCOwner.LOCAL
 REMOTE = HTLCOwner.REMOTE
 
-def make_commitment_outputs(fees_per_participant: Mapping[HTLCOwner, int], local_amount: int, remote_amount: int,
-        local_tupl, remote_tupl, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[TxOutput], List[TxOutput]]:
-    to_local_amt = local_amount - fees_per_participant[LOCAL]
-    to_local = TxOutput(*local_tupl, to_local_amt // 1000)
-    to_remote_amt = remote_amount - fees_per_participant[REMOTE]
-    to_remote = TxOutput(*remote_tupl, to_remote_amt // 1000)
+def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], local_amount_msat: int, remote_amount_msat: int,
+        local_script: str, remote_script: str, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[PartialTxOutput], List[PartialTxOutput]]:
+    to_local_amt = local_amount_msat - fees_per_participant[LOCAL]
+    to_local = PartialTxOutput(scriptpubkey=bfh(local_script), value=to_local_amt // 1000)
+    to_remote_amt = remote_amount_msat - fees_per_participant[REMOTE]
+    to_remote = PartialTxOutput(scriptpubkey=bfh(remote_script), value=to_remote_amt // 1000)
     non_htlc_outputs = [to_local, to_remote]
     htlc_outputs = []
     for script, htlc in htlcs:
-        htlc_outputs.append(TxOutput(bitcoin.TYPE_ADDRESS,
-                               bitcoin.redeem_script_to_address('p2wsh', bh2u(script)),
-                               htlc.amount_msat // 1000))
+        addr = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+        htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(address_to_script(addr)),
+                                            value=htlc.amount_msat // 1000))
 
     # trim outputs
     c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
@@ -533,13 +530,13 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
                     delayed_pubkey, to_self_delay, funding_txid,
                     funding_pos, funding_sat, local_amount, remote_amount,
                     dust_limit_sat, fees_per_participant,
-                    htlcs: List[ScriptHtlc]) -> Transaction:
+                    htlcs: List[ScriptHtlc]) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
                                  funding_pos, funding_txid, funding_sat)
     obs = get_obscured_ctn(ctn, funder_payment_basepoint, fundee_payment_basepoint)
     locktime = (0x20 << 24) + (obs & 0xffffff)
     sequence = (0x80 << 24) + (obs >> 24)
-    c_input['sequence'] = sequence
+    c_input.nsequence = sequence
 
     c_inputs = [c_input]
 
@@ -555,13 +552,19 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     htlcs = list(htlcs)
     htlcs.sort(key=lambda x: x.htlc.cltv_expiry)
 
-    htlc_outputs, c_outputs_filtered = make_commitment_outputs(fees_per_participant, local_amount, remote_amount,
-        (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
+    htlc_outputs, c_outputs_filtered = make_commitment_outputs(
+        fees_per_participant=fees_per_participant,
+        local_amount_msat=local_amount,
+        remote_amount_msat=remote_amount,
+        local_script=address_to_script(local_address),
+        remote_script=address_to_script(remote_address),
+        htlcs=htlcs,
+        dust_limit_sat=dust_limit_sat)
 
     assert sum(x.value for x in c_outputs_filtered) <= funding_sat, (c_outputs_filtered, funding_sat)
 
     # create commitment tx
-    tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
+    tx = PartialTransaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
     return tx
 
 def make_commitment_output_to_local_witness_script(
@@ -578,11 +581,9 @@ def make_commitment_output_to_local_address(
 def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> str:
     return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
 
-def sign_and_get_sig_string(tx, local_config, remote_config):
-    pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
+def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
     tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
-    sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
-    sig = bytes.fromhex(tx.inputs()[0]["signatures"][sig_index])
+    sig = tx.inputs()[0].part_sigs[local_config.multisig_key.pubkey]
     sig_64 = sig_string_from_der_sig(sig[:-1])
     return sig_64
 
@@ -598,11 +599,11 @@ def get_obscured_ctn(ctn: int, funder: bytes, fundee: bytes) -> int:
     mask = int.from_bytes(sha256(funder + fundee)[-6:], 'big')
     return ctn ^ mask
 
-def extract_ctn_from_tx(tx, txin_index: int, funder_payment_basepoint: bytes,
+def extract_ctn_from_tx(tx: Transaction, txin_index: int, funder_payment_basepoint: bytes,
                         fundee_payment_basepoint: bytes) -> int:
     tx.deserialize()
     locktime = tx.locktime
-    sequence = tx.inputs()[txin_index]['sequence']
+    sequence = tx.inputs()[txin_index].nsequence
     obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
     return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
@@ -671,12 +672,12 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
 
 
 def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
-                    funding_txid: bytes, funding_pos: int, funding_sat: int,
-                    outputs: List[TxOutput]) -> Transaction:
+                    funding_txid: str, funding_pos: int, funding_sat: int,
+                    outputs: List[PartialTxOutput]) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
         funding_pos, funding_txid, funding_sat)
-    c_input['sequence'] = 0xFFFF_FFFF
-    tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
+    c_input.nsequence = 0xFFFF_FFFF
+    tx = PartialTransaction.from_io([c_input], outputs, locktime=0, version=2)
     return tx
 
 

@@ -25,6 +25,7 @@
 
 import base64
 import hashlib
+import functools
 from typing import Union, Tuple, Optional
 
 import ecdsa
@@ -181,6 +182,7 @@ class _PubkeyForPointAtInfinity:
     point = ecdsa.ellipticcurve.INFINITY
 
 
+@functools.total_ordering
 class ECPubkey(object):
 
     def __init__(self, b: Optional[bytes]):
@@ -256,6 +258,14 @@ class ECPubkey(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def __hash__(self):
+        return hash(self._pubkey.point.x())
+
+    def __lt__(self, other):
+        if not isinstance(other, ECPubkey):
+            raise TypeError('comparison not defined for ECPubkey and {}'.format(type(other)))
+        return self._pubkey.point.x() < other._pubkey.point.x()
 
     def verify_message_for_address(self, sig65: bytes, message: bytes, algo=lambda x: sha256d(msg_magic(x))) -> None:
         assert_bytes(message)
