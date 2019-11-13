@@ -1997,10 +1997,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.update_lock_icon()
 
     def toggle_search(self):
-        tab = self.tabs.currentWidget()
-        #if hasattr(tab, 'searchable_list'):
-        #    tab.searchable_list.toggle_toolbar()
-        #return
         self.search_box.setHidden(not self.search_box.isHidden())
         if not self.search_box.isHidden():
             self.search_box.setFocus(1)
