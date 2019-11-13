@@ -118,8 +118,8 @@ class Plugins(DaemonThread):
                 try:
                     self.load_internal_plugin(name)
                 except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)
-                    self.print_error("cannot initialize plugin %s:" % name, str(e))
+                    fmt = traceback.format_exc()
+                    self.print_error(f"cannot initialize plugin {name}: {e!r} {fmt}")
 
     def load_external_plugins(self):
         external_plugin_dir = self.get_external_plugin_dir()
@@ -148,8 +148,8 @@ class Plugins(DaemonThread):
                 try:
                     self.load_external_plugin(package_name)
                 except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)
-                    self.print_error("cannot initialize plugin %s:" % package_name, str(e))
+                    traceback.print_exc(file=sys.stdout) # shouldn't this be... suppressed unless -v?
+                    self.print_error(f"cannot initialize plugin {package_name} {e!r}")
 
     def get_internal_plugin(self, name, force_load=False):
         if force_load and name not in self.internal_plugins:
@@ -447,8 +447,7 @@ class Plugins(DaemonThread):
                     if p.is_enabled():
                         out.append([name, details[2], p])
                 except:
-                    traceback.print_exc()
-                    self.print_error("cannot load plugin for:", name)
+                    self.print_error("cannot load plugin for:", name, "exception:", repr(sys.exc_info()[1]))
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type, is_external):

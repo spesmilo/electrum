@@ -10,7 +10,6 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no name')
 
-
 home = 'C:\\electroncash\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
@@ -19,6 +18,8 @@ hiddenimports += ['PyQt5.sip']
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
+hiddenimports += collect_submodules('satochip')    # Satochip
+hiddenimports += collect_submodules('smartcard')   # Satochip
 
 # Add libusb binary
 binaries = [("c:/tmp/libusb-1.0.dll", ".")]
@@ -41,6 +42,8 @@ binaries += [('C:/tmp/libzbar-0.dll', '.')]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
+
+binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp36-win32.pyd', '.')]  # Satochip
 
 datas = [
     (home+'lib/currencies.json', 'electroncash'),
@@ -74,6 +77,7 @@ a = Analysis([home+'electron-cash',
               home+'plugins/trezor/qt.py',
               home+'plugins/keepkey/qt.py',
               home+'plugins/ledger/qt.py',
+              home+'plugins/satochip/qt.py',  # Satochip
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,

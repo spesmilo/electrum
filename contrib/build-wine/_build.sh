@@ -154,6 +154,11 @@ prepare_wine() {
         PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
         PYINSTALLER_COMMIT=1a8b2d47c277c451f4e358d926a47c096a5615ec
 
+        # Satochip pyscard
+        PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
+        PYSCARD_URL=https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/pyscard-1.9.9-cp36-cp36m-win32.whl
+        PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
+
         ## These settings probably don't need change
         export WINEPREFIX=$HOME/wine64
         #export WINEARCH='win32'
@@ -265,6 +270,11 @@ prepare_wine() {
         cp "$here"/../secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
         cp "$here"/../zbar/libzbar-0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
         cp libusb/libusb/.libs/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb to its destination"
+
+        info "Installing pyscard..."
+        wget -O $PYSCARD_FILENAME "$PYSCARD_URL"
+        verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
+        $PYTHON -m pip install --no-warn-script-location $PYSCARD_FILENAME || fail "Could not install pyscard"
 
         popd  # out of homedir/tmp
         popd  # out of $here

@@ -115,6 +115,19 @@ info "Installing dmgbuild, requests, and other build tools we need..."
 python3 -m pip install -I --user -r contrib/osx/requirements-osx-build.txt \
     || fail "Could not install osx-requirements"
 
+# This is for the Satochip hardware wallet which relies on the python module
+# 'smartcard' which contains a binary which is annoying to build. So we just
+# pre-built it and download the wheel from our Electron-Cash-Build-Tools repo.
+# Note: when we upgrade to Python 3.7 we will need to re-build this module for
+# python 3.7.
+info "Installing Python Smartcard Module (pyscard)"
+mkdir -p $BUILDDIR
+PYSCARD_FNAME="pyscard-1.9.9-cp36-cp36m-macosx_10_11_x86_64.whl"
+curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/$PYSCARD_FNAME > $BUILDDIR/$PYSCARD_FNAME
+verify_hash $BUILDDIR/$PYSCARD_FNAME 336b1cc335049e3ac5fad125c63d4e8fd4d25e85147f999359cdc6a9fde36fa7
+python3 -m pip install $BUILDDIR/$PYSCARD_FNAME --user && pyenv rehash \
+    || fail "Could not install pyscard"
+
 # We use a custom PyInstaller that has deep codesigning as well as AppleEvents
 # forwarding.  Note both these patches have been submitted to the PyInstaller
 # project but have yet to be merged in (they are very backlogged).

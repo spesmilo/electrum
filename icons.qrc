@@ -33,6 +33,8 @@
     <file>icons/paper-plane.svg</file>
     <file>icons/paper-plane_dark_theme.svg</file>
     <file>icons/preferences.svg</file>
+    <file>icons/satochip.png</file>
+    <file>icons/satochip_unpaired.png</file>
     <file>icons/save.svg</file>
     <file>icons/save_dark_theme.svg</file>
     <file>icons/seed.png</file>
