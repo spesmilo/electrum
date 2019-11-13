@@ -717,19 +717,20 @@ class Transaction:
         afterwards, this cache will be wrong! """
         inputs = self.inputs()
         outputs = self.outputs()
+        meta = (len(inputs), len(outputs))
 
         if use_cache:
             try:
-                meta, res = self._cached_sighash_tup
+                cmeta, res = self._cached_sighash_tup
             except AttributeError:
                 pass
             else:
                 # minimal heuristic check to detect bad cached value
-                if meta == (len(inputs), len(outputs)):
+                if cmeta == meta:
                     # cache hit and heuristic check ok
                     return res
                 else:
-                    del meta, res, self._cached_sighash_tup
+                    del cmeta, res, self._cached_sighash_tup
 
         hashPrevouts = Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs)))
         hashSequence = Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs)))
@@ -738,7 +739,7 @@ class Transaction:
         res = hashPrevouts, hashSequence, hashOutputs
         # cach resulting value, along with some minimal metadata to defensively
         # program against cache invalidation (due to class mutation).
-        self._cached_sighash_tup = (len(inputs), len(outputs)), res
+        self._cached_sighash_tup = meta, res
         return res
 
     def serialize_preimage(self, i, nHashType=0x00000041, use_cache = False):
