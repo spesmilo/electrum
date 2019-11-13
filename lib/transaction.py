@@ -517,6 +517,7 @@ class Transaction:
         if self._inputs is not None:
             return
         d = deserialize(self.raw)
+        self.invalidate_common_sighash_cache()
         self._inputs = d['inputs']
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
