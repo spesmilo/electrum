@@ -189,7 +189,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         newpin= list(newpin)
         (response, sw1, sw2)= client.cc.card_change_PIN(0, oldpin, newpin)
         if (sw1==0x90 and sw2==0x00):
-            msg= _("PIN changeg successfully!")
+            msg= _("PIN changed successfully!")
             client.handler.show_error(msg)
         else:
             msg= _("Failed to change PIN!")
