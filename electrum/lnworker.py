@@ -24,6 +24,7 @@ from . import keystore
 from .util import profiler
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED
 from .util import PR_TYPE_LN
+from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
 from .transaction import Transaction
@@ -48,6 +49,8 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnLocalFeatures, format_short_channel_id,
                      ShortChannelID)
+from .lnutil import ln_dummy_address
+from .transaction import PartialTxOutput
 from .lnonion import OnionFailureCode
 from .lnmsg import decode_msg
 from .i18n import _
@@ -768,13 +771,14 @@ class LNWallet(LNWorker):
                     await self.force_close_channel(chan.channel_id)
 
     @log_exceptions
-    async def _open_channel_coroutine(self, connect_str, local_amount_sat, push_sat, password):
+    async def _open_channel_coroutine(self, connect_str, funding_tx, funding_sat, push_sat, password):
         peer = await self.add_peer(connect_str)
         # peer might just have been connected to
         await asyncio.wait_for(peer.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         chan = await peer.channel_establishment_flow(
             password,
-            funding_sat=local_amount_sat + push_sat,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.save_channel(chan)
@@ -805,8 +809,19 @@ class LNWallet(LNWorker):
             peer = await self._add_peer(host, port, node_id)
         return peer
 
-    def open_channel(self, connect_str, local_amt_sat, push_amt_sat, password=None, timeout=20):
-        coro = self._open_channel_coroutine(connect_str, local_amt_sat, push_amt_sat, password)
+    def mktx_for_open_channel(self, coins, funding_sat, fee_est):
+        dummy_address = ln_dummy_address()
+        outputs = [PartialTxOutput.from_address_and_value(dummy_address, funding_sat)]
+        tx = self.wallet.make_unsigned_transaction(
+            coins=coins,
+            outputs=outputs,
+            fee=fee_est)
+        tx.set_rbf(False)
+        return tx
+
+    def open_channel(self, connect_str, funding_tx, funding_sat, push_amt_sat, password=None, timeout=20):
+        assert funding_sat <= LN_MAX_FUNDING_SAT
+        coro = self._open_channel_coroutine(connect_str, funding_tx, funding_sat, push_amt_sat, password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
             chan = fut.result(timeout=timeout)

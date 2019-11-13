@@ -5,15 +5,15 @@ from enum import IntEnum
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
+from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
 
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
 from electrum.lnchannel import Channel
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id
+from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id, LN_MAX_FUNDING_SAT
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog, HelpLabel
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
@@ -162,26 +162,38 @@ class ChannelsList(MyTreeView):
     def new_channel_dialog(self):
         lnworker = self.parent.wallet.lnworker
         d = WindowModalDialog(self.parent, _('Open Channel'))
-        d.setMinimumWidth(700)
         vbox = QVBoxLayout(d)
-        h = QGridLayout()
+        vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
         local_nodeid = QLineEdit()
+        local_nodeid.setMinimumWidth(700)
         local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
         local_nodeid.setReadOnly(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
-        local_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
-        local_amt_inp.setAmount(200000)
-        push_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
-        push_amt_inp.setAmount(0)
+        remote_nodeid.setMinimumWidth(700)
+        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
+        # max button
+        def spend_max():
+            make_tx = self.parent.mktx_for_open_channel('!')
+            tx = make_tx(None)
+            amount = tx.output_value()
+            amount = min(amount, LN_MAX_FUNDING_SAT)
+            amount_e.setAmount(amount)
+            amount_e.setFrozen(True)
+        max_button = EnterButton(_("Max"), spend_max)
+        max_button.setFixedWidth(100)
+        max_button.setCheckable(True)
+        h = QGridLayout()
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
         h.addWidget(local_nodeid, 0, 1)
-        h.addWidget(QLabel(_('Remote Node ID or connection string or invoice')), 1, 0)
+        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
         h.addWidget(remote_nodeid, 1, 1)
-        h.addWidget(QLabel('Local amount'), 2, 0)
-        h.addWidget(local_amt_inp, 2, 1)
-        h.addWidget(QLabel('Push amount'), 3, 0)
-        h.addWidget(push_amt_inp, 3, 1)
+        h.addWidget(QLabel('Amount'), 2, 0)
+        hbox = QHBoxLayout()
+        hbox.addWidget(amount_e)
+        hbox.addWidget(max_button)
+        hbox.addStretch(1)
+        h.addLayout(hbox, 2, 1)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)
@@ -191,7 +203,6 @@ class ChannelsList(MyTreeView):
         remote_nodeid.setCursorPosition(0)
         if not d.exec_():
             return
-        local_amt = local_amt_inp.get_amount()
-        push_amt = push_amt_inp.get_amount()
-        connect_contents = str(remote_nodeid.text()).strip()
-        self.parent.open_channel(connect_contents, local_amt, push_amt)
+        funding_sat = '!' if max_button.isChecked() else amount_e.get_amount()
+        connect_str = str(remote_nodeid.text()).strip()
+        self.parent.open_channel(connect_str, funding_sat, 0)

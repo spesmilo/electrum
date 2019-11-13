@@ -917,6 +917,10 @@ class Abstract_Wallet(AddressSynchronizer):
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
                                   change_addr: str = None, is_sweep=False) -> PartialTransaction:
+
+        # prevent side-effect with '!'
+        outputs = copy.deepcopy(outputs)
+
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):

@@ -27,6 +27,11 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
+LN_MAX_FUNDING_SAT = pow(2, 24)
+
+# dummy address for fee estimation of funding tx
+def ln_dummy_address():
+    return redeem_script_to_address('p2wsh', '')
 
 class Keypair(NamedTuple):
     pubkey: bytes

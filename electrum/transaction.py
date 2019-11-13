@@ -879,6 +879,14 @@ class Transaction:
         script = bitcoin.address_to_script(addr)
         return self.get_output_idxs_from_scriptpubkey(script)
 
+    def output_value_for_address(self, addr):
+        # assumes exactly one output has that address
+        for o in self.outputs():
+            if o.address == addr:
+                return o.value
+        else:
+            raise Exception('output not found', addr)
+
 
 def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     """Sanitizes tx-describing input (hex/base43/base64) into
