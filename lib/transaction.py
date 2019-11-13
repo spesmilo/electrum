@@ -689,10 +689,21 @@ class Transaction:
         warnings.warn("warning: deprecated tx.nHashType()", FutureWarning, stacklevel=2)
         return 0x01 | (cls.SIGHASH_FORKID + (cls.FORKID << 8))
 
+    def invalidate_common_sighash_cache(self):
+        ''' Call this to invalidate the cached common sighash (computed by
+        `calc_common_sighash` below).
+
+        This is function is for advanced usage of this class where the caller
+        has mutated the transaction after computing its signatures and would
+        like to explicitly delete the cached common sighash. See
+        `calc_common_sighash` below. '''
+        try: del self._cached_sighash_tup
+        except AttributeError: pass
+
     def calc_common_sighash(self, use_cache=False):
         """ Calculate the common sighash components that are used by
         transaction signatures. If `use_cache` enabled then this will return
-        already-computed values from the `._cached_sighash` attribute, or
+        already-computed values from the `._cached_sighash_tup` attribute, or
         compute them if necessary (and then store).
 
         For transactions with N inputs and M outputs, calculating all sighashes
@@ -703,22 +714,30 @@ class Transaction:
 
         Warning: If you modify non-signature parts of the transaction
         afterwards, this cache will be wrong! """
-        try:
-            if use_cache:
-                return self._cached_sighash
-        except AttributeError:
-            pass
-
         inputs = self.inputs()
         outputs = self.outputs()
+
+        if use_cache:
+            try:
+                meta, res = self._cached_sighash_tup
+            except AttributeError:
+                pass
+            else:
+                # minimal heuristic check to detect bad cached value
+                if meta == (len(inputs), len(outputs)):
+                    # cache hit and heuristic check ok
+                    return res
+                else:
+                    del meta, res, self._cached_sighash_tup
+
         hashPrevouts = Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs)))
         hashSequence = Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs)))
         hashOutputs = Hash(bfh(''.join(self.serialize_output(o) for o in outputs)))
 
         res = hashPrevouts, hashSequence, hashOutputs
-        if use_cache:
-            self._cached_sighash = (hashPrevouts, hashSequence, hashOutputs)
-
+        # cach resulting value, along with some minimal metadata to defensively
+        # program against cache invalidation (due to class mutation).
+        self._cached_sighash_tup = (len(inputs), len(outputs)), res
         return res
 
     def serialize_preimage(self, i, nHashType=0x00000041, use_cache = False):
