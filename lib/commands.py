@@ -535,6 +535,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
+            fx.run()  # invoke the fx to grab history rates at least once, otherwise results will always contain "No data" (see #1671)
         return self.wallet.export_history(**kwargs)
 
     @command('w')
