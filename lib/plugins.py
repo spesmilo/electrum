@@ -22,29 +22,30 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from collections import namedtuple
 import codecs
-import traceback
-import os
 import imp
 import json
+import os
 import pkgutil
-import sys
-import time
 import shutil
+import sys
 import threading
+import time
+import traceback
 import zipimport
 
+from collections import namedtuple, defaultdict
+from enum import IntEnum
+from typing import Callable, Optional
+
+from . import bitcoin
+from . import version
 from .i18n import _
 from .util import print_error, user_dir, make_dir
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
-from . import bitcoin
-from . import version
-from enum import IntEnum
 
 plugin_loaders = {}
-hook_names = set()
-hooks = {}
+hooks = defaultdict(list)
 
 
 class ExternalPluginCodes(IntEnum):
@@ -483,8 +484,29 @@ class Plugins(DaemonThread):
 
 
 def hook(func):
-    hook_names.add(func.__name__)
+    func._is_ec_plugin_hook = True
     return func
+
+def _get_func_if_hook(plugin, attr_name) -> Optional[Callable]:
+    cls = plugin.__class__
+    # We examine the class-level attribute with name attr_name to see if it's a
+    # function that's tagged with _is_ec_plugin_hook. If it is, we know it was
+    # registered with @hook.
+    #
+    # Caveat: If we were to call getattr(plugin, attr_name) directly, we would
+    # potentially be invoking a function call if attr_name was decorated with
+    # @property. That's why we explicitly do this check on the class-level
+    # attribute first, before proceeding to grabbing the instance-level
+    # bound method if the checks pass.
+    cls_func = getattr(cls, attr_name, None)
+    if (getattr(cls_func, '_is_ec_plugin_hook', False)
+            and not isinstance(cls_func, property)):  # just in case they did @hook @property!
+        # Ok, attr_name has the tag, and wasn't a property.
+        # So it's safe to call getattr on it to grab the bound method, and
+        # return it after one last callable check (for paranoia's sake).
+        func = getattr(plugin, attr_name, None)
+        if callable(func):
+            return func
 
 def run_hook(name, *args):
     f_list = hooks.get(name)
@@ -504,7 +526,8 @@ def run_hook(name, *args):
                 results.append(r)
 
     if results:
-        assert len(results) == 1, results
+        if len(results) > 1:
+            print_error(f"run_hook: got more than 1 result from @hook '{name}':", results)
         return results[0]
 
 
@@ -514,12 +537,13 @@ class BasePlugin(PrintError):
         self.name = name
         self.config = config
         self.wallet = None
+        self._hooks_i_registered = []
         # add self to hooks
-        for k in dir(self):
-            if k in hook_names:
-                l = hooks.get(k, [])
-                l.append((self, getattr(self, k)))
-                hooks[k] = l
+        for aname in dir(self):
+            func = _get_func_if_hook(self, aname)
+            if func is not None:
+                hooks[aname].append((self, func))
+                self._hooks_i_registered.append((aname,func))
 
     def set_enabled_prefix(self, prefix):
         # This is set via a method in order not to break the existing API.
@@ -533,11 +557,13 @@ class BasePlugin(PrintError):
 
     def close(self):
         # remove self from hooks
-        for k in dir(self):
-            if k in hook_names:
-                l = hooks.get(k, [])
-                l.remove((self, getattr(self, k)))
-                hooks[k] = l
+        for name, func in self._hooks_i_registered:
+            l = hooks.get(name, [])
+            try: l.remove((self, func))
+            except ValueError: pass  # this should never happen but it pays to be paranoid.
+            if not l:
+                hooks.pop(name, None)
+        self._hooks_i_registered.clear()  # just to kill strong refs to self ASAP, for GC
         self.parent.close_plugin(self)
         self.on_close()
 
