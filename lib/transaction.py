@@ -689,20 +689,48 @@ class Transaction:
         warnings.warn("warning: deprecated tx.nHashType()", FutureWarning, stacklevel=2)
         return 0x01 | (cls.SIGHASH_FORKID + (cls.FORKID << 8))
 
-    def serialize_preimage(self, i, nHashType=0x00000041):
+    def calc_common_sighash(self, use_cache=False):
+        """ Calculate the common sighash components that are used by
+        transaction signatures. If `use_cache` enabled then this will return
+        already-computed values from the `._cached_sighash` attribute, or
+        compute them if necessary (and then store).
+
+        For transactions with N inputs and M outputs, calculating all sighashes
+        takes only O(N + M) with the cache, as opposed to O(N^2 + NM) without
+        the cache.
+
+        Returns three 32-long bytes objects: (hashPrevouts, hashSequence, hashOutputs).
+
+        Warning: If you modify non-signature parts of the transaction
+        afterwards, this cache will be wrong! """
+        try:
+            if use_cache:
+                return self._cached_sighash
+        except AttributeError:
+            pass
+
+        inputs = self.inputs()
+        outputs = self.outputs()
+        hashPrevouts = Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs)))
+        hashSequence = Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs)))
+        hashOutputs = Hash(bfh(''.join(self.serialize_output(o) for o in outputs)))
+
+        res = hashPrevouts, hashSequence, hashOutputs
+        if use_cache:
+            self._cached_sighash = (hashPrevouts, hashSequence, hashOutputs)
+
+        return res
+
+    def serialize_preimage(self, i, nHashType=0x00000041, use_cache = False):
+        """ See `.calc_common_sighash` for explanation of use_cache feature """
         if (nHashType & 0xff) != 0x41:
             raise ValueError("other hashtypes not supported; submit a PR to fix this!")
 
         nVersion = int_to_hex(self.version, 4)
         nHashType = int_to_hex(nHashType, 4)
         nLocktime = int_to_hex(self.locktime, 4)
-        inputs = self.inputs()
-        outputs = self.outputs()
-        txin = inputs[i]
 
-        hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
-        hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
-        hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
+        txin = self.inputs()[i]
         outpoint = self.serialize_outpoint(txin)
         preimage_script = self.get_preimage_script(txin)
         scriptCode = var_int(len(preimage_script) // 2) + preimage_script
@@ -711,7 +739,10 @@ class Transaction:
         except KeyError:
             raise InputValueMissing
         nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
-        preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+
+        hashPrevouts, hashSequence, hashOutputs = self.calc_common_sighash(use_cache = use_cache)
+
+        preimage = nVersion + bh2u(hashPrevouts) + bh2u(hashSequence) + outpoint + scriptCode + amount + nSequence + bh2u(hashOutputs) + nLocktime + nHashType
         return preimage
 
     def serialize(self, estimate_size=False):
