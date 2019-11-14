@@ -89,20 +89,29 @@ def normalize_text(seed: str) -> str:
     seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
     return seed
 
+
+_WORDLIST_CACHE = {}
+
+
 def load_wordlist(filename):
     path = resource_path('wordlist', filename)
-    with open(path, 'r', encoding='utf-8') as f:
-        s = f.read().strip()
-    s = unicodedata.normalize('NFKD', s)
-    lines = s.split('\n')
-    wordlist = []
-    for line in lines:
-        line = line.split('#')[0]
-        line = line.strip(' \r')
-        assert ' ' not in line
-        if line:
-            wordlist.append(line)
-    return wordlist
+    if path not in _WORDLIST_CACHE:
+        with open(path, 'r', encoding='utf-8') as f:
+            s = f.read().strip()
+        s = unicodedata.normalize('NFKD', s)
+        lines = s.split('\n')
+        wordlist = []
+        for line in lines:
+            line = line.split('#')[0]
+            line = line.strip(' \r')
+            assert ' ' not in line
+            if line:
+                wordlist.append(line)
+
+        # wordlists shouldn't be mutated, but just in case,
+        # convert it to a tuple
+        _WORDLIST_CACHE[path] = tuple(wordlist)
+    return _WORDLIST_CACHE[path]
 
 
 filenames = {
@@ -114,8 +123,6 @@ filenames = {
 }
 
 
-# FIXME every time we instantiate this class, we read the wordlist from disk
-# and store a new copy of it in memory
 class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
