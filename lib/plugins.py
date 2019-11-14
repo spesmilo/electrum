@@ -558,6 +558,7 @@ def daemon_command(func):
     func._is_daemon_command = True
     return func
 
+
 class BasePlugin(PrintError):
     def __init__(self, parent, config, name):
         self.parent = parent  # The plugins object
@@ -578,8 +579,10 @@ class BasePlugin(PrintError):
         # we don't allow conflicting definitions of daemon command (between different plugins)
         collisions = set(self._daemon_commands).intersection(self.parent.daemon_commands)
         if collisions:
-            raise RuntimeError('colliding daemon command names in plugin', collisions)
-        self.parent.daemon_commands.update({cmdname:getattr(self,cmdname) for cmdname in self._daemon_commands})
+            raise RuntimeError('colliding daemon command names in plugin',
+                               self.name, 'collisions:', collisions)
+        self.parent.daemon_commands.update({ cmdname : getattr(self,cmdname)
+                                             for cmdname in self._daemon_commands })
 
     def set_enabled_prefix(self, prefix):
         # This is set via a method in order not to break the existing API.
@@ -603,9 +606,10 @@ class BasePlugin(PrintError):
         # remove registered daemon commands
         for cmdname in self._daemon_commands:
             try:
-                del self.parent.daemon_commands[k]
+                del self.parent.daemon_commands[cmdname]
             except KeyError:
                 pass # again, shouldn't happen
+        self._daemon_commands = ()
         self.parent.close_plugin(self)
         self.on_close()
 
