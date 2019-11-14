@@ -747,3 +747,72 @@ and there is no warning message.
   (previously you could select them for spending with no way to actually spend
   them which was bad UX). (cculianu)
 * TxDialog: coinbase tx's now show 0 fee, rather than 'unknown' (cculianu)
+
+# Release 4.0.11
+
+* Added SatoChip hardware wallet support: https://satochip.io/.
+  #1668 (Baudoin Collard, cculianu)
+* Added API support for plugins to register themselves with the command-line
+  in order to offer RPC service commands. #1670 (Mark Lundeberg)
+* Added "Show crash reporter" to preferences, and re-laid-out the preferences
+  pane. #1673 (cculianu)
+* Fix #1671 -- "No data" for fiat when using the 'history' RPC command has been
+  now fixed. (cculianu)
+* Plugin API fix for @hook. #1669 (cculianu, Mark Lundeberg)
+* Internal API optimization for transaction signing #1666 (Mark Lundeberg)
+* Added BlockExplorer.one for both testnet and mainnet as a block explorer
+  configurable in preferences. #1664 (Axel Gembe)
+* CLI: Added --op_return and --op_return_raw options for the 'payto' command.
+  (cculianu)
+* AppImage: Improved binary stripping for more reproducible builds. #1662
+  (Axel Gembe)
+* Updated SSL certificates to Sept. 2019. This should hopefully fix some of the
+  "Unable to verify SSL" errors some users have seen when using CashShuffle.
+  (cculianu)
+* Fixed a long-standing bug where sometimes Electron Cash would hang forever on
+  startup due to a stale/old daemon 'lockfile'. (cculianu)
+* Qt history tab: Added workaround for persitent 'Unknown' balances when using
+  advanced scripts to spend funds. (cculianu)
+* Qt UI: Add mechanism to prohibit '3..' p2sh by default, which should protect
+  users from accidentally sending BCH to BTC segwit addresses. This protection
+  can be disabled in preferences. Issues #1658 and #1225. (cculianu)
+* Updated README for better instructions on how to run the development/git
+  version. (Mark Lundeberg)
+* Added servers to servers.json: tbch.loping.net, greedyhog.ddns.net. Removed
+  server theblains.org. (Axel Gembe, greedyhog)
+* iOS: Fixes for iOS 13.0+ and other miscellany (cculianu)
+* iOS fix: "Downloading headers xx%..." is now more accurate (cculianu)
+* iOS fix for bug #1651, crash if prefs screen up when wallet closed. (cculianu)
+* transaction.py: don't append value when serializing inputs with scriptSig.
+  #1648, #1628, #1637 (Mark Lundeberg)
+* Addresses tab: hide all empty change addresses, not just used ones &
+  pop open change list by default. #1646 (Mark Lundeberg)
+* Android: allow specifying a server which isn't in servers.json. #1644 #1636
+  (Malcolm Smith)
+* Add Swahili to the language list. (Axel Gembe)
+* Bumped Qt version to 5.13.2 on most platforms. (cculianu)
+* Qt prefs: Renamed the default "light" UI style to "Default". On some systems
+  this style is actually dark in appearance. (cculianu)
+* cashaccts: Fixed parse bug in parsing eg 'cashacctname#123,1.23'. (cculianu)
+* Misc. menu and dialog nits, polish, cleanups, more consistent Capitalization,
+  & More. (Tom Zander, cculianu)
+* Qt: main window, make sure Ctrl+Q is shown in File->Quit. (cculianu)
+* Transations: prefer verbatim scriptSig for (re)serializing complete
+  transaction inputs. #1637 (Mark Lundeberg)
+* Added index_url override to addrequest command. #1636 (Yuki Matsumoto)
+* i18n: Use pgettext in a few places, and various fixups. #1624 (Axel Gembe)
+* Very many Android fixes. #1614 (Malcolm Smith)
+* p2sh: Fix coin tracking / balance, etc for esoteric scriptSigs/redeemScripts
+  in inputs. This should make it easier to have a wallet that tracks smart
+  contract addresses and other advanced usages of Bitcoin. #1620 (cculianu)
+* synchronizer: Check txid from server against response content. This is a
+  paranoia check to make sure the server isn't being malicious. (cculianu)
+* i18n nit: Translate 'Unknown' string in format_satoshis. (cculianu)
+* Removed cashshuffle.net #1619 (Georg Engelmann)
+* Configure payment_url to include payment request ID. #1617 (Mark Meson)
+* Command-line: added `addressconvert` command. (cculianu)
+* BIP70 Payment Request Fix. There were potentially subtle bugs in how we
+  handled BIP70. Nothing major. They have been fixed. #1615 (cculianu & Mark
+  Meson)
+* iOS: Add SLP-awareness & protection to the UI. (cculianu)
+* Misc. refactoring, nits, and bugfixes (cculianu, Mark Lundeberg)
