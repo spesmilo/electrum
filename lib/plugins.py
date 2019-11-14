@@ -41,7 +41,7 @@ from typing import Callable, Optional
 from . import bitcoin
 from . import version
 from .i18n import _
-from .util import print_error, user_dir, make_dir
+from .util import print_error, print_stderr, user_dir, make_dir
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 
 plugin_loaders = {}
@@ -583,7 +583,7 @@ class BasePlugin(PrintError):
                 origclass = type(self.parent.daemon_commands[c].__self__)
             except (KeyError, AttributeError):
                 origclass = 'unknown'
-            print(f'Ignoring plugin daemon command {repr(c)} from {type(self)} (already exists from {origclass})', file=sys.stderr)
+            print_stderr(f'Ignoring plugin daemon command {repr(c)} from {type(self)} (already exists from {origclass})')
         self.parent.daemon_commands.update({ cmdname : getattr(self,cmdname)
                                              for cmdname in self._daemon_commands })
 
