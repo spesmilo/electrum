@@ -789,7 +789,7 @@ and there is no warning message.
   pop open change list by default. #1646 (Mark Lundeberg)
 * Android: allow specifying a server which isn't in servers.json. #1644 #1636
   (Malcolm Smith)
-* Add Swahili to the language list. (Axel Gembe)
+* Add Swahili to the language list. (Depotke1)
 * Bumped Qt version to 5.13.2 on most platforms. (cculianu)
 * Qt prefs: Renamed the default "light" UI style to "Default". On some systems
   this style is actually dark in appearance. (cculianu)
