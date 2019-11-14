@@ -1494,7 +1494,7 @@ class ElectrumGui(PrintError):
             # or data file corruption in low disk space conditions.
             return
         fd, server = ed.get_fd_or_server(self.config)
-        self.daemon = ed.Daemon(self.config, fd, True)
+        self.daemon = ed.Daemon(self.config, fd, True, None)
         self.daemon.start()
         self.on_new_daemon()
 

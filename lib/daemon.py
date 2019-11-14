@@ -187,7 +187,7 @@ class Daemon(DaemonThread):
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         subargs = config.get('subargs')
-        plugin_cmd = self.plugins.daemon_commands.get(sub)
+        plugin_cmd = self.plugins and self.plugins.daemon_commands.get(sub)
         if subargs and sub in [None, 'start', 'stop', 'status']:
             return "Unexpected arguments: {!r}. {!r} takes no options.".format(subargs, sub)
         if subargs and sub in ['load_wallet', 'close_wallet']:
