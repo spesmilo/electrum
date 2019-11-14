@@ -469,17 +469,11 @@
     },
     "aal7howc56u3j5bg.onion": {
         "pruning": "-",
-        "s": "443",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "gnuvqomyhedouwqw.onion": {
-        "pruning": "-",
         "s": "50002",
         "t": "50001",
         "version": "1.4"
     },
-    "electrumx.erbium.eu": {
+    "gnuvqomyhedouwqw.onion": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
