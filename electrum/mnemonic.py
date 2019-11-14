@@ -126,6 +126,7 @@ class Mnemonic(Logger):
         self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
         self.wordlist = load_wordlist(filename)
+        self.wordlist_indexes = {w: i for i, w in enumerate(self.wordlist)}
         self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
@@ -156,7 +157,7 @@ class Mnemonic(Logger):
         i = 0
         while words:
             w = words.pop()
-            k = self.wordlist.index(w)
+            k = self.wordlist_indexes[w]
             i = i*n + k
         return i
 
