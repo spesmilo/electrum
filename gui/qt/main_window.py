@@ -4026,9 +4026,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
-        fee_widgets = []
+        misc_widgets = []
         global_tx_widgets, per_wallet_tx_widgets = [], []
-        id_widgets = []
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -4097,11 +4096,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.fee_slider.update()
             self.fee_slider_mogrifier()
 
+        fee_gb = QGroupBox(_('Fees'))
+        fee_lo = QGridLayout(fee_gb)
+
         customfee_e = BTCSatsByteEdit()
         customfee_e.setAmount(self.config.custom_fee_rate() / 1000.0 if self.config.has_custom_fee_rate() else None)
         customfee_e.textChanged.connect(on_customfee)
         customfee_label = HelpLabel(_('Custom fee rate:'), _('Custom Fee Rate in Satoshis per byte'))
-        fee_widgets.append((customfee_label, customfee_e))
+        fee_lo.addWidget(customfee_label, 0, 0, 1, 1, Qt.AlignRight)
+        fee_lo.addWidget(customfee_e, 0, 1, 1, 1, Qt.AlignLeft)
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))
@@ -4110,7 +4113,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('show_fee', x == Qt.Checked)
             self.fee_e.setVisible(bool(x))
         feebox_cb.stateChanged.connect(on_feebox)
-        fee_widgets.append((feebox_cb, None))
+        fee_lo.addWidget(feebox_cb, 1, 0, 1, 2, Qt.AlignJustify)
+
+        # Fees box up top
+        misc_widgets.append((fee_gb, None))
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
@@ -4140,7 +4146,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # the signal is disconnected
         disconnect_alias_received_signal = Weak.finalize(d, self.alias_received_signal.disconnect, set_alias_color)
         alias_e.editingFinished.connect(on_alias_edit)
-        id_widgets.append((alias_label, alias_e))
+        id_gb = QGroupBox(_("Identity"))
+        id_form = QFormLayout(id_gb)
+        id_form.addRow(alias_label, alias_e)
 
         # SSL certificate
         msg = ' '.join([
@@ -4163,7 +4171,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if SSL_error:
             SSL_id_e.setToolTip(SSL_error)
         SSL_id_e.setReadOnly(True)
-        id_widgets.append((SSL_id_label, SSL_id_e))
+        id_form.addRow(SSL_id_label, SSL_id_e)
+
+        # Identity box in middle of this tab
+        misc_widgets.append((id_gb, None))  # commit id_form/id_gb to master layout via this data structure
+
+        from . import exception_window as ew
+        cr_gb = QGroupBox(_("Crash Reporter"))
+        cr_grid = QGridLayout(cr_gb)
+        cr_chk = QCheckBox()
+        cr_chk.setChecked(ew.is_enabled(self.config))
+        cr_chk.clicked.connect(lambda b: ew.set_enabled(self.config, b))
+        cr_help = HelpLabel(_("Crash reporter enabled"),
+                            _("The crash reporter is the error window which pops-up when Electron Cash encounters an internal error.\n\n"
+                              "It is recommended that you leave this option enabled, so that developers can be notified of any internal bugs. "
+                              "When a crash is encountered you are asked if you would like to send a report.\n\n"
+                              "Private information is never revealed in crash reports to developers."))
+        # The below dance ensures the checkbox is horizontally centered in the widget
+        cr_grid.addWidget(QWidget(), 0, 0, 1, 1)  # dummy spacer
+        cr_grid.addWidget(cr_chk, 0, 1, 1, 1, Qt.AlignRight)
+        cr_grid.addWidget(cr_help, 0, 2, 1, 1, Qt.AlignLeft)
+        cr_grid.addWidget(QWidget(), 0, 3, 1, 1) # dummy spacer
+        cr_grid.setColumnStretch(0, 1)
+        cr_grid.setColumnStretch(3, 1)
+
+        # Crash reporter box at bottom of this tab
+        misc_widgets.append((cr_gb, None))  # commit crash reporter gb to layout
+
 
         units = util.base_unit_labels  # ( 'BCH', 'mBCH', 'bits' )
         msg = _('Base unit of your wallet.')\
@@ -4551,13 +4585,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tabs_info = [
             (gui_widgets, _('General')),
-            (fee_widgets, _('Fees')),
+            (misc_widgets, pgettext("The preferences -> Fees,misc tab", 'Fees && Misc.')),
             (OrderedDict([
                 ( _("App-Global Options") , global_tx_widgets ),
                 ( _("Per-Wallet Options") , per_wallet_tx_widgets),
              ]), _('Transactions')),
             (fiat_widgets, _('Fiat')),
-            (id_widgets, _('Identity')),
         ]
         def add_tabs_info_to_tabs(tabs, tabs_info):
             def add_widget_pair(a,b,grid):

@@ -71,21 +71,26 @@ class Exception_Window(QWidget):
         self.setMinimumSize(600, 300)
 
         main_box = QVBoxLayout()
+        main_box.setContentsMargins(20,20,20,20)
 
         heading = QLabel('<h2>' + _('Sorry!') + '</h2>')
         main_box.addWidget(heading)
-        main_box.addWidget(QLabel(_('Something went wrong running Electron Cash.')))
+        l = QLabel(_('Something went wrong running Electron Cash.'))
+        l.setWordWrap(True)
+        main_box.addWidget(l)
 
-        main_box.addWidget(QLabel(
-            _('To help us diagnose and fix the problem, you can send us a bug report that contains useful debug '
-              'information:')))
+        l = QLabel(_('To help us diagnose and fix the problem, you can send us'
+                     ' a bug report that contains useful debug information:'))
+        l.setWordWrap(True)
+        main_box.addWidget(l)
 
-        collapse_info = QPushButton(_("Show report contents"))
-        collapse_info.clicked.connect(lambda: QMessageBox.about(self, "Report contents", self.get_report_string()))
-        main_box.addWidget(collapse_info)
-
-        label = QLabel(_("Please briefly describe what led to the error (optional):") +"<br/>"+
-            "<i>"+ _("Feel free to add your email address if you are willing to provide further detail, but note that it will appear in the relevant github issue.") +"</i>")
+        label = QLabel(
+            '<br/>' + _("Please briefly describe what led to the error (optional):")
+            + '<br/><br/>' + '<i>' +
+            _("Feel free to add your email address if you are willing to provide"
+              " further detail, but note that it will appear in the relevant"
+              " github issue.") + '</i>')
+        label.setWordWrap(True)
         label.setTextFormat(QtCore.Qt.RichText)
         main_box.addWidget(label)
 
@@ -94,18 +99,25 @@ class Exception_Window(QWidget):
         self.description_textfield.setFixedHeight(50)
         main_box.addWidget(self.description_textfield)
 
-        main_box.addWidget(QLabel(_("Do you want to send this report?")))
 
         buttons = QHBoxLayout()
+
+        l = QLabel(_("Do you want to send this report?"))
+        l.setWordWrap(True)
+
+        buttons.addWidget(l)
+
+        collapse_info = QPushButton(_("Show report contents"))
+        collapse_info.clicked.connect(lambda: QMessageBox.about(self, "Report contents", self.get_report_string()))
+
+        buttons.addWidget(collapse_info)
+
+        buttons.addStretch(1)
 
         report_button = QPushButton(_('Send Bug Report'))
         report_button.clicked.connect(self.send_report)
         report_button.setIcon(QIcon(":icons/tab_send.png"))
         buttons.addWidget(report_button)
-
-        never_button = QPushButton(_('Never'))
-        never_button.clicked.connect(self.show_never)
-        buttons.addWidget(never_button)
 
         close_button = QPushButton(_('Not Now'))
         close_button.clicked.connect(self.close)
@@ -127,11 +139,6 @@ class Exception_Window(QWidget):
     def on_close(self):
         Exception_Window._active_window = None
         sys.__excepthook__(*self.exc_args)
-        self.close()
-
-    def show_never(self):
-        _disable(self.config)
-        Exception_Hook.uninstall()
         self.close()
 
     def closeEvent(self, event):
@@ -174,11 +181,11 @@ def _show_window(config, exctype, value, tb):
     if not Exception_Window._active_window:
         Exception_Window._active_window = Exception_Window(config, exctype, value, tb)
 
-def _is_enabled(config):
-    return config.get("show_crash_reporter", default=True)
+def is_enabled(config) -> bool:
+    return bool(config.get("show_crash_reporter2", default=True))
 
-def _disable(config):
-    config.set_key("show_crash_reporter", False)
+def set_enabled(config, b: bool):
+    config.set_key("show_crash_reporter2", bool(b))
 
 def _get_current_wallet_types():
     wtypes = { str(getattr(w.wallet, 'wallet_type', 'Unknown'))
@@ -197,9 +204,6 @@ class Exception_Hook(QObject):
     def __init__(self, config):
         super().__init__(None) # Top-level Object
         if Exception_Hook._instance: return # This is ok, we will be GC'd later.
-        if not _is_enabled(config):
-            print_error("[{}] Not installed due to user config.".format(__class__.__qualname__))
-            return # self will get auto-gc'd
         Exception_Hook._instance = self # strong reference to self should keep us alive until uninstall() is called
         self.config = config
         sys.excepthook = self.handler # yet another strong reference. We really won't die unless uninstall() is called
@@ -216,7 +220,7 @@ class Exception_Hook(QObject):
             Exception_Hook._instance = None
 
     def handler(self, exctype, value, tb):
-        if exctype is KeyboardInterrupt or exctype is SystemExit or not _is_enabled(self.config):
+        if exctype is KeyboardInterrupt or exctype is SystemExit or not is_enabled(self.config):
             sys.__excepthook__(exctype, value, tb)
         else:
             self._report_exception.emit(self.config, exctype, value, tb)
