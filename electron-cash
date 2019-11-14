@@ -396,10 +396,10 @@ if __name__ == '__main__':
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd, True)
+            d = daemon.Daemon(config, fd, True, plugins)
             d.start()
             try:
-                d.init_gui(config, plugins)
+                d.init_gui()
             finally:
                 d.stop()  # Cleans up lockfile gracefully
                 d.join(timeout=5.0)
@@ -423,8 +423,8 @@ if __name__ == '__main__':
                     if pid:
                         print_stderr("starting daemon (PID %d)" % pid)
                         os._exit(0)  # exit without calling atexit handlers, in case there are any from e.g. a plugin, etc.
-                init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd, False)
+                plugins = init_plugins(config, 'cmdline')
+                d = daemon.Daemon(config, fd, False, plugins)
                 d.start()
                 if config.get('websocket_server'):
                     from electroncash import websockets

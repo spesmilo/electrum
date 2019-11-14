@@ -138,8 +138,9 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd, is_gui):
+    def __init__(self, config, fd, is_gui, plugins):
         DaemonThread.__init__(self)
+        self.plugins = plugins
         self.config = config
         if config.get('offline'):
             self.network = None
@@ -185,7 +186,12 @@ class Daemon(DaemonThread):
     def run_daemon(self, config_options):
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
-        assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
+        subargs = config.get('subargs')
+        plugin_cmd = self.plugins.daemon_commands.get(sub)
+        if subargs and sub in [None, 'start', 'stop', 'status']:
+            return "Unexpected arguments: {!r}. {!r} takes no options.".format(subargs, sub)
+        if subargs and sub in ['load_wallet', 'close_wallet']:
+            return "Unexpected arguments: {!r}. Provide options to {!r} using the -w and -wp options.".format(subargs, sub)
         if sub in [None, 'start']:
             response = "Daemon already running"
         elif sub == 'load_wallet':
@@ -221,6 +227,11 @@ class Daemon(DaemonThread):
         elif sub == 'stop':
             self.stop()
             response = "Daemon stopped"
+        elif plugin_cmd is not None:
+            # note that daemon's own commands take precedence, i.e., a plugin CANNOT override 'load_wallet'.
+            response = plugin_cmd(self, config)
+        else:
+            return "Unrecognized subcommand {!r}".format(sub)
         return response
 
     def run_gui(self, config_options):
@@ -328,7 +339,9 @@ class Daemon(DaemonThread):
         super().stop()
 
 
-    def init_gui(self, config, plugins):
+    def init_gui(self):
+        config = self.config
+        plugins = self.plugins
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'

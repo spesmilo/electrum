@@ -941,7 +941,8 @@ def get_parser():
     add_global_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
-    parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop', 'load_wallet', 'close_wallet'], nargs='?')
+    parser_daemon.add_argument("subcommand", nargs='?', help="start, stop, status, load_wallet, close_wallet. Other commands may be added by plugins.")
+    parser_daemon.add_argument("subargs", nargs='*', metavar='arg', help="additional arguments (used by plugins)")
     #parser_daemon.set_defaults(func=run_daemon)
     add_network_options(parser_daemon)
     add_global_options(parser_daemon)

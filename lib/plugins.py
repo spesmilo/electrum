@@ -83,6 +83,7 @@ class Plugins(DaemonThread):
         self.config = config
         self.gui_name = gui_name
         self.hw_wallets = {}
+        self.daemon_commands = {}
         self.internal_plugins = {}
         self.internal_plugin_metadata = {}
         self.external_plugins = {}
@@ -530,6 +531,32 @@ def run_hook(name, *args):
             print_error(f"run_hook: got more than 1 result from @hook '{name}':", results)
         return results[0]
 
+def daemon_command(func):
+    """ Method decorator for BasePlugin subclasses to add a remote command
+    to the daemon. Usage:
+
+        class MyPlugin(BasePlugin):
+            @daemon_command
+            def myplugin_action1(self, daemon, config):
+                ...
+            @daemon_command
+            def myplugin_action2(self, daemon, config):
+                ...
+
+    These can then be invoked as:
+
+        ./electron-cash daemon myplugin_action1 arg arg arg ...
+
+    Here `config` is *not* the usual global config but also includes the options
+    from the command line client:
+    - config['wallet_path'] is the wallet passed using -w ; you can use
+      config.get_wallet_path() to get it or a default.
+    - config['password'] is the wallet password passed using -wp.
+    - config['subargs'] are the extra `arg` passed after the subcommand.
+    See Daemon.run_daemon for an idea on how to use this.
+    """
+    func._is_daemon_command = True
+    return func
 
 class BasePlugin(PrintError):
     def __init__(self, parent, config, name):
@@ -544,6 +571,15 @@ class BasePlugin(PrintError):
             if func is not None:
                 hooks[aname].append((self, func))
                 self._hooks_i_registered.append((aname,func))
+
+        # collect names of all class attributes with ._is_daemon_command
+        self._daemon_commands = tuple(attrname for attrname in dir(type(self))
+                                      if getattr(getattr(type(self),attrname), '_is_daemon_command',False))
+        # we don't allow conflicting definitions of daemon command (between different plugins)
+        collisions = set(self._daemon_commands).intersection(self.parent.daemon_commands)
+        if collisions:
+            raise RuntimeError('colliding daemon command names in plugin', collisions)
+        self.parent.daemon_commands.update({cmdname:getattr(self,cmdname) for cmdname in self._daemon_commands})
 
     def set_enabled_prefix(self, prefix):
         # This is set via a method in order not to break the existing API.
@@ -564,6 +600,12 @@ class BasePlugin(PrintError):
             if not l:
                 hooks.pop(name, None)
         self._hooks_i_registered.clear()  # just to kill strong refs to self ASAP, for GC
+        # remove registered daemon commands
+        for cmdname in self._daemon_commands:
+            try:
+                del self.parent.daemon_commands[k]
+            except KeyError:
+                pass # again, shouldn't happen
         self.parent.close_plugin(self)
         self.on_close()
 
