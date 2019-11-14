@@ -255,7 +255,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             unit_result = units[unit_combo.currentIndex()]
             if self.window.base_unit() == unit_result:
                 return
-            edits = self.window.amount_e, self.window.fee_e, self.window.receive_amount_e
+            edits = self.window.amount_e, self.window.receive_amount_e
             amounts = [edit.get_amount() for edit in edits]
             self.window.decimal_point = base_unit_name_to_decimal_point(unit_result)
             self.config.set_key('decimal_point', self.window.decimal_point, True)
