@@ -45,6 +45,7 @@ COIN = 100000000
 TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 105000000
 
 # supported types of transaction outputs
+# TODO kill these with fire
 TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
@@ -237,6 +238,9 @@ def script_num_to_hex(i: int) -> str:
 
 def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
+    # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
+    # "CompactSize"
+    assert i >= 0, i
     if i<0xfd:
         return int_to_hex(i)
     elif i<=0xffff:
@@ -372,24 +376,28 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
     else:
         raise NotImplementedError(txin_type)
 
-def redeem_script_to_address(txin_type: str, redeem_script: str, *, net=None) -> str:
+
+# TODO this method is confusingly named
+def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
     if net is None: net = constants.net
     if txin_type == 'p2sh':
-        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
+        # given scriptcode is a redeem_script
+        return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
     elif txin_type == 'p2wsh':
-        return script_to_p2wsh(redeem_script, net=net)
+        # given scriptcode is a witness_script
+        return script_to_p2wsh(scriptcode, net=net)
     elif txin_type == 'p2wsh-p2sh':
-        scriptSig = p2wsh_nested_script(redeem_script)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
+        # given scriptcode is a witness_script
+        redeem_script = p2wsh_nested_script(scriptcode)
+        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
     else:
         raise NotImplementedError(txin_type)
 
 
 def script_to_address(script: str, *, net=None) -> str:
     from .transaction import get_address_from_output_script
-    t, addr = get_address_from_output_script(bfh(script), net=net)
-    assert t == TYPE_ADDRESS
-    return addr
+    return get_address_from_output_script(bfh(script), net=net)
+
 
 def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net

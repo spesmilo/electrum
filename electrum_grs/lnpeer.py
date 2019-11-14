@@ -11,7 +11,7 @@ import asyncio
 import os
 import time
 from functools import partial
-from typing import List, Tuple, Dict, TYPE_CHECKING, Optional, Callable
+from typing import List, Tuple, Dict, TYPE_CHECKING, Optional, Callable, Union
 import traceback
 import sys
 from datetime import datetime
@@ -24,7 +24,7 @@ from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
 from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions, chunks, SilentTaskGroup
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, PartialTxOutput
 from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
@@ -46,10 +46,12 @@ from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
 from .lnrouter import fee_for_edge_msat
+from .lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
-    from .lnworker import LNWorker
+    from .lnworker import LNWorker, LNGossip, LNWallet
     from .lnrouter import RouteEdge
+    from .transaction import PartialTransaction
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
@@ -62,7 +64,7 @@ def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[b
 
 class Peer(Logger):
 
-    def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase):
+    def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
         self.initialized = asyncio.Event()
         self.querying = asyncio.Event()
         self.transport = transport
@@ -474,17 +476,13 @@ class Peer(Logger):
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
-            current_htlc_signatures=[],
+            current_htlc_signatures=b'',
         )
         return local_config
 
     @log_exceptions
-    async def channel_establishment_flow(self, password: Optional[str], funding_sat: int,
+    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
                                          push_msat: int, temp_channel_id: bytes) -> Channel:
-        wallet = self.lnworker.wallet
-        # dry run creating funding tx to see if we even have enough funds
-        funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
-                                      password, nonlocal_only=True)
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -555,16 +553,19 @@ class Peer(Logger):
             initial_msat=push_msat,
             reserve_sat = remote_reserve_sat,
             htlc_minimum_msat = htlc_min,
-
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
             revocation_store=their_revocation_store,
         )
-        # create funding tx
+        # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
-        funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = wallet.mktx([funding_output], password, nonlocal_only=True)
+        funding_output = PartialTxOutput.from_address_and_value(funding_address, funding_sat)
+        dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
+        funding_tx.outputs().remove(dummy_output)
+        funding_tx.add_outputs([funding_output])
+        funding_tx.set_rbf(False)
+        self.lnworker.wallet.sign_transaction(funding_tx, password)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
@@ -691,7 +692,7 @@ class Peer(Logger):
         outp = funding_tx.outputs()[funding_idx]
         redeem_script = funding_output_script(chan.config[REMOTE], chan.config[LOCAL])
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
-        if outp != TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat):
+        if not (outp.address == funding_address and outp.value == funding_sat):
             chan.set_state('DISCONNECTED')
             raise Exception('funding outpoint mismatch')
 
@@ -1485,11 +1486,13 @@ class Peer(Logger):
                 break
             # TODO: negotiate better
             our_fee = their_fee
-        # index of our_sig
-        i = chan.get_local_index()
         # add signatures
-        closing_tx.add_signature_to_txin(0, i, bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
-        closing_tx.add_signature_to_txin(0, 1-i, bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(txin_idx=0,
+                                         signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
+                                         sig=bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(txin_idx=0,
+                                         signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
+                                         sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
         await self.network.broadcast_transaction(closing_tx)
         return closing_tx.txid()

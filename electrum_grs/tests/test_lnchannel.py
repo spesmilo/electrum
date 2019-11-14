@@ -170,7 +170,7 @@ class TestFee(ElectrumTestCase):
     """
     def test_fee(self):
         alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
-        self.assertIn(9999817, [x[2] for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
+        self.assertIn(9999817, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
 class TestChannel(ElectrumTestCase):
     maxDiff = 999

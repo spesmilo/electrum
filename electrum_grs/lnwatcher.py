@@ -77,9 +77,11 @@ class SweepStore(SqlDB):
         return set([r[0] for r in c.fetchall()])
 
     @sql
-    def add_sweep_tx(self, funding_outpoint, ctn, prevout, tx):
+    def add_sweep_tx(self, funding_outpoint, ctn, prevout, tx: Transaction):
         c = self.conn.cursor()
-        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, bfh(str(tx))))
+        assert tx.is_complete()
+        raw_tx = bfh(tx.serialize())
+        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, raw_tx))
         self.conn.commit()
 
     @sql
@@ -135,7 +137,7 @@ class SweepStore(SqlDB):
 
 
 class LNWatcher(AddressSynchronizer):
-    verbosity_filter = 'W'
+    LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
         AddressSynchronizer.__init__(self, JsonDB({}, manual_upgrades=False))
@@ -150,7 +152,9 @@ class LNWatcher(AddressSynchronizer):
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 
-    def add_channel(self, outpoint, address):
+    def add_channel(self, outpoint: str, address: str) -> None:
+        assert isinstance(outpoint, str)
+        assert isinstance(address, str)
         self.add_address(address)
         self.channels[address] = outpoint
 
@@ -245,7 +249,7 @@ class LNWatcher(AddressSynchronizer):
 
 class WatchTower(LNWatcher):
 
-    verbosity_filter = 'W'
+    LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network):
         LNWatcher.__init__(self, network)

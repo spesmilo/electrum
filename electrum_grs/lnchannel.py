@@ -32,10 +32,9 @@ import time
 
 from . import ecc
 from .util import bfh, bh2u
-from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
-from .transaction import Transaction
+from .transaction import Transaction, PartialTransaction
 from .logging import Logger
 
 from .lnonion import decode_onion_error
@@ -528,19 +527,19 @@ class Channel(Logger):
         ctx = self.make_commitment(subject, point, ctn)
         return secret, ctx
 
-    def get_commitment(self, subject, ctn):
+    def get_commitment(self, subject, ctn) -> PartialTransaction:
         secret, ctx = self.get_secret_and_commitment(subject, ctn)
         return ctx
 
-    def get_next_commitment(self, subject: HTLCOwner) -> Transaction:
+    def get_next_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_next_ctn(subject)
         return self.get_commitment(subject, ctn)
 
-    def get_latest_commitment(self, subject: HTLCOwner) -> Transaction:
+    def get_latest_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_latest_ctn(subject)
         return self.get_commitment(subject, ctn)
 
-    def get_oldest_unrevoked_commitment(self, subject: HTLCOwner) -> Transaction:
+    def get_oldest_unrevoked_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_oldest_unrevoked_ctn(subject)
         return self.get_commitment(subject, ctn)
 
@@ -603,7 +602,7 @@ class Channel(Logger):
         self.hm.recv_fail(htlc_id)
 
     def pending_local_fee(self):
-        return self.constraints.capacity - sum(x[2] for x in self.get_next_commitment(LOCAL).outputs())
+        return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())
 
     def update_fee(self, feerate: int, from_us: bool):
         # feerate uses sat/kw
@@ -658,7 +657,7 @@ class Channel(Logger):
     def __str__(self):
         return str(self.serialize())
 
-    def make_commitment(self, subject, this_point, ctn) -> Transaction:
+    def make_commitment(self, subject, this_point, ctn) -> PartialTransaction:
         assert type(subject) is HTLCOwner
         feerate = self.get_feerate(subject, ctn)
         other = REMOTE if LOCAL == subject else LOCAL
@@ -717,21 +716,20 @@ class Channel(Logger):
             onchain_fees,
             htlcs=htlcs)
 
-    def get_local_index(self):
-        return int(self.config[LOCAL].multisig_key.pubkey > self.config[REMOTE].multisig_key.pubkey)
-
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
-                        fee_sat: int) -> Tuple[bytes, Transaction]:
+                        fee_sat: int) -> Tuple[bytes, PartialTransaction]:
         """ cooperative close """
-        _, outputs = make_commitment_outputs({
+        _, outputs = make_commitment_outputs(
+                fees_per_participant={
                     LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,
                     REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
                 },
-                self.balance(LOCAL),
-                self.balance(REMOTE),
-                (TYPE_SCRIPT, bh2u(local_script)),
-                (TYPE_SCRIPT, bh2u(remote_script)),
-                [], self.config[LOCAL].dust_limit_sat)
+                local_amount_msat=self.balance(LOCAL),
+                remote_amount_msat=self.balance(REMOTE),
+                local_script=bh2u(local_script),
+                remote_script=bh2u(remote_script),
+                htlcs=[],
+                dust_limit_sat=self.config[LOCAL].dust_limit_sat)
 
         closing_tx = make_closing_tx(self.config[LOCAL].multisig_key.pubkey,
                                      self.config[REMOTE].multisig_key.pubkey,
@@ -744,25 +742,23 @@ class Channel(Logger):
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
-    def signature_fits(self, tx):
+    def signature_fits(self, tx: PartialTransaction):
         remote_sig = self.config[LOCAL].current_commitment_signature
         preimage_hex = tx.serialize_preimage(0)
-        pre_hash = sha256d(bfh(preimage_hex))
+        msg_hash = sha256d(bfh(preimage_hex))
         assert remote_sig
-        res = ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash)
+        res = ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, msg_hash)
         return res
 
     def force_close_tx(self):
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
-        tx = Transaction(str(tx))
-        tx.deserialize(True)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
         remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
-        sigs = tx._inputs[0]["signatures"]
-        none_idx = sigs.index(None)
-        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
+        tx.add_signature_to_txin(txin_idx=0,
+                                 signing_pubkey=self.config[REMOTE].multisig_key.pubkey.hex(),
+                                 sig=remote_sig.hex())
         assert tx.is_complete()
         return tx
 

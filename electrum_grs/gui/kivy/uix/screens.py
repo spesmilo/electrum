@@ -22,11 +22,10 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum_grs.bitcoin import TYPE_ADDRESS
 from electrum_grs.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_grs import bitcoin, constants
-from electrum_grs.transaction import TxOutput, Transaction, tx_from_str
+from electrum_grs.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
 from electrum_grs.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
 from electrum_grs.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values
 from electrum_grs.plugin import run_hook
@@ -222,7 +221,8 @@ class SendScreen(CScreen):
             self.set_URI(self.payment_request_queued)
             self.payment_request_queued = None
         _list = self.app.wallet.get_invoices()
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in self.app.wallet.lnworker.logs]
+        lnworker_logs = self.app.wallet.lnworker.logs if self.app.wallet.lnworker else {}
+        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs]
         payments_container = self.screen.ids.payments_container
         payments_container.data = [self.get_card(item) for item in _list]
 
@@ -275,8 +275,7 @@ class SendScreen(CScreen):
             return
         # try to decode as transaction
         try:
-            raw_tx = tx_from_str(data)
-            tx = Transaction(raw_tx)
+            tx = tx_from_any(data)
             tx.deserialize()
         except:
             tx = None
@@ -312,7 +311,7 @@ class SendScreen(CScreen):
             if not bitcoin.is_address(address):
                 self.app.show_error(_('Invalid Groestlcoin Address') + ':\n' + address)
                 return
-            outputs = [TxOutput(TYPE_ADDRESS, address, amount)]
+            outputs = [PartialTxOutput.from_address_and_value(address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
@@ -352,11 +351,11 @@ class SendScreen(CScreen):
 
     def _do_pay_onchain(self, invoice, rbf):
         # make unsigned transaction
-        outputs = invoice['outputs']  # type: List[TxOutput]
+        outputs = invoice['outputs']  # type: List[PartialTxOutput]
         amount = sum(map(lambda x: x.value, outputs))
         coins = self.app.wallet.get_spendable_coins(None)
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, None)
+            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return

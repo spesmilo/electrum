@@ -84,15 +84,19 @@ class AddressDialog(WindowModalDialog):
                 pubkey_e.setReadOnly(True)
                 vbox.addWidget(pubkey_e)
 
-        try:
-            redeem_script = self.wallet.pubkeys_to_redeem_script(pubkeys)
-        except BaseException as e:
-            redeem_script = None
+        redeem_script = self.wallet.get_redeem_script(address)
         if redeem_script:
             vbox.addWidget(QLabel(_("Redeem Script") + ':'))
             redeem_e = ShowQRTextEdit(text=redeem_script)
             redeem_e.addCopyButton(self.app)
             vbox.addWidget(redeem_e)
+
+        witness_script = self.wallet.get_witness_script(address)
+        if witness_script:
+            vbox.addWidget(QLabel(_("Witness Script") + ':'))
+            witness_e = ShowQRTextEdit(text=witness_script)
+            witness_e.addCopyButton(self.app)
+            vbox.addWidget(witness_e)
 
         vbox.addWidget(QLabel(_("History")))
         addr_hist_model = AddressHistoryModel(self.parent, self.address)

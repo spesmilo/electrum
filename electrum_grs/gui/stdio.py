@@ -5,8 +5,8 @@ import logging
 
 from electrum_grs import WalletStorage, Wallet
 from electrum_grs.util import format_satoshis
-from electrum_grs.bitcoin import is_address, COIN, TYPE_ADDRESS
-from electrum_grs.transaction import TxOutput
+from electrum_grs.bitcoin import is_address, COIN
+from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.logging import console_stderr_handler
 
@@ -197,8 +197,9 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
-                                  password, self.config, fee)
+            tx = self.wallet.mktx(outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
+                                  password=password,
+                                  fee=fee)
         except Exception as e:
             print(repr(e))
             return

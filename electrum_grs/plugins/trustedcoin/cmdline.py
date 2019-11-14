@@ -30,7 +30,7 @@ from .trustedcoin import TrustedCoinPlugin
 
 class Plugin(TrustedCoinPlugin):
 
-    def prompt_user_for_otp(self, wallet, tx):
+    def prompt_user_for_otp(self, wallet, tx):  # FIXME this is broken
         if not isinstance(wallet, self.wallet_class):
             return
         if not wallet.can_sign_without_server():

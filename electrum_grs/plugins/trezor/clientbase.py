@@ -7,7 +7,7 @@ from electrum_grs.util import UserCancelled, UserFacingException
 from electrum_grs.keystore import bip39_normalize_passphrase
 from electrum_grs.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum_grs.logging import Logger
-from electrum_grs.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum_grs.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
@@ -28,7 +28,7 @@ MESSAGES = {
 }
 
 
-class TrezorClientBase(Logger):
+class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
@@ -86,11 +86,9 @@ class TrezorClientBase(Logger):
         return "%s/%s" % (self.label(), self.features.device_id)
 
     def label(self):
-        '''The name given by the user to the device.'''
         return self.features.label
 
     def is_initialized(self):
-        '''True if initialized, False if wiped.'''
         return self.features.initialized
 
     def is_pairable(self):

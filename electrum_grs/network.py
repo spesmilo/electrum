@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from .channel_db import ChannelDB
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
+    from .transaction import Transaction
 
 
 _logger = get_logger(__name__)
@@ -887,11 +888,11 @@ class Network(Logger):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, *, timeout=None) -> None:
+    async def broadcast_transaction(self, tx: 'Transaction', *, timeout=None) -> None:
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         try:
-            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
+            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [tx.serialize()], timeout=timeout)
             # note: both 'out' and exception messages are untrusted input from the server
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through

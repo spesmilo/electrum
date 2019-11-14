@@ -2,26 +2,28 @@
 # Coldcard Electrum-GRS plugin main code.
 #
 #
-from struct import pack, unpack
-import os, sys, time, io
+import os, time, io
 import traceback
+from typing import TYPE_CHECKING
+import struct
 
+from electrum_grs import bip32
 from electrum_grs.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
 from electrum_grs.i18n import _
 from electrum_grs.plugin import Device, hook
 from electrum_grs.keystore import Hardware_KeyStore
-from electrum_grs.transaction import Transaction, multisig_script
-from electrum_grs.wallet import Standard_Wallet, Multisig_Wallet
+from electrum_grs.transaction import PartialTransaction
+from electrum_grs.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
 from electrum_grs.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum_grs.base_wizard import ScriptTypeNotSupported
 from electrum_grs.logging import get_logger
 
-from ..hw_wallet import HW_PluginBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
 
-from .basic_psbt import BasicPSBT
-from .build_psbt import (build_psbt, xfp2str, unpacked_xfp_path,
-                            merge_sigs_from_psbt, xfp_for_keystore)
+if TYPE_CHECKING:
+    from electrum_grs.keystore import Xpub
+
 
 _logger = get_logger(__name__)
 
@@ -58,9 +60,8 @@ except ImportError:
 
 CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
-class CKCCClient:
-    # Challenge: I haven't found anywhere that defines a base class for this 'client',
-    # nor an API (interface) to be met. Winging it. Gets called from lib/plugins.py mostly?
+
+class CKCCClient(HardwareClientBase):
 
     def __init__(self, plugin, handler, dev_path, is_simulator=False):
         self.device = plugin.device
@@ -86,7 +87,7 @@ class CKCCClient:
         return '<CKCCClient: xfp=%s label=%r>' % (xfp2str(self.dev.master_fingerprint),
                                                         self.label())
 
-    def verify_connection(self, expected_xfp, expected_xpub=None):
+    def verify_connection(self, expected_xfp: int, expected_xpub=None):
         ex = (expected_xfp, expected_xpub)
 
         if self._expected_device == ex:
@@ -213,7 +214,7 @@ class CKCCClient:
         # poll device... if user has approved, will get tuple: (addr, sig) else None
         return self.dev.send_recv(CCProtocolPacker.get_signed_msg(), timeout=None)
 
-    def sign_transaction_start(self, raw_psbt, finalize=True):
+    def sign_transaction_start(self, raw_psbt: bytes, *, finalize: bool = False):
         # Multiple steps to sign:
         # - upload binary
         # - start signing UX
@@ -242,6 +243,8 @@ class Coldcard_KeyStore(Hardware_KeyStore):
     hw_type = 'coldcard'
     device = 'Coldcard'
 
+    plugin: 'ColdcardPlugin'
+
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
         # Errors and other user interaction is done through the wallet's
@@ -250,39 +253,22 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.ux_busy = False
 
-        # for multisig I need to know what wallet this keystore is part of
-        # will be set by link_wallet
-        self.my_wallet = None
-
-        # Seems like only the derivation path and resulting **derived** xpub is stored in
-        # the wallet file... however, we need to know at least the fingerprint of the master
-        # xpub to verify against MiTM, and also so we can put the right value into the subkey paths
-        # of PSBT files that might be generated offline.
-        # - save the fingerprint of the master xpub, as "xfp"
-        # - it's a LE32 int, but hex BE32 is more natural way to view it
+        # we need to know at least the fingerprint of the master xpub to verify against MiTM
         # - device reports these value during encryption setup process
         # - full xpub value now optional
         lab = d['label']
-        if hasattr(lab, 'xfp'):
-            # initial setup
-            self.ckcc_xfp = lab.xfp
-            self.ckcc_xpub = getattr(lab, 'xpub', None)
-        else:
-            # wallet load: fatal if missing, we need them!
-            self.ckcc_xfp = d['ckcc_xfp']
-            self.ckcc_xpub = d.get('ckcc_xpub', None)
+        self.ckcc_xpub = getattr(lab, 'xpub', None) or d.get('ckcc_xpub', None)
 
     def dump(self):
         # our additions to the stored data about keystore -- only during creation?
         d = Hardware_KeyStore.dump(self)
-
-        d['ckcc_xfp'] = self.ckcc_xfp
         d['ckcc_xpub'] = self.ckcc_xpub
-
         return d
 
-    def get_derivation(self):
-        return self.derivation
+    def get_xfp_int(self) -> int:
+        xfp = self.get_root_fingerprint()
+        assert xfp is not None
+        return xfp_int_from_xfp_bytes(bfh(xfp))
 
     def get_client(self):
         # called when user tries to do something like view address, sign somthing.
@@ -290,7 +276,8 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # - will fail if indicated device can't produce the xpub (at derivation) expected
         rv = self.plugin.get_client(self)
         if rv:
-            rv.verify_connection(self.ckcc_xfp, self.ckcc_xpub)
+            xfp_int = self.get_xfp_int()
+            rv.verify_connection(xfp_int, self.ckcc_xpub)
 
         return rv
 
@@ -332,7 +319,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             return b''
 
         client = self.get_client()
-        path = self.get_derivation() + ("/%d/%d" % sequence)
+        path = self.get_derivation_prefix() + ("/%d/%d" % sequence)
         try:
             cl = self.get_client()
             try:
@@ -372,28 +359,23 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         return b''
 
     @wrap_busy
-    def sign_transaction(self, tx: Transaction, password):
-        # Build a PSBT in memory, upload it for signing.
+    def sign_transaction(self, tx, password):
+        # Upload PSBT for signing.
         # - we can also work offline (without paired device present)
         if tx.is_complete():
             return
 
-        assert self.my_wallet, "Not clear which wallet associated with this Coldcard"
-
         client = self.get_client()
 
-        assert client.dev.master_fingerprint == self.ckcc_xfp
+        assert client.dev.master_fingerprint == self.get_xfp_int()
 
-        # makes PSBT required
-        raw_psbt = build_psbt(tx, self.my_wallet)
-
-        cc_finalize = not (type(self.my_wallet) is Multisig_Wallet)
+        raw_psbt = tx.serialize_as_bytes()
 
         try:
             try:
                 self.handler.show_message("Authorize Transaction...")
 
-                client.sign_transaction_start(raw_psbt, cc_finalize)
+                client.sign_transaction_start(raw_psbt)
 
                 while 1:
                     # How to kill some time, without locking UI?
@@ -420,18 +402,11 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.give_error(e, True)
             return
 
-        if cc_finalize:
-            # We trust the coldcard to re-serialize final transaction ready to go
-            tx.update(bh2u(raw_resp))
-        else:
-            # apply partial signatures back into txn
-            psbt = BasicPSBT()
-            psbt.parse(raw_resp, client.label())
-
-            merge_sigs_from_psbt(tx, psbt)
-
-            # caller's logic looks at tx now and if it's sufficiently signed,
-            # will send it if that's the user's intent.
+        tx2 = PartialTransaction.from_raw_psbt(raw_resp)
+        # apply partial signatures back into txn
+        tx.combine_with_other_psbt(tx2)
+        # caller's logic looks at tx now and if it's sufficiently signed,
+        # will send it if that's the user's intent.
 
     @staticmethod
     def _encode_txin_type(txin_type):
@@ -447,7 +422,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
     @wrap_busy
     def show_address(self, sequence, txin_type):
         client = self.get_client()
-        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         addr_fmt = self._encode_txin_type(txin_type)
         try:
             try:
@@ -487,11 +462,9 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.handler.show_error(exc)
 
 
-
 class ColdcardPlugin(HW_PluginBase):
     keystore_class = Coldcard_KeyStore
     minimum_library = (0, 7, 7)
-    client = None
 
     DEVICE_IDS = [
         (COINKITE_VID, CKCC_PID),
@@ -573,7 +546,7 @@ class ColdcardPlugin(HW_PluginBase):
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
-    def get_client(self, keystore, force_pair=True):
+    def get_client(self, keystore, force_pair=True) -> 'CKCCClient':
         # Acquire a connection to the hardware device (via USB)
         devmgr = self.device_manager()
         handler = keystore.handler
@@ -586,9 +559,10 @@ class ColdcardPlugin(HW_PluginBase):
         return client
 
     @staticmethod
-    def export_ms_wallet(wallet, fp, name):
+    def export_ms_wallet(wallet: Multisig_Wallet, fp, name):
         # Build the text file Coldcard needs to understand the multisig wallet
         # it is participating in. All involved Coldcards can share same file.
+        assert isinstance(wallet, Multisig_Wallet)
 
         print('# Exported from Electrum-GRS', file=fp)
         print(f'Name: {name:.20s}', file=fp)
@@ -597,12 +571,12 @@ class ColdcardPlugin(HW_PluginBase):
 
         xpubs = []
         derivs = set()
-        for xp, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-            xfp = xfp_for_keystore(ks)
-            dd = getattr(ks, 'derivation', 'm')
-
-            xpubs.append( (xfp2str(xfp), xp, dd) )
-            derivs.add(dd)
+        for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[], only_der_suffix=False)
+            fp_hex = fp_bytes.hex().upper()
+            der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
+            xpubs.append( (fp_hex, xpub, der_prefix_str) )
+            derivs.add(der_prefix_str)
 
         # Derivation doesn't matter too much to the Coldcard, since it
         # uses key path data from PSBT or USB request as needed. However,
@@ -613,14 +587,14 @@ class ColdcardPlugin(HW_PluginBase):
         print('', file=fp)
 
         assert len(xpubs) == wallet.n
-        for xfp, xp, dd in xpubs:
+        for xfp, xpub, der_prefix in xpubs:
             if derivs:
                 # show as a comment if unclear
-                print(f'# derivation: {dd}', file=fp)
+                print(f'# derivation: {der_prefix}', file=fp)
 
-            print(f'{xfp}: {xp}\n', file=fp)
+            print(f'{xfp}: {xpub}\n', file=fp)
 
-    def show_address(self, wallet, address, keystore=None):
+    def show_address(self, wallet, address, keystore: 'Coldcard_KeyStore' = None):
         if keystore is None:
             keystore = wallet.get_keystore()
         if not self.show_address_helper(wallet, address, keystore):
@@ -633,50 +607,36 @@ class ColdcardPlugin(HW_PluginBase):
             sequence = wallet.get_address_index(address)
             keystore.show_address(sequence, txin_type)
         elif type(wallet) is Multisig_Wallet:
+            assert isinstance(wallet, Multisig_Wallet)  # only here for type-hints in IDE
             # More involved for P2SH/P2WSH addresses: need M, and all public keys, and their
             # derivation paths. Must construct script, and track fingerprints+paths for
             # all those keys
 
-            pubkeys = wallet.get_public_keys(address)
+            pubkey_deriv_info = wallet.get_public_keys_with_deriv_info(address)
+            pubkeys = sorted([pk for pk in list(pubkey_deriv_info)])
+            xfp_paths = []
+            for pubkey_hex in pubkey_deriv_info:
+                ks, der_suffix = pubkey_deriv_info[pubkey_hex]
+                fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix, only_der_suffix=False)
+                xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
+                xfp_paths.append([xfp_int] + list(der_full))
 
-            xfps = []
-            for xp, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
-                path = "%s/%d/%d" % (getattr(ks, 'derivation', 'm'),
-                                        *wallet.get_address_index(address))
+            script = bfh(wallet.pubkeys_to_scriptcode(pubkeys))
 
-                # need master XFP for each co-signers
-                ks_xfp = xfp_for_keystore(ks)
-                xfps.append(unpacked_xfp_path(ks_xfp, path))
-
-            # put into BIP45 (sorted) order
-            pkx = list(sorted(zip(pubkeys, xfps)))
-
-            script = bfh(multisig_script([pk for pk,xfp in pkx], wallet.m))
-
-            keystore.show_p2sh_address(wallet.m, script, [xfp for pk,xfp in pkx], txin_type)
+            keystore.show_p2sh_address(wallet.m, script, xfp_paths, txin_type)
 
         else:
             keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
             return
 
-    @classmethod
-    def link_wallet(cls, wallet):
-        # PROBLEM: wallet.sign_transaction() does not pass in the wallet to the individual
-        # keystores, and we need to know about our co-signers at that time.
-        # FIXME the keystore needs a reference to the wallet object because
-        #       it constructs a PSBT from an electrum tx object inside keystore.sign_transaction.
-        #       instead keystore.sign_transaction's API should be changed such that its input
-        #       *is* a PSBT and not an electrum tx object
-        for ks in wallet.get_keystores():
-            if type(ks) == Coldcard_KeyStore:
-                if not ks.my_wallet:
-                    ks.my_wallet = wallet
 
-    @hook
-    def load_wallet(self, wallet, window):
-        # make sure hook in superclass also runs:
-        if hasattr(super(), 'load_wallet'):
-            super().load_wallet(wallet, window)
-        self.link_wallet(wallet)
+def xfp_int_from_xfp_bytes(fp_bytes: bytes) -> int:
+    return int.from_bytes(fp_bytes, byteorder="little", signed=False)
+
+
+def xfp2str(xfp: int) -> str:
+    # Standardized way to show an xpub's fingerprint... it's a 4-byte string
+    # and not really an integer. Used to show as '0x%08x' but that's wrong endian.
+    return struct.pack('<I', xfp).hex().lower()
 
 # EOF

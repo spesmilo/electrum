@@ -25,13 +25,13 @@
 
 import re
 from decimal import Decimal
-from typing import NamedTuple, Sequence
+from typing import NamedTuple, Sequence, Optional, List
 
 from PyQt5.QtGui import QFontMetrics
 
 from electrum_grs import bitcoin
 from electrum_grs.util import bfh
-from electrum_grs.transaction import TxOutput, push_script
+from electrum_grs.transaction import push_script, PartialTxOutput
 from electrum_grs.bitcoin import opcodes
 from electrum_grs.logging import Logger
 from electrum_grs.lnaddr import LnDecodeException
@@ -65,12 +65,12 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.heightMax = 150
         self.c = None
         self.textChanged.connect(self.check_text)
-        self.outputs = []
+        self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: Sequence[PayToLineError]
         self.is_pr = False
         self.is_alias = False
         self.update_size()
-        self.payto_address = None
+        self.payto_scriptpubkey = None  # type: Optional[bytes]
         self.lightning_invoice = None
         self.previous_payto = ''
 
@@ -86,19 +86,19 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def setExpired(self):
         self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
-    def parse_address_and_amount(self, line):
+    def parse_address_and_amount(self, line) -> PartialTxOutput:
         x, y = line.split(',')
-        out_type, out = self.parse_output(x)
+        scriptpubkey = self.parse_output(x)
         amount = self.parse_amount(y)
-        return TxOutput(out_type, out, amount)
+        return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 
-    def parse_output(self, x):
+    def parse_output(self, x) -> bytes:
         try:
             address = self.parse_address(x)
-            return bitcoin.TYPE_ADDRESS, address
+            return bfh(bitcoin.address_to_script(address))
         except:
             script = self.parse_script(x)
-            return bitcoin.TYPE_SCRIPT, script
+            return bfh(script)
 
     def parse_script(self, x):
         script = ''
@@ -131,9 +131,9 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
-        outputs = []
+        outputs = []  # type: List[PartialTxOutput]
         total = 0
-        self.payto_address = None
+        self.payto_scriptpubkey = None
         self.lightning_invoice = None
         if len(lines) == 1:
             data = lines[0]
@@ -152,10 +152,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                     self.lightning_invoice = lower
                 return
             try:
-                self.payto_address = self.parse_output(data)
+                self.payto_scriptpubkey = self.parse_output(data)
             except:
                 pass
-            if self.payto_address:
+            if self.payto_scriptpubkey:
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
                 return
@@ -177,7 +177,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
         self.win.max_button.setChecked(is_max)
         self.outputs = outputs
-        self.payto_address = None
+        self.payto_scriptpubkey = None
 
         if self.win.max_button.isChecked():
             self.win.do_update_fee()
@@ -188,18 +188,16 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def get_errors(self) -> Sequence[PayToLineError]:
         return self.errors
 
-    def get_recipient(self):
-        return self.payto_address
+    def get_destination_scriptpubkey(self) -> Optional[bytes]:
+        return self.payto_scriptpubkey
 
     def get_outputs(self, is_max):
-        if self.payto_address:
+        if self.payto_scriptpubkey:
             if is_max:
                 amount = '!'
             else:
                 amount = self.amount_edit.get_amount()
-
-            _type, addr = self.payto_address
-            self.outputs = [TxOutput(_type, addr, amount)]
+            self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
 
         return self.outputs[:]
 
