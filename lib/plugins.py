@@ -574,13 +574,16 @@ class BasePlugin(PrintError):
                 self._hooks_i_registered.append((aname,func))
 
         # collect names of all class attributes with ._is_daemon_command
-        self._daemon_commands = tuple(attrname for attrname in dir(type(self))
-                                      if getattr(getattr(type(self),attrname), '_is_daemon_command',False))
+        self._daemon_commands = set(attrname for attrname in dir(type(self))
+                                    if getattr(getattr(type(self),attrname), '_is_daemon_command',False))
         # we don't allow conflicting definitions of daemon command (between different plugins)
-        collisions = set(self._daemon_commands).intersection(self.parent.daemon_commands)
-        if collisions:
-            raise RuntimeError('colliding daemon command names in plugin',
-                               self.name, 'collisions:', collisions)
+        for c in self._daemon_commands.intersection(self.parent.daemon_commands):
+            self._daemon_commands.discard(c)
+            try:
+                origclass = type(self.parent.daemon_commands[c].__self__)
+            except (KeyError, AttributeError):
+                origclass = 'unknown'
+            print(f'Ignoring plugin daemon command {repr(c)} from {type(self)} (already exists from {origclass})', file=sys.stderr)
         self.parent.daemon_commands.update({ cmdname : getattr(self,cmdname)
                                              for cmdname in self._daemon_commands })
 
@@ -605,11 +608,8 @@ class BasePlugin(PrintError):
         self._hooks_i_registered.clear()  # just to kill strong refs to self ASAP, for GC
         # remove registered daemon commands
         for cmdname in self._daemon_commands:
-            try:
-                del self.parent.daemon_commands[cmdname]
-            except KeyError:
-                pass # again, shouldn't happen
-        self._daemon_commands = ()
+            self.parent.daemon_commands.pop(cmdname, None)
+        self._daemon_commands.clear()
         self.parent.close_plugin(self)
         self.on_close()
 
