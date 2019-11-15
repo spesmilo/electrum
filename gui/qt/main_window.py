@@ -3676,8 +3676,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['fee'], item['date']]
                 if has_fiat_columns:
                     cols += [item['fiat_value'], item['fiat_balance']]
-                cols.append( ' '.join(item.get('input_addresses') or []) )
-                cols.append( ' '.join(item.get('output_addresses') or []) )
+                inaddrs_filtered = (x for x in (item.get('input_addresses') or [])
+                                    if Address.is_valid(x))
+                outaddrs_filtered = (x for x in (item.get('output_addresses') or [])
+                                     if Address.is_valid(x))
+                cols.append( ', '.join(inaddrs_filtered) )
+                cols.append( ', '.join(outaddrs_filtered) )
                 lines.append(cols)
             else:
                 if has_fiat_columns and ccy:
