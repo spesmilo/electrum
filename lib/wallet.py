@@ -1411,6 +1411,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # wastes memory
         local_tx_cache = {}
         # some helpers for this function
+        class MissingTx(RuntimeError):
+            ''' Can happen in rare circumstances if wallet history is being
+            radically reorged by network thread while we are in this code. '''
         def get_tx(tx_hash):
             ''' Try to get a tx from wallet, then from the Transaction class
             cache if that fails. In either case it deserializes the copy and
@@ -1430,6 +1433,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if tx:
                 tx.deserialize()
                 local_tx_cache[tx_hash] = tx
+            else:
+                raise MissingTx(f'txid {tx_hash} dropped out of wallet history while exporting')
             return tx
         def try_calc_fee(tx_hash):
             ''' Try to calc fee from cheapest to most expensive calculation.
@@ -1475,7 +1480,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 continue
             if to_timestamp and timestamp_safe >= to_timestamp:
                 continue
-            fee = try_calc_fee(tx_hash)
+            try:
+                fee = try_calc_fee(tx_hash)
+            except MissingTx as e:
+                self.print_error(str(e))
+                continue
             item = {
                 'txid'          : tx_hash,
                 'height'        : height,
