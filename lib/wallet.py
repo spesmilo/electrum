@@ -1463,7 +1463,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 self.tx_fees[tx_hash] = fee  # save fee to wallet
             return fee
         def fmt_amt(v, is_diff):
-            if value is None:
+            if v is None:
                 return '--'
             return format_satoshis(v, decimal_point=decimal_point,
                                    is_diff=is_diff)
