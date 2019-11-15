@@ -3667,15 +3667,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             plt.show()
 
     def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.export_history(fx=self.fx)
+        history = wallet.export_history(fx=self.fx, show_addresses=True)
         ccy = (self.fx and self.fx.get_currency()) or ''
         has_fiat_columns = history and self.fx and self.fx.show_history() and 'fiat_value' in history[0] and 'fiat_balance' in history[0]
         lines = []
         for item in history:
             if is_csv:
-                cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']]
+                cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['fee'], item['date']]
                 if has_fiat_columns:
                     cols += [item['fiat_value'], item['fiat_balance']]
+                cols.append( ' '.join(item.get('input_addresses') or []) )
+                cols.append( ' '.join(item.get('output_addresses') or []) )
                 lines.append(cols)
             else:
                 if has_fiat_columns and ccy:
@@ -3689,9 +3691,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         with open(fileName, "w+", encoding="utf-8") as f:  # ensure encoding to utf-8. Avoid Windows cp1252. See #1453.
             if is_csv:
                 transaction = csv.writer(f, lineterminator='\n')
-                cols = ["transaction_hash","label", "confirmations", "value", "timestamp"]
+                cols = ["transaction_hash","label", "confirmations", "value", "fee", "timestamp"]
                 if has_fiat_columns:
                     cols += [f"fiat_value_{ccy}", f"fiat_balance_{ccy}"]  # in CSV mode, we use column names eg fiat_value_USD, etc
+                cols += ["input_addresses", "output_addresses"]
                 transaction.writerow(cols)
                 for line in lines:
                     transaction.writerow(line)

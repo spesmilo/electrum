@@ -50,7 +50,7 @@ NO_SIGNATURE = 'ff'
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
-class InputValueMissing(Exception):
+class InputValueMissing(ValueError):
     """ thrown when the value of an input is needed but not present """
 
 class BCDataStream(object):
@@ -812,19 +812,26 @@ class Transaction:
         self.raw = None
 
     def input_value(self):
-        return sum(x['value'] for x in (self.fetched_inputs() or self.inputs()))
+        ''' Will return the sum of all input values, if the input values
+        are known (may consult self.fetched_inputs() to get a better idea of
+        possible input values).  Will raise InputValueMissing if input values
+        are missing. '''
+        try:
+            return sum(x['value'] for x in (self.fetched_inputs() or self.inputs()))
+        except (KeyError, TypeError, ValueError) as e:
+            raise InputValueMissing from e
 
     def output_value(self):
         return sum(val for tp, addr, val in self.outputs())
 
     def get_fee(self):
         ''' Try and calculate the fee based on the input data, and returns it as
-        satoshis (int). Can raise one of: (KeyError, TypeError, ValueError) on
-        tx's where fee data is missing, so client code should catch these. '''
+        satoshis (int). Can raise InputValueMissing on tx's where fee data is
+        missing, so client code should catch that. '''
         # first, check if coinbase; coinbase tx always has 0 fee
-        if self._inputs and self._inputs[0].get('type') == 'coinbase':
+        if self.inputs() and self._inputs[0].get('type') == 'coinbase':
             return 0
-        # otherwise just sum up all values - may raise
+        # otherwise just sum up all values - may raise InputValueMissing
         return self.input_value() - self.output_value()
 
     @profiler

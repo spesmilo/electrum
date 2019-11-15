@@ -50,7 +50,7 @@ from . import networks
 from .storage import multisig_type
 
 from . import transaction
-from .transaction import Transaction
+from .transaction import Transaction, InputValueMissing
 from .plugins import run_hook
 from . import bitcoin
 from . import coinchooser
@@ -1387,25 +1387,105 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return h2
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None,
-                       show_addresses=False, decimal_point=8):
+                       show_addresses=False, decimal_point=8,
+                       *, fee_calc_timeout=0.250):
+        ''' Export history. Used by RPC but also GUI.
+
+        Arg notes: `fee_calc_timeout` is used when computing the fee (which is
+        done asynchronously in another thread), to limit the amount of time in
+        seconds spent per tx to calculate the fee. The reason the fee calc can
+        take a long time is for some pathological tx's, it is very slow to
+        calculate fee as it involves deserializing prevout_tx from the wallet,
+        for each input.
+
+        Note on side effects: This function will try very hard to calculate fees
+        by examining prevout_tx's (leveraging the fetch_input_data code in the
+        Transaction class). A side effect is that it will cache fees it sees in
+        the wallet, but it won't go out to the network -- it only calculates
+        fees if the tx was either coinbase or all its prevouts are known to the
+        wallet. It will then update self.tx_fees with the new information as a
+        side-effect. '''
         from .util import timestamp_to_datetime
+        # we save copies of tx's we deserialize to this temp dict because we do
+        # *not* want to deserialize tx's in wallet.transactoins since that
+        # wastes memory
+        local_tx_cache = {}
+        # some helpers for this function
+        def get_tx(tx_hash):
+            ''' Try to get a tx from wallet, then from the Transaction class
+            cache if that fails. In either case it deserializes the copy and
+            puts the deserialized tx in local stack dict local_tx_cache. The
+            reason we don't deserialize the tx's from self.transactions is that
+            we do not want to keep deserialized tx's in memory. The
+            self.transactions dict should contain just raw tx's (not
+            deserialized). Deserialized tx's eat on the order of 10x the memory
+            because because of the Python lists, dict, etc they contain, per
+            instance. '''
+            tx = local_tx_cache.get(tx_hash)
+            if tx:
+                return tx
+            tx = Transaction.tx_cache_get(tx_hash)
+            if not tx:
+                tx = copy.deepcopy(self.transactions.get(tx_hash))
+            if tx:
+                tx.deserialize()
+                local_tx_cache[tx_hash] = tx
+            return tx
+        def try_calc_fee(tx_hash):
+            ''' Try to calc fee from cheapest to most expensive calculation.
+            Ultimately asks the transaction class to look at prevouts in wallet and uses
+            that scheme as a last (more CPU intensive) resort. '''
+            fee = self.tx_fees.get(tx_hash)
+            if fee is not None:
+                return fee
+            def do_get_fee(tx_hash):
+                tx = get_tx(tx_hash)
+                def try_get_fee(tx):
+                    try: return tx.get_fee()
+                    except InputValueMissing: pass
+                fee = try_get_fee(tx)
+                if fee is None:
+                    q = queue.Queue()
+                    def done():
+                        q.put(1)
+                    tx.fetch_input_data(self, use_network=False, done_callback=done)
+                    try: q.get(timeout=fee_calc_timeout)
+                    except queue.Empty: pass
+                    fee = try_get_fee(tx)
+                return fee
+            fee = do_get_fee(tx_hash)
+            if fee is not None:
+                self.tx_fees[tx_hash] = fee  # save fee to wallet
+            return fee
+        def fmt_amt(v, is_diff):
+            if value is None:
+                return '--'
+            return format_satoshis(v, decimal_point=decimal_point,
+                                   is_diff=is_diff)
+
+        # grab history
         h = self.get_history(domain, reverse=True)
         out = []
+
         for tx_hash, height, conf, timestamp, value, balance in h:
-            if from_timestamp and timestamp < from_timestamp:
+            timestamp_safe = timestamp
+            if timestamp is None:
+                timestamp_safe = time.time()  # set it to "now" so below code doesn't explode.
+            if from_timestamp and timestamp_safe < from_timestamp:
                 continue
-            if to_timestamp and timestamp >= to_timestamp:
+            if to_timestamp and timestamp_safe >= to_timestamp:
                 continue
+            fee = try_calc_fee(tx_hash)
             item = {
-                'txid':tx_hash,
-                'height':height,
-                'confirmations':conf,
-                'timestamp':timestamp,
-                'value': (format_satoshis(value, decimal_point=decimal_point, is_diff=True)
-                          if value is not None else '--'),
-                'balance': format_satoshis(balance, decimal_point=decimal_point)
+                'txid'          : tx_hash,
+                'height'        : height,
+                'confirmations' : conf,
+                'timestamp'     : timestamp_safe,
+                'value'         : fmt_amt(value, is_diff=True),
+                'fee'           : fmt_amt(fee, is_diff=False),
+                'balance'       : fmt_amt(balance, is_diff=False),
             }
-            if item['height']>0:
+            if item['height'] > 0:
                 date_str = format_time(timestamp) if timestamp is not None else _("unverified")
             else:
                 date_str = _("unconfirmed")
@@ -1419,8 +1499,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 self.print_error(f"Warning: could not export label for {tx_hash}, defaulting to ???")
                 item['label'] = "???"
             if show_addresses:
-                tx = self.transactions.get(tx_hash)
-                tx.deserialize()
+                tx = get_tx(tx_hash)
                 input_addresses = []
                 output_addresses = []
                 for x in tx.inputs():
@@ -1433,7 +1512,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 item['input_addresses'] = input_addresses
                 item['output_addresses'] = output_addresses
             if fx is not None:
-                date = timestamp_to_datetime(time.time() if conf <= 0 else timestamp)
+                date = timestamp_to_datetime(timestamp_safe)
                 item['fiat_value'] = fx.historical_value_str(value, date)
                 item['fiat_balance'] = fx.historical_value_str(balance, date)
             out.append(item)

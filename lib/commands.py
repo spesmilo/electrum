@@ -524,7 +524,8 @@ class Commands:
     @command('w')
     def history(self, year=None, show_addresses=False, show_fiat=False):
         """Wallet history. Returns the transaction history of your wallet."""
-        kwargs = {'show_addresses': show_addresses}
+        kwargs = {'show_addresses': show_addresses,
+                  'fee_calc_timeout' : 1.0 }   # we are aggressive here in how much time we are willing to wait for aynch. fee calc
         if year:
             import time
             start_date = datetime.datetime(year, 1, 1)
