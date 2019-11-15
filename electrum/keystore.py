@@ -904,7 +904,7 @@ def from_seed(seed, passphrase, is_p2sh=False):
             xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
-        raise BitcoinException('Unexpected seed type {}'.format(t))
+        raise BitcoinException('Unexpected seed type {}'.format(repr(t)))
     return keystore
 
 def from_private_key_list(text):
