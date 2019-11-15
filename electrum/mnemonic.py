@@ -93,7 +93,7 @@ def normalize_text(seed: str) -> str:
 _WORDLIST_CACHE = {}
 
 
-def load_wordlist(filename):
+def load_wordlist(filename) -> tuple:
     path = resource_path('wordlist', filename)
     if path not in _WORDLIST_CACHE:
         with open(path, 'r', encoding='utf-8') as f:
