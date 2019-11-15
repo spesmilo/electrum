@@ -1244,7 +1244,7 @@ class Transaction:
                         wallet.network.cancel_requests(func)
             if len(inps) == len(self._inputs) and eph.get('_fetch') == t:  # sanity check
                 eph.pop('_fetch', None)  # potential race condition here, popping wrong t -- but in practice w/ CPython threading it won't matter
-                print_error("fetch_input_data: elapsed {} sec".format(time.time()-t0))
+                print_error(f"fetch_input_data: elapsed {(time.time()-t0):.4f} sec")
                 if done_callback:
                     done_callback(*done_args)
         # /doIt
