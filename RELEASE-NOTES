@@ -758,6 +758,8 @@ and there is no warning message.
   pane. #1673 (cculianu)
 * Fix #1671 -- "No data" for fiat when using the 'history' RPC command has been
   now fixed. (cculianu)
+* Fix #1679 -- Exporting history now shows fees (if known), as well as input
+  and output addresses involved in a tx. (cculianu)
 * Plugin API fix for @hook. #1669 (cculianu, Mark Lundeberg)
 * Internal API optimization for transaction signing #1666 (Mark Lundeberg)
 * Added BlockExplorer.one for both testnet and mainnet as a block explorer
