@@ -35,8 +35,8 @@ import time
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import wraps
 
-from .import bitcoin
-from .import util
+from . import bitcoin
+from . import util
 from .address import Address, AddressError
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
