@@ -18,15 +18,15 @@ _sym_db = _symbol_database.Default()
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='plugins/shuffle/protobuf/message.proto',
-  package='',
+  package='cashshuffle',
   syntax='proto3',
-  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\"@\n\x06Signed\x12\x17\n\x06packet\x18\x01 \x01(\x0b\x32\x07.Packet\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xc6\x01\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12\"\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x10.VerificationKey\x12 \n\x06to_key\x18\x04 \x01(\x0b\x32\x10.VerificationKey\x12\x15\n\x05phase\x18\x05 \x01(\x0e\x32\x06.Phase\x12\x19\n\x07message\x18\x06 \x01(\x0b\x32\x08.Message\x12#\n\x0cregistration\x18\x07 \x01(\x0b\x32\r.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"9\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xf8\x01\n\x07Message\x12\x19\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x08.Address\x12\x1b\n\x03key\x18\x02 \x01(\x0b\x32\x0e.EncryptionKey\x12\x13\n\x04hash\x18\x03 \x01(\x0b\x32\x05.Hash\x12\x1f\n\nsignatures\x18\x04 \x03(\x0b\x32\x0b.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12\x15\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x06.Blame\x12$\n\x06inputs\x18\x07 \x03(\x0b\x32\x14.Message.InputsEntry\x1a\x35\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\"K\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\x12\x1a\n\x04type\x18\x02 \x01(\x0e\x32\x0c.ShuffleType\x12\x0f\n\x07version\x18\x03 \x01(\x04\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\xb9\x01\n\x05\x42lame\x12\x17\n\x06reason\x18\x01 \x01(\x0e\x32\x07.Reason\x12!\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x10.VerificationKey\x12\x1b\n\x03key\x18\x03 \x01(\x0b\x32\x0e.DecryptionKey\x12!\n\x0btransaction\x18\x04 \x01(\x0b\x32\x0c.Transaction\x12\x19\n\x07invalid\x18\x05 \x01(\x0b\x32\x08.Invalid\x12\x19\n\x07packets\x18\x06 \x01(\x0b\x32\x08.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\"\"\n\x07Packets\x12\x17\n\x06packet\x18\x01 \x03(\x0b\x32\x07.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*$\n\x0bShuffleType\x12\x0b\n\x07\x44\x45\x46\x41ULT\x10\x00\x12\x08\n\x04\x44UST\x10\x01*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
+  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\x12\x0b\x63\x61shshuffle\"X\n\x06Signed\x12#\n\x06packet\x18\x01 \x01(\x0b\x32\x13.cashshuffle.Packet\x12)\n\tsignature\x18\x02 \x01(\x0b\x32\x16.cashshuffle.Signature\"\x82\x02\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12.\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x1c.cashshuffle.VerificationKey\x12,\n\x06to_key\x18\x04 \x01(\x0b\x32\x1c.cashshuffle.VerificationKey\x12!\n\x05phase\x18\x05 \x01(\x0e\x32\x12.cashshuffle.Phase\x12%\n\x07message\x18\x06 \x01(\x0b\x32\x14.cashshuffle.Message\x12/\n\x0cregistration\x18\x07 \x01(\x0b\x32\x19.cashshuffle.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"E\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12)\n\tsignature\x18\x02 \x01(\x0b\x32\x16.cashshuffle.Signature\"\xcc\x02\n\x07Message\x12%\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x14.cashshuffle.Address\x12\'\n\x03key\x18\x02 \x01(\x0b\x32\x1a.cashshuffle.EncryptionKey\x12\x1f\n\x04hash\x18\x03 \x01(\x0b\x32\x11.cashshuffle.Hash\x12+\n\nsignatures\x18\x04 \x03(\x0b\x32\x17.cashshuffle.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12!\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x12.cashshuffle.Blame\x12\x30\n\x06inputs\x18\x07 \x03(\x0b\x32 .cashshuffle.Message.InputsEntry\x1a\x41\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12!\n\x05value\x18\x02 \x01(\x0b\x32\x12.cashshuffle.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\"W\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\x12&\n\x04type\x18\x02 \x01(\x0e\x32\x18.cashshuffle.ShuffleType\x12\x0f\n\x07version\x18\x03 \x01(\x04\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\x81\x02\n\x05\x42lame\x12#\n\x06reason\x18\x01 \x01(\x0e\x32\x13.cashshuffle.Reason\x12-\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x1c.cashshuffle.VerificationKey\x12\'\n\x03key\x18\x03 \x01(\x0b\x32\x1a.cashshuffle.DecryptionKey\x12-\n\x0btransaction\x18\x04 \x01(\x0b\x32\x18.cashshuffle.Transaction\x12%\n\x07invalid\x18\x05 \x01(\x0b\x32\x14.cashshuffle.Invalid\x12%\n\x07packets\x18\x06 \x01(\x0b\x32\x14.cashshuffle.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\".\n\x07Packets\x12#\n\x06packet\x18\x01 \x03(\x0b\x32\x13.cashshuffle.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*$\n\x0bShuffleType\x12\x0b\n\x07\x44\x45\x46\x41ULT\x10\x00\x12\x08\n\x04\x44UST\x10\x01*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 _PHASE = _descriptor.EnumDescriptor(
   name='Phase',
-  full_name='Phase',
+  full_name='cashshuffle.Phase',
   filename=None,
   file=DESCRIPTOR,
   values=[
@@ -65,15 +65,15 @@ _PHASE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1241,
-  serialized_end=1385,
+  serialized_start=1530,
+  serialized_end=1674,
 )
 _sym_db.RegisterEnumDescriptor(_PHASE)
 
 Phase = enum_type_wrapper.EnumTypeWrapper(_PHASE)
 _SHUFFLETYPE = _descriptor.EnumDescriptor(
   name='ShuffleType',
-  full_name='ShuffleType',
+  full_name='cashshuffle.ShuffleType',
   filename=None,
   file=DESCRIPTOR,
   values=[
@@ -88,15 +88,15 @@ _SHUFFLETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1387,
-  serialized_end=1423,
+  serialized_start=1676,
+  serialized_end=1712,
 )
 _sym_db.RegisterEnumDescriptor(_SHUFFLETYPE)
 
 ShuffleType = enum_type_wrapper.EnumTypeWrapper(_SHUFFLETYPE)
 _REASON = _descriptor.EnumDescriptor(
   name='Reason',
-  full_name='Reason',
+  full_name='cashshuffle.Reason',
   filename=None,
   file=DESCRIPTOR,
   values=[
@@ -139,8 +139,8 @@ _REASON = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1426,
-  serialized_end=1624,
+  serialized_start=1715,
+  serialized_end=1913,
 )
 _sym_db.RegisterEnumDescriptor(_REASON)
 
@@ -169,20 +169,20 @@ INVALIDFORMAT = 8
 
 _SIGNED = _descriptor.Descriptor(
   name='Signed',
-  full_name='Signed',
+  full_name='cashshuffle.Signed',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='packet', full_name='Signed.packet', index=0,
+      name='packet', full_name='cashshuffle.Signed.packet', index=0,
       number=1, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='signature', full_name='Signed.signature', index=1,
+      name='signature', full_name='cashshuffle.Signed.signature', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -200,62 +200,62 @@ _SIGNED = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=42,
-  serialized_end=106,
+  serialized_start=55,
+  serialized_end=143,
 )
 
 
 _PACKET = _descriptor.Descriptor(
   name='Packet',
-  full_name='Packet',
+  full_name='cashshuffle.Packet',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='session', full_name='Packet.session', index=0,
+      name='session', full_name='cashshuffle.Packet.session', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='number', full_name='Packet.number', index=1,
+      name='number', full_name='cashshuffle.Packet.number', index=1,
       number=2, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='from_key', full_name='Packet.from_key', index=2,
+      name='from_key', full_name='cashshuffle.Packet.from_key', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='to_key', full_name='Packet.to_key', index=3,
+      name='to_key', full_name='cashshuffle.Packet.to_key', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='phase', full_name='Packet.phase', index=4,
+      name='phase', full_name='cashshuffle.Packet.phase', index=4,
       number=5, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='message', full_name='Packet.message', index=5,
+      name='message', full_name='cashshuffle.Packet.message', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='registration', full_name='Packet.registration', index=6,
+      name='registration', full_name='cashshuffle.Packet.registration', index=6,
       number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -273,20 +273,20 @@ _PACKET = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=109,
-  serialized_end=307,
+  serialized_start=146,
+  serialized_end=404,
 )
 
 
 _COINS = _descriptor.Descriptor(
   name='Coins',
-  full_name='Coins',
+  full_name='cashshuffle.Coins',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='coins', full_name='Coins.coins', index=0,
+      name='coins', full_name='cashshuffle.Coins.coins', index=0,
       number=1, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -304,27 +304,27 @@ _COINS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=309,
-  serialized_end=331,
+  serialized_start=406,
+  serialized_end=428,
 )
 
 
 _SIGNATURES = _descriptor.Descriptor(
   name='Signatures',
-  full_name='Signatures',
+  full_name='cashshuffle.Signatures',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='utxo', full_name='Signatures.utxo', index=0,
+      name='utxo', full_name='cashshuffle.Signatures.utxo', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='signature', full_name='Signatures.signature', index=1,
+      name='signature', full_name='cashshuffle.Signatures.signature', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -342,27 +342,27 @@ _SIGNATURES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=333,
-  serialized_end=390,
+  serialized_start=430,
+  serialized_end=499,
 )
 
 
 _MESSAGE_INPUTSENTRY = _descriptor.Descriptor(
   name='InputsEntry',
-  full_name='Message.InputsEntry',
+  full_name='cashshuffle.Message.InputsEntry',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='Message.InputsEntry.key', index=0,
+      name='key', full_name='cashshuffle.Message.InputsEntry.key', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='value', full_name='Message.InputsEntry.value', index=1,
+      name='value', full_name='cashshuffle.Message.InputsEntry.value', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -380,61 +380,61 @@ _MESSAGE_INPUTSENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=588,
-  serialized_end=641,
+  serialized_start=769,
+  serialized_end=834,
 )
 
 _MESSAGE = _descriptor.Descriptor(
   name='Message',
-  full_name='Message',
+  full_name='cashshuffle.Message',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='address', full_name='Message.address', index=0,
+      name='address', full_name='cashshuffle.Message.address', index=0,
       number=1, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='key', full_name='Message.key', index=1,
+      name='key', full_name='cashshuffle.Message.key', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='hash', full_name='Message.hash', index=2,
+      name='hash', full_name='cashshuffle.Message.hash', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='signatures', full_name='Message.signatures', index=3,
+      name='signatures', full_name='cashshuffle.Message.signatures', index=3,
       number=4, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='str', full_name='Message.str', index=4,
+      name='str', full_name='cashshuffle.Message.str', index=4,
       number=5, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='blame', full_name='Message.blame', index=5,
+      name='blame', full_name='cashshuffle.Message.blame', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='inputs', full_name='Message.inputs', index=6,
+      name='inputs', full_name='cashshuffle.Message.inputs', index=6,
       number=7, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -452,20 +452,20 @@ _MESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=393,
-  serialized_end=641,
+  serialized_start=502,
+  serialized_end=834,
 )
 
 
 _ADDRESS = _descriptor.Descriptor(
   name='Address',
-  full_name='Address',
+  full_name='cashshuffle.Address',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='address', full_name='Address.address', index=0,
+      name='address', full_name='cashshuffle.Address.address', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -483,34 +483,34 @@ _ADDRESS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=643,
-  serialized_end=669,
+  serialized_start=836,
+  serialized_end=862,
 )
 
 
 _REGISTRATION = _descriptor.Descriptor(
   name='Registration',
-  full_name='Registration',
+  full_name='cashshuffle.Registration',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='amount', full_name='Registration.amount', index=0,
+      name='amount', full_name='cashshuffle.Registration.amount', index=0,
       number=1, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='type', full_name='Registration.type', index=1,
+      name='type', full_name='cashshuffle.Registration.type', index=1,
       number=2, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='version', full_name='Registration.version', index=2,
+      name='version', full_name='cashshuffle.Registration.version', index=2,
       number=3, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
@@ -528,20 +528,20 @@ _REGISTRATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=671,
-  serialized_end=746,
+  serialized_start=864,
+  serialized_end=951,
 )
 
 
 _VERIFICATIONKEY = _descriptor.Descriptor(
   name='VerificationKey',
-  full_name='VerificationKey',
+  full_name='cashshuffle.VerificationKey',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='VerificationKey.key', index=0,
+      name='key', full_name='cashshuffle.VerificationKey.key', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -559,20 +559,20 @@ _VERIFICATIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=748,
-  serialized_end=778,
+  serialized_start=953,
+  serialized_end=983,
 )
 
 
 _ENCRYPTIONKEY = _descriptor.Descriptor(
   name='EncryptionKey',
-  full_name='EncryptionKey',
+  full_name='cashshuffle.EncryptionKey',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='EncryptionKey.key', index=0,
+      name='key', full_name='cashshuffle.EncryptionKey.key', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -590,27 +590,27 @@ _ENCRYPTIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=780,
-  serialized_end=808,
+  serialized_start=985,
+  serialized_end=1013,
 )
 
 
 _DECRYPTIONKEY = _descriptor.Descriptor(
   name='DecryptionKey',
-  full_name='DecryptionKey',
+  full_name='cashshuffle.DecryptionKey',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='DecryptionKey.key', index=0,
+      name='key', full_name='cashshuffle.DecryptionKey.key', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='public', full_name='DecryptionKey.public', index=1,
+      name='public', full_name='cashshuffle.DecryptionKey.public', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -628,20 +628,20 @@ _DECRYPTIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=810,
-  serialized_end=854,
+  serialized_start=1015,
+  serialized_end=1059,
 )
 
 
 _HASH = _descriptor.Descriptor(
   name='Hash',
-  full_name='Hash',
+  full_name='cashshuffle.Hash',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='hash', full_name='Hash.hash', index=0,
+      name='hash', full_name='cashshuffle.Hash.hash', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
@@ -659,20 +659,20 @@ _HASH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=856,
-  serialized_end=876,
+  serialized_start=1061,
+  serialized_end=1081,
 )
 
 
 _SIGNATURE = _descriptor.Descriptor(
   name='Signature',
-  full_name='Signature',
+  full_name='cashshuffle.Signature',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='signature', full_name='Signature.signature', index=0,
+      name='signature', full_name='cashshuffle.Signature.signature', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
@@ -690,20 +690,20 @@ _SIGNATURE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=878,
-  serialized_end=908,
+  serialized_start=1083,
+  serialized_end=1113,
 )
 
 
 _TRANSACTION = _descriptor.Descriptor(
   name='Transaction',
-  full_name='Transaction',
+  full_name='cashshuffle.Transaction',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='transaction', full_name='Transaction.transaction', index=0,
+      name='transaction', full_name='cashshuffle.Transaction.transaction', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
@@ -721,55 +721,55 @@ _TRANSACTION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=910,
-  serialized_end=944,
+  serialized_start=1115,
+  serialized_end=1149,
 )
 
 
 _BLAME = _descriptor.Descriptor(
   name='Blame',
-  full_name='Blame',
+  full_name='cashshuffle.Blame',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='reason', full_name='Blame.reason', index=0,
+      name='reason', full_name='cashshuffle.Blame.reason', index=0,
       number=1, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='accused', full_name='Blame.accused', index=1,
+      name='accused', full_name='cashshuffle.Blame.accused', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='key', full_name='Blame.key', index=2,
+      name='key', full_name='cashshuffle.Blame.key', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='transaction', full_name='Blame.transaction', index=3,
+      name='transaction', full_name='cashshuffle.Blame.transaction', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='invalid', full_name='Blame.invalid', index=4,
+      name='invalid', full_name='cashshuffle.Blame.invalid', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='packets', full_name='Blame.packets', index=5,
+      name='packets', full_name='cashshuffle.Blame.packets', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -787,20 +787,20 @@ _BLAME = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=947,
-  serialized_end=1132,
+  serialized_start=1152,
+  serialized_end=1409,
 )
 
 
 _INVALID = _descriptor.Descriptor(
   name='Invalid',
-  full_name='Invalid',
+  full_name='cashshuffle.Invalid',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='invalid', full_name='Invalid.invalid', index=0,
+      name='invalid', full_name='cashshuffle.Invalid.invalid', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
@@ -818,27 +818,27 @@ _INVALID = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1134,
-  serialized_end=1160,
+  serialized_start=1411,
+  serialized_end=1437,
 )
 
 
 _INPUTS = _descriptor.Descriptor(
   name='Inputs',
-  full_name='Inputs',
+  full_name='cashshuffle.Inputs',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='address', full_name='Inputs.address', index=0,
+      name='address', full_name='cashshuffle.Inputs.address', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='coins', full_name='Inputs.coins', index=1,
+      name='coins', full_name='cashshuffle.Inputs.coins', index=1,
       number=2, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -856,20 +856,20 @@ _INPUTS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1162,
-  serialized_end=1202,
+  serialized_start=1439,
+  serialized_end=1479,
 )
 
 
 _PACKETS = _descriptor.Descriptor(
   name='Packets',
-  full_name='Packets',
+  full_name='cashshuffle.Packets',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='packet', full_name='Packets.packet', index=0,
+      name='packet', full_name='cashshuffle.Packets.packet', index=0,
       number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -887,8 +887,8 @@ _PACKETS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1204,
-  serialized_end=1238,
+  serialized_start=1481,
+  serialized_end=1527,
 )
 
 _SIGNED.fields_by_name['packet'].message_type = _PACKET
@@ -939,28 +939,28 @@ DESCRIPTOR.enum_types_by_name['Reason'] = _REASON
 Signed = _reflection.GeneratedProtocolMessageType('Signed', (_message.Message,), dict(
   DESCRIPTOR = _SIGNED,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Signed)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Signed)
   ))
 _sym_db.RegisterMessage(Signed)
 
 Packet = _reflection.GeneratedProtocolMessageType('Packet', (_message.Message,), dict(
   DESCRIPTOR = _PACKET,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Packet)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Packet)
   ))
 _sym_db.RegisterMessage(Packet)
 
 Coins = _reflection.GeneratedProtocolMessageType('Coins', (_message.Message,), dict(
   DESCRIPTOR = _COINS,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Coins)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Coins)
   ))
 _sym_db.RegisterMessage(Coins)
 
 Signatures = _reflection.GeneratedProtocolMessageType('Signatures', (_message.Message,), dict(
   DESCRIPTOR = _SIGNATURES,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Signatures)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Signatures)
   ))
 _sym_db.RegisterMessage(Signatures)
 
@@ -969,12 +969,12 @@ Message = _reflection.GeneratedProtocolMessageType('Message', (_message.Message,
   InputsEntry = _reflection.GeneratedProtocolMessageType('InputsEntry', (_message.Message,), dict(
     DESCRIPTOR = _MESSAGE_INPUTSENTRY,
     __module__ = 'plugins.shuffle.protobuf.message_pb2'
-    # @@protoc_insertion_point(class_scope:Message.InputsEntry)
+    # @@protoc_insertion_point(class_scope:cashshuffle.Message.InputsEntry)
     ))
   ,
   DESCRIPTOR = _MESSAGE,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Message)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Message)
   ))
 _sym_db.RegisterMessage(Message)
 _sym_db.RegisterMessage(Message.InputsEntry)
@@ -982,84 +982,84 @@ _sym_db.RegisterMessage(Message.InputsEntry)
 Address = _reflection.GeneratedProtocolMessageType('Address', (_message.Message,), dict(
   DESCRIPTOR = _ADDRESS,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Address)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Address)
   ))
 _sym_db.RegisterMessage(Address)
 
 Registration = _reflection.GeneratedProtocolMessageType('Registration', (_message.Message,), dict(
   DESCRIPTOR = _REGISTRATION,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Registration)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Registration)
   ))
 _sym_db.RegisterMessage(Registration)
 
 VerificationKey = _reflection.GeneratedProtocolMessageType('VerificationKey', (_message.Message,), dict(
   DESCRIPTOR = _VERIFICATIONKEY,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:VerificationKey)
+  # @@protoc_insertion_point(class_scope:cashshuffle.VerificationKey)
   ))
 _sym_db.RegisterMessage(VerificationKey)
 
 EncryptionKey = _reflection.GeneratedProtocolMessageType('EncryptionKey', (_message.Message,), dict(
   DESCRIPTOR = _ENCRYPTIONKEY,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:EncryptionKey)
+  # @@protoc_insertion_point(class_scope:cashshuffle.EncryptionKey)
   ))
 _sym_db.RegisterMessage(EncryptionKey)
 
 DecryptionKey = _reflection.GeneratedProtocolMessageType('DecryptionKey', (_message.Message,), dict(
   DESCRIPTOR = _DECRYPTIONKEY,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:DecryptionKey)
+  # @@protoc_insertion_point(class_scope:cashshuffle.DecryptionKey)
   ))
 _sym_db.RegisterMessage(DecryptionKey)
 
 Hash = _reflection.GeneratedProtocolMessageType('Hash', (_message.Message,), dict(
   DESCRIPTOR = _HASH,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Hash)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Hash)
   ))
 _sym_db.RegisterMessage(Hash)
 
 Signature = _reflection.GeneratedProtocolMessageType('Signature', (_message.Message,), dict(
   DESCRIPTOR = _SIGNATURE,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Signature)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Signature)
   ))
 _sym_db.RegisterMessage(Signature)
 
 Transaction = _reflection.GeneratedProtocolMessageType('Transaction', (_message.Message,), dict(
   DESCRIPTOR = _TRANSACTION,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Transaction)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Transaction)
   ))
 _sym_db.RegisterMessage(Transaction)
 
 Blame = _reflection.GeneratedProtocolMessageType('Blame', (_message.Message,), dict(
   DESCRIPTOR = _BLAME,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Blame)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Blame)
   ))
 _sym_db.RegisterMessage(Blame)
 
 Invalid = _reflection.GeneratedProtocolMessageType('Invalid', (_message.Message,), dict(
   DESCRIPTOR = _INVALID,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Invalid)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Invalid)
   ))
 _sym_db.RegisterMessage(Invalid)
 
 Inputs = _reflection.GeneratedProtocolMessageType('Inputs', (_message.Message,), dict(
   DESCRIPTOR = _INPUTS,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Inputs)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Inputs)
   ))
 _sym_db.RegisterMessage(Inputs)
 
 Packets = _reflection.GeneratedProtocolMessageType('Packets', (_message.Message,), dict(
   DESCRIPTOR = _PACKETS,
   __module__ = 'plugins.shuffle.protobuf.message_pb2'
-  # @@protoc_insertion_point(class_scope:Packets)
+  # @@protoc_insertion_point(class_scope:cashshuffle.Packets)
   ))
 _sym_db.RegisterMessage(Packets)
 

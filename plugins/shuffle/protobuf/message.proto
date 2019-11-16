@@ -1,5 +1,7 @@
 syntax="proto3";
 
+package cashshuffle;
+
 message Signed {
     Packet packet = 1;
     Signature signature = 2;
