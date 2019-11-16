@@ -3487,8 +3487,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         defaultname = 'electron-cash-private-keys.csv' if not bip38 else 'electron-cash-bip38-keys.csv'
         select_msg = _('Select file to export your private keys to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
-        vbox.addLayout(hbox)
+        box, filename_e, csv_button = filename_field(self.config, defaultname, select_msg)
+        vbox.addSpacing(12)
+        vbox.addWidget(box)
 
         b = OkButton(d, _('Export'))
         b.setEnabled(False)
@@ -3635,8 +3636,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox = QVBoxLayout(d)
         defaultname = os.path.expanduser('~/electron-cash-history.csv')
         select_msg = _('Select file to export your wallet transactions to')
-        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
-        vbox.addLayout(hbox)
+        box, filename_e, csv_button = filename_field(self.config, defaultname, select_msg)
+        vbox.addWidget(box)
+        include_addresses_chk = QCheckBox(_("Include addresses"))
+        include_addresses_chk.setChecked(True)
+        include_addresses_chk.setToolTip(_("Include input and output addresses in history export"))
+        vbox.addWidget(include_addresses_chk)
+        fee_dl_chk = QCheckBox(_("Fetch accurate fees from network (slower)"))
+        fee_dl_chk.setChecked(self.is_fetch_input_data())
+        fee_dl_chk.setEnabled(bool(self.wallet.network))
+        fee_dl_chk.setToolTip(_("If this is checked, accurate fee and input value data will be retrieved from the network"))
+        vbox.addWidget(fee_dl_chk)
+        fee_time_w = QWidget()
+        fee_time_w.setToolTip(_("The amount of overall time in seconds to allow for downloading fee data before giving up"))
+        hbox = QHBoxLayout(fee_time_w)
+        hbox.setContentsMargins(20, 0, 0, 0)
+        hbox.addWidget(QLabel(_("Timeout:")), 0, Qt.AlignRight)
+        fee_time_sb = QSpinBox()
+        fee_time_sb.setMinimum(10)
+        fee_time_sb.setMaximum(9999)
+        fee_time_sb.setSuffix(" " + _("seconds"))
+        fee_time_sb.setValue(30)
+        fee_dl_chk.clicked.connect(fee_time_w.setEnabled)
+        fee_time_w.setEnabled(fee_dl_chk.isChecked())
+        hbox.addWidget(fee_time_sb, 0, Qt.AlignLeft)
+        hbox.addStretch(1)
+        vbox.addWidget(fee_time_w)
         vbox.addStretch(1)
         hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
         vbox.addLayout(hbox)
@@ -3649,13 +3674,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         filename = filename_e.text()
         if not filename:
             return
+        success = False
         try:
-            self.do_export_history(self.wallet, filename, csv_button.isChecked())
-        except (IOError, os.error) as reason:
+            # minimum 10s time for calc. fees, etc
+            timeout = max(fee_time_sb.value() if fee_dl_chk.isChecked() else 10.0, 10.0)
+            success = self.do_export_history(filename, csv_button.isChecked(),
+                                             download_inputs=fee_dl_chk.isChecked(),
+                                             timeout=timeout,
+                                             include_addresses=include_addresses_chk.isChecked())
+        except Exception as reason:
             export_error_label = _("Electron Cash was unable to produce a transaction export.")
             self.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
-            return
-        self.show_message(_("Your wallet history has been successfully exported."))
+        else:
+            if success:
+                self.show_message(_("Your wallet history has been successfully exported."))
 
     def plot_history_dialog(self):
         if plot_history is None:
@@ -3666,44 +3698,78 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             plt = plot_history(self.wallet, history)
             plt.show()
 
-    def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.export_history(fx=self.fx, show_addresses=True)
-        ccy = (self.fx and self.fx.get_currency()) or ''
-        has_fiat_columns = history and self.fx and self.fx.show_history() and 'fiat_value' in history[0] and 'fiat_balance' in history[0]
-        lines = []
-        for item in history:
-            if is_csv:
-                cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['fee'], item['date']]
-                if has_fiat_columns:
-                    cols += [item['fiat_value'], item['fiat_balance']]
-                inaddrs_filtered = (x for x in (item.get('input_addresses') or [])
-                                    if Address.is_valid(x))
-                outaddrs_filtered = (x for x in (item.get('output_addresses') or [])
-                                     if Address.is_valid(x))
-                cols.append( ', '.join(inaddrs_filtered) )
-                cols.append( ', '.join(outaddrs_filtered) )
-                lines.append(cols)
-            else:
-                if has_fiat_columns and ccy:
-                    item['fiat_currency'] = ccy  # add the currency to each entry in the json. this wastes space but json is bloated anyway so this won't hurt too much, we hope
-                elif not has_fiat_columns:
-                    # No need to include these fields as they will always be 'No Data'
-                    item.pop('fiat_value', None)
-                    item.pop('fiat_balance', None)
-                lines.append(item)
+    def is_fetch_input_data(self):
+        ''' default on if network.auto_connect is True, otherwise use config value '''
+        return bool(self.wallet and self.wallet.network and self.config.get('fetch_input_data', self.wallet.network.auto_connect))
 
-        with open(fileName, "w+", encoding="utf-8") as f:  # ensure encoding to utf-8. Avoid Windows cp1252. See #1453.
-            if is_csv:
-                transaction = csv.writer(f, lineterminator='\n')
-                cols = ["transaction_hash","label", "confirmations", "value", "fee", "timestamp"]
-                if has_fiat_columns:
-                    cols += [f"fiat_value_{ccy}", f"fiat_balance_{ccy}"]  # in CSV mode, we use column names eg fiat_value_USD, etc
-                cols += ["input_addresses", "output_addresses"]
-                transaction.writerow(cols)
-                for line in lines:
-                    transaction.writerow(line)
-            else:
-                f.write(json.dumps(lines, indent=4))
+    def set_fetch_input_data(self, b):
+        self.config.set_key('fetch_input_data', bool(b))
+
+    def do_export_history(self, fileName, is_csv, *, download_inputs=False, timeout=30.0, include_addresses=True):
+        wallet = self.wallet
+        if not wallet:
+            return
+        dlg = None  # this will be set at the bottom of this function
+        def task():
+            def update_prog(x):
+                if dlg: dlg.update_progress(int(x*100))
+            return wallet.export_history(fx=self.fx,
+                                         show_addresses=include_addresses,
+                                         decimal_point=self.decimal_point,
+                                         fee_calc_timeout=timeout,
+                                         download_inputs=download_inputs,
+                                         progress_callback=update_prog)
+        success = False
+        def on_success(history):
+            nonlocal success
+            ccy = (self.fx and self.fx.get_currency()) or ''
+            has_fiat_columns = history and self.fx and self.fx.show_history() and 'fiat_value' in history[0] and 'fiat_balance' in history[0] and 'fiat_fee' in history[0]
+            lines = []
+            for item in history:
+                if is_csv:
+                    cols = [item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['fee'], item['date']]
+                    if has_fiat_columns:
+                        cols += [item['fiat_value'], item['fiat_balance'], item['fiat_fee']]
+                    if include_addresses:
+                        inaddrs_filtered = (x for x in (item.get('input_addresses') or [])
+                                            if Address.is_valid(x))
+                        outaddrs_filtered = (x for x in (item.get('output_addresses') or [])
+                                             if Address.is_valid(x))
+                        cols.append( ', '.join(inaddrs_filtered) )
+                        cols.append( ', '.join(outaddrs_filtered) )
+                    lines.append(cols)
+                else:
+                    if has_fiat_columns and ccy:
+                        item['fiat_currency'] = ccy  # add the currency to each entry in the json. this wastes space but json is bloated anyway so this won't hurt too much, we hope
+                    elif not has_fiat_columns:
+                        # No need to include these fields as they will always be 'No Data'
+                        item.pop('fiat_value', None)
+                        item.pop('fiat_balance', None)
+                        item.pop('fiat_fee', None)
+                    lines.append(item)
+
+            with open(fileName, "w+", encoding="utf-8") as f:  # ensure encoding to utf-8. Avoid Windows cp1252. See #1453.
+                if is_csv:
+                    transaction = csv.writer(f, lineterminator='\n')
+                    cols = ["transaction_hash","label", "confirmations", "value", "fee", "timestamp"]
+                    if has_fiat_columns:
+                        cols += [f"fiat_value_{ccy}", f"fiat_balance_{ccy}", f"fiat_fee_{ccy}"]  # in CSV mode, we use column names eg fiat_value_USD, etc
+                    if include_addresses:
+                        cols += ["input_addresses", "output_addresses"]
+                    transaction.writerow(cols)
+                    for line in lines:
+                        transaction.writerow(line)
+                else:
+                    f.write(json.dumps(lines, indent=4))
+            success = True
+        # kick off the waiting dialog to do all of the above
+        dlg = WaitingDialog(self.top_level_window(),
+                            _("Exporting history, please wait ..."),
+                            task, on_success, self.on_error, disable_escape_key=True,
+                            auto_exec=False, auto_show=False, progress_bar=True, progress_min=0, progress_max=100)
+        dlg.exec_()
+        # this will block heere in the WaitingDialog event loop... and set success to True if success
+        return success
 
     def sweep_key_dialog(self):
         addresses = self.wallet.get_unused_addresses()

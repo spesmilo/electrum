@@ -1388,29 +1388,45 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None,
                        show_addresses=False, decimal_point=8,
-                       *, fee_calc_timeout=0.250):
-        ''' Export history. Used by RPC but also GUI.
+                       *, fee_calc_timeout=10.0, download_inputs=False,
+                       progress_callback=None):
+        ''' Export history. Used by RPC & GUI.
 
-        Arg notes: `fee_calc_timeout` is used when computing the fee (which is
-        done asynchronously in another thread), to limit the amount of time in
-        seconds spent per tx to calculate the fee. The reason the fee calc can
-        take a long time is for some pathological tx's, it is very slow to
-        calculate fee as it involves deserializing prevout_tx from the wallet,
-        for each input.
+        Arg notes:
+        - `fee_calc_timeout` is used when computing the fee (which is done
+          asynchronously in another thread) to limit the total amount of time in
+          seconds spent waiting for fee calculation. The timeout is a total time
+          allotment for this function call. (The reason the fee calc can take a
+          long time is for some pathological tx's, it is very slow to calculate
+          fee as it involves deserializing prevout_tx from the wallet, for each
+          input).
+        - `download_inputs`, if True, will allow for more accurate fee data to
+          be exported with the history by using the Transaction class input
+          fetcher to download *all* prevout_hash tx's for inputs (even for
+          inputs not in wallet). This feature requires self.network (ie, we need
+          to be online) otherwise it will behave as if download_inputs=False.
+        - `progress_callback`, if specified, is a callback which receives a
+          single float argument in the range [0.0,1.0] indicating how far along
+          the history export is going. This is intended for interop with GUI
+          code. Node the progress callback is not guaranteed to be called in the
+          context of the main thread, therefore GUI code should use appropriate
+          signals/slots to update the GUI with progress info.
 
-        Note on side effects: This function will try very hard to calculate fees
-        by examining prevout_tx's (leveraging the fetch_input_data code in the
-        Transaction class). A side effect is that it will cache fees it sees in
-        the wallet, but it won't go out to the network -- it only calculates
-        fees if the tx was either coinbase or all its prevouts are known to the
-        wallet. It will then update self.tx_fees with the new information as a
-        side-effect. '''
+        Note on side effects: This function may update self.tx_fees. Rationale:
+        it will spend some time trying very hard to calculate accurate fees by
+        examining prevout_tx's (leveraging the fetch_input_data code in the
+        Transaction class). As such, it is worthwhile to cache the results in
+        self.tx_fees, which gets saved to wallet storage. This is not very
+        demanding on storage as even for very large wallets with huge histories,
+        tx_fees does not use more than a few hundred kb of space. '''
         from .util import timestamp_to_datetime
         # we save copies of tx's we deserialize to this temp dict because we do
         # *not* want to deserialize tx's in wallet.transactoins since that
         # wastes memory
         local_tx_cache = {}
         # some helpers for this function
+        t0 = time.time()
+        def time_remaining(): return max(fee_calc_timeout - (time.time()-t0), 0)
         class MissingTx(RuntimeError):
             ''' Can happen in rare circumstances if wallet history is being
             radically reorged by network thread while we are in this code. '''
@@ -1449,18 +1465,19 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     try: return tx.get_fee()
                     except InputValueMissing: pass
                 fee = try_get_fee(tx)
-                if fee is None:
+                t_remain = time_remaining()
+                if fee is None and t_remain:
                     q = queue.Queue()
                     def done():
                         q.put(1)
-                    tx.fetch_input_data(self, use_network=False, done_callback=done)
-                    try: q.get(timeout=fee_calc_timeout)
+                    tx.fetch_input_data(self, use_network=bool(download_inputs), done_callback=done)
+                    try: q.get(timeout=t_remain)
                     except queue.Empty: pass
                     fee = try_get_fee(tx)
                 return fee
             fee = do_get_fee(tx_hash)
             if fee is not None:
-                self.tx_fees[tx_hash] = fee  # save fee to wallet
+                self.tx_fees[tx_hash] = fee  # save fee to wallet if we bothered to dl/calculate it.
             return fee
         def fmt_amt(v, is_diff):
             if v is None:
@@ -1472,7 +1489,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         h = self.get_history(domain, reverse=True)
         out = []
 
+        n, l = 0, max(1, float(len(h)))
         for tx_hash, height, conf, timestamp, value, balance in h:
+            if progress_callback:
+                progress_callback(n/l)
+            n += 1
             timestamp_safe = timestamp
             if timestamp is None:
                 timestamp_safe = time.time()  # set it to "now" so below code doesn't explode.
@@ -1524,7 +1545,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 date = timestamp_to_datetime(timestamp_safe)
                 item['fiat_value'] = fx.historical_value_str(value, date)
                 item['fiat_balance'] = fx.historical_value_str(balance, date)
+                item['fiat_fee'] = fx.historical_value_str(fee, date)
             out.append(item)
+        if progress_callback:
+            progress_callback(1.0)  # indicate done, just in case client code expects a 1.0 in order to detect completion
         return out
 
     def get_label(self, tx_hash):

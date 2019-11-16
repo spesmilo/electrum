@@ -333,8 +333,12 @@ class WaitingDialog(WindowModalDialog):
     Note if disable_escape_key is not set, user can hit cancel to prematurely
     close the dialog. Sometimes this is desirable, and sometimes it isn't, hence
     why the option is offered.'''
+
+    _update_progress_sig = pyqtSignal(int)
+
     def __init__(self, parent, message, task, on_success=None, on_error=None, auto_cleanup=True,
-                 *, auto_show=True, auto_exec=False, title=None, disable_escape_key=False):
+                 *, auto_show=True, auto_exec=False, title=None, disable_escape_key=False,
+                 progress_bar=None, progress_min=0, progress_max=0):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
@@ -346,6 +350,15 @@ class WaitingDialog(WindowModalDialog):
         vbox.addWidget(label)
         self.accepted.connect(self.on_accepted)
         self.rejected.connect(self.on_rejected)
+        self._pbar = None
+        if progress_bar:
+            self._pbar = p =QProgressBar()
+            p.setMinimum(progress_min)
+            p.setMaximum(progress_max)
+            if isinstance(progress_bar, str):
+                p.setTitle(progress_bar)
+            self._update_progress_sig.connect(p.setValue)
+            vbox.addWidget(p)
         if auto_show and not auto_exec:
             self.open()
         self.thread = TaskThread(self)
@@ -356,6 +369,16 @@ class WaitingDialog(WindowModalDialog):
 
     def wait(self):
         self.thread.wait()
+
+    def update_progress(self, progress: int):
+        if not self._pbar:
+            return
+        try:
+            progress = int(progress)
+        except (ValueError, TypeError):
+            return
+        else:
+            self._update_progress_sig.emit(progress)
 
     def on_accepted(self):
         self.thread.stop()
@@ -479,15 +502,15 @@ def address_combo(addresses):
     return hbox, addr_combo
 
 
-def filename_field(parent, config, defaultname, select_msg):
+def filename_field(config, defaultname, select_msg):
 
+    gb = QGroupBox(_("Format"))
     vbox = QVBoxLayout()
-    vbox.addWidget(QLabel(_("Format")))
-    gb = QGroupBox("format", parent)
-    b1 = QRadioButton(gb)
+    gb.setLayout(vbox)
+    b1 = QRadioButton()
     b1.setText(_("CSV"))
     b1.setChecked(True)
-    b2 = QRadioButton(gb)
+    b2 = QRadioButton()
     b2.setText(_("JSON"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
@@ -520,7 +543,7 @@ def filename_field(parent, config, defaultname, select_msg):
     b1.clicked.connect(lambda: set_csv(True))
     b2.clicked.connect(lambda: set_csv(False))
 
-    return vbox, filename_e, b1
+    return gb, filename_e, b1
 
 class ElectrumItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):

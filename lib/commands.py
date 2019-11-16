@@ -23,24 +23,27 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
-import datetime
 import argparse
-import json
 import ast
 import base64
-from functools import wraps
-from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
+import datetime
+import json
+import queue
+import sys
+import time
 
-from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
+from functools import wraps
+
 from .import bitcoin
+from .import util
 from .address import Address, AddressError
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
-from .transaction import Transaction, multisig_script, OPReturn
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugins import run_hook
+from .transaction import Transaction, multisig_script, OPReturn
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 
 known_commands = {}
 
@@ -522,21 +525,47 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self, year=None, show_addresses=False, show_fiat=False):
+    def history(self, year=0, show_addresses=False, show_fiat=False, use_net=False, timeout=30.0):
         """Wallet history. Returns the transaction history of your wallet."""
-        kwargs = {'show_addresses': show_addresses,
-                  'fee_calc_timeout' : 1.0 }   # we are aggressive here in how much time we are willing to wait for aynch. fee calc
+        t0 = time.time()
+        year, show_addresses, show_fiat, use_net, timeout = (
+            int(year), bool(show_addresses), bool(show_fiat), bool(use_net),
+            float(timeout) )
+        def time_remaining(): return max(timeout - (time.time()-t0), 0)
+        kwargs = { 'show_addresses'   : show_addresses,
+                   'fee_calc_timeout' : timeout,
+                   'download_inputs'  : use_net,        }
         if year:
-            import time
             start_date = datetime.datetime(year, 1, 1)
             end_date = datetime.datetime(year+1, 1, 1)
             kwargs['from_timestamp'] = time.mktime(start_date.timetuple())
             kwargs['to_timestamp'] = time.mktime(end_date.timetuple())
         if show_fiat:
             from .exchange_rate import FxThread
-            fx = FxThread(self.config, None)
+            fakenet, q = None, None
+            if use_net and time_remaining():
+                class FakeNetwork:
+                    ''' This simply exists to implement trigger_callback which
+                    is the only thing the FX thread calls if you pass it a
+                    'network' object. We use it to get notified of when FX
+                    history has been downloaded. '''
+                    def __init__(self, q):
+                        self.q = q
+                    def trigger_callback(self, *args, **kwargs):
+                        self.q.put(True)
+                q = queue.Queue()
+                fakenet = FakeNetwork(q)
+            fx = FxThread(self.config, fakenet)
             kwargs['fx'] = fx
             fx.run()  # invoke the fx to grab history rates at least once, otherwise results will always contain "No data" (see #1671)
+            if fakenet and q and fx.is_enabled() and fx.get_history_config():
+                # queue.get docs aren't clean on whether 0 means block or don't
+                # block, so we ensure at least 1ms timeout.
+                # we also limit waiting for fx to 10 seconds in case it had
+                # errors.
+                try: q.get(timeout=min(max(time_remaining()/2.0, 0.001), 10.0))
+                except queue.Empty: pass
+                kwargs['fee_calc_timeout'] = time_remaining()  # since we blocked above, recompute time_remaining for kwargs
         return self.wallet.export_history(**kwargs)
 
     @command('w')
@@ -779,41 +808,42 @@ param_descriptions = {
 }
 
 command_options = {
-    'password':    ("-W", "Password"),
-    'new_password':(None, "New Password"),
-    'receiving':   (None, "Show only receiving addresses"),
-    'change':      (None, "Show only change addresses"),
-    'frozen':      (None, "Show only frozen addresses"),
-    'unused':      (None, "Show only unused addresses"),
-    'funded':      (None, "Show only funded addresses"),
     'balance':     ("-b", "Show the balances of listed addresses"),
-    'labels':      ("-l", "Show the labels of listed addresses"),
-    'nocheck':     (None, "Do not verify aliases"),
+    'change':      (None, "Show only change addresses"),
+    'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
+    'domain':      ("-D", "List of addresses"),
+    'entropy':     (None, "Custom entropy"),
+    'expiration':  (None, "Time in seconds"),
+    'expired':     (None, "Show only expired requests."),
+    'fee':         ("-f", "Transaction fee (in BCH)"),
+    'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
+    'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
+    'frozen':      (None, "Show only frozen addresses"),
+    'funded':      (None, "Show only funded addresses"),
     'imax':        (None, "Maximum number of inputs"),
     'index_url':   (None, 'Override the URL where you would like users to be shown the BIP70 Payment Request'),
-    'fee':         ("-f", "Transaction fee (in BCH)"),
-    'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
-    'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "Number of bits of entropy"),
-    'entropy':     (None, "Custom entropy"),
+    'labels':      ("-l", "Show the labels of listed addresses"),
     'language':    ("-L", "Default language for wordlist"),
-    'privkey':     (None, "Private key. Set to '?' to get a prompt."),
-    'unsigned':    ("-u", "Do not sign transaction"),
     'locktime':    (None, "Set locktime block number"),
-    'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
-    'expiration':  (None, "Time in seconds"),
-    'timeout':     (None, "Timeout in seconds"),
-    'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
-    'pending':     (None, "Show only pending requests."),
-    'expired':     (None, "Show only expired requests."),
-    'paid':        (None, "Show only paid requests."),
-    'show_addresses': (None, "Show input and output addresses"),
-    'show_fiat':   (None, "Show fiat value of transactions"),
-    'year':        (None, "Show history for a given year"),
-    'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
+    'nbits':       (None, "Number of bits of entropy"),
+    'new_password':(None, "New Password"),
+    'nocheck':     (None, "Do not verify aliases"),
     'op_return':   (None, "Specify string data to add to the transaction as an OP_RETURN output"),
     'op_return_raw': (None, 'Specify raw hex data to add to the transaction as an OP_RETURN output (0x6a aka the OP_RETURN byte will be auto-prepended for you so do not include it)'),
+    'paid':        (None, "Show only paid requests."),
+    'password':    ("-W", "Password"),
+    'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
+    'pending':     (None, "Show only pending requests."),
+    'privkey':     (None, "Private key. Set to '?' to get a prompt."),
+    'receiving':   (None, "Show only receiving addresses"),
+    'show_addresses': (None, "Show input and output addresses"),
+    'show_fiat':   (None, "Show fiat value of transactions"),
+    'timeout':     (None, "Timeout in seconds to wait for the overall operation to complete. Defaults to 30.0."),
+    'unsigned':    ("-u", "Do not sign transaction"),
+    'unused':      (None, "Show only unused addresses"),
+    'use_net':     (None, "Go out to network for accurate fiat value and/or fee calculations for history. If not specified only the wallet's cache is used which may lead to inaccurate/missing fees and/or FX rates."),
+    'year':        (None, "Show history for a given year"),
 }
 
 
