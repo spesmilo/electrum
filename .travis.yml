@@ -1,10 +1,11 @@
 dist: xenial
 language: python
 python:
-    - 3.6
-    - 3.7
+  - 3.6
+  - 3.7
 git:
   depth: false
+
 addons:
   apt:
     sources:
@@ -18,15 +19,15 @@ install:
 cache:
   - pip: true
   - directories:
-    - /tmp/electrum-build
+      - /tmp/electrum-build
 script:
-    - tox
+  - tox
 after_success:
-    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
-    - coveralls
+  - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
+  - coveralls
 jobs:
   include:
-    - name: "Regtest functional tests"
+    - name: 'Regtest functional tests'
       before_install:
         - sudo add-apt-repository -y ppa:bitcoin/bitcoin
         - sudo apt-get -qq update
@@ -35,18 +36,18 @@ jobs:
         - pip install -r contrib/requirements/requirements.txt
         - pip install electrumx
       before_script:
-          - electrum/tests/regtest/start_bitcoind.sh
-          - electrum/tests/regtest/start_electrumx.sh
+        - electrum/tests/regtest/start_bitcoind.sh
+        - electrum/tests/regtest/start_electrumx.sh
       script:
         - python -m unittest electrum/tests/regtest.py
       after_success: True
-    - name: "Flake8 linter tests"
+    - name: 'Flake8 linter tests'
       language: python
       install: pip install flake8
       script: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     - stage: binary builds
       if: branch = master
-      name: "Windows build"
+      name: 'Windows build'
       language: c
       python: false
       env:
@@ -59,7 +60,7 @@ jobs:
         - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       after_success: true
     - if: branch = master
-      name: "Android build"
+      name: 'Android build'
       language: python
       python: 3.7
       services:
@@ -79,7 +80,7 @@ jobs:
         - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
     - if: branch = master
-      name: "MacOS build"
+      name: 'MacOS build'
       os: osx
       language: c
       env:
@@ -91,7 +92,7 @@ jobs:
       after_script: ls -lah dist && md5 dist/*
       after_success: true
     - if: branch = master
-      name: "AppImage build"
+      name: 'AppImage build'
       language: c
       python: false
       services:
@@ -103,7 +104,7 @@ jobs:
       after_success: true
     - stage: release check
       install:
-          - git fetch --all --tags
+        - git fetch --all --tags
       script:
         - ./contrib/deterministic-build/check_submodules.sh
       after_success: true
