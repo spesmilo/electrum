@@ -614,7 +614,7 @@ class Transaction:
         self._inputs = None
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
-        self.version = 2
+        self.version = 1
         self.time = int(time.time())
         # by default we assume this is a partial txn;
         # this value will get properly set when deserializing
@@ -992,27 +992,29 @@ class Transaction:
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
         nHashType = int_to_hex(1, 4)  # SIGHASH_ALL
+        nTime = int_to_hex(self.time, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        if self.is_segwit_input(txin):
-            if bip143_shared_txdigest_fields is None:
-                bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
-            hashSequence = bip143_shared_txdigest_fields.hashSequence
-            hashOutputs = bip143_shared_txdigest_fields.hashOutputs
-            outpoint = self.serialize_outpoint(txin)
-            preimage_script = self.get_preimage_script(txin)
-            scriptCode = var_int(len(preimage_script) // 2) + preimage_script
-            amount = int_to_hex(txin['value'], 8)
-            nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
-        else:
-            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if txin_index==k else '')
-                                                   for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
+        # if self.is_segwit_input(txin):
+        #     if bip143_shared_txdigest_fields is None:
+        #         bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
+        #     hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
+        #     hashSequence = bip143_shared_txdigest_fields.hashSequence
+        #     hashOutputs = bip143_shared_txdigest_fields.hashOutputs
+        #     outpoint = self.serialize_outpoint(txin)
+        #     preimage_script = self.get_preimage_script(txin)
+        #     scriptCode = var_int(len(preimage_script) // 2) + preimage_script
+        #     amount = int_to_hex(txin['value'], 8)
+        #     nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
+        #     preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+        # else:
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if txin_index==k else '')
+                                                for k, txin in enumerate(inputs))
+        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+        preimage = nVersion + nTime + txins + txouts + nLocktime + nHashType
+
         return preimage
 
     def is_segwit(self, guess_for_address=False):
@@ -1020,7 +1022,7 @@ class Transaction:
             return self._segwit_ser
         return any(self.is_segwit_input(x, guess_for_address=guess_for_address) for x in self.inputs())
 
-    def serialize(self, estimate_size=False, witness=True):
+    def serialize(self, estimate_size=False, witness=False):
         network_ser = self.serialize_to_network(estimate_size, witness)
         if estimate_size:
             return network_ser
@@ -1030,7 +1032,7 @@ class Transaction:
         else:
             return network_ser
 
-    def serialize_to_network(self, estimate_size=False, witness=True):
+    def serialize_to_network(self, estimate_size=False, witness=False):
         self.deserialize()
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
@@ -1039,17 +1041,17 @@ class Transaction:
         nTime = int_to_hex(self.time, 4)
         txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
-        use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
-        use_segwit_ser_for_actual_use = not estimate_size and \
-                                        (self.is_segwit() or any(txin['type'] == 'address' for txin in inputs))
-        use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
-        if witness and use_segwit_ser:
-            marker = '00'
-            flag = '01'
-            witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
-            return nVersion + marker + flag + txins + txouts + witness + nLocktime
-        else:
-            return nVersion + nTime + txins + txouts + nLocktime
+        # use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
+        # use_segwit_ser_for_actual_use = not estimate_size and \
+        #                                 (self.is_segwit() or any(txin['type'] == 'address' for txin in inputs))
+        # use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
+        # if witness and use_segwit_ser:
+        #     marker = '00'
+        #     flag = '01'
+        #     witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
+        #     return nVersion + marker + flag + txins + txouts + witness + nLocktime
+        # else:
+        return nVersion + nTime + txins + txouts + nLocktime
 
     def txid(self):
         self.deserialize()
@@ -1163,7 +1165,7 @@ class Transaction:
 
     def sign(self, keypairs) -> None:
         # keypairs:  (x_)pubkey -> secret_bytes
-        bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
+        bip143_shared_txdigest_fields = None # self._calc_bip143_shared_txdigest_fields()
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             for j, (pubkey, x_pubkey) in enumerate(zip(pubkeys, x_pubkeys)):
