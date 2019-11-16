@@ -3735,8 +3735,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                                             if Address.is_valid(x))
                         outaddrs_filtered = (x for x in (item.get('output_addresses') or [])
                                              if Address.is_valid(x))
-                        cols.append( ', '.join(inaddrs_filtered) )
-                        cols.append( ', '.join(outaddrs_filtered) )
+                        cols.append( ','.join(inaddrs_filtered) )
+                        cols.append( ','.join(outaddrs_filtered) )
                     lines.append(cols)
                 else:
                     if has_fiat_columns and ccy:
