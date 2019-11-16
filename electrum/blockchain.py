@@ -26,6 +26,7 @@ from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
+import scrypt
 from .crypto import sha256d
 from . import constants
 from .util import bfh, bh2u
@@ -79,7 +80,8 @@ def hash_header(header: dict) -> str:
 
 
 def hash_raw_header(header: str) -> str:
-    return hash_encode(sha256d(bfh(header)))
+    headerBytes = bfh(header)
+    return hash_encode(scrypt.hash(headerBytes, headerBytes, 1024, 1, 1, 32))
 
 
 # key: blockhash hex at forkpoint
@@ -281,7 +283,7 @@ class Blockchain(Logger):
         self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
 
     @classmethod
-    def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
+    def verify_header(cls, header: dict, prev_hash: str, target: int = 0, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
@@ -289,12 +291,12 @@ class Blockchain(Logger):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
-        bits = cls.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+        # bits = cls.target_to_bits(target)
+        # if bits != header.get('bits'):
+        #     raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+        # block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
+        # if block_hash_as_num > target:
+        #     raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
@@ -583,12 +585,12 @@ class Blockchain(Logger):
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
+        # try:
+        #     target = self.get_target(height // 2016 - 1)
+        # except MissingHeader:
+        #     return False
         try:
-            target = self.get_target(height // 2016 - 1)
-        except MissingHeader:
-            return False
-        try:
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash)
         except BaseException as e:
             return False
         return True
