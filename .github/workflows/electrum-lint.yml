@@ -1,0 +1,25 @@
+name: Lint Electrum
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+    - name: Install apt dependencies 
+      uses: sudo add-apt-repository ppa:tah83/secp256k1 && sudo apt-get install -y libsecp256k1-0
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r contrib/requirements/requirements-travis.txt
+    - name: Install Flask8
+      run: pip install flake8
+    - name: Lint Code
+      run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
