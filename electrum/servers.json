@@ -1,9 +1,8 @@
 {
-"gozwhpes24mi2bk7.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"qz6pnufyqjexudq6.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"t4c6rftkx673mlqv.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"xvgmxegahtdodsar.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"sdy3qdnlhza7xrpv.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"6rxv3qczpwirlfdv.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"},
-"imr7gkexmosvblnh.onion":{"pruning": "-","s":"50002","t":"50001","version": "1.4"}
+  "electrum.marpmedev.xyz": {
+    "pruning": "-",
+    "s": "50002",
+    "t": "50001",
+    "version": "1.4"
+  }
 }
