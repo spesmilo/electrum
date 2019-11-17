@@ -180,7 +180,8 @@ class TxDialog(Factory.Popup):
         else:
             self.fee_str = _('unknown')
             self.feerate_str = _('unknown')
-        self.ids.output_list.update(self.tx.outputs())
+        self.ids.output_list.update(self.tx.outputs())                
+        self.ids.output_list.data[0]['background_color'] = (0.9,0,0,1)
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
 

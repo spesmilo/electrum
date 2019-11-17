@@ -67,6 +67,17 @@
             size_hint_x: None
             size: '30dp', '30dp'
 
+            
+<BackgroundColor@Widget>
+    background_color: 1, 1, 1, 1
+    canvas.before:
+        Color:
+            rgba: root.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
+<BackgroundTopLabelExtended@TopLabelExtended+BackgroundColor>
+    background_color: 0, 0, 0, 0            
 
 
 #########################
@@ -88,11 +99,13 @@
 <OutputItem>
     address: ''
     value: ''
+    background_color: 1, 1, 1, 1
     size_hint_y: None
     height: max(lbl1.height, lbl2.height)
-    TopLabel
+    BackgroundTopLabelExtended
         id: lbl1
         text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        background_color: root.background_color 
         font_size: '6pt'
         shorten: True
         size_hint_x: 0.65
