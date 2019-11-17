@@ -213,16 +213,17 @@ class OutputList(RecycleView):
         res = []
         for o in outputs:
             value = self.app.format_amount_and_units(o.value)
-            res.append({'address': o.get_ui_address_str(), 'value': value, 'background_color': (0.3, 0.3, 0.3, 1), 'color': (1, 1, 1, 1)})
+            res.append({
+                    'address': o.get_ui_address_str(),
+                    'value': value,
+                    'background_color': (0.3, 0.3, 0.3, 1),
+                    'color': (1, 1, 1, 1)})
         self.data = res
 
 
 class TopLabel(Factory.Label):
     pass
 
-
-class TopLabelExtended(TopLabel):
-    pass
 
 
 class RefLabel(TopLabel):

@@ -76,7 +76,7 @@
         Rectangle:
             size: self.size
             pos: self.pos
-<BackgroundTopLabelExtended@TopLabelExtended+BackgroundColor>
+<BackgroundTopLabel@TopLabel+BackgroundColor>
     background_color: 0, 0, 0, 0            
 
 
@@ -99,11 +99,11 @@
 <OutputItem>
     address: ''
     value: ''
-    background_color: 1, 1, 1, 1
+    background_color: 0, 0, 0, 1
     color: 1, 1, 1, 1
     size_hint_y: None
     height: max(lbl1.height, lbl2.height)
-    BackgroundTopLabelExtended
+    BackgroundTopLabel
         id: lbl1
         text: '[ref=%s]%s[/ref]'%(root.address, root.address)
         background_color: root.background_color 

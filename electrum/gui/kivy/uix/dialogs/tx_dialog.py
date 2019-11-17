@@ -180,22 +180,25 @@ class TxDialog(Factory.Popup):
         else:
             self.fee_str = _('unknown')
             self.feerate_str = _('unknown')
-        self.ids.output_list.update(self.tx.outputs())        
+        self.ids.output_list.update(self.tx.outputs())
 
-        def text_format(addr):            
+        def text_format(addr):
             """
-            Chooses the appropriate text color and background color to mark receiving, change and billing addresses.
-            returns: color, background_color
+            Chooses the appropriate text color and background color to 
+            mark receiving, change and billing addresses.
+
+            Returns: color, background_color
             """
             if self.wallet.is_mine(addr):
-                return ((0,0,0,1), (1, 1, 0, 1)) if self.wallet.is_change(addr) else ((0,0,0,1), (0.541, 0.95, 0.56, 1))
+                return (((0, 0, 0, 1), (1, 1, 0, 1)) if self.wallet.is_change(addr)
+                    else ((0, 0, 0, 1), (0.541, 0.95, 0.56, 1)))
             elif self.wallet.is_billing_address(addr):
-                return ((1,1,1,1), (0,0,1,1))
-            return ((1,1,1,1), (0.3,0.3,0.3,1))
+                return ((1, 1, 1, 1), (0, 0, 1, 1))
+            return ((1, 1, 1, 1), (0.3, 0.3, 0.3, 1))
 
         for data in self.ids.output_list.data:
             data['color'], data['background_color'] = text_format(data['address'])
-            
+
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
 
