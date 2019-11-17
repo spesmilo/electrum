@@ -100,6 +100,7 @@
     address: ''
     value: ''
     background_color: 1, 1, 1, 1
+    color: 1, 1, 1, 1
     size_hint_y: None
     height: max(lbl1.height, lbl2.height)
     BackgroundTopLabelExtended
@@ -107,6 +108,7 @@
         text: '[ref=%s]%s[/ref]'%(root.address, root.address)
         background_color: root.background_color 
         font_size: '6pt'
+        color: root.color
         shorten: True
         size_hint_x: 0.65
         on_ref_press:
