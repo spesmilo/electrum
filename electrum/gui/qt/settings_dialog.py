@@ -171,8 +171,6 @@ open. For this to work, your computer needs to be online regularly.""")
         def on_wt_url():
             url = self.watchtower_url_e.text() or None
             watchtower_url = self.config.set_key('watchtower_url', url)
-            if url:
-                self.lnwatcher.set_remote_watchtower()
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
 
