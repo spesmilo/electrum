@@ -33,12 +33,9 @@ jobs:
       - name: Set version env
         run: echo ::set-env name=RELEASE_VERSION::$(echo ${GITHUB_REF:10})
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Shopify/upload-to-release
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/electrum-${{ env.RELEASE_VERSION }}.dmg
-          asset_name: electrum-${{ env.RELEASE_VERSION }}.dmg
-          asset_content_type: application/x-apple-diskimage
+          name: electrum-${{ env.RELEASE_VERSION }}.dmg
+          path: ./dist/electrum-${{ env.RELEASE_VERSION }}.dmg
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          content-type: application/x-apple-diskimage
