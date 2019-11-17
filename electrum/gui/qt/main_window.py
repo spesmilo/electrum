@@ -1984,7 +1984,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_coincontrol_statusbar(self):
         self.coincontrol_sb = sb = QStatusBar()
         sb.setSizeGripEnabled(False)
-        sb.setFixedHeight(3 * char_width_in_lineedit())
+        #sb.setFixedHeight(3 * char_width_in_lineedit())
         sb.setStyleSheet('QStatusBar::item {border: None;} '
                          + ColorScheme.GREEN.as_stylesheet(True))
 
