@@ -10,6 +10,7 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
+from kivy.utils import get_color_from_hex
 
 from .question import Question
 from electrum.gui.kivy.i18n import _
@@ -189,12 +190,19 @@ class TxDialog(Factory.Popup):
 
             Returns: color, background_color
             """
+            
+            # modified colors (textcolor, background_color) from electrum/gui/qt/util.py
+            GREEN = ("#000000", "#8af296")
+            YELLOW = ("#000000", "#ffff00")
+            BLUE = ("#000000", "#8cb3f2")
+            DEFAULT = ('#ffffff', '#4c4c4c')
+
+            colors = DEFAULT
             if self.wallet.is_mine(addr):
-                return (((0, 0, 0, 1), (1, 1, 0, 1)) if self.wallet.is_change(addr)
-                    else ((0, 0, 0, 1), (0.541, 0.95, 0.56, 1)))
+                colors = YELLOW if self.wallet.is_change(addr) else GREEN
             elif self.wallet.is_billing_address(addr):
-                return ((1, 1, 1, 1), (0, 0, 1, 1))
-            return ((1, 1, 1, 1), (0.3, 0.3, 0.3, 1))
+                colors = BLUE
+            return (get_color_from_hex(color) for color in colors)
 
         for data in self.ids.output_list.data:
             data['color'], data['background_color'] = text_format(data['address'])
