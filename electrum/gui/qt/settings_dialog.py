@@ -52,7 +52,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, InvoiceError)
 
-from .amountedit import AmountEdit, XVGAmountEdit, MyLineEdit, FeerateEdit
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
                    WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,

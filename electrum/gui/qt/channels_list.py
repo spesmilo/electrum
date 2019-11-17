@@ -14,7 +14,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id
 
 from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog
-from .amountedit import XVGAmountEdit
+from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
 
@@ -170,9 +170,9 @@ class ChannelsList(MyTreeView):
         local_nodeid.setReadOnly(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
-        local_amt_inp = XVGAmountEdit(self.parent.get_decimal_point)
+        local_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
         local_amt_inp.setAmount(200000)
-        push_amt_inp = XVGAmountEdit(self.parent.get_decimal_point)
+        push_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
         push_amt_inp.setAmount(0)
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
         h.addWidget(local_nodeid, 0, 1)

@@ -251,7 +251,7 @@ class ElectrumWindow(App):
     def decimal_point(self):
         return base_units[self.base_unit]
 
-    def XVG_to_fiat(self, amount_str):
+    def btc_to_fiat(self, amount_str):
         if not amount_str:
             return ''
         if not self.fx.is_enabled():
@@ -262,7 +262,7 @@ class ElectrumWindow(App):
         fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
         return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.')
 
-    def fiat_to_XVG(self, fiat_amount):
+    def fiat_to_btc(self, fiat_amount):
         if not fiat_amount:
             return ''
         rate = self.fx.exchange_rate()

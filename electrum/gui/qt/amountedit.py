@@ -81,7 +81,7 @@ class AmountEdit(MyLineEdit):
         self.setText("%d"%x)
 
 
-class XVGAmountEdit(AmountEdit):
+class BTCAmountEdit(AmountEdit):
 
     def __init__(self, decimal_point, is_int=False, parent=None):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
@@ -112,7 +112,7 @@ class XVGAmountEdit(AmountEdit):
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
 
 
-class FeerateEdit(XVGAmountEdit):
+class FeerateEdit(BTCAmountEdit):
 
     def __init__(self, decimal_point, is_int=False, parent=None):
         super().__init__(decimal_point, is_int, parent)
@@ -122,7 +122,7 @@ class FeerateEdit(XVGAmountEdit):
         return 'sat/byte'
 
     def get_amount(self):
-        sat_per_byte_amount = XVGAmountEdit.get_amount(self)
+        sat_per_byte_amount = BTCAmountEdit.get_amount(self)
         return quantize_feerate(sat_per_byte_amount)
 
     def setAmount(self, amount):

@@ -581,15 +581,15 @@ class FxThread(ThreadJob):
             return Decimal('NaN')
         return Decimal(rate)
 
-    def format_amount(self, XVG_balance):
+    def format_amount(self, btc_balance):
         rate = self.exchange_rate()
-        return '' if rate.is_nan() else "%s" % self.value_str(XVG_balance, rate)
+        return '' if rate.is_nan() else "%s" % self.value_str(btc_balance, rate)
 
-    def format_amount_and_units(self, XVG_balance):
+    def format_amount_and_units(self, btc_balance):
         rate = self.exchange_rate()
-        return '' if rate.is_nan() else "%s %s" % (self.value_str(XVG_balance, rate), self.ccy)
+        return '' if rate.is_nan() else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
-    def get_fiat_status_text(self, XVG_balance, base_unit, decimal_point):
+    def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
         return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)

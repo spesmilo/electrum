@@ -1026,8 +1026,8 @@ class LNWallet(LNWorker):
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
-        amount_XVG = amount_sat/Decimal(COIN) if amount_sat else None
-        lnaddr = LnAddr(payment_hash, amount_XVG,
+        amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
+        lnaddr = LnAddr(payment_hash, amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                               ('x', expiry)]
