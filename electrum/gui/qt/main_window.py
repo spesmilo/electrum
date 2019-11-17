@@ -1488,7 +1488,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             fee=fee_est,
             is_sweep=is_sweep)
         if self.config.get('advanced_preview'):
-            self.preview_tx_dialog(make_tx, outputs, is_sweep=is_sweep, invoice=invoice)
+            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
             return
 
         output_values = [x.value for x in outputs]
@@ -1507,10 +1507,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     self.broadcast_or_show(tx, invoice=invoice)
             self.sign_tx_with_password(tx, sign_done, password, external_keypairs)
         else:
-            self.preview_tx_dialog(make_tx, outputs, is_sweep=is_sweep, invoice=invoice)
+            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
 
-    def preview_tx_dialog(self, make_tx, outputs, is_sweep=False, invoice=None):
-        d = PreviewTxDialog(make_tx, outputs, is_sweep, window=self, invoice=invoice)
+    def preview_tx_dialog(self, make_tx, outputs, external_keypairs=None, invoice=None):
+        d = PreviewTxDialog(make_tx, outputs, external_keypairs, window=self, invoice=invoice)
         d.show()
 
     def broadcast_or_show(self, tx, invoice=None):
