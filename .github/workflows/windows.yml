@@ -47,7 +47,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/electrum-${{ env.RELEASE_VERSION }}-portable.exe
+          asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}-portable.exe
           asset_name: electrum-portable.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
@@ -57,7 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/electrum-${{ env.RELEASE_VERSION }}.exe
+          asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}.exe
           asset_name: electrum.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
@@ -67,6 +67,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/electrum-${{ env.RELEASE_VERSION }}-setup.exe
+          asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}-setup.exe
           asset_name: electrum-setup.exe
           asset_content_type: application/vnd.microsoft.portable-executable
