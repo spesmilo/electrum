@@ -19,17 +19,6 @@ jobs:
       - name: Build MacOS electrum
         run: ./contrib/osx/make_osx
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
       - name: Set version env
         run: echo ::set-env name=RELEASE_VERSION::$(echo ${GITHUB_REF:10})
 
