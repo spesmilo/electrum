@@ -45,7 +45,7 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
-    from .plugins.hw_wallet import HW_PluginBase
+    from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase
 
 
 class KeyStore(Logger):
@@ -703,7 +703,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def ready_to_sign(self):
         return super().ready_to_sign() and self.has_usable_connection_with_device()
 
-    def opportunistically_fill_in_missing_info_from_device(self, client):
+    def opportunistically_fill_in_missing_info_from_device(self, client: 'HardwareClientBase'):
         assert client is not None
         if self._root_fingerprint is None:
             # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
@@ -711,6 +711,9 @@ class Hardware_KeyStore(KeyStore, Xpub):
             child_of_root_xpub = client.get_xpub("m/0'", xtype='standard')
             root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
             self._root_fingerprint = root_fingerprint
+            self.is_requesting_to_be_rewritten_to_wallet_file = True
+        if self.label != client.label():
+            self.label = client.label()
             self.is_requesting_to_be_rewritten_to_wallet_file = True
 
 
