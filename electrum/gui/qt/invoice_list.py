@@ -154,9 +154,10 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if invoice['status'] == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
-        log = self.parent.wallet.lnworker.logs.get(key)
-        if log:
-            menu.addAction(_("View log"), lambda: self.show_log(key, log))
+        if(self.parent.wallet.lnworker is not None):
+            log = self.parent.wallet.lnworker.logs.get(key)
+            if log:
+                menu.addAction(_("View log"), lambda: self.show_log(key, log))
         menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
         menu.exec_(self.viewport().mapToGlobal(position))
 
