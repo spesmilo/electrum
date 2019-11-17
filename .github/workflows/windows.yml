@@ -47,6 +47,8 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
         asset_path: ./dist/electrum-*-portable.exe
+        asset_name: electrum-portable.exe
+        asset_content_type: application/vnd.microsoft.portable-executable
       
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1.0.1
@@ -55,6 +57,8 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist/electrum-*.exe
+        asset_name: electrum.exe
+        asset_content_type: application/vnd.microsoft.portable-executable
     
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1.0.1
@@ -63,3 +67,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist/electrum-*-setup.exe
+        asset_name: electrum-setup.exe
+        asset_content_type: application/vnd.microsoft.portable-executable
