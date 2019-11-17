@@ -48,7 +48,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}-portable.exe
-          asset_name: electrum-portable.exe
+          asset_name: electrum-${{ env.RELEASE_VERSION }}-portable.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       - name: Upload Release Asset
@@ -58,7 +58,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}.exe
-          asset_name: electrum.exe
+          asset_name: electrum-${{ env.RELEASE_VERSION }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       - name: Upload Release Asset
@@ -68,5 +68,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./contrib/build-wine/dist/electrum-${{ env.RELEASE_VERSION }}-setup.exe
-          asset_name: electrum-setup.exe
+          asset_name: electrum-${{ env.RELEASE_VERSION }}-setup.exe
           asset_content_type: application/vnd.microsoft.portable-executable
