@@ -12,3 +12,4 @@ bitstring
 pycryptodomex>=3.7
 jsonrpcserver
 jsonrpcclient
+scrypto>=0.8.13
