@@ -314,7 +314,7 @@ class HardwarePluginToScan(NamedTuple):
     exception: Optional[Exception]
 
 
-PLACEHOLDER_HW_CLIENT_LABELS = {"", " "}
+PLACEHOLDER_HW_CLIENT_LABELS = {None, "", " "}
 
 
 class DeviceMgr(ThreadJob):
@@ -511,7 +511,7 @@ class DeviceMgr(ThreadJob):
               'receive will be unspendable.').format(plugin.device))
 
     def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices: List['Device'] = None,
-                              include_failing_clients=False):
+                              include_failing_clients=False) -> List['DeviceInfo']:
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
         if not plugin.libraries_available:

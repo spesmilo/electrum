@@ -159,7 +159,7 @@ class HardwareClientBase:
         """True if initialized, False if wiped."""
         raise NotImplementedError()
 
-    def label(self) -> str:
+    def label(self) -> Optional[str]:
         """The name given by the user to the device.
 
         Note: labels are shown to the user to help distinguish their devices,
