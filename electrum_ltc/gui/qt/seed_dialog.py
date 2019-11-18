@@ -152,7 +152,7 @@ class SeedLayout(QVBoxLayout):
         bip39_english_list = Mnemonic('en').wordlist
         old_list = electrum_ltc.old_mnemonic.words
         only_old_list = set(old_list) - set(bip39_english_list)
-        self.wordlist = bip39_english_list + list(only_old_list)  # concat both lists
+        self.wordlist = list(bip39_english_list) + list(only_old_list)  # concat both lists
         self.wordlist.sort()
 
         class CompleterDelegate(QStyledItemDelegate):

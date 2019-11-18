@@ -46,10 +46,12 @@ from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
 from .lnrouter import fee_for_edge_msat
+from .lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker, LNGossip, LNWallet
     from .lnrouter import RouteEdge
+    from .transaction import PartialTransaction
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
@@ -479,12 +481,8 @@ class Peer(Logger):
         return local_config
 
     @log_exceptions
-    async def channel_establishment_flow(self, password: Optional[str], funding_sat: int,
+    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
                                          push_msat: int, temp_channel_id: bytes) -> Channel:
-        wallet = self.lnworker.wallet
-        # dry run creating funding tx to see if we even have enough funds
-        funding_tx_test = wallet.mktx(outputs=[PartialTxOutput.from_address_and_value(wallet.dummy_address(), funding_sat)],
-                                      password=password, nonlocal_only=True)
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -555,16 +553,19 @@ class Peer(Logger):
             initial_msat=push_msat,
             reserve_sat = remote_reserve_sat,
             htlc_minimum_msat = htlc_min,
-
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
             revocation_store=their_revocation_store,
         )
-        # create funding tx
+        # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = PartialTxOutput.from_address_and_value(funding_address, funding_sat)
-        funding_tx = wallet.mktx(outputs=[funding_output], password=password, nonlocal_only=True)
+        dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
+        funding_tx.outputs().remove(dummy_output)
+        funding_tx.add_outputs([funding_output])
+        funding_tx.set_rbf(False)
+        self.lnworker.wallet.sign_transaction(funding_tx, password)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction

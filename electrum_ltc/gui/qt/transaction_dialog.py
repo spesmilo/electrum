@@ -92,13 +92,14 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', invoice=None,
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved, finalized: bool):
+    def __init__(self, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
         # We want to be a top-level window
         QDialog.__init__(self, parent=None)
         self.tx = None  # type: Optional[Transaction]
+        self.external_keypairs = external_keypairs
         self.finalized = finalized
         self.main_window = parent
         self.config = parent.config
@@ -602,9 +603,9 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, inputs, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
-        TxEditor.__init__(self, window, inputs, outputs, external_keypairs)
-        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False, finalized=False)
+    def __init__(self, make_tx, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
+        TxEditor.__init__(self, window, make_tx, outputs, is_sweep=bool(external_keypairs))
+        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False, finalized=False, external_keypairs=external_keypairs)
         self.update_tx()
         self.update()
 

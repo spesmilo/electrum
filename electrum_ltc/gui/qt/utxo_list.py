@@ -58,8 +58,6 @@ class UTXOList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.LABEL,
                          editable_columns=[])
-        self.cc_label = QLabel('')
-        self.clear_cc_button = EnterButton(_('Reset'), lambda: self.set_spend_list([]))
         self.spend_list = []  # type: Sequence[str]
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -76,14 +74,16 @@ class UTXOList(MyTreeView):
         for idx, utxo in enumerate(utxos):
             self.insert_utxo(idx, utxo)
         self.filter()
-        self.clear_cc_button.setEnabled(bool(self.spend_list))
-        # update cc_label
+        # update coincontrol status bar
         coins = [self.utxo_dict[x] for x in self.spend_list] or utxos
         coins = self._filter_frozen_coins(coins)
         amount = sum(x.value_sats() for x in coins)
         amount_str = self.parent.format_amount_and_units(amount)
         num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(utxos))
-        self.cc_label.setText(f'{num_outputs_str}, {amount_str}')
+        if self.spend_list:
+            self.parent.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
+        else:
+            self.parent.set_coincontrol_msg(None)
 
     def insert_utxo(self, idx, utxo: PartialTxInput):
         address = utxo.address
@@ -144,13 +144,6 @@ class UTXOList(MyTreeView):
         utxo_set = {utxo.prevout.to_str() for utxo in current_wallet_utxos}
         if not all([prevout_str in utxo_set for prevout_str in self.spend_list]):
             self.spend_list = []
-
-    def get_toolbar(self):
-        h = QHBoxLayout()
-        h.addWidget(self.cc_label)
-        h.addStretch()
-        h.addWidget(self.clear_cc_button)
-        return h
 
     def create_menu(self, position):
         selected = self.get_selected_outpoints()

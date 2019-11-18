@@ -51,18 +51,17 @@ if TYPE_CHECKING:
 
 class TxEditor:
 
-    def __init__(self, window: 'ElectrumWindow', inputs, outputs, external_keypairs):
+    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
         self.main_window = window
-        self.outputs = outputs
-        self.get_coins = inputs
+        self.make_tx = make_tx
+        self.output_value = output_value
         self.tx = None  # type: Optional[Transaction]
         self.config = window.config
         self.wallet = window.wallet
-        self.external_keypairs = external_keypairs
         self.not_enough_funds = False
         self.no_dynfee_estimates = False
         self.needs_update = False
-        self.password_required = self.wallet.has_keystore_encryption() and not external_keypairs
+        self.password_required = self.wallet.has_keystore_encryption() and not is_sweep
         self.main_window.gui_object.timer.timeout.connect(self.timer_actions)
 
     def timer_actions(self):
@@ -86,17 +85,8 @@ class TxEditor:
 
     def update_tx(self):
         fee_estimator = self.get_fee_estimator()
-        is_sweep = bool(self.external_keypairs)
-        coins = self.get_coins()
-        # deepcopy outputs because '!' is converted to number
-        outputs = copy.deepcopy(self.outputs)
-        make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
-            coins=coins,
-            outputs=outputs,
-            fee=fee_est,
-            is_sweep=is_sweep)
         try:
-            self.tx = make_tx(fee_estimator)
+            self.tx = self.make_tx(fee_estimator)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
         except NotEnoughFunds:
@@ -107,7 +97,7 @@ class TxEditor:
             self.no_dynfee_estimates = True
             self.tx = None
             try:
-                self.tx = make_tx(0)
+                self.tx = self.make_tx(0)
             except BaseException:
                 return
         except InternalAddressCorruption as e:
@@ -131,9 +121,9 @@ class TxEditor:
 class ConfirmTxDialog(TxEditor, WindowModalDialog):
     # set fee and return password (after pw check)
 
-    def __init__(self, window: 'ElectrumWindow', inputs, outputs, external_keypairs):
+    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
 
-        TxEditor.__init__(self, window, inputs, outputs, external_keypairs)
+        TxEditor.__init__(self, window, make_tx, output_value, is_sweep)
         WindowModalDialog.__init__(self, window, _("Confirm Transaction"))
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -218,9 +208,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
 
     def update(self):
         tx = self.tx
-        output_values = [x.value for x in self.outputs]
-        is_max = '!' in output_values
-        amount = tx.output_value() if is_max else sum(output_values)
+        amount = tx.output_value() if self.output_value == '!' else self.output_value
         self.amount_label.setText(self.main_window.format_amount_and_units(amount))
 
         if self.not_enough_funds:

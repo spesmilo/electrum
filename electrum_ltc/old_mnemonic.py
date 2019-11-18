@@ -26,7 +26,7 @@
 
 # list of words from http://en.wiktionary.org/wiki/Wiktionary:Frequency_lists/Contemporary_poetry
 
-words = [
+words = (
 "like",
 "just",
 "love",
@@ -1653,7 +1653,8 @@ words = [
 "unseen",
 "weapon",
 "weary",
-]
+)
+_words_indexes = {w: i for i, w in enumerate(words)}
 
 n = len(words)
 assert n == 1626
@@ -1679,9 +1680,9 @@ def mn_decode( wlist ):
     out = ''
     for i in range(len(wlist)//3):
         word1, word2, word3 = wlist[3*i:3*i+3]
-        w1 =  words.index(word1)
-        w2 = (words.index(word2))%n
-        w3 = (words.index(word3))%n
+        w1 =  _words_indexes[word1]
+        w2 = (_words_indexes[word2]) % n
+        w3 = (_words_indexes[word3]) % n
         x = w1 +n*((w2-w1)%n) +n*n*((w3-w2)%n)
         out += '%08x'%x
     return out
