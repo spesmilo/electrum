@@ -1428,7 +1428,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.wallet.lnworker:
                 self.show_error(_('Lightning is disabled'))
                 return
-            return self.wallet.lnworker.parse_bech32_invoice(invoice)
+            invoice_dict = self.wallet.lnworker.parse_bech32_invoice(invoice)
+            if invoice_dict.get('amount') is None:
+                amount = self.amount_e.get_amount()
+                if amount:
+                    invoice_dict['amount'] = amount
+                else:
+                    self.show_error(_('No amount'))
+                    return
+            return invoice_dict
         else:
             outputs = self.read_outputs()
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
