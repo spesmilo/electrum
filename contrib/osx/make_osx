@@ -19,6 +19,10 @@ cd $src_dir/../..
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty --always`
 
+export LDFLAGS="-L/usr/local/opt/openssl/lib"
+export CPPFLAGS="-I/usr/local/opt/openssl/include"
+
+
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
@@ -116,9 +120,6 @@ rm -fr build
 xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
 popd
 DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
-
-export LDFLAGS="-L/usr/local/opt/openssl/lib"
-export CPPFLAGS="-I/usr/local/opt/openssl/include"
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || \
