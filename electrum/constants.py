@@ -61,14 +61,14 @@ class BitcoinMainnet(AbstractNet):
 
     TESTNET = False
     WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    ADDRTYPE_P2PKH = 78
+    ADDRTYPE_P2SH = 60
+    SEGWIT_HRP = "royale"
+    GENESIS = "0000000028ce26975b32feda3d75ac3fe10372f75062366cfba4e934dcc6a48b"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
-    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
@@ -88,10 +88,7 @@ class BitcoinMainnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 0
     LN_REALM_BYTE = 0
-    LN_DNS_SEEDS = [
-        'nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
-    ]
+    LN_DNS_SEEDS = []
 
 
 class BitcoinTestnet(AbstractNet):
@@ -124,10 +121,7 @@ class BitcoinTestnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
-    LN_DNS_SEEDS = [
-        'test.nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
-    ]
+    LN_DNS_SEEDS = []
 
 
 class BitcoinRegtest(BitcoinTestnet):
