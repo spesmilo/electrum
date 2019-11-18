@@ -845,10 +845,10 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def _pay(self, invoice, amount_sat=None, attempts=1):
-        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
-        amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
+        amount = int(lnaddr.amount * COIN)
         status = self.get_payment_status(payment_hash)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
@@ -856,7 +856,6 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
         info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
         self.save_payment_info(info)
-        self._check_invoice(invoice, amount_sat)
         self.wallet.set_label(key, lnaddr.get_description())
         log = self.logs[key]
         for i in range(attempts):
