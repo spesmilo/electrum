@@ -8,7 +8,7 @@ from collections import namedtuple
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set
 import re
 
-from .util import bfh, bh2u, inv_dict
+from .util import bfh, bh2u, inv_dict, UserFacingException
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
@@ -118,13 +118,13 @@ class LightningError(Exception): pass
 class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
-class PaymentFailure(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
+class PaymentFailure(UserFacingException): pass
 
 # TODO make some of these values configurable?
 DEFAULT_TO_SELF_DELAY = 144

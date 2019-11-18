@@ -1394,10 +1394,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount_sat = self.amount_e.get_amount()
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
-            try:
-                self.wallet.lnworker.pay(invoice, amount_sat, attempts)
-            except Exception as e:
-                self.show_error(str(e))
+            self.wallet.lnworker.pay(invoice, amount_sat, attempts)
         self.do_clear()
         self.wallet.thread.add(task)
         self.invoice_list.update()
