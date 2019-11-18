@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QFileDialog
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
-from electrum.simple_config import SimpleConfig
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, get_parent_main_window
 

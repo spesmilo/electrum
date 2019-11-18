@@ -872,22 +872,6 @@ def get_default_language():
     name = QLocale.system().name()
     return name if name in languages else 'en_UK'
 
-class FromList(QTreeWidget):
-    def __init__(self, parent, create_menu):
-        super().__init__(parent)
-        self.setHeaderHidden(True)
-        self.setMaximumHeight(300)
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(create_menu)
-        self.setUniformRowHeights(True)
-        # remove left margin
-        self.setRootIsDecorated(False)
-        self.setColumnCount(2)
-        self.header().setStretchLastSection(False)
-        sm = QHeaderView.ResizeToContents
-        self.header().setSectionResizeMode(0, sm)
-        self.header().setSectionResizeMode(1, sm)
-
 
 def char_width_in_lineedit() -> int:
     char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()

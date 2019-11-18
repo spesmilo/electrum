@@ -24,25 +24,19 @@
 # SOFTWARE.
 
 from typing import TYPE_CHECKING, Optional
-import copy
 
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QWidget, QTextEdit, QLineEdit, QCheckBox
+from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
 
 from electrum.i18n import _
-from electrum.util import quantize_feerate, NotEnoughFunds, NoDynamicFeeEstimates
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.plugin import run_hook
-from electrum.transaction import TxOutput, Transaction
-from electrum.simple_config import SimpleConfig, FEERATE_WARNING_HIGH_FEE
+from electrum.transaction import Transaction
+from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
-from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, FromList, HelpLabel, read_QIcon, char_width_in_lineedit, Buttons, CancelButton, OkButton
-from .util import MONOSPACE_FONT
+from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton
 
 from .fee_slider import FeeSlider
-from .history_list import HistoryList, HistoryModel
-from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

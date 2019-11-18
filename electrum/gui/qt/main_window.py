@@ -38,32 +38,30 @@ import queue
 import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
-from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
+from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
 from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
-                             QSpinBox, QMenuBar, QFileDialog, QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit, QTreeWidgetItem,
+                             QMenuBar, QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QMenu, QSizePolicy, QStatusBar)
+                             QWidget, QSizePolicy, QStatusBar)
 
 import electrum
-from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
-                      coinchooser, paymentrequest)
+from electrum import (keystore, ecc, constants, util, bitcoin, commands,
+                      paymentrequest)
 from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
-                           format_satoshis_plain, NotEnoughFunds,
-                           UserCancelled, NoDynamicFeeEstimates, profiler,
+                           format_satoshis_plain,
+                           UserCancelled, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
-                           base_units, base_units_list, base_unit_name_to_decimal_point,
-                           decimal_point_to_base_unit_name, quantize_feerate,
+                           decimal_point_to_base_unit_name,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI, InvoiceError)
+                           InvalidBitcoinURI)
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import PaymentFailure, SENT, RECEIVED
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
@@ -74,7 +72,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.util import PR_PAID, PR_UNPAID, PR_INFLIGHT, PR_FAILED
+from electrum.util import PR_PAID, PR_FAILED
 from electrum.util import pr_expiration_values
 from electrum.lnutil import ln_dummy_address
 
@@ -85,12 +83,12 @@ from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
-                   WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
+                   WindowModalDialog, ChoicesLayout, HelpLabel, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
-                   ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
+                   import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   MONOSPACE_FONT, TRANSACTION_FILE_EXTENSION_FILTER)
+                   TRANSACTION_FILE_EXTENSION_FILTER)
 from .util import ButtonsTextEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel

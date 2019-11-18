@@ -45,11 +45,10 @@ from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
 from electrum.logging import get_logger
 
-from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton, icon_path,
+from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER)
 

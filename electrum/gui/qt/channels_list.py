@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 import traceback
-import asyncio
 from enum import IntEnum
 
-from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
 
-from electrum.util import inv_dict, bh2u, bfh
+from electrum.util import bh2u
 from electrum.i18n import _
 from electrum.lnchannel import Channel
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog, HelpLabel
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WaitingDialog
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 

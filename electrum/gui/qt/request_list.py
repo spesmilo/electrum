@@ -26,19 +26,14 @@
 from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu, QHeaderView
+from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
-from electrum.util import format_time, age, get_request_status
+from electrum.util import format_time, get_request_status
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
-from electrum.lnutil import SENT, RECEIVED
+from electrum.util import PR_PAID
 from electrum.plugin import run_hook
-from electrum.wallet import InternalAddressCorruption
-from electrum.bitcoin import COIN
-from electrum.lnaddr import lndecode
-import electrum.constants as constants
 
 from .util import MyTreeView, pr_icons, read_QIcon, webopen
 

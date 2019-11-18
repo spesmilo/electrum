@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPalette, QPainter, QFontMetrics
+from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from .util import char_width_in_lineedit
