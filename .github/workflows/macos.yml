@@ -21,10 +21,12 @@ jobs:
 
       - name: Set version env
         run: echo ::set-env name=RELEASE_VERSION::$(echo ${GITHUB_REF:10})
-
-      - uses: Shopify/upload-to-release@1.0.0
+        
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
         with:
-          name: electrum-${{ env.RELEASE_VERSION }}.dmg
-          path: ./dist/electrum-${{ env.RELEASE_VERSION }}.dmg
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          content-type: application/x-apple-diskimage
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./dist/electrum-${{ env.RELEASE_VERSION }}.dmg
+          asset_name: electrum-${{ env.RELEASE_VERSION }}.dmg
+          tag: ${{ github.ref }}
+          overwrite: true
