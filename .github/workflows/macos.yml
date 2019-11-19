@@ -24,7 +24,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k ${{ secrets.CSC_KEY_PASSWORD }} buildagent.keychain
 
       - name: Build MacOS electrum
-        run: ./contrib/osx/make_osx
+        run: ./contrib/osx/make_osx ${{ secrets.SIGN_ID }}
 
       - name: Set version env
         if: startsWith(github.ref, 'refs/tags/')
