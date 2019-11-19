@@ -365,6 +365,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def update(self):
         if not self.finalized:
             self.update_fee_fields()
+            self.finalize_button.setEnabled(self.tx is not None)
         if self.tx is None:
             return
         self.update_io()
@@ -775,6 +776,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
     def on_finalize(self):
+        if not self.tx:
+            return
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
         for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb]:
