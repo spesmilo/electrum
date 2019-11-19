@@ -225,7 +225,9 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, ChangePasswordDialog())
             R.id.menuShowSeed-> { showDialog(this, ShowSeedPasswordDialog()) }
-            R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog())
+            R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog().apply {
+                arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
+            })
             R.id.menuClose -> showDialog(this, CloseWalletDialog())
             else -> throw Exception("Unknown item $item")
         }
@@ -378,31 +380,59 @@ class AboutDialog : AlertDialogFragment() {
 
 
 class OpenWalletDialog : PasswordDialog<String>() {
+    val walletName by lazy { arguments!!.getString("walletName")!! }
+
     override fun onPassword(password: String): String {
-        val name = arguments!!.getString("walletName")!!
-        daemonModel.loadWallet(name, password)
-        return name
+        daemonModel.loadWallet(walletName, password)
+        return walletName
     }
 
     override fun onPostExecute(result: String) {
         daemonModel.commands.callAttr("select_wallet", result)
+    }
+
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        super.onBuildDialog(builder)
+        builder.setNeutralButton(R.string.Delete_wallet, null)
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            showDialog(activity!!, DeleteWalletConfirmDialog().apply {
+                arguments = Bundle().apply { putString("walletName", walletName) }
+            })
+            dismiss()
+        }
     }
 }
 
 
 class DeleteWalletConfirmDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        val message = getString(R.string.do_you_want_to_delete, daemonModel.walletName) +
+        val walletName = arguments!!.getString("walletName")!!
+        val message = getString(R.string.do_you_want_to_delete, walletName) +
                       "\n\n" + getString(R.string.if_your)
         builder.setTitle(R.string.confirm_delete)
             .setMessage(message)
             .setPositiveButton(R.string.delete, { _, _ ->
-                showDialog(activity!!, DeleteWalletDialog())})
+                showDialog(activity!!, DeleteWalletDialog().apply {
+                    arguments = Bundle().apply { putString("walletName", walletName) }
+                })
+            })
             .setNegativeButton(android.R.string.cancel, null)
     }
 }
 
+
 class DeleteWalletDialog : CloseWalletDialog() {
+    override fun onPreExecute() {
+        walletName = arguments!!.getString("walletName")!!
+        if (walletName == daemonModel.walletName) {
+            daemonModel.commands.callAttr("select_wallet", null)
+        }
+    }
+
     override fun doInBackground() {
         super.doInBackground()
         daemonModel.commands.callAttr("delete_wallet", walletName)
