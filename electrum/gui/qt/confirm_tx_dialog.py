@@ -23,14 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.plugin import run_hook
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, PartialTransaction
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
@@ -45,11 +45,12 @@ if TYPE_CHECKING:
 
 class TxEditor:
 
-    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx,
+                 output_value: Union[int, str] = None, is_sweep: bool):
         self.main_window = window
         self.make_tx = make_tx
         self.output_value = output_value
-        self.tx = None  # type: Optional[Transaction]
+        self.tx = None  # type: Optional[PartialTransaction]
         self.config = window.config
         self.wallet = window.wallet
         self.not_enough_funds = False
@@ -115,9 +116,9 @@ class TxEditor:
 class ConfirmTxDialog(TxEditor, WindowModalDialog):
     # set fee and return password (after pw check)
 
-    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], is_sweep: bool):
 
-        TxEditor.__init__(self, window, make_tx, output_value, is_sweep)
+        TxEditor.__init__(self, window=window, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         WindowModalDialog.__init__(self, window, _("Confirm Transaction"))
         vbox = QVBoxLayout()
         self.setLayout(vbox)

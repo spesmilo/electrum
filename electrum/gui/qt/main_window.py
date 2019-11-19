@@ -1478,7 +1478,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def get_manually_selected_coins(self) -> Sequence[PartialTxInput]:
         return self.utxo_list.get_spend_list()
 
-    def pay_onchain_dialog(self, inputs, outputs, invoice=None, external_keypairs=None):
+    def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
+                           outputs: List[PartialTxOutput], *,
+                           invoice=None, external_keypairs=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1493,11 +1495,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_("More than one output set to spend max"))
             return
         if self.config.get('advanced_preview'):
-            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
+            self.preview_tx_dialog(make_tx=make_tx,
+                                   external_keypairs=external_keypairs,
+                                   invoice=invoice)
             return
 
         output_value = '!' if '!' in output_values else sum(output_values)
-        d = ConfirmTxDialog(self, make_tx, output_value, is_sweep)
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         d.update_tx()
         if d.not_enough_funds:
             self.show_message(_('Not Enough Funds'))
@@ -1509,15 +1513,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             def sign_done(success):
                 if success:
                     self.broadcast_or_show(tx, invoice=invoice)
-            self.sign_tx_with_password(tx, sign_done, password, external_keypairs)
+            self.sign_tx_with_password(tx, callback=sign_done, password=password,
+                                       external_keypairs=external_keypairs)
         else:
-            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
+            self.preview_tx_dialog(make_tx=make_tx,
+                                   external_keypairs=external_keypairs,
+                                   invoice=invoice)
 
-    def preview_tx_dialog(self, make_tx, outputs, external_keypairs=None, invoice=None):
-        d = PreviewTxDialog(make_tx, outputs, external_keypairs, window=self, invoice=invoice)
+    def preview_tx_dialog(self, *, make_tx, external_keypairs=None, invoice=None):
+        d = PreviewTxDialog(make_tx=make_tx, external_keypairs=external_keypairs,
+                            window=self, invoice=invoice)
         d.show()
 
-    def broadcast_or_show(self, tx, invoice=None):
+    def broadcast_or_show(self, tx, *, invoice=None):
         if not self.network:
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
             self.show_transaction(tx, invoice=invoice)
@@ -1527,10 +1535,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.broadcast_transaction(tx, invoice=invoice)
 
     @protected
-    def sign_tx(self, tx, callback, external_keypairs, password):
-        self.sign_tx_with_password(tx, callback, password, external_keypairs=external_keypairs)
+    def sign_tx(self, tx, *, callback, external_keypairs, password):
+        self.sign_tx_with_password(tx, callback=callback, password=password, external_keypairs=external_keypairs)
 
-    def sign_tx_with_password(self, tx: PartialTransaction, callback, password, external_keypairs=None):
+    def sign_tx_with_password(self, tx: PartialTransaction, *, callback, password, external_keypairs=None):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
@@ -1606,7 +1614,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # we need to know the fee before we broadcast, because the txid is required
         # however, the user must not be allowed to broadcast early
         make_tx = self.mktx_for_open_channel(funding_sat)
-        d = ConfirmTxDialog(self, make_tx, funding_sat, False)
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, is_sweep=False)
         cancelled, is_send, password, funding_tx = d.run()
         if not is_send:
             return

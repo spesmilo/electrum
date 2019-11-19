@@ -291,7 +291,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
-        self.main_window.sign_tx(self.tx, sign_done, self.external_keypairs)
+        self.main_window.sign_tx(self.tx, callback=sign_done, external_keypairs=self.external_keypairs)
 
     def save(self):
         self.main_window.push_top_level_window(self)
@@ -601,9 +601,10 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, make_tx, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
-        TxEditor.__init__(self, window, make_tx, outputs, is_sweep=bool(external_keypairs))
-        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False, finalized=False, external_keypairs=external_keypairs)
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow', invoice):
+        TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
+        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False,
+                              finalized=False, external_keypairs=external_keypairs)
         self.update_tx()
         self.update()
 
