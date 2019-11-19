@@ -1,28 +1,35 @@
 name: MacOS build
 
-on:
-  push:
-    # Sequence of patterns matched against refs/tags
-    tags:
-      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
-
 jobs:
   build:
     runs-on: macOS-latest
 
     steps:
       - uses: actions/checkout@v1
+
       - name: Set up Python 3.7
         uses: actions/setup-python@v1
         with:
           python-version: 3.7
+
+      - name: add macOS signing certificate
+        run: |
+          security create-keychain -p ${{ secrets.CSC_KEY_PASSWORD }} buildagent.keychain
+          security unlock-keychain -p ${{ secrets.CSC_KEY_PASSWORD }} buildagent.keychain
+          security list-keychains -d user -s buildagent.keychain
+          security default-keychain -s buildagent.keychain
+          security import ./contrib/osx/DeveloperIDApplication.p12 -k buildagent.keychain -P ${{ secrets.CSC_KEY_PASSWORD }} -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ${{ secrets.CSC_KEY_PASSWORD }} buildagent.keychain
+
       - name: Build MacOS electrum
         run: ./contrib/osx/make_osx
 
       - name: Set version env
+        if: startsWith(github.ref, 'refs/tags/')
         run: echo ::set-env name=RELEASE_VERSION::$(echo ${GITHUB_REF:10})
-        
+
       - name: Upload binaries to release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
