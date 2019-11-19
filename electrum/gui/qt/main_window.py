@@ -1292,12 +1292,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             is_sweep=False)
 
         tx = make_tx(None)
-        amount = tx.output_value()#sum(x.value_sats() for x in self.get_coins())
-        self.amount_e.setAmount(amount)
-        ## substract extra fee
-        #__, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
-        #amount_after_all_fees = amount - x_fee_amount
-        #self.amount_e.setAmount(amount_after_all_fees)
+        amount = tx.output_value()
+        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+        amount_after_all_fees = amount - x_fee_amount
+        self.amount_e.setAmount(amount_after_all_fees)
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)
