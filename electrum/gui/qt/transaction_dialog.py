@@ -579,6 +579,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def on_finalize(self):
         pass  # overridden in subclass
 
+    def update_fee_fields(self):
+        pass  # overridden in subclass
+
 
 class TxDetailLabel(QLabel):
     def __init__(self, *, word_wrap=None):
@@ -752,7 +755,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             displayed_feerate = self.feerate_e.get_amount()
             if displayed_feerate is not None:
                 displayed_feerate = quantize_feerate(displayed_feerate)
-            else:
+            elif self.fee_slider.is_active():
                 # fallback to actual fee
                 displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
@@ -770,7 +773,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             self.feerate_e.setAmount(displayed_feerate)
 
         # show/hide fee rounding icon
-        feerounding = (fee - displayed_fee) if fee else 0
+        feerounding = (fee - displayed_fee) if (fee and displayed_fee is not None) else 0
         self.set_feerounding_text(int(feerounding))
         self.feerounding_icon.setToolTip(self.feerounding_text)
         self.feerounding_icon.setVisible(abs(feerounding) >= 1)
