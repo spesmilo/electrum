@@ -642,7 +642,7 @@ def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
     return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
-def quantize_feerate(fee):
+def quantize_feerate(fee) -> Union[None, Decimal, int]:
     """Strip sat/byte fee rate of excess precision."""
     if fee is None:
         return None

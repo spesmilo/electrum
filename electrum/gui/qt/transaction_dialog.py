@@ -693,9 +693,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
                                  .format(num_satoshis_added))
 
     def get_fee_estimator(self):
-        if self.is_send_fee_frozen():
+        if self.is_send_fee_frozen() and self.fee_e.get_amount() is not None:
             fee_estimator = self.fee_e.get_amount()
-        elif self.is_send_feerate_frozen():
+        elif self.is_send_feerate_frozen() and self.feerate_e.get_amount() is not None:
             amount = self.feerate_e.get_amount()  # sat/byte feerate
             amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
             fee_estimator = partial(
