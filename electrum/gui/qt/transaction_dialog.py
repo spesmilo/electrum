@@ -70,9 +70,6 @@ class QTextEditWithDefaultSize(QTextEdit):
         return QSize(0, 100)
 
 
-SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
-SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
-
 
 _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
@@ -142,12 +139,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         b.clicked.connect(self.do_broadcast)
 
         self.save_button = b = QPushButton(_("Save"))
-        save_button_disabled = False #not tx.is_complete()
-        b.setDisabled(save_button_disabled)
-        if save_button_disabled:
-            b.setToolTip(SAVE_BUTTON_DISABLED_TOOLTIP)
-        else:
-            b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
         b.clicked.connect(self.save)
 
         self.cancel_button = b = QPushButton(_("Close"))
@@ -295,8 +286,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             if self.tx.is_complete():
                 self.prompt_if_unsaved = True
                 self.saved = False
-                self.save_button.setDisabled(False)
-                self.save_button.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
             self.update()
             self.main_window.pop_top_level_window(self)
 
@@ -448,6 +437,12 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 widget.menuAction().setVisible(show_psbt_only_widgets)
             else:
                 widget.setVisible(show_psbt_only_widgets)
+
+        self.save_button.setEnabled(tx_details.can_save_as_local)
+        if tx_details.can_save_as_local:
+            self.save_button.setToolTip(_("Save transaction offline"))
+        else:
+            self.save_button.setToolTip(_("Transaction already saved or not yet signed."))
 
         run_hook('transaction_dialog_update', self)
 

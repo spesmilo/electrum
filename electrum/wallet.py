@@ -202,6 +202,7 @@ class TxWalletDetails(NamedTuple):
     label: str
     can_broadcast: bool
     can_bump: bool
+    can_save_as_local: bool
     amount: Optional[int]
     fee: Optional[int]
     tx_mined_status: TxMinedInfo
@@ -464,6 +465,7 @@ class Abstract_Wallet(AddressSynchronizer):
         exp_n = None
         can_broadcast = False
         can_bump = False
+        can_save_as_local = False
         label = ''
         tx_hash = tx.txid()
         tx_mined_status = self.get_tx_height(tx_hash)
@@ -491,6 +493,7 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
+                can_save_as_local = is_relevant
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
@@ -512,6 +515,7 @@ class Abstract_Wallet(AddressSynchronizer):
             label=label,
             can_broadcast=can_broadcast,
             can_bump=can_bump,
+            can_save_as_local=can_save_as_local,
             amount=amount,
             fee=fee,
             tx_mined_status=tx_mined_status,
