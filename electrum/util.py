@@ -889,6 +889,15 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
+def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+    lower = data.lower()
+    if lower.startswith('lightning:ln'):
+        lower = lower[10:]
+    if lower.startswith('ln'):
+        return lower
+    return None
+
+
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3

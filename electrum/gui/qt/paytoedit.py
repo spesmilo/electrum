@@ -25,12 +25,12 @@
 
 import re
 from decimal import Decimal
-from typing import NamedTuple, Sequence, Optional, List
+from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics
 
 from electrum import bitcoin
-from electrum.util import bfh
+from electrum.util import bfh, maybe_extract_bolt11_invoice
 from electrum.transaction import push_script, PartialTxOutput
 from electrum.bitcoin import opcodes
 from electrum.logging import Logger
@@ -39,6 +39,10 @@ from electrum.lnaddr import LnDecodeException
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
@@ -54,7 +58,7 @@ class PayToLineError(NamedTuple):
 
 class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
-    def __init__(self, win):
+    def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
         Logger.__init__(self)
@@ -140,16 +144,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             if data.startswith("bitcoin:"):
                 self.win.pay_to_URI(data)
                 return
-            lower = data.lower()
-            if lower.startswith("lightning:ln"):
-                lower = lower[10:]
-            if lower.startswith("ln"):
+            bolt11_invoice = maybe_extract_bolt11_invoice(data)
+            if bolt11_invoice is not None:
                 try:
-                    self.win.parse_lightning_invoice(lower)
+                    self.win.parse_lightning_invoice(bolt11_invoice)
                 except LnDecodeException as e:
                     self.errors.append(PayToLineError(idx=0, line_content=data, exc=e))
                 else:
-                    self.lightning_invoice = lower
+                    self.lightning_invoice = bolt11_invoice
                 return
             try:
                 self.payto_scriptpubkey = self.parse_output(data)

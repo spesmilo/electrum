@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING, Optional
 
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet import Wallet, InternalAddressCorruption
-from electrum.util import profiler, InvalidPassword, send_exception_to_crash_reporter
 from electrum.plugin import run_hook
-from electrum.util import format_satoshis, format_satoshis_plain, format_fee_satoshis
-from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_FAILED, PR_INFLIGHT
+from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
+                           format_satoshis, format_satoshis_plain, format_fee_satoshis,
+                           PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from .i18n import _
@@ -385,7 +385,7 @@ class ElectrumWindow(App):
             self.send_screen.do_clear()
 
     def on_qr(self, data):
-        from electrum.bitcoin import base_decode, is_address
+        from electrum.bitcoin import is_address
         data = data.strip()
         if is_address(data):
             self.set_URI(data)
@@ -393,8 +393,9 @@ class ElectrumWindow(App):
         if data.startswith('bitcoin:'):
             self.set_URI(data)
             return
-        if data.startswith('ln'):
-            self.set_ln_invoice(data)
+        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        if bolt11_invoice is not None:
+            self.set_ln_invoice(bolt11_invoice)
             return
         # try to decode transaction
         from electrum.transaction import tx_from_any
