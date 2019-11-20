@@ -1471,7 +1471,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             raise Exception('unknown invoice type')
 
-    def get_coins(self, nonlocal_only=False):
+    def get_coins(self, *, nonlocal_only=False):
         coins = self.get_manually_selected_coins()
         return coins or self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
 
@@ -2949,7 +2949,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         is_final = cb.isChecked()
         new_fee_rate = feerate_e.get_amount()
         try:
-            new_tx = self.wallet.bump_fee(tx=tx, new_fee_rate=new_fee_rate)
+            new_tx = self.wallet.bump_fee(tx=tx, new_fee_rate=new_fee_rate, coins=self.get_coins())
         except CannotBumpFee as e:
             self.show_error(str(e))
             return
