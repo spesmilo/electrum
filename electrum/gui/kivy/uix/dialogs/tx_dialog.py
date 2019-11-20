@@ -204,8 +204,8 @@ class TxDialog(Factory.Popup):
                 colors = BLUE
             return (get_color_from_hex(color) for color in colors)
 
-        for data in self.ids.output_list.data:
-            data['color'], data['background_color'] = text_format(data['address'])
+        for dict_entry in self.ids.output_list.data:
+            dict_entry['color'], dict_entry['background_color'] = text_format(dict_entry['address'])
 
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
