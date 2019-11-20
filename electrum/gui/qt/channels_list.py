@@ -202,6 +202,12 @@ class ChannelsList(MyTreeView):
         remote_nodeid.setCursorPosition(0)
         if not d.exec_():
             return
-        funding_sat = '!' if max_button.isChecked() else amount_e.get_amount()
+        if max_button.isChecked() and amount_e.get_amount() < LN_MAX_FUNDING_SAT:
+            # if 'max' enabled and amount is strictly less than max allowed,
+            # that means we have fewer coins than max allowed, and hence we can
+            # spend all coins
+            funding_sat = '!'
+        else:
+            funding_sat = amount_e.get_amount()
         connect_str = str(remote_nodeid.text()).strip()
         self.parent.open_channel(connect_str, funding_sat, 0)

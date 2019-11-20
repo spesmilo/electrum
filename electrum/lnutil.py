@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
-LN_MAX_FUNDING_SAT = pow(2, 24)
+LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
