@@ -13,7 +13,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
 from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WaitingDialog
-from .amountedit import BTCAmountEdit
+from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .channel_details import ChannelDetailsDialog
 
 
@@ -163,22 +163,24 @@ class ChannelsList(MyTreeView):
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        local_nodeid = QLineEdit()
+        local_nodeid = FreezableLineEdit()
         local_nodeid.setMinimumWidth(700)
         local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
-        local_nodeid.setReadOnly(True)
+        local_nodeid.setFrozen(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
         # max button
         def spend_max():
+            amount_e.setFrozen(max_button.isChecked())
+            if not max_button.isChecked():
+                return
             make_tx = self.parent.mktx_for_open_channel('!')
             tx = make_tx(None)
             amount = tx.output_value()
             amount = min(amount, LN_MAX_FUNDING_SAT)
             amount_e.setAmount(amount)
-            amount_e.setFrozen(True)
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)

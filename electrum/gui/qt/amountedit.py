@@ -13,7 +13,7 @@ from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_nam
                            FEERATE_PRECISION, quantize_feerate)
 
 
-class MyLineEdit(QLineEdit):
+class FreezableLineEdit(QLineEdit):
     frozen = pyqtSignal()
 
     def setFrozen(self, b):
@@ -21,7 +21,7 @@ class MyLineEdit(QLineEdit):
         self.setFrame(not b)
         self.frozen.emit()
 
-class AmountEdit(MyLineEdit):
+class AmountEdit(FreezableLineEdit):
     shortcut = pyqtSignal()
 
     def __init__(self, base_unit, is_int=False, parent=None):

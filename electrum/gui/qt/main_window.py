@@ -77,7 +77,7 @@ from electrum.util import pr_expiration_values
 from electrum.lnutil import ln_dummy_address
 
 from .exception_window import Exception_Hook
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
+from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -1212,7 +1212,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
               + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
         description_label = HelpLabel(_('Description'), msg)
         grid.addWidget(description_label, 2, 0)
-        self.message_e = MyLineEdit()
+        self.message_e = FreezableLineEdit()
         self.message_e.setMinimumWidth(700)
         grid.addWidget(self.message_e, 2, 1, 1, -1)
 
