@@ -680,21 +680,6 @@ class Peer(Logger):
         self.lnworker.save_channel(chan)
         self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
-        # TODO make more robust
-        while True:
-            try:
-                funding_tx = Transaction(await self.network.get_transaction(funding_txid))
-            except NetworkException as e:
-                print("sleeping", str(e))
-                await asyncio.sleep(1)
-            else:
-                break
-        outp = funding_tx.outputs()[funding_idx]
-        redeem_script = funding_output_script(chan.config[REMOTE], chan.config[LOCAL])
-        funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
-        if not (outp.address == funding_address and outp.value == funding_sat):
-            chan.set_state('DISCONNECTED')
-            raise Exception('funding outpoint mismatch')
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')

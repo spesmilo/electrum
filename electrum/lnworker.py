@@ -41,6 +41,8 @@ from .ecc import der_sig_from_sig_string
 from .ecc_fast import is_using_fast_ecc
 from .lnchannel import Channel, ChannelJsonEncoder
 from . import lnutil
+from .lnutil import funding_output_script
+from .bitcoin import redeem_script_to_address
 from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -604,19 +606,32 @@ class LNWallet(LNWorker):
         if it's also deep enough, also save to disk.
         Returns tuple (mined_deep_enough, num_confirmations).
         """
-        conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
-        if conf > 0:
-            block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
-            assert tx_pos >= 0
-            chan.short_channel_id_predicted = ShortChannelID.from_components(
-                block_height, tx_pos, chan.funding_outpoint.output_index)
-        if conf >= chan.constraints.funding_txn_minimum_depth > 0:
-            chan.short_channel_id = chan.short_channel_id_predicted
-            self.logger.info(f"save_short_channel_id: {chan.short_channel_id}")
-            self.save_channel(chan)
-            self.on_channels_updated()
-        else:
+        funding_txid = chan.funding_outpoint.txid
+        funding_idx = chan.funding_outpoint.output_index
+        conf = self.lnwatcher.get_tx_height(funding_txid).conf
+        if conf < chan.constraints.funding_txn_minimum_depth:
             self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
+            return
+        assert conf > 0
+        # check funding_tx amount and script
+        funding_tx = self.lnwatcher.db.get_transaction(funding_txid)
+        if not funding_tx:
+            self.logger.info(f"no funding_tx {funding_txid}")
+            return
+        outp = funding_tx.outputs()[funding_idx]
+        redeem_script = funding_output_script(chan.config[REMOTE], chan.config[LOCAL])
+        funding_address = redeem_script_to_address('p2wsh', redeem_script)
+        funding_sat = chan.constraints.capacity
+        if not (outp.address == funding_address and outp.value == funding_sat):
+            self.logger.info('funding outpoint mismatch')
+            return
+        block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
+        assert tx_pos >= 0
+        chan.short_channel_id = ShortChannelID.from_components(
+            block_height, tx_pos, chan.funding_outpoint.output_index)
+        self.logger.info(f"save_short_channel_id: {chan.short_channel_id}")
+        self.save_channel(chan)
+        self.on_channels_updated()
 
     def channel_by_txo(self, txo):
         with self.lock:
