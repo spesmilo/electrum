@@ -259,6 +259,12 @@ class PayServer(Logger):
 class AuthenticationError(Exception):
     pass
 
+class AuthenticationInvalidOrMissing(AuthenticationError):
+    pass
+
+class AuthenticationCredentialsInvalid(AuthenticationError):
+    pass
+
 class Daemon(Logger):
 
     @profiler
@@ -302,23 +308,26 @@ class Daemon(Logger):
             return
         auth_string = headers.get('Authorization', None)
         if auth_string is None:
-            raise AuthenticationError('CredentialsMissing')
+            raise AuthenticationInvalidOrMissing('CredentialsMissing')
         basic, _, encoded = auth_string.partition(' ')
         if basic != 'Basic':
-            raise AuthenticationError('UnsupportedType')
+            raise AuthenticationInvalidOrMissing('UnsupportedType')
         encoded = to_bytes(encoded, 'utf8')
         credentials = to_string(b64decode(encoded), 'utf8')
         username, _, password = credentials.partition(':')
         if not (constant_time_compare(username, self.rpc_user)
                 and constant_time_compare(password, self.rpc_password)):
             await asyncio.sleep(0.050)
-            raise AuthenticationError('Invalid Credentials')
+            raise AuthenticationCredentialsInvalid('Invalid Credentials')
 
     async def handle(self, request):
         async with self.auth_lock:
             try:
                 await self.authenticate(request.headers)
-            except AuthenticationError:
+            except AuthenticationInvalidOrMissing:
+                return web.Response(headers={"WWW-Authenticate": "Basic realm=Electrum"},
+                                    text='Unauthorized', status=401)
+            except AuthenticationCredentialsInvalid:
                 return web.Response(text='Forbidden', status=403)
         request = await request.text()
         response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
