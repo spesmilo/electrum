@@ -817,7 +817,9 @@ class Abstract_Wallet(AddressSynchronizer):
         conf = tx_mined_info.conf
         timestamp = tx_mined_info.timestamp
         if height == TX_HEIGHT_FUTURE:
-            return 2, 'in %d blocks'%conf
+            assert conf < 0, conf
+            num_blocks_remainining = -conf
+            return 2, f'in {num_blocks_remainining} blocks'
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
             if not tx:

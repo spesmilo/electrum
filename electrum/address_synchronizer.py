@@ -80,7 +80,7 @@ class AddressSynchronizer(Logger):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {} # txid -> blocks remaining
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> blocks remaining
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -566,7 +566,8 @@ class AddressSynchronizer(Logger):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def add_future_tx(self, tx: Transaction, num_blocks):
+    def add_future_tx(self, tx: Transaction, num_blocks: int) -> None:
+        assert num_blocks > 0, num_blocks
         with self.lock:
             self.add_transaction(tx.txid(), tx)
             self.future_tx[tx.txid()] = num_blocks
@@ -581,9 +582,9 @@ class AddressSynchronizer(Logger):
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
             elif tx_hash in self.future_tx:
-                # FIXME this is ugly
-                conf = self.future_tx[tx_hash]
-                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=conf)
+                num_blocks_remainining = self.future_tx[tx_hash]
+                assert num_blocks_remainining > 0, num_blocks_remainining
+                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
