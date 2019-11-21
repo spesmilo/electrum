@@ -19,11 +19,12 @@ from electrum.logging import Logger
 
 
 class UpdateCheck(QWidget, Logger):
-    url = "https://electrum.org/version"
+    # TODO: update this to server's IP
+    url = "http://127.0.0.1/version"
     download_url = "https://electrum.org/#download"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
-        "13xjmVAB1EATPP8RshTE8S8sNwwSUM9p1P",
+        "YhK3ULRcNB7Nrqeif3qLUqsFTcngxJsba9",
     )
 
     def __init__(self, main_window, latest_version=None):
