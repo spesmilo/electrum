@@ -1,7 +1,7 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = Electrum Royale
 
 # (str) Package name
 package.name = Electrum
