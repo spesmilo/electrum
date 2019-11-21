@@ -868,7 +868,7 @@ class Peer(Logger):
             return
         elif should_close_we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
-            self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.force_close_channel(chan_id)
             return
 
         # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
@@ -1218,7 +1218,7 @@ class Peer(Logger):
         if chan.get_state() != "OPEN":
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry >= 500_000_000:
-            self.lnworker.force_close_channel(channel_id)
+            asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry >= 500_000_000. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
