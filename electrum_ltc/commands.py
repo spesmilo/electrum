@@ -34,6 +34,7 @@ import operator
 import asyncio
 import inspect
 from functools import wraps, partial
+from itertools import repeat
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
 
@@ -549,7 +550,7 @@ class Commands:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr, wallet)
-        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr)
+        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address, wallet)

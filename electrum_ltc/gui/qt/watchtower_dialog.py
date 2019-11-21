@@ -25,11 +25,10 @@
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QDialog, QWidget, QLabel, QVBoxLayout, QCheckBox,
-                             QGridLayout, QPushButton, QLineEdit, QTabWidget)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton)
 
 from electrum_ltc.i18n import _
-from .util import HelpLabel, MyTreeView, Buttons
+from .util import MyTreeView, Buttons
 
 
 class WatcherList(MyTreeView):

@@ -202,6 +202,7 @@ class TxWalletDetails(NamedTuple):
     label: str
     can_broadcast: bool
     can_bump: bool
+    can_save_as_local: bool
     amount: Optional[int]
     fee: Optional[int]
     tx_mined_status: TxMinedInfo
@@ -464,6 +465,7 @@ class Abstract_Wallet(AddressSynchronizer):
         exp_n = None
         can_broadcast = False
         can_bump = False
+        can_save_as_local = False
         label = ''
         tx_hash = tx.txid()
         tx_mined_status = self.get_tx_height(tx_hash)
@@ -491,6 +493,7 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
+                can_save_as_local = is_relevant
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
@@ -512,6 +515,7 @@ class Abstract_Wallet(AddressSynchronizer):
             label=label,
             can_broadcast=can_broadcast,
             can_bump=can_bump,
+            can_save_as_local=can_save_as_local,
             amount=amount,
             fee=fee,
             tx_mined_status=tx_mined_status,
@@ -813,7 +817,9 @@ class Abstract_Wallet(AddressSynchronizer):
         conf = tx_mined_info.conf
         timestamp = tx_mined_info.timestamp
         if height == TX_HEIGHT_FUTURE:
-            return 2, 'in %d blocks'%conf
+            assert conf < 0, conf
+            num_blocks_remainining = -conf
+            return 2, f'in {num_blocks_remainining} blocks'
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
             if not tx:
@@ -1093,9 +1099,11 @@ class Abstract_Wallet(AddressSynchronizer):
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
 
-    def bump_fee(self, *, tx: Transaction, new_fee_rate) -> PartialTransaction:
+    def bump_fee(self, *, tx: Transaction, new_fee_rate: Union[int, float, Decimal],
+                 coins: Sequence[PartialTxInput] = None) -> PartialTransaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
+        'coins' is a list of UTXOs we can choose from as potential new inputs to be added
         """
         if tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
@@ -1114,7 +1122,7 @@ class Abstract_Wallet(AddressSynchronizer):
             # method 1: keep all inputs, keep all not is_mine outputs,
             #           allow adding new inputs
             tx_new = self._bump_fee_through_coinchooser(
-                tx=tx, new_fee_rate=new_fee_rate)
+                tx=tx, new_fee_rate=new_fee_rate, coins=coins)
             method_used = 1
         except CannotBumpFee:
             # method 2: keep all inputs, no new inputs are added,
@@ -1135,7 +1143,8 @@ class Abstract_Wallet(AddressSynchronizer):
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
         return tx_new
 
-    def _bump_fee_through_coinchooser(self, *, tx: Transaction, new_fee_rate) -> PartialTransaction:
+    def _bump_fee_through_coinchooser(self, *, tx: Transaction, new_fee_rate: Union[int, Decimal],
+                                      coins: Sequence[PartialTxInput] = None) -> PartialTransaction:
         tx = PartialTransaction.from_tx(tx)
         tx.add_info_from_wallet(self)
         old_inputs = list(tx.inputs())
@@ -1160,7 +1169,10 @@ class Abstract_Wallet(AddressSynchronizer):
         if not fixed_outputs:
             raise CannotBumpFee(_('Cannot bump fee') + ': could not figure out which outputs to keep')
 
-        coins = self.get_spendable_coins(None)
+        if coins is None:
+            coins = self.get_spendable_coins(None)
+        # make sure we don't try to spend output from the tx-to-be-replaced:
+        coins = [c for c in coins if c.prevout.txid.hex() != tx.txid()]
         for item in coins:
             self.add_input_info(item)
         def fee_estimator(size):
@@ -1176,7 +1188,8 @@ class Abstract_Wallet(AddressSynchronizer):
         except NotEnoughFunds as e:
             raise CannotBumpFee(e)
 
-    def _bump_fee_through_decreasing_outputs(self, *, tx: Transaction, new_fee_rate) -> PartialTransaction:
+    def _bump_fee_through_decreasing_outputs(self, *, tx: Transaction,
+                                             new_fee_rate: Union[int, Decimal]) -> PartialTransaction:
         tx = PartialTransaction.from_tx(tx)
         tx.add_info_from_wallet(self)
         inputs = tx.inputs()

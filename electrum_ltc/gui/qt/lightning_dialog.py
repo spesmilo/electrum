@@ -23,20 +23,21 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QDialog, QWidget, QLabel, QVBoxLayout, QCheckBox,
-                             QGridLayout, QPushButton, QLineEdit, QTabWidget)
+from typing import TYPE_CHECKING
+
+from PyQt5.QtWidgets import (QDialog, QLabel, QVBoxLayout, QPushButton)
 
 from electrum_ltc.i18n import _
-from .util import HelpLabel, MyTreeView, Buttons
 
+from .util import Buttons
 
+if TYPE_CHECKING:
+    from . import ElectrumGui
 
 
 class LightningDialog(QDialog):
 
-    def __init__(self, gui_object):
+    def __init__(self, gui_object: 'ElectrumGui'):
         QDialog.__init__(self)
         self.gui_object = gui_object
         self.config = gui_object.config

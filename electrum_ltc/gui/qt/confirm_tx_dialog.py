@@ -23,26 +23,20 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Optional
-import copy
+from typing import TYPE_CHECKING, Optional, Union
 
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QGridLayout, QPushButton, QWidget, QTextEdit, QLineEdit, QCheckBox
+from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import quantize_feerate, NotEnoughFunds, NoDynamicFeeEstimates
+from electrum_ltc.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.plugin import run_hook
-from electrum_ltc.transaction import TxOutput, Transaction
-from electrum_ltc.simple_config import SimpleConfig, FEERATE_WARNING_HIGH_FEE
+from electrum_ltc.transaction import Transaction, PartialTransaction
+from electrum_ltc.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum_ltc.wallet import InternalAddressCorruption
 
-from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, FromList, HelpLabel, read_QIcon, char_width_in_lineedit, Buttons, CancelButton, OkButton
-from .util import MONOSPACE_FONT
+from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton
 
 from .fee_slider import FeeSlider
-from .history_list import HistoryList, HistoryModel
-from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -51,11 +45,12 @@ if TYPE_CHECKING:
 
 class TxEditor:
 
-    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx,
+                 output_value: Union[int, str] = None, is_sweep: bool):
         self.main_window = window
         self.make_tx = make_tx
         self.output_value = output_value
-        self.tx = None  # type: Optional[Transaction]
+        self.tx = None  # type: Optional[PartialTransaction]
         self.config = window.config
         self.wallet = window.wallet
         self.not_enough_funds = False
@@ -121,9 +116,9 @@ class TxEditor:
 class ConfirmTxDialog(TxEditor, WindowModalDialog):
     # set fee and return password (after pw check)
 
-    def __init__(self, window: 'ElectrumWindow', make_tx, output_value, is_sweep):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], is_sweep: bool):
 
-        TxEditor.__init__(self, window, make_tx, output_value, is_sweep)
+        TxEditor.__init__(self, window=window, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         WindowModalDialog.__init__(self, window, _("Confirm Transaction"))
         vbox = QVBoxLayout()
         self.setLayout(vbox)

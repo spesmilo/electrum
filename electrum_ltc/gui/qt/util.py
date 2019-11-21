@@ -634,10 +634,12 @@ class MyTreeView(QTreeView):
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
             column_data = item_col.text().strip()
-            cc.addAction(column_title, lambda t=column_data: self.place_text_on_clipboard(t))
+            cc.addAction(column_title,
+                         lambda text=column_data, title=column_title:
+                         self.place_text_on_clipboard(text, title=title))
 
-    def place_text_on_clipboard(self, text):
-        self.parent.app.clipboard().setText(text)
+    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+        self.parent.do_copy(text, title=title)
 
 
 class ButtonsWidget(QWidget):
@@ -767,7 +769,6 @@ class ColorScheme:
     YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
-    PURPLE = ColorSchemeItem("#8A2BE2", "#8A2BE2")
     DEFAULT = ColorSchemeItem("black", "white")
 
     @staticmethod
@@ -871,22 +872,6 @@ def read_QIcon(icon_basename):
 def get_default_language():
     name = QLocale.system().name()
     return name if name in languages else 'en_UK'
-
-class FromList(QTreeWidget):
-    def __init__(self, parent, create_menu):
-        super().__init__(parent)
-        self.setHeaderHidden(True)
-        self.setMaximumHeight(300)
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(create_menu)
-        self.setUniformRowHeights(True)
-        # remove left margin
-        self.setRootIsDecorated(False)
-        self.setColumnCount(2)
-        self.header().setStretchLastSection(False)
-        sm = QHeaderView.ResizeToContents
-        self.header().setSectionResizeMode(0, sm)
-        self.header().setSectionResizeMode(1, sm)
 
 
 def char_width_in_lineedit() -> int:

@@ -26,19 +26,14 @@
 from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu, QHeaderView
+from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import format_time, age, get_request_status
+from electrum_ltc.util import format_time, get_request_status
 from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum_ltc.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
-from electrum_ltc.lnutil import SENT, RECEIVED
+from electrum_ltc.util import PR_PAID
 from electrum_ltc.plugin import run_hook
-from electrum_ltc.wallet import InternalAddressCorruption
-from electrum_ltc.bitcoin import COIN
-from electrum_ltc.lnaddr import lndecode
-import electrum_ltc.constants as constants
 
 from .util import MyTreeView, pr_icons, read_QIcon, webopen
 
@@ -166,10 +161,10 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
         if request_type == PR_TYPE_LN:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Lightning Request', req['invoice']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['invoice'], title='Lightning Request'))
         else:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Litecoin URI', req['URI']))
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Litecoin Address', req['address']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['URI'], title='Litecoin URI'))
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req['address'], title='Litecoin Address'))
         if 'view_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
