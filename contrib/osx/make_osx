@@ -150,6 +150,10 @@ plutil -insert 'CFBundleURLTypes' \
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
+
+# cd contrib/osx/notarize && npm i && cd ../../../
+# node contrib/osx/notarize/notarizing.js ./dist/${PACKAGE}.app
+
 info "Creating .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
 
