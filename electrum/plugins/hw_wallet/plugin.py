@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, 
 
 from electrum.plugin import BasePlugin, hook, Device, DeviceMgr
 from electrum.i18n import _
-from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
+from electrum.bitcoin import is_address, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.bip32 import BIP32Node
