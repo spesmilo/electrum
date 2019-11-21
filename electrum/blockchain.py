@@ -282,6 +282,7 @@ class Blockchain(Logger):
 
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
+        return True  # Navcoin POS do not verify header
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
@@ -298,6 +299,7 @@ class Blockchain(Logger):
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
+        self.save_chunk(index, data)
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
         target = self.get_target(index-1)
