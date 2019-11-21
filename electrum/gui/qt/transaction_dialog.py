@@ -261,7 +261,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def copy_to_clipboard(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
-        self.main_window.app.clipboard().setText(str(tx))
+        self.main_window.do_copy(str(tx), title=_("Transaction"))
 
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:

@@ -45,7 +45,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -1115,9 +1115,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.sign_payment_request(addr)
         return addr
 
-    def do_copy(self, title, content):
+    def do_copy(self, content: str, *, title: str = None) -> None:
         self.app.clipboard().setText(content)
-        self.show_message(_(f"{title} copied to clipboard:\n\n{content}"))
+        if title is None:
+            tooltip_text = _("Text copied to clipboard").format(title)
+        else:
+            tooltip_text = _("{} copied to clipboard").format(title)
+        QToolTip.showText(QCursor.pos(), tooltip_text, self)
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)

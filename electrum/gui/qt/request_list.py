@@ -161,10 +161,10 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
         if request_type == PR_TYPE_LN:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Lightning Request', req['invoice']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['invoice'], title='Lightning Request'))
         else:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy('Bitcoin URI', req['URI']))
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Bitcoin Address', req['address']))
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['URI'], title='Bitcoin URI'))
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req['address'], title='Bitcoin Address'))
         if 'view_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))

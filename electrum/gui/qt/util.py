@@ -634,10 +634,12 @@ class MyTreeView(QTreeView):
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
             column_data = item_col.text().strip()
-            cc.addAction(column_title, lambda t=column_data: self.place_text_on_clipboard(t))
+            cc.addAction(column_title,
+                         lambda text=column_data, title=column_title:
+                         self.place_text_on_clipboard(text, title=title))
 
-    def place_text_on_clipboard(self, text):
-        self.parent.app.clipboard().setText(text)
+    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+        self.parent.do_copy(text, title=title)
 
 
 class ButtonsWidget(QWidget):
