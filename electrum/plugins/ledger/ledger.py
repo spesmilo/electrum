@@ -184,7 +184,7 @@ class Ledger_Client(HardwareClientBase):
                 self.dongleObject.verifyPin(pin)
         except BTChipException as e:
             if (e.sw == 0x6faa):
-                raise UserFacingException("Dongle is temporarily locked - please unplug it and replug it again")
+                raise UserFacingException("Ledger is temporarily locked - please unplug it and replug it again")
             if ((e.sw & 0xFFF0) == 0x63c0):
                 raise UserFacingException("Invalid PIN - please unplug the dongle and plug it again before retrying")
             if e.sw == 0x6f00 and e.message == 'Invalid channel':
@@ -282,7 +282,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
             elif e.sw == 0x6985:  # cancelled by user
                 return b''
-            elif e.sw == 0x6982:
+            elif e.sw == 0x6982 or e.sw == 0x6f04:
                 raise  # pin lock. decorator will catch it
             else:
                 self.give_error(e, True)
