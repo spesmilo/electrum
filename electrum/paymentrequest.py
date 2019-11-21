@@ -51,8 +51,8 @@ from .logging import get_logger, Logger
 _logger = get_logger(__name__)
 
 
-REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
+REQUEST_HEADERS = {'Accept': 'application/navcoin-paymentrequest', 'User-Agent': 'Electrum'}
+ACK_HEADERS = {'Content-Type':'application/navcoin-payment','Accept':'application/navcoin-paymentack','User-Agent':'Electrum'}
 
 ca_path = certifi.where()
 ca_list = None
@@ -280,7 +280,7 @@ class PaymentRequest:
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
         ref_out.script = util.bfh(address_to_script(refund_addr))
-        paymnt.memo = "Paid using Electrum"
+        paymnt.memo = "Paid using navElectrum"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
         resp_content = None

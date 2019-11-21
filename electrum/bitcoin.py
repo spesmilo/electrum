@@ -186,6 +186,8 @@ class opcodes(IntEnum):
     OP_NOP9 = 0xb8
     OP_NOP10 = 0xb9
 
+    OP_COINSTAKE = 0xc6
+
     OP_INVALIDOPCODE = 0xff
 
     def hex(self) -> str:
@@ -402,7 +404,7 @@ def script_to_address(script: str, *, net=None) -> str:
 def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
-        raise BitcoinException(f"invalid bitcoin address: {addr}")
+        raise BitcoinException(f"invalid Navcoin address: {addr}")
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
@@ -534,10 +536,10 @@ def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
 # extended WIF for segwit (used in 3.0.x; but still used internally)
 # the keys in this dict should be a superset of what Imported Wallets can import
 WIF_SCRIPT_TYPES = {
-    'p2pkh':0,
+    'p2pkh':53,
     'p2wpkh':1,
     'p2wpkh-p2sh':2,
-    'p2sh':5,
+    'p2sh':85,
     'p2wsh':6,
     'p2wsh-p2sh':7
 }

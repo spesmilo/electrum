@@ -138,7 +138,7 @@ class BaseWizard(Logger):
             ('standard',  _("Standard wallet")),
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('imported',  _("Import Navcoin addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -210,8 +210,8 @@ class BaseWizard(Logger):
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
-        title = _("Import Bitcoin Addresses")
-        message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
+        title = _("Import Navcoin Addresses")
+        message = _("Enter a list of Navcoin addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
@@ -310,7 +310,7 @@ class BaseWizard(Logger):
             if sys.platform == 'win32':
                 msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
                          'and do "Remove device". Then, plug your device again.') + '\n'
-                msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
+                msg += _('While this is less than ideal, it might help if you run navElectrum as Administrator.') + '\n'
             else:
                 msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
             msg += '\n\n'
@@ -620,12 +620,12 @@ class BaseWizard(Logger):
                 _("The type of addresses used by your wallet will depend on your seed."),
                 _("Segwit wallets use bech32 addresses, defined in BIP173."),
                 _("Please note that websites and other wallets may not support these addresses yet."),
-                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
+                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive Navcoins during the transition period.")
             ])
         if choices is None:
             choices = [
-                ('create_segwit_seed', _('Segwit')),
                 ('create_standard_seed', _('Legacy')),
+                ('create_segwit_seed', _('Segwit')),
             ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 

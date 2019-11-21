@@ -89,7 +89,7 @@ ReceiveScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: address_label
-                    text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
+                    text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Navcoin Address'))
                     shorten: True
                     on_release: root.is_lightning = not root.is_lightning if app.wallet.has_lightning() else False
             CardSeparator:

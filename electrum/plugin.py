@@ -504,10 +504,10 @@ class DeviceMgr(ThreadJob):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('Electrum cannot pair with your {}.\n\n'
-              'Before you request bitcoins to be sent to addresses in this '
+            _('navElectrum cannot pair with your {}.\n\n'
+              'Before you request Navcoins to be sent to addresses in this '
               'wallet, ensure you can pair with your device, or that you have '
-              'its seed (and passphrase, if any).  Otherwise all bitcoins you '
+              'its seed (and passphrase, if any).  Otherwise all Navcoins you '
               'receive will be unspendable.').format(plugin.device))
 
     def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices: List['Device'] = None,

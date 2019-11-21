@@ -333,7 +333,7 @@ class Abstract_Wallet(AddressSynchronizer):
             addr = str(addrs[0])
             if not bitcoin.is_address(addr):
                 neutered_addr = addr[:5] + '..' + addr[-2:]
-                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
+                raise WalletFileException(f'The addresses in this wallet are not Navcoin addresses.\n'
                                           f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def calc_unused_change_addresses(self):
@@ -438,7 +438,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
         if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
+            raise Exception(f"Invalid Navcoin address: {address}")
         if not self.is_mine(address):
             raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
@@ -913,7 +913,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
-            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            assert is_address(addr), f"not valid Navcoin address: {addr}"
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
             self.check_address(addr)
@@ -1551,7 +1551,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if req['type'] == PR_TYPE_ONCHAIN:
             addr = req['address']
             if not bitcoin.is_address(addr):
-                raise Exception(_('Invalid Bitcoin address.'))
+                raise Exception(_('Invalid Navcoin address.'))
             if not self.is_mine(addr):
                 raise Exception(_('Address not in wallet.'))
             key = addr

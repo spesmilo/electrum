@@ -38,7 +38,7 @@ except ImportError:
 
 MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + \
                       ' https://www.ledgerwallet.com'
-MSG_NEEDS_FW_UPDATE_SEGWIT = _('Firmware version (or "Bitcoin" app) too old for Segwit support. Please update at') + \
+MSG_NEEDS_FW_UPDATE_SEGWIT = _('Firmware version (or "Navcoin" app) too old for Segwit support. Please update at') + \
                       ' https://www.ledgerwallet.com'
 MULTI_OUTPUT_SUPPORT = '1.1.4'
 SEGWIT_SUPPORT = '1.1.10'

@@ -55,7 +55,7 @@ class SettingsDialog(WindowModalDialog):
         self.need_restart = False
         self.fx = self.window.fx
         self.wallet = self.window.wallet
-        
+
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
@@ -145,7 +145,7 @@ class SettingsDialog(WindowModalDialog):
 
         # lightning
         lightning_widgets = []
-        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
+        help_persist = _("""If this option is checked, navElectrum will persist as a daemon after
 you close all your wallet windows. Your local watchtower will keep
 running, and it will protect your channels even if your wallet is not
 open. For this to work, your computer needs to be online regularly.""")
@@ -224,7 +224,7 @@ open. For this to work, your computer needs to be online regularly.""")
         self.payserver_port_e.setEnabled(self.config.get('run_payserver', False))
         services_widgets.append((payserver_cb, self.payserver_port_e))
 
-        help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
+        help_local_wt = _("""To setup a local watchtower, you must run navElectrum on a machine
 that is always connected to the internet. Configure a port if you want it to be public.""")
         local_wt_cb = QCheckBox(_("Run Watchtower"))
         local_wt_cb.setToolTip(help_local_wt)
@@ -528,7 +528,7 @@ that is always connected to the internet. Configure a port if you want it to be 
         vbox.addStretch(1)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.setLayout(vbox)
-        
+
     def set_alias_color(self):
         if not self.config.get('alias'):
             self.alias_e.setStyleSheet("")

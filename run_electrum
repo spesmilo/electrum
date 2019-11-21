@@ -33,7 +33,7 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 
 if sys.version_info[:3] < _min_python_version_tuple:
-    sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
+    sys.exit("Error: navElectrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -320,7 +320,7 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('bitcoin:'):
+        if not uri.startswith('navcoin:'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 
