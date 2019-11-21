@@ -21,6 +21,7 @@ from kivy.uix.image import Image
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
+from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
@@ -360,7 +361,7 @@ class SendScreen(CScreen):
             self.app.show_error(_("Not enough funds"))
             return
         except Exception as e:
-            traceback.print_exc(file=sys.stdout)
+            Logger.exception('')
             self.app.show_error(repr(e))
             return
         if rbf:
