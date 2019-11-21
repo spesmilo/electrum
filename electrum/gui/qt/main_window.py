@@ -1475,11 +1475,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             raise Exception('unknown invoice type')
 
-    def get_coins(self, *, nonlocal_only=False):
+    def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
-        return coins or self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
+        if coins is not None:
+            return coins
+        else:
+            return self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
 
-    def get_manually_selected_coins(self) -> Sequence[PartialTxInput]:
+    def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
+        """Return a list of selected coins or None.
+        Note: None means selection is not being used,
+              while an empty sequence means the user specifically selected that.
+        """
         return self.utxo_list.get_spend_list()
 
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
@@ -2009,7 +2016,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
-        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list([]))
+        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list(None))
         clear_cc_button.setStyleSheet("margin-right: 5px;")
         sb.addPermanentWidget(clear_cc_button)
 
