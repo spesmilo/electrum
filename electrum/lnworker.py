@@ -670,7 +670,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == channel_states.FUNDED:
             peer = self.peers.get(chan.node_id)
-            if peer:
+            if peer and peer.initialized.is_set():
                 peer.send_funding_locked(chan)
 
         elif chan.get_state() == channel_states.OPEN:
