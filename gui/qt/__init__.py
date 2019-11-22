@@ -77,6 +77,7 @@ class ElectrumGui(QObject, PrintError):
     update_available_signal = pyqtSignal(bool)
     cashaddr_toggled_signal = pyqtSignal()  # app-wide signal for when cashaddr format is toggled. This used to live in each ElectrumWindow instance but it was recently refactored to here.
     cashaddr_status_button_hidden_signal = pyqtSignal(bool)  # app-wide signal for when cashaddr toggle button is hidden from the status bar
+    shutdown_signal = pyqtSignal()  # signal for requesting an app-wide full shutdown
 
     instance = None
 
@@ -142,6 +143,7 @@ class ElectrumGui(QObject, PrintError):
         if self.has_auto_update_check():
             self._start_auto_update_timer(first_run = True)
         self.app.focusChanged.connect(self.on_focus_change)  # track last window the user interacted with
+        self.shutdown_signal.connect(self.close, Qt.QueuedConnection)
         run_hook('init_qt', self)
         # We did this once already in the set_dark_theme call, but we do this
         # again here just in case some plugin modified the color scheme.
@@ -465,7 +467,7 @@ class ElectrumGui(QObject, PrintError):
                     w.hide()
 
     def close(self):
-        for window in self.windows:
+        for window in list(self.windows):
             window.close()
 
     def new_window(self, path, uri=None):
@@ -908,7 +910,7 @@ class ElectrumGui(QObject, PrintError):
         path = self.config.get_wallet_path()
         if not self.start_new_window(path, self.config.get('url')):
             return
-        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
+        signal.signal(signal.SIGINT, lambda signum, frame: self.shutdown_signal.emit())
 
         self.app.setQuitOnLastWindowClosed(True)
         self.app.lastWindowClosed.connect(__class__._quit_after_last_window)
