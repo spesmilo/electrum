@@ -145,7 +145,8 @@ class LNWatcher(AddressSynchronizer):
         self.channels = {}
         self.network = network
         self.network.register_callback(self.on_network_update,
-                                       ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated'])
+                                       ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated', 'fee'])
+
         # status gets populated when we run
         self.channel_status = {}
 
@@ -180,14 +181,14 @@ class LNWatcher(AddressSynchronizer):
         funding_height = self.get_tx_height(funding_txid)
         closing_txid = spenders.get(funding_outpoint)
         if closing_txid is None:
-            self.network.trigger_callback('channel_open', funding_outpoint, funding_txid, funding_height)
+            self.network.trigger_callback('update_open_channel', funding_outpoint, funding_txid, funding_height)
         else:
             closing_height = self.get_tx_height(closing_txid)
             closing_tx = self.db.get_transaction(closing_txid)
             if not closing_tx:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 return
-            self.network.trigger_callback('channel_closed', funding_outpoint, spenders,
+            self.network.trigger_callback('update_closed_channel', funding_outpoint, spenders,
                                           funding_txid, funding_height, closing_txid,
                                           closing_height, closing_tx)  # FIXME sooo many args..
             # TODO: add tests for local_watchtower
