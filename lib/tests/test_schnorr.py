@@ -70,8 +70,13 @@ class TestBlind(unittest.TestCase):
 
         # finalize and unblind the signature
         signature = requester.finalize(s_response)
-
         self.assertTrue(schnorr.verify(pubkey, signature, message_hash))
+
+        # try bastardizing the s response by adding 1 to last byte
+        s_bad = bytearray(s_response)
+        s_bad[-1] = (s_bad[-1] + 1) % 256
+        with self.assertRaises(RuntimeError):
+            signature = requester.finalize(s_bad)
 
     def test_fast(self):
         if not schnorr.seclib:

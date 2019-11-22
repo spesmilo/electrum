@@ -360,6 +360,8 @@ class AddressList(MyTreeWidget):
             menu.addAction(_("Spend from"),
                            partial(self.parent.spend_coins, coins))
 
+        run_hook('address_list_context_menu_setup', self, menu, addrs)
+
         # Add Cash Accounts section at the end, if relevant
         if not multi_select:
             ca_list = item.data(0, self.DataRoles.cash_accounts)

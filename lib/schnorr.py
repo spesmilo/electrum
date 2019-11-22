@@ -432,7 +432,7 @@ class BlindSignatureRequest:
         Rnew_buf = create_string_buffer(64)
         publist = (c_void_p*3)(*(cast(x, c_void_p) for x in (R_buf, A_buf, pubkey_buf)))
         res = seclib.secp256k1_ec_pubkey_combine(ctx, Rnew_buf, publist, 3)
-        assert res == 1, "fails with 2^-256 chance (if sum is point at infinity)"
+        assert res == 1, "fails with 2^-256 chance (if sum is point at infinity), in which case we have cracked the key"
 
         # serialize the new R point
         Rnew_serialized = create_string_buffer(65)
@@ -450,12 +450,19 @@ class BlindSignatureRequest:
         """ returns 32 bytes e value, to be sent to the signer """
         return self.e.to_bytes(32,'big')
 
-    def finalize(self, sbytes):
-        """ expects 32 bytes s value, returns 64 byte finished signature """
+    def finalize(self, sbytes, check = True):
+        """ expects 32 bytes s value, returns 64 byte finished signature
+
+        If check=True (default) this will perform a verification of the result.
+        Upon failure it raises RuntimeError. The cause for this error is that
+        the blind signer has provided an incorrect blinded s value."""
         assert len(sbytes) == 32
 
         s = int.from_bytes(sbytes,'big')
 
         snew = (self.c*(s + self.a)) % self.order
 
-        return self.Rxnew + snew.to_bytes(32,'big')
+        sig = self.Rxnew + snew.to_bytes(32,'big')
+        if check and not verify(self.pubkey, sig, self.message_hash):
+            raise RuntimeError("Blind signature verification failed.")
+        return sig
