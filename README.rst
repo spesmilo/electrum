@@ -125,7 +125,7 @@ Running from source on macOS
 You need to install **either** `MacPorts <https://www.macports.org>`_  **or** `HomeBrew <https://www.brew.sh>`_.  Follow the instructions on either site for installing (Xcode from `Apple's developer site <https://developer.apple.com>`_ is required for either).  
 
 1. After installing either HomeBrew or MacPorts, clone this repository and switch to the directory: ``git clone https://github.com/Electron-Cash/Electron-Cash && cd Electron-Cash``
-2. Install python 3.6 or 3.7. For brew: `brew install python3` or if using MacPorts: ``sudo port install python36``
+2. Install python 3.6 or 3.7. For brew: ``brew install python3`` or if using MacPorts: ``sudo port install python36``
 3. Install PyQt5: ``python3 -m pip install --user pyqt5``
 4. Install Electron Cash requirements: ``python3 -m pip install --user -r contrib/requirements/requirements.txt``
 5. Compile libsecp256k1 (optional, yet highly recommended): ``./contrib/make_secp``
