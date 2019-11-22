@@ -118,7 +118,7 @@ def get_request_status(req):
     if status == PR_UNPAID:
         if req.get('exp'):
             expiration = req['exp'] + req['time']
-            status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
+            status_str = _('Expires') + ' ' + format_time(expiration)
         else:
             status_str = _('Pending')
     return status, status_str
@@ -670,6 +670,8 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 
     td = time_difference(from_date - since_date, include_seconds)
     return td + " ago" if from_date < since_date else "in " + td
+
+
 
 
 def time_difference(distance_in_time, include_seconds):

@@ -131,13 +131,11 @@ class RequestList(MyTreeView):
                 tooltip = 'lightning request'
             elif request_type == PR_TYPE_ONCHAIN:
                 key = req['address']
-                icon = read_QIcon("bitcoin.png")
                 tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
-            items[self.Columns.DATE].setIcon(icon)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setToolTip(tooltip)
             self.model().insertRow(self.model().rowCount(), items)
