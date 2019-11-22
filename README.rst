@@ -24,6 +24,8 @@ Getting started
 you have other options, such as the `AppImage / binary releases <https://github.com/Electron-Cash/Electron-Cash/releases/>`_
 or running from source using `pyenv` (see section `Running from source on old Linux`_ below).
 
+**macOS:** It is recommended that macOS users run `the binary .dmg <https://github.com/Electron-Cash/Electron-Cash/releases/>`_  as that's simpler to use and has everything included.  Otherwise, if you want to run from source, see section `Running from source on macOS`_ below.
+
 Electron Cash is a pure python application forked from Electrum. If you want to use the Qt interface, install the Qt dependencies::
 
     sudo apt-get install python3-pyqt5 python3-pyqt5.qtsvg
