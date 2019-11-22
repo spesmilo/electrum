@@ -1132,6 +1132,7 @@ class Peer(Logger):
         if chan.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open')
         assert amount_msat > 0, "amount_msat is not greater zero"
+        await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
