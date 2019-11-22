@@ -20,15 +20,16 @@ Electron Cash - Lightweight Bitcoin Cash client
 Getting started
 ===============
 
-*Note: If running from source, Python 3.6 or above is required to run Electron Cash. If your system lacks Python 3.6,
-you have other options, such as the* `binary releases <https://github.com/Electron-Cash/Electron-Cash/releases/>`_.
+**Note: If running from source, Python 3.6 or above is required to run Electron Cash.** If your system lacks Python 3.6,
+you have other options, such as the `AppImage / binary releases <https://github.com/Electron-Cash/Electron-Cash/releases/>`_
+or running from source using `pyenv` (see section `Running from source on old Linux`_ below).
 
 Electron Cash is a pure python application forked from Electrum. If you want to use the Qt interface, install the Qt dependencies::
 
     sudo apt-get install python3-pyqt5 python3-pyqt5.qtsvg
 
 If you downloaded the official package (tar.gz), you can run
-Electron Cash from its root directory (called Electrum), without installing it on your
+Electron Cash from its root directory (called Electron Cash), without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electron Cash from its root directory, just do::
 
@@ -62,7 +63,9 @@ Development version
 ===================
 
 Check your python version >= 3.6, and install pyqt5, as instructed above in the
-`Getting started`_ section.
+`Getting started`_ section above or `Running from source on old Linux`_ section below.
+
+If you are on macOS, see the `Running from source on macOS`_ section below.
 
 Check out the code from Github::
 
@@ -72,13 +75,6 @@ Check out the code from Github::
 Install the python dependencies::
 
     pip3 install -r contrib/requirements/requirements.txt --user
-
-Then
-
-Compile the protobuf description file::
-
-    sudo apt-get install protobuf-compiler
-    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
 Create translations (optional)::
 
@@ -99,6 +95,59 @@ Running unit tests::
 
 Tox will take care of building a faux installation environment, and ensure that
 the mapped import paths work correctly.
+
+Running from source on old Linux
+================================
+
+If your Linux distribution has a different version of python 3 (such as python
+3.5 in Debian 9), it is recommended to do a user dir install with
+`pyenv <https://github.com/pyenv/pyenv-installer>`_. This allows Electron
+Cash to run completely independently of your system configuration.
+
+1. Install `pyenv <https://github.com/pyenv/pyenv-installer>`_ in your user
+   account. Follow the printed instructions about updating your environment
+   variables and ``.bashrc``, and restart your shell to ensure that they are
+   loaded.
+2. Run ``pyenv install 3.6.9``. This will download and compile that version of
+   python, storing it under ``.pyenv`` in your home directory.
+3. ``cd`` into the Electron Cash directory. Run ``pyenv local 3.6.9`` which inserts
+   a file ``.python-version`` into the current directory.
+4. While still in this directory, run ``pip install pyqt5``.
+5. If you are installing from the source file (.tar.gz or .zip) then you are
+   ready and you may run ``./electron-cash``. If you are using the git version,
+   then continue by following the Development version instructions above.
+
+Running from source on macOS
+============================
+
+You need to install **either** `MacPorts <https://www.macports.org>`_  **or** `HomeBrew <https://www.brew.sh>`_.  Follow the instructions on either site for installing (Xcode from `Apple's developer site <https://developer.apple.com>`_ is required for either).
+
+1. Install python 3.6 or 3.7:
+
+(brew)::
+  
+    brew install python3
+  
+(ports):: 
+  
+    sudo port install python36
+  
+ 2. Install PyQt5::
+
+    python3 -m pip install --user pyqt5
+    
+ 3. Install Electron Cash requirements::
+ 
+    python3 -m pip install --user -r contrib/requirements/requirements.txt
+
+4. Compile libsecp256k1 (optional, yet highly recommended)::
+
+    ./contrib/make_secp
+
+5. At this point you should be able to just run the sources::
+
+    ./electron-cash
+
 
 Creating Binaries
 =================
