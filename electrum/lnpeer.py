@@ -961,8 +961,11 @@ class Peer(Logger):
         assert chan.short_channel_id is not None
         scid = chan.short_channel_id
         # only allow state transition from "FUNDED" to "OPEN"
-        if chan.get_state() != channel_states.FUNDED:
-            self.logger.info(f"cannot mark open, {chan.get_state()}")
+        old_state = chan.get_state()
+        if old_state == channel_states.OPEN:
+            return
+        if old_state != channel_states.FUNDED:
+            self.logger.info(f"cannot mark open, current state: {repr(old_state)}")
             return
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state(channel_states.OPEN)

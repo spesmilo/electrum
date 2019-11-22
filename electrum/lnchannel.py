@@ -220,10 +220,11 @@ class Channel(Logger):
 
     def set_state(self, state):
         """ set on-chain state """
-        if (self._state, state) not in state_transitions:
-            raise Exception(f"Transition not allowed: {self._state.name} -> {state.name}")
+        old_state = self._state
+        if (old_state, state) not in state_transitions:
+            raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
         self._state = state
-        self.logger.debug(f'Setting channel state: {state.name}')
+        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
         if self.lnworker:
             self.lnworker.save_channel(self)
             self.lnworker.network.trigger_callback('channel', self)
