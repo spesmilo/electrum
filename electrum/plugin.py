@@ -352,7 +352,7 @@ class DeviceMgr(ThreadJob):
         ThreadJob.__init__(self)
         # Keyed by xpub.  The value is the device id
         # has been paired, and None otherwise.
-        self.xpub_ids = {}
+        self.xpub_ids = {}  # type: Dict[str, str]
         # A list of clients.  The key is the client, the value is
         # a (path, id_) pair.
         self.clients = {}  # type: Dict[HardwareClientBase, Tuple[Union[str, bytes], str]]

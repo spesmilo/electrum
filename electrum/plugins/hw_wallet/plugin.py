@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 class HW_PluginBase(BasePlugin):
     keystore_class: Type['Hardware_KeyStore']
+    libraries_available: bool
 
     minimum_library = (0, )
 
@@ -211,7 +212,7 @@ def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
 def only_hook_if_libraries_available(func):
     # note: this decorator must wrap @hook, not the other way around,
     # as 'hook' uses the name of the function it wraps
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: 'HW_PluginBase', *args, **kwargs):
         if not self.libraries_available: return None
         return func(self, *args, **kwargs)
     return wrapper
