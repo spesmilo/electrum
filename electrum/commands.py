@@ -199,7 +199,7 @@ class Commands:
     @command('n')
     async def load_wallet(self, wallet_path=None, password=None):
         """Open wallet in daemon"""
-        wallet = self.daemon.load_wallet(wallet_path, password)
+        wallet = self.daemon.load_wallet(wallet_path, password, manual_upgrades=False)
         if wallet is not None:
             run_hook('load_wallet', wallet, None)
         response = wallet is not None

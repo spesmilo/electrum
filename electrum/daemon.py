@@ -376,13 +376,13 @@ class Daemon(Logger):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
+    def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         # wizard will be launched if we return
         if path in self._wallets:
             wallet = self._wallets[path]
             return wallet
-        storage = WalletStorage(path, manual_upgrades=True)
+        storage = WalletStorage(path, manual_upgrades=manual_upgrades)
         if not storage.file_exists():
             return
         if storage.is_encrypted():
