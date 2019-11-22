@@ -134,11 +134,11 @@ You need to install **either** `MacPorts <https://www.macports.org>`_  **or** `H
   
     sudo port install python36
   
- 2. Install PyQt5::
+2. Install PyQt5::
 
     python3 -m pip install --user pyqt5
     
- 3. Install Electron Cash requirements::
+3. Install Electron Cash requirements::
  
     python3 -m pip install --user -r contrib/requirements/requirements.txt
 
