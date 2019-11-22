@@ -1034,7 +1034,7 @@ command_options = {
     'passphrase':  (None, "Seed extension"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
-    'rbf':         (None, "Replace-by-fee transaction"),
+    'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
@@ -1078,6 +1078,7 @@ arg_types = {
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
+    'rbf': eval_bool,
     'timeout': float,
 }
 
