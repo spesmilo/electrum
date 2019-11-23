@@ -929,7 +929,7 @@ class Commands:
         push_sat = satoshis(push_amount)
         dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
         funding_tx = wallet.mktx(outputs = [dummy_output], rbf=False, sign=False, nonlocal_only=True)
-        chan = await wallet.lnworker._open_channel_coroutine(connection_string, funding_tx, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(connection_string, funding_tx, funding_sat, push_sat, password)
         return chan.funding_outpoint.to_str()
 
     @command('wn')

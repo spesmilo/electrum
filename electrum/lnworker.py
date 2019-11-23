@@ -812,7 +812,7 @@ class LNWallet(LNWorker):
         peer = await self.add_peer(connect_str)
         # peer might just have been connected to
         await asyncio.wait_for(peer.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
-        chan = await peer.channel_establishment_flow(
+        chan, funding_tx = await peer.channel_establishment_flow(
             password,
             funding_tx=funding_tx,
             funding_sat=funding_sat,
@@ -821,7 +821,10 @@ class LNWallet(LNWorker):
         self.save_channel(chan)
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
-        return chan
+        if funding_tx.is_complete():
+            # TODO make more robust (timeout low? server returns error?)
+            await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
+        return chan, funding_tx
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
@@ -858,10 +861,10 @@ class LNWallet(LNWorker):
         coro = self._open_channel_coroutine(connect_str, funding_tx, funding_sat, push_amt_sat, password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
-            chan = fut.result(timeout=timeout)
+            chan, funding_tx = fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
-        return chan
+        return chan, funding_tx
 
     def pay(self, invoice, amount_sat=None, attempts=1):
         """

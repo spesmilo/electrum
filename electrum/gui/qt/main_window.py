@@ -1636,14 +1636,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         def task():
             return self.wallet.lnworker.open_channel(connect_str, funding_tx, funding_sat, push_amt, password)
-        def on_success(chan):
+        def on_success(args):
+            chan, funding_tx = args
             n = chan.constraints.funding_txn_minimum_depth
             message = '\n'.join([
                 _('Channel established.'),
                 _('Remote peer ID') + ':' + chan.node_id.hex(),
                 _('This channel will be usable after {} confirmations').format(n)
             ])
+            if not funding_tx.is_complete():
+                message += '\n\n' + _('Please sign and broadcast the funding transaction')
             self.show_message(message)
+            if not funding_tx.is_complete():
+                self.show_transaction(funding_tx)
+
         def on_failure(exc_info):
             type_, e, traceback = exc_info
             self.show_error(_('Could not open channel: {}').format(e))

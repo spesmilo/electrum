@@ -575,6 +575,8 @@ class Peer(Logger):
         funding_tx.add_outputs([funding_output])
         funding_tx.set_rbf(False)
         self.lnworker.wallet.sign_transaction(funding_tx, password)
+        if not funding_tx.is_complete() and not funding_tx.is_segwit():
+            raise Exception(_('Funding transaction is not complete'))
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
@@ -605,10 +607,7 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        # broadcast funding tx
-        # TODO make more robust (timeout low? server returns error?)
-        await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
-        return chan
+        return chan, funding_tx
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']

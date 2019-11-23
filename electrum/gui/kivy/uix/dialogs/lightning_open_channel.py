@@ -138,7 +138,7 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def do_open_channel(self, conn_str, amount, password):
         try:
-            chan = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
+            chan, funding_tx = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
         except Exception as e:
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
@@ -148,4 +148,8 @@ class LightningOpenChannelDialog(Factory.Popup):
             _('Remote peer ID') + ':' + chan.node_id.hex(),
             _('This channel will be usable after {} confirmations').format(n)
         ])
+        if not funding_tx.is_complete():
+            message += '\n\n' + _('Please sign and broadcast the funding transaction')
         self.app.show_info(message)
+        if not funding_tx.is_complete():
+            self.app.tx_dialog(funding_tx)
