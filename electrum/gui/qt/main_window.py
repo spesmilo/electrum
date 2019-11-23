@@ -1635,7 +1635,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         def task():
-            return self.wallet.lnworker.open_channel(connect_str, funding_tx, funding_sat, push_amt, password)
+            return self.wallet.lnworker.open_channel(connect_str=connect_str,
+                                                     funding_tx=funding_tx,
+                                                     funding_sat=funding_sat,
+                                                     push_amt_sat=push_amt,
+                                                     password=password)
         def on_success(args):
             chan, funding_tx = args
             n = chan.constraints.funding_txn_minimum_depth

@@ -212,7 +212,8 @@ class AddressSynchronizer(Logger):
         assert tx, tx
         assert tx.is_complete()
         tx_hash = tx.txid()
-        # assert tx_hash == tx.txid()  # disabled as expensive; test done by Synchronizer.
+        if tx_hash is None:
+            raise Exception("cannot add tx without txid to wallet history")
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:

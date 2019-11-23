@@ -1,11 +1,19 @@
+from typing import TYPE_CHECKING
+
 from kivy.lang import Builder
 from kivy.factory import Factory
+
 from electrum.gui.kivy.i18n import _
 from electrum.lnaddr import lndecode
 from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
+
 from .label_dialog import LabelDialog
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+
 
 Builder.load_string('''
 <LightningOpenChannelDialog@Popup>
@@ -100,7 +108,7 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def __init__(self, app, lnaddr=None, msg=None):
         super(LightningOpenChannelDialog, self).__init__()
-        self.app = app
+        self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
 
@@ -138,7 +146,10 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def do_open_channel(self, conn_str, amount, password):
         try:
-            chan, funding_tx = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
+            chan, funding_tx = self.app.wallet.lnworker.open_channel(connect_str=conn_str,
+                                                                     funding_sat=amount,
+                                                                     push_amt_sat=0,
+                                                                     password=password)
         except Exception as e:
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return

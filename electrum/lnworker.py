@@ -53,7 +53,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      UpdateAddHtlc, Direction, LnLocalFeatures, format_short_channel_id,
                      ShortChannelID)
 from .lnutil import ln_dummy_address
-from .transaction import PartialTxOutput
+from .transaction import PartialTxOutput, PartialTransaction
 from .lnonion import OnionFailureCode
 from .lnmsg import decode_msg
 from .i18n import _
@@ -808,7 +808,9 @@ class LNWallet(LNWorker):
         return total_value_sat > min_value_worth_closing_channel_over_sat
 
     @log_exceptions
-    async def _open_channel_coroutine(self, connect_str, funding_tx, funding_sat, push_sat, password):
+    async def _open_channel_coroutine(self, *, connect_str: str, funding_tx: PartialTransaction,
+                                      funding_sat: int, push_sat: int,
+                                      password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
         peer = await self.add_peer(connect_str)
         # peer might just have been connected to
         await asyncio.wait_for(peer.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
@@ -856,9 +858,12 @@ class LNWallet(LNWorker):
         tx.set_rbf(False)
         return tx
 
-    def open_channel(self, connect_str, funding_tx, funding_sat, push_amt_sat, password=None, timeout=20):
+    def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
+                     funding_sat: int, push_amt_sat: int, password: str = None,
+                     timeout: Optional[int] = 20) -> Tuple[Channel, PartialTransaction]:
         assert funding_sat <= LN_MAX_FUNDING_SAT
-        coro = self._open_channel_coroutine(connect_str, funding_tx, funding_sat, push_amt_sat, password)
+        coro = self._open_channel_coroutine(connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
+                                            push_sat=push_amt_sat, password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
             chan, funding_tx = fut.result(timeout=timeout)

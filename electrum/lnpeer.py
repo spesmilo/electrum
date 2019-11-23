@@ -491,7 +491,7 @@ class Peer(Logger):
 
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
-                                         push_msat: int, temp_channel_id: bytes) -> Channel:
+                                         push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -578,6 +578,7 @@ class Peer(Logger):
         if not funding_tx.is_complete() and not funding_tx.is_segwit():
             raise Exception('Funding transaction is not complete')
         funding_txid = funding_tx.txid()
+        assert funding_txid
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
