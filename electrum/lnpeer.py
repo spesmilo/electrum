@@ -576,7 +576,7 @@ class Peer(Logger):
         funding_tx.set_rbf(False)
         self.lnworker.wallet.sign_transaction(funding_tx, password)
         if not funding_tx.is_complete() and not funding_tx.is_segwit():
-            raise Exception(_('Funding transaction is not complete'))
+            raise Exception('Funding transaction is not complete')
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
