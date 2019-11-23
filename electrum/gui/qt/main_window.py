@@ -2973,7 +2973,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()
         try:
-            if not self.wallet.add_transaction(tx.txid(), tx):
+            if not self.wallet.add_transaction(tx):
                 win.show_error(_("Transaction could not be saved.") + "\n" +
                                _("It conflicts with current history."))
                 return False

@@ -819,7 +819,7 @@ class Commands:
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
         """ Add a transaction to the wallet history """
         tx = Transaction(tx)
-        if not wallet.add_transaction(tx.txid(), tx):
+        if not wallet.add_transaction(tx):
             return False
         wallet.storage.write()
         return tx.txid()
