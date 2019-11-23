@@ -133,6 +133,7 @@ class LightningOpenChannelDialog(Factory.Popup):
     def on_qr(self, conn_str):
         self.pubkey = conn_str
 
+    # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     def open_channel(self):
         if not self.pubkey or not self.amount:
             self.app.show_info(_('All fields must be filled out'))
@@ -145,8 +146,11 @@ class LightningOpenChannelDialog(Factory.Popup):
         self.dismiss()
 
     def do_open_channel(self, conn_str, amount, password):
+        coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
+        funding_tx = self.app.wallet.lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
         try:
             chan, funding_tx = self.app.wallet.lnworker.open_channel(connect_str=conn_str,
+                                                                     funding_tx=funding_tx,
                                                                      funding_sat=amount,
                                                                      push_amt_sat=0,
                                                                      password=password)

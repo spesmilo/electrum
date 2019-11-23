@@ -53,7 +53,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      UpdateAddHtlc, Direction, LnLocalFeatures, format_short_channel_id,
                      ShortChannelID)
 from .lnutil import ln_dummy_address
-from .transaction import PartialTxOutput, PartialTransaction
+from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode
 from .lnmsg import decode_msg
 from .i18n import _
@@ -848,7 +848,8 @@ class LNWallet(LNWorker):
             peer = await self._add_peer(host, port, node_id)
         return peer
 
-    def mktx_for_open_channel(self, coins, funding_sat, fee_est):
+    def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
+                              fee_est=None) -> PartialTransaction:
         dummy_address = ln_dummy_address()
         outputs = [PartialTxOutput.from_address_and_value(dummy_address, funding_sat)]
         tx = self.wallet.make_unsigned_transaction(
@@ -861,7 +862,8 @@ class LNWallet(LNWorker):
     def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
                      funding_sat: int, push_amt_sat: int, password: str = None,
                      timeout: Optional[int] = 20) -> Tuple[Channel, PartialTransaction]:
-        assert funding_sat <= LN_MAX_FUNDING_SAT
+        if funding_sat > LN_MAX_FUNDING_SAT:
+            raise Exception(_("Requested channel capacity is over protocol allowed maximum."))
         coro = self._open_channel_coroutine(connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
                                             push_sat=push_amt_sat, password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)

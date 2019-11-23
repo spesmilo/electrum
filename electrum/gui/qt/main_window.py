@@ -1618,7 +1618,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def mktx_for_open_channel(self, funding_sat):
         coins = self.get_coins(nonlocal_only=True)
-        make_tx = partial(self.wallet.lnworker.mktx_for_open_channel, coins, funding_sat)
+        make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(coins=coins,
+                                                                             funding_sat=funding_sat,
+                                                                             fee_est=fee_est)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
