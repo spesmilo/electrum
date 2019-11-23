@@ -215,9 +215,6 @@ class ElectrumGui(Logger):
         self.watchtower_dialog.bring_to_top()
 
     def show_network_dialog(self):
-        if not self.daemon.network:
-            parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
-            return
         if self.network_dialog:
             self.network_dialog.on_update()
             self.network_dialog.show()
