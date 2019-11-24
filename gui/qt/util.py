@@ -63,6 +63,8 @@ class EnterButton(QPushButton):
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Return:
             self.func()
+        else:
+            super().keyPressEvent(e)
 
 
 class ThreadedButton(QPushButton):
@@ -638,7 +640,7 @@ class MyTreeWidget(QTreeWidget):
             if item and col > -1:
                 self.on_activated(item, col)
         else:
-            QTreeWidget.keyPressEvent(self, event)
+            super().keyPressEvent(event)
 
     def permit_edit(self, item, column):
         return (column in self.editable_columns
