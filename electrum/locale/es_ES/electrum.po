@@ -3306,10 +3306,6 @@ msgstr "Sin conexión"
 msgid "On Linux, you might have to add a new permission to your udev rules."
 msgstr ""
 
-#: electrum/gui/qt/main_window.py:992
-msgid "Generate"
-msgstr ""
-
 #: electrum/gui/qt/main_window.py:1819
 msgid "One output per line."
 msgstr "Una salida por línea."

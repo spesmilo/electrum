@@ -3974,10 +3974,6 @@ msgstr ""
 msgid "Reporting Bugs"
 msgstr "バグ報告"
 
-#: electrum/gui/kivy/uix/ui_screens/receive.kv:150
-msgid "Generate"
-msgstr ""
-
 #: electrum/gui/kivy/uix/screens.py:444
 msgid "Request copied to clipboard"
 msgstr ""
