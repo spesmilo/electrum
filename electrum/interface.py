@@ -31,7 +31,7 @@ import asyncio
 import socket
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional
 from collections import defaultdict
-from ipaddress import IPv4Network, IPv6Network, ip_address
+from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
 import itertools
 import logging
 
@@ -193,11 +193,12 @@ def deserialize_server(server_str: str) -> Tuple[str, str, str]:
     host, port, protocol = str(server_str).rsplit(':', 2)
     if not host:
         raise ValueError('host must not be empty')
+    if host[0] == '[' and host[-1] == ']':  # IPv6
+        host = host[1:-1]
     if protocol not in ('s', 't'):
         raise ValueError('invalid network protocol: {}'.format(protocol))
-    int(port)  # Throw if cannot be converted to int
-    if not (0 < int(port) < 2**16):
-        raise ValueError('port {} is out of valid range'.format(port))
+    net_addr = NetAddress(host, port)  # this validates host and port
+    host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
     return host, port, protocol
 
 
@@ -218,11 +219,11 @@ class Interface(Logger):
         Logger.__init__(self)
         assert network.config.path
         self.cert_path = os.path.join(network.config.path, 'certs', self.host)
-        self.blockchain = None
+        self.blockchain = None  # type: Optional[Blockchain]
         self._requested_chunks = set()
         self.network = network
         self._set_proxy(proxy)
-        self.session = None  # type: NotificationSession
+        self.session = None  # type: Optional[NotificationSession]
         self._ipaddr_bucket = None
 
         self.tip_header = None
@@ -236,7 +237,7 @@ class Interface(Logger):
         self.group = SilentTaskGroup()
 
     def diagnostic_name(self):
-        return f"{self.host}:{self.port}"
+        return str(NetAddress(self.host, self.port))
 
     def _set_proxy(self, proxy: dict):
         if proxy:
