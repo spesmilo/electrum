@@ -27,11 +27,13 @@ info "Last commit: $VERSION"
 # Load electrum-locale for this release
 git submodule update --init
 
+cp -r ./electrum/locale ./contrib/deterministic-build/electrum-locale/
+
 pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
-for i in ./locale/*; do
+for i in $(find ./locale -maxdepth 1 -mindepth 1 -type d -printf '%f\n'); do
     dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true

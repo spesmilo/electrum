@@ -16,17 +16,10 @@ home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
-hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
-
-# safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
-# release a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
-hiddenimports.remove('safetlib.qt.pinmatrix')
 
 
 # Add libusb binary
@@ -45,10 +38,7 @@ datas = [
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
 ]
-datas += collect_data_files('trezorlib')
-datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('jsonrpcserver')
 datas += collect_data_files('jsonrpcclient')
@@ -65,12 +55,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/commands.py',
               home+'electrum/plugins/cosigner_pool/qt.py',
               home+'electrum/plugins/email_requests/qt.py',
-              home+'electrum/plugins/trezor/qt.py',
-              home+'electrum/plugins/safe_t/client.py',
-              home+'electrum/plugins/safe_t/qt.py',
-              home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
-              home+'electrum/plugins/coldcard/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
