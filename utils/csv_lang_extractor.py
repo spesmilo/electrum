@@ -1,20 +1,23 @@
 import csv
 import os
+from pathlib import Path
+
+repo_path = Path(os.path.dirname(os.path.realpath(__file__))).parent
+locale_path = repo_path / 'electrum' / 'locale'
 
 languages = [
         'pl_PL',
         'zh_CN',
         'ja_JP',
         'vi_VN',
-        'es_ES'
+        'es_ES',
+        'ko_KR'
         ]
 
 translation_map = dict()
 
-abs_path = '../electrum/locale/'
-
 for lang in languages:
-    po_path = abs_path + lang + '/electrum.po'
+    po_path = locale_path / lang / 'electrum.po'
     print(po_path)
     with open(po_path, "r") as po_file:
         read_entry = False
