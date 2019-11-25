@@ -8,6 +8,8 @@ from collections import namedtuple
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set
 import re
 
+from aiorpcx import NetAddress
+
 from .util import bfh, bh2u, inv_dict, UserFacingException
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
@@ -662,7 +664,8 @@ class LNPeerAddr(NamedTuple):
     pubkey: bytes
 
     def __str__(self):
-        return '{}@{}:{}'.format(bh2u(self.pubkey), self.host, self.port)
+        host_and_port = str(NetAddress(self.host, self.port))
+        return '{}@{}'.format(self.pubkey.hex(), host_and_port)
 
 
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
