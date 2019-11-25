@@ -55,8 +55,6 @@ from .util import get_default_language, read_QIcon, ColorScheme, custom_message_
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
-from .lightning_dialog import LightningDialog
-from .watchtower_dialog import WatchtowerDialog
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -115,8 +113,6 @@ class ElectrumGui(Logger):
         self.timer.setInterval(500)  # msec
 
         self.network_dialog = None
-        self.lightning_dialog = None
-        self.watchtower_dialog = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
@@ -155,8 +151,6 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        m.addAction(_("Lightning"), self.show_lightning_dialog)
-        m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -191,24 +185,10 @@ class ElectrumGui(Logger):
             window.close()
         if self.network_dialog:
             self.network_dialog.close()
-        if self.lightning_dialog:
-            self.lightning_dialog.close()
-        if self.watchtower_dialog:
-            self.watchtower_dialog.close()
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
-
-    def show_lightning_dialog(self):
-        if not self.lightning_dialog:
-            self.lightning_dialog = LightningDialog(self)
-        self.lightning_dialog.bring_to_top()
-
-    def show_watchtower_dialog(self):
-        if not self.watchtower_dialog:
-            self.watchtower_dialog = WatchtowerDialog(self)
-        self.watchtower_dialog.bring_to_top()
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:

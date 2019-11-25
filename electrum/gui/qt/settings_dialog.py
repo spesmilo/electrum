@@ -143,37 +143,6 @@ class SettingsDialog(WindowModalDialog):
         batch_rbf_cb.stateChanged.connect(on_batch_rbf)
         fee_widgets.append((batch_rbf_cb, None))
 
-        # lightning
-        lightning_widgets = []
-        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
-you close all your wallet windows. Your local watchtower will keep
-running, and it will protect your channels even if your wallet is not
-open. For this to work, your computer needs to be online regularly.""")
-        persist_cb = QCheckBox(_("Run as daemon after the GUI is closed"))
-        persist_cb.setToolTip(help_persist)
-        persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
-        def on_persist_checked(x):
-            self.config.set_key('persist_daemon', bool(x))
-        persist_cb.stateChanged.connect(on_persist_checked)
-        lightning_widgets.append((persist_cb, None))
-
-        help_remote_wt = _("""To use a remote watchtower, enter the corresponding URL here""")
-        remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_wt_cb.setToolTip(help_remote_wt)
-        remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
-        def on_remote_wt_checked(x):
-            self.config.set_key('use_watchtower', bool(x))
-            self.watchtower_url_e.setEnabled(bool(x))
-        remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
-        watchtower_url = self.config.get('watchtower_url')
-        self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.get('use_watchtower', False))
-        def on_wt_url():
-            url = self.watchtower_url_e.text() or None
-            watchtower_url = self.config.set_key('watchtower_url', url)
-        self.watchtower_url_e.editingFinished.connect(on_wt_url)
-        lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
-
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
               + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
@@ -503,7 +472,6 @@ that is always connected to the internet. Configure a port if you want it to be 
             (gui_widgets, _('General')),
             (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
-            (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
             (services_widgets, _('Services')),
             (oa_widgets, _('OpenAlias')),

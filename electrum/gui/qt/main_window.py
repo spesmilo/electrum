@@ -198,8 +198,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        if self.wallet.has_lightning():
-            add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"), "console")
@@ -632,8 +630,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
-        if self.wallet.has_lightning():
-            add_toggle_action(view_menu, self.channels_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
@@ -642,9 +638,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # Settings / Preferences are all reserved keywords in macOS using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
-        if self.wallet.has_lightning():
-            tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
-            tools_menu.addAction(_("&Watchtower"), self.gui_object.show_watchtower_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -989,17 +982,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('Generate'))
+        self.create_invoice_button = QPushButton(_('Request'))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
-        if self.wallet.has_lightning():
-            self.create_lightning_invoice_button = QPushButton(_('Lightning'))
-            self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
-            self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
-            buttons.addWidget(self.create_lightning_invoice_button)
         grid.addLayout(buttons, 4, 3, 1, 2)
 
         self.receive_address_e = ButtonsTextEdit()
@@ -1050,12 +1038,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.request_list.update()
         self.clear_receive_tab()
 
-    def delete_lightning_payreq(self, payreq_key):
-        self.wallet.lnworker.delete_invoice(payreq_key)
-        self.request_list.update()
-        self.invoice_list.update()
-        self.clear_receive_tab()
-
     def sign_payment_request(self, addr):
         alias = self.config.get('alias')
         alias_privkey = None
@@ -1077,15 +1059,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self, is_lightning):
+    def create_invoice(self, ):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', 3600)
-        if is_lightning:
-            key = self.wallet.lnworker.add_request(amount, message, expiry)
-        else:
-            key = self.create_bitcoin_request(amount, message, expiry)
-            self.address_list.update()
+        key = self.create_bitcoin_request(amount, message, expiry)
+        self.address_list.update()
         self.request_list.update()
         self.request_list.select_key(key)
         # clear request fields
@@ -1389,14 +1368,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice, amount_sat=None):
-        attempts = LN_NUM_PAYMENT_ATTEMPTS
-        def task():
-            self.wallet.lnworker.pay(invoice, amount_sat, attempts)
-        self.do_clear()
-        self.wallet.thread.add(task)
-        self.invoice_list.update()
-
     def on_request_status(self, key, status):
         if key not in self.wallet.receive_requests:
             return
@@ -1419,28 +1390,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():
             return
-        if not self.is_onchain:
-            invoice = self.payto_e.lightning_invoice
-            if not invoice:
-                return
-            if not self.wallet.lnworker:
-                self.show_error(_('Lightning is disabled'))
-                return
-            invoice_dict = self.wallet.lnworker.parse_bech32_invoice(invoice)
-            if invoice_dict.get('amount') is None:
-                amount = self.amount_e.get_amount()
-                if amount:
-                    invoice_dict['amount'] = amount
-                else:
-                    self.show_error(_('No amount'))
-                    return
-            return invoice_dict
-        else:
-            outputs = self.read_outputs()
-            if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
-                return
-            message = self.message_e.text()
-            return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
+        outputs = self.read_outputs()
+        if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
+            return
+        message = self.message_e.text()
+        return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
 
     def do_save_invoice(self):
         invoice = self.read_invoice()
@@ -1466,9 +1420,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
     def do_pay_invoice(self, invoice):
-        if invoice['type'] == PR_TYPE_LN:
-            self.pay_lightning_invoice(invoice['invoice'], amount_sat=invoice['amount'])
-        elif invoice['type'] == PR_TYPE_ONCHAIN:
+        if invoice['type'] == PR_TYPE_ONCHAIN:
             outputs = invoice['outputs']
             self.pay_onchain_dialog(self.get_coins(), outputs, invoice=invoice)
         else:
@@ -1693,28 +1645,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.payment_request_ok_signal.emit()
         else:
             self.payment_request_error_signal.emit()
-
-    def parse_lightning_invoice(self, invoice):
-        """Parse ln invoice, and prepare the send tab for it."""
-        from electrum.lnaddr import lndecode, LnDecodeException
-        try:
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        except Exception as e:
-            raise LnDecodeException(e) from e
-        pubkey = bh2u(lnaddr.pubkey.serialize())
-        for k,v in lnaddr.tags:
-            if k == 'd':
-                description = v
-                break
-        else:
-             description = ''
-        self.payto_e.setFrozen(True)
-        self.payto_e.setText(pubkey)
-        self.message_e.setText(description)
-        if lnaddr.amount is not None:
-            self.amount_e.setAmount(lnaddr.amount * COIN)
-        #self.amount_e.textEdited.emit("")
-        self.set_onchain(False)
 
     def set_onchain(self, b):
         self.is_onchain = b
@@ -1977,9 +1907,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
-        if self.wallet.has_lightning():
-            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
-            sb.addPermanentWidget(self.lightning_button)
         self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), lambda: self.gui_object.show_network_dialog(self))
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
@@ -2090,25 +2017,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
-    def disable_lightning(self):
-        warning = _('This will delete your lightning private keys')
-        r = self.question(_('Disable Lightning payments?') + '\n\n' + warning)
-        if not r:
-            return
-        self.wallet.remove_lightning()
-        self.show_warning(_('Lightning keys have been removed. This wallet will be closed'))
-        self.close()
-
-    def enable_lightning(self):
-        warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
-        warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
-        r = self.question(_('Enable Lightning payments?') + '\n\n' + _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
-        if not r:
-            return
-        self.wallet.init_lightning()
-        self.show_warning(_('Lightning keys have been initialized. This wallet will be closed'))
-        self.close()
-
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
@@ -2133,21 +2041,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(_("Keystore type") + ':'), 4, 0)
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
             grid.addWidget(QLabel(ks_type), 4, 1)
-        # lightning
-        if self.wallet.has_lightning():
-            lightning_b = QPushButton(_('Disable'))
-            lightning_b.clicked.connect(dialog.close)
-            lightning_b.clicked.connect(self.disable_lightning)
-            lightning_label = QLabel(_('Enabled'))
-            lightning_b.setDisabled(bool(self.wallet.lnworker.channels))
-        else:
-            lightning_b = QPushButton(_('Enable'))
-            lightning_b.clicked.connect(dialog.close)
-            lightning_b.clicked.connect(self.enable_lightning)
-            lightning_label = QLabel(_('Disabled'))
-        grid.addWidget(QLabel(_('Lightning')), 5, 0)
-        grid.addWidget(lightning_label, 5, 1)
-        grid.addWidget(lightning_b, 5, 2)
         vbox.addLayout(grid)
 
         if self.wallet.is_deterministic():
