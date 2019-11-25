@@ -281,13 +281,19 @@ class ChannelDB(SqlDB):
             return None
         addr = sorted(list(r), key=lambda x: x[2])[0]
         host, port, timestamp = addr
-        return LNPeerAddr(host, port, node_id)
+        try:
+            return LNPeerAddr(host, port, node_id)
+        except ValueError:
+            return None
 
     def get_recent_peers(self):
         assert self.data_loaded.is_set(), "channelDB load_data did not finish yet!"
-        r = [self.get_last_good_address(x) for x in self._addresses.keys()]
-        r = r[-self.NUM_MAX_RECENT_PEERS:]
-        return r
+        # FIXME this does not reliably return "recent" peers...
+        #       Also, the list() cast over the whole dict (thousands of elements),
+        #       is really inefficient.
+        r = [self.get_last_good_address(node_id)
+             for node_id in list(self._addresses.keys())[-self.NUM_MAX_RECENT_PEERS:]]
+        return list(reversed(r))
 
     def add_channel_announcement(self, msg_payloads, trusted=True):
         if type(msg_payloads) is dict:
