@@ -982,8 +982,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('Request'))
-        self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
+        self.create_invoice_button = QPushButton(_('Generate'))
+        self.create_invoice_button.clicked.connect(lambda: self.create_invoice())
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_invoice_button)
@@ -1059,7 +1059,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self, ):
+    def create_invoice(self):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', 3600)
