@@ -402,7 +402,7 @@ class SatochipPlugin(HW_PluginBase):
         _logger.info(f"[SatochipPlugin] detect_smartcard_reader")#debugSatochip
         self.cardtype = AnyCardType()
         try:
-            cardrequest = CardRequest(timeout=5, cardType=self.cardtype)
+            cardrequest = CardRequest(timeout=0.1, cardType=self.cardtype)
             cardservice = cardrequest.waitforcard()
             return [Device(path="/satochip",
                            interface_number=-1,
@@ -411,7 +411,7 @@ class SatochipPlugin(HW_PluginBase):
                            usage_page=0,
                            transport_ui_string='ccid')]
         except CardRequestTimeoutException:
-            _logger.info(f'time-out: no card inserted during last 5s')
+            _logger.info(f'time-out: no card found')
             return []
         except Exception as exc:
             _logger.info(f"Error during connection:{str(exc)}")

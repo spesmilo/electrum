@@ -18,9 +18,9 @@ PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
 # ^ tag 3.4, plus a custom commit that fixes cross-compilation with MinGW
 
 #Satochip pyscard
-PYSCARD_FILENAME=pyscard-1.9.8-cp36-cp36m-win32.whl #python32-bits
-PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/j60tkykj6vh0ppiy/artifacts/dist%2Fpyscard-1.9.8-cp36-cp36m-win32.whl
-PYSCARD_SHA256=4641b5db53fb3562671b7b7c685ddf8f715180e2809106fb2a9361dfad553b4b
+PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
+PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/3uiua5o4llvpegbp/artifacts/dist/pyscard-1.9.9-cp36-cp36m-win32.whl
+PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
 
 PYTHON_VERSION=3.6.8
 
