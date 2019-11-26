@@ -1,8 +1,8 @@
 {
-    "electrumx.nav.community": {
+    "electrum.nav.community": {
         "pruning": "-",
-        "s": "40002",
         "t": "40001",
+        "s": "40002",
         "version": "1.4"
     }
 }
