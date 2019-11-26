@@ -30,6 +30,7 @@
 import struct
 import traceback
 import sys
+import time
 import io
 import base64
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
@@ -498,7 +499,9 @@ class Transaction:
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
-        self.version = 2
+        self.version = 3
+        self.ntime = int(time.time())
+        self.strdzeel = ""
 
         self._cached_txid = None  # type: Optional[str]
 
@@ -1458,6 +1461,8 @@ class PartialTransaction(Transaction):
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
         res.locktime = tx.locktime
+        res.ntime = tx.ntime
+        res.strdzeel = tx.strdzeel
         return res
 
     @classmethod
@@ -1682,9 +1687,11 @@ class PartialTransaction(Transaction):
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
+        nTime = int_to_hex(self.ntime, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        strdzeel = var_int(len(self.strdzeel)) + ''.join(self.strdzeel)
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
         if sighash != SIGHASH_ALL:
@@ -1701,12 +1708,12 @@ class PartialTransaction(Transaction):
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
             nSequence = int_to_hex(txin.nsequence, 4)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+            preimage = nVersion + nTime + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + strdzeel + nHashType
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, preimage_script if txin_index==k else '')
                                                    for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
+            preimage = nVersion + nTime + txins + txouts + nLocktime + strdzeel + nHashType
         return preimage
 
     def sign(self, keypairs) -> None:

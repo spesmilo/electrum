@@ -33,6 +33,7 @@ import time
 import json
 import copy
 import errno
+import time
 import traceback
 import operator
 from functools import partial
@@ -1005,6 +1006,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
+        tx.ntime = int(time.time())
+        tx.nversion = 3
+        tx.strdzeel = ""
 
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
