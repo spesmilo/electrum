@@ -206,14 +206,6 @@ class CoinGecko(ExchangeBase):
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
                      for h in history['prices']])
 
-class CryptoBridge(ExchangeBase):
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.crypto-bridge.org', '/api/v1/ticker/GRS_BTC')
-        if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['last'])*Decimal(json2['last'])}
-        return {ccy: Decimal(json1['last'])}
-
 class CryptoCompare(ExchangeBase):
 
     async def get_rates(self, ccy):
