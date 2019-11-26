@@ -531,6 +531,7 @@ class Transaction:
         vds = BCDataStream()
         vds.write(raw_bytes)
         self.version = vds.read_int32()
+        self.ntime = vds.read_uint32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -545,6 +546,8 @@ class Transaction:
             for txin in self._inputs:
                 parse_witness(vds, txin)
         self.locktime = vds.read_uint32()
+        if self.version >= 2:
+            self.strdzeel=vds.read_bytes(vds.read_compact_size())
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 
@@ -742,9 +745,11 @@ class Transaction:
         """
         self.deserialize()
         nVersion = int_to_hex(self.version, 4)
+        nTime = int_to_hex(self.ntime, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        strdzeel = var_int(len(self.strdzeel)) + ''.join(self.strdzeel)
 
         def create_script_sig(txin: TxInput) -> str:
             if include_sigs:
@@ -761,9 +766,9 @@ class Transaction:
             marker = '00'
             flag = '01'
             witness = ''.join(self.serialize_witness(x, estimate_size=estimate_size) for x in inputs)
-            return nVersion + marker + flag + txins + txouts + witness + nLocktime
+            return nVersion + nTime + marker + flag + txins + txouts + witness + nLocktime + strdzeel
         else:
-            return nVersion + txins + txouts + nLocktime
+            return nVersion + nTime + txins + txouts + nLocktime + strdzeel
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
