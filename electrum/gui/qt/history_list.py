@@ -247,7 +247,7 @@ class HistoryModel(QAbstractItemModel, Logger):
     def update_label(self, row):
         tx_item = self.transactions.value_from_pos(row)
         tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
-        topLeft = bottomRight = self.createIndex(row, 2)
+        topLeft = bottomRight = self.createIndex(row, HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
         self.parent.utxo_list.update()
 
