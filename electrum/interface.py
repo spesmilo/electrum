@@ -55,6 +55,7 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
+    from .simple_config import SimpleConfig
 
 
 ca_path = certifi.where()
@@ -206,6 +207,18 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
     return str(':'.join([host, str(port), protocol]))
 
 
+def _get_cert_path_for_host(*, config: 'SimpleConfig', host: str) -> str:
+    filename = host
+    try:
+        ip = ip_address(host)
+    except ValueError:
+        pass
+    else:
+        if isinstance(ip, IPv6Address):
+            filename = f"ipv6_{ip.packed.hex()}"
+    return os.path.join(config.path, 'certs', filename)
+
+
 class Interface(Logger):
 
     LOGGING_SHORTCUT = 'i'
@@ -218,7 +231,7 @@ class Interface(Logger):
         self.port = int(self.port)
         Logger.__init__(self)
         assert network.config.path
-        self.cert_path = os.path.join(network.config.path, 'certs', self.host)
+        self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
         self.blockchain = None  # type: Optional[Blockchain]
         self._requested_chunks = set()
         self.network = network
