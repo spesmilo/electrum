@@ -40,7 +40,7 @@ from .logging import Logger
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 20     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 21     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -214,6 +214,7 @@ class JsonDB(Logger):
         self._convert_version_18()
         self._convert_version_19()
         self._convert_version_20()
+        self._convert_version_21()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -484,6 +485,16 @@ class JsonDB(Logger):
             self.put(ks_name, ks)
 
         self.put('seed_version', 20)
+
+    def _convert_version_21(self):
+        if not self._is_upgrade_method_needed(20, 20):
+            return
+        channels = self.get('channels')
+        if channels:
+            for channel in channels:
+                channel['state'] = 'OPENING'
+            self.put('channels', channels)
+        self.put('seed_version', 21)
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

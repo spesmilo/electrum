@@ -8,11 +8,12 @@
 import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
+
 from Cryptodome.Cipher import ChaCha20_Poly1305
 
 from .crypto import sha256, hmac_oneshot
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
-                     HandshakeFailed)
+                     HandshakeFailed, LNPeerAddr)
 from . import ecc
 from .util import bh2u
 
@@ -86,7 +87,13 @@ def create_ephemeral_key() -> (bytes, bytes):
     privkey = ecc.ECPrivkey.generate_random_key()
     return privkey.get_secret_bytes(), privkey.get_public_key_bytes()
 
+
 class LNTransportBase:
+    reader: StreamReader
+    writer: StreamWriter
+
+    def name(self) -> str:
+        raise NotImplementedError()
 
     def send_bytes(self, msg: bytes) -> None:
         l = len(msg).to_bytes(2, 'big')
@@ -207,21 +214,18 @@ class LNResponderTransport(LNTransportBase):
 
 class LNTransport(LNTransportBase):
 
-    def __init__(self, privkey: bytes, peer_addr):
+    def __init__(self, privkey: bytes, peer_addr: LNPeerAddr):
         LNTransportBase.__init__(self)
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
-        self.remote_pubkey = peer_addr.pubkey
-        self.host = peer_addr.host
-        self.port = peer_addr.port
         self.peer_addr = peer_addr
 
     def name(self):
-        return str(self.host) + ':' + str(self.port)
+        return self.peer_addr.net_addr_str()
 
     async def handshake(self):
-        self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-        hs = HandshakeState(self.remote_pubkey)
+        self.reader, self.writer = await asyncio.open_connection(self.peer_addr.host, self.peer_addr.port)
+        hs = HandshakeState(self.peer_addr.pubkey)
         # Get a new ephemeral key
         epriv, epub = create_ephemeral_key()
 
@@ -230,7 +234,8 @@ class LNTransport(LNTransportBase):
         self.writer.write(msg)
         rspns = await self.reader.read(2**10)
         if len(rspns) != 50:
-            raise HandshakeFailed(f"Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? {bh2u(self.remote_pubkey)}")
+            raise HandshakeFailed(f"Lightning handshake act 1 response has bad length, "
+                                  f"are you sure this is the right pubkey? {self.peer_addr}")
         hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
         if bytes([hver]) != hs.handshake_version:
             raise HandshakeFailed("unexpected handshake version: {}".format(hver))

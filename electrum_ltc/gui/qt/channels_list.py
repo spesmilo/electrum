@@ -60,12 +60,13 @@ class ChannelsList(MyTreeView):
             if bal_other != bal_minus_htlcs_other:
                 label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
+        status = self.lnworker.get_channel_status(chan)
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
             labels[LOCAL],
             labels[REMOTE],
-            chan.get_state()
+            status
         ]
 
     def on_success(self, txid):

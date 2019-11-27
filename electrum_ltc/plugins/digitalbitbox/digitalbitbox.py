@@ -17,8 +17,7 @@ import time
 import copy
 
 from electrum_ltc.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-from electrum_ltc.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
-                                  is_address)
+from electrum_ltc.bitcoin import public_key_to_p2pkh
 from electrum_ltc.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum_ltc import ecc
 from electrum_ltc.ecc import msg_magic

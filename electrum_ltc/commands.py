@@ -197,9 +197,9 @@ class Commands:
                 for path, w in self.daemon.get_wallets().items()]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None):
+    async def load_wallet(self, wallet_path=None, password=None):
         """Open wallet in daemon"""
-        wallet = self.daemon.load_wallet(wallet_path, self.config.get('password'))
+        wallet = self.daemon.load_wallet(wallet_path, password, manual_upgrades=False)
         if wallet is not None:
             run_hook('load_wallet', wallet, None)
         response = wallet is not None
@@ -819,7 +819,7 @@ class Commands:
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
         """ Add a transaction to the wallet history """
         tx = Transaction(tx)
-        if not wallet.add_transaction(tx.txid(), tx):
+        if not wallet.add_transaction(tx):
             return False
         wallet.storage.write()
         return tx.txid()
@@ -929,7 +929,11 @@ class Commands:
         push_sat = satoshis(push_amount)
         dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
         funding_tx = wallet.mktx(outputs = [dummy_output], rbf=False, sign=False, nonlocal_only=True)
-        chan = await wallet.lnworker._open_channel_coroutine(connection_string, funding_tx, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(connect_str=connection_string,
+                                                                         funding_tx=funding_tx,
+                                                                         funding_sat=funding_sat,
+                                                                         push_sat=push_sat,
+                                                                         password=password)
         return chan.funding_outpoint.to_str()
 
     @command('wn')
@@ -1034,7 +1038,7 @@ command_options = {
     'passphrase':  (None, "Seed extension"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
-    'rbf':         (None, "Replace-by-fee transaction"),
+    'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
@@ -1078,6 +1082,7 @@ arg_types = {
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
+    'rbf': eval_bool,
     'timeout': float,
 }
 

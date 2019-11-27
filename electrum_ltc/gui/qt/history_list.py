@@ -580,9 +580,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
-            self.show_transaction(tx_item['txid'])
+            self.show_transaction(tx_item)
 
-    def show_transaction(self, tx_hash):
+    def show_transaction(self, tx_item):
+        if tx_item.get('lightning'):
+            return
+        tx_hash = tx_item['txid']
         tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
@@ -630,7 +633,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("Details"), lambda: self.show_transaction(tx_hash))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None

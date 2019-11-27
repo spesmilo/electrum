@@ -4,7 +4,6 @@ import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
 from electrum_ltc.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum_ltc.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc import constants
 from electrum_ltc.i18n import _

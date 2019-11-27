@@ -34,7 +34,7 @@ from . import bitcoin
 from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
-from .keystore import bip44_derivation, purpose48_derivation
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
 from .storage import (WalletStorage, StorageEncryptionVersion,
@@ -47,7 +47,7 @@ from .logging import Logger
 from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
 
 if TYPE_CHECKING:
-    from .plugin import DeviceInfo
+    from .plugin import DeviceInfo, BasePlugin
 
 
 # hardware device setup purpose
@@ -84,7 +84,7 @@ class BaseWizard(Logger):
         self.data = {}
         self.pw_args = None  # type: Optional[WizardWalletPasswordSetting]
         self._stack = []  # type: List[WizardStackItem]
-        self.plugin = None
+        self.plugin = None  # type: Optional[BasePlugin]
         self.keystores = []
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
@@ -532,9 +532,9 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
-            k = self.keystores[0]
+            k = self.keystores[0]  # type: Hardware_KeyStore
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()

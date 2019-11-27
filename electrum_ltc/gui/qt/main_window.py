@@ -435,7 +435,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
         if wallet.lnworker:
-            wallet.lnworker.on_channels_updated()
+            wallet.network.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus
@@ -639,7 +639,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # Settings / Preferences are all reserved keywords in macOS using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
-        tools_menu.addAction(_("&Network"), lambda: self.gui_object.show_network_dialog(self))
+        if self.network:
+            tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog)
         if self.wallet.has_lightning():
             tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
             tools_menu.addAction(_("&Watchtower"), self.gui_object.show_watchtower_dialog)
@@ -1475,11 +1476,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             raise Exception('unknown invoice type')
 
-    def get_coins(self, *, nonlocal_only=False):
+    def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
-        return coins or self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
+        if coins is not None:
+            return coins
+        else:
+            return self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
 
-    def get_manually_selected_coins(self) -> Sequence[PartialTxInput]:
+    def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
+        """Return a list of selected coins or None.
+        Note: None means selection is not being used,
+              while an empty sequence means the user specifically selected that.
+        """
         return self.utxo_list.get_spend_list()
 
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
@@ -1610,7 +1618,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def mktx_for_open_channel(self, funding_sat):
         coins = self.get_coins(nonlocal_only=True)
-        make_tx = partial(self.wallet.lnworker.mktx_for_open_channel, coins, funding_sat)
+        make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(coins=coins,
+                                                                             funding_sat=funding_sat,
+                                                                             fee_est=fee_est)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
@@ -1627,15 +1637,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         def task():
-            return self.wallet.lnworker.open_channel(connect_str, funding_tx, funding_sat, push_amt, password)
-        def on_success(chan):
+            return self.wallet.lnworker.open_channel(connect_str=connect_str,
+                                                     funding_tx=funding_tx,
+                                                     funding_sat=funding_sat,
+                                                     push_amt_sat=push_amt,
+                                                     password=password)
+        def on_success(args):
+            chan, funding_tx = args
             n = chan.constraints.funding_txn_minimum_depth
             message = '\n'.join([
                 _('Channel established.'),
                 _('Remote peer ID') + ':' + chan.node_id.hex(),
                 _('This channel will be usable after {} confirmations').format(n)
             ])
+            if not funding_tx.is_complete():
+                message += '\n\n' + _('Please sign and broadcast the funding transaction')
             self.show_message(message)
+            if not funding_tx.is_complete():
+                self.show_transaction(funding_tx)
+
         def on_failure(exc_info):
             type_, e, traceback = exc_info
             self.show_error(_('Could not open channel: {}').format(e))
@@ -1992,7 +2012,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.wallet.has_lightning():
             self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             sb.addPermanentWidget(self.lightning_button)
-        self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), lambda: self.gui_object.show_network_dialog(self))
+        if self.network:
+            self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
@@ -2009,7 +2030,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
-        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list([]))
+        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list(None))
         clear_cc_button.setStyleSheet("margin-right: 5px;")
         sb.addPermanentWidget(clear_cc_button)
 
@@ -2964,7 +2985,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()
         try:
-            if not self.wallet.add_transaction(tx.txid(), tx):
+            if not self.wallet.add_transaction(tx):
                 win.show_error(_("Transaction could not be saved.") + "\n" +
                                _("It conflicts with current history."))
                 return False

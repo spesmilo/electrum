@@ -1,11 +1,19 @@
+from typing import TYPE_CHECKING
+
 from kivy.lang import Builder
 from kivy.factory import Factory
+
 from electrum_ltc.gui.kivy.i18n import _
 from electrum_ltc.lnaddr import lndecode
 from electrum_ltc.util import bh2u
 from electrum_ltc.bitcoin import COIN
 import electrum_ltc.simple_config as config
+
 from .label_dialog import LabelDialog
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+
 
 Builder.load_string('''
 <LightningOpenChannelDialog@Popup>
@@ -100,7 +108,7 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def __init__(self, app, lnaddr=None, msg=None):
         super(LightningOpenChannelDialog, self).__init__()
-        self.app = app
+        self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
 
@@ -125,6 +133,7 @@ class LightningOpenChannelDialog(Factory.Popup):
     def on_qr(self, conn_str):
         self.pubkey = conn_str
 
+    # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     def open_channel(self):
         if not self.pubkey or not self.amount:
             self.app.show_info(_('All fields must be filled out'))
@@ -137,8 +146,14 @@ class LightningOpenChannelDialog(Factory.Popup):
         self.dismiss()
 
     def do_open_channel(self, conn_str, amount, password):
+        coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
+        funding_tx = self.app.wallet.lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
         try:
-            chan = self.app.wallet.lnworker.open_channel(conn_str, amount, 0, password=password)
+            chan, funding_tx = self.app.wallet.lnworker.open_channel(connect_str=conn_str,
+                                                                     funding_tx=funding_tx,
+                                                                     funding_sat=amount,
+                                                                     push_amt_sat=0,
+                                                                     password=password)
         except Exception as e:
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
@@ -148,4 +163,8 @@ class LightningOpenChannelDialog(Factory.Popup):
             _('Remote peer ID') + ':' + chan.node_id.hex(),
             _('This channel will be usable after {} confirmations').format(n)
         ])
+        if not funding_tx.is_complete():
+            message += '\n\n' + _('Please sign and broadcast the funding transaction')
         self.app.show_info(message)
+        if not funding_tx.is_complete():
+            self.app.tx_dialog(funding_tx)
