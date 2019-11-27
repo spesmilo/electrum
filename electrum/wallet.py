@@ -1008,7 +1008,7 @@ class Abstract_Wallet(AddressSynchronizer):
         tx.locktime = get_locktime_for_new_transaction(self.network)
         tx.ntime = int(time.time())
         tx.nversion = 3
-        tx.strdzeel = ""
+        tx.strdzeel = b''
 
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)

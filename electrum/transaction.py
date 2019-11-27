@@ -501,7 +501,7 @@ class Transaction:
         self.locktime = 0
         self.version = 3
         self.ntime = int(time.time())
-        self.strdzeel = ""
+        self.strdzeel = b''
 
         self._cached_txid = None  # type: Optional[str]
 
@@ -752,7 +752,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = var_int(len(self.strdzeel)) + ''.join(self.strdzeel)
+        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
 
         def create_script_sig(txin: TxInput) -> str:
             if include_sigs:
@@ -1691,7 +1691,7 @@ class PartialTransaction(Transaction):
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = var_int(len(self.strdzeel)) + ''.join(self.strdzeel)
+        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
         if sighash != SIGHASH_ALL:
