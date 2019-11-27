@@ -67,11 +67,11 @@ def inv_dict(d):
 ca_path = certifi.where()
 
 
-base_units = {'NAV':8, 'navis':5, 'mNAV':3, 'navoshi':0}
+base_units = {'NAV':8, 'navis':5, 'navoshis':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['NAV', 'navis', 'mNAV', 'navoshi']  # list(dict) does not guarantee order
+base_units_list = ['NAV', 'navis', 'navoshis']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+DECIMAL_POINT_DEFAULT = 8  # NAV
 
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
