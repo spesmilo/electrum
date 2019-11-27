@@ -87,6 +87,3 @@ elif sys.argv[1] == 'csv_to_loc':
     locale_util.extract_csv_to_locale()
 elif sys.argv[1] == 'loc_to_csv':
     locale_util.compile_locale_to_csv()
-
-
-locale_util.extract_csv_to_locale()
