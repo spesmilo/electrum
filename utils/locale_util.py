@@ -76,14 +76,17 @@ class locale_util:
         cmd = 'msgfmt --output-file=%s %s' % (mo_path, po_path)
         os.system(cmd)
 
+
+
+
 valid_args = ['csv_to_loc',
               'loc_to_csv']
         
 if len(sys.argv) < 2 or sys.argv[1] not in valid_args:
     print('Invalid script argument. Please use one of the following ones:\n'
-      '\t - csv_to_loc - extract language data from csv files to .po and .mo\n'
-      '\t - loc_to_csv - compile .po files to csv, for convenient editing\n')
-elif sys.argv[1] == 'csv_to_loc':
+      '\t - %s - extract language data from csv files to .po and .mo\n'
+      '\t - %s - compile .po files to csv, for convenient editing\n'% (valid_args[0], valid_args[1]))
+elif sys.argv[1] == valid_args[0]:
     locale_util.extract_csv_to_locale()
-elif sys.argv[1] == 'loc_to_csv':
+elif sys.argv[1] == valid_args[1]:
     locale_util.compile_locale_to_csv()
