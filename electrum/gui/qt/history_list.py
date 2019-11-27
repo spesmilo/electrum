@@ -235,7 +235,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             cg = tx_item['capital_gain'].value
             return QVariant(self.parent.fx.format_fiat(cg))
         elif col == HistoryColumns.TXID:
-            return QVariant(tx_hash)
+            return QVariant(tx_hash) if not is_lightning else QVariant('')
         return QVariant()
 
     def parent(self, index: QModelIndex):
