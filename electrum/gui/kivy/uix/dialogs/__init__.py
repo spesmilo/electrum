@@ -221,6 +221,5 @@ class TopLabel(Factory.Label):
     pass
 
 
-
 class RefLabel(TopLabel):
     pass
