@@ -4,6 +4,7 @@
 import sys
 import os
 import re
+import time
 import traceback
 
 from PyQt5 import QtCore
@@ -12,8 +13,45 @@ from PyQt5 import QtWidgets
 
 from electrum import util
 from electrum.i18n import _
+from electrum.plugin import run_hook
 
-from .util import MONOSPACE_FONT
+from .util import (MONOSPACE_FONT, WindowModalDialog, OkButton, CancelButton,
+                   Buttons)
+
+
+class ConsolePasswordDialog(WindowModalDialog):
+    def __init__(self, parent=None, msg=None):
+        msg = msg or _('Please enter your password')
+        WindowModalDialog.__init__(self, parent, _('Enter Password'))
+        self.pw = pw = QtWidgets.QLineEdit()
+        pw.setEchoMode(2)
+        vbox = QtWidgets.QVBoxLayout()
+        vbox.addWidget(QtWidgets.QLabel(msg))
+        inactivity_lb = QtWidgets.QLabel(_('Inactivity timeout in minutes'))
+        self.inactivity_sb = QtWidgets.QSpinBox()
+        self.inactivity_sb.setMinimum(1)
+        self.inactivity_sb.setMaximum(10)
+        self.config = parent.config
+        timeout = parent.config.get('console_kbd_timeout', 1)
+        self.inactivity_sb.setValue(timeout)
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(inactivity_lb, 20, 0)
+        grid.addWidget(self.inactivity_sb, 20, 1, 1, -1)
+        grid.addWidget(QtWidgets.QLabel(_('Password')), 1, 0)
+        grid.addWidget(pw, 1, 1)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
+        self.setLayout(vbox)
+        run_hook('password_dialog', pw, grid, 1)
+
+    def run(self):
+        res = self.exec_()
+        timeout = self.inactivity_sb.value()
+        self.config.set_key('console_kbd_timeout', timeout, True)
+        if not res:
+            return
+        return self.pw.text()
 
 
 class OverlayLabel(QtWidgets.QLabel):
@@ -48,6 +86,7 @@ class Console(QtWidgets.QPlainTextEdit):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
 
         self.prompt = prompt
+        self.parent = parent
         self.history = []
         self.namespace = {}
         self.construct = []
@@ -69,10 +108,29 @@ class Console(QtWidgets.QPlainTextEdit):
         )
         self.messageOverlay = OverlayLabel(warning_text, self)
 
+        self._last_activity_time = None
+        self._is_locked = False
+        unlock_btn = QtWidgets.QPushButton(_('Unlock Console'))
+        unlock_btn.clicked.connect(self.unlock)
+        grid = QtWidgets.QGridLayout()
+        grid.addWidget(QtWidgets.QWidget(), 0, 0)
+        grid.addWidget(unlock_btn, 1, 1)
+        grid.addWidget(QtWidgets.QWidget(), 2, 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(2, 1)
+        grid.setRowStretch(0, 1)
+        grid.setRowStretch(2, 1)
+        self.unlock_widget = QtWidgets.QWidget(self)
+        self.unlock_widget.setLayout(grid)
+        self.unlock_widget.setAutoFillBackground(True)
+        self.unlock_widget.hide()
+        self.lock_if_need()
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
         vertical_scrollbar_width = self.verticalScrollBar().width() * self.verticalScrollBar().isVisible()
         self.messageOverlay.on_resize(self.width() - vertical_scrollbar_width)
+        self.unlock_widget.setGeometry(0, 0, self.width(), self.height())
 
     def set_json(self, b):
         self.is_json = b
@@ -274,6 +332,9 @@ class Console(QtWidgets.QPlainTextEdit):
 
 
     def keyPressEvent(self, event):
+        if self._is_locked:
+            return
+        self._last_activity_time = time.time()
         if event.key() == QtCore.Qt.Key_Tab:
             self.completions()
             return
@@ -346,6 +407,56 @@ class Console(QtWidgets.QPlainTextEdit):
                 self.setCommand(beginning + p)
             else:
                 self.show_completions(completions)
+
+    def lock_if_need(self):
+        if self._is_locked:
+            return
+        if not self.parent.wallet.has_keystore_encryption():
+            return
+
+        timeout_sec = self.parent.config.get('console_kbd_timeout', 1) * 60
+        if (self._last_activity_time is None
+                or time.time() - self._last_activity_time > timeout_sec):
+            self.setReadOnly(True)
+            self.unlock_widget.show()
+            self._is_locked = True
+
+    def unlock(self):
+        if not self.request_password():
+            return
+        self._last_activity_time = time.time()
+        self.unlock_widget.hide()
+        self.setReadOnly(False)
+        self._is_locked = False
+        self.setFocus()
+
+    def update_lock_state(self):
+        if not self.parent.wallet.has_keystore_encryption():
+            self.unlock_widget.hide()
+            self.setReadOnly(False)
+            self._is_locked = False
+            self.setFocus()
+        else:
+            self._last_activity_time = None
+            self.lock_if_need()
+
+    def request_password(self):
+        parent = self.parent
+        password = None
+        while parent.wallet.has_keystore_encryption():
+            d = ConsolePasswordDialog(parent)
+            password = d.run()
+            if password is None:
+                # User cancelled password input
+                return False
+            try:
+                parent.wallet.check_password(password)
+                break
+            except Exception as e:
+                parent.show_error(str(e), parent=parent)
+                continue
+
+        return True if password else False
 
 
 welcome_message = '''
