@@ -45,11 +45,10 @@ from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
 from electrum.logging import get_logger
 
-from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton, icon_path,
+from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER)
 
@@ -70,9 +69,6 @@ class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
         return QSize(0, 100)
 
-
-SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
-SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
 
 
 _logger = get_logger(__name__)
@@ -143,12 +139,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         b.clicked.connect(self.do_broadcast)
 
         self.save_button = b = QPushButton(_("Save"))
-        save_button_disabled = False #not tx.is_complete()
-        b.setDisabled(save_button_disabled)
-        if save_button_disabled:
-            b.setToolTip(SAVE_BUTTON_DISABLED_TOOLTIP)
-        else:
-            b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
         b.clicked.connect(self.save)
 
         self.cancel_button = b = QPushButton(_("Close"))
@@ -271,7 +261,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def copy_to_clipboard(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
-        self.main_window.app.clipboard().setText(str(tx))
+        self.main_window.do_copy(str(tx), title=_("Transaction"))
 
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:
@@ -296,14 +286,12 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             if self.tx.is_complete():
                 self.prompt_if_unsaved = True
                 self.saved = False
-                self.save_button.setDisabled(False)
-                self.save_button.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
             self.update()
             self.main_window.pop_top_level_window(self)
 
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
-        self.main_window.sign_tx(self.tx, sign_done, self.external_keypairs)
+        self.main_window.sign_tx(self.tx, callback=sign_done, external_keypairs=self.external_keypairs)
 
     def save(self):
         self.main_window.push_top_level_window(self)
@@ -377,6 +365,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def update(self):
         if not self.finalized:
             self.update_fee_fields()
+            self.finalize_button.setEnabled(self.tx is not None)
         if self.tx is None:
             return
         self.update_io()
@@ -450,14 +439,20 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             else:
                 widget.setVisible(show_psbt_only_widgets)
 
+        self.save_button.setEnabled(tx_details.can_save_as_local)
+        if tx_details.can_save_as_local:
+            self.save_button.setToolTip(_("Save transaction offline"))
+        else:
+            self.save_button.setToolTip(_("Transaction already saved or not yet signed."))
+
         run_hook('transaction_dialog_update', self)
 
     def update_io(self):
         inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
         if not self.finalized:
-            num_utxos = len(self.main_window.get_manually_selected_coins())
-            if num_utxos > 0:
-                inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(num_utxos)
+            selected_coins = self.main_window.get_manually_selected_coins()
+            if selected_coins is not None:
+                inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
         self.inputs_header.setText(inputs_header_text)
         ext = QTextCharFormat()
         rec = QTextCharFormat()
@@ -584,6 +579,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def on_finalize(self):
         pass  # overridden in subclass
 
+    def update_fee_fields(self):
+        pass  # overridden in subclass
+
 
 class TxDetailLabel(QLabel):
     def __init__(self, *, word_wrap=None):
@@ -603,9 +601,10 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, make_tx, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
-        TxEditor.__init__(self, window, make_tx, outputs, is_sweep=bool(external_keypairs))
-        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False, finalized=False, external_keypairs=external_keypairs)
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow', invoice):
+        TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
+        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False,
+                              finalized=False, external_keypairs=external_keypairs)
         self.update_tx()
         self.update()
 
@@ -699,9 +698,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
                                  .format(num_satoshis_added))
 
     def get_fee_estimator(self):
-        if self.is_send_fee_frozen():
+        if self.is_send_fee_frozen() and self.fee_e.get_amount() is not None:
             fee_estimator = self.fee_e.get_amount()
-        elif self.is_send_feerate_frozen():
+        elif self.is_send_feerate_frozen() and self.feerate_e.get_amount() is not None:
             amount = self.feerate_e.get_amount()  # sat/byte feerate
             amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
             fee_estimator = partial(
@@ -757,7 +756,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             displayed_feerate = self.feerate_e.get_amount()
             if displayed_feerate is not None:
                 displayed_feerate = quantize_feerate(displayed_feerate)
-            else:
+            elif self.fee_slider.is_active():
                 # fallback to actual fee
                 displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
@@ -775,12 +774,14 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             self.feerate_e.setAmount(displayed_feerate)
 
         # show/hide fee rounding icon
-        feerounding = (fee - displayed_fee) if fee else 0
+        feerounding = (fee - displayed_fee) if (fee and displayed_fee is not None) else 0
         self.set_feerounding_text(int(feerounding))
         self.feerounding_icon.setToolTip(self.feerounding_text)
         self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
     def on_finalize(self):
+        if not self.tx:
+            return
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
         for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb]:

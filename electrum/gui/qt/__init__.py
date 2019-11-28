@@ -155,8 +155,12 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        m.addAction(_("Lightning"), self.show_lightning_dialog)
-        m.addAction(_("Watchtower"), self.show_watchtower_dialog)
+        network = self.daemon.network
+        m.addAction(_("Network"), self.show_network_dialog)
+        if network.lngossip:
+            m.addAction(_("Lightning Network"), self.show_lightning_dialog)
+        if network.local_watchtower:
+            m.addAction(_("Local Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -210,10 +214,7 @@ class ElectrumGui(Logger):
             self.watchtower_dialog = WatchtowerDialog(self)
         self.watchtower_dialog.bring_to_top()
 
-    def show_network_dialog(self, parent):
-        if not self.daemon.network:
-            parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
-            return
+    def show_network_dialog(self):
         if self.network_dialog:
             self.network_dialog.on_update()
             self.network_dialog.show()

@@ -2289,7 +2289,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         w.storage.put('stored_height', 1316917 + 100)
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
-            w.add_transaction(tx.txid(), tx)
+            w.add_transaction(tx)
         # txn A is an external incoming txn paying to addr (3) and (15)
         # txn B is an external incoming txn paying to addr (4) and (25)
         # txn C is an internal transfer txn from addr (25) -- to -- (1) and (25)
@@ -2339,7 +2339,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
                                      config=self.config)['wallet']
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
-            w.add_transaction(tx.txid(), tx)
+            w.add_transaction(tx)
         # txn A is an external incoming txn funding the wallet
         # txn B is an outgoing payment to an external address
         # txn C is double-spending txn B, to a wallet address
@@ -2353,15 +2353,15 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
                                      config=self.config)['wallet']
         # txn A is an external incoming txn funding the wallet
         txA = Transaction(self.transactions["a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625"])
-        w.add_transaction(txA.txid(), txA)
+        w.add_transaction(txA)
         # txn B is an outgoing payment to an external address
         txB = Transaction(self.transactions["0e2182ead6660790290371516cb0b80afa8baebd30dad42b5e58a24ceea17f1c"])
-        w.add_transaction(txB.txid(), txB)
+        w.add_transaction(txB)
         # now the user manually deletes txn B to attempt the double spend
         # txn C is double-spending txn B, to a wallet address
         # rationale1: user might do this with opt-in RBF transactions
         # rationale2: this might be a local transaction, in which case the GUI even allows it
         w.remove_transaction(txB)
         txC = Transaction(self.transactions["2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017"])
-        w.add_transaction(txC.txid(), txC)
+        w.add_transaction(txC)
         self.assertEqual(999890, sum(w.get_balance()))

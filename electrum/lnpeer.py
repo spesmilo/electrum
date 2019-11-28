@@ -29,7 +29,7 @@ from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket)
-from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture
+from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, channel_states, peer_states
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -65,6 +65,8 @@ def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[b
 class Peer(Logger):
 
     def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
+        self._sent_init = False  # type: bool
+        self._received_init = False  # type: bool
         self.initialized = asyncio.Event()
         self.querying = asyncio.Event()
         self.transport = transport
@@ -97,6 +99,8 @@ class Peer(Logger):
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
         self.logger.debug(f"Sending {message_name.upper()}")
+        if message_name.upper() != "INIT" and not self.initialized.is_set():
+            raise Exception("tried to send message before we are initialized")
         raw_msg = encode_msg(message_name, **kwargs)
         self._store_raw_msg_if_local_update(raw_msg, message_name=message_name, channel_id=kwargs.get("channel_id"))
         self.transport.send_bytes(raw_msg)
@@ -116,6 +120,7 @@ class Peer(Logger):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
+        self._sent_init = True
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
@@ -176,7 +181,7 @@ class Peer(Logger):
         self.funding_created[channel_id].put_nowait(payload)
 
     def on_init(self, payload):
-        if self.initialized.is_set():
+        if self._received_init:
             self.logger.info("ALREADY INITIALIZED BUT RECEIVED INIT")
             return
         # if they required some even flag we don't have, they will close themselves
@@ -199,7 +204,9 @@ class Peer(Logger):
                     self.localfeatures |= 1 << get_ln_flag_pair_of_bit(flag)
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
-        self.initialized.set()
+        self._received_init = True
+        if self._sent_init and self._received_init:
+            self.initialized.set()
 
     def on_node_announcement(self, payload):
         self.gossip_queue.put_nowait(('node_announcement', payload))
@@ -436,6 +443,8 @@ class Peer(Logger):
             await asyncio.wait_for(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
+        if self._sent_init and self._received_init:
+            self.initialized.set()
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
@@ -482,7 +491,7 @@ class Peer(Logger):
 
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
-                                         push_msat: int, temp_channel_id: bytes) -> Channel:
+                                         push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -566,7 +575,10 @@ class Peer(Logger):
         funding_tx.add_outputs([funding_output])
         funding_tx.set_rbf(False)
         self.lnworker.wallet.sign_transaction(funding_tx, password)
+        if not funding_tx.is_complete() and not funding_tx.is_segwit():
+            raise Exception('Funding transaction is not complete')
         funding_txid = funding_tx.txid()
+        assert funding_txid
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
@@ -579,6 +591,7 @@ class Peer(Logger):
             "local_config": local_config,
             "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
             "remote_update": None,
+            "state": channel_states.PREOPENING.name,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -594,11 +607,8 @@ class Peer(Logger):
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
-        # broadcast funding tx
-        # TODO make more robust (timeout low? server returns error?)
-        await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        return chan
+        return chan, funding_tx
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
@@ -664,6 +674,7 @@ class Peer(Logger):
                 "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
                 "remote_update": None,
+                "state": channel_states.PREOPENING.name,
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -680,21 +691,6 @@ class Peer(Logger):
         self.lnworker.save_channel(chan)
         self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.lnworker.on_channels_updated()
-        # TODO make more robust
-        while True:
-            try:
-                funding_tx = Transaction(await self.network.get_transaction(funding_txid))
-            except NetworkException as e:
-                print("sleeping", str(e))
-                await asyncio.sleep(1)
-            else:
-                break
-        outp = funding_tx.outputs()[funding_idx]
-        redeem_script = funding_output_script(chan.config[REMOTE], chan.config[LOCAL])
-        funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
-        if not (outp.address == funding_address and outp.value == funding_sat):
-            chan.set_state('DISCONNECTED')
-            raise Exception('funding outpoint mismatch')
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')
@@ -724,11 +720,11 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized.wait()
         chan_id = chan.channel_id
-        if chan.get_state() != 'DISCONNECTED':
+        if chan.peer_state != peer_states.DISCONNECTED:
             self.logger.info('reestablish_channel was called but channel {} already in state {}'
                              .format(chan_id, chan.get_state()))
             return
-        chan.set_state('REESTABLISHING')
+        chan.peer_state = peer_states.REESTABLISHING
         self.network.trigger_callback('channel', chan)
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
@@ -868,14 +864,14 @@ class Peer(Logger):
             return
         elif should_close_we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
-            self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.force_close_channel(chan_id)
             return
 
+        chan.peer_state = peer_states.GOOD
         # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
         if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
             self.send_funding_locked(chan)
         # checks done
-        chan.set_state('OPENING')
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
@@ -964,11 +960,15 @@ class Peer(Logger):
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
         scid = chan.short_channel_id
-        # only allow state transition to "OPEN" from "OPENING"
-        if chan.get_state() != "OPENING":
+        # only allow state transition from "FUNDED" to "OPEN"
+        old_state = chan.get_state()
+        if old_state == channel_states.OPEN:
+            return
+        if old_state != channel_states.FUNDED:
+            self.logger.info(f"cannot mark open, current state: {repr(old_state)}")
             return
         assert chan.config[LOCAL].funding_locked_received
-        chan.set_state("OPEN")
+        chan.set_state(channel_states.OPEN)
         self.network.trigger_callback('channel', chan)
         self.add_own_channel(chan)
         self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
@@ -1129,8 +1129,10 @@ class Peer(Logger):
 
     async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
-        assert chan.get_state() == "OPEN", chan.get_state()
+        if chan.get_state() != channel_states.OPEN:
+            raise PaymentFailure('Channel not open')
         assert amount_msat > 0, "amount_msat is not greater zero"
+        await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
@@ -1215,10 +1217,10 @@ class Peer(Logger):
         amount_msat_htlc = int.from_bytes(payload["amount_msat"], 'big')
         onion_packet = OnionPacket.from_bytes(payload["onion_routing_packet"])
         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
-        if chan.get_state() != "OPEN":
+        if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry >= 500_000_000:
-            self.lnworker.force_close_channel(channel_id)
+            asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry >= 500_000_000. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
@@ -1270,7 +1272,7 @@ class Peer(Logger):
             return
         outgoing_chan_upd = self.get_outgoing_gossip_channel_update_for_chan(next_chan)[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
-        if next_chan.get_state() != 'OPEN':
+        if next_chan.get_state() != channel_states.OPEN:
             self.logger.info(f"cannot forward htlc. next_chan not OPEN: {next_chan_scid} in state {next_chan.get_state()}")
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE,
                                                 data=outgoing_chan_upd_len+outgoing_chan_upd)
@@ -1468,7 +1470,7 @@ class Peer(Logger):
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, is_local):
         # set state so that we stop accepting HTLCs
-        chan.set_state('CLOSING')
+        chan.set_state(channel_states.CLOSING)
         # wait until no HTLCs remain in either commitment transaction
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info('waiting for htlcs to settle...')

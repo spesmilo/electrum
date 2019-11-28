@@ -1,20 +1,19 @@
 # -*- coding: utf-8 -*-
 import traceback
-import asyncio
 from enum import IntEnum
 
-from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
 
-from electrum.util import inv_dict, bh2u, bfh
+from electrum.util import bh2u
 from electrum.i18n import _
 from electrum.lnchannel import Channel
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel, WaitingDialog, HelpLabel
-from .amountedit import BTCAmountEdit
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WaitingDialog
+from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .channel_details import ChannelDetailsDialog
 
 
@@ -61,12 +60,13 @@ class ChannelsList(MyTreeView):
             if bal_other != bal_minus_htlcs_other:
                 label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
+        status = self.lnworker.get_channel_status(chan)
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
             labels[LOCAL],
             labels[REMOTE],
-            chan.get_state()
+            status
         ]
 
     def on_success(self, txid):
@@ -164,22 +164,24 @@ class ChannelsList(MyTreeView):
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        local_nodeid = QLineEdit()
+        local_nodeid = FreezableLineEdit()
         local_nodeid.setMinimumWidth(700)
         local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
-        local_nodeid.setReadOnly(True)
+        local_nodeid.setFrozen(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
         # max button
         def spend_max():
+            amount_e.setFrozen(max_button.isChecked())
+            if not max_button.isChecked():
+                return
             make_tx = self.parent.mktx_for_open_channel('!')
             tx = make_tx(None)
             amount = tx.output_value()
             amount = min(amount, LN_MAX_FUNDING_SAT)
             amount_e.setAmount(amount)
-            amount_e.setFrozen(True)
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
@@ -203,6 +205,12 @@ class ChannelsList(MyTreeView):
         remote_nodeid.setCursorPosition(0)
         if not d.exec_():
             return
-        funding_sat = '!' if max_button.isChecked() else amount_e.get_amount()
+        if max_button.isChecked() and amount_e.get_amount() < LN_MAX_FUNDING_SAT:
+            # if 'max' enabled and amount is strictly less than max allowed,
+            # that means we have fewer coins than max allowed, and hence we can
+            # spend all coins
+            funding_sat = '!'
+        else:
+            funding_sat = amount_e.get_amount()
         connect_str = str(remote_nodeid.text()).strip()
         self.parent.open_channel(connect_str, funding_sat, 0)

@@ -8,7 +8,9 @@ from collections import namedtuple
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set
 import re
 
-from .util import bfh, bh2u, inv_dict
+from aiorpcx import NetAddress
+
+from .util import bfh, bh2u, inv_dict, UserFacingException
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
@@ -27,7 +29,7 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
-LN_MAX_FUNDING_SAT = pow(2, 24)
+LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -118,13 +120,13 @@ class LightningError(Exception): pass
 class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
-class PaymentFailure(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
+class PaymentFailure(UserFacingException): pass
 
 # TODO make some of these values configurable?
 DEFAULT_TO_SELF_DELAY = 144
@@ -656,13 +658,31 @@ class LnGlobalFeatures(IntFlag):
 LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
 
 
-class LNPeerAddr(NamedTuple):
-    host: str
-    port: int
-    pubkey: bytes
+class LNPeerAddr:
+
+    def __init__(self, host: str, port: int, pubkey: bytes):
+        assert isinstance(host, str), repr(host)
+        assert isinstance(port, int), repr(port)
+        assert isinstance(pubkey, bytes), repr(pubkey)
+        try:
+            net_addr = NetAddress(host, port)  # this validates host and port
+        except Exception as e:
+            raise ValueError(f"cannot construct LNPeerAddr: invalid host or port (host={host}, port={port})") from e
+        # note: not validating pubkey as it would be too expensive:
+        # if not ECPubkey.is_pubkey_bytes(pubkey): raise ValueError()
+        self.host = host
+        self.port = port
+        self.pubkey = pubkey
+        self._net_addr_str = str(net_addr)
 
     def __str__(self):
-        return '{}@{}:{}'.format(bh2u(self.pubkey), self.host, self.port)
+        return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
+
+    def __repr__(self):
+        return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'
+
+    def net_addr_str(self) -> str:
+        return self._net_addr_str
 
 
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:

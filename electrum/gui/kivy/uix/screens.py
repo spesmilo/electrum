@@ -21,13 +21,15 @@ from kivy.uix.image import Image
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
+from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values
+from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
+                           PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values,
+                           maybe_extract_bolt11_invoice)
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
@@ -204,6 +206,7 @@ class SendScreen(CScreen):
 
     def set_ln_invoice(self, invoice):
         try:
+            invoice = str(invoice).lower()
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except Exception as e:
             self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
@@ -282,12 +285,10 @@ class SendScreen(CScreen):
         if tx:
             self.app.tx_dialog(tx)
             return
-        lower = data.lower()
-        if lower.startswith('lightning:ln'):
-            lower = lower[10:]
         # try to decode as URI/address
-        if lower.startswith('ln'):
-            self.set_ln_invoice(lower)
+        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        if bolt11_invoice is not None:
+            self.set_ln_invoice(bolt11_invoice)
         else:
             self.set_URI(data)
 
@@ -360,7 +361,7 @@ class SendScreen(CScreen):
             self.app.show_error(_("Not enough funds"))
             return
         except Exception as e:
-            traceback.print_exc(file=sys.stdout)
+            Logger.exception('')
             self.app.show_error(repr(e))
             return
         if rbf:

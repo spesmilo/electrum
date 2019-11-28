@@ -116,7 +116,6 @@ class SettingsDialog(WindowModalDialog):
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==2)
             self.config.set_key('dynamic_fees', x>0)
-            self.window.fee_slider.update()
         fee_type_combo.currentIndexChanged.connect(on_fee_type)
         fee_widgets.append((fee_type_label, fee_type_combo))
 
@@ -172,8 +171,6 @@ open. For this to work, your computer needs to be online regularly.""")
         def on_wt_url():
             url = self.watchtower_url_e.text() or None
             watchtower_url = self.config.set_key('watchtower_url', url)
-            if url:
-                self.lnwatcher.set_remote_watchtower()
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
 

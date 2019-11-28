@@ -591,9 +591,11 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, decimal_point = 8):
+def format_satoshis_plain(x, decimal_point = 8) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
+    if x == '!':
+        return 'max'
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
@@ -642,7 +644,7 @@ def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
     return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
-def quantize_feerate(fee):
+def quantize_feerate(fee) -> Union[None, Decimal, int]:
     """Strip sat/byte fee rate of excess precision."""
     if fee is None:
         return None
@@ -889,6 +891,15 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
+def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+    lower = data.lower()
+    if lower.startswith('lightning:ln'):
+        lower = lower[10:]
+    if lower.startswith('ln'):
+        return lower
+    return None
+
+
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3
@@ -1013,7 +1024,7 @@ def ignore_exceptions(func):
 
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx

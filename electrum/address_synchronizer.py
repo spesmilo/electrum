@@ -80,7 +80,7 @@ class AddressSynchronizer(Logger):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {} # txid -> blocks remaining
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> blocks remaining
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -207,12 +207,13 @@ class AddressSynchronizer(Logger):
                     conflicting_txns -= {tx_hash}
             return conflicting_txns
 
-    def add_transaction(self, tx_hash, tx: Transaction, allow_unrelated=False) -> bool:
+    def add_transaction(self, tx: Transaction, allow_unrelated=False) -> bool:
         """Returns whether the tx was successfully added to the wallet history."""
-        assert tx_hash, tx_hash
         assert tx, tx
         assert tx.is_complete()
-        # assert tx_hash == tx.txid()  # disabled as expensive; test done by Synchronizer.
+        tx_hash = tx.txid()
+        if tx_hash is None:
+            raise Exception("cannot add tx without txid to wallet history")
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
@@ -339,7 +340,7 @@ class AddressSynchronizer(Logger):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
-        self.add_transaction(tx_hash, tx, allow_unrelated=True)
+        self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
@@ -360,7 +361,7 @@ class AddressSynchronizer(Logger):
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
-            self.add_transaction(tx_hash, tx, allow_unrelated=True)
+            self.add_transaction(tx, allow_unrelated=True)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
@@ -386,7 +387,7 @@ class AddressSynchronizer(Logger):
                     continue
                 tx = self.db.get_transaction(tx_hash)
                 if tx is not None:
-                    self.add_transaction(tx_hash, tx, allow_unrelated=True)
+                    self.add_transaction(tx, allow_unrelated=True)
 
     def remove_local_transactions_we_dont_have(self):
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
@@ -566,9 +567,10 @@ class AddressSynchronizer(Logger):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def add_future_tx(self, tx: Transaction, num_blocks):
+    def add_future_tx(self, tx: Transaction, num_blocks: int) -> None:
+        assert num_blocks > 0, num_blocks
         with self.lock:
-            self.add_transaction(tx.txid(), tx)
+            self.add_transaction(tx)
             self.future_tx[tx.txid()] = num_blocks
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
@@ -581,9 +583,9 @@ class AddressSynchronizer(Logger):
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
             elif tx_hash in self.future_tx:
-                # FIXME this is ugly
-                conf = self.future_tx[tx_hash]
-                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=conf)
+                num_blocks_remainining = self.future_tx[tx_hash]
+                assert num_blocks_remainining > 0, num_blocks_remainining
+                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
