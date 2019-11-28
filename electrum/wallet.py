@@ -36,9 +36,10 @@ import errno
 import traceback
 import operator
 from functools import partial
+from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set
 
 from .i18n import _
 from .bip32 import BIP32Node
@@ -249,6 +250,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if invoice.get('type') == PR_TYPE_ONCHAIN:
                 outputs = [PartialTxOutput.from_legacy_tuple(*output) for output in invoice.get('outputs')]
                 invoice['outputs'] = outputs
+        self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -611,7 +613,10 @@ class Abstract_Wallet(AddressSynchronizer):
         elif invoice_type == PR_TYPE_ONCHAIN:
             key = bh2u(sha256(repr(invoice))[0:16])
             invoice['id'] = key
-            invoice['txid'] = None
+            outputs = invoice['outputs']  # type: List[PartialTxOutput]
+            with self.transaction_lock:
+                for txout in outputs:
+                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         else:
             raise Exception('Unsupported invoice type')
         self.invoices[key] = invoice
@@ -629,26 +634,72 @@ class Abstract_Wallet(AddressSynchronizer):
         out.sort(key=operator.itemgetter('time'))
         return out
 
-    def set_paid(self, key, txid):
-        if key not in self.invoices:
-            return
-        invoice = self.invoices[key]
-        assert invoice.get('type') == PR_TYPE_ONCHAIN
-        invoice['txid'] = txid
-        self.storage.put('invoices', self.invoices)
-
     def get_invoice(self, key):
         if key not in self.invoices:
             return
         item = copy.copy(self.invoices[key])
         request_type = item.get('type')
         if request_type == PR_TYPE_ONCHAIN:
-            item['status'] = PR_PAID if item.get('txid') is not None else PR_UNPAID
+            item['status'] = PR_PAID if self._is_onchain_invoice_paid(item)[0] else PR_UNPAID
         elif self.lnworker and request_type == PR_TYPE_LN:
             item['status'] = self.lnworker.get_payment_status(bfh(item['rhash']))
         else:
             return
         return item
+
+    def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
+        relevant_invoice_keys = set()
+        for txout in tx.outputs():
+            for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
+                relevant_invoice_keys.add(invoice_key)
+        return relevant_invoice_keys
+
+    def _prepare_onchain_invoice_paid_detection(self):
+        # scriptpubkey -> list(invoice_keys)
+        self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
+        for invoice_key, invoice in self.invoices.items():
+            if invoice.get('type') == PR_TYPE_ONCHAIN:
+                outputs = invoice['outputs']  # type: List[PartialTxOutput]
+                for txout in outputs:
+                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+
+    def _is_onchain_invoice_paid(self, invoice) -> Tuple[bool, Sequence[str]]:
+        """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
+        assert invoice.get('type') == PR_TYPE_ONCHAIN
+        invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
+        for txo in invoice['outputs']:  # type: PartialTxOutput
+            invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
+        relevant_txs = []
+        with self.transaction_lock:
+            for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
+                scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey.hex())
+                prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
+                relevant_txs += [prevout.txid.hex() for prevout, v in prevouts_and_values]
+                total_received = sum([v for prevout, v in prevouts_and_values])
+                if total_received < invoice_amt:
+                    return False, []
+        return True, relevant_txs
+
+    def _maybe_set_tx_label_based_on_invoices(self, tx: Transaction) -> bool:
+        tx_hash = tx.txid()
+        with self.transaction_lock:
+            labels = []
+            for invoice_key in self._get_relevant_invoice_keys_for_tx(tx):
+                invoice = self.invoices.get(invoice_key)
+                if invoice is None: continue
+                assert invoice.get('type') == PR_TYPE_ONCHAIN
+                if invoice['message']:
+                    labels.append(invoice['message'])
+        if labels:
+            self.set_label(tx_hash, "; ".join(labels))
+        return bool(labels)
+
+    def add_transaction(self, tx, *, allow_unrelated=False):
+        tx_was_added = super().add_transaction(tx, allow_unrelated=allow_unrelated)
+
+        if tx_was_added:
+            self._maybe_set_tx_label_based_on_invoices(tx)
+        return tx_was_added
 
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
@@ -1868,10 +1919,6 @@ class Imported_Wallet(Simple_Wallet):
             self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
-                self.db.remove_tx_fee(tx_hash)
-                self.db.remove_verified_tx(tx_hash)
-                self.unverified_tx.pop(tx_hash, None)
-                self.db.remove_transaction(tx_hash)
         self.set_label(address, None)
         self.remove_payment_request(address)
         self.set_frozen_state_of_addresses([address], False)

@@ -96,7 +96,8 @@ class InvoiceList(MyTreeView):
         _list = self.parent.wallet.get_invoices()
         # filter out paid invoices unless we have the log
         lnworker_logs = self.parent.wallet.lnworker.logs if self.parent.wallet.lnworker else {}
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs]
+        _list = [x for x in _list
+                 if x and (x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs)]
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(_list):
