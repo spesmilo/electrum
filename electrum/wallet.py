@@ -219,6 +219,9 @@ class Abstract_Wallet(AddressSynchronizer):
     max_change_outputs = 3
     gap_limit_for_change = 6
 
+    txin_type: str
+    wallet_type: str
+
     def __init__(self, storage: WalletStorage, *, config: SimpleConfig):
         if not storage.is_ready_to_be_used_by_wallet():
             raise Exception("storage not ready to be used by Abstract_Wallet")
@@ -1757,6 +1760,12 @@ class Abstract_Wallet(AddressSynchronizer):
     def save_keystore(self):
         raise NotImplementedError()
 
+    def has_seed(self) -> bool:
+        raise NotImplementedError()
+
+    def is_beyond_limit(self, address: str) -> bool:
+        raise NotImplementedError()
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -2172,7 +2181,6 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
-    gap_limit = 20
 
     def __init__(self, storage, *, config):
         self.wallet_type = storage.get('wallet_type')
