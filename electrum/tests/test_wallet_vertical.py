@@ -9,7 +9,7 @@ from electrum import storage, bitcoin, keystore, bip32
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet, restore_wallet_from_text
+from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet, restore_wallet_from_text, Abstract_Wallet
 from electrum.util import bfh, bh2u
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxOutput, PartialTxInput, tx_from_any
 from electrum.mnemonic import seed_type
@@ -2336,7 +2336,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
                                      path='if_this_exists_mocking_failed_648151893',
                                      gap_limit=5,
-                                     config=self.config)['wallet']
+                                     config=self.config)['wallet']  # type: Abstract_Wallet
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
             w.add_transaction(tx)
@@ -2350,7 +2350,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
                                      path='if_this_exists_mocking_failed_648151893',
                                      gap_limit=5,
-                                     config=self.config)['wallet']
+                                     config=self.config)['wallet']  # type: Abstract_Wallet
         # txn A is an external incoming txn funding the wallet
         txA = Transaction(self.transactions["a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625"])
         w.add_transaction(txA)
@@ -2361,7 +2361,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         # txn C is double-spending txn B, to a wallet address
         # rationale1: user might do this with opt-in RBF transactions
         # rationale2: this might be a local transaction, in which case the GUI even allows it
-        w.remove_transaction(txB)
+        w.remove_transaction(txB.txid())
         txC = Transaction(self.transactions["2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017"])
         w.add_transaction(txC)
         self.assertEqual(999890, sum(w.get_balance()))
