@@ -31,16 +31,16 @@ from collections import defaultdict
 from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
 
 from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
 from .keystore import bip44_derivation
-from .transaction import Transaction
+from .transaction import Transaction, TxOutpoint
 from .logging import Logger
 
 # seed_version is now used for the version of the wallet file
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 21     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 22     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -215,6 +215,7 @@ class JsonDB(Logger):
         self._convert_version_19()
         self._convert_version_20()
         self._convert_version_21()
+        self._convert_version_22()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -496,6 +497,24 @@ class JsonDB(Logger):
             self.put('channels', channels)
         self.put('seed_version', 21)
 
+    def _convert_version_22(self):
+        # construct prevouts_by_scripthash
+        if not self._is_upgrade_method_needed(21, 21):
+            return
+
+        from .bitcoin import script_to_scripthash
+        transactions = self.get('transactions', {})  # txid -> raw_tx
+        prevouts_by_scripthash = defaultdict(list)
+        for txid, raw_tx in transactions.items():
+            tx = Transaction(raw_tx)
+            for idx, txout in enumerate(tx.outputs()):
+                outpoint = f"{txid}:{idx}"
+                scripthash = script_to_scripthash(txout.scriptpubkey.hex())
+                prevouts_by_scripthash[scripthash].append((outpoint, txout.value))
+        self.put('prevouts_by_scripthash', prevouts_by_scripthash)
+
+        self.put('seed_version', 22)
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -659,6 +678,25 @@ class JsonDB(Logger):
         if prevout_hash not in self.spent_outpoints:
             self.spent_outpoints[prevout_hash] = {}
         self.spent_outpoints[prevout_hash][prevout_n] = tx_hash
+
+    @modifier
+    def add_prevout_by_scripthash(self, scripthash: str, *, prevout: TxOutpoint, value: int) -> None:
+        assert isinstance(prevout, TxOutpoint)
+        if scripthash not in self._prevouts_by_scripthash:
+            self._prevouts_by_scripthash[scripthash] = set()
+        self._prevouts_by_scripthash[scripthash].add((prevout.to_str(), value))
+
+    @modifier
+    def remove_prevout_by_scripthash(self, scripthash: str, *, prevout: TxOutpoint, value: int) -> None:
+        assert isinstance(prevout, TxOutpoint)
+        self._prevouts_by_scripthash[scripthash].discard((prevout.to_str(), value))
+        if not self._prevouts_by_scripthash[scripthash]:
+            self._prevouts_by_scripthash.pop(scripthash)
+
+    @locked
+    def get_prevouts_by_scripthash(self, scripthash: str) -> Set[Tuple[TxOutpoint, int]]:
+        prevouts_and_values = self._prevouts_by_scripthash.get(scripthash, set())
+        return {(TxOutpoint.from_str(prevout), value) for prevout, value in prevouts_and_values}
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
@@ -863,14 +901,19 @@ class JsonDB(Logger):
         self.history = self.get_data_ref('addr_history')  # address -> list of (txid, height)
         self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash)
         self.tx_fees = self.get_data_ref('tx_fees')  # type: Dict[str, TxFeesValue]
+        # scripthash -> set of (outpoint, value)
+        self._prevouts_by_scripthash = self.get_data_ref('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
         # convert raw hex transactions to Transaction objects
         for tx_hash, raw_tx in self.transactions.items():
             self.transactions[tx_hash] = Transaction(raw_tx)
-        # convert list to set
+        # convert txi, txo: list to set
         for t in self.txi, self.txo:
             for d in t.values():
                 for addr, lst in d.items():
                     d[addr] = set([tuple(x) for x in lst])
+        # convert prevouts_by_scripthash: list to set, list to tuple
+        for scripthash, lst in self._prevouts_by_scripthash.items():
+            self._prevouts_by_scripthash[scripthash] = {(prevout, value) for prevout, value in lst}
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
             if not self.get_txi_addresses(tx_hash) and not self.get_txo_addresses(tx_hash):

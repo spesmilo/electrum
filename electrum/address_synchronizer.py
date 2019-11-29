@@ -26,7 +26,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY
@@ -207,7 +207,7 @@ class AddressSynchronizer(Logger):
                     conflicting_txns -= {tx_hash}
             return conflicting_txns
 
-    def add_transaction(self, tx: Transaction, allow_unrelated=False) -> bool:
+    def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
         """Returns whether the tx was successfully added to the wallet history."""
         assert tx, tx
         assert tx.is_complete()
@@ -283,6 +283,8 @@ class AddressSynchronizer(Logger):
             for n, txo in enumerate(tx.outputs()):
                 v = txo.value
                 ser = tx_hash + ':%d'%n
+                scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
+                self.db.add_prevout_by_scripthash(scripthash, prevout=TxOutpoint.from_str(ser), value=v)
                 addr = self.get_txout_address(txo)
                 if addr and self.is_mine(addr):
                     self.db.add_txo_addr(tx_hash, addr, n, v, is_coinbase)
@@ -299,7 +301,7 @@ class AddressSynchronizer(Logger):
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             return True
 
-    def remove_transaction(self, tx_hash):
+    def remove_transaction(self, tx_hash: str) -> None:
         def remove_from_spent_outpoints():
             # undo spends in spent_outpoints
             if tx is not None:
@@ -317,7 +319,7 @@ class AddressSynchronizer(Logger):
                     if spending_txid == tx_hash:
                         self.db.remove_spent_outpoint(prevout_hash, prevout_n)
 
-        with self.transaction_lock:
+        with self.lock, self.transaction_lock:
             self.logger.info(f"removing tx from history {tx_hash}")
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
@@ -327,6 +329,13 @@ class AddressSynchronizer(Logger):
             self.db.remove_txi(tx_hash)
             self.db.remove_txo(tx_hash)
             self.db.remove_tx_fee(tx_hash)
+            self.db.remove_verified_tx(tx_hash)
+            self.unverified_tx.pop(tx_hash, None)
+            if tx:
+                for idx, txo in enumerate(tx.outputs()):
+                    scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
+                    prevout = TxOutpoint(bfh(tx_hash), idx)
+                    self.db.remove_prevout_by_scripthash(scripthash, prevout=prevout, value=txo.value)
 
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
@@ -338,7 +347,7 @@ class AddressSynchronizer(Logger):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx_hash, tx, tx_height):
+    def receive_tx_callback(self, tx_hash: str, tx: Transaction, tx_height: int) -> None:
         self.add_unverified_tx(tx_hash, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 

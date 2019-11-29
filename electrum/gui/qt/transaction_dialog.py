@@ -75,9 +75,9 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', invoice=None, desc=None, prompt_if_unsaved=False):
+def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, prompt_if_unsaved=False):
     try:
-        d = TxDialog(tx, parent=parent, invoice=invoice, desc=desc, prompt_if_unsaved=prompt_if_unsaved)
+        d = TxDialog(tx, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -88,7 +88,7 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', invoice=None,
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
+    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -103,7 +103,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
-        self.invoice = invoice
         self.setMinimumWidth(950)
         self.set_title()
 
@@ -213,7 +212,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
-            self.main_window.broadcast_transaction(self.tx, invoice=self.invoice, tx_desc=self.desc)
+            self.main_window.broadcast_transaction(self.tx)
         finally:
             self.main_window.pop_top_level_window(self)
         self.saved = True
@@ -592,8 +591,8 @@ class TxDetailLabel(QLabel):
 
 
 class TxDialog(BaseTxDialog):
-    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', invoice, desc, prompt_if_unsaved):
-        BaseTxDialog.__init__(self, parent=parent, invoice=invoice, desc=desc, prompt_if_unsaved=prompt_if_unsaved, finalized=True)
+    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
+        BaseTxDialog.__init__(self, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved, finalized=True)
         self.set_tx(tx)
         self.update()
 
@@ -601,9 +600,9 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow', invoice):
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
-        BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False,
+        BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
         self.update_tx()
         self.update()
