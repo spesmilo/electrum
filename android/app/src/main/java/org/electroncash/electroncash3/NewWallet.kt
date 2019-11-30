@@ -38,9 +38,9 @@ class NewWalletDialog1 : AlertDialogFragment() {
             try {
                 val name = etName.text.toString()
                 if (name.isEmpty()) throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
-                if (name.contains("/")) throw ToastException(R.string.invalid_name)
+                if (name.contains("/")) throw ToastException(R.string.wallet_names)
                 if (daemonModel.listWallets().contains(name)) {
-                    throw ToastException(R.string.a_wallet_with_that_name_already_exists_please)
+                    throw ToastException(R.string.a_wallet_with_that_name_already_exists_please_enter)
                 }
                 val password = confirmPassword(dialog)
 

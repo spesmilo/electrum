@@ -254,8 +254,7 @@ abstract class PasswordDialog<Result> : TaskLauncherDialog<Result>() {
     var password: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.Enter_password)
-            .setView(R.layout.password)
+        builder.setView(R.layout.password)
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(android.R.string.cancel, null)
     }

@@ -21,6 +21,8 @@ import androidx.lifecycle.observe
 import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.change_password.*
 import kotlinx.android.synthetic.main.main.*
+import kotlinx.android.synthetic.main.password.*
+import kotlinx.android.synthetic.main.wallet_rename.*
 import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
@@ -225,6 +227,9 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, ChangePasswordDialog())
             R.id.menuShowSeed-> { showDialog(this, ShowSeedPasswordDialog()) }
+            R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
+                arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
+            })
             R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
@@ -398,6 +403,13 @@ class OpenWalletDialog : PasswordDialog<String>() {
 
     override fun onShowDialog() {
         super.onShowDialog()
+        tvTitle.text = walletName
+        btnRename.setOnClickListener {
+            showDialog(this, WalletRenameDialog().apply {
+                arguments = Bundle().apply { putString("walletName", walletName) }
+            })
+            dismiss()
+        }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
             showDialog(activity!!, DeleteWalletConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", walletName) }
@@ -487,6 +499,56 @@ class ChangePasswordDialog : AlertDialogFragment() {
                 }
             } catch (e: ToastException) {
                 e.show()
+            }
+        }
+    }
+}
+
+
+class WalletRenameDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.Rename_wallet)
+                .setView(R.layout.wallet_rename)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(android.R.string.cancel, null)
+    }
+
+    override fun onShowDialog() {
+        val walletName = arguments!!.getString("walletName")!!
+        etWalletName.setText(walletName)
+        etWalletName.setSelection(etWalletName.getText().length)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            try {
+                val newWalletName = etWalletName.text.toString()
+                when {
+                    newWalletName == walletName -> {
+                        done()
+                    }
+                    newWalletName.contains('/') -> {
+                        toast(R.string.wallet_names)
+                    }
+                    else -> {
+                        daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
+                        toast(R.string.wallet_successfully, Toast.LENGTH_SHORT)
+                        done()
+                    }
+                }
+            } catch (e: PyException) {
+                if (e.message!!.startsWith("FileExistsError")) {
+                    toast(R.string.a_wallet_with_that_name_already_exists_please_enter)
+                } else {
+                    throw e
+                }
+            }
+        }
+    }
+
+    fun done() {
+        dismiss()
+        with(activity as MainActivity) {
+            refresh()
+            if(daemonModel.wallet == null) {
+                openDrawer()
             }
         }
     }
