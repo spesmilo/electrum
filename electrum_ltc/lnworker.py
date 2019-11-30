@@ -186,7 +186,7 @@ class LNWorker(Logger):
         self.network = network
         self.config = network.config
         self.channel_db = self.network.channel_db
-        self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
+        self._last_tried_peer = {}  # type: Dict[LNPeerAddr, float]  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 

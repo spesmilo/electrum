@@ -928,9 +928,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
-    def show_transaction(self, tx, *, invoice=None, tx_desc=None):
+    def show_transaction(self, tx, *, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, parent=self, invoice=invoice, desc=tx_desc)
+        show_transaction(tx, parent=self, desc=tx_desc)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1472,7 +1472,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_lightning_invoice(invoice['invoice'], amount_sat=invoice['amount'])
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             outputs = invoice['outputs']
-            self.pay_onchain_dialog(self.get_coins(), outputs, invoice=invoice)
+            self.pay_onchain_dialog(self.get_coins(), outputs)
         else:
             raise Exception('unknown invoice type')
 
@@ -1492,7 +1492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
                            outputs: List[PartialTxOutput], *,
-                           invoice=None, external_keypairs=None) -> None:
+                           external_keypairs=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1508,8 +1508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         if self.config.get('advanced_preview'):
             self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs,
-                                   invoice=invoice)
+                                   external_keypairs=external_keypairs)
             return
 
         output_value = '!' if '!' in output_values else sum(output_values)
@@ -1524,27 +1523,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if is_send:
             def sign_done(success):
                 if success:
-                    self.broadcast_or_show(tx, invoice=invoice)
+                    self.broadcast_or_show(tx)
             self.sign_tx_with_password(tx, callback=sign_done, password=password,
                                        external_keypairs=external_keypairs)
         else:
             self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs,
-                                   invoice=invoice)
+                                   external_keypairs=external_keypairs)
 
-    def preview_tx_dialog(self, *, make_tx, external_keypairs=None, invoice=None):
+    def preview_tx_dialog(self, *, make_tx, external_keypairs=None):
         d = PreviewTxDialog(make_tx=make_tx, external_keypairs=external_keypairs,
-                            window=self, invoice=invoice)
+                            window=self)
         d.show()
 
-    def broadcast_or_show(self, tx, *, invoice=None):
+    def broadcast_or_show(self, tx: Transaction):
         if not self.network:
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
-            self.show_transaction(tx, invoice=invoice)
+            self.show_transaction(tx)
         elif not tx.is_complete():
-            self.show_transaction(tx, invoice=invoice)
+            self.show_transaction(tx)
         else:
-            self.broadcast_transaction(tx, invoice=invoice)
+            self.broadcast_transaction(tx)
 
     @protected
     def sign_tx(self, tx, *, callback, external_keypairs, password):
@@ -1568,7 +1566,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def broadcast_transaction(self, tx: Transaction, *, invoice=None, tx_desc=None):
+    def broadcast_transaction(self, tx: Transaction):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1584,11 +1582,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 return False, repr(e)
             # success
             txid = tx.txid()
-            if tx_desc:
-                self.wallet.set_label(txid, tx_desc)
-            if invoice:
-                self.wallet.set_paid(invoice['id'], txid)
-                self.wallet.set_label(txid, invoice['message'])
             if pr:
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
@@ -2709,7 +2702,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         scriptpubkey = bfh(bitcoin.address_to_script(addr))
         outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
         self.warn_if_watching_only()
-        self.pay_onchain_dialog(coins, outputs, invoice=None, external_keypairs=keypairs)
+        self.pay_onchain_dialog(coins, outputs, external_keypairs=keypairs)
 
     def _do_import(self, title, header_layout, func):
         text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)

@@ -684,6 +684,19 @@ class LNPeerAddr:
     def net_addr_str(self) -> str:
         return self._net_addr_str
 
+    def __eq__(self, other):
+        if not isinstance(other, LNPeerAddr):
+            return False
+        return (self.host == other.host
+                and self.port == other.port
+                and self.pubkey == other.pubkey)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.host, self.port, self.pubkey))
+
 
 def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
     hrp, data_5bits = segwit_addr.bech32_decode(bech32_pubkey)
