@@ -709,11 +709,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def opportunistically_fill_in_missing_info_from_device(self, client: 'HardwareClientBase'):
         assert client is not None
         if self._root_fingerprint is None:
-            # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
-            # so ask for a direct child, and read out fingerprint from that:
-            child_of_root_xpub = client.get_xpub("m/0'", xtype='standard')
-            root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
-            self._root_fingerprint = root_fingerprint
+            self._root_fingerprint = client.request_root_fingerprint_from_device()
             self.is_requesting_to_be_rewritten_to_wallet_file = True
         if self.label != client.label():
             self.label = client.label()
