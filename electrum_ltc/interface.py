@@ -374,7 +374,7 @@ class Interface(Logger):
             self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
-    def mark_ready(self):
+    def _mark_ready(self) -> None:
         if self.ready.cancelled():
             raise GracefulDisconnect('conn establishment was too slow; *ready* future was cancelled')
         if self.ready.done():
@@ -512,7 +512,7 @@ class Interface(Logger):
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
-            self.mark_ready()
+            self._mark_ready()
             await self._process_header_at_tip()
             self.network.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
