@@ -141,3 +141,19 @@ DOCKER_RUN_TTY=""
 if [ -t 0 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}i" ; fi
 if [ -t 1 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}t" ; fi
 if [ -n "$DOCKER_RUN_TTY" ] ; then DOCKER_RUN_TTY="-${DOCKER_RUN_TTY}" ; fi
+
+if [ -z "$CPU_COUNT" ] ; then
+    # CPU_COUNT is not set, try to detect the core count
+    case $(uname) in
+        Linux)
+            CPU_COUNT=$(lscpu | grep "^CPU(s):" | awk '{print $2}')
+            ;;
+        Darwin)
+            CPU_COUNT=$(sysctl -n hw.ncpu)
+            ;;
+    esac
+fi
+# If CPU_COUNT is still unset, default to 4
+CPU_COUNT="${CPU_COUNT:-4}"
+# Use one more worker than core count
+WORKER_COUNT=$[$CPU_COUNT+1]

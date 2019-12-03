@@ -53,7 +53,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       --enable-shared \
       --with-threads \
       -q || fail "Python configure failed"
-    make -j 4 -s || fail "Could not build Python"
+    make -j$WORKER_COUNT -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Failed to install Python"
     # When building in docker on macOS, python builds with .exe extension because the
     # case insensitive file system of macOS leaks into docker. This causes the build
