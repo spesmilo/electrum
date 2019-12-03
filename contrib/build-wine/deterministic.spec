@@ -25,7 +25,7 @@ hiddenimports += collect_submodules('smartcard')   # Satochip
 binaries = [("c:/tmp/libusb-1.0.dll", ".")]
 
 # Add secp library
-binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 
 # Add zbar libraries
 binaries += [('C:/tmp/libzbar-0.dll', '.')]

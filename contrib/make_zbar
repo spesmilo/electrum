@@ -1,51 +1,40 @@
 #!/bin/bash
 
-contrib=$(dirname "$0")
-test -n "$contrib" -a -d "$contrib" || (echo "Could not find the contrib/ directory" && exit 1)
-pushd "$contrib"
-contrib=`pwd`  # get abs path
-. "$contrib"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
-
 set -e
 
-which git || fail "Git is required to proceed"
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
 
-info "Building libzbar..."
-LIBZBAR_VERSION="1d51925e6cc9151f4a73781989f21fcd7b57ef32" # version 0.23
+pkgname="zbar"
+info "Building $pkgname..."
 
-pushd "$contrib"/zbar || fail "Could not chdir to ${contrib}/zbar"
-git checkout $LIBZBAR_VERSION || fail "Could not check out zbar $LIBZBAR_VERSION"
-git clean -dfxq
-autoreconf -vfi || fail "Could not run autoreconf for zbar. Please make sure you have automake and libtool installed, and try again."
-./configure \
-    --with-x=no \
-    --enable-pthread=no \
-    --enable-doc=no \
-    --enable-video=no \
-    --with-jpeg=no \
-    --with-python=no \
-    --with-gtk=no \
-    --with-qt=no \
-    --with-java=no \
-    --with-imagemagick=no \
-    --with-dbus=no \
-    --enable-codes=qrcode \
-    --disable-static \
-    --enable-shared || fail "Could not configure zbar. Please make sure you have a C compiler installed and try again."
-make -j4 || fail "Could not build zbar"
-uname=`uname -s`
-if [ "$uname" = "Darwin" ]; then
-    libzbar_lib="libzbar.0.dylib"
-elif [ "$uname" = "Linux" ]; then
-    libzbar_lib="libzbar.so.0"
-else
-    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
+pushd "$here"/$pkgname || fail "Could not chdir to $here/$pkgname"
+if ! [ -x configure ] ; then
+    autoreconf -vfi || fail "Could not run autoreconf for $pkgname. Please make sure you have automake and libtool installed, and try again."
 fi
-cp -fpv zbar/.libs/$libzbar_lib ../../lib || fail "Could not copy the zbar binary to its destination"
-git checkout master  # Undo the previous explicit checkout to this hash
-git clean -dfxq
-popd
-
-info "$libzbar_lib has been placed in the electroncash 'lib' folder."
-
+if ! [ -r config.status ] ; then
+    ./configure \
+        $AUTOCONF_FLAGS \
+        --prefix="$here/$pkgname/dist" \
+        --with-x=no \
+        --enable-pthread=no \
+        --enable-doc=no \
+        --enable-video=no \
+        --with-jpeg=no \
+        --with-python=no \
+        --with-gtk=no \
+        --with-qt=no \
+        --with-java=no \
+        --with-imagemagick=no \
+        --with-dbus=no \
+        --enable-codes=qrcode \
+        --disable-static \
+        --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+fi
+make -j$WORKER_COUNT || fail "Could not build $pkgname"
+make install || fail "Could not install $pkgname"
+. "$here/$pkgname/dist/lib/libzbar.la"
+host_strip "$here/$pkgname/dist/lib/$dlname"
+cp -fpv "$here/$pkgname/dist/lib/$dlname" "$here/../lib" || fail "Could not copy the $pkgname binary to its destination"
+info "$dlname has been placed in the 'lib' folder."
 popd

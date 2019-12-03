@@ -110,6 +110,42 @@ function retry() {
   return $result
 }
 
+function gcc_with_triplet()
+{
+    TRIPLET="$1"
+    CMD="$2"
+    shift 2
+    if [ -n "$TRIPLET" ] ; then
+        "$TRIPLET-$CMD" "$@"
+    else
+        "$CMD" "$@"
+    fi
+}
+
+function gcc_host()
+{
+    gcc_with_triplet "$GCC_TRIPLET_HOST" "$@"
+}
+
+function gcc_build()
+{
+    gcc_with_triplet "$GCC_TRIPLET_BUILD" "$@"
+}
+
+function host_strip()
+{
+    if [ "$GCC_STRIP_BINARIES" -ne "0" ] ; then
+        case "$BUILD_TYPE" in
+            linux|wine)
+                gcc_host strip "$@"
+                ;;
+            darwin)
+                # TODO: Strip on macOS?
+                ;;
+        esac
+    fi
+}
+
 if [ -n "$_BASE_SH_SOURCED" ] ; then
     # Base.sh has been sourced already, no need to source it again
     return 0
@@ -164,6 +200,19 @@ fi
 export CPU_COUNT="${CPU_COUNT:-4}"
 # Use one more worker than core count
 export WORKER_COUNT=$[$CPU_COUNT+1]
+# Set the build type, overridden by wine build
+export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"
+# No additional autoconf flags by default
+export AUTOCONF_FLAGS=""
+# Add host / build flags if the triplets are set
+if [ -n "$GCC_TRIPLET_HOST" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --host=$GCC_TRIPLET_HOST"
+fi
+if [ -n "$GCC_TRIPLET_BUILD" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --build=$GCC_TRIPLET_BUILD"
+fi
+
+export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
 
 # Update submodules only once
 info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."

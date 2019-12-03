@@ -10,6 +10,7 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 PYDIR="$APPDIR"/usr/lib/python3.6
 
+export GCC_STRIP_BINARIES="1"
 export GIT_SUBMODULE_FLAGS="--recommend-shallow --depth 1"
 
 . "$CONTRIB"/base.sh
@@ -35,6 +36,12 @@ verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
+(
+    cd "$PROJECT_ROOT"
+    for pkg in secp zbar ; do
+        "$CONTRIB"/make_$pkg || fail "Could not build $pkg"
+    done
+)
 
 info "Building Python"
 tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
@@ -69,25 +76,6 @@ git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfski
     make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
 )
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
-
-#info "Building libsecp256k1"  # make_secp below already prints this
-(
-    pushd "$PROJECT_ROOT"
-
-    "$CONTRIB"/make_secp || fail "Could not build libsecp"
-
-    popd
-)
-
-#info "Building libzbar"  # make_zbar below already prints this
-(
-    pushd "$PROJECT_ROOT"
-
-    "$CONTRIB"/make_zbar || fail "Could not build libzbar"
-
-    popd
-)
-
 
 appdir_python() {
   env \
