@@ -40,8 +40,6 @@ build_secp256k1() {
     (
         set -e
         build_dll() {
-            #sudo apt-get install -y mingw-w64
-            export SOURCE_DATE_EPOCH=1530212462
             echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
             echo "LDFLAGS = -no-undefined" >> Makefile.am
             ./autogen.sh || fail "Could not run autogen.sh for secp256k1"
@@ -83,7 +81,6 @@ build_zbar() {
     (
         set -e
         build_dll() {
-            export SOURCE_DATE_EPOCH=1530212462
             echo "libzbar_la_LDFLAGS += -Wc,-static" >> zbar/Makefile.am
             echo "LDFLAGS += -Wc,-static" >> Makefile.am
             autoreconf -vfi || fail "Could not run autoreconf for zbar"
@@ -254,7 +251,6 @@ prepare_wine() {
             git remote add origin $LIBUSB_REPO
             git fetch --depth 1 origin $LIBUSB_COMMIT
             git checkout -b pinned FETCH_HEAD
-            export SOURCE_DATE_EPOCH=1530212462
             echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
             ./bootstrap.sh || fail "Could not bootstrap libusb"
             host="i686-w64-mingw32"

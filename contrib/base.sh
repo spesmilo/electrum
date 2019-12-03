@@ -113,6 +113,7 @@ function retry() {
 # Now, some variables that affect all build scripts
 
 export PYTHONHASHSEED=22
+export SOURCE_DATE_EPOCH=1530212462
 # Note, when upgrading Python, check the Windows python.exe embedded manifest for changes.
 # If the manifest changed, contrib/build-wine/manifest.xml needs to be updated.
 PYTHON_VERSION=3.6.9  # Windows, OSX & Linux AppImage use this to determine what to download/build
