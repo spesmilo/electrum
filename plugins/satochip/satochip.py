@@ -501,9 +501,12 @@ class SatochipPlugin(HW_PluginBase):
                 while True:
                     msg = _("Enter a new PIN for your Satochip:")
                     (is_PIN, pin_0, pin_0)= client.PIN_dialog(msg)
+                    if (not is_PIN):
+                        raise RuntimeError(_('Satochip setup aborted: a PIN is required!'))                    
                     msg = _("Please confirm the PIN code for your Satochip:")
                     (is_PIN, pin_confirm, pin_confirm)= client.PIN_dialog(msg)
-                    #print_error("[satochip] SatochipPlugin: setup_device(): str(pin)="+str(pin_0))#debugSatochip
+                    if (not is_PIN):
+                        raise RuntimeError(_('Satochip setup aborted: a PIN confirmation is required!'))   
                     if (pin_0 != pin_confirm):
                         msg= _("The PIN values do not match! Please type PIN again!")
                         client.handler.show_error(msg)
