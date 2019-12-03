@@ -2,5 +2,4 @@ PyQt5<5.12
 pycryptodomex<3.7
 websocket-client
 PyQt5-sip==4.19.13
-sip==4.19.8
 psutil==5.6.1
