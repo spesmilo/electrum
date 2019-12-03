@@ -83,7 +83,7 @@ class OverlayLabel(QtWidgets.QLabel):
 
 class Console(QtWidgets.QPlainTextEdit):
     def __init__(self, prompt='>> ', startup_message='', parent=None):
-        QtWidgets.QPlainTextEdit.__init__(self, parent)
+        QtWidgets.QPlainTextEdit.__init__(self)
 
         self.prompt = prompt
         self.parent = parent
