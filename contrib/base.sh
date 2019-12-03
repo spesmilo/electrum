@@ -110,20 +110,27 @@ function retry() {
   return $result
 }
 
+if [ -n "$_BASE_SH_SOURCED" ] ; then
+    # Base.sh has been sourced already, no need to source it again
+    return 0
+fi
+
+which git > /dev/null || fail "Git is required to proceed"
+
 # Now, some variables that affect all build scripts
 
 export PYTHONHASHSEED=22
 export SOURCE_DATE_EPOCH=1530212462
 # Note, when upgrading Python, check the Windows python.exe embedded manifest for changes.
 # If the manifest changed, contrib/build-wine/manifest.xml needs to be updated.
-PYTHON_VERSION=3.6.9  # Windows, OSX & Linux AppImage use this to determine what to download/build
-PYTHON_SRC_TARBALL_HASH="5e2f5f554e3f8f7f0296f7e73d8600c4e9acbaee6b2555b83206edf5153870da"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
-DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
+export PYTHON_VERSION=3.6.9  # Windows, OSX & Linux AppImage use this to determine what to download/build
+export PYTHON_SRC_TARBALL_HASH="5e2f5f554e3f8f7f0296f7e73d8600c4e9acbaee6b2555b83206edf5153870da"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
+export DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
 if [ -z "$GIT_REPO" ] ; then
     # If no override from env is present, use default. Support for overrides
     # for the GIT_REPO has been added to allows contributors to test containers
     # that are on local filesystem (while devving) or are their own github forks
-    GIT_REPO="$DEFAULT_GIT_REPO"
+    export GIT_REPO="$DEFAULT_GIT_REPO"
 fi
 if [ "$GIT_REPO" != "$DEFAULT_GIT_REPO" ]; then
     # We check if it's default because we unconditionally propagate $GIT_REPO
@@ -131,29 +138,32 @@ if [ "$GIT_REPO" != "$DEFAULT_GIT_REPO" ]; then
     # print this message if it turns out to just be the default.
     info "Picked up override from env: GIT_REPO=${GIT_REPO}"
 fi
-GIT_DIR_NAME=`basename $GIT_REPO`
-PACKAGE="Electron-Cash"  # Modify this if you like -- Windows, MacOS & Linux srcdist build scripts read this, while AppImage has it hard-coded
-PYI_SKIP_TAG="${PYI_SKIP_TAG:-0}" # Set this to non-zero to make PyInstaller skip tagging the bootloader
+export GIT_DIR_NAME=`basename $GIT_REPO`
+export PACKAGE="Electron-Cash"  # Modify this if you like -- Windows, MacOS & Linux srcdist build scripts read this, while AppImage has it hard-coded
+export PYI_SKIP_TAG="${PYI_SKIP_TAG:-0}" # Set this to non-zero to make PyInstaller skip tagging the bootloader
 
 # Build a command line argument for docker, enabling interactive mode if stdin
 # is a tty and enabling tty in docker if stdout is a tty.
-DOCKER_RUN_TTY=""
-if [ -t 0 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}i" ; fi
-if [ -t 1 ] ; then DOCKER_RUN_TTY="${DOCKER_RUN_TTY}t" ; fi
-if [ -n "$DOCKER_RUN_TTY" ] ; then DOCKER_RUN_TTY="-${DOCKER_RUN_TTY}" ; fi
+export DOCKER_RUN_TTY=""
+if [ -t 0 ] ; then export DOCKER_RUN_TTY="${DOCKER_RUN_TTY}i" ; fi
+if [ -t 1 ] ; then export DOCKER_RUN_TTY="${DOCKER_RUN_TTY}t" ; fi
+if [ -n "$DOCKER_RUN_TTY" ] ; then export DOCKER_RUN_TTY="-${DOCKER_RUN_TTY}" ; fi
 
 if [ -z "$CPU_COUNT" ] ; then
     # CPU_COUNT is not set, try to detect the core count
     case $(uname) in
         Linux)
-            CPU_COUNT=$(lscpu | grep "^CPU(s):" | awk '{print $2}')
+            export CPU_COUNT=$(lscpu | grep "^CPU(s):" | awk '{print $2}')
             ;;
         Darwin)
-            CPU_COUNT=$(sysctl -n hw.ncpu)
+            export CPU_COUNT=$(sysctl -n hw.ncpu)
             ;;
     esac
 fi
 # If CPU_COUNT is still unset, default to 4
-CPU_COUNT="${CPU_COUNT:-4}"
+export CPU_COUNT="${CPU_COUNT:-4}"
 # Use one more worker than core count
-WORKER_COUNT=$[$CPU_COUNT+1]
+export WORKER_COUNT=$[$CPU_COUNT+1]
+
+# This variable is set to avoid sourcing base.sh multiple times
+export _BASE_SH_SOURCED=1
