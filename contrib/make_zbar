@@ -10,10 +10,6 @@ set -e
 
 which git || fail "Git is required to proceed"
 
-info "Refreshing submodules..."
-git submodule init
-git submodule update
-
 info "Building libzbar..."
 LIBZBAR_VERSION="1d51925e6cc9151f4a73781989f21fcd7b57ef32" # version 0.23
 

@@ -5,6 +5,9 @@ test -n "$here" -a -d "$here" || (echo "Cannot determine build dir. FIXME!" && e
 pushd "$here"
 here=`pwd`  # get an absolute path
 popd
+
+export GIT_SUBMODULE_FLAGS="--recommend-shallow --depth 1"
+
 . "$here"/../base.sh # functions we use below (fail, et al)
 # Note: 3.6.9 is our PYTHON_VERSION in other builds, but for some reason
 # Python.org didn't bother to build Python 3.6.9 for Windows (and no .msi files
@@ -30,10 +33,6 @@ rm "$here"/dist/* -fr
 
 rm -fr /tmp/electrum-build
 mkdir -p /tmp/electrum-build
-
-info "Refreshing submodules..."
-git submodule init
-git submodule update
 
 build_secp256k1() {
     info "Building libsecp256k1..."

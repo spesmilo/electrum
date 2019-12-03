@@ -10,6 +10,8 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 PYDIR="$APPDIR"/usr/lib/python3.6
 
+export GIT_SUBMODULE_FLAGS="--recommend-shallow --depth 1"
+
 . "$CONTRIB"/base.sh
 
 # pinned versions
@@ -22,10 +24,6 @@ APPIMAGE="$DISTDIR/Electron-Cash-$VERSION-x86_64.AppImage"
 
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
-
-
-info "Refreshing submodules ..."
-git submodule update --init
 
 info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"

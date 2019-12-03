@@ -10,10 +10,6 @@ set -e
 
 which git || fail "Git is required to proceed"
 
-info "Refreshing submodules..."
-git submodule init
-git submodule update
-
 info "Building libsecp256k1..."
 LIBSECP_VERSION="a0530612dd02c8d052631678b0f4f30d7aa7cb42"  # Using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 

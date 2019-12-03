@@ -146,10 +146,6 @@ pyinstaller --version
 
 rm -rf ./dist
 
-info "Refreshing submodules..."
-git submodule init
-git submodule update
-
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir -p $BUILDDIR
 

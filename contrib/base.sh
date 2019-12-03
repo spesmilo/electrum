@@ -165,5 +165,9 @@ export CPU_COUNT="${CPU_COUNT:-4}"
 # Use one more worker than core count
 export WORKER_COUNT=$[$CPU_COUNT+1]
 
+# Update submodules only once
+info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."
+git submodule update --init $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"
+
 # This variable is set to avoid sourcing base.sh multiple times
 export _BASE_SH_SOURCED=1

@@ -12,8 +12,7 @@ This assumes that the Xcode + Xcode Command Line tools (and thus git) are alread
 
 ## 1. Make sure to freshen git submodules
 
-    git submodule init
-    git submodule update
+    git submodule update --init
 
 The above ensures that you pull in the zbar, secp256k1, and other submodules.
 
