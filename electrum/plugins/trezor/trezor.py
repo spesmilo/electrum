@@ -177,14 +177,7 @@ class TrezorPlugin(HW_PluginBase):
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
-        msg = _("Choose how you want to initialize your {}.\n\n"
-                "The first two methods are secure as no secret information "
-                "is entered into your computer.\n\n"
-                "For the last two methods you input secrets on your keyboard "
-                "and upload them to your {}, and so you should "
-                "only do those on a computer you know to be trustworthy "
-                "and free of malware."
-        ).format(self.device, self.device)
+        msg = _("Choose how you want to initialize your {}.").format(self.device, self.device)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
