@@ -165,25 +165,30 @@ class SatochipSettingsDialog(WindowModalDialog):
             self.fw_version.setText('<tt>%s' % fw_rel)
             self.needs_2FA.setText('<tt>%s' % "(unitialized)")
             self.is_seeded.setText('<tt>%s' % "no")
-            
-        
+
 
     def change_pin(self, client):
         # old pin
         msg = _("Enter the current PIN for your Satochip:")
         (is_PIN, oldpin, oldpin)= client.PIN_dialog(msg)
-        if (oldpin is None):
-                return
-                
+        if (not is_PIN):
+            msg= _("PIN change cancelled!")
+            client.handler.show_error(msg)
+            return
+
         # new pin
         while (True):
             msg = _("Enter a new PIN for your Satochip:")
             (is_PIN, newpin, newpin)= client.PIN_dialog(msg)
-            if (newpin is None):
+            if (not is_PIN):
+                msg= _("PIN change cancelled!")
+                client.handler.show_error(msg)
                 return
             msg = _("Please confirm the new PIN for your Satochip:")
             (is_PIN, pin_confirm, pin_confirm)= client.PIN_dialog(msg)
-            if (pin_confirm is None):
+            if (not is_PIN):
+                msg= _("PIN change cancelled!")
+                client.handler.show_error(msg)
                 return
             if (newpin != pin_confirm):
                 msg= _("The PIN values do not match! Please type PIN again!")
@@ -195,14 +200,13 @@ class SatochipSettingsDialog(WindowModalDialog):
         newpin= list(newpin)  
         (response, sw1, sw2)= client.cc.card_change_PIN(0, oldpin, newpin)
         if (sw1==0x90 and sw2==0x00):
-            msg= _("PIN changeg successfully!")
+            msg= _("PIN changed successfully!")
             client.handler.show_message(msg)
         else:
             msg= _("Failed to change PIN!")
             client.handler.show_error(msg)
     
     def reset_seed(self, client):
-        
         # pin
         msg = ''.join([
             _("WARNING!\n"),
@@ -210,8 +214,10 @@ class SatochipSettingsDialog(WindowModalDialog):
             _("Please be sure that your wallet is empty and that you have a backup of the seed as a precaution.\n\n"),
             _("To proceed, enter the PIN for your Satochip:")
         ])
-        (password, reset_2FA)= self.reset_seed_dialog(msg)
-        if (password is None):
+        (is_password, password, reset_2FA)= self.reset_seed_dialog(msg)
+        if (not is_password):
+            msg= _("Seed reset cancelled!")
+            client.handler.show_error(msg)
             return
         pin = password.encode('utf8')
         pin= list(pin)
@@ -311,7 +317,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         d.setLayout(vbox)
         
         passphrase = pw.text() if d.exec_() else None
+        if passphrase is None:
+            return (False, None, None)
         reset_2FA= cb_reset_2FA.isChecked()
-        return (passphrase, reset_2FA)
-            
-    
+        return (True, passphrase, reset_2FA)
