@@ -42,7 +42,6 @@ except:
     print_error("[satochup] satochip will not not be available")
     raise
 
-
 # debug: smartcard reader ids
 SATOCHIP_VID= 0x096E
 SATOCHIP_PID= 0x0503
@@ -481,6 +480,7 @@ class SatochipPlugin(HW_PluginBase):
             raise Exception(_('Failed to create a client for this device.') + '\n' +
                             _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
+        client.cc.parser.authentikey_from_storage=None # https://github.com/simpleledger/Electron-Cash-SLP/pull/101#issuecomment-561238614
 
         # check applet version
         while True:
@@ -683,10 +683,10 @@ class SatochipPlugin(HW_PluginBase):
         wizard.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
         if wizard.seed_type == 'bip39':
             f = lambda passphrase: self.derive_bip39_seed(seed, passphrase)
-            wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+            wizard.passphrase_dialog(run_next=f) if is_ext else f('')
         elif wizard.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.derive_bip32_seed(seed, passphrase)
-            wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+            wizard.passphrase_dialog(run_next=f) if is_ext else f('')
         elif wizard.seed_type == 'old':
             raise Exception('Unsupported seed type', wizard.seed_type)
         elif bitcoin.is_any_2fa_seed_type(wizard.seed_type):
