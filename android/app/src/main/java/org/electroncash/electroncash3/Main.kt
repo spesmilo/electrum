@@ -546,10 +546,14 @@ class WalletRenameDialog : AlertDialogFragment() {
                 .setNegativeButton(android.R.string.cancel, null)
     }
 
-    override fun onShowDialog() {
+    override fun onFirstShowDialog() {
         val walletName = arguments!!.getString("walletName")!!
         etWalletName.setText(walletName)
         etWalletName.setSelection(etWalletName.getText().length)
+    }
+
+    override fun onShowDialog() {
+        val walletName = arguments!!.getString("walletName")!!
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val newWalletName = etWalletName.text.toString()
