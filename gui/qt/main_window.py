@@ -3465,9 +3465,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             wwlbl = WWLabel()
             def set_ww_txt(pf_shown=False):
                 if pf_shown:
-                    pf_text = ("<font face='{monoface}' size=+1><b>"
-                               + bip38
-                               + '</b></font> <a href="hide">{link}</a>').format(link=_("Hide"), monoface=MONOSPACE_FONT)
+                    pf_text = ( ("<font face='{monoface}' size=+1><b>".format(monoface=MONOSPACE_FONT))
+                                + bip38
+                                + ('</b></font> <a href="hide">{link}</a>'.format(link=_("Hide"))) )
                 else:
                     pf_text = '<a href="show">{link}</a>'.format(link=_("Click to show"))
                 wwlbl.setText(
