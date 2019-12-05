@@ -418,7 +418,7 @@ class ECPrivkey(ECPubkey):
             return r, s
         r, s = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sig_encode_r_s)
         counter = 0
-        while r >= 2**255: # grind for low R value https://github.com/bitcoin/bitcoin/pull/13666
+        while r >= 2**255:  # grind for low R value https://github.com/bitcoin/bitcoin/pull/13666
             counter += 1
             extra_entropy = int.to_bytes(counter, 32, 'little')
             r, s = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sig_encode_r_s, extra_entropy=extra_entropy)

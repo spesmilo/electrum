@@ -179,14 +179,24 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
         nonce_function = None
         sig = create_string_buffer(64)
         sig_hash_bytes = hash.to_bytes(32, byteorder="big")
-        r = _libsecp256k1.secp256k1_ecdsa_sign(
-            _libsecp256k1.ctx, sig, sig_hash_bytes, secret_exponent.to_bytes(32, byteorder="big"), nonce_function, None)
-        if not r:
-            raise Exception('the nonce generation function failed, or the private key was invalid')
-        compact_signature = create_string_buffer(64)
-        _libsecp256k1.secp256k1_ecdsa_signature_serialize_compact(_libsecp256k1.ctx, compact_signature, sig)
-        r = int.from_bytes(compact_signature[:32], byteorder="big")
-        s = int.from_bytes(compact_signature[32:], byteorder="big")
+        def sign_with_extra_entropy(extra_entropy):
+            ret = _libsecp256k1.secp256k1_ecdsa_sign(
+                _libsecp256k1.ctx, sig, sig_hash_bytes, secret_exponent.to_bytes(32, byteorder="big"),
+                nonce_function, extra_entropy)
+            if not ret:
+                raise Exception('the nonce generation function failed, or the private key was invalid')
+            compact_signature = create_string_buffer(64)
+            _libsecp256k1.secp256k1_ecdsa_signature_serialize_compact(_libsecp256k1.ctx, compact_signature, sig)
+            r = int.from_bytes(compact_signature[:32], byteorder="big")
+            s = int.from_bytes(compact_signature[32:], byteorder="big")
+            return r, s
+
+        r, s = sign_with_extra_entropy(extra_entropy=None)
+        counter = 0
+        while r >= 2**255:  # grind for low R value https://github.com/bitcoin/bitcoin/pull/13666
+            counter += 1
+            extra_entropy = counter.to_bytes(32, byteorder="little")
+            r, s = sign_with_extra_entropy(extra_entropy=extra_entropy)
         return ecdsa.ecdsa.Signature(r, s)
 
     def verify(self: ecdsa.ecdsa.Public_key, hash: int, signature: ecdsa.ecdsa.Signature) -> bool:
