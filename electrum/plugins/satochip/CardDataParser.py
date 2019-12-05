@@ -25,6 +25,11 @@ from electrum.logging import get_logger
 
 _logger = get_logger(__name__)
 
+MSG_WARNING= ("Before you request bitcoins to be sent to addresses in this "
+                    "wallet, ensure you can pair with your device, or that you have "
+                    "its seed (and passphrase, if any).  Otherwise all bitcoins you "
+                    "receive will be unspendable.")
+
 class CardDataParser:
     
     def __init__(self):
@@ -52,8 +57,8 @@ class CardDataParser:
         # if already initialized, check that authentikey match value retrieved from storage!
         if (self.authentikey_from_storage is not None):
             if  self.authentikey != self.authentikey_from_storage:
-                raise ValueError("Recovered authentikey does not correspond to registered authentikey!")
-        
+                raise ValueError("The seed used to create this wallet file no longer matches the seed of the Satochip device!\n\n"+MSG_WARNING)
+
         return self.authentikey
         
     def parse_bip32_import_seed(self,response):
@@ -90,8 +95,8 @@ class CardDataParser:
         signature2= response[(msg2_size+2):(msg2_size+2+sig2_size)] 
         authentikey= self.get_pubkey_from_signature(self.authentikey_coordx, msg2, signature2)
         if authentikey != self.authentikey:
-            raise ValueError("Recovered authentikey does not correspond to registered authentikey!")
-        
+            raise ValueError("The seed used to create this wallet file no longer matches the seed of the Satochip device!\n\n"+MSG_WARNING)
+
         return (self.pubkey, self.chaincode)
     
     ##############

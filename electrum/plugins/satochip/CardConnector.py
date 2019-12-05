@@ -17,6 +17,11 @@ import base64
 
 _logger = get_logger(__name__)
 
+MSG_WARNING= ("Before you request bitcoins to be sent to addresses in this "
+                    "wallet, ensure you can pair with your device, or that you have "
+                    "its seed (and passphrase, if any).  Otherwise all bitcoins you "
+                    "receive will be unspendable.")
+
 # simple observer that will print on the console the card connection events.
 class LogCardConnectionObserver( CardConnectionObserver ):
     def update( self, cardconnection, ccevent ):    
@@ -237,7 +242,8 @@ class CardConnector:
         apdu=[cla, ins, p1, p2, le]+pin+hmac
         
         response, sw1, sw2 = self.card_transmit(apdu)
-        return (response, sw1, sw2)                                                                                  
+        return (response, sw1, sw2)
+
     def card_bip32_get_authentikey(self):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_BIP32_GET_AUTHENTIKEY
@@ -250,10 +256,11 @@ class CardConnector:
         response, sw1, sw2 = self.card_transmit(apdu) 
         if sw1==0x9c and sw2==0x14: 
             _logger.info(f"card_bip32_get_authentikey(): Seed is not initialized => Raising error!")
-            raise UninitializedSeedError('Seed is not initialized')
+            raise UninitializedSeedError('Seed is not initialized\n\n "+MSG_WARNING)
         if sw1==0x9c and sw2==0x04: 
             _logger.info("card_bip32_get_authentikey(): Satochip is not initialized => Raising error!")
-            raise UninitializedSeedError("Satochip is not initialized! You should create a new wallet!")
+            raise UninitializedSeedError("Satochip is not initialized! You should create a new wallet!!\n\n"+MSG_WARNING)
+
         # compute corresponding pubkey and send to chip for future use
         if (sw1==0x90) and (sw2==0x00):
             authentikey = self.card_bip32_set_authentikey_pubkey(response)           

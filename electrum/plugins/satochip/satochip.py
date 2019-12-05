@@ -442,7 +442,8 @@ class SatochipPlugin(HW_PluginBase):
             raise Exception(_('Failed to create a client for this device.') + '\n' +
                             _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
-        
+        client.cc.parser.authentikey_from_storage=None # https://github.com/simpleledger/Electron-Cash-SLP/pull/101#issuecomment-561238614
+
         # check applet version
         while(True):
             (response, sw1, sw2, d)=client.cc.card_get_status()
