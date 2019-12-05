@@ -7,11 +7,14 @@ import android.os.Bundle
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -21,8 +24,8 @@ import androidx.lifecycle.observe
 import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.change_password.*
 import kotlinx.android.synthetic.main.main.*
-import kotlinx.android.synthetic.main.password.*
 import kotlinx.android.synthetic.main.wallet_rename.*
+import kotlinx.android.synthetic.main.wallet_open.*
 import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
@@ -384,10 +387,11 @@ class AboutDialog : AlertDialogFragment() {
 }
 
 
-class OpenWalletDialog : PasswordDialog<String>() {
+class OpenWalletDialog : TaskLauncherDialog<String>() {
     val walletName by lazy { arguments!!.getString("walletName")!! }
+    var password: String by notNull()
 
-    override fun onPassword(password: String): String {
+    fun onPassword(password: String): String {
         daemonModel.loadWallet(walletName, password)
         return walletName
     }
@@ -397,12 +401,28 @@ class OpenWalletDialog : PasswordDialog<String>() {
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        super.onBuildDialog(builder)
-        builder.setNeutralButton(R.string.Delete_wallet, null)
+        builder.setView(R.layout.wallet_open)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setNeutralButton(R.string.Delete_wallet, null)
+    }
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): AlertDialog {
+        val dialog = super.onCreateDialog(savedInstanceState)
+        dialog.window!!.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        return dialog
     }
 
     override fun onShowDialog() {
         super.onShowDialog()
+        etWalletPassword.setOnEditorActionListener { _, actionId: Int, event: KeyEvent? ->
+            // See comments in ConsoleActivity.createInput.
+            if (actionId == EditorInfo.IME_ACTION_DONE ||
+                    event?.action == KeyEvent.ACTION_UP) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            }
+            true
+        }
         tvTitle.text = walletName
         btnRename.setOnClickListener {
             showDialog(this, WalletRenameDialog().apply {
@@ -415,6 +435,19 @@ class OpenWalletDialog : PasswordDialog<String>() {
                 arguments = Bundle().apply { putString("walletName", walletName) }
             })
             dismiss()
+        }
+    }
+
+    override fun onPreExecute() {
+        password = etWalletPassword.text.toString()
+    }
+
+    override fun doInBackground(): String {
+        try {
+            return onPassword(password)
+        } catch (e: PyException) {
+            throw if (e.message!!.startsWith("InvalidPassword"))
+                ToastException(R.string.incorrect_password, Toast.LENGTH_SHORT) else e
         }
     }
 }

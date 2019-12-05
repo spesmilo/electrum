@@ -48,7 +48,7 @@
         <item name="fabSize">normal</item>
     </style>
     <style name="FAB.Main.Inner">
-        <item name="android:layout_marginRight">@dimen/fab_inner_margin_right</item>
+        <item name="android:layout_marginRight">@dimen/fab_main_margin_inner</item>
     </style>
     <style name="FAB.Dialog">
         <item name="fabSize">mini</item>
