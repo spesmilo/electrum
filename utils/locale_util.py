@@ -51,7 +51,7 @@ class locale_util:
     @classmethod
     def extract_csv_to_locale(cls):
         translation_map = dict()
-        with open("res.csv", 'r') as infile:
+        with open("res2.csv", 'r') as infile:
             reader = csv.reader(infile)
             for row in reader:
                 if not row: continue
@@ -60,12 +60,22 @@ class locale_util:
         for lang in cls.languages:
             po_path = cls.locale_path / lang / 'electrum.po'
             mo_path = cls.locale_path / lang / 'LC_MESSAGES' / 'electrum.mo'
+            with open(po_path, "r") as po_file:
+                po_header = []
+                i = 0
+                for line in po_file:
+                    po_header.append(line)
+                    i = i + 1
+                    if i == 10: break
+            
             with open(po_path, "w") as po_file:
                 key = ''
+                po_file.write(''.join(po_header))
                 for key in translation_map.keys():
                     try:
-                        po_file.write('msgid "' + key + '"\n')
-                        po_file.write('msgstr "' + translation_map[key][cls.languages.index(lang)] + '"\n')
+                        if not repr(key.strip()).strip("'").strip('"'): continue 
+                        po_file.write('msgid "' + key.strip().strip("'").strip('"').replace("\n","\\n") + '"\n')
+                        po_file.write('msgstr "' + translation_map[key][cls.languages.index(lang)].strip().strip("'").strip('"').replace("\n","\\n") + '"\n')
                         po_file.write('\n')
                     except:
                         continue
@@ -82,11 +92,11 @@ class locale_util:
 valid_args = ['csv_to_loc',
               'loc_to_csv']
         
-if len(sys.argv) < 2 or sys.argv[1] not in valid_args:
-    print('Invalid script argument. Please use one of the following ones:\n'
-      '\t - %s - extract language data from csv files to .po and .mo\n'
-      '\t - %s - compile .po files to csv, for convenient editing\n'% (valid_args[0], valid_args[1]))
-elif sys.argv[1] == valid_args[0]:
-    locale_util.extract_csv_to_locale()
-elif sys.argv[1] == valid_args[1]:
-    locale_util.compile_locale_to_csv()
+#if len(sys.argv) < 2 or sys.argv[1] not in valid_args:
+#    print('Invalid script argument. Please use one of the following ones:\n'
+#      '\t - %s - extract language data from csv files to .po and .mo\n'
+#      '\t - %s - compile .po files to csv, for convenient editing\n'% (valid_args[0], valid_args[1]))
+#elif sys.argv[1] == valid_args[0]:
+locale_util.extract_csv_to_locale()
+#elif sys.argv[1] == valid_args[1]:
+#    locale_util.compile_locale_to_csv()
