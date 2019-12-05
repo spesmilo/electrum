@@ -567,7 +567,7 @@ class WalletRenameDialog : AlertDialogFragment() {
                     else -> {
                         daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
                         toast(R.string.wallet_successfully, Toast.LENGTH_SHORT)
-                        done()
+                        done(newWalletName)
                     }
                 }
             } catch (e: PyException) {
@@ -580,14 +580,14 @@ class WalletRenameDialog : AlertDialogFragment() {
         }
     }
 
-    fun done() {
+    fun done(newWalletName: String? = null) {
         dismiss()
-        with(activity as MainActivity) {
-            refresh()
-            if(daemonModel.wallet == null) {
-                openDrawer()
-            }
+        if(newWalletName != null) {
+            showDialog((activity as MainActivity), OpenWalletDialog().apply {
+                arguments = Bundle().apply { putString("walletName", newWalletName) }
+            })
         }
+        (activity as MainActivity).refresh()
     }
 }
 
