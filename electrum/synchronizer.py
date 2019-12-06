@@ -60,8 +60,8 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     """
     def __init__(self, network: 'Network'):
         self.asyncio_loop = network.asyncio_loop
-        NetworkJobOnDefaultServer.__init__(self, network)
         self._reset_request_counters()
+        NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
         super()._reset()

@@ -53,12 +53,12 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
     # spread it over multiple servers.
 
     def __init__(self, network: 'Network', channel_db: 'ChannelDB'):
-        NetworkJobOnDefaultServer.__init__(self, network)
         self.channel_db = channel_db
         self.lock = threading.Lock()
         self.unverified_channel_info = {}  # type: Dict[ShortChannelID, dict]  # scid -> msg_payload
         # channel announcements that seem to be invalid:
         self.blacklist = set()  # type: Set[ShortChannelID]
+        NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
         super()._reset()
