@@ -17,7 +17,7 @@ RUN apt-get update -q && \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
         libsqlite3-dev=3.11.0-1ubuntu1.3 \
         libusb-1.0-0-dev=2:1.0.20-1 \
-        libudev-dev=229-4ubuntu21.22 \
+        libudev-dev=229-4ubuntu21.23 \
         gettext=0.19.7-2ubuntu3.1 \
         libzbar0=0.10+doc-10ubuntu1  \
         libdbus-1-3=1.10.6-1ubuntu3.4 \
