@@ -118,9 +118,6 @@ class MockLNWallet:
     def save_channel(self, chan):
         print("Ignoring channel save")
 
-    def on_channels_updated(self):
-        pass
-
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info

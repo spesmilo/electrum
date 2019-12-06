@@ -418,21 +418,23 @@ class BaseWizard(Logger):
 
     def on_hw_derivation(self, name, device_info, derivation, xtype):
         from .keystore import hardware_keystore
+        devmgr = self.plugins.device_manager
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-            root_xpub = self.plugin.get_xpub(device_info.device.id_, 'm', 'standard', self)
+            client = devmgr.client_by_id(device_info.device.id_)
+            if not client: raise Exception("failed to find client for device id")
+            root_fingerprint = client.request_root_fingerprint_from_device()
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
             return
-        xfp = BIP32Node.from_xkey(root_xpub).calc_fingerprint_of_this_node().hex().lower()
         d = {
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
-            'root_fingerprint': xfp,
+            'root_fingerprint': root_fingerprint,
             'xpub': xpub,
             'label': device_info.label,
         }
