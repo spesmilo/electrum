@@ -560,9 +560,14 @@ class Transaction:
                 pubkey_size = 33  # guess it is compressed
             num_pubkeys = max(1, len(txin.pubkeys))
             pk_list = ["00" * pubkey_size] * num_pubkeys
-            # we assume that signature will be 0x48 bytes long
             num_sig = max(1, txin.num_sig)
-            sig_list = [ "00" * 0x48 ] * num_sig
+            # we guess that signatures will be 72 bytes long
+            # note: DER-encoded ECDSA signatures are 71 or 72 bytes in practice
+            #       See https://bitcoin.stackexchange.com/questions/77191/what-is-the-maximum-size-of-a-der-encoded-ecdsa-signature
+            #       We assume low S (as that is a bitcoin standardness rule).
+            #       We do not assume low R (even though the sigs we create conform), as external sigs,
+            #       e.g. from a hw signer cannot be expected to have a low R.
+            sig_list = [ "00" * 72 ] * num_sig
         else:
             pk_list = [pubkey.hex() for pubkey in txin.pubkeys]
             sig_list = [txin.part_sigs.get(pubkey, b'').hex() for pubkey in txin.pubkeys]

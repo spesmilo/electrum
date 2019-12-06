@@ -414,7 +414,15 @@ class ECPrivkey(ECPubkey):
         if sigdecode is None:
             sigdecode = get_r_and_s_from_sig_string
         private_key = _MySigningKey.from_secret_exponent(self.secret_scalar, curve=SECP256k1)
-        sig = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sigencode)
+        def sig_encode_r_s(r, s, order):
+            return r, s
+        r, s = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sig_encode_r_s)
+        counter = 0
+        while r >= 2**255:  # grind for low R value https://github.com/bitcoin/bitcoin/pull/13666
+            counter += 1
+            extra_entropy = int.to_bytes(counter, 32, 'little')
+            r, s = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sig_encode_r_s, extra_entropy=extra_entropy)
+        sig = sigencode(r, s, CURVE_ORDER)
         public_key = private_key.get_verifying_key()
         if not public_key.verify_digest(sig, data, sigdecode=sigdecode):
             raise Exception('Sanity check verifying our own signature failed.')
