@@ -1344,6 +1344,12 @@ class PartialTxInput(TxInput, PSBTSection):
             self._is_p2sh_segwit = calc_if_p2sh_segwit_now()
         return self._is_p2sh_segwit
 
+    def already_has_some_signatures(self) -> bool:
+        """Returns whether progress has been made towards completing this input."""
+        return (self.part_sigs
+                or self.script_sig is not None
+                or self.witness is not None)
+
 
 class PartialTxOutput(TxOutput, PSBTSection):
     def __init__(self, *args, **kwargs):

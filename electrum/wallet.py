@@ -978,6 +978,9 @@ class Abstract_Wallet(AddressSynchronizer):
                                   outputs: List[PartialTxOutput], fee=None,
                                   change_addr: str = None, is_sweep=False) -> PartialTransaction:
 
+        if any([c.already_has_some_signatures() for c in coins]):
+            raise Exception("Some inputs already contain signatures!")
+
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
 
