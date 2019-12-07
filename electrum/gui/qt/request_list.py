@@ -138,7 +138,7 @@ class RequestList(MyTreeView):
             self.model().insertRow(self.model().rowCount(), items)
         self.filter()
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.AscendingOrder)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0
