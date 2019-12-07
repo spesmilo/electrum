@@ -555,7 +555,7 @@ class WalletRenameDialog : AlertDialogFragment() {
     override fun onFirstShowDialog() {
         val walletName = arguments!!.getString("walletName")!!
         etWalletName.setText(walletName)
-        etWalletName.setSelection(etWalletName.getText().length)
+        etWalletName.setSelection(0, etWalletName.getText().length)
     }
 
     override fun onShowDialog() {
@@ -572,7 +572,7 @@ class WalletRenameDialog : AlertDialogFragment() {
                     }
                     else -> {
                         daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
-                        toast(R.string.wallet_successfully, Toast.LENGTH_SHORT)
+                        toast(R.string.wallet_renamed, Toast.LENGTH_SHORT)
                         done(newWalletName)
                     }
                 }
