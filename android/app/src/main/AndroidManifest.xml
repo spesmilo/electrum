@@ -55,6 +55,17 @@
             android:finishOnTaskLaunch="true"
             android:launchMode="singleInstance"
             android:theme="@android:style/Theme.Dialog"/>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="org.electroncash.wallet.wallet_exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/wallet_export_paths"/>
+        </provider>
+
     </application>
 
 </manifest>
