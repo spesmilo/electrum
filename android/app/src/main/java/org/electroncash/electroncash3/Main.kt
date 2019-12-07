@@ -584,8 +584,6 @@ class WalletRenameDialog : AlertDialogFragment() {
 }
 
 class WalletExportDialog : AlertDialogFragment() {
-    val exportDirName = "wallet_exports"
-
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.export_wallet)
                 .setView(R.layout.wallet_export)
@@ -614,7 +612,7 @@ class WalletExportDialog : AlertDialogFragment() {
             if (exportFileName.contains('/')) {
                 toast(R.string.filenames_cannot)
             } else {
-                val exportDir = File(activity!!.cacheDir, exportDirName)
+                val exportDir = File(activity!!.cacheDir, "wallet_exports")
                 val exportFilePath = "$exportDir/$exportFileName"
                 val exportFile = File(exportFilePath)
                 val exportFileUri: Uri = FileProvider.getUriForFile(activity!!,
