@@ -66,16 +66,22 @@ Builder.load_string('''
 
 class RequestDialog(Factory.Popup):
 
-    def __init__(self, title, data, key):
+    def __init__(self, title, data, key, *, is_lightning=False):
         self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
         self.data = data
         self.key = key
+        self.is_lightning = is_lightning
 
     def on_open(self):
-        self.ids.qr.set_data(self.data)
+        data = self.data
+        if self.is_lightning:
+            # encode lightning invoices as uppercase so QR encoding can use
+            # alphanumeric mode; resulting in smaller QR codes
+            data = data.upper()
+        self.ids.qr.set_data(data)
 
     def set_status(self, status):
         self.status = status

@@ -60,7 +60,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            decimal_point_to_base_unit_name,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI)
+                           InvalidBitcoinURI, maybe_extract_bolt11_invoice)
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
@@ -1171,6 +1171,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_qr(self):
         uri = str(self.receive_address_e.text())
+        if maybe_extract_bolt11_invoice(uri):
+            # encode lightning invoices as uppercase so QR encoding can use
+            # alphanumeric mode; resulting in smaller QR codes
+            uri = uri.upper()
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.qrw.setData(uri)
