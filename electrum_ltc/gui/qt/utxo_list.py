@@ -25,6 +25,7 @@
 
 from typing import Optional, List, Dict, Sequence, Set
 from enum import IntEnum
+import copy
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -140,7 +141,8 @@ class UTXOList(MyTreeView):
     def get_spend_list(self) -> Optional[Sequence[PartialTxInput]]:
         if self._spend_set is None:
             return None
-        return [self.utxo_dict[x] for x in self._spend_set]
+        utxos = [self.utxo_dict[x] for x in self._spend_set]
+        return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
 
     def _maybe_reset_spend_list(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
         if self._spend_set is None:

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
@@ -6,6 +8,10 @@ from decimal import Decimal
 from kivy.uix.popup import Popup
 
 from electrum_ltc.gui.kivy.i18n import _
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+
 
 Builder.load_string('''
 <AddressLabel@Label>
@@ -184,7 +190,7 @@ class AddressesDialog(Factory.Popup):
 
     def __init__(self, app):
         Factory.Popup.__init__(self)
-        self.app = app
+        self.app = app  # type: ElectrumWindow
 
     def get_card(self, addr, balance, is_used, label):
         ci = {}

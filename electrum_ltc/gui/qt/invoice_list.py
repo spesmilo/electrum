@@ -129,7 +129,7 @@ class InvoiceList(MyTreeView):
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.AscendingOrder)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0

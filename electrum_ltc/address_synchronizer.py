@@ -110,7 +110,13 @@ class AddressSynchronizer(Logger):
     def get_addresses(self):
         return sorted(self.db.get_history())
 
-    def get_address_history(self, addr):
+    def get_address_history(self, addr: str) -> Sequence[Tuple[str, int]]:
+        """Returns the history for the address, in the format that would be returned by a server.
+
+        Note: The difference between db.get_addr_history and this method is that
+        db.get_addr_history stores the response from a server, so it only includes txns
+        a server sees, i.e. that does not contain local and future txns.
+        """
         h = []
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
@@ -378,7 +384,7 @@ class AddressSynchronizer(Logger):
 
     @profiler
     def load_local_history(self):
-        self._history_local = {}  # address -> set(txid)
+        self._history_local = {}  # type: Dict[str, Set[str]]  # address -> set(txid)
         self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             self._add_tx_to_local_history(txid)
@@ -841,11 +847,10 @@ class AddressSynchronizer(Logger):
             xx += x
         return cc, uu, xx
 
-    def is_used(self, address):
-        h = self.db.get_addr_history(address)
-        return len(h) != 0
+    def is_used(self, address: str) -> bool:
+        return self.get_address_history_len(address) != 0
 
-    def is_empty(self, address):
+    def is_empty(self, address: str) -> bool:
         c, u, x = self.get_addr_balance(address)
         return c+u+x == 0
 
