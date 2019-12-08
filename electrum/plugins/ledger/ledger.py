@@ -25,12 +25,12 @@ _logger = get_logger(__name__)
 
 try:
     import hid
-    from btchip.btchipComm import HIDDongleHIDAPI, DongleWait
-    from btchip.btchip import btchip
-    from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
-    from btchip.bitcoinTransaction import bitcoinTransaction
-    from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
-    from btchip.btchipException import BTChipException
+    from navhip.btchipComm import HIDDongleHIDAPI, DongleWait
+    from navhip.btchip import btchip
+    from navhip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
+    from navhip.bitcoinTransaction import bitcoinTransaction
+    from navhip.btchipFirmwareWizard import checkFirmware, updateFirmware
+    from navhip.btchipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
 except ImportError:
