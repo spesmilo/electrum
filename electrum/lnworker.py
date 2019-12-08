@@ -826,6 +826,8 @@ class LNWallet(LNWorker):
         self.save_channel(chan)
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
+        self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
+        self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
             # TODO make more robust (timeout low? server returns error?)
             await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
