@@ -328,7 +328,9 @@ def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
 
 def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, base=58, length=25)
+    _bytes = DecodeBase58Check(addr)
+    if len(_bytes) != 21:
+        raise Exception(f'expected 21 payload bytes in base58 address. got: {len(_bytes)}')
     return _bytes[0], _bytes[1:21]
 
 
@@ -638,12 +640,13 @@ def is_segwit_address(addr: str, *, net=None) -> bool:
 def is_b58_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
+        # test length, checksum, encoding:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
     if addrtype not in [net.ADDRTYPE_P2PKH, net.ADDRTYPE_P2SH]:
         return False
-    return addr == hash160_to_b58_address(h, addrtype)
+    return True
 
 def is_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
