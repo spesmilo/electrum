@@ -455,8 +455,11 @@ def base_encode(v: bytes, base: int) -> str:
     if base == 43:
         chars = __b43chars
     long_value = 0
-    for (i, c) in enumerate(v[::-1]):
-        long_value += (256**i) * c
+    power_of_base = 1
+    for c in v[::-1]:
+        # naive but slow variant:   long_value += (256**i) * c
+        long_value += power_of_base * c
+        power_of_base <<= 8
     result = bytearray()
     while long_value >= base:
         div, mod = divmod(long_value, base)
@@ -486,11 +489,14 @@ def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optio
     if base == 43:
         chars = __b43chars
     long_value = 0
-    for (i, c) in enumerate(v[::-1]):
+    power_of_base = 1
+    for c in v[::-1]:
         digit = chars.find(bytes([c]))
         if digit == -1:
             raise ValueError('Forbidden character {} for base {}'.format(c, base))
-        long_value += digit * (base**i)
+        # naive but slow variant:   long_value += digit * (base**i)
+        long_value += digit * power_of_base
+        power_of_base *= base
     result = bytearray()
     while long_value >= 256:
         div, mod = divmod(long_value, 256)
