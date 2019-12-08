@@ -60,7 +60,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            decimal_point_to_base_unit_name,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI, maybe_extract_bolt11_invoice)
+                           InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
+                           NoDynamicFeeEstimates)
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
@@ -1293,14 +1294,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         outputs = self.payto_e.get_outputs(True)
         if not outputs:
             return
-        self.max_button.setChecked(True)
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=self.get_coins(),
             outputs=outputs,
             fee=fee_est,
             is_sweep=False)
 
-        tx = make_tx(None)
+        try:
+            tx = make_tx(None)
+        except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+            self.max_button.setChecked(False)
+            self.show_error(str(e))
+            return
+
+        self.max_button.setChecked(True)
         amount = tx.output_value()
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
