@@ -33,7 +33,7 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
 from .keystore import bip44_derivation
-from .transaction import Transaction, TxOutpoint
+from .transaction import Transaction, TxOutpoint, tx_from_any
 from .logging import Logger
 
 # seed_version is now used for the version of the wallet file
@@ -700,8 +700,16 @@ class JsonDB(Logger):
 
     @modifier
     def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
-        assert isinstance(tx, Transaction)
-        self.transactions[tx_hash] = tx
+        assert isinstance(tx, Transaction), tx
+        # note that tx might be a PartialTransaction
+        if not tx_hash:
+            raise Exception("trying to add tx to db without txid")
+        if tx_hash != tx.txid():
+            raise Exception(f"trying to add tx to db with inconsistent txid: {tx_hash} != {tx.txid()}")
+        # don't allow overwriting complete tx with partial tx
+        tx_we_already_have = self.transactions.get(tx_hash, None)
+        if tx_we_already_have is None or not tx_we_already_have.is_complete():
+            self.transactions[tx_hash] = tx
 
     @modifier
     def remove_transaction(self, tx_hash) -> Optional[Transaction]:
@@ -903,9 +911,9 @@ class JsonDB(Logger):
         self.tx_fees = self.get_data_ref('tx_fees')  # type: Dict[str, TxFeesValue]
         # scripthash -> set of (outpoint, value)
         self._prevouts_by_scripthash = self.get_data_ref('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
-        # convert raw hex transactions to Transaction objects
+        # convert raw transactions to Transaction objects
         for tx_hash, raw_tx in self.transactions.items():
-            self.transactions[tx_hash] = Transaction(raw_tx)
+            self.transactions[tx_hash] = tx_from_any(raw_tx)
         # convert txi, txo: list to set
         for t in self.txi, self.txo:
             for d in t.values():

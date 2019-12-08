@@ -353,7 +353,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_deterministic(self):
         return self.keystore.is_deterministic()
 
-    def set_label(self, name, text = None):
+    def set_label(self, name: str, text: str = None) -> bool:
+        if not name:
+            return False
         changed = False
         old_text = self.labels.get(name)
         if text:
@@ -469,12 +471,14 @@ class Abstract_Wallet(AddressSynchronizer):
         exp_n = None
         can_broadcast = False
         can_bump = False
-        can_save_as_local = False
-        label = ''
         tx_hash = tx.txid()
+        tx_we_already_have_in_db = self.db.get_transaction(tx_hash)
+        can_save_as_local = (is_relevant and tx.txid() is not None
+                             and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
+        label = ''
         tx_mined_status = self.get_tx_height(tx_hash)
         if tx.is_complete():
-            if self.db.get_transaction(tx_hash):
+            if tx_we_already_have_in_db:
                 label = self.get_label(tx_hash)
                 if tx_mined_status.height > 0:
                     if tx_mined_status.conf:
@@ -497,7 +501,6 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
-                can_save_as_local = is_relevant
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
