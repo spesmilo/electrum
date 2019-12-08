@@ -328,7 +328,7 @@ def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
 
 def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, 25, base=58)
+    _bytes = base_decode(addr, base=58, length=25)
     return _bytes[0], _bytes[1:21]
 
 
@@ -446,7 +446,7 @@ __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
 
 
-def base_encode(v: bytes, base: int) -> str:
+def base_encode(v: bytes, *, base: int) -> str:
     """ encode v, which is a string of bytes, to base58."""
     assert_bytes(v)
     if base not in (58, 43):
@@ -479,7 +479,7 @@ def base_encode(v: bytes, base: int) -> str:
     return result.decode('ascii')
 
 
-def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optional[bytes]:
+def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optional[bytes]:
     """ decode v into a string of len bytes."""
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
@@ -526,7 +526,7 @@ def EncodeBase58Check(vchIn: bytes) -> str:
 
 
 def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
-    vchRet = base_decode(psz, None, base=58)
+    vchRet = base_decode(psz, base=58)
     payload = vchRet[0:-4]
     csum_found = vchRet[-4:]
     csum_calculated = sha256d(payload)[0:4]

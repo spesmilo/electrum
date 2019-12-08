@@ -907,7 +907,7 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         pass
     # try base43
     try:
-        return base_decode(raw, length=None, base=43).hex()
+        return base_decode(raw, base=43).hex()
     except:
         pass
     # try base64
