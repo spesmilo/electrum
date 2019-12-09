@@ -28,6 +28,7 @@ from unicodedata import normalize
 import hashlib
 import re
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple
+from functools import lru_cache
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey
@@ -402,8 +403,8 @@ class Xpub:
         self._root_fingerprint = root_fingerprint
         self._derivation_prefix = normalize_bip32_derivation(derivation_prefix)
 
-    def derive_pubkey(self, for_change, n) -> str:
-        for_change = int(for_change)
+    @lru_cache(maxsize=None)
+    def _derive_pubkey_bytes(self, for_change: int, n: int) -> bytes:
         assert for_change in (0, 1)
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
@@ -415,10 +416,15 @@ class Xpub:
                 self.xpub_receive = xpub
         return self.get_pubkey_from_xpub(xpub, (n,))
 
+    def derive_pubkey(self, for_change: int, n: int) -> str:
+        for_change = int(for_change)
+        assert for_change in (0, 1)
+        return self._derive_pubkey_bytes(for_change, n).hex()
+
     @classmethod
-    def get_pubkey_from_xpub(self, xpub, sequence):
+    def get_pubkey_from_xpub(self, xpub: str, sequence) -> bytes:
         node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
-        return node.eckey.get_public_key_hex(compressed=True)
+        return node.eckey.get_public_key_bytes(compressed=True)
 
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
@@ -692,7 +698,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
         client = self.plugin.get_client(self)
         derivation = get_derivation_used_for_hw_device_encryption()
         xpub = client.get_xpub(derivation, "standard")
-        password = self.get_pubkey_from_xpub(xpub, ())
+        password = self.get_pubkey_from_xpub(xpub, ()).hex()
         return password
 
     def has_usable_connection_with_device(self) -> bool:
