@@ -273,6 +273,7 @@ class BIP32Node(NamedTuple):
         """Returns the fingerprint of this node.
         Note that self.fingerprint is of the *parent*.
         """
+        # TODO cache this
         return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 

@@ -28,6 +28,7 @@ from unicodedata import normalize
 import hashlib
 import re
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple
+from functools import lru_cache
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey
@@ -142,8 +143,8 @@ class KeyStore(Logger):
                     if not test_der_suffix_against_pubkey(der_suffix, pubkey):
                         der_suffix = None
             # try fp against our intermediate fingerprint
-            if (der_suffix is None and hasattr(self, 'xpub') and
-                    fp_found == BIP32Node.from_xkey(self.xpub).calc_fingerprint_of_this_node()):
+            if (der_suffix is None and hasattr(self, 'get_bip32_node_for_xpub') and
+                    fp_found == self.get_bip32_node_for_xpub().calc_fingerprint_of_this_node()):
                 der_suffix = path_found
                 if not test_der_suffix_against_pubkey(der_suffix, pubkey):
                     der_suffix = None
@@ -330,6 +331,7 @@ class Xpub:
         self.xpub = None
         self.xpub_receive = None
         self.xpub_change = None
+        self._xpub_bip32_node = None  # type: Optional[BIP32Node]
 
         # "key origin" info (subclass should persist these):
         self._derivation_prefix = derivation_prefix  # type: Optional[str]
@@ -337,6 +339,13 @@ class Xpub:
 
     def get_master_public_key(self):
         return self.xpub
+
+    def get_bip32_node_for_xpub(self) -> Optional[BIP32Node]:
+        if self._xpub_bip32_node is None:
+            if self.xpub is None:
+                return None
+            self._xpub_bip32_node = BIP32Node.from_xkey(self.xpub)
+        return self._xpub_bip32_node
 
     def get_derivation_prefix(self) -> Optional[str]:
         """Returns to bip32 path from some root node to self.xpub
@@ -366,7 +375,7 @@ class Xpub:
             der_prefix_ints = convert_bip32_path_to_list_of_uint32(der_prefix_str)
         else:
             # use intermediate fp, and claim der suffix is the full path
-            fingerprint_bytes = BIP32Node.from_xkey(self.xpub).calc_fingerprint_of_this_node()
+            fingerprint_bytes = self.get_bip32_node_for_xpub().calc_fingerprint_of_this_node()
             der_prefix_ints = convert_bip32_path_to_list_of_uint32('m')
         der_full = der_prefix_ints + list(der_suffix)
         return fingerprint_bytes, der_full
@@ -375,7 +384,7 @@ class Xpub:
         assert self.xpub
         fp_bytes, der_full = self.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[],
                                                                                  only_der_suffix=only_der_suffix)
-        bip32node = BIP32Node.from_xkey(self.xpub)
+        bip32node = self.get_bip32_node_for_xpub()
         depth = len(der_full)
         child_number_int = der_full[-1] if len(der_full) >= 1 else 0
         child_number_bytes = child_number_int.to_bytes(length=4, byteorder="big")
@@ -390,7 +399,7 @@ class Xpub:
         # try to derive ourselves from what we were given
         child_node1 = root_node.subkey_at_private_derivation(derivation_prefix)
         child_pubkey_bytes1 = child_node1.eckey.get_public_key_bytes(compressed=True)
-        child_node2 = BIP32Node.from_xkey(self.xpub)
+        child_node2 = self.get_bip32_node_for_xpub()
         child_pubkey_bytes2 = child_node2.eckey.get_public_key_bytes(compressed=True)
         if child_pubkey_bytes1 != child_pubkey_bytes2:
             raise Exception("(xpub, derivation_prefix, root_node) inconsistency")
@@ -402,12 +411,12 @@ class Xpub:
         self._root_fingerprint = root_fingerprint
         self._derivation_prefix = normalize_bip32_derivation(derivation_prefix)
 
-    def derive_pubkey(self, for_change, n) -> str:
-        for_change = int(for_change)
+    @lru_cache(maxsize=None)
+    def _derive_pubkey_bytes(self, for_change: int, n: int) -> bytes:
         assert for_change in (0, 1)
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
-            rootnode = BIP32Node.from_xkey(self.xpub)
+            rootnode = self.get_bip32_node_for_xpub()
             xpub = rootnode.subkey_at_public_derivation((for_change,)).to_xpub()
             if for_change:
                 self.xpub_change = xpub
@@ -415,10 +424,15 @@ class Xpub:
                 self.xpub_receive = xpub
         return self.get_pubkey_from_xpub(xpub, (n,))
 
+    def derive_pubkey(self, for_change: int, n: int) -> str:
+        for_change = int(for_change)
+        assert for_change in (0, 1)
+        return self._derive_pubkey_bytes(for_change, n).hex()
+
     @classmethod
-    def get_pubkey_from_xpub(self, xpub, sequence):
+    def get_pubkey_from_xpub(self, xpub: str, sequence) -> bytes:
         node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
-        return node.eckey.get_public_key_hex(compressed=True)
+        return node.eckey.get_public_key_bytes(compressed=True)
 
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
@@ -447,7 +461,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
-        if BIP32Node.from_xkey(xprv).chaincode != BIP32Node.from_xkey(self.xpub).chaincode:
+        if BIP32Node.from_xkey(xprv).chaincode != self.get_bip32_node_for_xpub().chaincode:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
@@ -692,7 +706,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
         client = self.plugin.get_client(self)
         derivation = get_derivation_used_for_hw_device_encryption()
         xpub = client.get_xpub(derivation, "standard")
-        password = self.get_pubkey_from_xpub(xpub, ())
+        password = self.get_pubkey_from_xpub(xpub, ()).hex()
         return password
 
     def has_usable_connection_with_device(self) -> bool:
