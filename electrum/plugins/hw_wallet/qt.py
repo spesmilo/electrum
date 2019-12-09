@@ -263,13 +263,6 @@ class QtPluginBase(object):
 
         def show_address():
             addr = str(receive_address_e.text())
-            # note: 'addr' could be ln invoice or BIP21 URI
-            try:
-                uri = parse_URI(addr)
-            except InvalidBitcoinURI:
-                pass
-            else:
-                addr = uri.get('address')
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
         dev_name = f"{plugin.device} ({keystore.label})"
         receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(dev_name))
