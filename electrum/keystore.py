@@ -411,6 +411,8 @@ class Xpub:
         self._root_fingerprint = root_fingerprint
         self._derivation_prefix = normalize_bip32_derivation(derivation_prefix)
 
+    # note: this helper method exists as derive_pubkey returns hex strings,
+    #       and it saves space to cache bytes instead
     @lru_cache(maxsize=None)
     def _derive_pubkey_bytes(self, for_change: int, n: int) -> bytes:
         assert for_change in (0, 1)
