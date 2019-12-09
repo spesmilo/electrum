@@ -50,7 +50,7 @@ class AbstractNet:
 
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+        return cls.CHECKPOINTS['height']
 
     @classmethod
     def rev_genesis_bytes(cls) -> bytes:
@@ -67,7 +67,10 @@ class BitcoinMainnet(AbstractNet):
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    CHECKPOINTS = read_json('checkpoints.json', [])
+    # To generate this JSON file, connect to a trusted server, and then run
+    # this from the console:
+    # network.run_from_another_thread(network.interface.export_purported_checkpoints(height, path))
+    CHECKPOINTS = read_json('checkpoints.json', {'height': 0})
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
@@ -104,7 +107,7 @@ class BitcoinTestnet(AbstractNet):
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
-    CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+    CHECKPOINTS = read_json('checkpoints_testnet.json', {'height': 0})
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
@@ -135,7 +138,7 @@ class BitcoinRegtest(BitcoinTestnet):
     SEGWIT_HRP = "bcrt"
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    CHECKPOINTS = []
+    CHECKPOINTS = {'height': 0}
     LN_DNS_SEEDS = []
 
 
@@ -147,7 +150,7 @@ class BitcoinSimnet(BitcoinTestnet):
     SEGWIT_HRP = "sb"
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    CHECKPOINTS = []
+    CHECKPOINTS = {'height': 0}
     LN_DNS_SEEDS = []
 
 

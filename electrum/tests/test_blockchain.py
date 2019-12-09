@@ -4,7 +4,7 @@ import os
 
 from electrum import constants, blockchain
 from electrum.simple_config import SimpleConfig
-from electrum.blockchain import Blockchain, deserialize_header, hash_header
+from electrum.blockchain import Blockchain, MissingHeader, deserialize_header, hash_header
 from electrum.util import bh2u, bfh, make_dir
 
 from . import ElectrumTestCase
@@ -45,22 +45,17 @@ class TestBlockchain(ElectrumTestCase):
     #                           /
     # A <- B <- C <- D <- E <- F <- O <- P <- Q <- R <- S <- T <- U
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        constants.set_regtest()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        constants.set_mainnet()
-
     def setUp(self):
         super().setUp()
+        constants.set_regtest()
         self.data_dir = self.electrum_path
         make_dir(os.path.join(self.data_dir, 'forks'))
         self.config = SimpleConfig({'electrum_path': self.data_dir})
         blockchain.blockchains = {}
+
+    def tearDown(self):
+        super().tearDown()
+        constants.set_mainnet()
 
     def _append_header(self, chain: Blockchain, header: dict):
         self.assertTrue(chain.can_connect(header))
@@ -335,6 +330,21 @@ class TestBlockchain(ElectrumTestCase):
 
         for b in (chain_u, chain_l, chain_z):
             self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
+
+    def test_mainnet_get_chainwork(self):
+        constants.set_mainnet()
+        blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            config=self.config, forkpoint=0, parent=None,
+            forkpoint_hash=constants.net.GENESIS, prev_hash=None)
+        open(chain_u.path(), 'w+').close()
+
+        # Try a variety of checkpoint heights relative to the chunk boundary
+        for height_offset in range(2016):
+            constants.net.CHECKPOINTS['height']+=1
+
+            chain_u.get_chainwork(constants.net.max_checkpoint())
+            with self.assertRaises(MissingHeader):
+                chain_u.get_chainwork(constants.net.max_checkpoint() + 4032)
 
 
 class TestVerifyHeader(ElectrumTestCase):
