@@ -11,7 +11,7 @@ from electrum import bip32
 from electrum.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
 from electrum.i18n import _
 from electrum.plugin import Device, hook
-from electrum.keystore import Hardware_KeyStore
+from electrum.keystore import Hardware_KeyStore, KeyStoreWithMPK
 from electrum.transaction import PartialTransaction
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
 from electrum.util import bfh, bh2u, versiontuple, UserFacingException
@@ -20,9 +20,6 @@ from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
-
-if TYPE_CHECKING:
-    from electrum.keystore import Xpub
 
 
 _logger = get_logger(__name__)
@@ -571,7 +568,7 @@ class ColdcardPlugin(HW_PluginBase):
 
         xpubs = []
         derivs = set()
-        for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):
+        for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):  # type: str, KeyStoreWithMPK
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[], only_der_suffix=False)
             fp_hex = fp_bytes.hex().upper()
             der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
