@@ -7,6 +7,7 @@ import sys
 import threading
 import traceback
 from typing import Tuple, List, Callable, NamedTuple, Optional, TYPE_CHECKING
+from functools import partial
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
@@ -16,7 +17,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
 
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.util import UserCancelled, InvalidPassword, WalletFileException
+from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
@@ -191,6 +192,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
+
+        vbox.addSpacing(50)
+        vbox_create_new = QVBoxLayout()
+        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignLeft)
+        button_create_new = QPushButton(_('Create New Wallet'))
+        button_create_new.setMinimumWidth(120)
+        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignLeft)
+        widget_create_new = QWidget()
+        widget_create_new.setLayout(vbox_create_new)
+        vbox_create_new.setContentsMargins(0, 0, 0, 0)
+        vbox.addWidget(widget_create_new)
+
         self.set_layout(vbox, title=_('Electrum wallet'))
 
         temp_storage = None  # type: Optional[WalletStorage]
@@ -240,6 +253,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if msg is None:
                 msg = _('Cannot read file')
             self.msg_label.setText(msg)
+            widget_create_new.setVisible(temp_storage and temp_storage.file_exists())
             if user_needs_to_enter_password:
                 self.pw_label.show()
                 self.pw_e.show()
@@ -249,6 +263,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.pw_e.hide()
 
         button.clicked.connect(on_choose)
+        button_create_new.clicked.connect(
+            partial(
+                self.name_e.setText,
+                get_new_wallet_name(wallet_folder)))
         self.name_e.textChanged.connect(on_filename)
         self.name_e.setText(os.path.basename(path))
 
