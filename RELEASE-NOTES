@@ -818,3 +818,26 @@ and there is no warning message.
   Meson)
 * iOS: Add SLP-awareness & protection to the UI. (cculianu)
 * Misc. refactoring, nits, and bugfixes (cculianu, Mark Lundeberg)
+
+# Release 4.0.12
+
+* **TRANSLATIONS!** This release includes a complete coverage of the Spanish
+  language as well as many other language strings added for German, Portuguese,
+  and other languages. (various contributors, w/ Jonald Fyookball as organizer)
+* Made export history way better (#1682) -- Exporting history from the GUI or
+  the CLI can now optionally include accurate fee data as well as accurate fiat
+  amounts (if fiat history is enabled in the GUI). (cculianu)
+* Fix #1681 - Gave cashshuffle message.proto file a package name. This caused
+  issues for some source users whereby the lack of a package name may clash with
+  modules installed on the user's system. (cculianu)
+* Android (phase 4): Add ability to delete closed wallets (#1690) (Andrew#128)
+* More graceful and softer shutdown on Ctrl-C / SIGINT (#1695) (Mark Lundeberg)
+* Various backend preparations for CashFusion (#1693) (Mark Lundeberg)
+* Remove unused SIP dependency for Python 3.8 compatibility (Axel Gemebe)
+* SatoChip HW Wallet: Fix crash when cancelling PIN change or seed reset
+  (Baudoin Collard)
+* SatoChip HW Wallet: Fix recovered authentikey does not correspond to
+  registered authentikey error (#1717) (Baudoin Collard)
+* Fix #1718: We had a string format error in Export Private Keys dialog, which
+  would cause uses that were using a password with '{' in it to experience
+  crashes. (cculianu)
