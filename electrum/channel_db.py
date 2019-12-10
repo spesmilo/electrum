@@ -295,7 +295,12 @@ class ChannelDB(SqlDB):
              for node_id in list(self._addresses.keys())[-self.NUM_MAX_RECENT_PEERS:]]
         return list(reversed(r))
 
-    def add_channel_announcement(self, msg_payloads, trusted=True):
+    # note: currently channel announcements are trusted by default (trusted=True);
+    #       they are not verified. Verifying them would make the gossip sync
+    #       even slower; especially as servers will start throttling us.
+    #       It would probably put significant strain on servers if all clients
+    #       verified the complete gossip.
+    def add_channel_announcement(self, msg_payloads, *, trusted=True):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
         added = 0
@@ -311,16 +316,25 @@ class ChannelDB(SqlDB):
             except UnknownEvenFeatureBits:
                 self.logger.info("unknown feature bits")
                 continue
-            added += 1
-            self._channels[short_channel_id] = channel_info
-            self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
-            self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
-            self.save_channel(channel_info)
-            if not trusted:
-                self.ca_verifier.add_new_channel_info(channel_info.short_channel_id, msg)
+            if trusted:
+                added += 1
+                self.add_verified_channel_info(msg)
+            else:
+                added += self.ca_verifier.add_new_channel_info(short_channel_id, msg)
 
         self.update_counts()
         self.logger.debug('add_channel_announcement: %d/%d'%(added, len(msg_payloads)))
+
+    def add_verified_channel_info(self, msg: dict, *, capacity_sat: int = None) -> None:
+        try:
+            channel_info = ChannelInfo.from_msg(msg)
+        except UnknownEvenFeatureBits:
+            return
+        channel_info = channel_info._replace(capacity_sat=capacity_sat)
+        self._channels[channel_info.short_channel_id] = channel_info
+        self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
+        self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
+        self.save_channel(channel_info)
 
     def print_change(self, old_policy: Policy, new_policy: Policy):
         # print what changed between policies
