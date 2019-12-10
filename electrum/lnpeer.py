@@ -50,7 +50,7 @@ from .lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker, LNGossip, LNWallet
-    from .lnrouter import RouteEdge
+    from .lnrouter import RouteEdge, LNPaymentRoute
     from .transaction import PartialTransaction
 
 
@@ -1126,7 +1126,7 @@ class Peer(Logger):
         while chan.get_latest_ctn(LOCAL) <= ctn:
             await self._local_changed_events[chan.channel_id].wait()
 
-    async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
+    async def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
         if chan.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open')

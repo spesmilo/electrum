@@ -87,7 +87,10 @@ class RouteEdge(NamedTuple):
         return True
 
 
-def is_route_sane_to_use(route: List[RouteEdge], invoice_amount_msat: int, min_final_cltv_expiry: int) -> bool:
+LNPaymentRoute = Sequence[RouteEdge]
+
+
+def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_final_cltv_expiry: int) -> bool:
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
     """
@@ -238,7 +241,7 @@ class LNPathFinder(Logger):
             edge_startnode = edge_endnode
         return path
 
-    def create_route_from_path(self, path, from_node_id: bytes) -> List[RouteEdge]:
+    def create_route_from_path(self, path, from_node_id: bytes) -> LNPaymentRoute:
         assert isinstance(from_node_id, bytes)
         if path is None:
             raise Exception('cannot create route from None path')

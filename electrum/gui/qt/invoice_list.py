@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Sequence
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -34,7 +35,7 @@ from electrum.i18n import _
 from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT
 from electrum.util import get_request_status
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import format_short_channel_id
+from electrum.lnutil import PaymentAttemptLog
 
 from .util import (MyTreeView, read_QIcon,
                    import_meta_gui, export_meta_gui, pr_icons)
@@ -174,24 +175,34 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def show_log(self, key, log):
+    def show_log(self, key, log: Sequence[PaymentAttemptLog]):
         d = WindowModalDialog(self, _("Payment log"))
+        d.setMinimumWidth(800)
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()
         log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message'), _('Blacklist')])
-        for i, (route, success, failure_log) in enumerate(log):
-            route_str = '%d'%len(route)
-            if not success:
-                sender_idx, failure_msg, blacklist = failure_log
-                short_channel_id = route[sender_idx+1].short_channel_id
-                data = failure_msg.data
-                message = repr(failure_msg.code)
+        for payment_attempt_log in log:
+            if not payment_attempt_log.exception:
+                route = payment_attempt_log.route
+                route_str = '%d'%len(route)
+                if not payment_attempt_log.success:
+                    sender_idx = payment_attempt_log.failure_details.sender_idx
+                    failure_msg = payment_attempt_log.failure_details.failure_msg
+                    blacklist_msg = str(payment_attempt_log.failure_details.is_blacklisted)
+                    short_channel_id = route[sender_idx+1].short_channel_id
+                    data = failure_msg.data
+                    message = repr(failure_msg.code)
+                else:
+                    short_channel_id = route[-1].short_channel_id
+                    message = _('Success')
+                    blacklist_msg = str(False)
+                chan_str = str(short_channel_id)
             else:
-                short_channel_id = route[-1].short_channel_id
-                message = _('Success')
-                blacklist = False
-            chan_str = format_short_channel_id(short_channel_id)
-            x = QTreeWidgetItem([route_str, chan_str, message, repr(blacklist)])
+                route_str = 'None'
+                chan_str = 'N/A'
+                message = str(payment_attempt_log.exception)
+                blacklist_msg = 'N/A'
+            x = QTreeWidgetItem([route_str, chan_str, message, blacklist_msg])
             log_w.addTopLevelItem(x)
         vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))
