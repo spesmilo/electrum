@@ -624,6 +624,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return public_key.get_public_key_hex(compressed=False)
 
     def derive_pubkey(self, for_change, n) -> str:
+        for_change = int(for_change)
+        assert for_change in (0, 1)
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)
 
     def _get_private_key_from_stretched_exponent(self, for_change, n, secexp):
