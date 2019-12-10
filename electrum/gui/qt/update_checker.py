@@ -20,8 +20,8 @@ from electrum.logging import Logger
 
 class UpdateCheck(QWidget, Logger):
     # TODO: update this to server's IP
-    url = "http://royalewallets.github.io/version"
-    download_url = "https://royalewallets.github.io"
+    url = "http://bitcoinvault.global/version"
+    download_url = "https://bitcoinvault.global"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
         "YhK3ULRcNB7Nrqeif3qLUqsFTcngxJsba9",

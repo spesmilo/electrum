@@ -67,11 +67,11 @@ def inv_dict(d):
 ca_path = certifi.where()
 
 
-base_units = {'BTCR':8, 'mBTCR':5, 'bits':2, 'sat':0}
+base_units = {'BTCV':8, 'mBTCV':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['BTCR', 'mBTCR', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['BTCV', 'mBTCV', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTCR
+DECIMAL_POINT_DEFAULT = 5  # mBTCV
 
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
@@ -535,11 +535,11 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".electrum-royale")
+        return os.path.join(os.environ["HOME"], ".electrum-vault")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "Electrum Royale")
+        return os.path.join(os.environ["APPDATA"], "Electrum Vault")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum Royale")
+        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum Vault")
     else:
         #raise Exception("No home directory found in environment variables.")
         return
@@ -704,7 +704,7 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'BitcoinRoyale block explorer': ('http://explorer.bitcoinroyale.org/',
+    'BitcoinVault block explorer': ('http://explorer.bitcoinvault.org/',
                          {'tx': 'tx/', 'addr': 'address/'}),
 
 }

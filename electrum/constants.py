@@ -40,8 +40,8 @@ def read_json(filename, default):
     return r
 
 
-GIT_REPO_URL = "https://github.com/royalewallets/electrum-royale"
-GIT_REPO_ISSUES_URL = "https://github.com/royalewallets/electrum-royale/issues"
+GIT_REPO_URL = "https://github.com/bitcoinvault/electrum-vault"
+GIT_REPO_ISSUES_URL = "https://github.com/bitcoinvault/electrum-vault/issues"
 
 
 class AbstractNet:
