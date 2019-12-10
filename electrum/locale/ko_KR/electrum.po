@@ -1,1409 +1,4209 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: electrum\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-11-18 09:24+0000\n"
-"PO-Revision-Date: 2019-11-18 09:30\n"
-"Last-Translator: Randy Brito (rdymac)\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 "Language-Team: Korean\n"
 "Language: ko_KR\n"
 "MIME-Version: 1.0\n"
+
+msgid "ENGLISH"
+msgstr "KOREAN"
+
 msgid "confirmation"
+msgstr "확인"
+
 msgid "&About"
+msgstr "&제품 정보"
+
 msgid "&Addresses"
+msgstr "&지갑 주소"
+
 msgid "&Check for updates"
+msgstr "&업데이트 확인"
+
 msgid "&Documentation"
+msgstr "&문서"
+
 msgid "&Donate to server"
+msgstr "&서버"
+
 msgid "&Encrypt/decrypt message"
+msgstr "&메세지 암호화 및 해독"
+
 msgid "&Export"
+msgstr "&내보내기 (&E)"
+
 msgid "&File"
+msgstr "&파일(&F)"
+
 msgid "&Filter"
+msgstr "&필터"
+
 msgid "&From QR code"
+msgstr "&및 QR 코드로부터"
+
 msgid "&From file"
+msgstr "&파일에서 작성(&F)"
+
 msgid "&From text"
+msgstr "&텍스트에서 (&T)"
+
 msgid "&From the blockchain"
+msgstr "& 블록체인에서"
+
 msgid "&Help"
+msgstr "&도움말"
+
 msgid "&History"
+msgstr "&거래 기록"
+
 msgid "&Import"
+msgstr "&가져오기"
+
 msgid "&Information"
+msgstr "&정보"
+
 msgid "&Labels"
+msgstr "&라벨"
+
 msgid "&Lightning"
+msgstr "&밝기"
+
 msgid "&Load transaction"
+msgstr "&거래 불러오기"
+
 msgid "&Network"
+msgstr "&네트워크"
+
 msgid "&New"
+msgstr "&신규"
+
 msgid "&New/Restore"
+msgstr "& 새로 만들기 / 복원하기"
+
 msgid "&Official website"
+msgstr "&공식 웹사이트"
+
 msgid "&Open"
+msgstr "&열기(&O)"
+
 msgid "&Password"
+msgstr "&비밀번호"
+
 msgid "&Pay to many"
+msgstr "&한번에 지불하기"
+
 msgid "&Plot"
+msgstr "&내역"
+
 msgid "&Plugins"
+msgstr "&플러그인"
+
 msgid "&Private keys"
+msgstr "&개인 키"
+
 msgid "&Quit"
+msgstr "&종료하기"
+
 msgid "&Recently open"
+msgstr "&최근 항목"
+
 msgid "&Report Bug"
+msgstr "&버그 보고"
+
 msgid "&Save Copy"
+msgstr "&복사 저장"
+
 msgid "&Seed"
+msgstr "&시드"
+
 msgid "&Sign/verify message"
+msgstr "&메시지 확인 / 서명"
+
 msgid "&Summary"
+msgstr "&요약"
+
 msgid "&Sweep"
+msgstr "&삭제하기"
+
 msgid "&Tools"
+msgstr "&도구"
+
 msgid "&View"
+msgstr "&조회"
+
 msgid "&Wallet"
+msgstr "&지갑"
+
 msgid "(Touch {} of {})"
+msgstr "(Touch {} of {})"
+
 msgid "1 day"
+msgstr "1 일"
+
 msgid "1 hour"
+msgstr "1 시간"
+
 msgid "1 week"
+msgstr "1주일"
+
 msgid "1. Place this paper on a flat and well iluminated surface."
+msgstr "1. 종이 지갑을 밝고 평평한 곳에 비춰주세요"
+
 msgid "10 minutes"
+msgstr "10분"
+
 msgid "2. Align your Revealer borderlines to the dashed lines on the top and left."
+msgstr "2. 경계선을 위쪽과 왼쪽의 파선에 맞춥니다"
+
 msgid "3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides."
+msgstr "3. 표시자를 종이에 대고 살짝 누른 다음, 반대쪽 면에서 가장 일치하는 숫자를 읽습니다."
+
 msgid "4. Type the numbers in the software"
+msgstr "4. 소프트웨어에 숫자를 입력하십시오."
+
 msgid "A backup is saved automatically when generating a new wallet."
+msgstr "새 지갑을 생성 시 백업이 자동으로 저장됩니다."
+
 msgid "A copy of your wallet file was created in"
+msgstr "지갑 파일의 복사본이 생성되었습니다."
+
 msgid "A few examples"
+msgstr "예시"
+
 msgid "A library is probably missing."
+msgstr "라이브러리가 존재하지 않는 것으로 보입니다."
+
 msgid "A small fee will be charged on each transaction that uses the remote server. You may check and modify your billing preferences once the installation is complete."
+msgstr "원격 서버를 사용하는 거래마다 약간의 수수료가 부과됩니다. 설치가 완료되면 결제 환경 설정을 확인하고 수정할 수 있습니다."
+
 msgid "A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction."
+msgstr "제시된 요금이 자동으로 필드에 추가됩니다. 고객님께선 이를 무시할 수 있습니다. 제시되는 비용은 거래의 크기에 따라 늘어납니다."
+
 msgid "About"
+msgstr "소개"
+
 msgid "About Electrum"
+msgstr "Electrum 소개"
+
 msgid "Accept"
+msgstr "승인하기"
+
 msgid "Accept Word"
+msgstr "단어 승인하기"
+
 msgid "Acquisition price"
+msgstr "취득 가격"
+
 msgid "Add Cosigner"
+msgstr "연서인 추가"
+
 msgid "Add a cosigner to your multi-sig wallet"
+msgstr "연서인을 멀티-시그 지갑에 추가하십시오."
+
 msgid "Add an optional virtual keyboard to the password dialog."
+msgstr "가상 키보드를 비밀번호 창에 추가하십시오."
+
 msgid "Add cosigner"
+msgstr "연서인 추가"
+
 msgid "Additional fees"
+msgstr "추가 요금"
+
 msgid "Additional {} satoshis are going to be added."
+msgstr "추가 {} 사토시가 잔고에 추가됩니다."
+
 msgid "Address"
+msgstr "주소"
+
 msgid "Address Details"
+msgstr "상세 주소"
+
 msgid "Address copied to clipboard"
+msgstr "주소가 클립보드에 복사되었습니다."
+
 msgid "Address is frozen"
+msgstr "지갑이 동결된 상태입니다."
+
 msgid "Address not in wallet."
+msgstr "주소가 지갑에 포함되지 않습니다."
+
 msgid "Address:"
+msgstr "주소:"
+
 msgid "Addresses"
+msgstr "주소 목록"
+
 msgid "Addresses generated:"
+msgstr "생성된 주소:"
+
 msgid "Advanced"
+msgstr "고급"
+
 msgid "Advanced preview"
+msgstr "미리보기 고급"
+
 msgid "After disabling passphrases, you can only pair this Electrum wallet if it had an empty passphrase. If its passphrase was not empty, you will need to create a new wallet with the install wizard. You can use this wallet again at any time by re-enabling passphrases and entering its passphrase."
+msgstr "암호문을 사용하지 않도록 설정한 후에는 암호문이 비어있는 경우에만 전자 지갑을 페어링 할 수 있습니다. 해당 암호 문구가 비어있지 않으면 설치 마법사로 새 지갑을 만들어야 합니다. 암호문을 재이용 및 입력하여 이 지갑을 언제든지 다시 사용할 수 있습니다."
+
 msgid "All"
+msgstr "전체"
+
 msgid "All fields must be filled out"
+msgstr "모든 빈칸을 채워주십시오."
+
 msgid "Allows validating if your transactions have instant confirmations by GreenAddress"
+msgstr "GreenAddress로부터 거래가 즉시 확정되면 승인을 수락합니다."
+
 msgid "Already up to date"
+msgstr "이미 최신 버전입니다."
+
 msgid "Also, dust is not kept as change, but added to the fee."
+msgstr "미세한 잔액은 남아있지 않으며, 요금에 더해집니다."
+
 msgid "Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee."
+msgstr "또한 RBF 거래를 일괄 처리할 때, BIP 125가 요금에 하한가를 부가합니다."
+
 msgid "Always check your backups."
+msgstr "항상 백업 파일 확인하시기 바랍니다."
+
 msgid "Amount"
+msgstr "결제 금액"
+
 msgid "Amount for OP_RETURN output must be zero."
+msgstr "OP_RETURN 금액은 반드시 0이 됩니다."
+
 msgid "Amount received:"
+msgstr "금액 수신 :"
+
 msgid "Amount sent:"
+msgstr "금액 전송 :"
+
 msgid "Amount to be sent"
+msgstr "전송된 금액"
+
 msgid "Amount to be sent."
+msgstr "전송된 금액"
+
 msgid "An Error Occurred"
+msgstr "오류 발생"
+
 msgid "An encrypted transaction was retrieved from cosigning pool."
+msgstr "암호화된 거래는 연서인 그룹으로부터 되돌려졌습니다."
+
 msgid "An uninitialized Digital Bitbox is detected."
+msgstr "미실행된 디지털 비트박스가 감지되었습니다."
+
 msgid "An unnamed {}"
+msgstr "익명의 {}"
+
 msgid "Apply"
+msgstr "제출"
+
 msgid "Arabic"
+msgstr "아랍어"
+
 msgid "Are you SURE you want to wipe the device?\n"
+msgstr "정말 장치의 데이터를 삭제하시겠습니까?\n"
+
 msgid "Are you sure you want to delete this channel? This will purge associated transactions from your wallet history."
+msgstr "해당 채널을 삭제하시겠습니까? 지갑 내역과 연관된 거래의 삭제를 야기할 수도 있습니다."
+
 msgid "Are you sure you want to erase the Digital Bitbox?"
+msgstr "정말 디지털 비트박스를 지우시겠습니까?"
+
 msgid "Are you sure you want to proceed?"
+msgstr "계속해서 진행하시겠습니까?"
+
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
+msgstr "해당 거래와 부속 거래를 제거하시겠습니까?"
+
 msgid "Are you sure you want to remove this transaction?"
+msgstr "해당 거래를 삭제하시겠습니까?"
+
 msgid "Armenian"
+msgstr "아르메니아어"
+
 msgid "At block height: {}"
+msgstr "블록 높이: {}"
+
 msgid "At least a hostname must be supplied after the at symbol."
+msgstr "@ 후 적어도 호스트 이름이 제공되어야 합니다."
+
 msgid "At most 100 satoshis might be lost due to this rounding."
+msgstr "최대 100 사토시가 이번 라운딩으로 인해 유실될 수 있습니다."
+
 msgid "Audio MODEM"
+msgstr "오디오 모뎀"
+
 msgid "Audio Modem Settings"
+msgstr "오디오 모뎀 세팅"
+
 msgid "Authorization"
+msgstr "승인"
+
 msgid "Auto connect"
+msgstr "자동 연결"
+
 msgid "Auto-connect"
+msgstr "자동 연결"
+
 msgid "Automatically check for software updates"
+msgstr "소프트웨어 업데이트 자동 확인"
+
 msgid "BIP39 seed"
+msgstr "BIP39 시드"
+
 msgid "BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets."
+msgstr "BIP39 시드를 Electrum으로 들여와질 수 있습니다. 그렇기에 다른 지갑에 동결된 자금에 접근할 수 있습니다."
+
 msgid "BIP39 seeds do not include a version number, which compromises compatibility with future software."
+msgstr "BIP39 시드는 향후 소프트웨어와의 호환성을 나타내는 버전 넘버를 포함하지 않습니다."
+
 msgid "Back"
+msgstr "뒤로 가기"
+
 msgid "Balance"
+msgstr "잔고"
+
 msgid "Banner"
+msgstr "배너"
+
 msgid "Base unit"
+msgstr "베이스 유닛"
+
 msgid "Base unit of your wallet."
+msgstr "지갑의 베이스 단위."
+
 msgid "Batch RBF transactions"
+msgstr "RBF 거래 일괄 처리"
+
 msgid "Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."
+msgstr "버그를 보고 하기 전에 Electrum (최신 릴리즈 또는 git HEAD)을 최신 버전으로 업그레이드 후 버그 보고서에 버전 번호를 포함해주시기 바랍니다."
+
 msgid "Bit rate [kbps]:"
+msgstr "비트 레이트 [kbps]:"
+
 msgid "Bitcoin Address"
+msgstr "비트코인 주소"
+
 msgid "Bitcoin Address is None"
+msgstr "비트코인 주소가 없습니다."
+
 msgid "Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds."
+msgstr "비트코인 거래는 일반적으로 무료로 이루어지지 않습니다. 거래 수수료는 송금인이 부담합니다."
+
 msgid "Blacklist"
+msgstr "블랙리스트"
+
 msgid "Blockchain"
+msgstr "블록체인"
+
 msgid "Bootloader"
+msgstr "부트스트랩로더"
+
 msgid "Bootloader Hash"
+msgstr "부트스크랩로더 해쉬"
+
 msgid "Bottom"
+msgstr "아래"
+
 msgid "Brasilian"
+msgstr "브라질어"
+
 msgid "Broadcast"
+msgstr "방송"
+
 msgid "Broadcasting transaction..."
+msgstr "거래 송출..."
+
 msgid "Build Date"
+msgstr "날짜 생성"
+
 msgid "Bulgarian"
+msgstr "불가리어"
+
 msgid "Bump Fee"
+msgstr "범프 수수료"
+
 msgid "Bump fee"
+msgstr "범프 수수료"
+
 msgid "CLTV expiry"
+msgstr "CLTV 만료"
+
 msgid "CSV"
+msgstr "CSV"
+
 msgid "Calibration sheet"
+msgstr "교정 용지"
+
 msgid "Calibration values:"
+msgstr "교정 값:"
+
 msgid "Can send"
+msgstr "전송 가능"
+
 msgid "Can't CPFP: unknown fee for parent transaction."
+msgstr "CPFP 불가: 주거래에 대한 알 수 없는 요금"
+
 msgid "Can't bump fee: unknown fee for original transaction."
+msgstr "CPFP 불가: 본래 거래에 대한 알 수 없는 요금"
+
 msgid "Can't plot history."
+msgstr "내역 불러오기 실패"
+
 msgid "Cancel"
+msgstr "취소"
+
 msgid "Cancelled by user"
+msgstr "사용자에 의한 취소"
+
 msgid "Cannot add this cosigner:"
+msgstr "연서인 추가 불가"
+
 msgid "Cannot broadcast transaction"
+msgstr "거래를 송출할 수 없습니다."
+
 msgid "Cannot bump fee"
+msgstr "범프 수수료 불가"
+
 msgid "Cannot create window for wallet"
+msgstr "지갑의 새로운 창 생성 불가"
+
 msgid "Cannot load wallet"
+msgstr "지갑 불러오기 불가"
+
 msgid "Cannot read file"
+msgstr "파일을 읽을 수 없습니다"
+
 msgid "Cannot sign messages with this type of address:"
+msgstr "해당 주소의 타입으로는 메세지에 서명할 수 없습니다."
+
 msgid "Capacity"
+msgstr "상환 능력"
+
 msgid "Capital Gains"
+msgstr "자본 획득"
+
 msgid "Capital gains"
+msgstr "자본 획득"
+
 msgid "Chain split detected at block {0}"
+msgstr "블록 체인 분리 감지 {0}"
+
 msgid "Change"
+msgstr "변경"
+
 msgid "Change PIN"
+msgstr "PIN 변경"
+
 msgid "Change Password"
+msgstr "패스워드 변경"
+
 msgid "Change..."
+msgstr "변경..."
+
 msgid "Changing PIN code."
+msgstr "PIN 변경."
+
 msgid "Channel Details"
+msgstr "채널 세부사항"
+
 msgid "Channel ID"
+msgstr "채널 ID"
+
 msgid "Channel ID:"
+msgstr "채널 ID:"
+
 msgid "Channel already closed"
+msgstr "이미 닫힌 채널"
+
 msgid "Channel closed"
+msgstr "닫힌 채널"
+
 msgid "Channel closed, you may need to wait at least {} blocks, because of CSV delays"
+msgstr "닫힌 채널입니다. CSV 연기로 인하여 최소 {} 블록을 기다리시기 바랍니다."
+
 msgid "Channel details"
+msgstr "채널 세부사항"
+
 msgid "Channel established."
+msgstr "채널 설립"
+
 msgid "Channel updates to query."
+msgstr "쿼리에 채널 업데이트"
+
 msgid "Channels"
+msgstr "채널"
+
 msgid "Channels in database."
+msgstr "채널 데이터베이스"
+
 msgid "Check this box to request a new secret. You will need to retype your seed."
+msgstr "새로운 비밀을 요청시 이 칸을 눌러주세요. 고객님의 시드를 재 입력하셔야 합니다."
+
 msgid "Check your {} device to continue"
+msgstr "계속하기 위하여 고객님의 {} 장치를 확인해 주십시오."
+
 msgid "Checking for updates..."
+msgstr "업데이트 확인 중..."
+
 msgid "Child Pays for Parent"
+msgstr "하위 계좌가 메인 계좌를 대신하여 지불합니다."
+
 msgid "Child pays for parent"
+msgstr "어린이가 부모를 위해 지불한다."
+
 msgid "Chinese Simplified"
+msgstr "중국어 (간체)"
+
 msgid "Chinese Traditional"
+msgstr "중국어 (번체)"
+
 msgid "Choose Homescreen"
+msgstr "홈스크린 선택"
+
 msgid "Choose PIN code"
+msgstr "PIN 코드 입력"
+
 msgid "Choose Seed type"
+msgstr "시트 타입 입력"
+
 msgid "Choose a backup file:"
+msgstr "백업 파일 선택:"
+
 msgid "Choose a password to encrypt your wallet keys."
+msgstr "지갑 키를 암호화 하기 위한 비밀번호를 선택하십시오."
+
 msgid "Choose a server"
+msgstr "서버 선택"
+
 msgid "Choose coin (UTXO) selection method. The following are available:\n\n"
+msgstr "코인 (UTXO) 선택 방법을 선택 합니다. 다음을 사용할 수 있습니다.\n\n"
+
 msgid "Choose from peers"
+msgstr "다른 유저로부터 선택"
+
 msgid "Choose how to initialize your Digital Bitbox:"
+msgstr "디지털 박스 실행 방법 선택:"
+
 msgid "Choose how you want to initialize your {}.\n\n"
+msgstr "원하는 {} 실행 방법 선택 \n\n"
+
 msgid "Choose on your {} device where to enter your passphrase"
+msgstr "암호문을 입력할 {} 장치 선택"
+
 msgid "Choose the number of signatures needed to unlock funds in your wallet:"
+msgstr "당신의 지갑에 자금을 해제 하는 데 필요한 서명 수를 선택 하십시오."
+
 msgid "Choose the type of addresses in your wallet."
+msgstr "지갑의 주소 종류 선택"
+
 msgid "Choose which online block explorer to use for functions that open a web browser"
+msgstr "웹 브라우저를 여는 기능에 사용되는 온라인 탐색기 블록 선택"
+
 msgid "Choose your chain"
+msgstr "체인 선택"
+
 msgid "Choose..."
+msgstr "선택 ..."
+
 msgid "Clear"
+msgstr "초기화"
+
 msgid "Clear the session after the specified period of inactivity. Once a session has timed out, your PIN and passphrase (if enabled) must be re-entered to use the device."
+msgstr "비활성화 시기 후 세션 초기화 하시기 바랍니다. 세션이 한 번 초과되면, 장치 사용을 위해 PIN과 암호문을 재 입력해야 합니다."
+
 msgid "Click Send to proceed"
+msgstr "다음 진행시 전송을 누르십시오."
+
 msgid "Click here to hide this message."
+msgstr "메세지 숨기기시 여기를 누르십시오."
+
 msgid "Clipboard is empty"
+msgstr "클립보드가 비었습니다."
+
 msgid "Close"
+msgstr "닫기"
+
 msgid "Close channel"
+msgstr "채널 닫기"
+
 msgid "Close channel?"
+msgstr "채널을 닫으시겠습니까?"
+
 msgid "Co&ins"
+msgstr "주화"
+
 msgid "Code"
+msgstr "코드"
+
 msgid "Coin control active"
+msgstr "코인 컨트롤 활성화"
+
 msgid "Coin is frozen"
+msgstr "코인이 비활성화된 상태입니다."
+
 msgid "Coin selected to be spent"
+msgstr "사용을 위하여 코인이 선택되었습니다."
+
 msgid "Coin selection"
+msgstr "코인 선택"
+
 msgid "Coin selection active ({} UTXOs selected)"
+msgstr "코인 선택 활성화 ({} UTXOs 선택된 상태)"
+
 msgid "Coldcard Status"
+msgstr "콜드카드 상태"
+
 msgid "Coldcard Wallet"
+msgstr "콜드카드 지갑"
+
 msgid "Color theme"
+msgstr "컬러"
+
 msgid "Combine"
+msgstr "혼합하다."
+
 msgid "Con&sole"
+msgstr "콘&솔"
+
 msgid "Con&tacts"
+msgstr "연&락"
+
 msgid "Confirm Device Wipe"
+msgstr "장치 삭제 확인"
+
 msgid "Confirm Passphrase:"
+msgstr "암호문 확인:"
+
 msgid "Confirm Password:"
+msgstr "비밀번호 확인:"
+
 msgid "Confirm Seed"
+msgstr "시드 확인"
+
 msgid "Confirm Seed Extension"
+msgstr "시드 확장 확인"
+
 msgid "Confirm Toggle Passphrase Protection"
+msgstr "암호문 보호 토글 확인"
+
 msgid "Confirm Transaction"
+msgstr "거래 확인"
+
 msgid "Confirm Transaction on your Ledger device..."
+msgstr "장부 장치 거래 확인..."
+
 msgid "Confirm internal entropy on your {} device to begin"
+msgstr "{} 기기 시작을 위한 내부 엔트로피 확인"
+
 msgid "Confirm new PIN"
+msgstr "PIN 확인"
+
 msgid "Confirm on your {} device the message to sign"
+msgstr "{} 장치의 서명 메세지 확인"
+
 msgid "Confirm on your {} device to change your PIN"
+msgstr "PIN 변경을 위한 {} 장치 확인"
+
 msgid "Confirm on your {} device to change your home screen"
+msgstr "홈스크린 변경을 위한 {} 장치 확인"
+
 msgid "Confirm on your {} device to disable PIN protection"
+msgstr "PIN 보호 무효화를 위한 {} 장치 확인"
+
 msgid "Confirm on your {} device to disable passphrases"
+msgstr "암호문 무효화를 위한 위한 {} 장치 확인"
+
 msgid "Confirm on your {} device to enable passphrases"
+msgstr "암호문 무효화를 위한 위한 {} 장치 확인"
+
 msgid "Confirm on your {} device to set a PIN"
+msgstr "PIN 설정을 위한 {} 장치 확인"
+
 msgid "Confirm on your {} that you want to wipe it clean"
+msgstr "삭제할 {} 확인"
+
 msgid "Confirm the new label on your {} device"
+msgstr "{} 장치의 새로운 라벨 확인"
+
 msgid "Confirm the total amount spent and the transaction fee on your {} device"
+msgstr "{} 장치의 거래 비용과 전체 금액 확인"
+
 msgid "Confirm the transaction output on your Confirm the transaction output on your {} evice"
+msgstr "{} 장치의 거래 산출량 확인"
+
 msgid "Confirm wallet address on your {} device"
+msgstr "{} 장치의 지갑 주소 확인"
+
 msgid "Confirmed"
+msgstr "승인"
+
 msgid "Confirmed. Signing Transaction..."
+msgstr "승인. 거래 서명 중..."
+
 msgid "Connected node"
+msgstr "연결된 노드"
+
 msgid "Connected nodes are on the same chain"
+msgstr "연결된 노드는 같은 체인에 머무릅니다."
+
 msgid "Connected to {0} nodes."
+msgstr "{0}노드에 연결된 상태"
+
 msgid "Connected to {num_peers} peers"
+msgstr "{num_peers} 다수에 연결된 상태"
+
 msgid "Connecting..."
+msgstr "연결 중..."
+
 msgid "Connection strings must be in <node_pubkey>@<host>:<port> format"
+msgstr "스트링 연결은 반드시 <node_pubkey>@<host>:<port> 형식"
+
 msgid "Connections with Electrum servers"
+msgstr "Electrum 서버와의 연결"
+
 msgid "Connections with lightning nodes"
+msgstr "라이트닝 노트와의 연결"
+
 msgid "Consider trying to connect to a different server, or updating Electrum."
+msgstr "다른 서버와의 연결 또는 Electrum 업데이트를 실행하세요."
+
 msgid "Contacts"
+msgstr "연락처"
+
 msgid "Copy"
+msgstr "복사"
+
 msgid "Copy Address"
+msgstr "주소 복사"
+
 msgid "Copy Request"
+msgstr "요청 복사"
+
 msgid "Copy Transaction ID"
+msgstr "거래 ID 복사"
+
 msgid "Copy and Close"
+msgstr "복사 및 닫기"
+
 msgid "Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code."
+msgstr "붙여넣기 버튼을 통해 수령인의 주소 복사 및 붙여넣기 혹은 QR 코드 스캔을 위하여 카메라를 이용하시길 바랍니다."
+
 msgid "Copy to clipboard"
+msgstr "클립보드로 복사"
+
 msgid "Copy {}"
+msgstr "복사{}"
+
 msgid "Cosign with hardware device"
+msgstr "하드웨어 장치 공동 장치"
+
 msgid "Cosigner Pool"
+msgstr "연서인 그룹"
+
 msgid "Could not close channel:"
+msgstr "채널을 닫을 수 없습니다."
+
 msgid "Could not force close channel:"
+msgstr "채널 폐쇠를 실행할 수 없습니다."
+
 msgid "Could not open channel: {}"
+msgstr "채널을 열 수 없습니다.:{}"
+
 msgid "Could not retrieve Terms of Service:"
+msgstr "서비스 이용약관을 되돌릴 수 없습니다:"
+
 msgid "Could not sign message"
+msgstr "메세지에 서명할 수 없습니다."
+
 msgid "Could not sign message."
+msgstr "메세지에 서명할 수 없습니다."
+
 msgid "Crash report"
+msgstr "오류 보고"
+
 msgid "Create a new Revealer"
+msgstr "새로운 표시자 생성하기"
+
 msgid "Create a new seed"
+msgstr "새로운 시드 생성"
+
 msgid "Create a wallet using the current seed"
+msgstr "현재 시드 사용하는 지갑 생성"
+
 msgid "Create keystore from a master key"
+msgstr "마스터 키로부터 키 스토어 생성"
+
 msgid "Create new wallet"
+msgstr "새로운 지갑 생성"
+
 msgid "Create or restore"
+msgstr "생성 또는 복구"
+
 msgid "Create transaction"
+msgstr "거래 생성"
+
 msgid "Critical Error"
+msgstr "중대한 오류"
+
 msgid "Current Fee"
+msgstr "현재 비용"
+
 msgid "Current Fee rate"
+msgstr "현재 비용 비율"
+
 msgid "Current Password:"
+msgstr "현재 비밀번호"
+
 msgid "Current feerate"
+msgstr "현재 비용 비율"
+
 msgid "Current rate"
+msgstr "현재 비율"
+
 msgid "Current version: {}"
+msgstr "현재 버전: {}"
+
 msgid "Custom"
+msgstr "꾸미기"
+
 msgid "Custom secret"
+msgstr "비밀 꾸미기"
+
 msgid "Czech"
+msgstr "체코어"
+
 msgid "Danish"
+msgstr "덴마크어"
+
 msgid "Dark"
+msgstr "다크"
+
 msgid "Dark/Light"
+msgstr "다크/라이트"
+
 msgid "Date"
+msgstr "날짜"
+
 msgid "Date: {}"
+msgstr "날짜: {}"
+
 msgid "Debug logs can be persisted to disk. These are useful for troubleshooting."
+msgstr "디버그 로그가 디스크에 영속적으로 남을 수 있습니다. 이는 오류 해결에 이용됩니다."
+
 msgid "Debug message"
+msgstr "디버그 메세지"
+
 msgid "Decrypt"
+msgstr "암호화 해제"
+
 msgid "Default"
+msgstr "초기값 복구"
+
 msgid "Default Servers"
+msgstr "기본 서버"
+
 msgid "Delete"
+msgstr "지우다"
+
 msgid "Delete expired requests?"
+msgstr "만료된 요청 삭제?"
+
 msgid "Delete request?"
+msgstr "요청 삭제?"
+
 msgid "Delete wallet file?"
+msgstr "지갑 파일 삭제?"
+
 msgid "Delete wallet?"
+msgstr "지갑 삭제?"
+
 msgid "Denomination"
+msgstr "액면가"
+
 msgid "Description"
+msgstr "설명"
+
 msgid "Description of the transaction (not mandatory)."
+msgstr "거래 (필수적이지 않은)의 설명."
+
 msgid "Details"
+msgstr "상세"
+
 msgid "Details..."
+msgstr "상세..."
+
 msgid "Developers"
+msgstr "개발자들"
+
 msgid "Device ID"
+msgstr "장치 ID"
+
 msgid "Device Label"
+msgstr "장치 라벨"
+
 msgid "Device communication error. Please unplug and replug your Digital Bitbox."
+msgstr "장치 커뮤니케이션 에러. 디지털 박스 해체 후 재 연결 부탁드립니다."
+
 msgid "Device not in Bitcoin mode"
+msgstr "디바이스가 비트코인 모드가 아닙니다."
+
 msgid "Digital Bitbox wallet"
+msgstr "디지털 비트박스 지갑"
+
 msgid "Digital Revealer ({}_{}) saved as PNG and PDF at:"
+msgstr "디지털 표시자 ({}_{})가 PNG와 PDF 형식으로 저장되었습니다."
+
 msgid "Disable"
+msgstr "사용 정지"
+
 msgid "Disable LN"
+msgstr "LN 사용 정지"
+
 msgid "Disable Lightning payments?"
+msgstr "간편 결제 이용을 멈추시겠습니까?"
+
 msgid "Disable Lightning?"
+msgstr "라이트닝을 이용하시겠습니까?"
+
 msgid "Disable PIN"
+msgstr "PIN의 사용을 정지하시겠습니까?"
+
 msgid "Disable Passphrases"
+msgstr "암호문 사용 정지"
+
 msgid "Disabled"
+msgstr "사용 정지된 상태"
+
 msgid "Disconnected"
+msgstr "연결 해제"
+
 msgid "Distributed by Electrum Technologies GmbH"
+msgstr "Electrum Technologies GmbH에 의해 배포된"
+
 msgid "Do not enter sensitive/private information here. The report will be visible on the public issue tracker."
+msgstr "개인적이고 민감한 정보를 이곳에 입력하지 마십시오. 이 보고서는 공공 이슈 추척자에 공개됩니다."
+
 msgid "Do not pair"
+msgstr "페어링 불가"
+
 msgid "Do not paste code here that you don't understand. Executing the wrong code could lead to your coins being irreversibly lost."
+msgstr "충분히 인지하지 못한 코드를 이곳에 붙여넣지 마십시오. 잘못된 코드의 실행은 불가역적인 코인 손실을 초래할 수 있습니다."
+
 msgid "Do not store it electronically."
+msgstr "전자적인 방법으로 저장하지 마십시오."
+
 msgid "Do you have something to hide ?"
+msgstr "감출 내용이 있으신가요?"
+
 msgid "Do you want to create a new seed, or to restore a wallet using an existing seed?"
+msgstr "새로운 시드를 생성 또는 기존 시드를 사용하던 지갑을 복구하시겠습니까?"
+
 msgid "Do you want to delete '{}'?"
+msgstr "{}를 삭제하시겠습니까?"
+
 msgid "Do you want to delete the old file"
+msgstr "이 파일을 삭제하시겠습니까?"
+
 msgid "Do you want to launch the wizard again?"
+msgstr "마법사를 다시 실행하시겠습니까?"
+
 msgid "Do you want to open it now?"
+msgstr "다시 실행하시겠습니까?"
+
 msgid "Do you want to remove {} from your wallet?"
+msgstr "{}를 지갑에서 삭제하시겠습니까?"
+
 msgid "Do you want to send this report?"
+msgstr "이 보고서를 제출하시겠습니까?"
+
 msgid "Do you wish to continue?"
+msgstr "계속 하시겠습니까?"
+
 msgid "Don't know any addresses for node:"
+msgstr "노드에 대한 어떤 주소도 알 수 없습니다."
+
 msgid "Don't show this again."
+msgstr "다신 보이지 않게 하기"
+
 msgid "Due to a bug, old versions of Electrum will NOT be creating the same wallet as newer versions or other software."
+msgstr "버그로 인하여 구버전의 Electrum은 신버전 혹은 다른 소프트웨어처럼 같은 지갑을 생성하지 않습니다."
+
 msgid "Dutch"
+msgstr "네덜란드어"
+
 msgid "Dynamic fee estimates not available"
+msgstr "동적 수수료 측정 불가"
+
 msgid "ETA"
+msgstr "ETA"
+
 msgid "Each revealer should be used only once."
+msgstr "각 표시자는 단 한 번만 사용 가능합니다."
+
 msgid "Edit {}"
+msgstr "수정 {}"
+
 msgid "Electrum Plugins"
+msgstr "Electrum 플러그인"
+
 msgid "Electrum cannot pair with your {}.\n\n"
+msgstr "Electrum를 고객님의 {}.\n\n와 페어링할 수 없습니다.\n\n"
+
 msgid "Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random. However if you prefer feel free to select a server manually."
+msgstr "Electrum은 고객님의 거래와 주소를 얻기 위해 원격 서버와 의사소통하고 있습니다. 서버는 항상 같은 목적을 두며 하드웨어만을 달리할 뿐입니다. 대다수의 경우 Elctrum이 한 가지를 랜덤하게 선택하도록 설정하실 수 있다. 다만, 고객님의 의사에 따라 하나의 서버를 직접 선택하실 수도 있습니다."
+
 msgid "Electrum connects to several nodes in order to download block headers and find out the longest blockchain."
+msgstr "Electrum은 블록 헤더들을 다운로드하고 가장 긴 블록체인을 찾아내기 위해 몇몇 노드에 연결합니다."
+
 msgid "Electrum preferences"
+msgstr "Elctrum 환경 설정"
+
 msgid "Electrum requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV)."
+msgstr "Electrum은 하나의 서버로부터 고객님의 거래 내역을 요청합니다. \n회부된 내역은 SPV (Simple Payment Verification)을 이용하는 여러 노드에 의해 전송된 블록체인 헤더들에 대하여 검토됩니다."
+
 msgid "Electrum sends your wallet addresses to a single server, in order to receive your transaction history."
+msgstr "Electrum은 거래 내역을 수신하기 위해, 하나의 서버에 지갑 주소를 전송합니다."
+
 msgid "Electrum wallet"
+msgstr "Electrum 지갑"
+
 msgid "Electrum was unable to copy your wallet file to the specified location."
+msgstr "Electrum은 지정된 위치에 고객님의 지갑 파일을 복사 할 수 없습니다."
+
 msgid "Electrum was unable to deserialize the transaction:"
+msgstr "Electrum은 거래를 역직렬화 할 수 없습니다."
+
 msgid "Electrum was unable to open your transaction file"
+msgstr "Electrum 은 트랜잭션 파일을 열 수 없습니다"
+
 msgid "Electrum was unable to parse your transaction"
+msgstr "Electrum은 거래를 구문 분석 할 수 없습니다"
+
 msgid "Electrum was unable to produce a private key-export."
+msgstr "Electrum은 개인 키 내보내기를 생성 할 수 없습니다."
+
 msgid "Electrum was unable to produce a transaction export."
+msgstr "Electrum은 거래 내보내기를 생성 할 수 없습니다."
+
 msgid "Electrum's focus is speed, with low resource usage and simplifying Bitcoin."
+msgstr "Electrum은 적은 리소스 사용과 비트코인의 간편화를 이끄는 속도에 초점을 두고 있습니다."
+
 msgid "Email"
+msgstr "이메일"
+
 msgid "Email settings"
+msgstr "이메일 세팅"
+
 msgid "Enable"
+msgstr "이용 가능"
+
 msgid "Enable LN"
+msgstr "LN 이용가능"
+
 msgid "Enable Lightning payments?"
+msgstr "라이트닝 결제 이용 가능"
+
 msgid "Enable Lightning?"
+msgstr "라이트닝을 이용하시겠습니까?"
+
 msgid "Enable PIN protection"
+msgstr "PIN 보호 이용 가능"
+
 msgid "Enable Passphrases"
+msgstr "암호문 이용 가능"
+
 msgid "Enable output value rounding"
+msgstr "출력값 라운딩 이용 가능"
+
 msgid "Enable passphrases"
+msgstr "암호문 이용 가능"
+
 msgid "Enable update check"
+msgstr "업데이트 확인 가능"
+
 msgid "Enabled"
+msgstr "이용 가능"
+
 msgid "Encrypt"
+msgstr "암호화"
+
 msgid "Encrypt custom secret"
+msgstr "사용자 기밀 암호화"
+
 msgid "Encrypt wallet file"
+msgstr "지갑 파일을 암호화합니다."
+
 msgid "Encrypt {}'s seed"
+msgstr "{}의 시드"
+
 msgid "Encrypt/decrypt Message"
+msgstr "암호화 / 암호 메시지 해독"
+
 msgid "Encrypt/decrypt message"
+msgstr "암호화 / 암호 메시지 해독"
+
 msgid "Encrypted"
+msgstr "암호화된 상태"
+
 msgid "Encryption and decryption are currently not supported for {}"
+msgstr "{}에 대한 암호화와 해독이 현재 불가능합니다."
+
 msgid "Encryption and decryption are not implemented by {}"
+msgstr "{}의한 암호화와 해독의 실행이 불가합니다."
+
 msgid "End"
+msgstr "끝"
+
 msgid "English"
+msgstr "영어"
+
 msgid "Enter PIN"
+msgstr "PIN 입력"
+
 msgid "Enter PIN code"
+msgstr "PIN 코드 입력:"
+
 msgid "Enter PIN:"
+msgstr "PIN 입력"
+
 msgid "Enter Passphrase"
+msgstr "암호문를 입력 하십시오."
+
 msgid "Enter Password"
+msgstr "비밀번호를 입력하십시오."
+
 msgid "Enter Seed"
+msgstr "시드를 입력하십시오."
+
 msgid "Enter Transaction Label"
+msgstr "거래 라벨 입력하십시오."
+
 msgid "Enter a filename for the copy of your wallet"
+msgstr "지갑의 사본에 대한 파일 이름을 입력하세요."
+
 msgid "Enter a label to name your device:"
+msgstr "장치 이름 설정을 위해 라벨을 입력하세요."
+
 msgid "Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys."
+msgstr "비트코인 주소 목록 입력 (보기만 가능한 지갑이 생성 예정) 또는 개인 키 목록을 입력하십시오."
+
 msgid "Enter a list of outputs in the 'Pay to' field."
+msgstr "지불' 탭에서 출력 목록을 입력하십시오."
+
 msgid "Enter a new PIN for your {}:"
+msgstr "고객님의 {} 위한 PIN을 입력하십시오."
+
 msgid "Enter a new password below."
+msgstr "아래 비밀번호를 입력하십시오."
+
 msgid "Enter a passphrase to generate this wallet. Each time you use this wallet your {} will prompt you for the passphrase. If you forget the passphrase you cannot access the bitcoins in the wallet."
+msgstr "지갑 생성을 위해 암호문을 입력해주십시오. 해당 지갑을 사용할 때마다 고객님의 {} 암호문 입력창이 나타나게 됩니다. 비밀번호 분실시 지갑이 보유한 비트코인에 접근이 불가합니다."
+
 msgid "Enter addresses"
+msgstr "주소를 입력하세요."
+
 msgid "Enter cosigner key"
+msgstr "연서인 키를 입력하세요."
+
 msgid "Enter cosigner seed"
+msgstr "연서인 시드를 입력하세요."
+
 msgid "Enter description"
+msgstr "상세정보 입력"
+
 msgid "Enter new PIN"
+msgstr "PIN을 입력"
+
 msgid "Enter password:"
+msgstr "비밀번호 입력:"
+
 msgid "Enter private keys"
+msgstr "개인 키를 입력"
+
 msgid "Enter private keys:"
+msgstr "개인 키를 입력"
+
 msgid "Enter the master private key beginning with xprv:"
+msgstr "xprv의 초기창부터 마스터 개인 키를 입력하십시오."
+
 msgid "Enter the passphrase to unlock this wallet:"
+msgstr "지갑의 잠금 해제를 위해 암호문을 입력하십시오."
+
 msgid "Enter the password used when the backup was created:"
+msgstr "백업 파일이 생성될 때 사용된 비밀번호를 입력하십시오."
+
 msgid "Enter the recovery words by pressing the buttons according to what the device shows on its display. You can also use your NUMPAD.\n"
+msgstr "기기에 표기된 버튼을 눌러 복구 단어를 입력하십시오. 해당 작업을 위해 NUMPAD를 사용하실 수 있습니다.\n"
+
 msgid "Enter the seed for your 2-factor wallet:"
+msgstr "2-Factor 지갑을 위한 시드를 입력하십시오."
+
 msgid "Enter their master private key (xprv) if you want to be able to sign for them."
+msgstr "서명하길 원하실 경우, 마스터 개인 키(xprv) 를 입력하십시오."
+
 msgid "Enter wallet name"
+msgstr "지갑 이름을 입력하십시오."
+
 msgid "Enter your BIP39 mnemonic:"
+msgstr "BIP39 연상 기호를 입력하십시오."
+
 msgid "Enter your Digital Bitbox password:"
+msgstr "디지털 비트박스 비밀번호를 입력하십시오."
+
 msgid "Enter your PIN (digits 1-9):"
+msgstr "PIN을 입력하십시오 (숫자: 1-9)"
+
 msgid "Enter your PIN code in order to decrypt your private key"
+msgstr "고객님의 개인 키 해독을 위하여 PIN 코드를 입력해주십시오."
+
 msgid "Enter your PIN code in order to decrypt your seed"
+msgstr "시드를 해독하려면 PIN 코드를 입력하십시오."
+
 msgid "Enter your PIN code in order to sign this transaction"
+msgstr "이 거래에 서명하시려면 PIN 코드를 입력해주십시오."
+
 msgid "Enter your PIN code to confirm deletion of {}"
+msgstr "{}의 삭제를 확정하시려면 PIN 코드를 입력해주십시오."
+
 msgid "Enter your PIN code to proceed"
+msgstr "진행을 위해 PIN 코드를 입력해주십시오."
+
 msgid "Enter your current PIN:"
+msgstr "현재 PIN을 입력 합니다."
+
 msgid "Enter your current {} PIN:"
+msgstr "고객님의 현재 PIN 코드를 입력해주십시오."
+
 msgid "Enter your email address:"
+msgstr "고객님의 이메일 주소를 입력해주십시오."
+
 msgid "Enter your password or choose another file."
+msgstr "암호를 입력하거나 다른 파일을 고르세요."
+
 msgid "Enter your password to proceed"
+msgstr "계속 진행 하려면 비밀 번호를 입력하십시오."
+
 msgid "Erase the Digital Bitbox"
+msgstr "디지털 비트박스 삭제하기"
+
 msgid "Error"
+msgstr "에러"
+
 msgid "Error adding payment request"
+msgstr "지출 요청 추가 에러"
+
 msgid "Error combining partial transactions"
+msgstr "부분 거래 혼합 에러"
+
 msgid "Error connecting to server"
+msgstr "서버 연결 에러"
+
 msgid "Error connecting to {} server"
+msgstr "{} 서버 연결 에러"
+
 msgid "Error decrypting message"
+msgstr "메세지 해독 에러"
+
 msgid "Error getting TrustedCoin account info."
+msgstr "TrustedCoin 계정 정보 수신 에러"
+
 msgid "Error getting transaction from network"
+msgstr "네트워크 거래 정보 수신 에러"
+
 msgid "Error joining partial transactions"
+msgstr "부분 거래 통합 에러"
+
 msgid "Error opening file"
+msgstr "파일 실행 에러"
+
 msgid "Error parsing URI"
+msgstr "URI 실행 에러"
+
 msgid "Error scanning devices"
+msgstr "장치 스캔 에러"
+
 msgid "Error showing address"
+msgstr "주소 표시 에러"
+
 msgid "Error synchronising labels"
+msgstr "라벨 동기화 에러"
+
 msgid "Error: duplicate master public key"
+msgstr "에러: 복제된 마스터 공개 키"
+
 msgid "Esperanto"
+msgstr "에스페란토어"
+
 msgid "Estimate"
+msgstr "측정치"
+
 msgid "Exit Electrum"
+msgstr "Electrum 종료"
+
 msgid "Expenditures"
+msgstr "지출"
+
 msgid "Expiration date"
+msgstr "만료일"
+
 msgid "Expiration date of your request."
+msgstr "고객님의 요청 만료 날짜입니다."
+
 msgid "Expired"
+msgstr "기간 만료"
+
 msgid "Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses."
+msgstr "Bitcoin 주소를 해제하기 위하여 만료된 요청은 귀하의 목록에서 수동으로 삭제 해야 합니다."
+
 msgid "Expires"
+msgstr "만료일"
+
 msgid "Export"
+msgstr "내보내기"
+
 msgid "Export History"
+msgstr "내보내기 내역"
+
 msgid "Export file"
+msgstr "파일 내보내기"
+
 msgid "Export for Coldcard"
+msgstr "콜드카드 내보내기"
+
 msgid "Export to file"
+msgstr "파일 형태로 내보내기"
+
 msgid "Exposing a single private key can compromise your entire wallet!"
+msgstr "개인 키를 노출하는 것은 전체 지갑을 손상시킬 수 있습니다!"
+
 msgid "Extend this seed with custom words"
+msgstr "맞춤 단어 설정으로 이 시드를 더 안전히 만드세요."
+
 msgid "Failed"
+msgstr "이용 불가"
+
 msgid "Failed HTLCs"
+msgstr "HTLCs 불가"
+
 msgid "Failed to create a client for this device."
+msgstr "이 장치에 대한 고객 생성 불가"
+
 msgid "Failed to decrypt using this hardware device."
+msgstr "이 하드웨어 장치의 해독 불가"
+
 msgid "Failed to display QR code."
+msgstr "QR 표기에 불가"
+
 msgid "Failed to export to file."
+msgstr "파일로 내보내기 불가"
+
 msgid "Failed to import from file."
+msgstr "파일로부터 들여오기 불가"
+
 msgid "Failed to send transaction to cosigning pool"
+msgstr "연서인 그룹으로 거래 전달하기 불가"
+
 msgid "Failed to update password"
+msgstr "암호를 업데이트하지 못했습니다"
+
 msgid "FALSE"
+msgstr "이용 불가"
+
 msgid "Fee"
+msgstr "수수료"
+
 msgid "Fee estimation"
+msgstr "수수료 측정"
+
 msgid "Fee for child"
+msgstr "후속 거래 수수료"
+
 msgid "Fee rounding"
+msgstr "수수료 라운딩"
+
 msgid "Fees"
+msgstr "수수료"
+
 msgid "Fiat"
+msgstr "실물"
+
 msgid "Fiat currency"
+msgstr "실물 통화"
+
 msgid "File"
+msgstr "파일"
+
 msgid "Filter:"
+msgstr "필터:"
+
 msgid "Final"
+msgstr "최종"
+
 msgid "Final balance"
+msgstr "최종 잔액"
+
 msgid "Finalize"
+msgstr "마무리"
+
 msgid "Find"
+msgstr "찾기"
+
 msgid "Firmware Version"
+msgstr "펌웨어 버전"
+
 msgid "Firmware version (or \"Bitcoin\" app) too old for Segwit support. Please update at"
+msgstr "Segwit 지원을 위한 펌웨어 버전 (또는 \"비트코인\" 앱)이 최신 버전이 아닙니다"
+
 msgid "Firmware version too old."
+msgstr "오래된 펌웨어 버전"
+
 msgid "Firmware version too old. Please update at"
+msgstr "펌웨어 버전이 구버전입니다.\n이곳을 통해 업데이트 해주십시오."
+
 msgid "Fixed rate"
+msgstr "고정된 비율"
+
 msgid "Follow this branch"
+msgstr "이 브랜치 페이지를 구독하세요."
+
 msgid "For CoinJoin"
+msgstr "CoinJoin에 대하여"
+
 msgid "For more information, visit"
+msgstr "더 많은 정보를 원하신다면, 방문하십시오."
+
 msgid "For security reasons we advise that you always use the latest version of Electrum."
+msgstr "보안상의 이유로 늘 가장 최신 버전의 Electrum을 이용하시기 바랍니다."
+
 msgid "For {}"
+msgstr "{}에 대해"
+
 msgid "Force-close channel"
+msgstr "채널 강제 종료"
+
 msgid "Force-close channel?"
+msgstr "채널을 강제로 종료하시겠습니까?"
+
 msgid "Fork detected at block {}"
+msgstr "블록에 감지된 포크 {}"
+
 msgid "Format"
+msgstr "형식"
+
 msgid "Format: address, amount"
+msgstr "형식: 주소, 금액"
+
 msgid "Forwarding"
+msgstr "전달하기"
+
 msgid "Freeze"
+msgstr "이용 정지"
+
 msgid "Freeze Address"
+msgstr "주소 정지"
+
 msgid "Freeze Addresses"
+msgstr "주소록 정지"
+
 msgid "Freeze Coin"
+msgstr "코인 이용 정지"
+
 msgid "Freeze Coins"
+msgstr "코인 이용 정지"
+
 msgid "French"
+msgstr "프랑스어"
+
 msgid "From"
+msgstr "발신자"
+
 msgid "From {0} cosigners"
+msgstr "{0} 연서인으로부터"
+
 msgid "Fulfilled HTLCs"
+msgstr "입력된 HTLCs"
+
 msgid "Full 2FA enabled. This is not supported yet."
+msgstr "2FA 이용 가능. 해당 기능은 아직 서비스 제공하지 않습니다."
+
 msgid "Funded"
+msgstr "이체된"
+
 msgid "Funding Outpoint:"
+msgstr "자금 아웃포인트"
+
 msgid "Funding TXID"
+msgstr "자금 TXID"
+
 msgid "Funding Transaction"
+msgstr "자금 거래"
+
 msgid "Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel."
+msgstr "간편 채널에 보관된 자금들은 고객님의 시드로부터 복구가 불가합니다. 새로운 채널을 만들 때마다 반드시 지갑 파일을 매번 백업하셔야 합니다."
+
 msgid "General"
+msgstr "일반"
+
 msgid "Generate a new random wallet"
+msgstr "새로운 랜덤 지갑 생성하기"
+
 msgid "German"
+msgstr "독일어"
+
 msgid "Google Authenticator code:"
+msgstr "구글 인증 코드"
+
 msgid "Gossip"
+msgstr "가십"
+
 msgid "Greek"
+msgstr "그리스어"
+
 msgid "GreenAddress requires your signature \n"
+msgstr "GreenAddress가 고객님의 서명을 요청합니다.\n"
+
 msgid "HTLCs in current commitment transaction"
+msgstr "현재 확약 거래의 HTLCs"
+
 msgid "Handler not found for"
+msgstr "조정 기능 미발견"
+
 msgid "Hardware Keystore"
+msgstr "하드웨어 키스토어"
+
 msgid "Height"
+msgstr "높이"
+
 msgid "Hello World"
+msgstr "안녕하세요"
+
 msgid "Help"
+msgstr "도움"
+
 msgid "Here is your master public key."
+msgstr "이것은 고객님의 마스터 공개 키입니다."
+
 msgid "Hide"
+msgstr "감추다"
+
 msgid "Hide {}"
+msgstr "{} 감추기"
+
 msgid "History"
+msgstr "사용 기록"
+
 msgid "Homepage"
+msgstr "홈페이지"
+
 msgid "Homescreen"
+msgstr "홈스크린"
+
 msgid "Host"
+msgstr "주인"
+
 msgid "Hostname"
+msgstr "호스트 이름"
+
 msgid "Hostname does not resolve (getaddrinfo failed)"
+msgstr "호스트 이름이 해결되지 않았습니다.\n(getaddrinfo 실패)"
+
 msgid "How do you want to connect to a server?"
+msgstr "어떻게 서버에 연결 하시겠습니까 :"
+
 msgid "However, hardware wallets do not support message decryption, which makes them not compatible with the current design of cosigner pool."
+msgstr "그러나 하드웨어 지갑은 메세지 해독을 지원하지 않습니다. 이는 연서인 그룹의 현 구성과 호환되지 않습니다."
+
 msgid "However, we do not generate BIP39 seeds, because they do not meet our safety standard."
+msgstr "그러나 BIP 39 시드를 생성하지 않습니다. 표준 안전성을 충족시키지 못 하기 때문입니다."
+
 msgid "Hungarian"
+msgstr "헝가리어"
+
 msgid "I already have a seed"
+msgstr "이미 시드를 보유하고 있습니다."
+
 msgid "I have lost my Google Authenticator account"
+msgstr "구글 인증자 계정을 분실하였습니다."
+
 msgid "IP/port in format:\n"
+msgstr "IP/복사 형식:\n"
+
 msgid "If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain."
+msgstr "자동 연결을 사용하는 경우, Electrum 항상 가장 긴 블록체인에서 서버를 사용합니다."
+
 msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
+msgstr "만약 가능하다면, 매 거래마다 최대 100 사토시가 소실됩니다."
+
 msgid "If it is disabled, you have to choose a server you want to use. Electrum will warn you if your server is lagging."
+msgstr "만약 문제가 생기면, 다른 서버를 선택해야 합니다. Electrum은 서버가 느릴 경우 고객님에게 경고 안내를 드릴 것입니다."
+
 msgid "If this option is checked, Electrum will persist as a daemon after\n"
+msgstr "이 옵션이 확인된 경우, 그후 Electrum은 데몬 형태로 지속됩니다.\n"
+
 msgid "If you are not sure what this is, leave this field unchanged."
+msgstr "만일 어떤 것인지 확실하지 않을 경우, 해당 필드를 변경 불가하도록 설정하십시오."
+
 msgid "If you are online, click on \"{}\" to continue."
+msgstr "온라인 상태인 경우, {}를 클릭하여 계속 진행하시기 바랍니다."
+
 msgid "If you check this box, your transactions will be marked as non-final,"
+msgstr "해당 박스를 체크할 경우, 고객님의 거래는 미완결 상태로 표시됩니다."
+
 msgid "If you check this box, your unconfirmed transactions will be consolidated into a single transaction."
+msgstr "해당 박스를 체크할 경우, 고객님의 미승인 거래들은 하나의 거래로 통합됩니다."
+
 msgid "If you disable your PIN, anyone with physical access to your {} device can spend your bitcoins."
+msgstr "PIN 코드를 무효화 시킬 경우, 고객님의 {} 장치에 물리적으로 접근 가능한 사람들이 보유한 비트코인을 사용할 수 있습니다."
+
 msgid "If you do not know what this is, leave this field empty."
+msgstr "무엇인지 잘 모를 경우, 해당 필드를 빈칸으로 남기십시오."
+
 msgid "If you forget a passphrase you will be unable to access any bitcoins in the wallet behind it. A passphrase is not a PIN. Only change this if you are sure you understand it."
+msgstr "암호문을 분실한 경우, 지갑에 보관된 비트코인에 접근하실 수 없습니다. 암호문은 PIN 코드와 다르며, 충분히 이해된 상태에서만 변경이 가능합니다."
+
 msgid "If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds."
+msgstr "고객님의 PIN 코드를 잊어버리거나 장치를 분실한 경우, 시드 문구만이 자금을 복구하는 유일한 방법입니다."
+
 msgid "If you have an old printer, or want optimal precision"
+msgstr "오래된 프린터를 가지고 있거나 최적화된 정밀함을 원할 때"
+
 msgid "If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed."
+msgstr "구글 인증자 코드 분실시, 새로운 계정 기밀을 요청할 수 있습니다. 이때 고객님의 시드를 재 입력해야 합니다."
+
 msgid "If you have lost your second factor, you need to restore your wallet from seed in order to request a new code."
+msgstr "두 번째 요소를 잊어버린 경우, 새로운 코드 발급을 위하여 시드로부터 지갑을 복원해야 합니다."
+
 msgid "If you keep experiencing network problems, try using a Tor proxy."
+msgstr "네트워크 문제를 지속적으로 겪을 시 Tor 프록시를 이용하시기 바랍니다."
+
 msgid "If you lose your seed, your money will be permanently lost."
+msgstr "시드 문구를 잊어버린 경우, 영구적으로 자금을 잃게 됩니다."
+
 msgid "If you use a passphrase, make sure it is correct."
+msgstr "암호문을 사용하는 경우, 올바른 암호문을 입력해주십시오."
+
 msgid "If you want to create new addresses, use a deterministic wallet instead."
+msgstr "새 주소를 만들고 싶으면, deterministic 지갑을 대신 사용하십시오."
+
 msgid "If your device is not detected on Windows, go to \"Settings\", \"Devices\", \"Connected devices\", and do \"Remove device\". Then, plug your device again."
+msgstr "고객님의 장치가 윈도우에 감지되지 않을 시, \"설정\", \"장치\", \"연결된 장치\" 클릭 후 \"장치 제거\"를 클릭해 주십시오. 이때 해당 장치를 다시 한 번 연결하십시오."
+
 msgid "If your wallet contains funds, make sure you have saved its seed."
+msgstr "고객님의 지갑이 자금을 보유하고 있다면, 시드 저장 여부를 다시 한 번 확인하십시오."
+
 msgid "Ignore and continue?"
+msgstr "무시 후 계속 진행?"
+
 msgid "Import"
+msgstr "가져오기"
+
 msgid "Import Bitcoin Addresses"
+msgstr "비트코인 주소록 불러오기"
+
 msgid "Import Bitcoin addresses or private keys"
+msgstr "비트코인 주소록 또는 개인 키 불러오기"
+
 msgid "Import addresses"
+msgstr "주소를 불러오다"
+
 msgid "Import file"
+msgstr "파일을 불러오다"
+
 msgid "Import pairing from the Digital Bitbox desktop app"
+msgstr "디지털 비트박스 데스크랍 어플리케이션으로부터 페어링 불러오기"
+
 msgid "Import private keys"
+msgstr "개인 키 불러오기"
+
 msgid "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+msgstr "특히, 타사에 의해 고안된 개인 키 서비스를 '사용하지 마십시오."
+
 msgid "In progress"
+msgstr "진행 중"
+
 msgid "In seedless mode, the mnemonic seed words are never shown to the user.\n"
+msgstr "시드가 없는 모드시 연상 기호 시드 단어가 유저에게 보이지 않습니다.\n"
+
 msgid "In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address."
+msgstr "경우에 따라 큰 코인의 분산과 수령인의 주소를 감추기 위하여 최대 3가지의 주소를 사용하십시오."
+
 msgid "In the next block"
+msgstr "다음 블록에서"
+
 msgid "Included in block: {}"
+msgstr "블록에 포함된: {}"
+
 msgid "Income"
+msgstr "수입"
+
 msgid "Incoming payments"
+msgstr "수입 지출"
+
 msgid "Incorrect password"
+msgstr "정확하지 않은 비밀번호"
+
 msgid "Incorrect password entered."
+msgstr "정확하지 않은 비밀번호 입력"
+
 msgid "Incorrect seed"
+msgstr "정확하지 않은 시디"
+
 msgid "Increase fee"
+msgstr "비용 증가"
+
 msgid "Increase your transaction's fee to improve its position in mempool."
+msgstr "멤버 그룹 내 지위를 향상시키기 위해 거래 수수료를 늘리십시오."
+
 msgid "Indonesian"
+msgstr "인도네시아어"
+
 msgid "Info"
+msgstr "정보"
+
 msgid "Information"
+msgstr "정보"
+
 msgid "Initial balance"
+msgstr "초기 잔고"
+
 msgid "Initialization of Ledger HW devices is currently disabled."
+msgstr "HW 장치 장부의 실행은 현재 이용이 불가합니다."
+
 msgid "Initialize Device"
+msgstr "장치를 실행하십시오"
+
 msgid "Initialized"
+msgstr "실행된 상태"
+
 msgid "Initiator"
+msgstr "실행자"
+
 msgid "Input amount"
+msgstr "수량 입력"
+
 msgid "Input raw transaction"
+msgstr "입력 초기 거래"
+
 msgid "Inputs"
+msgstr "입력"
+
 msgid "Install Wizard"
+msgstr "설치 마법사"
+
 msgid "Install the zbar package to enable this."
+msgstr "이것을 가능하게 하려면 zbar package를 설치하세요."
+
 msgid "Instructions:"
+msgstr "안내:"
+
 msgid "Insufficient funds"
+msgstr "잔고 부족"
+
 msgid "Invalid Address"
+msgstr "잘못된 주소"
+
 msgid "Invalid Amount"
+msgstr "잘못된 금액"
+
 msgid "Invalid Bitcoin Address"
+msgstr "잘못된 비트코인 주소"
+
 msgid "Invalid Bitcoin address"
+msgstr "잘못된 비트코인 주소"
+
 msgid "Invalid Bitcoin address."
+msgstr "잘못된 비트코인 주소"
+
 msgid "Invalid Fee"
+msgstr "잘못된 수수료"
+
 msgid "Invalid JSON code."
+msgstr "잘못된 JSON 코드"
+
 msgid "Invalid Lines found:"
+msgstr "유효하지 않은 라인 발견"
+
 msgid "Invalid PIN"
+msgstr "유효하지 않은 PIN"
+
 msgid "Invalid Public key"
+msgstr "유효하지 않은 공개 키"
+
 msgid "Invalid amount"
+msgstr "유효하지 않은 금액"
+
 msgid "Invalid node ID, must be 33 bytes and hexadecimal"
+msgstr "유효하지 않은 노드 ID (는 반드시 33바이트와 16진수로 이루어져야 합니다.)"
+
 msgid "Invalid one-time password."
+msgstr "유효하지 않은 일회성 비밀번호"
+
 msgid "Invalid xpub magic. Make sure your {} device is set to the correct chain."
+msgstr "유효하지 않은 xpub magic. 고객님의 {} 장치가 올바른 체인에 연결돼있는지 확인하시기 바랍니다."
+
 msgid "It also contains your master public key that allows watching your addresses."
+msgstr "고객님의 주소록을 확인할 수 있는 마스터 공개키를 포함하고 있습니다."
+
 msgid "It cannot be \"backed up\" by simply exporting these private keys."
+msgstr "단순히 개인 키를 내보내기하여 백업할 수 없습니다."
+
 msgid "It conflicts with current history."
+msgstr "현재 내역과 충돌하고 있습니다."
+
 msgid "It sends and receives partially signed transactions from/to your cosigner wallet."
+msgstr "부분 서명된 거래들아 연서인의 지갑으로부터 혹은 지갑으로 수신되거나 전송되고 있습니다."
+
 msgid "Italian"
+msgstr "이탈리아어"
+
 msgid "Japanese"
+msgstr "일본어"
+
 msgid "Join inputs/outputs"
+msgstr "입력/ 출력"
+
 msgid "KeepKey Seed Recovery"
+msgstr "KeepKey 시드 복구"
+
 msgid "KeepKey wallet"
+msgstr "KeepKey 지갑"
+
 msgid "Keyboard shortcut: type \"!\" to send all your coins."
+msgstr "키보드 바로 가기 : 모든 코인 전송시 \"!\"를 입력하십시오."
+
 msgid "Keystore"
+msgstr "키스토어"
+
 msgid "Keystore type"
+msgstr "키스토어 종류"
+
 msgid "Kyrgyz"
+msgstr "키르기스탄어"
+
 msgid "Label"
+msgstr "라벨"
+
 msgid "Label Settings"
+msgstr "라벨 설정"
+
 msgid "LabelSync"
+msgstr "라벨 싱크"
+
 msgid "Labels, transactions IDs and addresses are encrypted before they are sent to the remote server."
+msgstr "라벨, 거래 아이디 그리고 주소들은 원격 서버로 전송되기 전 암호화됩니다."
+
 msgid "Language"
+msgstr "언어 선택"
+
 msgid "Latest version: {}"
+msgstr "최종 버전: {}"
+
 msgid "Latvian"
+msgstr "라트비아어"
+
 msgid "Leave this field empty if you want to disable encryption."
+msgstr "이 필드는 암호화를 사용 하지 않도록 설정하려는 경우 비어두십시오,"
+
 msgid "Ledger Status"
+msgstr "원장 상태"
+
 msgid "Ledger Wallet Authentication"
+msgstr "원장 지갑 승인"
+
 msgid "Ledger wallet"
+msgstr "원장 지갑"
+
 msgid "Legacy"
+msgstr "레거시"
+
 msgid "Legacy 2FA"
+msgstr "레거시 2FA"
+
 msgid "Let the device generate a completely new seed randomly"
+msgstr "장치가 완전히 새로운 시드를 랜덤하게 생성하도록 하십시오."
+
 msgid "Library version for '{}' is incompatible."
+msgstr "{}'의 라이브러리 버전의 호환이 불가합니다."
+
 msgid "Licence"
+msgstr "라이센스"
+
 msgid "Light"
+msgstr "라이트"
+
 msgid "Lightning"
+msgstr "라이트닝"
+
 msgid "Lightning Network"
+msgstr "라이트닝 네트워크"
+
 msgid "Lightning Network Statistics"
+msgstr "라이트닝 네트워크 통계"
+
 msgid "Lightning is disabled"
+msgstr "라이트닝 이용 불가"
+
 msgid "Lightning keys have been initialized."
+msgstr "라이트닝 키가 실행되었습니다."
+
 msgid "Lightning keys have been initialized. This wallet will be closed"
+msgstr "라이트닝 키가 실행되었습니다. 해당 지갑은 닫히게 됩니다."
+
 msgid "Lightning keys have been removed."
+msgstr "라이트닝 키가 제거되었습니다."
+
 msgid "Lightning keys have been removed. This wallet will be closed"
+msgstr "라이트닝 키가 제거되었습니다. 해당 지갑은 닫히게 됩니다."
+
 msgid "Lightning support in Electrum is experimental. Do not put large amounts in lightning channels."
+msgstr "Electrum에서의 라이트닝 지원은 베타 서비스 상태입니다. 많은 금액을 라이트닝 채널에 투입하지 마십시오."
+
 msgid "Lightning:"
+msgstr "라이트닝:"
+
 msgid "Line #"
+msgstr "라인#"
+
 msgid "Load a wallet from the micro SD card"
+msgstr "마이크로 SD 카드로부터 지갑 로딩"
+
 msgid "Load a wallet from the micro SD card (the current seed is overwritten)"
+msgstr "마이크로 SD 카드로부터 지갑 로딩(현 시드 덮어쓰기)"
+
 msgid "Load transaction"
+msgstr "거래 로딩"
+
 msgid "Loading backup..."
+msgstr "백업 로딩"
+
 msgid "Local"
+msgstr "로컬"
+
 msgid "Local CTN"
+msgstr "로컬 CTN"
+
 msgid "Lookup transaction"
+msgstr "거래 조회"
+
 msgid "Low fee"
+msgstr "낮은 수수료"
+
 msgid "Make sure it is in the correct state."
+msgstr "올바른 상태인지 확인하십시오."
+
 msgid "Make sure you have imported the correct wallet description file on the device for this multisig wallet."
+msgstr "멀티시그 지갑에 대해 장치에 올바른 지갑 설명 파일을 내보내기 했는지 확인하시기 바랍니다."
+
 msgid "Make sure you install it with python3"
+msgstr "파이썬3의 설치 여부를 확인하십시오."
+
 msgid "Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet."
+msgstr "비트코인을 지갑으로 보내기 전 시드 문구 또는 개인 키의 보유를 확인하시기 바랍니다."
+
 msgid "Master Fingerprint"
+msgstr "마스터 지문"
+
 msgid "Master Public Key"
+msgstr "마스터 공개 키"
+
 msgid "Master Public Keys"
+msgstr "마스터 공개 키"
+
 msgid "Matrix"
+msgstr "매트릭스"
+
 msgid "Max"
+msgstr "최고"
+
 msgid "Max fee exceeded"
+msgstr "초과 최고 수수료"
+
 msgid "Maximum number of concurrent HTLCs accepted by peer:"
+msgstr "다자 간 승인된 동시 HTLCs의 최대 수"
+
 msgid "Maximum value of in-flight HTLCs accepted by peer:"
+msgstr "다자간 승인된 in-flight HTLCs의 최대 값"
+
 msgid "Memo"
+msgstr "메모"
+
 msgid "Mempool"
+msgstr "멤버 그룹"
+
 msgid "Mempool based: fee rate is targeting a depth in the memory pool"
+msgstr "멤버 그룹 기반: 수수료 수준은 메모리 풀의 깊이를 지정합니다."
+
 msgid "Mempool depth"
+msgstr "멤버 그룹 깊이"
+
 msgid "Merge signatures from"
+msgstr "~부터의 서명 통합"
+
 msgid "Message"
+msgstr "문의사항"
+
 msgid "Method:"
+msgstr "수단:"
+
 msgid "Minimum HTLC value accepted by peer (mSAT):"
+msgstr "다자 간 승인 받은 최소 HTLC 값"
+
 msgid "Mining fee"
+msgstr "채굴 수수료"
+
 msgid "Missing amount"
+msgstr "소실 금액"
+
 msgid "Missing libraries for {}."
+msgstr "{}에 대한 소실 라이브러리"
+
 msgid "Missing previous tx for legacy input."
+msgstr "레거시 투입에 대한 소실된 이전 거래"
+
 msgid "Missing report URL."
+msgstr "소실된 보고서 URL"
+
 msgid "Mobile pairing options"
+msgstr "모바일 페어링 옵션"
+
 msgid "More info at: {}"
+msgstr "자세한 정보: {}"
+
 msgid "Multi-Signature Wallet"
+msgstr "다중 서명 지갑"
+
 msgid "Multi-signature wallet"
+msgstr "다중 서명 지갑"
+
 msgid "NOT DEVICE PIN - see above"
+msgstr "디바이스 PIN 해당 없음 - 위 참조"
+
 msgid "Name"
+msgstr "이름"
+
 msgid "Name this {}. If you have multiple devices their labels help distinguish them."
+msgstr "이것을 {}로 명명하십시오. 만약 여러 기기를 보유시 라벨이 구분을 좀 더 쉽게 만들어줄 것입니다."
+
 msgid "Network"
+msgstr "네트워크"
+
 msgid "Network request timed out."
+msgstr "네크워크 요청 타임 아웃"
+
 msgid "Never"
+msgstr "이용 불가"
+
 msgid "Never disclose your seed."
+msgstr "시드를 절대 공개하지 마십시오."
+
 msgid "Never type it on a website."
+msgstr "결코 웹사이트에 입력하지 마십시오."
+
 msgid "New Contact"
+msgstr "새 연락처"
+
 msgid "New Fee rate"
+msgstr "새로운 수수료 비율"
+
 msgid "New Password:"
+msgstr "새 암호:"
+
 msgid "New contact"
+msgstr "새 연락처"
+
 msgid "New transaction: {}"
+msgstr "새로운 거래: {}"
+
 msgid "Next"
+msgstr "다음"
+
 msgid "No"
+msgstr "아니오"
+
 msgid "No Data"
+msgstr "데이터 없음"
+
 msgid "No Description"
+msgstr "상세 설명 없음"
+
 msgid "No Wallet"
+msgstr "지갑 없음"
+
 msgid "No address available. Please remove some of your pending requests."
+msgstr "주소 이용 불가. 계류된 요청 중 일부를 제거해 주시기 바랍니다."
+
 msgid "No amount"
+msgstr "금액 없음"
+
 msgid "No data"
+msgstr "데이터 없음"
+
 msgid "No donation address for this server"
+msgstr "해당 서버 이메일 주소 없음"
+
 msgid "No exceptions encountered."
+msgstr "발견된 예외 없음"
+
 msgid "No fork detected"
+msgstr "사용자 미감지"
+
 msgid "No hardware device detected."
+msgstr "하드웨어 장치 미감지"
+
 msgid "No inputs found. (Note that inputs need to be confirmed)"
+msgstr "입력 미감지 (입력은 승인되어야 합니다.)"
+
 msgid "No keystore"
+msgstr "키스토어 없음"
+
 msgid "No more addresses in your wallet."
+msgstr "지갑 내 주소록가 더 이상 존재하지 않습니다."
+
 msgid "No outputs"
+msgstr "출력 없음"
+
 msgid "No wallet loaded."
+msgstr "불려진 지갑 없음"
+
 msgid "Node ID"
+msgstr "노드 ID"
+
 msgid "Node ID:"
+msgstr "노드 ID:"
+
 msgid "Nodes"
+msgstr "노드"
+
 msgid "Nodes in database."
+msgstr "데이터베이스 노드"
+
 msgid "None"
+msgstr "해당 없음"
+
 msgid "Norwegian Bokmal"
+msgstr "노르웨이 북말어"
+
 msgid "Not Enough Funds"
+msgstr "불충분한 자금"
+
 msgid "Not Now"
+msgstr "지금이 아닌"
+
 msgid "Not Verified"
+msgstr "검증되지 않음"
+
 msgid "Not connected"
+msgstr "연결되지 않음"
+
 msgid "Not enough funds"
+msgstr "불충분한 자금"
+
 msgid "Not enough funds on address."
+msgstr "지갑 주소의 불충분한 자금"
+
 msgid "Not verified"
+msgstr "미검증된"
+
 msgid "Not yet available"
+msgstr "일시적 이용 불가"
+
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
+msgstr "지갑 주소의 일부를 동결한 경우, 사용 가능한 자금이 잔액 총액보다 낮게 나타납니다."
+
 msgid "Note that some merchants do not accept non-final transactions until they are confirmed."
+msgstr "몇몇 거래자들은 거래가 승인되기 전까지 미완료 거래를 받아들이지 않습니다."
+
 msgid "Note that this is NOT your encryption password."
+msgstr "이것은 암호화된 비밀번호가 아닙니다."
+
 msgid "Note that your coins are not locked in this service. You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
+msgstr "고객님의 코인은 해당 서비스에 동결된 것이 아닙니다. 아무 비용없이 원하실 때 출금이 가능합니다. 이는 원격 서버의 필요없이 지갑 복구 기능과 고객님의 시드로 이용 가능합니다."
+
 msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
+msgstr "만약 이 세팅이 이용 가능하다면, 고객님의 지갑을 열기 위해 하드웨어 장치가 필요합니다."
+
 msgid "Note: this is an offline transaction, if you want the network to see it, you need to broadcast it."
+msgstr "이것은 오프라인 상태의 거래입니다. 네트워크를 보시길 희망하는 경우, 해당 거래를 송출하시기 바랍니다."
+
 msgid "Nothing set !"
+msgstr "설정 없음"
+
 msgid "Nothing to plot."
+msgstr "배치 없음"
+
 msgid "Nothing to summarize."
-msgid "Number of zeros displayed after the decimal point. For example, if this is set to 2, \"1.\" will be displayed as \"1.00\"
+msgstr "요약 없음"
+
+msgid "Number of zeros displayed after the decimal point. For example, if this is set to 2, \"1.\" will be displayed as \"1.00\""
+msgstr "0의 갯수는 소수점 이후 표시됩니다. 예를 들어,2로 설정되어있는 경우, \"1\"이 \"1.00\"으로 표시됩니다"
+
 msgid "OK"
+msgstr "확인"
+
 msgid "OR"
+msgstr "또는"
+
 msgid "Offline"
+msgstr "오프라인"
+
 msgid "On Linux, you might have to add a new permission to your udev rules."
+msgstr "리눅스의 경우, udev 규칙에 새로운 권한을 부여해야 할 수도 있습니다."
+
 msgid "Generate"
+msgstr "생성"
+
 msgid "One output per line."
+msgstr "1줄당 1 개의 출력"
+
 msgid "One-server mode"
+msgstr "One-sever 모드"
+
 msgid "Online Block Explorer"
+msgstr "온라인 블록 탐색기"
+
 msgid "Only OP_RETURN scripts, with one constant push, are supported."
+msgstr "하나의 지속적인 알림이 가능한 OP_RETURN 스크립만이 지원"
+
 msgid "Only connect to a single server"
+msgstr "오직 하나의 서버에만 연결"
+
 msgid "Only wipe a device if you have the recovery seed written down and the device wallet(s) are empty, otherwise the bitcoins will be lost forever."
+msgstr "오직 장치의 지갑이 비어있고, 복구 시드가 적혀있는 경우에만 장치의 정보를 삭제하십시오. 그렇지 않은 경우 고객님의 비트코인은 영원히 소실됩니다."
+
 msgid "Open Channel"
+msgstr "채널 열기"
+
 msgid "Open advanced transaction preview dialog when 'Pay' is clicked."
+msgstr "지불' 버튼이 클릭될 때, 거래 미리보기 고급 입력창을 여십시오."
+
 msgid "Open calibration pdf"
+msgstr "교정 pdf 열기"
+
 msgid "Open channel"
+msgstr "채널 열기"
+
 msgid "Open your cosigner wallet to retrieve it."
+msgstr "복구를 위하여 연서인의 지갑을 여십시오."
+
 msgid "Open {} file"
+msgstr "{} 파일 열기"
+
 msgid "OpenAlias"
+msgstr "OpenAlias"
+
 msgid "OpenAlias record, used to receive coins and to sign payment requests."
+msgstr "지불 요청 서명과 코인 수령에 사용되는 OpenAlias 기록"
+
 msgid "Opening channel..."
+msgstr "채널 여는 중..."
+
 msgid "Options"
+msgstr "옵션"
+
 msgid "Outdated device firmware"
+msgstr "이전 장치 펌웨어"
+
 msgid "Outdated {} firmware for device labelled {}. Please download the updated firmware from {}"
+msgstr "{} 라벨 장치의 {} 펌웨어. {}로부터 업데이트된 펌웨어를 다운로드 해주십시오."
+
 msgid "Outgoing payments"
+msgstr "전송 중인 지불금"
+
 msgid "Outpoint"
+msgstr "끝 지점"
+
 msgid "Output amount"
+msgstr "출금액"
+
 msgid "Output point"
+msgstr "출금 포인트"
+
 msgid "Outputs"
+msgstr "출력"
+
 msgid "Overview"
+msgstr "전체보기"
+
 msgid "PIN Protection"
+msgstr "PIN 보호"
+
 msgid "PIN codes do not match"
+msgstr "PIN 코드 불일치"
+
 msgid "PIN mismatch"
+msgstr "PIN 불일치"
+
 msgid "PIN protection is strongly recommended. A PIN is your only protection against someone stealing your bitcoins if they obtain physical access to your {}."
+msgstr "PIN 보호 설정을 권장드립니다. 타인이 물리적으로 {}에 접근할 수 있을 때, 트코인 탈취로부터의 유일한 보호책은 PIN 코드 뿐입니다."
+
 msgid "PIN set"
+msgstr "PIN 설정"
+
 msgid "Paid"
+msgstr "결제 완료"
+
 msgid "Partially signed"
+msgstr "부분 서명된"
+
 msgid "Passphrase"
+msgstr "암호문"
+
 msgid "Passphrase:"
+msgstr "암호문:"
+
 msgid "Passphrases"
+msgstr "암호문들"
+
 msgid "Passphrases allow you to access new wallets, each hidden behind a particular case-sensitive passphrase."
+msgstr "암호문을 통해 새로운 지갑에 접근할 수 있습니다. 특정 민감성 문자로 이루어진 암호문 뒤에 각각 숨겨진 부분이 존재합니다."
+
 msgid "Password"
+msgstr "비밀번호"
+
 msgid "Password Strength"
+msgstr "비밀번호 강도"
+
 msgid "Password is disabled, this wallet is not protected"
+msgstr "비밀번호 사용 불가, 해당 지갑은 보호 상태가 아닙니다."
+
 msgid "Password must have at least 4 characters."
+msgstr "비밀번호는 최소 4글자 이상 포함해야합니다."
+
 msgid "Password must have less than 64 characters."
+msgstr "비밀번호는 최대 64글자만 가능합니다."
+
 msgid "Password was updated successfully"
+msgstr "비밀번호가 성공적으로 업데이트 되었습니다"
+
 msgid "Password:"
+msgstr "암호:"
+
 msgid "Pay"
+msgstr "결제"
+
 msgid "Pay to"
+msgstr "에 결제"
+
 msgid "Pay to many"
+msgstr "한번에 결제"
+
 msgid "Payment Received"
+msgstr "결제 수령"
+
 msgid "Payment Request"
+msgstr "결제 요청"
+
 msgid "Payment failed"
+msgstr "결제 실패"
+
 msgid "Payment hash"
+msgstr "결제 해시"
+
 msgid "Payment log"
+msgstr "결제 로그"
+
 msgid "Payment received"
+msgstr "결제 수신"
+
 msgid "Payment request has expired"
+msgstr "결제 요청이 만료되었습니다."
+
 msgid "Payment sent."
+msgstr "결제 발신"
+
 msgid "Payment succeeded"
+msgstr "결제 성공"
+
 msgid "Payment was sent"
+msgstr "결제 발신"
+
 msgid "Payments (HTLCs):"
+msgstr "결제 (HTLCs)"
+
 msgid "Pending"
+msgstr "보류 중"
+
 msgid "Perhaps some dependencies are missing..."
+msgstr "몇몇 의존성 유실 상태..."
+
 msgid "Persian"
+msgstr "페르시아어"
+
 msgid "Please briefly describe what led to the error (optional):"
+msgstr "무엇이 에러를 일으키는지에 대해 간단히 설명해 주시기 바랍니다."
+
 msgid "Please check your connection and credentials."
+msgstr "고객님의 연결 상태와 자격을 확인하시기 바랍니다."
+
 msgid "Please check your network connection."
+msgstr "고객님의 네트워크 연결 상태를 확인하시기 바랍니다."
+
 msgid "Please check your {} device"
+msgstr "고객님의 {} 디바이스를 확인하시기 바랍니다."
+
 msgid "Please confirm"
+msgstr "확인바랍니다."
+
 msgid "Please enter an amount"
+msgstr "금액을 입력해주세요."
+
 msgid "Please enter the master public key (xpub) of your cosigner."
+msgstr "고객님 연서인의 마스터 공개 키 (xpub)를 입력해주십시오."
+
 msgid "Please enter your Google Authenticator code"
+msgstr "구글 인증자 코드를 입력해 주십시오."
+
 msgid "Please enter your Google Authenticator code:"
+msgstr "구글 인증자 코드를 입력해 주십시오."
+
 msgid "Please enter your e-mail address"
+msgstr "이메일 주소를 입력해 주십시오."
+
 msgid "Please enter your password"
+msgstr "비밀번호를 입력해 주십시오"
+
 msgid "Please enter your password to decrypt it."
+msgstr "암호 해제를 위해 고객님의 비밀번호를 입력해 주십시오."
+
 msgid "Please enter your seed phrase in order to restore your wallet."
+msgstr "지갑 복원을 위해 당신의 시드 코드를 입력해 주십시오."
+
 msgid "Please initialize your Coldcard while disconnected."
+msgstr "연결이 끊긴 동안 고객님의 콜드카드를 실행해 주십시오."
+
 msgid "Please insert your {}"
+msgstr "고객님의 {}를 입력해 주십시오."
+
 msgid "Please note that websites and other wallets may not support these addresses yet."
+msgstr "해당 주소들을 아직까지 웹사이트와 다른 지갑이 지원하지 않습니다."
+
 msgid "Please paste your cosigners master public key, or scan it using the camera button."
+msgstr "고객님의 연서인 마스터 공개 키를 붙여넣기 하거나 카메라 버튼을 사용하여 스캔하시기 바랍니다."
+
 msgid "Please report any bugs as issues on github:<br/>"
+msgstr "github에 이슈로 버그 보고하십시오:<br>"
+
 msgid "Please report this issue manually"
+msgstr "수동으로 해당 이슈를 보고하십시오."
+
 msgid "Please restart Electrum to activate the new GUI settings"
+msgstr "새로운 GUI 설정의 활성화를 위해 Electrum을 다시 시작하십시오"
+
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
+msgstr "적절히 저장한 사실을 증명하기 위해 고객님의 시드 코드를 재 입력해주시기 바랍니다."
+
 msgid "Please save these {0} words on paper (order is important)."
+msgstr "{0}, 해당 단어들을 종이에 받아 적으시기 바랍니다. (단어 순서를 꼭 지켜주십시오.)"
+
 msgid "Please scan a Bitcoin address or a payment request"
+msgstr "비트코인 주소 또는 결제 요청을 스캔하시기 바랍니다."
+
 msgid "Please select which {} device to use:"
+msgstr "어떤 {} 장치를 사용할 지 선택해 주시기 바랍니다."
+
 msgid "Please share it with your cosigners."
+msgstr "고객님의 연서인과 함께 그것을 공유 하시기 바랍니다."
+
 msgid "Please sign this transaction in order to save it"
+msgstr "저장을 위해 이 거래에 서명해 주시기 바랍니다."
+
 msgid "Please try again."
+msgstr "다시 한 번 시도해 주시기 바랍니다."
+
 msgid "Please type it here."
+msgstr "이 곳에 입력해 주십시오."
+
 msgid "Please type your seed phrase using the virtual keyboard."
+msgstr "가상 키보드를 이용하여 시드 문구를 입력하시기 바랍니다."
+
 msgid "Please wait"
+msgstr "잠시만 기다려 주십시오."
+
 msgid "Please wait while Electrum checks for available updates."
+msgstr "Electrum이 가능한 업데이트를 확인하고 있습니다. 잠시만 기다려 주십시오."
+
 msgid "Please wait..."
+msgstr "잠시만 기다려 주십시오…"
+
 msgid "Polish"
+msgstr "폴란드어"
+
 msgid "Port"
+msgstr "복사"
+
 msgid "Port number must be decimal"
+msgstr "복사 번호는 반드시 십진수입니다."
+
 msgid "Portuguese"
+msgstr "포르투갈어"
+
 msgid "Position in mempool: {} from tip"
+msgstr "멤버 그룹에서의 위치: 끝에서부터 {} 번째."
+
 msgid "Preferences"
+msgstr "환경 설정"
+
 msgid "Press 'Next' to choose device to decrypt."
+msgstr "장치 해독을 위해 '다음' 버튼을 누르시기 바랍니다."
+
 msgid "Press 'Next' to create this wallet, or choose another file."
+msgstr "이 지갑을 생성하기 위해 '다음'을 누르거나 다른 파일을 선택하십시오."
+
 msgid "Press 'Next' to create/focus window."
+msgstr "윈도우 생성/초점 설정을 위해 '다음' 을 눌러주십시오."
+
 msgid "Press 'Next' to open this wallet."
+msgstr "이 지갑을 열기 위해서 '다음' 버튼을 눌러주십시오."
+
 msgid "Press Enter"
+msgstr "엔터를 입력해 주십시오."
+
 msgid "Press again to exit"
+msgstr "종료를 위해 다시 한 번 눌러주십시오."
+
 msgid "Printer Calibration"
+msgstr "교정본 출력"
+
 msgid "Private key"
+msgstr "개인 키"
+
 msgid "Private keys"
+msgstr "개인 키들"
+
 msgid "Private keys exported."
+msgstr "개인 키가 내보내졌습니다."
+
 msgid "Problem opening channel:"
+msgstr "채널 열기 오류"
+
 msgid "Proceed at your own risk."
+msgstr "자기 부담으로 진행하게 됩니다."
+
 msgid "Provides support for Digital Bitbox hardware wallet"
+msgstr "디지털 비트박스 하드웨어 지갑에 대한 지원 제공"
+
 msgid "Provides support for KeepKey hardware wallet"
+msgstr "KeepKey 하드웨어 지갑에 대한 지원 제공"
+
 msgid "Provides support for Safe-T mini hardware wallet"
+msgstr "Safe-T 하드웨어 지갑에 대한 지원 제공"
+
 msgid "Provides support for Trezor hardware wallet"
+msgstr "Trezor 하드웨어 지갑에 대한 지원 제공"
+
 msgid "Provides support for air-gapped transaction signing."
+msgstr "에어캡 거래 서명에 대한 지원 제공"
+
 msgid "Proxy"
+msgstr "프록시"
+
 msgid "Proxy configuration"
+msgstr "프록시 배치"
+
 msgid "Proxy mode"
+msgstr "프록시 모드"
+
 msgid "Proxy settings apply to all connections: with Electrum servers, but also with third-party services."
+msgstr "프록시 설정이 Electrum 서버와 제 3자 서비스를 포함하여 모든 연결에 적용됩니다."
+
 msgid "Proxy user"
+msgstr "프록시 사용자"
+
 msgid "Public key"
+msgstr "공개 키"
+
 msgid "Public keys"
+msgstr "공개 키들"
+
 msgid "QR code"
+msgstr "QR 코드"
+
 msgid "QR code copied to clipboard"
+msgstr "QR 코드를 클립보드에 복사"
+
 msgid "QR code saved to file"
+msgstr "QR 코드 파일에 저장"
+
 msgid "Question"
+msgstr "문의사항"
+
 msgid "Quit"
+msgstr "종료"
+
 msgid "R/W error accessing path"
+msgstr "경로 접근 R/W 에러"
+
 msgid "REMEMBER THE PASSWORD!"
+msgstr "비밀번호를 꼭 기억하십시오!"
+
 msgid "Raw Transaction"
+msgstr "초기 거래"
+
 msgid "Re-enter the new PIN for your {}.\n\n"
+msgstr "고객님의 {}를 위한 새로운 PIN 번호를 재입력 해주십시오.\n\n"
+
 msgid "Read QR code"
+msgstr "읽기 QR 코드"
+
 msgid "Read file"
+msgstr "읽기 파일"
+
 msgid "Read from microphone"
+msgstr "마이크로 읽기"
+
 msgid "Ready to encrypt for revealer {}"
+msgstr "{} 표시자 해독 준비"
+
 msgid "Receive"
+msgstr "수령하기"
+
 msgid "Received (mSAT):"
+msgstr "수령된 (mSAT)"
+
 msgid "Receiving"
+msgstr "수령 중"
+
 msgid "Recipient"
+msgstr "수령인"
+
 msgid "Recipient not specified."
+msgstr "특정되지 않은 수령인"
+
 msgid "Recipient of the funds."
+msgstr "자금 수령인"
+
 msgid "Recover from a seed you have previously written down"
+msgstr "이전에 표기된 시드로부터의 복구"
+
 msgid "Redeem Script"
+msgstr "스크립트 보완"
+
 msgid "Remote"
+msgstr "원격"
+
 msgid "Remote CTN"
+msgstr "원격 CTN"
+
 msgid "Remote Node ID"
+msgstr "원격 노드 ID"
+
 msgid "Remote channel reserve:"
+msgstr "원격 채널 변경:"
+
 msgid "Remote dust limit:"
+msgstr "원격 제한"
+
 msgid "Remote peer ID"
+msgstr "원격 다자 ID"
+
 msgid "Remove"
+msgstr "제거"
+
 msgid "Remove from wallet"
+msgstr "지갑으로부터 제거하기"
+
 msgid "Remove {} from your list of contacts?"
+msgstr "연락처로부터 {} 제거하기"
+
 msgid "Replace by fee"
+msgstr "Replace by fee"
+
 msgid "Report contents"
+msgstr "내용 신고"
+
 msgid "Report sent"
+msgstr "신고서 발송"
+
 msgid "Reporting Bugs"
+msgstr "버그 보고"
+
 msgid "Request copied to clipboard"
+msgstr "요청이 클립보드에 복사되었습니다."
+
 msgid "Request expires"
+msgstr "요청 만료"
+
 msgid "Request payment"
+msgstr "지불 요청"
+
 msgid "Request rejected by server"
+msgstr "서버에 의한 요청 거절"
+
 msgid "Request saved successfully"
+msgstr "요청이 성공적으로 저장"
+
 msgid "Request sent."
+msgstr "요청 발송"
+
 msgid "Requested amount"
+msgstr "요청 금액"
+
 msgid "Requesting account info from TrustedCoin server..."
+msgstr "TrustedCoin으로부터 계좌 정보 요청 중..."
+
 msgid "Requesting {unknown} channels..."
+msgstr "{알려지지 않은} 채널 요청 중"
+
 msgid "Requestor"
+msgstr "요청자"
+
 msgid "Require {0} signatures"
+msgstr "{0} 서명 요청하기"
+
 msgid "Required package 'PIL' is not available - Please install it or use the Trezor website instead."
+msgstr "요청된 패키지 'PIL'이 이용 불가합니다. - 설치 또는 Trezor 웹사이트를 이용하시기 바랍니다."
+
 msgid "Required package 'PIL' is not available - Please install it."
+msgstr "요청된 패키지 'PIL'이 이용 불가합니다. - 설치를 진행하시기 바랍니다."
+
 msgid "Requires"
+msgstr "요구사항:"
+
 msgid "Reset"
+msgstr "리셀"
+
 msgid "Restore 2FA wallet"
+msgstr "2FA 지갑 복구"
+
 msgid "Restore two-factor Wallet"
+msgstr "2F 지갑 복구"
+
 msgid "Revealer - Printer calibration settings"
+msgstr "표시자- 교정본 출력 설정"
+
 msgid "Revealer Backup Utility"
+msgstr "표시자 백업 실행"
+
 msgid "Revealer Secret Backup Plugin"
+msgstr "표시자 시크릿 백업 플러그인"
+
 msgid "Revealers starting with 0 are not secure due to a vulnerability."
+msgstr "보안 취약성으로 인해 표시자가 0부터 시작하는 것은 안전하지 않습니다."
+
 msgid "Right side"
+msgstr "오른쪽"
+
 msgid "Romanian"
+msgstr "루마니아어"
+
 msgid "Route"
+msgstr "루트"
+
 msgid "Run PayServer"
+msgstr "PayServer 가동"
+
 msgid "Run as daemon after the GUI is closed"
+msgstr "GUI 끝난 후 데몬 버전으로 가동"
+
 msgid "Russian"
+msgstr "러시아어"
+
 msgid "SSL cert file"
+msgstr "SSL 증명"
+
 msgid "SSL domain"
+msgstr "SSL 도메인"
+
 msgid "SSL key file"
+msgstr "SSL 키 파일"
+
 msgid "Safe-T mini wallet"
+msgstr "Safe-T 미니 지갑"
+
 msgid "Save"
+msgstr "저장"
+
 msgid "Save transaction offline"
+msgstr "오프라인 거래 저장"
+
 msgid "Save your wallet labels on a remote server, and synchronize them across multiple devices where you use Electrum."
+msgstr "원격 서버에 지갑 라벨 저장하기 및 Electrum에 사용되는 장비와 동기화 진행하기"
+
 msgid "Scrambled words"
+msgstr "뒤섞인 단어들"
+
 msgid "Script type"
+msgstr "스크립트 타입"
+
 msgid "Script type and Derivation path"
+msgstr "스크립 타입 및 유입 경로"
+
 msgid "Security Card Challenge"
+msgstr "보안 카드 챌린지"
+
 msgid "Seed"
+msgstr "시드"
+
 msgid "Seed Entered"
+msgstr "시드 입력"
+
 msgid "Seed Type"
+msgstr "시드 유형"
+
 msgid "Seed available"
+msgstr "시드 이용 가능"
+
 msgid "Seed extension"
+msgstr "시드 확장"
+
 msgid "Segwit"
+msgstr "Segwit"
+
 msgid "Segwit 2FA"
+msgstr "Segwit 2FA"
+
 msgid "Segwit wallets use bech32 addresses, defined in BIP173."
+msgstr "Segwit 지갑은 BIP 173에 의해 정의된 bech32 주소를 사용합니다."
+
 msgid "Select a device"
+msgstr "장치를 선택하십시오."
+
 msgid "Select date"
+msgstr "날찌를 고르십시오."
+
 msgid "Select file to export your private keys to"
+msgstr "개인 키를 내보낼 파일을 선택합니다"
+
 msgid "Select file to export your wallet transactions to"
+msgstr "지갑 거래를 내보낼 파일을 선택합니다"
+
 msgid "Select file to save your {}"
+msgstr "{} 저장을 위한 파일을 선택하십시오."
+
 msgid "Select recovery type:"
+msgstr "복구 타입 선택:"
+
 msgid "Select server automatically"
+msgstr "서버를 자동으로 선택"
+
 msgid "Select server manually"
+msgstr "선택 서버를 수동으로"
+
 msgid "Select where to save file"
+msgstr "파일 저장 위치 선택"
+
 msgid "Select where to save the setup file"
+msgstr "셋업 파일 저장 위치 선택"
+
 msgid "Select where to save your payment request"
+msgstr "지불 요청을 어디에 저장 선택"
+
 msgid "Select where to save your signed transaction"
+msgstr "서명 거래를 저장할 위치를 선택"
+
 msgid "Select which language is used in the GUI (after restart)."
+msgstr "(다시 시작 후) GUI에서 사용되는 언어를 선택해 주십시오."
+
 msgid "Select your seed length:"
+msgstr "시드의 길이를 선택해 주십시오."
+
 msgid "Select your server automatically"
+msgstr "자동으로 서버를 선택해 주십시오."
+
 msgid "Select your transaction file"
+msgstr "트랜잭션 파일을 선택합니다"
+
 msgid "Send"
+msgstr "전송"
+
 msgid "Send Bug Report"
+msgstr "버그 리포트 전송하기"
+
 msgid "Send and receive payment request with an email account"
+msgstr "이메일 계정과 결제 요청 전송 및 수신하기"
+
 msgid "Send and receive payment requests via email"
+msgstr "이메일 통해 결제 요청 전송 및 수신하기"
+
 msgid "Send to cosigner"
+msgstr "연서인에 전송하기"
+
 msgid "Send to speaker"
+msgstr "스피커로 전송하기"
+
 msgid "Send via e-mail"
+msgstr "이메일을 통해 전송하기"
+
 msgid "Sending"
+msgstr "전송하기"
+
 msgid "Sending crash report..."
+msgstr "충돌 보고서 전송하기"
+
 msgid "Sending transaction to cosigning pool..."
+msgstr "연서인 그룹에 거래 전송하기"
+
 msgid "Sent (mSAT):"
+msgstr "전송 완료 (mSAT)"
+
 msgid "Sent HTLC with ID {}"
+msgstr "ID {}와 함께 HTLC 전송 완료"
+
 msgid "Server"
+msgstr "서버"
+
 msgid "Server hosting your email account"
+msgstr "고객님의 이메일 주소를 호스팅 하는 서버"
+
 msgid "Server is lagging ({} blocks)"
+msgstr "서버가 느려지고 있습니다. ({} 블록)"
+
 msgid "Server not reachable."
+msgstr "서버에 닿을 수 없습니다."
+
 msgid "Server peers"
+msgstr "피어 서버"
+
 msgid "Server returned unexpected transaction ID."
+msgstr "서버가 예상치 못한 거래 ID를 되돌렸습니다."
+
 msgid "Server used to query your history."
+msgstr "고객님의 내역을 요청하는 서버"
+
 msgid "Services"
+msgstr "서비스"
+
 msgid "Session Timeout"
+msgstr "세션 만료"
+
 msgid "Set a PIN"
+msgstr "PIN 설정"
+
 msgid "Set the value of the change output so that it has similar precision to the other outputs."
+msgstr "다른 출력과 비슷한 수치로 인하여 변경 출력 값을 설정해 주십시오."
+
 msgid "Set wallet file encryption."
+msgstr "지갑 파일 암화화 설정하기"
+
 msgid "Settings"
+msgstr "설정"
+
 msgid "Share Bitcoin Request"
+msgstr "비트코인 요청 공유하기"
+
 msgid "Short Chanel ID"
+msgstr "Short Chanel ID"
+
 msgid "Short Channel ID"
+msgstr "Short Channel ID"
+
 msgid "Short Channel ID:"
+msgstr "Short Channel ID:"
+
 msgid "Should this transaction be replaceable?"
+msgstr "해당 거래가 반드시 대체되어야 합니까?"
+
 msgid "Show"
+msgstr "보여주기"
+
 msgid "Show Fiat balance for addresses"
+msgstr "주소의 실물 통화 표기 잔액 보여주기"
+
 msgid "Show QR Code"
+msgstr "QR 코드를 표시"
+
 msgid "Show as QR code"
+msgstr "QR 코드로 표시"
+
 msgid "Show capital gains in history"
+msgstr "자복 획득 내역 보여주기"
+
 msgid "Show expert settings"
+msgstr "고급 세팅 보여주기"
+
 msgid "Show history rates"
+msgstr "과거 환율 보여주기"
+
 msgid "Show on Ledger"
+msgstr "장부 보여주기"
+
 msgid "Show on {}"
+msgstr "{}에서 보여주기"
+
 msgid "Show report contents"
+msgstr "리포트 내용 보여주기"
+
 msgid "Show {}"
+msgstr "{} 보여주기"
+
 msgid "Show/Hide"
+msgstr "표시/숨기기"
+
 msgid "Showing address ..."
+msgstr "주소 보여주기"
+
 msgid "Sign"
+msgstr "사인"
+
 msgid "Sign/verify Message"
+msgstr "메세지 서명하기/ 확인하기"
+
 msgid "Sign/verify message"
+msgstr "메세지 서명하기/ 확인하기"
+
 msgid "Signature"
+msgstr "서명"
+
 msgid "Signature verified"
+msgstr "서명 확인"
+
 msgid "Signed"
+msgstr "서명된 상태"
+
 msgid "Signing"
+msgstr "서명 중"
+
 msgid "Signing large transaction. Please be patient ..."
+msgstr "큰 규모의 거래 서명 중\n잠시만 기다려주세요."
+
 msgid "Signing message ..."
+msgstr "메세지 서명 중..."
+
 msgid "Signing transaction..."
+msgstr "거래 서명..."
+
 msgid "Signing with an address actually means signing with the corresponding private key, and verifying with the corresponding public key. The address you have entered does not have a unique public key, so these operations cannot be performed."
+msgstr "주소로 서명하는 것은 일치하는 개인 키로 서명하는 것과 공개 키를 검증하는 것과 같습니다. 고객님께서 입력한 주소는 고유한 공개 키를 가지고 있지 않습니다. 그렇게 해당 작업은 수행될 수 없습니다."
+
 msgid "Size:"
+msgstr "크기:"
+
 msgid "Slovak"
+msgstr "슬로바키아어"
+
 msgid "Slovenian"
+msgstr "슬로베니아어"
+
 msgid "Something went wrong while executing Electrum."
+msgstr "Electrum 실행 중 알 수 없는 오류가 발생했습니다."
+
 msgid "Sorry!"
+msgstr "Sorry!"
+
 msgid "Sorry, but we were unable to check for updates. Please try again later."
+msgstr "업데이트를 확인할 수 없습니다. 나중에 다시 시도해주십시오."
+
 msgid "Source"
+msgstr "소스"
+
 msgid "Spanish"
+msgstr "스페인 사람"
+
 msgid "Spend"
+msgstr "사용하다"
+
 msgid "Spend from"
+msgstr "~를 사용하다"
+
 msgid "Spend only confirmed coins"
+msgstr "오직 승인된 코인만 사용하기"
+
 msgid "Spend only confirmed inputs."
+msgstr "오직 승인된 입력만 사용하기"
+
 msgid "Standard wallet"
+msgstr "표준 지갑"
+
 msgid "Start"
+msgstr "시작하기"
+
 msgid "Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."
+msgstr "스타트업 시간은 비트코인 시스템의 가장 복잡한 부분을 다루는 고성능의 서버와 함께 작동하기에 매우 즉각적입니다."
+
 msgid "State"
+msgstr "상세"
+
 msgid "Static"
+msgstr "통계"
+
 msgid "Status"
+msgstr "상태:"
+
 msgid "Status:"
+msgstr "상태:"
+
 msgid "Step {}/24. Enter seed word as explained on your {}:"
+msgstr "{}/24 단계. 고객님의 {}에 설명대로 시드 단어를 입력하십시오."
+
 msgid "Success"
+msgstr "성공"
+
 msgid "Summary"
+msgstr "요약"
+
 msgid "Summary Text PIN (requires dongle replugging)"
+msgstr "요약 PIN 텍스트 (동글 재연결이 필요합니다.)"
+
 msgid "Summary Text PIN is Disabled"
+msgstr "요약 PIN 텍스트 이용불가"
+
 msgid "Supported Coins"
+msgstr "지원되는 코인들"
+
 msgid "Swedish"
+msgstr "스웨덴어"
+
 msgid "Sweep"
+msgstr "삭제하다"
+
 msgid "Expires in"
+msgstr "에 만료되다"
+
 msgid "Expires in about {} hours"
+msgstr "약 {} 시간 안에 만료되다."
+
 msgid "Expires in about 1 hour"
+msgstr "약 1시간 뒤에 만료되다."
+
 msgid "Sweep private keys"
+msgstr "개인 키를 삭제하다"
+
 msgid "Synchronizing..."
+msgstr "동기화..."
+
 msgid "Tamil"
+msgstr "타밀"
+
 msgid "Tap to show"
+msgstr "보여주기 탭 클릭"
+
 msgid "Target"
+msgstr "타켓"
+
 msgid "Target fee:"
+msgstr "타켓 수수료"
+
 msgid "Terms of Service"
+msgstr "서비스 이용약관"
+
 msgid "Testnet"
+msgstr "테스트넷"
+
 msgid "Testnet coins are worthless."
+msgstr "테스트넷 코인은 가치가 없습니다."
+
 msgid "Testnet is separate from the main Bitcoin network. It is used for testing."
+msgstr "테스트넷은 비트코인 네트워크와 분리된 코인입니다. 오직 테스트를 위해서만 활용됩니다."
+
 msgid "Text copied to clipboard"
+msgstr "텍스트가 클립보드에 복사됐습니다."
+
 msgid "Text copied to clipboard."
+msgstr "텍스트가 클립보드에 복사됐습니다."
+
 msgid "Thai"
+msgstr "태국어"
+
 msgid "The Digital Bitbox is already seeded. Choose an option:"
+msgstr "디지털 비트박스가 이미 시드 암호 처리되었습니다. 옵션을 선택해 주십시오."
+
 msgid "The PIN cannot be longer than 9 characters."
+msgstr "PIN 번호는 9 자리보다 길 수 없습니다."
+
 msgid "The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed."
+msgstr "수수료는 송신자가 자유롭게 결정할 수있다. 그러나, 낮은 비용의 설정은 거래 처리에 더 많은 시간이 소요되게 됩니다."
+
 msgid "The amount will be displayed in red if you do not have enough funds in your wallet."
+msgstr "지갑에 충분한 자금이 없는 경우 금액은 빨간색으로 표시됩니다."
+
 msgid "The bitcoin address never expires and will always be part of this electrum wallet."
+msgstr "비트코인 주소는 만료되지 않으며 항상 Electrum 지갑의 일부가 됩니다."
+
 msgid "The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the 'History' tab."
+msgstr "설명은 자금의 수신자에게 전송되지 않습니다. 그것은 당신의 지갑 파일에 저장하고, '역사'탭에 표시됩니다."
+
 msgid "The device was disconnected."
+msgstr "장치가 해체되었습니다."
+
 msgid "The fee could not be verified. Signing non-segwit inputs is risky:\n"
+msgstr "비용이 확인되지 않습니다. 비검증된 segwit 입력에 서명하는 것은 위험합니다:\n"
+
 msgid "The fee for this transaction seems unusually high."
+msgstr "해당 거래의 수수료는 비정상적으로 높습니다."
+
 msgid "The file '{}' contains an incompletely created wallet.\n"
+msgstr "{} 파일은 불완전히 생성된 지갑을 포함하고 있습니다.\n"
+
 msgid "The file was removed"
+msgstr "파일 제거"
+
 msgid "The firmware of your hardware device is too old. If possible, you should upgrade it. You can ignore this error and try to continue, however things are likely to break."
+msgstr "고객님의 하드웨어 장치의 펌웨어가 너무 오래됐습니다. 반드시 업그레이드 하시기 바랍니다. 해당 안내를 무시 후 계속해서 진행할 수 있습니다. 그러나 기타 문제가 발생할 가능성이 큽니다."
+
 msgid "The following addresses were added"
+msgstr "주소들 추가된"
+
 msgid "The following alias providers are available:"
+msgstr "다음의 별칭 공급자를 사용할 수 있습니다:"
+
 msgid "The following inputs could not be imported"
+msgstr "다음 입력을 가져올 수 없습니다."
+
 msgid "The new fee rate needs to be higher than the old fee rate."
+msgstr "새로운 수수료 요율은 이전 수수료보다 높아야 합니다."
+
 msgid "The next step will generate the seed of your wallet. This seed will NOT be saved in your computer, and it must be stored on paper. To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
+msgstr "다음 단계에 고객님 지갑의 시드를 생성하게 됩니다. 해당 시드는 고객님 컴퓨터에 저장되지 않으며, 반드시 종이에 옮겨 적어야 합니다. 몰웨어로부터의 안전성을 확보하기 위해 오프라인 상태의 컴퓨터로 작업 후 온라인 상태의 컴퓨터로 옮길 수 있습니다."
+
 msgid "The operation is undefined. Not just in Electrum, but in general."
+msgstr "알 수 없는 작업입니다."
+
 msgid "The server returned an error when broadcasting the transaction."
+msgstr "거래 송출시 서버가 에러를 반출했습니다."
+
 msgid "The server returned an error."
+msgstr "서버가 에어를 반출했습니다."
+
 msgid "The server returned an unexpected transaction ID when broadcasting the transaction."
+msgstr "거래 송출시 서버가 예상치 못한 거래 ID를 반출했습니다."
+
 msgid "The transaction was rejected because it contains multiple OP_RETURN outputs."
+msgstr "다중 OP_RETURN 출력이 포함되어 해당 거래가 거절되었습니다."
+
 msgid "The transaction was rejected because it is too large (in bytes)."
+msgstr "바이트가 너무 커 해당 거래가 거절되었습니다."
+
 msgid "The type of addresses used by your wallet will depend on your seed."
+msgstr "고객님의 지갑에 의해 사용된 주소의 종류는 시드에 달려있습니다."
+
 msgid "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+msgstr "Electrum 2.7 버전 이후 지원되지 않는 지갑이 해당 지갑에 포함돼있습니다.\n\n"
+
 msgid "Then, enter your Google Authenticator code:"
+msgstr "구글 인증자 코드를 입력해 주세요."
+
 msgid "There is a new update available"
+msgstr "이용 가능한 새로운 업데이트가 있습니다."
+
 msgid "There was a problem with the automatic reporting:"
+msgstr "자동 보고와 관련된 문제가 있었습니다."
+
 msgid "Therefore, two-factor authentication is disabled."
+msgstr "그러므로, 2FA는 사용 불가합니다."
+
 msgid "This address has already been used. For better privacy, do not reuse it for new payments."
+msgstr "해당 주소는 이미 사용됐습니다. 더 나은 개인 정보 보호를 위하여, 새로운 지불에 해당 주소를 더 이상 사용하지 마십시오."
+
 msgid "This blockchain is used to verify the transactions sent by your transaction server."
+msgstr "고객님의 거래 서버에 의해 전송된 거래를 검토하기 위해 블록체인이 사용되고 있습니다."
+
 msgid "This channel will be usable after {} confirmations"
+msgstr "{} 승인 후 해당 채널을 사용할 수 있습니다."
+
 msgid "This feature is not available for watch-only wallets."
+msgstr "읽기 전용 지갑에선 해당 기능을 사용할 수 없습니다."
+
 msgid "This file does not exist."
+msgstr "파일이 더 이상 존재하지 않습니다."
+
 msgid "This file is already open in memory."
+msgstr "파일이 이미 메모리에서 열린 상태입니다."
+
 msgid "This file is encrypted using a hardware device."
+msgstr "해당 파일의 하드웨어 장치 사용이 암호화되었습니다."
+
 msgid "This file is encrypted with a password."
+msgstr "해당 파일이 비밀번호와 함께 암호화되었습니다."
+
 msgid "This function is only available after pairing your {} with a mobile device."
+msgstr "고객님의 {}과/와 모바일 기기가 페어링된 후 해당 기능을 사용할 수 있습니다."
+
 msgid "This function is only available for p2pkh keystores when using {}."
+msgstr "{}를 이용시 p2pkh 키보드에 대한 해당 기능이 이용 가능합니다."
+
 msgid "This function is only available for standard wallets when using {}."
+msgstr "{}를 이용시 표준 월렛에 대해 해당 기능이 이용 가능합니다."
+
 msgid "This information is seen by the recipient if you send them a signed payment request."
+msgstr "서명 된 지불 요청을 보낼 경우, 수령인이 해당 정보를 열람할 수 있습니다."
+
 msgid "This is a watching-only wallet"
+msgstr "이것은 읽기 전용 지갑입니다."
+
 msgid "This is a watching-only wallet."
+msgstr "이것은 읽기 전용 지갑입니다."
+
 msgid "This is a watching-only wallet. It does not contain private keys."
+msgstr "이것은 읽기 전용 지갑입니다. 개인 키를 포함하고 있지 않습니다."
+
 msgid "This is discouraged."
+msgstr "이것은 권유되지 않는 작업입니다."
+
 msgid "This is the height of your local copy of the blockchain."
+msgstr "이것은 고객님 블록체인의 로컬 체인 무게입니다."
+
 msgid "This may result in higher transactions fees."
+msgstr "이는 더 높은 거래 수수료를 발생시킬 수 있습니다."
+
 msgid "This means you will not be able to spend Bitcoins with it."
+msgstr "이것을 통해 비트코인을 보낼 수 없음을 뜻합니다."
+
 msgid "This might improve your privacy somewhat."
+msgstr "개인 정보 보호가 향상되는 것을 뜻합니다."
+
 msgid "This payment request will be signed."
+msgstr "이 지불 요청은 서명 될 것 입니다."
+
 msgid "This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets."
+msgstr "해당 플러그인을 통해 가상 암호화 백업된 지갑 시드 생성 또는 맞춤 시크릿 암호 생성이 가능합니다."
+
 msgid "This plugin adds two-factor authentication to your wallet."
+msgstr "해당 플러그인은 2FA를 고객님의 지갑에 포함시킵니다."
+
 msgid "This plugin facilitates the use of multi-signatures wallets."
+msgstr "해당 플러그인은 다중 서명 지갑을 사용합니다."
+
 msgid "This seed will allow you to recover your wallet in case of computer failure."
+msgstr "컴퓨터 실패의 경우, 이 시드를 통해 지갑을 복구 할 수 있습니다."
+
 msgid "This service uses a multi-signature wallet, where you own 2 of 3 keys. The third key is stored on a remote server that signs transactions on your behalf. A small fee will be charged on each transaction that uses the remote server."
+msgstr "2개 혹은 3개의 키를 보유하는 다중 서명 지갑을 해당 서비스는 이용하고 있습니다. 3번째 키는 고객님을 대표해 거래에 서명하는 원격 서버에 저장돼있습니다. 원격 서버를 사용하는 매 거래에 약간의 수수료가 부과됩니다."
+
 msgid "This setting affects the Send tab, and all balance related fields."
+msgstr "해당 설정은 \"전송\" 탭과 입력창과 관련된 모든 잔액에 영향을 미칩니다."
+
 msgid "This transaction is not saved. Close anyway?"
+msgstr "이 거래는 저장되지 않습니다. 이대로 닫으시겠습니까?"
+
 msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
+msgstr "해당 거래는 높은 수수료를 요구합니다. 그렇지 않은 경우 고객님의 현 서버를 통해 널리 전파되지 않습니다."
+
 msgid "This type of script is not supported with {}."
+msgstr "해당 종류의 스크립트는 {}와 함께 지원되지 않습니다."
+
 msgid "This version supports a maximum of {} characters."
+msgstr "해당 버전은 최대 {} 글자까지 지원합니다."
+
 msgid "This wallet has no seed"
+msgstr "이 지갑은 시드를 지니지 않습니다."
+
 msgid "This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code."
+msgstr "해당 지갑은 이미 TrustedCoin에 등록된 상태입니다. 지갑 생성을 완료하기 위해 구글 인증자 코드를 입력해 주시기 바랍니다."
+
 msgid "This wallet is protected by TrustedCoin's two-factor authentication."
+msgstr "이 지갑은 TrustedCoin의 2FA에 의해 보호됩니다."
+
 msgid "This wallet is watching-only"
+msgstr "이 지갑은 읽기 전용입니다."
+
 msgid "This wallet is watching-only."
+msgstr "이 지갑은 읽기 전용입니다."
+
 msgid "This wallet was restored from seed, and it contains two master private keys."
+msgstr "이 지갑은 시드로부터 저장돼있습니다. 또한 두 가지 마스터 개인 키를 지니고 있습니다."
+
 msgid "This will delete your lightning private keys"
+msgstr "이것은 고객님의 라이트닝 개인 키들을 삭제할 것입니다."
+
 msgid "This will save fees."
+msgstr "수수료가 면제될 예정입니다."
+
 msgid "Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period."
+msgstr "그러므로 거래 기간동안 비트코인 수령하기 위해서 비 segwit 지갑의 사용하실 수도 있다."
+
 msgid "Time based: fee rate is based on average confirmation time estimates"
+msgstr "시간 기반: 수수료 요울은 평균 측정 승인 시간에 기반합니다."
+
 msgid "To"
+msgstr "~로"
+
 msgid "To cancel, briefly touch the blinking light or wait for the timeout."
+msgstr "취소를 희망하실 경우, 깜빡이는 불빛을 짧게 터치하거나 시간 만료를 기다려주세요."
+
 msgid "To cancel, briefly touch the light or wait for the timeout."
+msgstr "취소를 희망하실 경우, 불빛을 짧게 터치하거나 시간 만료를 기다려주세요."
+
 msgid "To continue, touch the Digital Bitbox's blinking light for 3 seconds."
+msgstr "계속하실 경우, 깜빡이는 비트박스의 불빛을 3초 동안 눌러주세요."
+
 msgid "To continue, touch the Digital Bitbox's light for 3 seconds."
+msgstr "계속하실 경우, 비트박스의 불빛을 3초 동안 눌러주세요."
+
 msgid "To create a spending wallet, please enter a master private key (xprv/yprv/zprv)."
+msgstr "소비 지갑 생성시 마스터 개인 키를 꼭 입력해 주십시오. (xprv/yprv/zprv)"
+
 msgid "To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."
+msgstr "읽기 전용 지갑 생성을 위해서 고객님의 마스터 공개 키를 입력해 주십시오. (xpub/ypub/zpub)"
+
 msgid "To encrypt your backup, first we need to load some noise."
+msgstr "백업을 암호화 하기 위해선 노이즈를 로딩해야 합니다."
+
 msgid "To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:"
+msgstr "문제 진단과 수정을 위해 유용한 디버그 정보가 담긴 버그 리포트를 저희에게 보낼 수 있습니다."
+
 msgid "To make sure that you have properly saved your seed, please retype it here."
+msgstr "시드가 제대로 저장되었는지 확인하려면 여기에 다시 입력하십시오."
+
 msgid "To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs."
+msgstr "귀하의 정보를 보호하기 위해 Electrum은 유사한 측정치를 다른 값으로 변경합니다."
+
 msgid "To trigger a rescan, press 'Next'."
+msgstr "리스캔 진행시 '다음' 버튼을 눌러주십시오."
+
 msgid "To try to fix this, we will now re-pair with your device."
+msgstr "이것을 고치기 위해서 고객님의 장치를 새롭게 페어링하겠습니다."
+
 msgid "Toggle Encryption"
+msgstr "토글 암호화"
+
 msgid "Too long passphrase ({} > 50 chars)."
+msgstr "너무 긴 암호문 ({} > 50 문자)"
+
 msgid "Total fee"
+msgstr "전체 수수료"
+
 msgid "Total feerate"
+msgstr "전체 수수료율"
+
 msgid "Total size"
+msgstr "전체 크기"
+
 msgid "Transaction"
+msgstr "거래"
+
 msgid "Transaction ID"
+msgstr "거래 ID"
+
 msgid "Transaction ID:"
+msgstr "거래 ID:"
+
 msgid "Transaction added to wallet history."
+msgstr "지갑 내역에 추가된 거래"
+
 msgid "Transaction could not be broadcast due to dust outputs."
+msgstr "미세한 값으로 인해 거래가 송출되지 않을 수도 있습니다."
+
 msgid "Transaction could not be saved."
+msgstr "거래가 저장될 수 없습니다."
+
 msgid "Transaction exported successfully"
+msgstr "거래가 성공적으로 내보내졌습니다."
+
 msgid "Transaction is too large in size."
+msgstr "거래 크기가 너무 큽니다."
+
 msgid "Transaction is unrelated to this wallet."
+msgstr "거래가 지갑과 연결돼있지 않습니다."
+
 msgid "Transaction to join with"
+msgstr "에 가입하기 위한 거래"
+
 msgid "Transaction to merge signatures from"
+msgstr "로부터의 서명 통합을 위한 거래"
+
 msgid "Transaction unrelated to your wallet"
+msgstr "지갑과 관련이없는 거래"
+
 msgid "Transaction uses non-standard version."
+msgstr "비표준 버전을 거래가 사용 중입니다."
+
 msgid "Transaction:"
+msgstr "거래"
+
 msgid "Transactions"
+msgstr "거래"
+
 msgid "Transactions are encrypted and stored on a remote server."
+msgstr "거래가 암호화된 상태이며 원격 서버에 저장된 상태입니다."
+
 msgid "Trezor Matrix Recovery"
+msgstr "Trezor 매트릭스 복구"
+
 msgid "Trezor wallet"
+msgstr "Trezor 지갑"
+
 msgid "TRUE"
+msgstr "사실"
+
 msgid "TrustedCoin"
+msgstr "TrustedCoin"
+
 msgid "TrustedCoin (2FA) fee for the next batch of transactions"
+msgstr "다음 일괄 거래 처리를 위한 TrustedCoin (2FA) 수수료"
+
 msgid "TrustedCoin Information"
+msgstr "TrustedCoin 정보"
+
 msgid "TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions."
+msgstr "TrustedCoin은 공동 서명 거래에 약간의 수수료를 부과합니다. 해당 수수료는 사전 지불된 거래를 얼마나 구매하는지에 따라 결정됩니다. 추가금액은 사전 지불금이 동날 때마다 고객님의 거래에 더해집니다."
+
 msgid "Try to connect again?"
+msgstr "다시 연결하시겠습니까?"
+
 msgid "Try to explain not only what the bug is, but how it occurs."
+msgstr "버그의 종류와 발생 경위에 대해 설명해 주십시오."
+
 msgid "Try to raise your transaction fee, or use a server with a lower relay fee."
+msgstr "거래의 수수료를 높이시겠습니까? 혹은 더 낮은 릴레이 수수료를 부담하는 서버를 사용하시겠습니까?"
+
 msgid "Turkish"
+msgstr "터키어"
+
 msgid "Two Factor Authentication"
+msgstr "2FA"
+
 msgid "Two-factor authentication is a service provided by TrustedCoin. It uses a multi-signature wallet, where you own 2 of 3 keys. The third key is stored on a remote server that signs transactions on your behalf. To use this service, you will need a smartphone with Google Authenticator installed."
+msgstr "2FA 서비스는 TrustedCoin에 의해 제공되는 서비스입니다. 해당 서비스는 2개 혹은 3개의 키를 사용하는 다중 서명 지갑입니다. 3번째 키는 고객님을 대표해 거래에 서명하는 원격 서버에 저장돼있습니다. 서비스 이용을 위해선 구글 인증자가 설치된 스마트폰이 필요합니다."
+
 msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
+msgstr "2FA 서비스는 TrustedCoin에 의해 제공되는 서비스입니다. 해당 서비스 이용을 위해선 반드시 구글 인증자가 설치된 별도의 장치가 필요합니다."
+
 msgid "Tx"
+msgstr "거래"
+
 msgid "Type"
+msgstr "종류"
+
 msgid "USB Serial"
+msgstr "USD 시리얼 넘버"
+
 msgid "Ukrainian"
+msgstr "우크라이나어"
+
 msgid "Unable to connect to mail server:\n"
+msgstr "메일 서버에 연결할 수 없습니다.\n"
+
 msgid "Unable to create backup"
+msgstr "백업을 수행할 수 없습니다."
+
 msgid "Unable to create csv"
+msgstr "CSV를 만들 수 없습니다"
+
 msgid "Unable to export history"
+msgstr "역사를 내보낼 수 없습니다"
+
 msgid "Unable to read file or no transaction found"
+msgstr "파일을 읽을 수 없거나 거래를 찾을 수 없습니다."
+
 msgid "Unable to send report"
-msgid "Unconfirmed"
+msgstr "리포트 전송 불가"
+
+msgid "unconfirmed"
+msgstr "미확인된"
+
 msgid "Unconfirmed parent"
+msgstr "미확인된 메인"
+
 msgid "Unexpected error occurred."
+msgstr "예상치 못한 에러 발생"
+
 msgid "Unexpected password hash version"
+msgstr "예상치 못한 비밀번호 해시 버전"
+
 msgid "Unfreeze"
+msgstr "해제"
+
 msgid "Unfreeze Address"
+msgstr "주소 해제"
+
 msgid "Unfreeze Addresses"
+msgstr "주소록 해제"
+
 msgid "Unfreeze Coin"
+msgstr "코인 해제"
+
 msgid "Unfreeze Coins"
+msgstr "코인 해제"
+
 msgid "Unknown"
+msgstr "알 수 없는"
+
 msgid "Unknown error"
+msgstr "알 수 없는 에러"
+
 msgid "Unknown error when broadcasting the transaction."
-msgid "Unmatured"
+msgstr "거래 송출시 알 수 없는 에러"
+
+msgid "unmatured"
+msgstr "만기 되지 않은"
+
 msgid "Unrealized gains"
+msgstr "미확인된 수입"
+
 msgid "Unsigned"
+msgstr "서명되지 않은"
+
 msgid "Unsupported password hash version"
+msgstr "서명되지 않은 패스워드 해시 버전"
+
 msgid "Unused"
+msgstr "미사용된"
+
 msgid "Update Check"
+msgstr "업데이트 확인"
+
 msgid "Update check failed"
+msgstr "업데이트 확인 실패"
+
 msgid "Update to Electrum {} is available"
+msgstr "Electrum {} 업데이트 이용 가능"
+
 msgid "Upgrade"
+msgstr "업그레이드"
+
 msgid "Upgrading wallet format..."
+msgstr "지갑 포맷 업그레이드 중..."
+
 msgid "Upload a BIP39 mnemonic to generate the seed"
+msgstr "시드를 생성하는 BIP39 연상 기호 업로드"
+
 msgid "Upload a master private key"
+msgstr "마스터 개인 키 업로드"
+
 msgid "Use Replace-By-Fee"
+msgstr "Replace-By-Fee 사용하기"
+
 msgid "Use Tor Proxy"
+msgstr "Tor 프록시 사용하기"
+
 msgid "Use a hardware device"
+msgstr "하드웨어 장치 사용하기"
+
 msgid "Use a master key"
+msgstr "마스터 키 사용하기"
+
 msgid "Use as server"
+msgstr "서버로 사용하기"
+
 msgid "Use change addresses"
+msgstr "변경 주소 사용"
+
 msgid "Use multiple change addresses"
+msgstr "여러 개의 변경 주소 사용"
+
 msgid "Use proxy"
+msgstr "프록시 사용"
+
 msgid "Use the camera button to scan a QR code."
+msgstr "카메라 버튼을 사용하여 QR 코드 스캔."
+
 msgid "Use this dialog to add a password to your wallet."
+msgstr "입력창 통해 지갑에 패스워드 추가"
+
 msgid "Use this dialog to change your password."
+msgstr "입력창 통해 비밀번호 변경"
+
 msgid "Use this dialog to toggle encryption."
+msgstr "입력창 통해 암호화 토글"
+
 msgid "Used"
+msgstr "사용된"
+
 msgid "Username"
+msgstr "유저 이름"
+
 msgid "Uses icons from the Icons8 icon pack (icons8.com)."
+msgstr "Icon8 아이콘 팩의 유저 아이콘 (icons8.com)"
+
 msgid "Using change addresses makes it more difficult for other people to track your transactions."
+msgstr "변경 주소를를 사용하는 것은 다른 사람의 추적을 더욱 어렵게 만듭니다."
+
 msgid "Value"
+msgstr "값"
+
 msgid "Verification failed!"
+msgstr "검증 실패!"
+
 msgid "Verification successful!"
+msgstr "검증 성공!"
+
 msgid "Verified block headers"
+msgstr "검증돈 블록 헤더"
+
 msgid "Verify"
+msgstr "검증하기"
+
 msgid "Verify GA instant"
+msgstr "GA 인스턴트 검증하기"
+
 msgid "Verify the address below.<br>Type the character from your security card corresponding to the <u><b>BOLD</b></u> character."
+msgstr "아래 주소 검증하기 <br><u><b>BOLD</b></u>문자에 일치하는 보안카드 문자를 입력하세요."
+
 msgid "Verify the cable is connected and that no other application is using it."
+msgstr "케이블의 연결 상태를 확인하시고 다른 어플리케이션의 이용 여부를 확인해주십시오."
+
 msgid "Verifying..."
+msgstr "확인 중..."
+
 msgid "Version"
+msgstr "버전"
+
 msgid "Video Device"
+msgstr "비디오 장치"
+
 msgid "Vietnamese"
+msgstr "베트남어"
+
 msgid "View in web browser"
+msgstr "웹 브라우저로 보기"
+
 msgid "View log"
+msgstr "로그 보기"
+
 msgid "View on block explorer"
+msgstr "블록 탐색기에서보기"
+
 msgid "WARNING"
+msgstr "경고"
+
 msgid "WARNING: ALL your private keys are secret."
+msgstr "경고 : 모든 개인 키는 비밀입니다."
+
 msgid "WARNING: This is a multi-signature wallet."
+msgstr "경고: 이 지갑은 다중 서명 지갑입니다."
+
 msgid "WARNING: the alias \"{}\" could not be validated via an additional security check, DNSSEC, and thus may not be correct."
+msgstr "\"{}\" 명칭은 추가적인 보안 확인, DNSSEC을 거쳐 더 이상 유효하지 않습니다. 그렇기에 정확하지 않습니다."
+
 msgid "WARNINGS"
+msgstr "경고"
+
 msgid "WIF keys are typed in Electrum, based on script type."
+msgstr "WIF 키는 스크립트 종류에 기반하여 Electrum에 기입돼있습니다."
+
 msgid "Waiting for TrustedCoin server to sign transaction..."
+msgstr "거래 서명을 위한 TrustedCoin 서버 응답 기다리는 중..."
+
 msgid "Wallet"
+msgstr "지갑"
+
 msgid "Wallet Info"
+msgstr "지갑 정보"
+
 msgid "Wallet Information"
+msgstr "지갑 정보"
+
 msgid "Wallet Name"
+msgstr "지갑 이름"
+
 msgid "Wallet backup created"
+msgstr "백업 지갑 생성"
+
 msgid "Wallet change address"
+msgstr "변경 주소 지갑"
+
 msgid "Wallet file corruption detected. Please restore your wallet from seed, and compare the addresses in both files"
+msgstr "지갑 파일 파손 감지. 시드로부터 지갑을 재생하시기 바랍니다. 또한 두 파일에 저장된 주소를 비교하여 검토하시기 바랍니다."
+
 msgid "Wallet file not found: {}"
+msgstr "지갑 파일 미 발견: {}"
+
 msgid "Wallet name"
+msgstr "지갑 이름"
+
 msgid "Wallet receive address"
+msgstr "지갑을 받을 주소:"
+
 msgid "Wallet removed: {}"
+msgstr "제거된 지갑: {}"
+
 msgid "Wallet setup file exported successfully"
+msgstr "지갑 셋업 파일 내보내기 성공"
+
 msgid "Wallet type"
+msgstr "지갑 종류"
+
 msgid "Wallet type:"
+msgstr "지갑 종류:"
+
 msgid "Wallet with two-factor authentication"
+msgstr "2FA 지갑"
+
 msgid "Warning"
+msgstr "경고"
+
 msgid "Warning!"
-msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed"
+msgstr "경고"
+
+msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed. you may need to add it manually.\n\n"
+msgstr "경고: 시드로부터 지갑을 복원할 때 다음 주소는 자동적으로 복구되지 않습니다.\n\n"
+
 msgid "Warning: do not use this if it makes you pick a weaker password."
+msgstr "경고: 보안에 취약한 비밀번호를 고르게 될 땐 그것을 사용하지 마십시오."
+
 msgid "Watch-only wallet"
+msgstr "읽기 전용 지갑"
+
 msgid "We do not guarantee that BIP39 imports will always be supported in Electrum."
+msgstr "BIP39 내보내기 기능에 대한 Electrum의 지속적인 지원을 보장하지 않습니다."
+
 msgid "We encountered an error while connecting to your device:"
+msgstr "기기에 연결 중 에러를 발견하였습니다."
+
 msgid "What kind of wallet do you want to create?"
+msgstr "어떤 종류의 지갑을 생성하시겠습니까?"
+
 msgid "While this is less than ideal, it might help if you run Electrum as Administrator."
+msgstr "이상적인 세팅은 아니지만, 실행자로써 Electrum 가동을 도울 것입니다."
+
 msgid "Wipe Device"
+msgstr "장치 삭제"
+
 msgid "Wipe the device, removing all data from it. The firmware is left unchanged."
+msgstr "장치 삭제는 모든 정보를 삭제할 것입니다. 펌웨어는 변화없이 남을 것입니다."
+
 msgid "Within {} blocks"
+msgstr "{} 블록 이내"
+
 msgid "Witness Script"
+msgstr "스크립트 보기"
+
 msgid "Would you like to be notified when there is a newer version of Electrum available?"
+msgstr "Electrum의 최신 버전이 가능할 때 알림을 받으시겠습니까?"
+
 msgid "Write down the seed word shown on your {}"
+msgstr "고객님 {}의 시드 단어를 입력해주십시오."
+
 msgid "Write logs to file"
+msgstr "로그를 파일에 적어주십시오."
+
 msgid "Wrong PIN"
+msgstr "잘못된 PIN"
+
 msgid "Wrong key type"
+msgstr "잘못된 키 종류"
+
 msgid "Wrong signature"
+msgstr "잘못된 서명"
+
 msgid "Yes"
+msgstr "네"
+
 msgid "You are already on the latest version of Electrum."
+msgstr "이미 최신 버전의 Electrum을 사용 중입니다."
+
 msgid "You are following branch"
+msgstr "브랜치를 구독합니다."
+
 msgid "You are in testnet mode."
+msgstr "테스트넷 모드입니다."
+
 msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "구버전의 Electrum을 사용하고 있습니다. 업데이트 해주시기 바랍니다."
+
 msgid "You are offline."
+msgstr "오프라인 상태입니다."
+
 msgid "You are using Electrum in offline mode"
+msgstr "오프라인 상태로 Electrum을 사용하고 있습니다."
+
 msgid "You are using a non-deterministic wallet, which cannot create new addresses."
+msgstr "새로운 주소를 생성할 수 없는 non-deterministic 지갑을 사용하고 있습니다."
+
 msgid "You can disable this setting in '{}'."
+msgstr "{}' 해당 세팅을 무효화할 수 있습니다."
+
 msgid "You can download the new version from {}."
+msgstr "{}로부터 새로운 버전을 다운로드 받을 수 있습니다."
+
 msgid "You can override the suggested derivation path."
+msgstr "제안된 유입 경로를 덮어쓰기 할 수 있습니다."
+
 msgid "You can set the homescreen on your device to personalize it. You must choose a {} x {} monochrome black and white image."
+msgstr "개인화를 위해 장치의 홈스크린을 설정할 수 있습니다. 반드시 {} x {} 모노크롬 블랙과 화이트 이미지를 선택해야합니다."
+
 msgid "You can't broadcast a transaction without a live network connection."
+msgstr "라이브 네트워크 연결없이 거래를 송출할 수 없습니다."
+
 msgid "You cannot access your coins or a backup without the password."
+msgstr "비밀번호없이 코인 또는 백업 파일에 접근할 수 없습니다."
+
 msgid "You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper."
+msgstr "기억하거나 종이에 적어둔 비밀 암호문을 통해 지갑이 복구될 수 있길래 표준 백업 파일을 실행할 필요없습니다."
+
 msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
+msgstr "암호문에 연속적인 빈칸 또는 빈칸이 맨 앞자리에 위치합니다."
+
 msgid "You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)"
+msgstr "당신은 비트 코인 주소, 연락처 목록 (완료 목록이 제시될 것입니다.)에서 레이블 또는 별명 (비트 코인 주소로 전달되는 이메일와 같은)를 입력 할 수 있습니다."
+
 msgid "You may extend your seed with custom words."
+msgstr "맞춤형 단어와 함께 시드를 늘릴 수 있습니다."
+
 msgid "You may load a CSV file using the file icon."
+msgstr "파일 아이콘을 사용하여 CSV 파일을 불러올 수 있습니다."
+
 msgid "You might have an incompatible library."
+msgstr "비호환성 라이브러리를 가지고 있습니다."
+
 msgid "You need to be online in order to complete the creation of your wallet. If you generated your seed on an offline computer, click on \"{}\" to close this window, move your wallet file to an online computer, and reopen it with Electrum."
+msgstr "지갑 생성을 완료하기 위해선 온라인 상태에 연결돼야만 합니다. 오프라인으로 시드를 생성할 때, \"{}\"를 눌러 창을 닫으시고 온라인 상태의 컴퓨터로 이동시켜 Electrum과 함께 구동하시기 바랍니다."
+
 msgid "You need to create a separate Electrum wallet for each passphrase you use as they each generate different addresses. Changing your passphrase does not lose other wallets, each is still accessible behind its own passphrase."
+msgstr "각 암호문은 다른 주소를 생성하기에 각 암호문에 대해 별도의 Electrum 지갑을 생성해야합니다. 암호문 변경은 다른 지갑의 손실을 초래하지 않습니다. 각 지갑은 그것의 암호문을 넘어 접근이 가능합니다."
+
 msgid "You should enable PIN protection. Your PIN is the only protection for your bitcoins if your device is lost or stolen."
+msgstr "PIN 보호 설정을 반드시 하셔야 합니다. 오직 시드만이 장치 분실 및 도난시 보유한 비트코인의 보호책입니다."
+
 msgid "You will be asked to enter 24 words regardless of your seed's actual length. If you enter a word incorrectly or misspell it, you cannot change it or go back - you will need to start again from the beginning.\n\n"
+msgstr "시드의 실제 길이에 상관없이 24 글자를 입력해야합니다. 잘못된 시드 입력시 변경 혹은 되돌릴 수 없습니다. - 처음부터 다시 시작해야합니다.\n\n"
+
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
+msgstr "장부 지갑이 고객님께 일회성 PIN 코드를 알려줍니다. <br><br> 최고의 보안은 기기의 플러그를 뽑은 후 텍스트 편집기를 다른 컴퓨터에 실행 후 커서를 입력해 장치를 해당 컴퓨터에 입력하시기 바랍니다. 이는 서명된 거래의 요약 또는 일회성 PIN 코드를 출력할 것입니다.<br><br> 거래 요약 확인 후 PIN 코드를 입력하십시오. <br><br> 엔터 입력 전 장치를 컴퓨터로 다시 연결해주십시오."
+
 msgid "Your Ledger is locked. Please unlock it."
+msgstr "고객님의 장부 지갑이 잠겼습니다. 잠금 해제가 필요합니다."
+
 msgid "Your Node ID"
+msgstr "고객님의 노드 ID"
+
 msgid "Your PIN code was updated"
+msgstr "고객님의 노드 ID가 업데이트 됐습니다."
+
 msgid "Your accounts have been moved to"
+msgstr "고객님의 계좌가 이전돼었습니다."
+
 msgid "Your bitcoins are password protected. However, your wallet file is not encrypted."
+msgstr "비트코인 비밀번호가 보호된 상태입니다. 그러나 지갑 파일은 암호화되지 않았습니다."
+
 msgid "Your current Electrum wallet can only be used with an empty passphrase. You must create a separate wallet with the install wizard for other passphrases as each one generates a new set of addresses."
+msgstr "고객님의 현재 Electrum 지금은 암호문 설정없이 사용되고 있습니다. 각 암호문마다 새로운 주소 목록을 만들기에 별도의 설치 마법사를 갖춘 지갑을 다운로드 하셔야 합니다."
+
 msgid "Your device firmware is too old"
+msgstr "장치 펌웨어가 구버전입니다."
+
 msgid "Your device might not have support for this functionality."
+msgstr "고객님의 장치는 해당 기능을 지원하지 않을 수도 있습니다."
+
 msgid "Your labels have been synchronised."
+msgstr "라벨 동기화되었습니다."
+
 msgid "Your seed extension is"
+msgstr "고객님의 시드 증가는"
+
 msgid "Your seed extension must be saved together with your seed."
+msgstr "시드 증가는 고객님의 시드와 함께 저장됩니다."
+
 msgid "Your seed is important!"
+msgstr "당신의 씨앗이 중요합니다!"
+
 msgid "Your server is on branch"
+msgstr "고객님의 서버가 브런치에 놓여있습니다."
+
 msgid "Your transaction was sent to the cosigning pool."
+msgstr "연서인 그룹에 고객님의 거래가 전송되었습니다."
+
 msgid "Your wallet file does not contain secrets, mostly just metadata."
+msgstr "고객님의 지갑 파일은 대부분 메타 데이터만 포함하고 있습니다."
+
 msgid "Your wallet file is NOT encrypted."
+msgstr "고객님의 파일은 암호화된 상태가 아닙니다."
+
 msgid "Your wallet file is encrypted."
+msgstr "고객님의 파일은 암호화된 상태입니다."
+
 msgid "Your wallet file is: {}."
+msgstr "고객님의 파일은: {}"
+
 msgid "Your wallet generation seed is:"
+msgstr "지갑 고유 시드는:"
+
 msgid "Your wallet has {} prepaid transactions."
+msgstr "고객님의 지갑은 {} 거래에 대해 사전 지불한 상태입니다."
+
 msgid "Your wallet history has been successfully exported."
+msgstr "지갑 내역이 성공적으로 내보냈습니다."
+
 msgid "Your wallet is not protected."
+msgstr "고객님의 지갑은 보호받고 있지 못한 상태입니다."
+
 msgid "Your wallet is password protected and encrypted."
+msgstr "고객님 지갑의 비밀번호는 보호 받고 있으며, 암호화된 상태입니다."
+
 msgid "Your {0} were exported to '{1}"
+msgstr "고객님의 {0}이 '{1}'으로 전달됐습니다."
+
 msgid "Your {} were successfully imported"
+msgstr "고객님의 {}이 성공적으로 들여왔습니다."
+
 msgid "Zeros after decimal point"
+msgstr "소수점 자리 0"
+
 msgid "[Clear]"
+msgstr "[완료]"
+
 msgid "[Send]"
+msgstr "[전송]"
+
 msgid "[b] - print server banner"
+msgstr "[b] - 서버 배너 출력"
+
 msgid "[c] - display contacts"
+msgstr "[c] - 연락처 표기"
+
 msgid "[h] - displays this help text"
+msgstr "[h] - 도움말 텍스트 표기"
+
 msgid "[i] - display transaction history"
+msgstr "[i] - 거래 내역 표기"
+
 msgid "[o] - enter payment order"
+msgstr "[o] - 결제 주문 입력"
+
 msgid "[p] - print stored payment order"
+msgstr "[p] - 저장된 결제 주문 출력"
+
 msgid "[q] - quit"
+msgstr "[q] - 나가기"
+
 msgid "[r] - show own receipt addresses"
+msgstr "[r] - 수령 주문 보이기"
+
 msgid "[s] - send stored payment order"
+msgstr "[s] - 저장된 결제 주문 전송하기"
+
 msgid "add inputs and outputs"
+msgstr "입력과 출력 더하기"
+
 msgid "address already in wallet"
+msgstr "지갑에 이미 있는 주소"
+
 msgid "and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees."
+msgstr "미승인된 상태에 높은 거래 수수료를 지불하는 거래로 대체될 가능성이 있습니다."
+
 msgid "are frozen"
+msgstr "동결된"
+
 msgid "blocks"
+msgstr "블록"
+
 msgid "change"
+msgstr "변경"
+
 msgid "contacts"
+msgstr "연락처"
+
 msgid "cosigner"
+msgstr "연서인"
+
 msgid "could not find suitable outputs"
+msgstr "적절한 산출값을 찾을 수 없습니다."
+
 msgid "current fee unknown"
+msgstr "현재 수수료 알 수 없음"
+
 msgid "high fee"
+msgstr "높은 수수료"
+
 msgid "initialized"
+msgstr "실행된"
+
 msgid "invalid address"
+msgstr "유효하지 않은 주소"
+
 msgid "invalid private key"
+msgstr "유효하지 않은 개인 키"
+
 msgid "json"
+msgstr "JSON"
+
 msgid "keystore"
+msgstr "키스토어"
+
 msgid "labels"
+msgstr "라벨"
+
 msgid "more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
+msgstr "더 자세한 정보 <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
+
 msgid "not implemented type"
+msgstr "실행되지 않은 타입"
+
 msgid "open_channel timed out"
+msgstr "열기_만료된 채널"
+
 msgid "or type an existing revealer code below and click 'next':"
+msgstr "또는 아래 존재하는 표시자 코드 입력 후 '다음' 클릭:"
+
 msgid "please wait..."
+msgstr "잠시 기다려 주십시오."
+
 msgid "print the calibration pdf and follow the instructions"
+msgstr "교정 pdf 출력 및 안내 따르기"
+
 msgid "proxy enabled"
+msgstr "프록시 이용 가능 상태"
+
 msgid "receiving"
+msgstr "수신 중"
+
 msgid "secret backup utility"
+msgstr "시크릿 백업 유틸리티"
+
 msgid "seed"
+msgstr "시드"
+
 msgid "transaction is final"
+msgstr "거래가 마지막 단계에 있습니다."
+
 msgid "type a custom alphanumerical secret below:"
+msgstr "숫자와 알파벳으로 구성된 맞춤 비밀 문장을 입력해주십시오."
+
 msgid "unknown"
+msgstr "알 수 없음"
+
 msgid "unknown parser {!r} (choices: {})"
+msgstr "알 수 없는 구문{!r} (선택: {})"
+
 msgid "watching only"
+msgstr "읽기 전용"
+
 msgid "watching-only"
+msgstr "읽기 전용"
+
 msgid "wiped"
+msgstr "삭제된 상태"
+
 msgid "your seed extension will <b>not</b> be included in the encrypted backup."
+msgstr "고객님의 시드 연장은 암호화 백업에 포함될 수 없습니다."
+
 msgid "{:2d} minutes"
+msgstr "{:2d}분"
+
 msgid "{:d} words"
+msgstr "{:d} 단어"
+
 msgid "{num_channels} channels"
+msgstr "{num_channels} 채널"
+
 msgid "{num_nodes} nodes"
+msgstr "{num_nodes} 노드"
+
 msgid "{title} copied to clipboard:\n\n"
+msgstr "{title} 클립보드에 복사되었습니다.:\n\n"
+
 msgid "{} Settings"
+msgstr "{} 설정"
+
 msgid "{} confirmations"
+msgstr "{} 승인"
+
 msgid "{} connections."
+msgstr "{} 연결"
+
 msgid "{} encrypted for Revealer {}_{} saved as PNG and PDF at:"
+msgstr "표시자에 대해 암호화된 {} {}_{}가 PNG, PDF 파일로 저장됐습니다."
+
 msgid "{} from tip"
+msgstr "{} 맨 아래부터"
+
 msgid "{} is covered by GreenAddress instant confirmation"
+msgstr "{}은 GreenAddress 인스턴트 승인으로부터 검증되었습니다."
+
 msgid "{} is not covered by GreenAddress instant confirmation"
+msgstr "{}은 GreenAddress 인스턴트 승인으로부터 검증되지 않았습니다."
+
 msgid "{} new transactions: Total amount received in the new transactions {}"
+msgstr "{} 새로운 거래: 새로운 거래의 전체 수령 금액 {}"
+
 msgid "{} outputs available ({} total)"
+msgstr "{} 산출 가능액 (전체 {})"
+
 msgid "{} words"
+msgstr "{} 단어"
+

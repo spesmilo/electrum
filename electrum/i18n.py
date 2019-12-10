@@ -47,5 +47,6 @@ languages = {
     'es_ES': _('Spanish'),
     'ja_JP': _('Japanese'),
     'vi_VN': _('Vietnamese'),
-    'zh_CN': _('Chinese Simplified')
+    'zh_CN': _('Chinese Simplified'),
+    'ko_KR': _('Korean')
 }
