@@ -57,7 +57,7 @@ from .bitcoin import (COIN, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
 from . import keystore
-from .keystore import load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK
+from .keystore import load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK, AddressIndexGeneric
 from .util import multisig_type
 from .storage import StorageEncryptionVersion, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
@@ -421,7 +421,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return self.get_address_index(address)[0] == 1
 
     @abstractmethod
-    def get_address_index(self, address):
+    def get_address_index(self, address: str) -> Optional[AddressIndexGeneric]:
         pass
 
     @abstractmethod
@@ -1730,7 +1730,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         index = self.get_address_index(address)
         return self.keystore.sign_message(index, message, password)
 
-    def decrypt_message(self, pubkey, message, password) -> bytes:
+    def decrypt_message(self, pubkey: str, message, password) -> bytes:
         addr = self.pubkeys_to_address([pubkey])
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
@@ -2040,10 +2040,14 @@ class Imported_Wallet(Simple_Wallet):
 
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
-        for addr in self.db.get_imported_addresses():
+        for addr in self.db.get_imported_addresses():  # FIXME slow...
             if self.db.get_imported_address(addr)['pubkey'] == pubkey:
                 return addr
         return None
+
+    def decrypt_message(self, pubkey: str, message, password) -> bytes:
+        # this is significantly faster than the implementation in the superclass
+        return self.keystore.decrypt_message(pubkey, message, password)
 
 
 class Deterministic_Wallet(Abstract_Wallet):

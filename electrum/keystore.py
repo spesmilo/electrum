@@ -107,11 +107,11 @@ class KeyStore(Logger, ABC):
         pass
 
     @abstractmethod
-    def sign_message(self, sequence, message, password) -> bytes:
+    def sign_message(self, sequence: 'AddressIndexGeneric', message, password) -> bytes:
         pass
 
     @abstractmethod
-    def decrypt_message(self, sequence, message, password) -> bytes:
+    def decrypt_message(self, sequence: 'AddressIndexGeneric', message, password) -> bytes:
         pass
 
     @abstractmethod
@@ -185,7 +185,8 @@ class Software_KeyStore(KeyStore):
         pass
 
     @abstractmethod
-    def get_private_key(self, *args, **kwargs) -> Tuple[bytes, bool]:
+    def get_private_key(self, sequence: 'AddressIndexGeneric', password) -> Tuple[bytes, bool]:
+        """Returns (privkey, is_compressed)"""
         pass
 
 
@@ -196,7 +197,7 @@ class Imported_KeyStore(Software_KeyStore):
 
     def __init__(self, d):
         Software_KeyStore.__init__(self, d)
-        self.keypairs = d.get('keypairs', {})
+        self.keypairs = d.get('keypairs', {})  # type: Dict[str, str]
 
     def is_deterministic(self):
         return False
@@ -231,7 +232,7 @@ class Imported_KeyStore(Software_KeyStore):
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
-    def get_private_key(self, pubkey, password):
+    def get_private_key(self, pubkey: str, password):
         sec = pw_decode(self.keypairs[pubkey], password, version=self.pw_hash_version)
         txin_type, privkey, compressed = deserialize_privkey(sec)
         # this checks the password
@@ -541,7 +542,7 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         self.add_xprv(node.to_xprv())
         self.add_key_origin_from_root_node(derivation_prefix=derivation, root_node=rootnode)
 
-    def get_private_key(self, sequence, password):
+    def get_private_key(self, sequence: Sequence[int], password):
         xprv = self.get_master_private_key(password)
         node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(sequence)
         pk = node.eckey.get_secret_bytes()
@@ -633,7 +634,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         pk = number_to_string(secexp, ecc.CURVE_ORDER)
         return pk
 
-    def get_private_key(self, sequence, password):
+    def get_private_key(self, sequence: Sequence[int], password):
         seed = self.get_hex_seed(password)
         secexp = self.stretch_key(seed)
         self._check_seed(seed, secexp=secexp)
@@ -772,6 +773,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
 
 
 KeyStoreWithMPK = Union[KeyStore, MasterPublicKeyMixin]  # intersection really...
+AddressIndexGeneric = Union[Sequence[int], str]  # can be hex pubkey str
 
 
 def bip39_normalize_passphrase(passphrase):
