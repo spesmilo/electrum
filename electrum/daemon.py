@@ -485,6 +485,7 @@ class Daemon(Logger):
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
+        self.logger.info(f'launching GUI: {gui_name}')
         gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
         self.gui_object = gui.ElectrumGui(config, self, plugins)
         try:

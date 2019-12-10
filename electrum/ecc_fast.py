@@ -263,7 +263,8 @@ def is_using_fast_ecc():
 
 try:
     _libsecp256k1 = load_library()
-except:
+except BaseException as e:
+    _logger.warning(f'failed to load libsecp256k1: {repr(e)}')
     _libsecp256k1 = None
 
 _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
