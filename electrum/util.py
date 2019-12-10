@@ -183,7 +183,9 @@ class BitcoinException(Exception): pass
 class UserFacingException(Exception):
     """Exception that contains information intended to be shown to the user."""
 
-class InvoiceError(Exception): pass
+
+class InvoiceError(UserFacingException): pass
+
 
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.

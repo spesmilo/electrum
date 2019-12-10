@@ -892,7 +892,6 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
-    @log_exceptions
     async def _pay(self, invoice, amount_sat=None, attempts=1) -> bool:
         lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
