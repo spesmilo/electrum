@@ -7,6 +7,7 @@ dist/
 /electrum.py
 contrib/pyinstaller/
 Electron_Cash.egg-info/
+locale/
 .devlocaltmp/
 *_trial_temp
 packages
