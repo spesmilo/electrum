@@ -336,7 +336,7 @@ class MasterPublicKeyMixin(ABC):
         pass
 
     @abstractmethod
-    def derive_pubkey(self, for_change: int, n: int) -> str:
+    def derive_pubkey(self, for_change: int, n: int) -> bytes:
         pass
 
     def get_pubkey_derivation(self, pubkey: bytes,
@@ -346,7 +346,7 @@ class MasterPublicKeyMixin(ABC):
         def test_der_suffix_against_pubkey(der_suffix: Sequence[int], pubkey: bytes) -> bool:
             if len(der_suffix) != 2:
                 return False
-            if pubkey.hex() != self.derive_pubkey(*der_suffix):
+            if pubkey != self.derive_pubkey(*der_suffix):
                 return False
             return True
 
@@ -452,10 +452,9 @@ class Xpub(MasterPublicKeyMixin):
         self._root_fingerprint = root_fingerprint
         self._derivation_prefix = normalize_bip32_derivation(derivation_prefix)
 
-    # note: this helper method exists as derive_pubkey returns hex strings,
-    #       and it saves space to cache bytes instead
     @lru_cache(maxsize=None)
-    def _derive_pubkey_bytes(self, for_change: int, n: int) -> bytes:
+    def derive_pubkey(self, for_change: int, n: int) -> bytes:
+        for_change = int(for_change)
         assert for_change in (0, 1)
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
@@ -466,11 +465,6 @@ class Xpub(MasterPublicKeyMixin):
             else:
                 self.xpub_receive = xpub
         return self.get_pubkey_from_xpub(xpub, (n,))
-
-    def derive_pubkey(self, for_change: int, n: int) -> str:
-        for_change = int(for_change)
-        assert for_change in (0, 1)
-        return self._derive_pubkey_bytes(for_change, n).hex()
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub: str, sequence) -> bytes:
@@ -618,13 +612,14 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         return string_to_number(sha256d(("%d:%d:"%(n, for_change)).encode('ascii') + bfh(mpk)))
 
     @classmethod
-    def get_pubkey_from_mpk(self, mpk, for_change, n):
-        z = self.get_sequence(mpk, for_change, n)
+    def get_pubkey_from_mpk(cls, mpk, for_change, n) -> bytes:
+        z = cls.get_sequence(mpk, for_change, n)
         master_public_key = ecc.ECPubkey(bfh('04'+mpk))
         public_key = master_public_key + z*ecc.generator()
-        return public_key.get_public_key_hex(compressed=False)
+        return public_key.get_public_key_bytes(compressed=False)
 
-    def derive_pubkey(self, for_change, n) -> str:
+    @lru_cache(maxsize=None)
+    def derive_pubkey(self, for_change, n) -> bytes:
         for_change = int(for_change)
         assert for_change in (0, 1)
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)

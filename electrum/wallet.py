@@ -454,8 +454,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_public_keys(self, address: str) -> Sequence[str]:
         pass
 
-    def get_public_keys_with_deriv_info(self, address: str) -> Dict[str, Tuple[KeyStoreWithMPK, Sequence[int]]]:
-        """Returns a map: pubkey_hex -> (keystore, derivation_suffix)"""
+    def get_public_keys_with_deriv_info(self, address: str) -> Dict[bytes, Tuple[KeyStoreWithMPK, Sequence[int]]]:
+        """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
     def get_tx_info(self, tx) -> TxWalletDetails:
@@ -2152,12 +2152,12 @@ class Deterministic_Wallet(Abstract_Wallet):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txinout.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
-        for pubkey_hex in pubkey_deriv_info:
-            ks, der_suffix = pubkey_deriv_info[pubkey_hex]
+        txinout.pubkeys = sorted([pk for pk in list(pubkey_deriv_info)])
+        for pubkey in pubkey_deriv_info:
+            ks, der_suffix = pubkey_deriv_info[pubkey]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
                                                                                    only_der_suffix=only_der_suffix)
-            txinout.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
+            txinout.bip32_paths[pubkey] = (fp_bytes, der_full)
 
     def create_new_address(self, for_change: bool = False):
         assert type(for_change) is bool
@@ -2254,7 +2254,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         return self.keystore.get_master_public_key()
 
     def derive_pubkeys(self, c, i):
-        return [self.keystore.derive_pubkey(c, i)]
+        return [self.keystore.derive_pubkey(c, i).hex()]
 
 
 
@@ -2278,7 +2278,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         Deterministic_Wallet.__init__(self, storage, config=config)
 
     def get_public_keys(self, address):
-        return list(self.get_public_keys_with_deriv_info(address))
+        return [pk.hex() for pk in self.get_public_keys_with_deriv_info(address)]
 
     def pubkeys_to_address(self, pubkeys):
         redeem_script = self.pubkeys_to_scriptcode(pubkeys)
@@ -2310,7 +2310,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         raise UnknownTxinType(f'unexpected txin_type {txin_type}')
 
     def derive_pubkeys(self, c, i):
-        return [k.derive_pubkey(c, i) for k in self.get_keystores()]
+        return [k.derive_pubkey(c, i).hex() for k in self.get_keystores()]
 
     def load_keystore(self):
         self.keystores = {}
