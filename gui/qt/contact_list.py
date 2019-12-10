@@ -218,6 +218,12 @@ class ContactList(PrintError, MyTreeWidget):
             a = menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(deletable_keys))
             if not deletable_keys:
                 a.setDisabled(True)
+            # Add sign/verify and encrypt/decrypt menu - but only if just 1 thing selected
+            if len(keys) == 1 and Address.is_valid(keys[0].address):
+                signAddr = Address.from_string(keys[0].address)
+                a = menu.addAction(_("Sign/verify message") + "...", lambda: self.parent.sign_verify_message(signAddr))
+                if signAddr.kind != Address.ADDR_P2PKH:
+                    a.setDisabled(True)  # We only allow this for P2PKH since it makes no sense for P2SH (ambiguous public key)
             URLs = [web.BE_URL(self.config, 'addr', Address.from_string(key.address))
                     for key in keys if Address.is_valid(key.address)]
             a = menu.addAction(_("View on block explorer"), lambda: [URL and webopen(URL) for URL in URLs])
