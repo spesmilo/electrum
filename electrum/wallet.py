@@ -1527,12 +1527,10 @@ class Abstract_Wallet(AddressSynchronizer):
         timestamp = r.get('time', 0)
         if timestamp and type(timestamp) != int:
             timestamp = 0
-        expiration = r.get('exp')
-        if expiration and type(expiration) != int:
-            expiration = 0
+        exp = r.get('exp', 0)
         paid, conf = self.get_payment_status(address, amount)
         if not paid:
-            if expiration is not None and time.time() > timestamp + expiration:
+            if exp > 0 and time.time() > timestamp + exp:
                 status = PR_EXPIRED
             else:
                 status = PR_UNPAID

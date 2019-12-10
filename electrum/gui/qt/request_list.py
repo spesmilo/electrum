@@ -117,7 +117,7 @@ class RequestList(MyTreeView):
                 continue
             request_type = req['type']
             timestamp = req.get('time', 0)
-            expiration = req.get('exp', None)
+            expiration = req.get('exp', 0)
             amount = req.get('amount')
             message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
