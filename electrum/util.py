@@ -71,7 +71,7 @@ base_units = {'BTCV':8, 'mBTCV':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
 base_units_list = ['BTCV', 'mBTCV', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTCV
+DECIMAL_POINT_DEFAULT = 8  # mBTCV
 
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
