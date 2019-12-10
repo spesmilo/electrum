@@ -624,12 +624,12 @@ class ElectrumGui(QObject, PrintError):
 
         if not self.windows:
             self.config.save_last_wallet(window.wallet)
-            # NB: we now unconditionally quit the app after the last wallet
+            # NB: We see if we should quit the app after the last wallet
             # window is closed, even if a network dialog or some other window is
             # open.  It was bizarre behavior to keep the app open when
             # things like a transaction dialog or the network dialog were still
             # up.
-            __class__._quit_after_last_window()  # checks if qApp.quitOnLastWindowClosed() is True, and if so, calls qApp.quit()
+            self._quit_after_last_window()  # central point that checks if we should quit.
 
         #window.deleteLater()  # <--- This has the potential to cause bugs (esp. with misbehaving plugins), so commented-out. The object gets deleted anyway when Python GC kicks in. Forcing a delete may risk python to have a dangling reference to a deleted C++ object.
 
@@ -815,12 +815,17 @@ class ElectrumGui(QObject, PrintError):
             else:
                 self._stop_auto_update_timer()
 
-    @staticmethod
-    def _quit_after_last_window():
-        # on some platforms, not only does exec_ not return but not even
-        # aboutToQuit is emitted (but following this, it should be emitted)
-        if qApp.quitOnLastWindowClosed():
-            qApp.quit()
+    def _quit_after_last_window(self):
+        if any(1 for w in self.windows
+               if isinstance(w, ElectrumWindow) and not w.cleaned_up):
+            # We can get here if we have some top-level ElectrumWindows that
+            # are "minimized to tray" (hidden).  "lastWindowClosed "is emitted
+            # if there are no *visible* windows.  If we actually have hidden
+            # app windows (because the user hid them), then we want to *not*
+            # quit the app. https://doc.qt.io/qt-5/qguiapplication.html#lastWindowClosed
+            # This check and early return fixes issue #1727.
+            return
+        qApp.quit()
 
     def notify(self, message):
         ''' Display a message in the system tray popup notification. On macOS
@@ -912,8 +917,8 @@ class ElectrumGui(QObject, PrintError):
             return
         signal.signal(signal.SIGINT, lambda signum, frame: self.shutdown_signal.emit())
 
-        self.app.setQuitOnLastWindowClosed(True)
-        self.app.lastWindowClosed.connect(__class__._quit_after_last_window)
+        self.app.setQuitOnLastWindowClosed(False)  # we want to control this in our slot (since we support non-visible, backgrounded windows via the systray show/hide facility)
+        self.app.lastWindowClosed.connect(self._quit_after_last_window)
 
         def clean_up():
             # Just in case we get an exception as we exit, uninstall the Exception_Hook
