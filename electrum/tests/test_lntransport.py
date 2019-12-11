@@ -38,7 +38,7 @@ class TestLNTransport(ElectrumTestCase):
         asyncio.get_event_loop().run_until_complete(transport.handshake(epriv=e_priv))
 
     def test_loop(self):
-        l = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         responder_shaked = asyncio.Event()
         server_shaked = asyncio.Event()
         responder_key = ECPrivkey.generate_random_key()
@@ -50,7 +50,7 @@ class TestLNTransport(ElectrumTestCase):
             self.assertEqual(await t.read_messages().__anext__(), b'hello from client')
             responder_shaked.set()
         server_future = asyncio.ensure_future(asyncio.start_server(cb, '127.0.0.1', 42898))
-        l.run_until_complete(server_future)
+        loop.run_until_complete(server_future)
         async def connect():
             peer_addr = LNPeerAddr('127.0.0.1', 42898, responder_key.get_public_key_bytes())
             t = LNTransport(initiator_key.get_secret_bytes(), peer_addr)
@@ -59,6 +59,6 @@ class TestLNTransport(ElectrumTestCase):
             self.assertEqual(await t.read_messages().__anext__(), b'hello from server')
             server_shaked.set()
 
-        asyncio.ensure_future(connect())
-        l.run_until_complete(responder_shaked.wait())
-        l.run_until_complete(server_shaked.wait())
+        connect_future = asyncio.ensure_future(connect())
+        loop.run_until_complete(responder_shaked.wait())
+        loop.run_until_complete(server_shaked.wait())

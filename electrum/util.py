@@ -1020,6 +1020,7 @@ def ignore_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
+            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
             raise
         except Exception as e:
             pass

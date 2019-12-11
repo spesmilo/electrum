@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from functools import partial
 from collections import defaultdict
 import concurrent
+from concurrent import futures
 
 import dns.resolver
 import dns.exception

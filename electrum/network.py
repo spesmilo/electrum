@@ -35,6 +35,8 @@ import ipaddress
 import asyncio
 from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING
 import traceback
+import concurrent
+from concurrent import futures
 
 import dns
 import dns.resolver
@@ -1204,7 +1206,7 @@ class Network(Logger):
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
         try:
             fut.result(timeout=2)
-        except (asyncio.TimeoutError, asyncio.CancelledError): pass
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError): pass
 
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():
