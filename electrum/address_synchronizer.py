@@ -739,10 +739,8 @@ class AddressSynchronizer(PrintError):
             script = output.scriptPubKey
             if output.asset != constants.net.WHITELISTASSET:
                 continue
-            if output.type == transaction.TYPE_ADDRESS:
+            if output.type == transaction.TYPE_ADDRESS or  output.type == transaction.TYPE_PUBKEY:
                 addresses.add(output.address)
-            else:
-                self.network.subscribe_to_scripthash(bitcoin.script_to_scripthash(script))
                 
             datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
             

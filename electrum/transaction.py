@@ -468,16 +468,16 @@ def parse_scriptSig(d, _bytes):
         d['data']=decoded[1][1]
         return
 
-    match = [ opcodes.OP_REGISTERADDRESS, OP_1, opcodes.OP_PUSHDATA4 ]
+    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         d['type']='registeraddress_v1'
-        d['data']=decoded[1][1]
+        d['data']=decoded[2][1]
         return
 
-    match = [ opcodes.OP_DEREGISTERADDRESS, OP_1, opcodes.OP_PUSHDATA4 ]
+    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         d['type']='deregisteraddress_v1'
-        d['data']=decoded[1][1]
+        d['data']=decoded[2][1]
         return
 
     print_error("parse_scriptSig: cannot find address in input script (unknown)",

@@ -1501,7 +1501,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        if constants.net.ENCRYPTED_WHITELIST:
+        if  txtype == 'registeraddress_v0' and constants.net.ENCRYPTED_WHITELIST:
             if self.parse_onboard_data(data, parent_window):
                 return True
             if self.parse_registeraddress_data(data, tx, parent_window):
