@@ -1416,7 +1416,11 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return True
 
-    def parse_ratx_addresses(self, data, registered_state=True):
+    def parse_ratx_addresses(self, data, txtype='registeraddress_v0'):
+        #To do: parse version 1 transactions
+        if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1':
+            return
+        
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
@@ -1470,6 +1474,11 @@ class Abstract_Wallet(AddressSynchronizer):
             nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
 
         self.set_pending_state(addrs, False)
+
+        registered_state=False
+        if txtype == 'registeraddress_v1' or txtype == 'registeraddress_v0':
+            registered_state=True
+            
         self.set_registered_state(addrs, registered_state)
 
     def get_zero_address(self):
@@ -1483,7 +1492,7 @@ class Abstract_Wallet(AddressSynchronizer):
             transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
             if len(decoded) is not 0:
                 txtype=decoded['type']
-                if txtype == 'registeraddress' or txtype == 'deregisteraddress':
+                if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1' or txtype == 'registeraddress_v0' or txtype == 'deregisteraddress_v0':
                     data=decoded['data']
                     break
                 else:
@@ -1492,13 +1501,13 @@ class Abstract_Wallet(AddressSynchronizer):
         if data is None:
             return False
 
-        if txtype == 'registeraddress' and constants.net.ENCRYPTED_WHITELIST:
+        if constants.net.ENCRYPTED_WHITELIST:
             if self.parse_onboard_data(data, parent_window):
                 return True
             if self.parse_registeraddress_data(data, tx, parent_window):
                 return True
         else:
-            return self.parse_ratx_addresses(data, txtype != 'deregisteraddress')
+            return self.parse_ratx_addresses(data, txtype)
 
         return False
 

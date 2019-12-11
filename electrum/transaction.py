@@ -458,13 +458,25 @@ def parse_scriptSig(d, _bytes):
 
     match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        d['type']='registeraddress'
+        d['type']='registeraddress_v0'
         d['data']=decoded[1][1]
         return
 
     match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        d['type']='deregisteraddress'
+        d['type']='deregisteraddress_v0'
+        d['data']=decoded[1][1]
+        return
+
+    match = [ opcodes.OP_REGISTERADDRESS, OP_1, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='registeraddress_v1'
+        d['data']=decoded[1][1]
+        return
+
+    match = [ opcodes.OP_DEREGISTERADDRESS, OP_1, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='deregisteraddress_v1'
         d['data']=decoded[1][1]
         return
 
