@@ -740,7 +740,8 @@ class AddressSynchronizer(PrintError):
             if output.asset != constants.net.WHITELISTASSET:
                 continue
             if output.type == transaction.TYPE_ADDRESS or  output.type == transaction.TYPE_PUBKEY:
-                addresses.add(output.address)
+                if output.address != WHITELISTCOINSADDRESS:
+                    addresses.add(output.address)
                 
             datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
             
