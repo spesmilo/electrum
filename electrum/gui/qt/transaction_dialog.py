@@ -558,8 +558,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.rbf_cb = QCheckBox(_('Replace by fee'))
         self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
         vbox_right.addWidget(self.rbf_cb)
-        self.rbf_label.setVisible(self.finalized)
-        self.rbf_cb.setVisible(not self.finalized)
 
         self.locktime_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_label)
@@ -571,6 +569,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
+
+        # set visibility after parenting can be determined by Qt
+        self.rbf_label.setVisible(self.finalized)
+        self.rbf_cb.setVisible(not self.finalized)
 
     def set_title(self):
         self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
