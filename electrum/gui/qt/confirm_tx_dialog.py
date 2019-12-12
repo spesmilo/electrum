@@ -34,7 +34,7 @@ from electrum.transaction import Transaction, PartialTransaction
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
-from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton
+from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, BlockingWaitingDialog
 
 from .fee_slider import FeeSlider
 
@@ -156,7 +156,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.send_button.clicked.connect(self.on_send)
         self.send_button.setDefault(True)
         vbox.addLayout(Buttons(CancelButton(self), self.send_button))
-        self.update_tx()
+        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update_tx)
         self.update()
         self.is_send = False
 
