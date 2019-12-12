@@ -50,7 +50,8 @@ from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
-                   char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER)
+                   char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER,
+                   BlockingWaitingDialog)
 
 from .fee_slider import FeeSlider
 from .confirm_tx_dialog import TxEditor
@@ -606,7 +607,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
-        self.update_tx()
+        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update_tx)
         self.update()
 
     def create_fee_controls(self):
