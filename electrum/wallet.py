@@ -1419,8 +1419,8 @@ class Abstract_Wallet(AddressSynchronizer):
     def parse_ratx_addresses(self, data, txtype='registeraddress_v0'):
         #To do: parse version 1 transactions
         if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1':
-            return
-        
+            return 
+
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
@@ -1475,9 +1475,10 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.set_pending_state(addrs, False)
 
-        registered_state=False
         if txtype == 'registeraddress_v1' or txtype == 'registeraddress_v0':
             registered_state=True
+        else:
+            registered_state=False
             
         self.set_registered_state(addrs, registered_state)
 
@@ -1507,9 +1508,9 @@ class Abstract_Wallet(AddressSynchronizer):
             if self.parse_registeraddress_data(data, tx, parent_window):
                 return True
         else:
-            return self.parse_ratx_addresses(data, txtype)
+            self.parse_ratx_addresses(data, txtype)
 
-        return False
+        return True
 
 
 class Simple_Wallet(Abstract_Wallet):
