@@ -51,6 +51,7 @@ class Synchronizer(ThreadJob):
         self.requested_tx = {}
         self.requested_histories = {}
         self.requested_addrs = set()
+        self.requested_addrs_persistent = set()
         self.lock = Lock()
 
         self.initialized = False
@@ -74,9 +75,12 @@ class Synchronizer(ThreadJob):
         with self.lock:
             self.new_addresses.add(address)
 
-    def subscribe_to_addresses(self, addresses):
+    def subscribe_to_addresses(self, addresses, bForce: bool = True):
+        if not bForce: 
+            addresses=addresses.difference(self.requested_addrs_persistent) #Do not subscribe for the same address twice
         if addresses:
             self.requested_addrs |= addresses
+            self.requested_addrs_persistent |= addresses
             self.network.subscribe_to_addresses(addresses, self.on_address_status)
 
     def get_status(self, h):

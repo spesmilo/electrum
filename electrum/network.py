@@ -1259,8 +1259,7 @@ class Network(util.DaemonThread):
             callback(x2)
         return cb2
 
-    def subscribe_to_addresses(self, addresses: set, callback):
-        addresses=addresses.difference(self.h2addr.values())
+    def subscribe_to_addresses(self, addresses, callback):
         hash2address = {
             bitcoin.address_to_scripthash(address): address
             for address in addresses}

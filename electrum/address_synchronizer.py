@@ -758,7 +758,7 @@ class AddressSynchronizer(PrintError):
             outpoint = TxOutPoint(tx.txid(), n_output)    
             self.add_unassigned_kyc_pubkey(data, outpoint)
 
-        self.synchronizer.subscribe_to_addresses(addresses)
+        self.synchronizer.subscribe_to_addresses(addresses, False)
         return (datatype==TYPE_DATA)
 
 
