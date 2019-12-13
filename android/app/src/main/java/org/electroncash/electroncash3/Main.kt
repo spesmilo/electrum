@@ -612,6 +612,7 @@ class WalletExportDialog : AlertDialogFragment() {
                 toast(R.string.filenames_cannot)
             } else {
                 val exportDir = File(activity!!.cacheDir, "wallet_exports")
+                exportDir.deleteRecursively() // To ensure no more than one temp file lingers
                 val exportFilePath = "$exportDir/$exportFileName"
                 val exportFile = File(exportFilePath)
                 val exportFileUri: Uri = FileProvider.getUriForFile(activity!!,
