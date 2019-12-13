@@ -5,8 +5,8 @@ import json
 import os
 from os.path import dirname, exists, join
 import pkgutil
-import unittest
 from shutil import copyfile
+import unittest
 
 from electroncash import commands, daemon, keystore, simple_config, storage, tests, util
 from electroncash.i18n import _
