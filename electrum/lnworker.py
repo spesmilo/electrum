@@ -664,6 +664,7 @@ class LNWallet(LNWorker):
 
         # save timestamp regardless of state, so that funding tx is returned in get_history
         self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
+        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
@@ -675,7 +676,6 @@ class LNWallet(LNWorker):
                 self.save_short_chan_id(chan)
             if chan.short_channel_id:
                 chan.set_state(channel_states.FUNDED)
-                self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
 
         if chan.get_state() == channel_states.FUNDED:
             peer = self.peers.get(chan.node_id)
