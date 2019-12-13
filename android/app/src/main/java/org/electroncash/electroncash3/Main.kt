@@ -600,9 +600,8 @@ class WalletExportDialog : AlertDialogFragment() {
     @SuppressLint("SetTextI18n")
     override fun onFirstShowDialog() {
         val walletName = arguments!!.getString("walletName")!!
-        val extension = ".ecw"
-        etExportFileName.setText("${walletName}${extension}")
-        etExportFileName.setSelection(0, etExportFileName.getText().length - extension.length)
+        etExportFileName.setText(walletName)
+        etExportFileName.setSelection(0, etExportFileName.getText().length)
     }
 
     override fun onShowDialog() {
