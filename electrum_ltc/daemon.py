@@ -30,11 +30,11 @@ import traceback
 import sys
 import threading
 from typing import Dict, Optional, Tuple
-import aiohttp
-from aiohttp import web
 from base64 import b64decode
 from collections import defaultdict
 
+import aiohttp
+from aiohttp import web, client_exceptions
 import jsonrpcclient
 import jsonrpcserver
 from jsonrpcserver import response
@@ -53,6 +53,7 @@ from .logging import get_logger, Logger
 
 
 _logger = get_logger(__name__)
+
 
 class DaemonNotRunning(Exception):
     pass
@@ -100,7 +101,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = asyncio.get_event_loop()
         async def request_coroutine():
-            async with aiohttp.ClientSession(auth=auth, loop=loop) as session:
+            async with aiohttp.ClientSession(auth=auth) as session:
                 server = AiohttpClient(session, server_url)
                 f = getattr(server, endpoint)
                 response = await f(*args)
@@ -484,6 +485,7 @@ class Daemon(Logger):
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
+        self.logger.info(f'launching GUI: {gui_name}')
         gui = __import__('electrum_ltc.gui.' + gui_name, fromlist=['electrum_ltc'])
         self.gui_object = gui.ElectrumGui(config, self, plugins)
         try:

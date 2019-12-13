@@ -59,7 +59,7 @@ class WalletStorage(Logger):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.path = standardize_path(path)
-        self._file_exists = self.path and os.path.exists(self.path)
+        self._file_exists = bool(self.path and os.path.exists(self.path))
 
         DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
@@ -139,7 +139,7 @@ class WalletStorage(Logger):
         self.logger.info(f"saved {self.path}")
         self.db.set_modified(False)
 
-    def file_exists(self):
+    def file_exists(self) -> bool:
         return self._file_exists
 
     def is_past_initial_decryption(self):

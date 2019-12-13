@@ -9,7 +9,7 @@ import os
 import webbrowser
 
 from functools import partial, lru_cache
-from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
+from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any
 
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
                          QPalette, QIcon, QFontMetrics)
@@ -280,7 +280,7 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
 class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst running a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_success=None, on_error=None):
+    def __init__(self, parent: QWidget, message: str, task, on_success=None, on_error=None):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
@@ -303,6 +303,26 @@ class WaitingDialog(WindowModalDialog):
     def update(self, msg):
         print(msg)
         self.message_label.setText(msg)
+
+
+class BlockingWaitingDialog(WindowModalDialog):
+    """Shows a waiting dialog whilst running a task.
+    Should be called from the GUI thread. The GUI thread will be blocked while
+    the task is running; the point of the dialog is to provide feedback
+    to the user regarding what is going on.
+    """
+    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any]):
+        assert parent
+        if isinstance(parent, MessageBoxMixin):
+            parent = parent.top_level_window()
+        WindowModalDialog.__init__(self, parent, _("Please wait"))
+        self.message_label = QLabel(message)
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(self.message_label)
+        self.show()
+        QCoreApplication.processEvents()
+        task()
+        self.accept()
 
 
 def line_dialog(parent, title, label, ok_label, default=None):

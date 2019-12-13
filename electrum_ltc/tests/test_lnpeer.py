@@ -5,6 +5,8 @@ import os
 from contextlib import contextmanager
 from collections import defaultdict
 import logging
+import concurrent
+from concurrent import futures
 
 from electrum_ltc.network import Network
 from electrum_ltc.ecc import ECPrivkey
@@ -236,7 +238,7 @@ class TestPeer(ElectrumTestCase):
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
         async def f():
             await gath
-        with self.assertRaises(asyncio.CancelledError):
+        with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
     def test_channel_usage_after_closing(self):

@@ -343,8 +343,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
             return ks
 
         ks = create_keystore_from_bip32seed(xtype='standard')
-        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
-        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0).hex())
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0).hex())
 
         ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
         w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
@@ -431,8 +431,8 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
             return ks
 
         ks = create_keystore_from_bip32seed(xtype='standard')
-        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
-        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0).hex())
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0).hex())
 
         ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
         w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)

@@ -29,7 +29,7 @@ import sys
 import traceback
 import asyncio
 import socket
-from typing import Tuple, Union, List, TYPE_CHECKING, Optional
+from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
 import itertools
@@ -233,7 +233,7 @@ class Interface(Logger):
         assert network.config.path
         self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
         self.blockchain = None  # type: Optional[Blockchain]
-        self._requested_chunks = set()
+        self._requested_chunks = set()  # type: Set[int]
         self.network = network
         self._set_proxy(proxy)
         self.session = None  # type: Optional[NotificationSession]
@@ -431,7 +431,7 @@ class Interface(Logger):
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
-    async def request_chunk(self, height, tip=None, *, can_return_early=False):
+    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
         index = height // 2016
         if can_return_early and index in self._requested_chunks:
             return
@@ -444,8 +444,7 @@ class Interface(Logger):
             self._requested_chunks.add(index)
             res = await self.session.send_request('blockchain.block.headers', [index * 2016, size])
         finally:
-            try: self._requested_chunks.remove(index)
-            except KeyError: pass
+            self._requested_chunks.discard(index)
         conn = self.blockchain.connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0

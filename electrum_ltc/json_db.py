@@ -860,11 +860,11 @@ class JsonDB(Logger):
         self.imported_addresses.pop(addr)
 
     @locked
-    def has_imported_address(self, addr):
+    def has_imported_address(self, addr: str) -> bool:
         return addr in self.imported_addresses
 
     @locked
-    def get_imported_addresses(self):
+    def get_imported_addresses(self) -> Sequence[str]:
         return list(sorted(self.imported_addresses.keys()))
 
     @locked
@@ -874,7 +874,7 @@ class JsonDB(Logger):
     def load_addresses(self, wallet_type):
         """ called from Abstract_Wallet.__init__ """
         if wallet_type == 'imported':
-            self.imported_addresses = self.get_data_ref('addresses')
+            self.imported_addresses = self.get_data_ref('addresses')  # type: Dict[str, dict]
         else:
             self.get_data_ref('addresses')
             for name in ['receiving', 'change']:

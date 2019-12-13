@@ -55,7 +55,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
     def __init__(self, network: 'Network', channel_db: 'ChannelDB'):
         self.channel_db = channel_db
         self.lock = threading.Lock()
-        self.unverified_channel_info = {}  # type: Dict[ShortChannelID, dict]  # scid -> msg_payload
+        self.unverified_channel_info = {}  # type: Dict[ShortChannelID, dict]  # scid -> msg_dict
         # channel announcements that seem to be invalid:
         self.blacklist = set()  # type: Set[ShortChannelID]
         NetworkJobOnDefaultServer.__init__(self, network)
@@ -65,13 +65,14 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         self.started_verifying_channel = set()  # type: Set[ShortChannelID]
 
     # TODO make async; and rm self.lock completely
-    def add_new_channel_info(self, short_channel_id: ShortChannelID, msg_payload):
+    def add_new_channel_info(self, short_channel_id: ShortChannelID, msg: dict) -> bool:
         if short_channel_id in self.unverified_channel_info:
-            return
+            return False
         if short_channel_id in self.blacklist:
-            return
+            return False
         with self.lock:
-            self.unverified_channel_info[short_channel_id] = msg_payload
+            self.unverified_channel_info[short_channel_id] = msg
+            return True
 
     async def _start_tasks(self):
         async with self.group as group:
@@ -146,10 +147,8 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self.logger.info(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
             return
         # check funding output
-        msg_payload = self.unverified_channel_info[short_channel_id]
-        msg_type, chan_ann = decode_msg(msg_payload)
-        assert msg_type == 'channel_announcement'
-        redeem_script = funding_output_script_from_keys(chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2'])
+        chan_ann_msg = self.unverified_channel_info[short_channel_id]
+        redeem_script = funding_output_script_from_keys(chan_ann_msg['bitcoin_key_1'], chan_ann_msg['bitcoin_key_2'])
         expected_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         try:
             actual_output = tx.outputs()[short_channel_id.output_index]
@@ -162,14 +161,13 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self._remove_channel_from_unverified_db(short_channel_id)
             return
         # put channel into channel DB
-        self.channel_db.add_verified_channel_info(short_channel_id, actual_output.value)
+        self.channel_db.add_verified_channel_info(chan_ann_msg, capacity_sat=actual_output.value)
         self._remove_channel_from_unverified_db(short_channel_id)
 
     def _remove_channel_from_unverified_db(self, short_channel_id: ShortChannelID):
         with self.lock:
             self.unverified_channel_info.pop(short_channel_id, None)
-        try: self.started_verifying_channel.remove(short_channel_id)
-        except KeyError: pass
+        self.started_verifying_channel.discard(short_channel_id)
 
     def _blacklist_short_channel_id(self, short_channel_id: ShortChannelID) -> None:
         self.blacklist.add(short_channel_id)

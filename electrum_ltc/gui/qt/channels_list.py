@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
 
-from electrum_ltc.util import bh2u
+from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.i18n import _
 from electrum_ltc.lnchannel import Channel
 from electrum_ltc.wallet import Abstract_Wallet
@@ -178,7 +178,13 @@ class ChannelsList(MyTreeView):
             if not max_button.isChecked():
                 return
             make_tx = self.parent.mktx_for_open_channel('!')
-            tx = make_tx(None)
+            try:
+                tx = make_tx(None)
+            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+                max_button.setChecked(False)
+                amount_e.setFrozen(False)
+                self.main_window.show_error(str(e))
+                return
             amount = tx.output_value()
             amount = min(amount, LN_MAX_FUNDING_SAT)
             amount_e.setAmount(amount)

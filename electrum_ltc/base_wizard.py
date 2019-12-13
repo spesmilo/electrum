@@ -369,7 +369,7 @@ class BaseWizard(Logger):
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
-            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ()).hex()
             try:
                 storage.decrypt(password)
             except InvalidPassword:

@@ -5,7 +5,7 @@
 from enum import IntFlag, IntEnum
 import json
 from collections import namedtuple
-from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set
+from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
 
 from aiorpcx import NetAddress
@@ -24,6 +24,8 @@ from .keystore import BIP32_KeyStore
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
+    from .lnrouter import LNPaymentRoute
+    from .lnonion import OnionRoutingFailureMessage
 
 
 HTLC_TIMEOUT_WEIGHT = 663
@@ -114,6 +116,20 @@ class ScriptHtlc(NamedTuple):
 class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
     def to_str(self):
         return "{}:{}".format(self.txid, self.output_index)
+
+
+class PaymentAttemptFailureDetails(NamedTuple):
+    sender_idx: int
+    failure_msg: 'OnionRoutingFailureMessage'
+    is_blacklisted: bool
+
+
+class PaymentAttemptLog(NamedTuple):
+    success: bool
+    route: Optional['LNPaymentRoute'] = None
+    preimage: Optional[bytes] = None
+    failure_details: Optional[PaymentAttemptFailureDetails] = None
+    exception: Optional[Exception] = None
 
 
 class LightningError(Exception): pass
