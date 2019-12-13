@@ -387,11 +387,10 @@ class AboutDialog : AlertDialogFragment() {
 }
 
 
-class WalletOpenDialog : TaskLauncherDialog<String>() {
+class WalletOpenDialog : PasswordDialog<String>() {
     val walletName by lazy { arguments!!.getString("walletName")!! }
-    var password: String by notNull()
 
-    fun onPassword(password: String): String {
+    override fun onPassword(password: String): String {
         daemonModel.loadWallet(walletName, password)
         return walletName
     }
@@ -401,28 +400,13 @@ class WalletOpenDialog : TaskLauncherDialog<String>() {
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
+        super.onBuildDialog(builder)
         builder.setView(R.layout.wallet_open)
-                .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(android.R.string.cancel, null)
                 .setNeutralButton(R.string.Delete_wallet, null)
-    }
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): AlertDialog {
-        val dialog = super.onCreateDialog(savedInstanceState)
-        dialog.window!!.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        return dialog
     }
 
     override fun onShowDialog() {
         super.onShowDialog()
-        etWalletPassword.setOnEditorActionListener { _, actionId: Int, event: KeyEvent? ->
-            // See comments in ConsoleActivity.createInput.
-            if (actionId == EditorInfo.IME_ACTION_DONE ||
-                    event?.action == KeyEvent.ACTION_UP) {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-            }
-            true
-        }
         tvTitle.text = walletName
         btnRename.setOnClickListener {
             showDialog(this, WalletRenameDialog().apply {
@@ -435,19 +419,6 @@ class WalletOpenDialog : TaskLauncherDialog<String>() {
                 arguments = Bundle().apply { putString("walletName", walletName) }
             })
             dismiss()
-        }
-    }
-
-    override fun onPreExecute() {
-        password = etWalletPassword.text.toString()
-    }
-
-    override fun doInBackground(): String {
-        try {
-            return onPassword(password)
-        } catch (e: PyException) {
-            throw if (e.message!!.startsWith("InvalidPassword"))
-                ToastException(R.string.incorrect_password, Toast.LENGTH_SHORT) else e
         }
     }
 }
