@@ -109,7 +109,7 @@ class ContactDialog : AlertDialogFragment() {
                 } catch (e: ToastException) { e.show() }
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                showDialog(this, DeleteContactDialog().apply {
+                showDialog(this, ContactDeleteDialog().apply {
                     arguments = contact.toBundle()
                 })
             }
@@ -154,7 +154,7 @@ class ContactDialog : AlertDialogFragment() {
 }
 
 
-class DeleteContactDialog : AlertDialogFragment() {
+class ContactDeleteDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val contact = ContactModel(arguments!!)
         builder.setTitle(R.string.confirm_delete)

@@ -22,7 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.PyException
-import kotlinx.android.synthetic.main.change_password.*
+import kotlinx.android.synthetic.main.password_change.*
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import kotlinx.android.synthetic.main.wallet_open.*
@@ -39,7 +39,7 @@ val ACTIVITIES = HashMap<Int, KClass<out Activity>>().apply {
 
 // Bottom navigation
 val FRAGMENTS = HashMap<Int, KClass<out Fragment>>().apply {
-    put(R.id.navNoWallet, NoWalletFragment::class)
+    put(R.id.navNoWallet, WalletNotOpenFragment::class)
     put(R.id.navTransactions, TransactionsFragment::class)
     put(R.id.navRequests, RequestsFragment::class)
     put(R.id.navAddresses, AddressesFragment::class)
@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         } else if (item.itemId == Menu.NONE) {
             val walletName = item.title.toString()
             if (walletName != daemonModel.walletName) {
-                showDialog(this, OpenWalletDialog().apply { arguments = Bundle().apply {
+                showDialog(this, WalletOpenDialog().apply { arguments = Bundle().apply {
                     putString("walletName", walletName)
                 }})
             }
@@ -228,15 +228,15 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 storage.callAttr("put", "use_change", item.isChecked)
                 storage.callAttr("write")
             }
-            R.id.menuChangePassword -> showDialog(this, ChangePasswordDialog())
-            R.id.menuShowSeed-> { showDialog(this, ShowSeedPasswordDialog()) }
+            R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
+            R.id.menuShowSeed-> { showDialog(this, SeedShowPasswordDialog()) }
             R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
-            R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog().apply {
+            R.id.menuDelete -> showDialog(this, WalletDeleteConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
-            R.id.menuClose -> showDialog(this, CloseWalletDialog())
+            R.id.menuClose -> showDialog(this, WalletCloseDialog())
             else -> throw Exception("Unknown item $item")
         }
         return true
@@ -319,7 +319,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         ft.attach(newFrag)
         ft.commitNow()
 
-        navBottom.visibility = if (newFrag is NoWalletFragment) View.GONE else View.VISIBLE
+        navBottom.visibility = if (newFrag is WalletNotOpenFragment) View.GONE else View.VISIBLE
     }
 
     fun getFragment(id: Int): Fragment? {
@@ -354,10 +354,10 @@ class MainActivity : AppCompatActivity(R.layout.main) {
 }
 
 
-class NoWalletFragment : Fragment(), MainFragment {
+class WalletNotOpenFragment : Fragment(), MainFragment {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
-        return inflater.inflate(R.layout.no_wallet, container, false)
+        return inflater.inflate(R.layout.wallet_not_open, container, false)
     }
 }
 
@@ -387,7 +387,7 @@ class AboutDialog : AlertDialogFragment() {
 }
 
 
-class OpenWalletDialog : TaskLauncherDialog<String>() {
+class WalletOpenDialog : TaskLauncherDialog<String>() {
     val walletName by lazy { arguments!!.getString("walletName")!! }
     var password: String by notNull()
 
@@ -431,7 +431,7 @@ class OpenWalletDialog : TaskLauncherDialog<String>() {
             dismiss()
         }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-            showDialog(activity!!, DeleteWalletConfirmDialog().apply {
+            showDialog(activity!!, WalletDeleteConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", walletName) }
             })
             dismiss()
@@ -453,7 +453,7 @@ class OpenWalletDialog : TaskLauncherDialog<String>() {
 }
 
 
-class DeleteWalletConfirmDialog : AlertDialogFragment() {
+class WalletDeleteConfirmDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val walletName = arguments!!.getString("walletName")!!
         val message = getString(R.string.do_you_want_to_delete, walletName) +
@@ -461,7 +461,7 @@ class DeleteWalletConfirmDialog : AlertDialogFragment() {
         builder.setTitle(R.string.confirm_delete)
             .setMessage(message)
             .setPositiveButton(R.string.delete, { _, _ ->
-                showDialog(activity!!, DeleteWalletDialog().apply {
+                showDialog(activity!!, WalletDeleteDialog().apply {
                     arguments = Bundle().apply { putString("walletName", walletName) }
                 })
             })
@@ -470,7 +470,7 @@ class DeleteWalletConfirmDialog : AlertDialogFragment() {
 }
 
 
-class DeleteWalletDialog : CloseWalletDialog() {
+class WalletDeleteDialog : WalletCloseDialog() {
     override fun onPreExecute() {
         walletName = arguments!!.getString("walletName")!!
         if (walletName == daemonModel.walletName) {
@@ -490,7 +490,7 @@ class DeleteWalletDialog : CloseWalletDialog() {
 }
 
 
-open class CloseWalletDialog : TaskDialog<Unit>() {
+open class WalletCloseDialog : TaskDialog<Unit>() {
     var walletName: String by notNull()
 
     override fun onPreExecute() {
@@ -508,10 +508,10 @@ open class CloseWalletDialog : TaskDialog<Unit>() {
 }
 
 
-class ChangePasswordDialog : AlertDialogFragment() {
+class PasswordChangeDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.Change_password)
-            .setView(R.layout.change_password)
+            .setView(R.layout.password_change)
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(android.R.string.cancel, null)
     }
@@ -589,7 +589,7 @@ class WalletRenameDialog : AlertDialogFragment() {
     fun done(newWalletName: String? = null) {
         dismiss()
         if(newWalletName != null) {
-            showDialog((activity as MainActivity), OpenWalletDialog().apply {
+            showDialog((activity as MainActivity), WalletOpenDialog().apply {
                 arguments = Bundle().apply { putString("walletName", newWalletName) }
             })
         }
@@ -598,16 +598,16 @@ class WalletRenameDialog : AlertDialogFragment() {
 }
 
 
-data class ShowSeedResult(val seed: String, val passphrase: String)
+data class SeedShowResult(val seed: String, val passphrase: String)
 
-class ShowSeedPasswordDialog : PasswordDialog<ShowSeedResult>() {
-    override fun onPassword(password: String): ShowSeedResult {
+class SeedShowPasswordDialog : PasswordDialog<SeedShowResult>() {
+    override fun onPassword(password: String): SeedShowResult {
         val keystore = daemonModel.wallet!!.callAttr("get_keystore")!!
-        return ShowSeedResult(keystore.callAttr("get_seed", password).toString(),
+        return SeedShowResult(keystore.callAttr("get_seed", password).toString(),
                               keystore.callAttr("get_passphrase", password).toString())
     }
 
-    override fun onPostExecute(result: ShowSeedResult) {
+    override fun onPostExecute(result: SeedShowResult) {
         showDialog(activity!!, SeedDialog().apply { arguments = Bundle().apply {
             putString("seed", result.seed)
             putString("passphrase", result.passphrase)
@@ -619,7 +619,7 @@ class ShowSeedPasswordDialog : PasswordDialog<ShowSeedResult>() {
 class SeedDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.Wallet_seed)
-            .setView(R.layout.new_wallet_2)
+            .setView(R.layout.wallet_new_2)
             .setPositiveButton(android.R.string.ok, null)
     }
 
