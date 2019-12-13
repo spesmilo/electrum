@@ -119,7 +119,7 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
+        self.send_message("init", gflen=0, lflen=2, localfeatures=self.localfeatures)
         self._sent_init = True
 
     @property
@@ -461,6 +461,9 @@ class Peer(Logger):
             pass
         self.lnworker.peer_closed(self)
 
+    def is_static_remotekey(self):
+        return bool(self.localfeatures & LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         # key derivation
         channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
@@ -469,8 +472,16 @@ class Peer(Logger):
             initial_msat = funding_sat * 1000 - push_msat
         else:
             initial_msat = push_msat
+
+        if self.is_static_remotekey():
+            addr = self.lnworker.wallet.get_unused_address()
+            static_key = self.lnworker.wallet.get_public_key(addr) # just a pubkey
+            payment_basepoint = OnlyPubkeyKeypair(bfh(static_key))
+        else:
+            payment_basepoint = keypair_generator(LnKeyFamily.PAYMENT_BASE)
+
         local_config=LocalConfig(
-            payment_basepoint=keypair_generator(LnKeyFamily.PAYMENT_BASE),
+            payment_basepoint=payment_basepoint,
             multisig_key=keypair_generator(LnKeyFamily.MULTISIG),
             htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
             delayed_basepoint=keypair_generator(LnKeyFamily.DELAY_BASE),
@@ -615,6 +626,7 @@ class Peer(Logger):
             'data_loss_protect_remote_pcp': {},
             "log": {},
             "revocation_store": {},
+            "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
         }
         channel_id = chan_dict.get('channel_id')
         channels = self.lnworker.db.get_dict('channels')
@@ -729,12 +741,16 @@ class Peer(Logger):
         next_remote_ctn = chan.get_next_ctn(REMOTE)
         assert self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         # send message
+        srk_enabled = chan.is_static_remotekey_enabled()
+        if srk_enabled:
+            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
+        else:
+            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
         if oldest_unrevoked_remote_ctn == 0:
             last_rev_secret = 0
         else:
             last_rev_index = oldest_unrevoked_remote_ctn - 1
             last_rev_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
-        latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
         self.send_message(
             "channel_reestablish",
             channel_id=chan_id,
@@ -824,6 +840,8 @@ class Peer(Logger):
             if our_pcs != their_claim_of_our_last_per_commitment_secret:
                 self.logger.error(f"channel_reestablish: (DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
                 return False
+            if chan.is_static_remotekey_enabled():
+                return True
             try:
                 __, our_remote_pcp = chan.get_secret_and_point(REMOTE, their_next_local_ctn - 1)
             except RemoteCtnTooFarInFuture:

@@ -230,6 +230,9 @@ class Channel(Logger):
         self._chan_ann_without_sigs = chan_ann
         return chan_ann
 
+    def is_static_remotekey_enabled(self):
+        return self.storage.get('static_remotekey_enabled')
+
     def set_short_channel_id(self, short_id):
         self.short_channel_id = short_id
         self.storage["short_channel_id"] = short_id
@@ -766,7 +769,11 @@ class Channel(Logger):
             feerate,
             self.constraints.is_initiator == (subject == LOCAL),
         )
-        payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
+        if self.is_static_remotekey_enabled():
+            payment_pubkey = other_config.payment_basepoint.pubkey
+        else:
+            payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
+
         return make_commitment(
             ctn,
             this_config.multisig_key.pubkey,

@@ -630,6 +630,8 @@ class LnLocalFeatures(IntFlag):
     OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT = 1 << 5
     GOSSIP_QUERIES_REQ = 1 << 6
     GOSSIP_QUERIES_OPT = 1 << 7
+    OPTION_STATIC_REMOTEKEY_REQ = 1 << 12
+    OPTION_STATIC_REMOTEKEY_OPT = 1 << 13
 
 # note that these are powers of two, not the bits themselves
 LN_LOCAL_FEATURES_KNOWN_SET = set(LnLocalFeatures)

@@ -130,6 +130,7 @@ class LNWorker(Logger):
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.localfeatures = LnLocalFeatures(0)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.localfeatures |= LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT
 
     def channels_for_peer(self, node_id):
         return {}
