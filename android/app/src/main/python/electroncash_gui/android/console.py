@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 from code import InteractiveConsole
 import json
 import os
-from os.path import exists, join
+from os.path import exists, join, split
 import pkgutil
 import unittest
 
@@ -176,6 +176,21 @@ class AndroidCommands(commands.Commands):
     def delete_wallet(self, name=None):
         """Delete a wallet"""
         os.remove(self._wallet_path(name))
+
+    def rename_wallet(self, name, new_name):
+        if name == new_name:
+            return
+        original_path = self._wallet_path(name)
+        if not exists(original_path):
+            raise FileNotFoundError(original_path)
+        new_path = join(split(original_path)[0], new_name)
+        if exists(new_path):
+            raise FileExistsError(new_path)
+        if self.wallet is not None and self.wallet.storage.path == original_path:
+            # We are renaming the currently loaded wallet. Close it before renaming it.
+            self.close_wallet(name)
+            self.select_wallet(None)
+        os.rename(original_path, new_path)
 
     def unit_test(self):
         """Run all unit tests. Expect failures with functionality not present on Android,

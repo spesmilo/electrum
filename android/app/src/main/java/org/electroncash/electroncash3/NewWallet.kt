@@ -11,8 +11,8 @@ import androidx.fragment.app.DialogFragment
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.google.zxing.integration.android.IntentIntegrator
-import kotlinx.android.synthetic.main.new_wallet.*
-import kotlinx.android.synthetic.main.new_wallet_2.*
+import kotlinx.android.synthetic.main.wallet_new.*
+import kotlinx.android.synthetic.main.wallet_new_2.*
 import kotlin.properties.Delegates.notNull
 
 
@@ -23,7 +23,7 @@ val libWallet by lazy { libMod("wallet") }
 class NewWalletDialog1 : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.New_wallet)
-            .setView(R.layout.new_wallet)
+            .setView(R.layout.wallet_new)
             .setPositiveButton(R.string.next, null)
             .setNegativeButton(R.string.cancel, null)
     }
@@ -38,9 +38,9 @@ class NewWalletDialog1 : AlertDialogFragment() {
             try {
                 val name = etName.text.toString()
                 if (name.isEmpty()) throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
-                if (name.contains("/")) throw ToastException(R.string.invalid_name)
+                if (name.contains("/")) throw ToastException(R.string.wallet_names)
                 if (daemonModel.listWallets().contains(name)) {
-                    throw ToastException(R.string.a_wallet_with_that_name_already_exists_please)
+                    throw ToastException(R.string.a_wallet_with_that_name_already_exists_please_enter)
                 }
                 val password = confirmPassword(dialog)
 
@@ -86,7 +86,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.New_wallet)
-            .setView(R.layout.new_wallet_2)
+            .setView(R.layout.wallet_new_2)
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(R.string.back, null)
     }

@@ -134,7 +134,7 @@ class RequestDialog() : AlertDialogFragment() {
 
         if (existingRequest != null) {
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                showDialog(this, DeleteRequestDialog(address))
+                showDialog(this, RequestDeleteDialog(address))
             }
         }
     }
@@ -178,7 +178,7 @@ class RequestDialog() : AlertDialogFragment() {
 }
 
 
-class DeleteRequestDialog() : AlertDialogFragment() {
+class RequestDeleteDialog() : AlertDialogFragment() {
     constructor(addr: PyObject) : this() {
         arguments = Bundle().apply {
             putString("address", addr.callAttr("to_storage_string").toString())

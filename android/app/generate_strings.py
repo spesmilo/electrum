@@ -79,7 +79,7 @@ def main():
     locale_dir = join(EC_ROOT, "lib/locale")
     lang_strings = defaultdict(list)
     for lang_region in [name for name in os.listdir(locale_dir)
-                        if isdir(join(locale_dir, name))]:
+                        if isdir(join(locale_dir, name)) and name != '__pycache__']:
         lang, region = lang_region.split("_")
         catalog = read_catalog(join(locale_dir, lang_region, "LC_MESSAGES",
                                     "electron-cash.mo"))

@@ -231,7 +231,7 @@ class NewWalletVC(NewWalletVCBase):
         if not self.walletName.text:
             errMsg = _("Wallet name is empty. Please enter a wallet name to proceed.")
         elif gui.ElectrumGui.gui.check_wallet_exists(self.walletName.text):
-            errMsg = _("A wallet with that name already exist. Please enter a different wallet name to proceed.")
+            errMsg = _("A wallet with that name already exists. Please enter a different wallet name to proceed.")
         elif not self.noPWCheck and not self.walletPw1.text:
             errMsg = _("Wallet password is empty. Please set a wallet password to proceed. You can disable wallet password protection later if you wish.")
         elif not self.noPWCheck and self.walletPw1.text != self.walletPw2.text:
