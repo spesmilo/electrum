@@ -102,7 +102,6 @@ from .transaction_dialog import PreviewTxDialog
 if TYPE_CHECKING:
     from . import ElectrumGui
 
-
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
 class StatusBarButton(QPushButton):
@@ -738,8 +737,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             except TypeError:
                 self.tray.showMessage("Electrum Vault", message, QSystemTrayIcon.Information, 20000)
 
-
-
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
@@ -990,6 +987,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         grid.addLayout(buttons, 4, 3, 1, 2)
 
+        self.receive_address = ButtonsTextEdit()
+        self.receive_address.addCopyButton(self.app)
+        self.receive_address.setReadOnly(True)
+        self.receive_address.setFocusPolicy(Qt.ClickFocus)
+
         self.receive_address_e = ButtonsTextEdit()
         self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
@@ -1013,8 +1015,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox_g.addStretch()
 
         self.receive_widgets = QTabWidget()
-        self.receive_widgets.addTab(self.receive_qr, 'QR Code')
-        self.receive_widgets.addTab(self.receive_address_e, 'Text')
+        self.receive_widgets.addTab(self.receive_address, _("Address"))
+        self.receive_widgets.addTab(self.receive_qr, _("QR Code"))
+        self.receive_widgets.addTab(self.receive_address_e, "BIP21 URI")
 
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
@@ -1113,6 +1116,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def clear_receive_tab(self):
         self.receive_address_e.setText('')
         self.receive_message_e.setText('')
+        self.receive_address.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
         self.expires_combo.show()
@@ -1143,6 +1147,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.show_receive_tab()
         self.receive_address_e.setText(addr)
+        self.receive_address.setText(addr)
 
     def update_receive_qr(self):
         uri = str(self.receive_address_e.text())
@@ -1159,6 +1164,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             pass
         else:
             addr = uri.get('address')
+        self.receive_address.setText(addr)
         if is_address(addr) and self.wallet.is_used(addr):
             self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             self.receive_address_e.setToolTip(_("This address has already been used. "
