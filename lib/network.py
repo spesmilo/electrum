@@ -1808,8 +1808,10 @@ class Network(util.DaemonThread):
             # We get this message whenever any of this transaction's outputs are already in confirmed utxo set (and are unspent).
             # For confirmed txn with all outputs already spent, we will see "missing inputs" instead.
             return _("The transaction already exists in the blockchain.")
-        elif r'insufficient priority' in server_msg:
-            return _("The transaction was rejected due to paying insufficient fees and/or for being of extremely low priority.")
+        elif r'insufficient priority' in server_msg or r'rate limited free transaction' in server_msg:
+            return _("The transaction was rejected due to paying insufficient fees.")
+        elif r'mempool min fee not met' in server_msg:
+            return _("The transaction was rejected due to paying insufficient fees (possibly due to network congestion).")
         elif r'bad-txns-premature-spend-of-coinbase' in server_msg:
             return _("Transaction could not be broadcast due to an attempt to spend a coinbase input before maturity.")
         elif r"txn-already-in-mempool" in server_msg or r"txn-already-known" in server_msg:
