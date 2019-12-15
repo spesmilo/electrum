@@ -115,6 +115,7 @@ class bitcoinTransaction:
 			for i in range(numOutputs):
 				tmp = { 'buffer': data, 'offset' : offset}
 				self.outputs.append(bitcoinOutput(tmp))
+				print("added output")
 				offset = tmp['offset']
 			if self.witness:
 				self.witnessScript = data[offset : len(data) - 4]
@@ -162,8 +163,8 @@ class bitcoinTransaction:
 		return result
 
 	def __str__(self):
-		buf =  "Version : " + hexlify(self.version) + "\r\n"
-		buf +=  "Time : " + hexlify(self.time) + "\r\n"
+		buf =  "Version : " + hexlify(self.version).hex() + "\r\n"
+		buf +=  "Time : " + hexlify(self.time).hex() + "\r\n"
 		index = 1
 		for trinput in self.inputs:
 			buf += "Input #" + str(index) + "\r\n"
@@ -174,10 +175,10 @@ class bitcoinTransaction:
 			buf += "Output #" + str(index) + "\r\n"
 			buf += str(troutput)
 			index+=1
-		buf += "Locktime : " + hexlify(self.lockTime) + "\r\n"
+		buf += "Locktime : " + hexlify(self.lockTime).hex() + "\r\n"
 		if self.witness:
 			buf += "Witness script : " + hexlify(self.witnessScript) + "\r\n"
 		if int.from_bytes(self.version, byteorder='little') >= 2:
-			buf +=  "strDZeel : " + hexlify(self.strdzeel) + "\r\n"
+			buf +=  "strDZeel : " + hexlify(self.strdzeel).hex() + "\r\n"
 
 		return buf

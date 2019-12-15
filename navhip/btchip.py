@@ -323,7 +323,7 @@ class btchip:
 					response = self.dongle.exchange(bytearray(apdu))
 					offset += dataLength
 				alternateEncoding = True
-			except:
+			except BTChipException as e:
 				pass
 		if not alternateEncoding:
 			apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_HASH_INPUT_FINALIZE, 0x02, 0x00 ]

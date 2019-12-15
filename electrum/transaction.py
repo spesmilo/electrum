@@ -43,7 +43,7 @@ import binascii
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
 from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
-from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
+from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       int_to_hex, push_script, b58_address_to_hash160,
@@ -410,6 +410,11 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     if match_decoded(decoded, match):
         return hash160_to_p2pkh(decoded[2][1], net=net)
 
+    # p2cs
+    match = [opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
+    if match_decoded(decoded, match):
+        return hash160_to_p2cs(decoded[4][1], decoded[10][1], net=net)
+
     # p2sh
     match = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUAL]
     if match_decoded(decoded, match):
@@ -637,6 +642,8 @@ class Transaction:
         addrtype, hash_160_ = b58_address_to_hash160(addr)
         if addrtype == constants.net.ADDRTYPE_P2PKH:
             return 'p2pkh'
+        elif addrtype == constants.net.ADDRTYPE_P2CS:
+            return 'p2cs'
         elif addrtype == constants.net.ADDRTYPE_P2SH:
             return 'p2wpkh-p2sh'
         raise Exception(f'unrecognized address: {repr(addr)}')
