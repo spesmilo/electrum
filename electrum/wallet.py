@@ -1271,6 +1271,8 @@ class Abstract_Wallet(AddressSynchronizer):
         return False
 
     def parse_policy_tx(self, tx: transaction.Transaction, parent_window):
+        if not tx.is_whitelist():
+            return False
         if self.parse_registeraddress_tx(tx, parent_window):
             return True
         if self.parse_whitelist_tx(tx):
@@ -1490,7 +1492,7 @@ class Abstract_Wallet(AddressSynchronizer):
         data=None
         outputs = tx.outputs()
         for output in outputs:
-            transaction.parse_scriptSig(decoded, bfh(output.scriptPubKey))
+            transaction.parse_whitelistScriptSig(decoded, bfh(output.scriptPubKey))
             if len(decoded) is not 0:
                 txtype=decoded['type']
                 if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1' or txtype == 'registeraddress_v0' or txtype == 'deregisteraddress_v0':

@@ -37,6 +37,7 @@ from .bitcoin import *
 import struct
 import traceback
 import sys
+from electrum import constants
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
@@ -345,6 +346,43 @@ def safe_parse_pubkey(x):
     except:
         return x
 
+def parse_whitelistScriptSig(d, _bytes, decoded=None):
+    if not decoded:
+        try:
+            decoded = [ x for x in script_GetOp(_bytes) ]
+        except Exception as e:
+            # coinbase transactions raise an exception
+            print_error("parse_whitelistScriptSig: cannot find address in input script (coinbase?)",
+                    bh2u(_bytes))
+            return
+    
+    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='registeraddress_v0'
+        d['data']=decoded[1][1]
+        return True
+
+    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='deregisteraddress_v0'
+        d['data']=decoded[1][1]
+        return True
+
+    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='registeraddress_v1'
+        d['data']=decoded[2][1]
+        return True
+
+    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        d['type']='deregisteraddress_v1'
+        d['data']=decoded[2][1]
+        return True
+
+    return False
+
+    
 def parse_scriptSig(d, _bytes):
     try:
         decoded = [ x for x in script_GetOp(_bytes) ]
@@ -456,28 +494,7 @@ def parse_scriptSig(d, _bytes):
         d['signatures'] = [None]
         return
 
-    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
-    if match_decoded(decoded, match):
-        d['type']='registeraddress_v0'
-        d['data']=decoded[1][1]
-        return
-
-    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_PUSHDATA4 ]
-    if match_decoded(decoded, match):
-        d['type']='deregisteraddress_v0'
-        d['data']=decoded[1][1]
-        return
-
-    match = [ opcodes.OP_REGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
-    if match_decoded(decoded, match):
-        d['type']='registeraddress_v1'
-        d['data']=decoded[2][1]
-        return
-
-    match = [ opcodes.OP_DEREGISTERADDRESS, opcodes.OP_1, opcodes.OP_PUSHDATA4 ]
-    if match_decoded(decoded, match):
-        d['type']='deregisteraddress_v1'
-        d['data']=decoded[2][1]
+    if parse_whitelistScriptSig(d, _bytes, decoded):
         return
 
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
@@ -1326,10 +1343,12 @@ class Transaction:
     def get_output_addresses(self):
         return [addr for addr, val, _ in self.get_outputs()]
 
-
     def has_address(self, addr):
         return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs()))
 
+    def is_whitelist(self):
+        return all([txo.asset == constants.net.WHITELISTASSET for txo in self.outputs()])
+    
     def as_dict(self):
         if self.raw is None:
             self.raw = self.serialize()
