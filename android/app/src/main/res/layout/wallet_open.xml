@@ -24,12 +24,25 @@
             android:singleLine="false"
             android:text="@string/lorem"
             app:layout_constraintEnd_toStartOf="@+id/btnRename"
-            app:layout_constraintEnd_toStartOf="@+id/btnExport"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnRename"
+            style="@style/FAB.Dialog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/fab_dialog_margin_bottom"
+            android:layout_marginEnd="@dimen/fab_dialog_margin_inner"
+            android:layout_marginRight="@dimen/fab_dialog_margin_inner"
+            android:layout_marginTop="@dimen/fab_dialog_margin_top"
+            android:clickable="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/btnExport"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/ic_edit_24dp"/>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnExport"
             style="@style/FAB.Dialog"
             android:layout_width="wrap_content"
@@ -38,9 +51,8 @@
             android:layout_marginTop="@dimen/fab_dialog_margin_top"
             android:clickable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:srcCompat="@drawable/ic_edit_24dp"/>
+            app:layout_constraintTop_toTopOf="parent"
             app:srcCompat="@drawable/ic_export_24dp"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

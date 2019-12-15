@@ -238,11 +238,10 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
-            R.id.menuDelete -> showDialog(this, WalletDeleteConfirmDialog().apply {
             R.id.menuExport -> showDialog(this, WalletExportDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
-            R.id.menuDelete -> showDialog(this, DeleteWalletConfirmDialog().apply {
+            R.id.menuDelete -> showDialog(this, WalletDeleteConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
             R.id.menuClose -> showDialog(this, WalletCloseDialog())
@@ -412,6 +411,7 @@ class WalletOpenDialog : PasswordDialog<String>() {
         super.onBuildDialog(builder)
         builder.setView(R.layout.wallet_open)
                 .setNeutralButton(R.string.Delete_wallet, null)
+                .setTitle("")
     }
 
     override fun onShowDialog() {
