@@ -661,6 +661,11 @@ class LNWallet(LNWorker):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
+
+        # save timestamp regardless of state, so that funding tx is returned in get_history
+        self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
+        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
+
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
             await self.force_close_channel(chan.channel_id)
@@ -671,8 +676,6 @@ class LNWallet(LNWorker):
                 self.save_short_chan_id(chan)
             if chan.short_channel_id:
                 chan.set_state(channel_states.FUNDED)
-                self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
-                self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
 
         if chan.get_state() == channel_states.FUNDED:
             peer = self.peers.get(chan.node_id)
@@ -829,6 +832,8 @@ class LNWallet(LNWorker):
         self.save_channel(chan)
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
+        self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
+        self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
             # TODO make more robust (timeout low? server returns error?)
             await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)

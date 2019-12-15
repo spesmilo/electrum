@@ -282,7 +282,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
     def sign(self):
         def sign_done(success):
-            # note: with segwit we could save partially signed tx, because they have a txid
             if self.tx.is_complete():
                 self.prompt_if_unsaved = True
                 self.saved = False
