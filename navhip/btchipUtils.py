@@ -35,10 +35,12 @@ def compress_public_key(publicKey):
 	else:
 		raise BTChipException("Invalid public key format")
 
-def format_transaction(dongleOutputData, trustedInputsAndInputScripts, version=0x01, lockTime=0):
+def format_transaction(dongleOutputData, trustedInputsAndInputScripts, version=0x03, time=0, lockTime=0, strdzel=[]):
 	transaction = bitcoinTransaction()
 	transaction.version = []
 	writeUint32LE(version, transaction.version)
+	transaction.time = []
+	writeUint32LE(time, transaction.time)
 	for item in trustedInputsAndInputScripts:
 		newInput = bitcoinInput()
 		newInput.prevOut = item[0][4:4+36]
@@ -51,6 +53,8 @@ def format_transaction(dongleOutputData, trustedInputsAndInputScripts, version=0
 	result = transaction.serialize(True)
 	result.extend(dongleOutputData)
 	writeUint32LE(lockTime, result)
+	writeUint32LE(len(strdzeel), result)
+	result.extend(strdzeel)
 	return bytearray(result)
 
 def get_regular_input_script(sigHashtype, publicKey):
@@ -102,4 +106,3 @@ def get_output_script(amountScriptArray):
 		writeVarint(len(amountScript[1]), result)
 		result.extend(amountScript[1])
 	return bytearray(result)
-

@@ -1,0 +1,126 @@
+syntax="proto3";
+
+package cashshuffle;
+
+message Signed {
+    Packet packet = 1;
+    Signature signature = 2;
+}
+
+message Packet {
+    bytes session = 1;
+    uint32 number = 2;
+    VerificationKey from_key = 3;
+    VerificationKey to_key = 4;
+    Phase phase = 5;
+    Message message = 6;
+    Registration registration = 7;
+}
+
+enum Phase {
+    NONE = 0;
+    ANNOUNCEMENT = 1;
+    SHUFFLE = 2;
+    BROADCAST = 3;
+    EQUIVOCATION_CHECK = 4;
+    SIGNING = 5;
+    VERIFICATION_AND_SUBMISSION = 6;
+    BLAME = 7;
+}
+
+enum ShuffleType {
+    DEFAULT = 0;
+    DUST = 1;
+}
+
+message Coins {
+  repeated string coins = 1;
+}
+
+message Signatures {
+  string utxo = 1;
+  Signature signature =2;
+}
+
+message Message {
+    Address address = 1;
+    EncryptionKey key = 2;
+    Hash hash = 3;
+    // map<string, Signature> signatures = 4;
+    repeated Signatures signatures = 4;
+    string str = 5;
+    Blame blame = 6;
+    map<string, Coins> inputs = 7;
+    // repeated Signatures signatures = 7;
+}
+
+
+message Address {
+    string address = 1;
+}
+
+message Registration {
+    uint64 amount = 1;
+    ShuffleType type = 2;
+    uint64 version = 3;
+}
+
+message VerificationKey {
+    string key = 1;
+}
+
+message EncryptionKey {
+    string key = 1;
+}
+
+message DecryptionKey {
+    string key = 1;
+    string public = 2;
+}
+
+message Hash {
+    bytes hash = 1;
+}
+
+message Signature {
+    bytes signature = 1;
+}
+
+message Transaction {
+    bytes transaction = 1;
+}
+
+message Blame {
+    Reason reason = 1;
+    VerificationKey accused = 2;
+    DecryptionKey key = 3;
+    Transaction transaction = 4;
+    Invalid invalid = 5;
+    Packets packets = 6;
+}
+
+enum Reason {
+    INSUFFICIENTFUNDS = 0;
+    DOUBLESPEND = 1;
+    EQUIVOCATIONFAILURE = 2;
+    SHUFFLEFAILURE = 3;
+    SHUFFLEANDEQUIVOCATIONFAILURE = 4;
+    INVALIDSIGNATURE = 5;
+    MISSINGOUTPUT = 6;
+    LIAR = 7;
+    INVALIDFORMAT = 8;
+}
+
+message Invalid {
+    bytes invalid = 1;
+}
+
+
+message Inputs {
+  string address = 1;
+  repeated string coins = 2;
+}
+
+message Packets {
+    repeated Signed packet = 1;
+}

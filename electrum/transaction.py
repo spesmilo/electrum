@@ -508,6 +508,7 @@ class Transaction:
     def to_json(self) -> dict:
         d = {
             'version': self.version,
+            'time': self.ntime,
             'locktime': self.locktime,
             'inputs': [txin.to_json() for txin in self.inputs()],
             'outputs': [txout.to_json() for txout in self.outputs()],

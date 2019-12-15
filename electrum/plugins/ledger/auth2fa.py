@@ -3,7 +3,7 @@ import copy
 from PyQt5.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
                              QWidget, QHBoxLayout, QComboBox)
 
-from btchip.btchip import BTChipException
+from navhip.btchip import BTChipException
 
 from electrum.i18n import _
 from electrum import constants, bitcoin

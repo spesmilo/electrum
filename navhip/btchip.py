@@ -136,6 +136,7 @@ class btchip:
 		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x00, 0x00 ]
 		params = bytearray.fromhex("%.8x" % (index))
 		params.extend(transaction.version)
+		params.extend(transaction.time)
 		writeVarint(len(transaction.inputs), params)
 		apdu.append(len(params))
 		apdu.extend(params)
@@ -191,15 +192,41 @@ class btchip:
 				apdu.extend(troutput.script[offset : offset + dataLength])
 				self.dongle.exchange(bytearray(apdu))
 				offset += dataLength
+
 		# Locktime
-		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00, len(transaction.lockTime) ]
-		apdu.extend(transaction.lockTime)
+		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00 ]
+
+		strdzeelSerialized = []
+		writeVarint(len(transaction.strdzeel), strdzeelSerialized)
+
+		strdzeelSerialized.extend(transaction.strdzeel)
+
+		params = [ ]
+		params.extend(transaction.lockTime)
+
+		writeVarint(len(strdzeelSerialized), params)
+		apdu.append(len(params))
+		apdu.extend(params)
 		response = self.dongle.exchange(bytearray(apdu))
+
+		offset = 0
+
+		while (offset < len(strdzeelSerialized)):
+			blockLength = 255
+			if ((offset + blockLength) < len(strdzeelSerialized)):
+				dataLength = blockLength
+			else:
+				dataLength = len(strdzeelSerialized) - offset
+			apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00, dataLength ]
+			apdu.extend(strdzeelSerialized[offset : offset + dataLength])
+			response = self.dongle.exchange(bytearray(apdu))
+			offset += dataLength
+
 		result['trustedInput'] = True
 		result['value'] = response
 		return result
 
-	def startUntrustedTransaction(self, newTransaction, inputIndex, outputList, redeemScript, version=0x01, cashAddr=False):
+	def startUntrustedTransaction(self, newTransaction, inputIndex, outputList, redeemScript, version=0x01, time=0x00, cashAddr=False):
 		# Start building a fake transaction with the passed inputs
 		segwit = False
 		if newTransaction:
@@ -215,7 +242,7 @@ class btchip:
 		else:
 				p2 = 0x80
 		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_HASH_INPUT_START, 0x00, p2 ]
-		params = bytearray([version, 0x00, 0x00, 0x00])
+		params = bytearray(version.to_bytes(4, byteorder='little')) + bytearray(time.to_bytes(4, byteorder='little'))
 		writeVarint(len(outputList), params)
 		apdu.append(len(params))
 		apdu.extend(params)
@@ -371,19 +398,44 @@ class btchip:
 			result['keycardData'] = response[offset + 1 : offset + 1 + keycardDataLength]
 		return result
 
-	def untrustedHashSign(self, path, pin="", lockTime=0, sighashType=0x01):
-		print("uhs")
+	def untrustedHashSign(self, path, pin="", lockTime=0, sighashType=0x01, strdzeel=b''):
 		if isinstance(pin, str):
 			pin = pin.encode('utf-8')
 		donglePath = parse_bip32_path(path)
 		if self.needKeyCache:
 			self.resolvePublicKeysInPath(path)
+
+		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_HASH_SIGN, 0x01, 0x00 ]
+		params = []
+		writeUint32LE(lockTime, params)
+		apdu.append(len(params))
+		apdu.extend(params)
+
+		result = self.dongle.exchange(bytearray(apdu))
+
+		strdzeelSerialized = []
+		writeVarint(len(strdzeel), strdzeelSerialized)
+		strdzeelSerialized.extend(strdzeel)
+
+		offset = 0
+
+		while (offset < len(strdzeelSerialized)):
+			blockLength = 255
+			if ((offset + blockLength) < len(strdzeelSerialized)):
+				dataLength = blockLength
+			else:
+				dataLength = len(strdzeelSerialized) - offset
+			apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_HASH_SIGN, 0x01, 0x00, dataLength ]
+			apdu.extend(strdzeelSerialized[offset : offset + dataLength])
+
+			response = self.dongle.exchange(bytearray(apdu))
+			offset += dataLength
+
 		apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_HASH_SIGN, 0x00, 0x00 ]
 		params = []
 		params.extend(donglePath)
 		params.append(len(pin))
 		params.extend(bytearray(pin))
-		writeUint32BE(lockTime, params)
 		params.append(sighashType)
 		apdu.append(len(params))
 		apdu.extend(params)
