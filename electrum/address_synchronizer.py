@@ -216,7 +216,8 @@ class AddressSynchronizer(Logger):
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
         """Returns whether the tx was successfully added to the wallet history."""
         assert tx, tx
-        assert tx.is_complete()
+        # note: tx.is_complete() is not necessarily True; tx might be partial
+        # but it *needs* to have a txid:
         tx_hash = tx.txid()
         if tx_hash is None:
             raise Exception("cannot add tx without txid to wallet history")
