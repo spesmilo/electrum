@@ -55,11 +55,12 @@ class StorageReadWriteError(Exception): pass
 
 class WalletStorage(Logger):
 
-    def __init__(self, path, *, manual_upgrades=False):
+    def __init__(self, path, *, manual_upgrades: bool = False):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
+        self._manual_upgrades = manual_upgrades
 
         DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
@@ -211,7 +212,7 @@ class WalletStorage(Logger):
             s = None
         self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
-        self.db = JsonDB(s, manual_upgrades=True)
+        self.db = JsonDB(s, manual_upgrades=self._manual_upgrades)
         self.load_plugins()
 
     def encrypt_before_writing(self, plaintext: str) -> str:
