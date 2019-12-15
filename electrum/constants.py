@@ -63,6 +63,7 @@ class BitcoinMainnet(AbstractNet):
     WIF_PREFIX = 0x96
     ADDRTYPE_P2PKH = 53
     ADDRTYPE_P2SH = 85
+    ADDRTYPE_P2CS = 21
     SEGWIT_HRP = "nv"
     GENESIS = "00006a4e3e18c71c6d48ad6c261e2254fa764cf29607a4357c99b712dfbb8e6a"
     DEFAULT_PORTS = {'t': '40001', 's': '40002'}
@@ -100,6 +101,7 @@ class BitcoinTestnet(AbstractNet):
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
+    ADDRTYPE_P2CS = 8
     SEGWIT_HRP = "tb"
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
