@@ -1418,11 +1418,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return True
 
-    def parse_ratx_addresses(self, data, txtype='registeraddress_v0'):
-        #To do: parse version 1 transactions
-        if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1':
-            return 
-
+    def parse_ratx_addresses_v0(self, data):
         #Add addresses to the list of registered addresses
         #First 20 bytes == address
         #Next 33 bytes == untweaked public key
@@ -1475,6 +1471,68 @@ class Abstract_Wallet(AddressSynchronizer):
             #Calculate the number of bytes in the current segment so we know where to read the next address
             nBytesInSegment = 20 + (multiSize > 0)*(nMultisig-1)*33 + 33 
 
+        return addrs
+
+    def parse_ratx_addresses_v1(self, data):
+        #Add addresses to the list of registered addresses
+        addrs = []
+        i1=0
+        while True:
+            i=i1
+            addr, i1=self.parse_ratx_address_v1(data, i)
+            if not addr:
+                break
+            if not self.is_mine(addr):
+                return
+            addrs.append(addr)
+
+        return addrs
+
+    def parse_ratx_address_v1(self, data, i1):
+        ptlen = len(data)
+        addrSize=20
+        pubKeySize=33
+        advance=addrSize
+        addrType=int.from_bytes(bytes(data[i1:i1+1]), "big")
+        i1=i1+1
+        #derived, multi, p2sh, p2pkh
+        if addrType == 0:
+            addrType=constants.net.ADDRTYPE_P2PKH
+            advance=advance+pubKeySize
+        elif addrType == 1:
+            addrType=constants.net.ADDRTYPE_P2SH
+            i1 = i1 + 2
+            nMultisig=0
+            #if it is a multisig wallet get the remaining public keys (N)
+            nMultisig = int.from_bytes(bytes(data[i1-1:i1]), "big")
+            advance=advance+2+nMultisig*pubKeySize
+        elif addrType == 2:
+            addrType=constants.net.ADDRTYPE_P2SH
+        elif addrType == 3:
+            addrType=constants.net.ADDRTYPE_P2PKH
+        else:
+            return None, None
+
+        i2 = i1 + addrSize
+        if i2 > ptlen:
+            return None, None
+        addr = hash160_to_b58_address(bytes(data[i1:i2]), addrType)
+        i1 = i1 + advance
+        if i1 > ptlen:
+            return None, None
+        return addr, i1
+
+
+    def parse_ratx_addresses(self, data, txtype='registeraddress_v0'):
+        #To do: parse version 1 transactions
+        if txtype == 'registeraddress_v1' or txtype == 'deregisteraddress_v1':
+            addrs = self.parse_ratx_addresses_v1(data)
+        else:
+            addrs = self.parse_ratx_addresses_v0(data)
+            
+        if not addrs or len(addrs) == 0:
+            return
+            
         self.set_pending_state(addrs, False)
 
         if txtype == 'registeraddress_v1' or txtype == 'registeraddress_v0':
