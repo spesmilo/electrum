@@ -304,8 +304,11 @@ class AddressSynchronizer(Logger):
             # add to local history
             self._add_tx_to_local_history(tx_hash)
             # save
+            is_new_tx = (tx_hash not in self.db.transactions)
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
+            if is_new_tx and not self.is_local_tx(tx_hash) and self.network:
+                self.network.trigger_callback('new_transaction', self, tx)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
@@ -359,9 +362,12 @@ class AddressSynchronizer(Logger):
         self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
+        old_hist_hashes = set()
         with self.lock:
             old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
+                if height > TX_HEIGHT_LOCAL:
+                    old_hist_hashes.add(tx_hash)
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
@@ -370,7 +376,10 @@ class AddressSynchronizer(Logger):
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
             self.db.set_addr_history(addr, hist)
 
+        local_tx_hist_hashes = list()
         for tx_hash, tx_height in hist:
+            if tx_hash not in old_hist_hashes and self.is_local_tx(tx_hash):
+                local_tx_hist_hashes.append(tx_hash)
             # add it in case it was previously unconfirmed
             self.add_unverified_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
@@ -382,6 +391,12 @@ class AddressSynchronizer(Logger):
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
             self.db.add_tx_fee_from_server(tx_hash, fee_sat)
+        # trigger new_transaction cb when local tx hash appears in history
+        if self.network:
+            for tx_hash in local_tx_hist_hashes:
+                tx = self.db.get_transaction(tx_hash)
+                if tx:
+                    self.network.trigger_callback('new_transaction', self, tx)
 
     @profiler
     def load_local_history(self):
@@ -605,6 +620,13 @@ class AddressSynchronizer(Logger):
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+
+    def is_local_tx(self, tx_hash: str):
+        tx_mined_info = self.get_tx_height(tx_hash)
+        if tx_mined_info.height == TX_HEIGHT_LOCAL:
+            return True
+        else:
+            return False
 
     def set_up_to_date(self, up_to_date):
         with self.lock:

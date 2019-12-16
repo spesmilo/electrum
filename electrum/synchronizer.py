@@ -226,8 +226,6 @@ class Synchronizer(SynchronizerBase):
         tx_height = self.requested_tx.pop(tx_hash)
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(raw_tx)}")
-        # callbacks
-        self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)
 
     async def main(self):
         self.wallet.set_up_to_date(False)
