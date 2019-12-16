@@ -204,6 +204,15 @@ class AddressSynchronizer(PrintError):
             self.history[address] = []
             self.set_up_to_date(False)
         if self.synchronizer:
+            self.synchronizer.remove_whitelist(address)
+            self.synchronizer.add(address)
+
+    def add_whitelist_address(self, address):
+        if address not in self.history:
+            self.history[address] = []
+            self.set_up_to_date(False)
+        if self.synchronizer:
+            self.synchronizer.add_whitelist(address)
             self.synchronizer.add(address)
 
     def get_conflicting_transactions(self, tx):
@@ -246,7 +255,7 @@ class AddressSynchronizer(PrintError):
             # being is_mine, as we roll the gap_limit forward
             is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
             tx_height = self.get_tx_height(tx_hash).height
-            is_whitelist = any([txo.asset == constants.net.WHITELISTASSET for txo in tx.outputs()])
+            is_whitelist = tx.is_whitelist()
             if not allow_unrelated:
                 # note that during sync, if the transactions are not properly sorted,
                 # it could happen that we think tx is unrelated but actually one of the inputs is is_mine.
@@ -365,10 +374,13 @@ class AddressSynchronizer(PrintError):
             self.txo.pop(tx_hash, None)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-        self.add_unverified_tx(tx_hash, tx_height)
+        if tx:
+            if not tx.is_whitelist():
+                self.add_unverified_tx(tx_hash, tx_height)
         self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
-    def receive_history_callback(self, addr, hist, tx_fees):
+
+    def receive_history_callback(self, addr, hist, tx_fees, is_whitelist: bool = False):
         with self.lock:
             old_hist = self.get_address_history(addr)
             for tx_hash, height in old_hist:
@@ -382,7 +394,8 @@ class AddressSynchronizer(PrintError):
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
-            self.add_unverified_tx(tx_hash, tx_height)
+            if not is_whitelist:
+                self.add_unverified_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
             tx = self.transactions.get(tx_hash)
             if tx is None:
@@ -579,6 +592,10 @@ class AddressSynchronizer(PrintError):
                     self._history_local[addr] = cur_hist
 
     def add_unverified_tx(self, tx_hash, tx_height):
+        tx = self.transactions.get(tx_hash)
+        if tx:
+            if tx.is_whitelist():
+                return
         if tx_hash in self.verified_tx:
             if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
                 with self.lock:
@@ -739,10 +756,10 @@ class AddressSynchronizer(PrintError):
             script = output.scriptPubKey
             if output.asset != constants.net.WHITELISTASSET:
                 continue
-            if output.type == transaction.TYPE_ADDRESS:
-                addresses.add(output.address)
-            else:
-                self.network.subscribe_to_scripthash(bitcoin.script_to_scripthash(script))
+            if output.type == transaction.TYPE_ADDRESS or  output.type == transaction.TYPE_PUBKEY:
+                if output.address != constants.net.WHITELISTCOINSADDRESS:
+                    if not self.is_mine(output.address):
+                        self.add_whitelist_address(output.address)
                 
             datatype, payload = transaction.get_data_from_policy_output_script(bfh(script))
             
@@ -760,7 +777,6 @@ class AddressSynchronizer(PrintError):
             outpoint = TxOutPoint(tx.txid(), n_output)    
             self.add_unassigned_kyc_pubkey(data, outpoint)
 
-        self.synchronizer.subscribe_to_addresses(addresses)
         return (datatype==TYPE_DATA)
 
 

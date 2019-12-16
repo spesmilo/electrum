@@ -51,6 +51,8 @@ class Synchronizer(ThreadJob):
         self.requested_tx = {}
         self.requested_histories = {}
         self.requested_addrs = set()
+        # Addresses that have received whitelist asset
+        self.whitelist_addrs = set()
         self.lock = Lock()
 
         self.initialized = False
@@ -69,6 +71,14 @@ class Synchronizer(ThreadJob):
     def release(self):
         self.network.unsubscribe(self.on_address_status)
 
+    def add_whitelist(self, address):
+        with self.lock:
+            self.whitelist_addrs.add(address)
+
+    def remove_whitelist(self, address):
+        with self.lock:
+            self.whitelist_addrs.discard(address)
+        
     def add(self, address):
         '''This can be called from the proxy or GUI threads.'''
         with self.lock:
@@ -138,7 +148,8 @@ class Synchronizer(ThreadJob):
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
-            self.wallet.receive_history_callback(addr, hist, tx_fees)
+            is_whitelist = addr in self.whitelist_addrs
+            self.wallet.receive_history_callback(addr, hist, tx_fees, is_whitelist)
             # Request transactions we don't have
             self.request_missing_txs(hist)
         # Remove request; this allows up_to_date to be True
@@ -200,7 +211,8 @@ class Synchronizer(ThreadJob):
             self.print_error("missing tx", self.requested_tx)
         addrset=set(self.wallet.get_addresses())    
         self.subscribe_to_addresses(addrset)
-#        self.subscribe_to_addresses(set([constants.net.WHITELISTCOINSADDRESS]))
+        self.add_whitelist(constants.net.WHITELISTCOINSADDRESS)
+        self.add(constants.net.WHITELISTCOINSADDRESS)
         self.initialized = True
 
     def run(self):
