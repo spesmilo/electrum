@@ -33,7 +33,7 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
 from .keystore import bip44_derivation
-from .transaction import Transaction, TxOutpoint, tx_from_any
+from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction
 from .logging import Logger
 
 # seed_version is now used for the version of the wallet file
@@ -708,7 +708,7 @@ class JsonDB(Logger):
             raise Exception(f"trying to add tx to db with inconsistent txid: {tx_hash} != {tx.txid()}")
         # don't allow overwriting complete tx with partial tx
         tx_we_already_have = self.transactions.get(tx_hash, None)
-        if tx_we_already_have is None or not tx_we_already_have.is_complete():
+        if tx_we_already_have is None or isinstance(tx_we_already_have, PartialTransaction):
             self.transactions[tx_hash] = tx
 
     @modifier
