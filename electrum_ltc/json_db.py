@@ -33,7 +33,7 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
 from .keystore import bip44_derivation
-from .transaction import Transaction, TxOutpoint, tx_from_any
+from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction
 from .logging import Logger
 
 # seed_version is now used for the version of the wallet file
@@ -55,12 +55,12 @@ class TxFeesValue(NamedTuple):
 
 class JsonDB(Logger):
 
-    def __init__(self, raw, *, manual_upgrades):
+    def __init__(self, raw, *, manual_upgrades: bool):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.data = {}
         self._modified = False
-        self.manual_upgrades = manual_upgrades
+        self._manual_upgrades = manual_upgrades
         self._called_after_upgrade_tasks = False
         if raw:  # loading existing db
             self.load_data(raw)
@@ -142,12 +142,12 @@ class JsonDB(Logger):
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
 
-        if not self.manual_upgrades and self.requires_split():
+        if not self._manual_upgrades and self.requires_split():
             raise WalletFileException("This wallet has multiple accounts and must be split")
 
         if not self.requires_upgrade():
             self._after_upgrade_tasks()
-        elif not self.manual_upgrades:
+        elif not self._manual_upgrades:
             self.upgrade()
 
     def requires_split(self):
@@ -708,7 +708,7 @@ class JsonDB(Logger):
             raise Exception(f"trying to add tx to db with inconsistent txid: {tx_hash} != {tx.txid()}")
         # don't allow overwriting complete tx with partial tx
         tx_we_already_have = self.transactions.get(tx_hash, None)
-        if tx_we_already_have is None or not tx_we_already_have.is_complete():
+        if tx_we_already_have is None or isinstance(tx_we_already_have, PartialTransaction):
             self.transactions[tx_hash] = tx
 
     @modifier

@@ -1529,7 +1529,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         timestamp = r.get('time', 0)
         if timestamp and type(timestamp) != int:
             timestamp = 0
-        exp = r.get('exp', 0)
+        exp = r.get('exp', 0) or 0
         paid, conf = self.get_payment_status(address, amount)
         if not paid:
             if exp > 0 and time.time() > timestamp + exp:
