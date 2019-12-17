@@ -325,6 +325,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         segwitTransaction = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        client_electrum = self.get_client_electrum()
+        assert client_electrum
 
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
@@ -335,12 +337,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 p2shTransaction = True
 
             if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
-                if not self.get_client_electrum().supports_segwit():
+                if not client_electrum.supports_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
             if txin.script_type in ['p2wpkh', 'p2wsh']:
-                if not self.get_client_electrum().supports_native_segwit():
+                if not client_electrum.supports_native_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
@@ -381,14 +383,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # - only one output and one change is authorized (for hw.1 and nano)
         # - at most one output can bypass confirmation (~change) (for all)
         if not p2shTransaction:
-            if not self.get_client_electrum().supports_multi_output():
+            if not client_electrum.supports_multi_output():
                 if len(tx.outputs()) > 2:
                     self.give_error("Transaction with more than 2 outputs not supported")
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for txout in tx.outputs():
                 if not txout.address:
-                    if self.get_client_electrum().is_hw1():
+                    if client_electrum.is_hw1():
                         self.give_error(_("Only address outputs are supported by {}").format(self.device))
                     # note: max_size based on https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
                     validate_op_return_output(txout, max_size=190)
