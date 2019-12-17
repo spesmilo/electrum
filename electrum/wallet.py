@@ -679,6 +679,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
                 relevant_txs += [prevout.txid.hex() for prevout, v in prevouts_and_values]
                 total_received = sum([v for prevout, v in prevouts_and_values])
+                # check that there is at least one TXO, and that they pay enough.
+                # note: "at least one TXO" check is needed for zero amount invoice (e.g. OP_RETURN)
+                if len(prevouts_and_values) == 0:
+                    return False, []
                 if total_received < invoice_amt:
                     return False, []
         return True, relevant_txs
