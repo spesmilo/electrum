@@ -92,13 +92,6 @@ class OceanMainnet:
 class OceanTestnet(OceanMainnet):
     TESTNET = True
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
-    CHECKPOINTS = []
-    BASIC_HEADER_SIZE = 172
-    MIN_HEADER_SIZE = 176
-    WIF_PREFIX = 0xB4
-    ADDRTYPE_P2PKH = 38
-    ADDRTYPE_P2SH = 97
-    SEGWIT_HRP = "bc"
     WHITELISTASSET= "d09fe09cd516d723ed62a99d86cda67094ddefd2222f8049b6a858cee40ef94f"
     WHITELISTCOINSDESTINATION = "76a9144f33907bf3ded16fb263d01dc87cb0119732daf888ac"
     WHITELISTCOINSADDRESS = "GR4ha3BeUaMvekwX5JeDbsB54yYhPcJrRZ"
