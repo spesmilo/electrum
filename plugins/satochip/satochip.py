@@ -258,7 +258,9 @@ class Satochip_KeyStore(Hardware_KeyStore):
             try:
                 reply_encrypt= d['reply_encrypt']
             except Exception as e:
+                # Note the below give_error call will itself raise Message. :/
                 self.give_error("No response received from 2FA.\nPlease ensure that the Satochip-2FA plugin is enabled in Tools>Optional Features", True)
+                return
             reply_decrypt= client.cc.card_crypt_transaction_2FA(reply_encrypt, False)
             self.print_error("challenge:response= "+ reply_decrypt)
             reply_decrypt= reply_decrypt.split(":")
@@ -357,9 +359,12 @@ class Satochip_KeyStore(Hardware_KeyStore):
                         run_hook('do_challenge_response', d)
                         # decrypt and parse reply to extract challenge response
                         try:
-                            reply_encrypt= d['reply_encrypt']
+                            reply_encrypt = None  # init it in case of exc below
+                            reply_encrypt = d['reply_encrypt']
                         except Exception as e:
+                            # Note: give_error here will raise again.. :/
                             self.give_error("No response received from 2FA.\nPlease ensure that the Satochip-2FA plugin is enabled in Tools>Optional Features", True)
+                            break
                         if reply_encrypt is None:
                             #todo: abort tx
                             break
@@ -502,11 +507,11 @@ class SatochipPlugin(HW_PluginBase):
                     msg = _("Enter a new PIN for your Satochip:")
                     (is_PIN, pin_0, pin_0)= client.PIN_dialog(msg)
                     if (not is_PIN):
-                        raise RuntimeError(_('Satochip setup aborted: a PIN is required!'))                    
+                        raise RuntimeError(_('Satochip setup aborted: a PIN is required!'))
                     msg = _("Please confirm the PIN code for your Satochip:")
                     (is_PIN, pin_confirm, pin_confirm)= client.PIN_dialog(msg)
                     if (not is_PIN):
-                        raise RuntimeError(_('Satochip setup aborted: a PIN confirmation is required!'))   
+                        raise RuntimeError(_('Satochip setup aborted: a PIN confirmation is required!'))
                     if (pin_0 != pin_confirm):
                         msg= _("The PIN values do not match! Please type PIN again!")
                         client.handler.show_error(msg)

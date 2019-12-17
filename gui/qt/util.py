@@ -291,13 +291,20 @@ class MessageBoxMixin:
         if checkbox_text and isinstance(checkbox_text, str):
             chk = QCheckBox(checkbox_text)
             d.setCheckBox(chk)
+            def on_chk(b):
+                nonlocal checkbox_ischecked
+                checkbox_ischecked = bool(b)
             chk.setChecked(bool(checkbox_ischecked))
-            d.exec_()
-            ret = d.result(), chk.isChecked() # new API returns a tuple if a checkbox is specified
+            chk.clicked.connect(on_chk)
+            res = d.exec_()
+            ret = res, checkbox_ischecked # new API returns a tuple if a checkbox is specified
         else:
-            d.exec_()
-            ret = d.result() # old/no checkbox api
-        d.setParent(None) # Force GC sooner rather than later.
+            ret = d.exec_() # old/no checkbox api
+        try:
+            d.setParent(None) # Force GC sooner rather than later.
+        except RuntimeError as e:
+            # C++ object deleted -- can happen with misbehaving client code that kills parent from dialog ok
+            print_error("MsgBoxMixin WARNING: client code is killing the dialog box's parent before function return:", str(e))
         return ret
 
 class QMessageBoxMixin(QMessageBox, MessageBoxMixin):
