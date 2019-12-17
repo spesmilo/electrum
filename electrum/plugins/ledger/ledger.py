@@ -2,6 +2,7 @@ from struct import pack, unpack
 import hashlib
 import sys
 import traceback
+from typing import Optional
 
 from electrum import ecc
 from electrum import bip32
@@ -17,7 +18,7 @@ from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output
 
 
 _logger = get_logger(__name__)
@@ -61,9 +62,10 @@ def test_pin_unlocked(func):
 
 
 class Ledger_Client(HardwareClientBase):
-    def __init__(self, hidDevice):
+    def __init__(self, hidDevice, *, is_hw1: bool = False):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
+        self._is_hw1 = is_hw1
 
     def is_pairable(self):
         return True
@@ -79,6 +81,9 @@ class Ledger_Client(HardwareClientBase):
 
     def label(self):
         return ""
+
+    def is_hw1(self) -> bool:
+        return self._is_hw1
 
     def has_usable_connection_with_device(self):
         try:
@@ -233,7 +238,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def get_client(self):
         return self.plugin.get_client(self).dongleObject
 
-    def get_client_electrum(self):
+    def get_client_electrum(self) -> Optional[Ledger_Client]:
         return self.plugin.get_client(self)
 
     def give_error(self, message, clear_client = False):
@@ -382,7 +387,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for txout in tx.outputs():
-                assert txout.address
+                if not txout.address:
+                    if self.get_client_electrum().is_hw1():
+                        self.give_error(_("Only address outputs are supported by {}").format(self.device))
+                    # note: max_size based on https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
+                    validate_op_return_output(txout, max_size=190)
                 if txout.is_mine and len(tx.outputs()) > 1 \
                         and not has_change:
                     # prioritise hiding outputs on the 'change' branch from user
@@ -570,7 +579,8 @@ class LedgerPlugin(HW_PluginBase):
 
         client = self.get_btchip_device(device)
         if client is not None:
-            client = Ledger_Client(client)
+            is_hw1 = device.product_key[0] == 0x2581
+            client = Ledger_Client(client, is_hw1=is_hw1)
         return client
 
     def setup_device(self, device_info, wizard, purpose):
