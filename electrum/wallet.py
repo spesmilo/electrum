@@ -333,7 +333,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return []
 
     def basename(self) -> str:
-        return os.path.basename(self.storage.path)
+        return self.storage.basename()
 
     def test_addresses_sanity(self) -> None:
         addrs = self.get_receiving_addresses()

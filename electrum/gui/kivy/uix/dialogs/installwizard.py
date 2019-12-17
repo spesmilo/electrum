@@ -1157,7 +1157,8 @@ class InstallWizard(BaseWizard, Widget):
             self.run('request_password', run_next)
         popup = PasswordDialog()
         app = App.get_running_app()
-        popup.init(app, None, _('Choose PIN code'), on_success, on_failure, is_change=2)
+        popup.init(app, wallet=None, msg=_('Choose PIN code'),
+                   on_success=on_success, on_failure=on_failure, is_change=2)
         popup.open()
 
     def action_dialog(self, action, run_next):
