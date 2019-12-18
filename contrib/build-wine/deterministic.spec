@@ -29,13 +29,13 @@ hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 hiddenimports.remove('safetlib.qt.pinmatrix')
 
 
-# Add libusb binary
-binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
+binaries = []
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 
 datas = [
     (home+'electrum/*.json', 'electrum'),
