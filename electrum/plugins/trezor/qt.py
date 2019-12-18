@@ -224,14 +224,13 @@ class QtPlugin(QtPluginBase):
         bg_backuptype.addButton(rb_single)
         bg_backuptype.setId(rb_single, BackupType.Bip39)
         hbox_backuptype.addWidget(rb_single)
-        rb_single.setChecked(not have_shamir)
+        rb_single.setChecked(True)
 
         rb_shamir = QRadioButton(gb_backuptype)
         rb_shamir.setText(_('Shamir'))
         bg_backuptype.addButton(rb_shamir)
         bg_backuptype.setId(rb_shamir, BackupType.Slip39_Basic)
         hbox_backuptype.addWidget(rb_shamir)
-        rb_shamir.setChecked(have_shamir)
         rb_shamir.setEnabled(Capability.Shamir in capabilities)
 
         rb_shamir_groups = QRadioButton(gb_backuptype)
