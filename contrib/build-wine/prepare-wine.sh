@@ -77,6 +77,10 @@ wine "$CACHEDIR/$NSIS_FILENAME" /S
 info "Compiling libusb..."
 (
     cd "$CACHEDIR"
+    if [ -f "libusb/libusb/.libs/libusb-1.0.dll" ]; then
+        info "libusb-1.0.dll already built, skipping"
+        exit 0
+    fi
     rm -rf libusb
     mkdir libusb
     cd libusb
