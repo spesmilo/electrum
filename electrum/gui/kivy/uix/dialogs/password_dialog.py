@@ -26,15 +26,59 @@ Builder.load_string('''
         orientation: 'vertical'
         Widget:
             size_hint: 1, 0.05
-        Label:
-            font_size: '20dp'
-            text: root.message
-            text_size: self.width, None
-            size: self.texture_size
+        BoxLayout:
+            size_hint: 1, None
+            orientation: 'horizontal'
+            Label:
+                size_hint: 0.70, None
+                font_size: '20dp'
+                text: root.message
+                text_size: self.width, None
+            Label:
+                size_hint: 0.23, None
+                font_size: '9dp'
+                text: _('Generic password')
+            CheckBox:
+                size_hint: 0.07, None
+                id: cb_generic_password
+                on_active:
+                    box_generic_password.visible = self.active
+                    kb.disabled = box_generic_password.visible
+                    textinput_generic_password.focus = box_generic_password.visible
         Widget:
             size_hint: 1, 0.05
+        BoxLayout:
+            orientation: 'horizontal'
+            id: box_generic_password
+            visible: False
+            size_hint_y: 0.05
+            opacity: 1 if self.visible else 0
+            disabled: not self.visible
+            WizardTextInput:
+                id: textinput_generic_password
+                valign: 'center'
+                multiline: False
+                on_text_validate:
+                    popup.on_password(self.text, is_generic=True)
+                password: True
+                size_hint: 0.9, None
+                unfocus_on_touch: False
+            Button:
+                size_hint: 0.1, None
+                valign: 'center'
+                background_normal: 'atlas://electrum/gui/kivy/theming/light/eye1'
+                background_down: self.background_normal
+                height: '50dp'
+                width: '50dp'
+                padding: '5dp', '5dp'
+                on_release:
+                    textinput_generic_password.password = False if textinput_generic_password.password else True
         Label:
-            id: a
+            id: label_pin
+            visible: not box_generic_password.visible
+            size_hint_y: 0.05
+            opacity: 1 if self.visible else 0
+            disabled: not self.visible
             font_size: '50dp'
             text: '*'*len(kb.password) + '-'*(6-len(kb.password))
             size: self.texture_size
@@ -88,11 +132,13 @@ class PasswordDialog(Factory.Popup):
         self.on_success = on_success
         self.on_failure = on_failure
         self.ids.kb.password = ''
+        self.ids.textinput_generic_password.text = ''
         self.success = False
         self.is_change = is_change
         self.pw = None
         self.new_password = None
         self.title = 'Electrum' + ('  -  ' + self.wallet.basename() if self.wallet else '')
+        self.ids.cb_generic_password.active = False
 
     def check_password(self, password):
         if self.is_change > 1:
@@ -126,8 +172,12 @@ class PasswordDialog(Factory.Popup):
             text += c
         kb.password = text
 
-    def on_password(self, pw):
-        if len(pw) == 6:
+    def on_password(self, pw: str, *, is_generic=False):
+        if is_generic:
+            if len(pw) < 6:
+                self.app.show_error(_('Password is too short (min {} characters)').format(6))
+                return
+        if len(pw) >= 6:
             if self.check_password(pw):
                 if self.is_change == 0:
                     self.success = True
@@ -138,11 +188,13 @@ class PasswordDialog(Factory.Popup):
                     self.pw = pw
                     self.message = _('Enter new PIN')
                     self.ids.kb.password = ''
+                    self.ids.textinput_generic_password.text = ''
                     self.is_change = 2
                 elif self.is_change == 2:
                     self.new_password = pw
                     self.message = _('Confirm new PIN')
                     self.ids.kb.password = ''
+                    self.ids.textinput_generic_password.text = ''
                     self.is_change = 3
                 elif self.is_change == 3:
                     self.success = pw == self.new_password
