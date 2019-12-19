@@ -34,7 +34,7 @@ from . import bitcoin
 from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
-from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
 from .storage import (WalletStorage, StorageEncryptionVersion,
@@ -85,7 +85,7 @@ class BaseWizard(Logger):
         self.pw_args = None  # type: Optional[WizardWalletPasswordSetting]
         self._stack = []  # type: List[WizardStackItem]
         self.plugin = None  # type: Optional[BasePlugin]
-        self.keystores = []
+        self.keystores = []  # type: List[KeyStore]
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 

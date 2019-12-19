@@ -1708,7 +1708,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.keystore.check_password(password)
         self.storage.check_password(password)
 
-    def update_password(self, old_pw, new_pw, encrypt_storage=False):
+    def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)

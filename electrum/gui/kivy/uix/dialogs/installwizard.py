@@ -1151,7 +1151,7 @@ class InstallWizard(BaseWizard, Widget):
             return
         def on_success(old_pin, pin):
             assert old_pin is None
-            run_next(pin, False)
+            run_next(pin, True)
         def on_failure():
             self.show_error(_('PIN mismatch'))
             self.run('request_password', run_next)
