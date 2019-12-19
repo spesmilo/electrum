@@ -70,7 +70,7 @@ fun showDialog(activity: FragmentActivity, frag: DialogFragment, target: Fragmen
         if (target != null) {
             frag.setTargetFragment(target, 0)
         }
-        frag.show(fm, tag)
+        frag.showNow(fm, tag)
     }
 }
 
