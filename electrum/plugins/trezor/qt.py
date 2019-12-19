@@ -232,6 +232,7 @@ class QtPlugin(QtPluginBase):
         bg_backuptype.setId(rb_shamir, BackupType.Slip39_Basic)
         hbox_backuptype.addWidget(rb_shamir)
         rb_shamir.setEnabled(Capability.Shamir in capabilities)
+        rb_shamir.setVisible(False)  # visible with "expert settings"
 
         rb_shamir_groups = QRadioButton(gb_backuptype)
         rb_shamir_groups.setText(_('Super Shamir'))
@@ -239,6 +240,7 @@ class QtPlugin(QtPluginBase):
         bg_backuptype.setId(rb_shamir_groups, BackupType.Slip39_Advanced)
         hbox_backuptype.addWidget(rb_shamir_groups)
         rb_shamir_groups.setEnabled(Capability.ShamirGroups in capabilities)
+        rb_shamir_groups.setVisible(False)  # visible with "expert settings"
 
         # word count
         word_count_buttons = {}
@@ -306,6 +308,8 @@ class QtPlugin(QtPluginBase):
         def show_expert_settings():
             expert_button.setVisible(False)
             expert_widget.setVisible(True)
+            rb_shamir.setVisible(True)
+            rb_shamir_groups.setVisible(True)
         expert_button.clicked.connect(show_expert_settings)
         vbox.addWidget(expert_button)
 
