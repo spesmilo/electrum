@@ -293,6 +293,9 @@ abstract class PasswordDialog<Result> : TaskLauncherDialog<Result>() {
 
     /** Attempt to perform the operation with the given password. If the operation fails, this
      * method should throw either a ToastException, or an InvalidPassword PyException (most
-     * Python functions that take passwords will do this automatically). */
+     * Python functions that take passwords will do this automatically).
+     *
+     * This method is called on a background thread. It should not access user interface
+     * objects in any way, as they may be destroyed by rotation and other events. */
     abstract fun onPassword(password: String): Result
 }

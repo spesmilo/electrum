@@ -272,18 +272,24 @@ class SendContactsDialog : MenuDialog() {
 
 class SendPasswordDialog : PasswordDialog<Unit>() {
     val sendDialog by lazy { targetFragment as SendDialog }
-    var tx: PyObject by notNull()
-    var description: String by notNull()
+    class Model : ViewModel() {
+        var tx: PyObject by notNull()
+        var description: String by notNull()
+    }
+    private val model: Model by viewModels()
 
-    override fun onPreExecute() {
-        super.onPreExecute()
-        tx = sendDialog.makeUnsignedTransaction()
-        description = sendDialog.etDescription.text.toString()
+    // We used to do this in onPreExecute, but it seems we can't rely on the SendDialog views
+    // still existing by that time (#1701). I can't reproduce this, but my best guess is that
+    // the screen was covered by a full-screen input method after a rotation or an app switch,
+    // and the views below weren't re-created until they became visible.
+    override fun onFirstShowDialog() {
+        model.tx = sendDialog.makeUnsignedTransaction()
+        model.description = sendDialog.etDescription.text.toString()
     }
 
     override fun onPassword(password: String) {
         val wallet = daemonModel.wallet!!
-        wallet.callAttr("sign_transaction", tx, password)
+        wallet.callAttr("sign_transaction", model.tx, password)
         if (! daemonModel.isConnected()) {
             throw ToastException(R.string.not_connected)
         }
@@ -291,14 +297,14 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
         val result = if (pr != null) {
             checkExpired(pr)
             val refundAddr = wallet.callAttr("get_receiving_addresses").asList().get(0)
-            pr.callAttr("send_payment", tx.toString(), refundAddr)
+            pr.callAttr("send_payment", model.tx.toString(), refundAddr)
         } else {
-            daemonModel.network.callAttr("broadcast_transaction", tx)
+            daemonModel.network.callAttr("broadcast_transaction", model.tx)
         }.asList()
 
         val success = result.get(0).toBoolean()
         if (success) {
-            setDescription(tx.callAttr("txid").toString(), description)
+            setDescription(model.tx.callAttr("txid").toString(), model.description)
         } else {
             var message = result.get(1).toString()
             val reError = Regex("^error: (.*)")
