@@ -2107,7 +2107,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not ok:
             return
         try:
-            self.wallet.update_password(old_password, new_password, encrypt_file)
+            self.wallet.update_password(old_password, new_password, encrypt_storage=encrypt_file)
         except InvalidPassword as e:
             self.show_error(str(e))
             return

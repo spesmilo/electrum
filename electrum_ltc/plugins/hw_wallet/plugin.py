@@ -188,13 +188,23 @@ def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
 
 
 def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
+    validate_op_return_output(output)
     script = output.scriptpubkey
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
         raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
+    return script[2:]
+
+
+def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+    script = output.scriptpubkey
+    if script[0] != opcodes.OP_RETURN:
+        raise UserFacingException(_("Only OP_RETURN scripts are supported."))
+    if max_size is not None and len(script) > max_size:
+        raise UserFacingException(_("OP_RETURN payload too large." + "\n"
+                                  + f"(scriptpubkey size {len(script)} > {max_size})"))
     if output.value != 0:
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
-    return script[2:]
 
 
 def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,

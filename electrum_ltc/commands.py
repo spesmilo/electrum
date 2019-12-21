@@ -106,7 +106,8 @@ def command(s):
             daemon = cmd_runner.daemon
             if daemon:
                 if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
-                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                    # using JSON-RPC, sometimes the "wallet" kwarg needs to be used to specify a wallet
+                    kwargs['wallet_path'] = kwargs.pop('wallet', None) or daemon.config.get_wallet_path()
                 if cmd.requires_wallet:
                     wallet_path = kwargs.pop('wallet_path')
                     wallet = daemon.get_wallet(wallet_path)
@@ -252,7 +253,7 @@ class Commands:
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
             raise Exception("Can't change the password of a wallet encrypted with a hw device.")
         b = wallet.storage.is_encrypted()
-        wallet.update_password(password, new_password, b)
+        wallet.update_password(password, new_password, encrypt_storage=b)
         wallet.storage.write()
         return {'password':wallet.has_password()}
 

@@ -203,7 +203,9 @@ class WalletStorage(Logger):
         else:
             raise WalletFileException('no encryption magic for version: %s' % v)
 
-    def decrypt(self, password):
+    def decrypt(self, password) -> None:
+        if self.is_past_initial_decryption():
+            return
         ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
@@ -226,10 +228,12 @@ class WalletStorage(Logger):
             s = s.decode('utf8')
         return s
 
-    def check_password(self, password):
+    def check_password(self, password) -> None:
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
             return
+        if not self.is_past_initial_decryption():
+            self.decrypt(password)  # this sets self.pubkey
         if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
@@ -249,6 +253,9 @@ class WalletStorage(Logger):
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
+
+    def basename(self) -> str:
+        return os.path.basename(self.path)
 
     def requires_upgrade(self):
         if not self.is_past_initial_decryption():
