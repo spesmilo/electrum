@@ -32,10 +32,10 @@ hidapi==0.7.99.post21 \
 idna==2.8 \
     --hash=sha256:c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
-keepkey==6.3.0 \
-    --hash=sha256:69ce42ef55aaf0428a5cbc35ce5eaccf0eb96d14445e692f3583eaab5408a4af \
-    --hash=sha256:738ca3a5ec3a5b5b91da314d426ddd4648bba9cffc20e3e754582816415df51c \
-    --hash=sha256:e1b2f5a7612fcbbf7f6673339dfade1f8ff4a82873279de73496e2ed53c5cd2f
+keepkey==6.3.1 \
+    --hash=sha256:88e2b5291c85c8e8567732f675697b88241082884aa1aba32257f35ee722fc09 \
+    --hash=sha256:cef1e862e195ece3e42640a0f57d15a63086fd1dedc8b5ddfcbc9c2657f0bb1e \
+    --hash=sha256:f369d640c65fec7fd8e72546304cdc768c04224a6b9b00a19dc2cd06fa9d2a6b
 libusb1==1.7.1 \
     --hash=sha256:adf64a4f3f5c94643a1286f8153bcf4bc787c348b38934aacd7fe17fbeebc571
 mnemonic==0.19 \
