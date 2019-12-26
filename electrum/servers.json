@@ -244,12 +244,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "icarus.tetradrachm.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrum.emzy.de": {
         "pruning": "-",
         "s": "50002",
