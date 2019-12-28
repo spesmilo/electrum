@@ -155,7 +155,7 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        m.addAction(_("Lightning"), self.show_lightning_dialog)
+        #m.addAction(_("Lightning"), self.show_lightning_dialog)
         m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()

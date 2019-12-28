@@ -503,7 +503,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             (gui_widgets, _('General')),
             (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
-            (lightning_widgets, _('Lightning')),
+            #(lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
             (services_widgets, _('Services')),
             (oa_widgets, _('OpenAlias')),

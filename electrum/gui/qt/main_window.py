@@ -2156,9 +2156,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             lightning_b.clicked.connect(dialog.close)
             lightning_b.clicked.connect(self.enable_lightning)
             lightning_label = QLabel(_('Disabled'))
-        grid.addWidget(QLabel(_('Lightning')), 5, 0)
-        grid.addWidget(lightning_label, 5, 1)
-        grid.addWidget(lightning_b, 5, 2)
+        #grid.addWidget(QLabel(_('Lightning')), 5, 0)
+        #grid.addWidget(lightning_label, 5, 1)
+        #grid.addWidget(lightning_b, 5, 2)
         vbox.addLayout(grid)
 
         if self.wallet.is_deterministic():
