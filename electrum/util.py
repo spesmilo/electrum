@@ -535,11 +535,11 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".navelectrum")
+        return os.path.join(os.environ["HOME"], ".NavCash")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "navElectrum")
+        return os.path.join(os.environ["APPDATA"], "NavCash")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "navElectrum")
+        return os.path.join(os.environ["LOCALAPPDATA"], "NavCash")
     else:
         #raise Exception("No home directory found in environment variables.")
         return

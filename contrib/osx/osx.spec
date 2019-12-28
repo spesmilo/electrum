@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 
 import sys, os
 
-PACKAGE='navElectrum'
+PACKAGE='NavCash'
 PYPKG='electrum'
 MAIN_SCRIPT='run_electrum'
 ICONS_FILE=PYPKG + '/gui/icons/electrum.icns'

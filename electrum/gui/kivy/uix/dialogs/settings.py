@@ -17,7 +17,7 @@ Builder.load_string('''
 
 <SettingsDialog@Popup>
     id: settings
-    title: _('navElectrum Settings')
+    title: _('NavCash Settings')
     disable_pin: False
     use_encryption: False
     BoxLayout:

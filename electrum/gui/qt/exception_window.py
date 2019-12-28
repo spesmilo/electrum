@@ -44,7 +44,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.main_window = main_window
 
         QWidget.__init__(self)
-        self.setWindowTitle('navElectrum - ' + _('An Error Occurred'))
+        self.setWindowTitle('NavCash - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
         Logger.__init__(self)

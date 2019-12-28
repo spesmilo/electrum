@@ -4,11 +4,11 @@
 [Desktop Entry]
 Comment=Lightweight Navcoin Client
 Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum %u"
-GenericName[en_US]=navElectrum Wallet
+GenericName[en_US]=NavCash Wallet
 GenericName=Navcoin Wallet
 Icon=electrum
-Name[en_US]=navElectrum Wallet
-Name=navElectrum Wallet
+Name[en_US]=NavCash Wallet
+Name=NavCash Wallet
 Categories=Finance;Network;
 StartupNotify=true
 StartupWMClass=electrum

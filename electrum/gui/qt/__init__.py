@@ -123,7 +123,7 @@ class ElectrumGui(Logger):
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('navElectrum')
+        self.tray.setToolTip('NavCash')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -212,7 +212,7 @@ class ElectrumGui(Logger):
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:
-            parent.show_warning(_('You are using navElectrum in offline mode; restart navElectrum if you want to get connected'), title=_('Offline'))
+            parent.show_warning(_('You are using NavCash in offline mode; restart NavCash if you want to get connected'), title=_('Offline'))
             return
         if self.network_dialog:
             self.network_dialog.on_update()

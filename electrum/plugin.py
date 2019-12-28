@@ -504,7 +504,7 @@ class DeviceMgr(ThreadJob):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('navElectrum cannot pair with your {}.\n\n'
+            _('NavCash cannot pair with your {}.\n\n'
               'Before you request Navcoins to be sent to addresses in this '
               'wallet, ensure you can pair with your device, or that you have '
               'its seed (and passphrase, if any).  Otherwise all Navcoins you '

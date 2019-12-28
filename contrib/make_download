@@ -30,13 +30,13 @@ string = string.replace("##VERSION_ANDROID##", version_android)
 string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
-    'tgz': "navElectrum-%s.tar.gz" % version,
-    'appimage': "navelectrum-%s-x86_64.AppImage" % version,
-    'zip': "navElectrum-%s.zip" % version,
-    'mac': "navelectrum-%s.dmg" % version_mac,
-    'win': "navelectrum-%s.exe" % version_win,
-    'win_setup': "navelectrum-%s-setup.exe" % version_win,
-    'win_portable': "navelectrum-%s-portable.exe" % version_win,
+    'tgz': "NavCash-%s.tar.gz" % version,
+    'appimage': "NavCash-%s-x86_64.AppImage" % version,
+    'zip': "NavCash-%s.zip" % version,
+    'mac': "NavCash-%s.dmg" % version_mac,
+    'win': "NavCash-%s.exe" % version_win,
+    'win_setup': "NavCash-%s-setup.exe" % version_win,
+    'win_portable': "NavCash-%s-portable.exe" % version_win,
 }
 
 for k, n in files.items():
