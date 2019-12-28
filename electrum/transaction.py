@@ -46,9 +46,9 @@ from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      int_to_hex, push_script, b58_address_to_hash160,
+                      int_to_hex, push_script, b58_address_to_hash160, public_key_to_p2pkh,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
-from .crypto import sha256d
+from .crypto import sha256d, hash_160
 from .logging import get_logger
 
 if TYPE_CHECKING:
@@ -677,6 +677,9 @@ class Transaction:
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
             return script
+        elif _type == 'p2cs':
+            script += push_script(pubkeys[1])
+            return script
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
@@ -702,7 +705,12 @@ class Transaction:
         pubkeys = [pk.hex() for pk in txin.pubkeys]
         if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             return multisig_script(pubkeys, txin.num_sig)
-        elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+        elif txin.script_type in ['p2cs'] and len(pubkeys) >= 2:
+            pkh = pubkeys[0]
+            pubkey2 = pubkeys[1]
+            pkh2 = bh2u(hash_160(bfh(pubkey2)))
+            return bitcoin.pubkeyhash_to_p2cs_script(pkh, pkh2)
+        elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             pubkey = pubkeys[0]
             pkh = bh2u(hash_160(bfh(pubkey)))
             return bitcoin.pubkeyhash_to_p2pkh_script(pkh)
@@ -1265,7 +1273,7 @@ class PartialTxInput(TxInput, PSBTSection):
         #       that are related to the wallet.
         #       The 'fix' would be adding extra logic that matches on templates,
         #       and figures out the script_type from available fields.
-        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
+        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs'):
             return s >= 1
         if self.script_type in ('p2sh', 'p2wsh', 'p2wsh-p2sh'):
             return s >= self.num_sig

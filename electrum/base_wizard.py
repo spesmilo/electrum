@@ -31,11 +31,13 @@ from functools import partial
 from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 
 from . import bitcoin
+from . import constants
 from . import keystore
 from . import mnemonic
+from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
 from .keystore import bip44_derivation, purpose48_derivation
-from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
+from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet, Cold_Staking_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
 from .storage import (WalletStorage, StorageEncryptionVersion,
                       get_derivation_used_for_hw_device_encryption)
@@ -136,7 +138,7 @@ class BaseWizard(Logger):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('2fa', _("Wallet with two-factor authentication")),
+            ('coldstaking', _("Spending wallet for cold staking")),
             ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Import Navcoin addresses or private keys")),
         ]
@@ -172,6 +174,8 @@ class BaseWizard(Logger):
         elif choice == '2fa':
             self.load_2fa()
             action = self.plugin.get_action(self.data)
+        elif choice == 'coldstaking':
+            action = 'choose_staking_address'
         elif choice == 'imported':
             action = 'import_addresses_or_keys'
         self.run(action)
@@ -184,8 +188,20 @@ class BaseWizard(Logger):
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
+    def choose_staking_address(self):
+        title = _('Specify the staking address')
+        message = '\n'.join([
+            _('The staking address is the address provided by the node staking on your behalf. This can be an arbitrary address from your own staking node or obtained from a staking pool like NavPool.'),
+            _('Please type it here.'),
+        ])
+        self.line_dialog(run_next=self.save_staking_address, title=title, message=message, default='', test=lambda x: bitcoin.is_address(x) and   b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH)
+
+    def save_staking_address(self, address):
+        self.data['staking_address'] = address
+        self.run('choose_keystore')
+
     def choose_keystore(self):
-        assert self.wallet_type in ['standard', 'multisig']
+        assert self.wallet_type in ['standard', 'multisig', 'coldstaking']
         i = len(self.keystores)
         title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
         if self.wallet_type =='standard' or i==0:
@@ -395,15 +411,15 @@ class BaseWizard(Logger):
             default_choice_idx = 2
             choices = [
                 ('standard',   'legacy multisig (p2sh)',            normalize_bip32_derivation("m/45'/0")),
-                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
-                ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
+                #('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                #('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
         else:
             default_choice_idx = 2
             choices = [
                 ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
-                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
-                ('p2wpkh',      'native segwit (p2wpkh)',    bip44_derivation(0, bip43_purpose=84)),
+                #('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
+                #('p2wpkh',      'native segwit (p2wpkh)',    bip44_derivation(0, bip43_purpose=84)),
             ]
         while True:
             try:
@@ -458,7 +474,7 @@ class BaseWizard(Logger):
         self.opt_bip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed if self.wallet_type == 'standard' else is_cosigning_seed
+        test = mnemonic.is_seed if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' else is_cosigning_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
@@ -495,7 +511,7 @@ class BaseWizard(Logger):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             t1 = xpub_type(k.xpub)
-        if self.wallet_type == 'standard':
+        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking':
             if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
@@ -532,7 +548,7 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        if (self.wallet_type == 'standard' or self.wallet_type == 'coldstaking') and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]
             try:
@@ -571,7 +587,7 @@ class BaseWizard(Logger):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
-        if self.wallet_type == 'standard':
+        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking':
             self.data['seed_type'] = self.seed_type
             keys = self.keystores[0].dump()
             self.data['keystore'] = keys
@@ -618,14 +634,14 @@ class BaseWizard(Logger):
         if message is None:
             message = ' '.join([
                 _("The type of addresses used by your wallet will depend on your seed."),
-                _("Segwit wallets use bech32 addresses, defined in BIP173."),
-                _("Please note that websites and other wallets may not support these addresses yet."),
-                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive Navcoins during the transition period.")
+                #_("Segwit wallets use bech32 addresses, defined in BIP173."),
+                #_("Please note that websites and other wallets may not support these addresses yet."),
+                #_("Thus, you might want to keep using a non-segwit wallet in order to be able to receive Navcoins during the transition period.")
             ])
         if choices is None:
             choices = [
                 ('create_standard_seed', _('Legacy')),
-                ('create_segwit_seed', _('Segwit')),
+                #('create_segwit_seed', _('Segwit')),
             ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 

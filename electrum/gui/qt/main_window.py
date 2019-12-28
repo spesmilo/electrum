@@ -1604,7 +1604,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
-
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 

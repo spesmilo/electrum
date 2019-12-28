@@ -334,6 +334,8 @@ def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
 
 def b58_address_to_hash160_pair(addr: str) -> Tuple[int, bytes, bytes]:
     addr = to_bytes(addr, 'ascii')
+    if len(addr) < 61:
+        return 0, bytes(), bytes()
     _bytes = base_decode(addr, 45, base=58)
     return _bytes[0], _bytes[1:21], _bytes[21:41]
 
@@ -561,6 +563,7 @@ def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
 # the keys in this dict should be a superset of what Imported Wallets can import
 WIF_SCRIPT_TYPES = {
     'p2pkh':96,
+    'p2cs': 96,
     # 'p2wpkh':1,
     # 'p2wpkh-p2sh':2,
     # 'p2sh':85,
