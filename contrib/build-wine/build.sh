@@ -81,6 +81,7 @@ FRESH_CLONE_DIR="$FRESH_CLONE/$GIT_DIR_NAME"
     -u $USER_ID:$GROUP_ID \
     -e HOME=/homedir \
     -e GIT_REPO="$GIT_REPO" \
+    -e BUILD_DEBUG="$BUILD_DEBUG" \
     -e PYI_SKIP_TAG="$PYI_SKIP_TAG" \
     --name ec-wine-builder-cont \
     -v "$FRESH_CLONE_DIR":/homedir/wine64/drive_c/electroncash:delegated \

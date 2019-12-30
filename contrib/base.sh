@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Set BUILD_DEBUG=1 to enable additional build output
+if [ "${BUILD_DEBUG:-0}" -ne 0 ] ; then
+    set -x # Enable shell command logging
+fi
+
 # Set a fixed umask as this leaks into the docker container
 umask 0022
 
@@ -33,6 +38,15 @@ function info {
 }
 function fail {
     printf "${MSG_ERROR}  ${1}\n" >&2
+
+    if [ -r /.dockerenv ] ; then
+        if [ -t 1 ] ; then
+            if [ "${BUILD_DEBUG:-0}" -ne 0 ] ; then
+                bash || true
+            fi
+        fi
+    fi
+
     exit 1
 }
 function warn {
