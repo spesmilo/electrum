@@ -214,6 +214,11 @@ fi
 
 export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
 
+export SHA256_PROG=`which sha256sum || which gsha256sum`
+if [ -z "$SHA256_PROG" ]; then
+    fail "Please install sha256sum or gsha256sum"
+fi
+
 # Update submodules only once
 info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."
 git submodule update --init $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"

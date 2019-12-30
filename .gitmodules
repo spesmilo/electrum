@@ -16,3 +16,6 @@
 [submodule "contrib/zlib"]
 	path = contrib/zlib
 	url = https://github.com/madler/zlib.git
+[submodule "contrib/tor"]
+	path = contrib/tor
+	url = https://github.com/torproject/tor.git

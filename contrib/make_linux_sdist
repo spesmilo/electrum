@@ -21,7 +21,7 @@ info "Making SrcDist for version: ${EC_PACKAGE_NAME}-${EC_PACKAGE_VERSION} ..."
 
 "$contrib"/make_locale && \
     "$contrib"/make_packages && \
-    python3 setup.py sdist --enable-secp --enable-zbar --format=zip,gztar || fail "Failed."
+    python3 setup.py sdist --enable-secp --enable-zbar --enable-tor --format=zip,gztar || fail "Failed."
 
 unset EC_PACKAGE_VERSION EC_PACKAGE_NAME
 

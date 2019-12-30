@@ -30,6 +30,9 @@ binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 # Add zbar libraries
 binaries += [('C:/tmp/libzbar-0.dll', '.')]
 
+# Add tor binary
+binaries += [('C:/tmp/tor.exe', '.')]
+
 # The below is no longer necessary. PyInstaller 3.4+ picks these up properly
 # now and puts them in the Qt dirs.
 # Add Windows OpenGL and D3D implementation DLLs (see #1255 and #1253)
