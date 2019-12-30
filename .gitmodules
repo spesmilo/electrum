@@ -7,3 +7,6 @@
 [submodule "contrib/zbar"]
 	path = contrib/zbar
 	url = https://github.com/mchehab/zbar
+[submodule "contrib/openssl"]
+	path = contrib/openssl
+	url = https://github.com/openssl/openssl.git
