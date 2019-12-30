@@ -36,7 +36,7 @@ import itertools
 import logging
 
 import aiorpcx
-from aiorpcx import RPCSession, Notification, NetAddress
+from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
@@ -61,6 +61,8 @@ if TYPE_CHECKING:
 ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
+
+MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
 
 class NetworkTimeout:
@@ -156,6 +158,10 @@ class NotificationSession(RPCSession):
         if not self.interface: return
         if self.interface.debug or self.interface.network.debug:
             self.interface.logger.debug(msg)
+
+    def default_framer(self):
+        # overridden so that max_size can be customized
+        return NewlineFramer(max_size=MAX_INCOMING_MSG_SIZE)
 
 
 class NetworkException(Exception): pass
