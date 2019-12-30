@@ -38,7 +38,7 @@ verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
 (
     cd "$PROJECT_ROOT"
-    for pkg in secp zbar openssl libevent ; do
+    for pkg in secp zbar openssl libevent zlib ; do
         "$CONTRIB"/make_$pkg || fail "Could not build $pkg"
     done
 )

@@ -13,3 +13,6 @@
 [submodule "contrib/libevent"]
 	path = contrib/libevent
 	url = https://github.com/libevent/libevent.git
+[submodule "contrib/zlib"]
+	path = contrib/zlib
+	url = https://github.com/madler/zlib.git
