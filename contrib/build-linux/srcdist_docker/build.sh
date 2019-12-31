@@ -3,7 +3,9 @@
 here=$(dirname "$0")
 test -n "$here" -a -d "$here" || (echo "Cannot determine build dir. FIXME!" && exit 1)
 
+GIT_SUBMODULE_SKIP=1
 . "$here"/../../base.sh # functions we use below (fail, et al)
+unset GIT_SUBMODULE_SKIP
 
 if [ ! -z "$1" ]; then
     REV="$1"

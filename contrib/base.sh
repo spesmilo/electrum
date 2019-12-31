@@ -233,9 +233,10 @@ if [ -z "$SHA256_PROG" ]; then
     fail "Please install sha256sum or gsha256sum"
 fi
 
-# Update submodules only once
-info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."
-git submodule update --init $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"
+if [ "${GIT_SUBMODULE_SKIP:-0}" -eq 0 ] ; then
+    info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."
+    git submodule update --init $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"
+fi
 
 # This variable is set to avoid sourcing base.sh multiple times
 export _BASE_SH_SOURCED=1
