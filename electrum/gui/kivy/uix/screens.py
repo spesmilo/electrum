@@ -4,7 +4,7 @@ from decimal import Decimal
 import re
 import threading
 import traceback, sys
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -43,6 +43,7 @@ from electrum.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
+    from electrum.paymentrequest import PaymentRequest
 
 
 class HistoryRecycleView(RecycleView):
@@ -183,11 +184,11 @@ class HistoryScreen(CScreen):
 class SendScreen(CScreen):
 
     kvname = 'send'
-    payment_request = None
-    payment_request_queued = None
+    payment_request = None  # type: Optional[PaymentRequest]
+    payment_request_queued = None  # type: Optional[str]
     parsed_URI = None
 
-    def set_URI(self, text):
+    def set_URI(self, text: str):
         if not self.app.wallet:
             self.payment_request_queued = text
             return
@@ -263,7 +264,7 @@ class SendScreen(CScreen):
         self.screen.locked = False
         self.parsed_URI = None
 
-    def set_request(self, pr):
+    def set_request(self, pr: 'PaymentRequest'):
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
@@ -308,11 +309,14 @@ class SendScreen(CScreen):
         message = self.screen.message
         if self.screen.is_lightning:
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
-        else:
-            if not bitcoin.is_address(address):
-                self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
-                return
-            outputs = [PartialTxOutput.from_address_and_value(address, amount)]
+        else:  # on-chain
+            if self.payment_request:
+                outputs = self.payment_request.get_outputs()
+            else:
+                if not bitcoin.is_address(address):
+                    self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                    return
+                outputs = [PartialTxOutput.from_address_and_value(address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
