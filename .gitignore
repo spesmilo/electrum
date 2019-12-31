@@ -31,3 +31,8 @@ xcuserdata/
 
 # IntelliJ Pycharm IDE
 /.idea
+
+# Some people need to set up these symlinks to get their IDE completion working
+electroncash
+electroncash_gui
+electroncash_plugins
