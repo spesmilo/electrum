@@ -424,7 +424,7 @@ class JsonDB(Logger):
         for txid, raw_tx in transactions.items():
             tx = Transaction(raw_tx)
             for txin in tx.inputs():
-                if txin.is_coinbase():
+                if txin.is_coinbase_input():
                     continue
                 prevout_hash = txin.prevout.txid.hex()
                 prevout_n = txin.prevout.out_idx

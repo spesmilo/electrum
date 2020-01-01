@@ -330,7 +330,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
             if txin.script_type in ['p2sh']:
