@@ -228,6 +228,8 @@ class UntrustedServerReturnedError(NetworkException):
         return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
 
 
+_dns_threads_executor = None  # type: Optional[concurrent.futures.Executor]
+
 _INSTANCE = None
 
 
@@ -567,10 +569,13 @@ class Network(Logger):
                 # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
                 # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
                 # see #4421
-                socket.getaddrinfo = self._fast_getaddrinfo
                 resolver = dns.resolver.get_default_resolver()
                 if resolver.cache is None:
                     resolver.cache = dns.resolver.Cache()
+                global _dns_threads_executor
+                if _dns_threads_executor is None:
+                    _dns_threads_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+                socket.getaddrinfo = self._fast_getaddrinfo
             else:
                 socket.getaddrinfo = socket._getaddrinfo
         self.trigger_callback('proxy_set', self.proxy)
@@ -588,20 +593,23 @@ class Network(Logger):
             return True
         def resolve_with_dnspython(host):
             addrs = []
-            expected_dnspython_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer)
+            expected_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+                               concurrent.futures.CancelledError, concurrent.futures.TimeoutError)
+            ipv6_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.AAAA)
+            ipv4_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.A)
             # try IPv6
             try:
-                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
+                answers = ipv6_fut.result()
                 addrs += [str(answer) for answer in answers]
-            except expected_dnspython_errors as e:
+            except expected_errors as e:
                 pass
             except BaseException as e:
                 _logger.info(f'dnspython failed to resolve dns (AAAA) for {repr(host)} with error: {repr(e)}')
             # try IPv4
             try:
-                answers = dns.resolver.query(host, dns.rdatatype.A)
+                answers = ipv4_fut.result()
                 addrs += [str(answer) for answer in answers]
-            except expected_dnspython_errors as e:
+            except expected_errors as e:
                 # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
                 # Simply report back failure; except if we already have some results.
                 if not addrs:
