@@ -564,6 +564,9 @@ class Network(Logger):
                 # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
                 # see #4421
                 socket.getaddrinfo = self._fast_getaddrinfo
+                resolver = dns.resolver.get_default_resolver()
+                if resolver.cache is None:
+                    resolver.cache = dns.resolver.Cache()
             else:
                 socket.getaddrinfo = socket._getaddrinfo
         self.trigger_callback('proxy_set', self.proxy)
