@@ -630,9 +630,6 @@ class WalletExportDialog : AlertDialogFragment() {
 }
 
 
-data class ShowSeedResult(val seed: String, val passphrase: String)
-
-
 data class SeedShowResult(val seed: String, val passphrase: String)
 
 class SeedShowPasswordDialog : PasswordDialog<SeedShowResult>() {
