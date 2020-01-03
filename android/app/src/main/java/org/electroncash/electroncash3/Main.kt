@@ -9,8 +9,6 @@ import android.os.Bundle
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
-import android.view.inputmethod.EditorInfo
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -234,7 +232,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 storage.callAttr("write")
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
-            R.id.menuShowSeed-> { showDialog(this, SeedShowPasswordDialog()) }
+            R.id.menuShowSeed-> { showDialog(this, SeedPasswordDialog()) }
             R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
@@ -630,16 +628,17 @@ class WalletExportDialog : AlertDialogFragment() {
 }
 
 
-data class SeedShowResult(val seed: String, val passphrase: String)
+data class SeedResult(val seed: String, val passphrase: String)
 
-class SeedShowPasswordDialog : PasswordDialog<SeedShowResult>() {
-    override fun onPassword(password: String): SeedShowResult {
+
+class SeedPasswordDialog : PasswordDialog<SeedResult>() {
+    override fun onPassword(password: String): SeedResult {
         val keystore = daemonModel.wallet!!.callAttr("get_keystore")!!
-        return SeedShowResult(keystore.callAttr("get_seed", password).toString(),
+        return SeedResult(keystore.callAttr("get_seed", password).toString(),
                               keystore.callAttr("get_passphrase", password).toString())
     }
 
-    override fun onPostExecute(result: SeedShowResult) {
+    override fun onPostExecute(result: SeedResult) {
         showDialog(activity!!, SeedDialog().apply { arguments = Bundle().apply {
             putString("seed", result.seed)
             putString("passphrase", result.passphrase)
