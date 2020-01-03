@@ -15,7 +15,7 @@ git submodule init
 git submodule update
 
 info "Building libsecp256k1..."
-LIBSECP_VERSION="a9752bb2d1c1f5abb30e5bde7a1fad582629e46d"  # According to Mark B. Lundeberg, using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+LIBSECP_VERSION="a0530612dd02c8d052631678b0f4f30d7aa7cb42"  # Using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 
 pushd "$contrib"/secp256k1 || fail "Could not chdir to ${contrib}/secp256k1"
 git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
@@ -41,7 +41,7 @@ else
     fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
 fi
 cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
-git checkout master  # Undo the previous explicit checkout to this hash
+#git checkout master  # Undo the previous explicit checkout to this hash
 git clean -dfxq
 popd
 
