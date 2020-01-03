@@ -8,6 +8,7 @@
 def _(s):
     return s
 
+_("Are you sure you want to delete your wallet \'%s\'?")
 _("Block explorer")
 _("Cannot specify private keys and addresses in the same wallet.")
 _("Change password")

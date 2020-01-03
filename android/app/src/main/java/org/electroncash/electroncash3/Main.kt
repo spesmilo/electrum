@@ -408,7 +408,7 @@ class WalletOpenDialog : PasswordDialog<String>() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         super.onBuildDialog(builder)
         builder.setView(R.layout.wallet_open)
-                .setNeutralButton(R.string.Delete_wallet, null)
+                .setNeutralButton(R.string.Delete, null)
                 .setTitle("")
     }
 
@@ -440,7 +440,7 @@ class WalletOpenDialog : PasswordDialog<String>() {
 class WalletDeleteConfirmDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val walletName = arguments!!.getString("walletName")!!
-        val message = getString(R.string.do_you_want_to_delete, walletName) +
+        val message = getString(R.string.are_you_sure_you_want_to_delete, walletName) +
                       "\n\n" + getString(R.string.if_your)
         builder.setTitle(R.string.confirm_delete)
             .setMessage(message)
