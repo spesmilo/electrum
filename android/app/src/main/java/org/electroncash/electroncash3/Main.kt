@@ -554,6 +554,9 @@ class WalletRenameDialog : AlertDialogFragment() {
                     newWalletName.contains('/') -> {
                         toast(R.string.wallet_names)
                     }
+                    newWalletName.isEmpty() -> {
+                        toast(R.string.name_is)
+                    }
                     else -> {
                         daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
                         toast(R.string.wallet_renamed, Toast.LENGTH_SHORT)
@@ -608,6 +611,8 @@ class WalletExportDialog : AlertDialogFragment() {
             val exportFileName = etExportFileName.text
             if (exportFileName.contains('/')) {
                 toast(R.string.filenames_cannot)
+            } else if (exportFileName.isEmpty()) {
+                toast(R.string.name_is)
             } else {
                 val exportDir = File(activity!!.cacheDir, "wallet_exports")
                 exportDir.deleteRecursively() // To ensure no more than one temp file lingers
