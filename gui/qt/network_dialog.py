@@ -689,7 +689,7 @@ class NetworkChoiceLayout(QObject, PrintError):
             self.tor_cb.setChecked(False) # It's not clear to me that if the tor service goes away and comes back later, and in the meantime they unchecked proxy_cb, that this should remain checked. I can see it being confusing for that to be the case. Better to uncheck. It gets auto-re-checked anyway if it comes back and it's the same due to code below. -Calin
             return
         self.tor_proxy = found_proxy
-        self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
+        self.tor_cb.setText(_("Use Tor proxy at port {tor_port}").format(tor_port = found_proxy[1]))
         if (self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
             and self.proxy_host.text() == found_proxy[0]
             and self.proxy_port.text() == str(found_proxy[1])
