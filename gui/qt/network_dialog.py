@@ -694,11 +694,11 @@ class NetworkChoiceLayout(QObject, PrintError):
             return
         self.tor_proxy = found_proxy
         self.tor_cb.setText(_("Use Tor proxy at port {tor_port}").format(tor_port = found_proxy[1]))
-        if (self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
+        same_proxy = (self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
             and self.proxy_host.text() == found_proxy[0]
             and self.proxy_port.text() == str(found_proxy[1])
-            and self.proxy_cb.isChecked()):
-            self._set_tor_use(True)
+            and self.proxy_cb.isChecked())
+        self._set_tor_use(same_proxy)
         self.tor_cb.setEnabled(True)
 
     def _set_tor_use(self, use_it):
@@ -706,7 +706,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.config.set_key('tor_use', self.tor_use)
         self.tor_cb.setChecked(self.tor_use)
         self.proxy_cb.setEnabled(not self.tor_use)
-        self.check_disable_proxy(self.tor_use)
+        self.check_disable_proxy(not self.tor_use)
 
     def use_tor_proxy(self, use_it):
         self._set_tor_use(use_it)
