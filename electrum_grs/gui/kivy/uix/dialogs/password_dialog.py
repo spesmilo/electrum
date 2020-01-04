@@ -12,8 +12,8 @@ from electrum_grs.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
-    from electrum.wallet import Abstract_Wallet
-    from electrum.storage import WalletStorage
+    from electrum_grs.wallet import Abstract_Wallet
+    from electrum_grs.storage import WalletStorage
 
 Builder.load_string('''
 

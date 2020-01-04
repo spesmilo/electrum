@@ -5,8 +5,8 @@ import copy
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
-from electrum.gui.qt.transaction_dialog import TxDialog
+from electrum_grs.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrum_grs.gui.qt.transaction_dialog import TxDialog
 
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
