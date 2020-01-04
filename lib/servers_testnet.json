@@ -26,5 +26,10 @@
     "tbch.loping.net": {
         "s": "60002",
         "t": "60001"
+    },
+    "scgjgc67226l65u52wyvulioxixv34p5dth73oj35ej7ham2zavdtxid.onion": {
+        "s": "60002",
+        "t": "60001",
+        "display": "tbch.loping.net"
     }
 }
