@@ -192,19 +192,29 @@ class TxInput:
     script_sig: Optional[bytes]
     nsequence: int
     witness: Optional[bytes]
+    _is_coinbase_output: bool
 
     def __init__(self, *,
                  prevout: TxOutpoint,
                  script_sig: bytes = None,
                  nsequence: int = 0xffffffff - 1,
-                 witness: bytes = None):
+                 witness: bytes = None,
+                 is_coinbase_output: bool = False):
         self.prevout = prevout
         self.script_sig = script_sig
         self.nsequence = nsequence
         self.witness = witness
+        self._is_coinbase_output = is_coinbase_output
 
-    def is_coinbase(self) -> bool:
+    def is_coinbase_input(self) -> bool:
+        """Whether this is the input of a coinbase tx."""
         return self.prevout.is_coinbase()
+
+    def is_coinbase_output(self) -> bool:
+        """Whether the coin being spent is an output of a coinbase tx.
+        This matters for coin maturity.
+        """
+        return self._is_coinbase_output
 
     def value_sats(self) -> Optional[int]:
         return None
@@ -213,7 +223,7 @@ class TxInput:
         d = {
             'prevout_hash': self.prevout.txid.hex(),
             'prevout_n': self.prevout.out_idx,
-            'coinbase': self.is_coinbase(),
+            'coinbase': self.is_coinbase_output(),
             'nsequence': self.nsequence,
         }
         if self.script_sig is not None:
@@ -550,7 +560,7 @@ class Transaction:
 
     @classmethod
     def get_siglist(self, txin: 'PartialTxInput', *, estimate_size=False):
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return [], []
 
         if estimate_size:
@@ -560,9 +570,14 @@ class Transaction:
                 pubkey_size = 33  # guess it is compressed
             num_pubkeys = max(1, len(txin.pubkeys))
             pk_list = ["00" * pubkey_size] * num_pubkeys
-            # we assume that signature will be 0x48 bytes long
             num_sig = max(1, txin.num_sig)
-            sig_list = [ "00" * 0x48 ] * num_sig
+            # we guess that signatures will be 72 bytes long
+            # note: DER-encoded ECDSA signatures are 71 or 72 bytes in practice
+            #       See https://bitcoin.stackexchange.com/questions/77191/what-is-the-maximum-size-of-a-der-encoded-ecdsa-signature
+            #       We assume low S (as that is a bitcoin standardness rule).
+            #       We do not assume low R (even though the sigs we create conform), as external sigs,
+            #       e.g. from a hw signer cannot be expected to have a low R.
+            sig_list = [ "00" * 72 ] * num_sig
         else:
             pk_list = [pubkey.hex() for pubkey in txin.pubkeys]
             sig_list = [txin.part_sigs.get(pubkey, b'').hex() for pubkey in txin.pubkeys]
@@ -574,7 +589,7 @@ class Transaction:
     def serialize_witness(cls, txin: TxInput, *, estimate_size=False) -> str:
         if txin.witness is not None:
             return txin.witness.hex()
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return ''
         assert isinstance(txin, PartialTxInput)
 
@@ -638,7 +653,7 @@ class Transaction:
     def input_script(self, txin: TxInput, *, estimate_size=False) -> str:
         if txin.script_sig is not None:
             return txin.script_sig.hex()
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return ''
         assert isinstance(txin, PartialTxInput)
 
@@ -902,7 +917,7 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
         pass
     # try base43
     try:
-        return base_decode(raw, length=None, base=43).hex()
+        return base_decode(raw, base=43).hex()
     except:
         pass
     # try base64
@@ -1085,7 +1100,8 @@ class PartialTxInput(TxInput, PSBTSection):
         res = PartialTxInput(prevout=txin.prevout,
                              script_sig=None if strip_witness else txin.script_sig,
                              nsequence=txin.nsequence,
-                             witness=None if strip_witness else txin.witness)
+                             witness=None if strip_witness else txin.witness,
+                             is_coinbase_output=txin.is_coinbase_output())
         return res
 
     def validate_data(self, *, for_signing=False) -> None:
@@ -1238,7 +1254,7 @@ class PartialTxInput(TxInput, PSBTSection):
     def is_complete(self) -> bool:
         if self.script_sig is not None and self.witness is not None:
             return True
-        if self.prevout.is_coinbase():
+        if self.is_coinbase_input():
             return True
         if self.script_sig is not None and not Transaction.is_segwit_input(self):
             return True
@@ -1343,6 +1359,12 @@ class PartialTxInput(TxInput, PSBTSection):
 
             self._is_p2sh_segwit = calc_if_p2sh_segwit_now()
         return self._is_p2sh_segwit
+
+    def already_has_some_signatures(self) -> bool:
+        """Returns whether progress has been made towards completing this input."""
+        return (self.part_sigs
+                or self.script_sig is not None
+                or self.witness is not None)
 
 
 class PartialTxOutput(TxOutput, PSBTSection):
@@ -1739,7 +1761,7 @@ class PartialTransaction(Transaction):
         s = 0  # "num Sigs we have"
         r = 0  # "Required"
         for txin in self.inputs():
-            if txin.prevout.is_coinbase():
+            if txin.is_coinbase_input():
                 continue
             signatures = list(txin.part_sigs.values())
             s += len(signatures)

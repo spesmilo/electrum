@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from decimal import Decimal
+from typing import Union
 
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPalette, QPainter, QFontMetrics
+from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from .util import char_width_in_lineedit
@@ -12,7 +13,7 @@ from electrum_grs.util import (format_satoshis_plain, decimal_point_to_base_unit
                            FEERATE_PRECISION, quantize_feerate)
 
 
-class MyLineEdit(QLineEdit):
+class FreezableLineEdit(QLineEdit):
     frozen = pyqtSignal()
 
     def setFrozen(self, b):
@@ -20,7 +21,7 @@ class MyLineEdit(QLineEdit):
         self.setFrame(not b)
         self.frozen.emit()
 
-class AmountEdit(MyLineEdit):
+class AmountEdit(FreezableLineEdit):
     shortcut = pyqtSignal()
 
     def __init__(self, base_unit, is_int=False, parent=None):
@@ -71,7 +72,7 @@ class AmountEdit(MyLineEdit):
             painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
 
-    def get_amount(self):
+    def get_amount(self) -> Union[None, Decimal, int]:
         try:
             return (int if self.is_int else Decimal)(str(self.text()))
         except:

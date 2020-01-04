@@ -51,6 +51,13 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/ele
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
+# when running from source, on Windows, also search for DLLs in '.dlls' top-level folder
+if is_local and os.name == 'nt':
+    dll_dir = os.path.join(os.path.dirname(__file__), '.dlls')
+    if os.path.exists(dll_dir):
+        if hasattr(os, 'add_dll_directory'):  # requires python 3.8+
+            os.add_dll_directory(dll_dir)
+
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
@@ -178,7 +185,7 @@ def get_connected_hw_devices(plugins):
     return devices
 
 
-def get_password_for_hw_device_encrypted_storage(plugins):
+def get_password_for_hw_device_encrypted_storage(plugins) -> str:
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
         print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
@@ -194,7 +201,7 @@ def get_password_for_hw_device_encrypted_storage(plugins):
         xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
     except UserCancelled:
         sys.exit(0)
-    password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+    password = keystore.Xpub.get_pubkey_from_xpub(xpub, ()).hex()
     return password
 
 

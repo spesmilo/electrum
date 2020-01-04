@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, 
 
 from electrum_grs.plugin import BasePlugin, hook, Device, DeviceMgr
 from electrum_grs.i18n import _
-from electrum_grs.bitcoin import is_address, TYPE_SCRIPT, opcodes
+from electrum_grs.bitcoin import is_address, opcodes
 from electrum_grs.util import bfh, versiontuple, UserFacingException
 from electrum_grs.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_grs.bip32 import BIP32Node
@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 class HW_PluginBase(BasePlugin):
     keystore_class: Type['Hardware_KeyStore']
+    libraries_available: bool
 
     minimum_library = (0, )
 
@@ -159,8 +160,13 @@ class HardwareClientBase:
         """True if initialized, False if wiped."""
         raise NotImplementedError()
 
-    def label(self) -> str:
-        """The name given by the user to the device."""
+    def label(self) -> Optional[str]:
+        """The name given by the user to the device.
+
+        Note: labels are shown to the user to help distinguish their devices,
+        and they are also used as a fallback to distinguish devices programmatically.
+        So ideally, different devices would have different labels.
+        """
         raise NotImplementedError()
 
     def has_usable_connection_with_device(self) -> bool:
@@ -169,19 +175,36 @@ class HardwareClientBase:
     def get_xpub(self, bip32_path: str, xtype) -> str:
         raise NotImplementedError()
 
+    def request_root_fingerprint_from_device(self) -> str:
+        # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
+        # so ask for a direct child, and read out fingerprint from that:
+        child_of_root_xpub = self.get_xpub("m/0'", xtype='standard')
+        root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
+        return root_fingerprint
+
 
 def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
     return any([txout.is_change for txout in tx.outputs()])
 
 
 def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
+    validate_op_return_output(output)
     script = output.scriptpubkey
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
         raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
+    return script[2:]
+
+
+def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+    script = output.scriptpubkey
+    if script[0] != opcodes.OP_RETURN:
+        raise UserFacingException(_("Only OP_RETURN scripts are supported."))
+    if max_size is not None and len(script) > max_size:
+        raise UserFacingException(_("OP_RETURN payload too large." + "\n"
+                                  + f"(scriptpubkey size {len(script)} > {max_size})"))
     if output.value != 0:
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
-    return script[2:]
 
 
 def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
@@ -206,7 +229,7 @@ def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
 def only_hook_if_libraries_available(func):
     # note: this decorator must wrap @hook, not the other way around,
     # as 'hook' uses the name of the function it wraps
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: 'HW_PluginBase', *args, **kwargs):
         if not self.libraries_available: return None
         return func(self, *args, **kwargs)
     return wrapper

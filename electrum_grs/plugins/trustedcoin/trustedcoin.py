@@ -36,7 +36,6 @@ from urllib.parse import quote
 from aiohttp import ClientResponse
 
 from electrum_grs import ecc, constants, keystore, version, bip32, bitcoin
-from electrum_grs.bitcoin import TYPE_ADDRESS
 from electrum_grs.bip32 import BIP32Node, xpub_type
 from electrum_grs.crypto import sha256
 from electrum_grs.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction

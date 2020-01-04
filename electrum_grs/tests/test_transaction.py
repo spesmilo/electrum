@@ -2,7 +2,6 @@ from typing import NamedTuple, Union
 
 from electrum_grs import transaction, bitcoin
 from electrum_grs.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
-from electrum_grs.bitcoin import TYPE_ADDRESS
 from electrum_grs.util import bh2u, bfh
 from electrum_grs import keystore
 from electrum_grs import bip32

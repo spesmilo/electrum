@@ -4,7 +4,7 @@ from decimal import Decimal
 import re
 import threading
 import traceback, sys
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -21,13 +21,15 @@ from kivy.uix.image import Image
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
+from kivy.logger import Logger
 
 from electrum_grs.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_grs import bitcoin, constants
 from electrum_grs.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum_grs.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum_grs.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values
+from electrum_grs.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
+                           PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values,
+                           maybe_extract_bolt11_invoice)
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import InternalAddressCorruption
 from electrum_grs import simple_config
@@ -41,6 +43,7 @@ from electrum_grs.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
     from electrum_grs.gui.kivy.main_window import ElectrumWindow
+    from electrum_grs.paymentrequest import PaymentRequest
 
 
 class HistoryRecycleView(RecycleView):
@@ -181,11 +184,11 @@ class HistoryScreen(CScreen):
 class SendScreen(CScreen):
 
     kvname = 'send'
-    payment_request = None
-    payment_request_queued = None
+    payment_request = None  # type: Optional[PaymentRequest]
+    payment_request_queued = None  # type: Optional[str]
     parsed_URI = None
 
-    def set_URI(self, text):
+    def set_URI(self, text: str):
         if not self.app.wallet:
             self.payment_request_queued = text
             return
@@ -204,6 +207,7 @@ class SendScreen(CScreen):
 
     def set_ln_invoice(self, invoice):
         try:
+            invoice = str(invoice).lower()
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except Exception as e:
             self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
@@ -260,7 +264,7 @@ class SendScreen(CScreen):
         self.screen.locked = False
         self.parsed_URI = None
 
-    def set_request(self, pr):
+    def set_request(self, pr: 'PaymentRequest'):
         self.screen.address = pr.get_requestor()
         amount = pr.get_amount()
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
@@ -282,12 +286,10 @@ class SendScreen(CScreen):
         if tx:
             self.app.tx_dialog(tx)
             return
-        lower = data.lower()
-        if lower.startswith('lightning:ln'):
-            lower = lower[10:]
         # try to decode as URI/address
-        if lower.startswith('ln'):
-            self.set_ln_invoice(lower)
+        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        if bolt11_invoice is not None:
+            self.set_ln_invoice(bolt11_invoice)
         else:
             self.set_URI(data)
 
@@ -307,11 +309,14 @@ class SendScreen(CScreen):
         message = self.screen.message
         if self.screen.is_lightning:
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
-        else:
-            if not bitcoin.is_address(address):
-                self.app.show_error(_('Invalid Groestlcoin Address') + ':\n' + address)
-                return
-            outputs = [PartialTxOutput.from_address_and_value(address, amount)]
+        else:  # on-chain
+            if self.payment_request:
+                outputs = self.payment_request.get_outputs()
+            else:
+                if not bitcoin.is_address(address):
+                    self.app.show_error(_('Invalid Groestlcoin Address') + ':\n' + address)
+                    return
+                outputs = [PartialTxOutput.from_address_and_value(address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
@@ -360,7 +365,7 @@ class SendScreen(CScreen):
             self.app.show_error(_("Not enough funds"))
             return
         except Exception as e:
-            traceback.print_exc(file=sys.stdout)
+            Logger.exception('')
             self.app.show_error(repr(e))
             return
         if rbf:
@@ -379,14 +384,14 @@ class SendScreen(CScreen):
         if fee > feerate_warning * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
-        self.app.protected('\n'.join(msg), self.send_tx, (tx, invoice))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
 
-    def send_tx(self, tx, invoice, password):
+    def send_tx(self, tx, password):
         if self.app.wallet.has_password() and password is None:
             return
         def on_success(tx):
             if tx.is_complete():
-                self.app.broadcast(tx, invoice)
+                self.app.broadcast(tx)
             else:
                 self.app.tx_dialog(tx)
         def on_failure(error):

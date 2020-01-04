@@ -34,6 +34,7 @@ import operator
 import asyncio
 import inspect
 from functools import wraps, partial
+from itertools import repeat
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
 
@@ -105,7 +106,8 @@ def command(s):
             daemon = cmd_runner.daemon
             if daemon:
                 if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
-                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                    # using JSON-RPC, sometimes the "wallet" kwarg needs to be used to specify a wallet
+                    kwargs['wallet_path'] = kwargs.pop('wallet', None) or daemon.config.get_wallet_path()
                 if cmd.requires_wallet:
                     wallet_path = kwargs.pop('wallet_path')
                     wallet = daemon.get_wallet(wallet_path)
@@ -196,9 +198,9 @@ class Commands:
                 for path, w in self.daemon.get_wallets().items()]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None):
+    async def load_wallet(self, wallet_path=None, password=None):
         """Open wallet in daemon"""
-        wallet = self.daemon.load_wallet(wallet_path, self.config.get('password'))
+        wallet = self.daemon.load_wallet(wallet_path, password, manual_upgrades=False)
         if wallet is not None:
             run_hook('load_wallet', wallet, None)
         response = wallet is not None
@@ -251,7 +253,7 @@ class Commands:
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
             raise Exception("Can't change the password of a wallet encrypted with a hw device.")
         b = wallet.storage.is_encrypted()
-        wallet.update_password(password, new_password, b)
+        wallet.update_password(password, new_password, encrypt_storage=b)
         wallet.storage.write()
         return {'password':wallet.has_password()}
 
@@ -549,7 +551,7 @@ class Commands:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr, wallet)
-        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr)
+        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address, wallet)
@@ -818,7 +820,7 @@ class Commands:
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
         """ Add a transaction to the wallet history """
         tx = Transaction(tx)
-        if not wallet.add_transaction(tx.txid(), tx):
+        if not wallet.add_transaction(tx):
             return False
         wallet.storage.write()
         return tx.txid()
@@ -928,7 +930,11 @@ class Commands:
         push_sat = satoshis(push_amount)
         dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
         funding_tx = wallet.mktx(outputs = [dummy_output], rbf=False, sign=False, nonlocal_only=True)
-        chan = await wallet.lnworker._open_channel_coroutine(connection_string, funding_tx, funding_sat, push_sat, password)
+        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(connect_str=connection_string,
+                                                                         funding_tx=funding_tx,
+                                                                         funding_sat=funding_sat,
+                                                                         push_sat=push_sat,
+                                                                         password=password)
         return chan.funding_outpoint.to_str()
 
     @command('wn')
@@ -1033,7 +1039,7 @@ command_options = {
     'passphrase':  (None, "Seed extension"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
-    'rbf':         (None, "Replace-by-fee transaction"),
+    'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
@@ -1077,6 +1083,7 @@ arg_types = {
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
+    'rbf': eval_bool,
     'timeout': float,
 }
 

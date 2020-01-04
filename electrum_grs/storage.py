@@ -55,11 +55,12 @@ class StorageReadWriteError(Exception): pass
 
 class WalletStorage(Logger):
 
-    def __init__(self, path, *, manual_upgrades=False):
+    def __init__(self, path, *, manual_upgrades: bool = False):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.path = standardize_path(path)
-        self._file_exists = self.path and os.path.exists(self.path)
+        self._file_exists = bool(self.path and os.path.exists(self.path))
+        self._manual_upgrades = manual_upgrades
 
         DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
@@ -139,7 +140,7 @@ class WalletStorage(Logger):
         self.logger.info(f"saved {self.path}")
         self.db.set_modified(False)
 
-    def file_exists(self):
+    def file_exists(self) -> bool:
         return self._file_exists
 
     def is_past_initial_decryption(self):
@@ -202,7 +203,9 @@ class WalletStorage(Logger):
         else:
             raise WalletFileException('no encryption magic for version: %s' % v)
 
-    def decrypt(self, password):
+    def decrypt(self, password) -> None:
+        if self.is_past_initial_decryption():
+            return
         ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
@@ -211,7 +214,7 @@ class WalletStorage(Logger):
             s = None
         self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
-        self.db = JsonDB(s, manual_upgrades=True)
+        self.db = JsonDB(s, manual_upgrades=self._manual_upgrades)
         self.load_plugins()
 
     def encrypt_before_writing(self, plaintext: str) -> str:
@@ -225,10 +228,12 @@ class WalletStorage(Logger):
             s = s.decode('utf8')
         return s
 
-    def check_password(self, password):
+    def check_password(self, password) -> None:
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
             return
+        if not self.is_past_initial_decryption():
+            self.decrypt(password)  # this sets self.pubkey
         if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
@@ -248,6 +253,9 @@ class WalletStorage(Logger):
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
+
+    def basename(self) -> str:
+        return os.path.basename(self.path)
 
     def requires_upgrade(self):
         if not self.is_past_initial_decryption():

@@ -24,21 +24,20 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Sequence
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QAbstractItemView
-from PyQt5.QtWidgets import QHeaderView, QMenu, QVBoxLayout, QGridLayout, QLabel, QTreeWidget, QTreeWidgetItem
+from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem
 
 from electrum_grs.i18n import _
 from electrum_grs.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT
 from electrum_grs.util import get_request_status
 from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum_grs.lnutil import format_short_channel_id
-from electrum_grs.bitcoin import COIN
-from electrum_grs import constants
+from electrum_grs.lnutil import PaymentAttemptLog
 
-from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT,
+from .util import (MyTreeView, read_QIcon,
                    import_meta_gui, export_meta_gui, pr_icons)
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
@@ -98,7 +97,8 @@ class InvoiceList(MyTreeView):
         _list = self.parent.wallet.get_invoices()
         # filter out paid invoices unless we have the log
         lnworker_logs = self.parent.wallet.lnworker.logs if self.parent.wallet.lnworker else {}
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs]
+        _list = [x for x in _list
+                 if x and (x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs)]
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(_list):
@@ -130,7 +130,7 @@ class InvoiceList(MyTreeView):
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.AscendingOrder)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0
@@ -175,24 +175,34 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def show_log(self, key, log):
+    def show_log(self, key, log: Sequence[PaymentAttemptLog]):
         d = WindowModalDialog(self, _("Payment log"))
+        d.setMinimumWidth(800)
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()
         log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message'), _('Blacklist')])
-        for i, (route, success, failure_log) in enumerate(log):
-            route_str = '%d'%len(route)
-            if not success:
-                sender_idx, failure_msg, blacklist = failure_log
-                short_channel_id = route[sender_idx+1].short_channel_id
-                data = failure_msg.data
-                message = repr(failure_msg.code)
+        for payment_attempt_log in log:
+            if not payment_attempt_log.exception:
+                route = payment_attempt_log.route
+                route_str = '%d'%len(route)
+                if not payment_attempt_log.success:
+                    sender_idx = payment_attempt_log.failure_details.sender_idx
+                    failure_msg = payment_attempt_log.failure_details.failure_msg
+                    blacklist_msg = str(payment_attempt_log.failure_details.is_blacklisted)
+                    short_channel_id = route[sender_idx+1].short_channel_id
+                    data = failure_msg.data
+                    message = repr(failure_msg.code)
+                else:
+                    short_channel_id = route[-1].short_channel_id
+                    message = _('Success')
+                    blacklist_msg = str(False)
+                chan_str = str(short_channel_id)
             else:
-                short_channel_id = route[-1].short_channel_id
-                message = _('Success')
-                blacklist = False
-            chan_str = format_short_channel_id(short_channel_id)
-            x = QTreeWidgetItem([route_str, chan_str, message, repr(blacklist)])
+                route_str = 'None'
+                chan_str = 'N/A'
+                message = str(payment_attempt_log.exception)
+                blacklist_msg = 'N/A'
+            x = QTreeWidgetItem([route_str, chan_str, message, blacklist_msg])
             log_w.addTopLevelItem(x)
         vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))

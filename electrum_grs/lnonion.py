@@ -36,7 +36,7 @@ from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID)
 
 if TYPE_CHECKING:
-    from .lnrouter import RouteEdge
+    from .lnrouter import LNPaymentRoute
 
 
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
@@ -188,7 +188,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         hmac=next_hmac)
 
 
-def calc_hops_data_for_payment(route: List['RouteEdge'], amount_msat: int, final_cltv: int) \
+def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_cltv: int) \
         -> Tuple[List[OnionHopsDataSingle], int, int]:
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.

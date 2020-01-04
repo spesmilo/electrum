@@ -38,7 +38,7 @@ def serialize_tx_in_legacy_format(tx: PartialTransaction, *, wallet: Multisig_Wa
     tx = copy.deepcopy(tx)
 
     def get_siglist(txin: 'PartialTxInput', *, estimate_size=False):
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return [], []
         if estimate_size:
             try:
@@ -80,7 +80,7 @@ def serialize_tx_in_legacy_format(tx: PartialTransaction, *, wallet: Multisig_Wa
         assert estimate_size is False
         if txin.witness is not None:
             return txin.witness.hex()
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return ''
         assert isinstance(txin, PartialTxInput)
         if not self.is_segwit_input(txin):

@@ -1,3 +1,5 @@
+from typing import Callable, TYPE_CHECKING, Optional, Union
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
@@ -7,6 +9,11 @@ from kivy.clock import Clock
 
 from electrum_grs.util import InvalidPassword
 from electrum_grs.gui.kivy.i18n import _
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+    from electrum.wallet import Abstract_Wallet
+    from electrum.storage import WalletStorage
 
 Builder.load_string('''
 
@@ -71,10 +78,13 @@ Builder.load_string('''
 
 class PasswordDialog(Factory.Popup):
 
-    def init(self, app, wallet, message, on_success, on_failure, is_change=0):
+    def init(self, app: 'ElectrumWindow', *,
+             wallet: Union['Abstract_Wallet', 'WalletStorage'] = None,
+             msg: str, on_success: Callable = None, on_failure: Callable = None,
+             is_change: int = 0):
         self.app = app
         self.wallet = wallet
-        self.message = message
+        self.message = msg
         self.on_success = on_success
         self.on_failure = on_failure
         self.ids.kb.password = ''

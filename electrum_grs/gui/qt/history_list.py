@@ -201,7 +201,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             #        and self.parent.wallet.invoices.paid.get(tx_hash):
             #    return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
-                    and role == Qt.ForegroundRole and not is_lightning and tx_item['value'].value < 0:
+                    and role == Qt.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
             elif col == HistoryColumns.FIAT_VALUE and role == Qt.ForegroundRole \
@@ -235,7 +235,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             cg = tx_item['capital_gain'].value
             return QVariant(self.parent.fx.format_fiat(cg))
         elif col == HistoryColumns.TXID:
-            return QVariant(tx_hash)
+            return QVariant(tx_hash) if not is_lightning else QVariant('')
         return QVariant()
 
     def parent(self, index: QModelIndex):
@@ -247,7 +247,7 @@ class HistoryModel(QAbstractItemModel, Logger):
     def update_label(self, row):
         tx_item = self.transactions.value_from_pos(row)
         tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
-        topLeft = bottomRight = self.createIndex(row, 2)
+        topLeft = bottomRight = self.createIndex(row, HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
         self.parent.utxo_list.update()
 
@@ -580,9 +580,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
-            self.show_transaction(tx_item['txid'])
+            self.show_transaction(tx_item)
 
-    def show_transaction(self, tx_hash):
+    def show_transaction(self, tx_item):
+        if tx_item.get('lightning'):
+            return
+        tx_hash = tx_item['txid']
         tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
@@ -597,7 +600,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
             column_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
-            cc.addAction(column_title, lambda t=column_data: self.parent.app.clipboard().setText(t))
+            cc.addAction(column_title,
+                         lambda text=column_data, title=column_title:
+                         self.place_text_on_clipboard(text, title=title))
 
     def create_menu(self, position: QPoint):
         org_idx: QModelIndex = self.indexAt(position)
@@ -616,11 +621,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         height = self.wallet.get_tx_height(tx_hash).height
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
-        #pr_key = self.wallet.invoices.paid.get(tx_hash)
+        invoice_keys = self.wallet._get_relevant_invoice_keys_for_tx(tx)
         menu = QMenu()
         if height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL]:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
-        menu.addAction(_("Copy Transaction ID"), lambda: self.parent.app.clipboard().setText(tx_hash))
+        menu.addAction(_("Copy Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         self.add_copy_menu(menu, idx)
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
@@ -628,7 +633,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("Details"), lambda: self.show_transaction(tx_hash))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None
@@ -638,8 +643,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-        #if pr_key:
-        #    menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
+        if invoice_keys:
+           menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: [self.parent.show_invoice(key) for key in invoice_keys])
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))

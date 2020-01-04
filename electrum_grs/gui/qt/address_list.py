@@ -227,7 +227,7 @@ class AddressList(MyTreeView):
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
-            menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            #menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():
@@ -251,11 +251,11 @@ class AddressList(MyTreeView):
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def place_text_on_clipboard(self, text):
+    def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         if is_address(text):
             try:
                 self.wallet.check_address(text)
             except InternalAddressCorruption as e:
                 self.parent.show_error(str(e))
                 raise
-        self.parent.app.clipboard().setText(text)
+        super().place_text_on_clipboard(text, title=title)

@@ -104,6 +104,7 @@ pr_tooltips = {
 }
 
 pr_expiration_values = {
+    0: _('Never'),
     10*60: _('10 minutes'),
     60*60: _('1 hour'),
     24*60*60: _('1 day'),
@@ -112,12 +113,13 @@ pr_expiration_values = {
 
 def get_request_status(req):
     status = req['status']
-    if req['status'] == PR_UNPAID and 'exp' in req and req['time'] + req['exp'] < time.time():
+    exp = req.get('exp', 0) or 0
+    if req['status'] == PR_UNPAID and exp > 0 and req['time'] + req['exp'] < time.time():
         status = PR_EXPIRED
     status_str = pr_tooltips[status]
     if status == PR_UNPAID:
-        if req.get('exp'):
-            expiration = req['exp'] + req['time']
+        if exp > 0:
+            expiration = exp + req['time']
             status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
         else:
             status_str = _('Pending')
@@ -183,7 +185,9 @@ class BitcoinException(Exception): pass
 class UserFacingException(Exception):
     """Exception that contains information intended to be shown to the user."""
 
-class InvoiceError(Exception): pass
+
+class InvoiceError(UserFacingException): pass
+
 
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
@@ -454,7 +458,12 @@ def assert_file_in_datadir_available(path, config_path):
 
 
 def standardize_path(path):
-    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+    return os.path.normcase(
+            os.path.realpath(
+                os.path.abspath(
+                    os.path.expanduser(
+                        path
+    ))))
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
@@ -591,9 +600,11 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, decimal_point = 8):
+def format_satoshis_plain(x, decimal_point = 8) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
+    if x == '!':
+        return 'max'
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
@@ -642,7 +653,7 @@ def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
     return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
-def quantize_feerate(fee):
+def quantize_feerate(fee) -> Union[None, Decimal, int]:
     """Strip gro/byte fee rate of excess precision."""
     if fee is None:
         return None
@@ -818,7 +829,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
     if 'sig' in out:
         try:
-            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
+            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
 
@@ -861,6 +872,15 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
         query.append(f"{k}={v}")
     p = urllib.parse.ParseResult(scheme='groestlcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
     return str(urllib.parse.urlunparse(p))
+
+
+def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+    lower = data.lower()
+    if lower.startswith('lightning:ln'):
+        lower = lower[10:]
+    if lower.startswith('ln'):
+        return lower
+    return None
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -979,6 +999,7 @@ def ignore_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
+            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
             raise
         except Exception as e:
             pass
@@ -987,7 +1008,7 @@ def ignore_exceptions(func):
 
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
@@ -997,7 +1018,9 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum-GRS'}
     if timeout is None:
-        timeout = aiohttp.ClientTimeout(total=30)
+        # The default timeout is high intentionally.
+        # DNS on some systems can be really slow, see e.g. #5337
+        timeout = aiohttp.ClientTimeout(total=45)
     elif isinstance(timeout, (int, float)):
         timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)

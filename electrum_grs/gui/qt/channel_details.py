@@ -84,6 +84,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str, float, Direction, UpdateAddHtlc, bytes, bytes)
     def do_ln_payment_completed(self, evtname, date, direction, htlc, preimage, chan_id):
+        if chan_id != self.chan.channel_id:
+            return
         self.move('inflight', 'settled', htlc.payment_hash)
         self.update_sent_received()
 

@@ -2,6 +2,7 @@ from struct import pack, unpack
 import hashlib
 import sys
 import traceback
+from typing import Optional
 
 from electrum_grs import ecc
 from electrum_grs import bip32
@@ -17,7 +18,7 @@ from electrum_grs.base_wizard import ScriptTypeNotSupported
 from electrum_grs.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output
 
 
 _logger = get_logger(__name__)
@@ -61,9 +62,10 @@ def test_pin_unlocked(func):
 
 
 class Ledger_Client(HardwareClientBase):
-    def __init__(self, hidDevice):
+    def __init__(self, hidDevice, *, is_hw1: bool = False):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
+        self._is_hw1 = is_hw1
 
     def is_pairable(self):
         return True
@@ -79,6 +81,9 @@ class Ledger_Client(HardwareClientBase):
 
     def label(self):
         return ""
+
+    def is_hw1(self) -> bool:
+        return self._is_hw1
 
     def has_usable_connection_with_device(self):
         try:
@@ -233,7 +238,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def get_client(self):
         return self.plugin.get_client(self).dongleObject
 
-    def get_client_electrum(self):
+    def get_client_electrum(self) -> Optional[Ledger_Client]:
         return self.plugin.get_client(self)
 
     def give_error(self, message, clear_client = False):
@@ -320,22 +325,24 @@ class Ledger_KeyStore(Hardware_KeyStore):
         segwitTransaction = False
         pin = ""
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        client_electrum = self.get_client_electrum()
+        assert client_electrum
 
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
             if txin.script_type in ['p2sh']:
                 p2shTransaction = True
 
             if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
-                if not self.get_client_electrum().supports_segwit():
+                if not client_electrum.supports_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
             if txin.script_type in ['p2wpkh', 'p2wsh']:
-                if not self.get_client_electrum().supports_native_segwit():
+                if not client_electrum.supports_native_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
@@ -372,17 +379,23 @@ class Ledger_KeyStore(Hardware_KeyStore):
             txOutput += script
         txOutput = bfh(txOutput)
 
-        # Recognize outputs
+        if not client_electrum.supports_multi_output():
+            if len(tx.outputs()) > 2:
+                self.give_error("Transaction with more than 2 outputs not supported")
+        for txout in tx.outputs():
+            if not txout.address:
+                if client_electrum.is_hw1():
+                    self.give_error(_("Only address outputs are supported by {}").format(self.device))
+                # note: max_size based on https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
+                validate_op_return_output(txout, max_size=190)
+
+        # Output "change" detection
         # - only one output and one change is authorized (for hw.1 and nano)
         # - at most one output can bypass confirmation (~change) (for all)
         if not p2shTransaction:
-            if not self.get_client_electrum().supports_multi_output():
-                if len(tx.outputs()) > 2:
-                    self.give_error("Transaction with more than 2 outputs not supported")
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for txout in tx.outputs():
-                assert txout.address
                 if txout.is_mine and len(tx.outputs()) > 1 \
                         and not has_change:
                     # prioritise hiding outputs on the 'change' branch from user
@@ -570,7 +583,8 @@ class LedgerPlugin(HW_PluginBase):
 
         client = self.get_btchip_device(device)
         if client is not None:
-            client = Ledger_Client(client)
+            is_hw1 = device.product_key[0] == 0x2581
+            client = Ledger_Client(client, is_hw1=is_hw1)
         return client
 
     def setup_device(self, device_info, wizard, purpose):

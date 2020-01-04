@@ -9,9 +9,9 @@ ZBAR_FILENAME=zbarw-20121031-setup.exe
 ZBAR_URL=https://sourceforge.net/projects/zbarw/files/$ZBAR_FILENAME/download
 ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
 
-LIBUSB_FILENAME=libusb-1.0.22.7z
-LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
-LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
+LIBUSB_REPO="https://github.com/libusb/libusb.git"
+LIBUSB_COMMIT=e782eeb2514266f6738e242cdcb18e3ae1ed06fa
+# ^ tag v1.0.23
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT=46fc8155710631f84ebe20e32e0a6ba6df76d366
@@ -40,6 +40,7 @@ wine 'wineboot'
 
 
 cd "$CACHEDIR"
+mkdir -p $WINEPREFIX/drive_c/tmp
 
 info "Installing Python."
 # note: you might need "sudo apt-get install dirmngr" for the following
@@ -72,14 +73,37 @@ download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
 verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
 wine "$CACHEDIR/$NSIS_FILENAME" /S
 
-info "Installing libusb."
-download_if_not_exist "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_URL"
-verify_hash "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_SHA256"
-7z x -olibusb "$CACHEDIR/$LIBUSB_FILENAME" -aoa
-cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/$PYTHON_FOLDER/
 
-mkdir -p $WINEPREFIX/drive_c/tmp
-cp "$CACHEDIR/secp256k1/libsecp256k1.dll" $WINEPREFIX/drive_c/tmp/
+info "Compiling libusb..."
+(
+    cd "$CACHEDIR"
+    if [ -f "libusb/libusb/.libs/libusb-1.0.dll" ]; then
+        info "libusb-1.0.dll already built, skipping"
+        exit 0
+    fi
+    rm -rf libusb
+    mkdir libusb
+    cd libusb
+    # Shallow clone
+    git init
+    git remote add origin $LIBUSB_REPO
+    git fetch --depth 1 origin $LIBUSB_COMMIT
+    git checkout -b pinned FETCH_HEAD
+    export SOURCE_DATE_EPOCH=1530212462
+    echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
+    ./bootstrap.sh || fail "Could not bootstrap libusb"
+    host="i686-w64-mingw32"
+    LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
+        --host=$host \
+        --build=x86_64-pc-linux-gnu || fail "Could not run ./configure for libusb"
+    make -j4 || fail "Could not build libusb"
+    ${host}-strip libusb/.libs/libusb-1.0.dll
+) || fail "libusb build failed"
+cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || fail "Could not copy libusb to its destination"
+
+
+# copy libsecp dll (already built by build-secp256k1.sh)
+cp "$CACHEDIR/secp256k1/libsecp256k1.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
 
 
 info "Building PyInstaller."
@@ -96,7 +120,7 @@ info "Building PyInstaller."
     git init
     git remote add origin $PYINSTALLER_REPO
     git fetch --depth 1 origin $PYINSTALLER_COMMIT
-    git checkout FETCH_HEAD
+    git checkout -b pinned FETCH_HEAD
     rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true
     # add reproducible randomness. this ensures we build a different bootloader for each commit.
     # if we built the same one for all releases, that might also get anti-virus false positives

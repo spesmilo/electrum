@@ -186,5 +186,6 @@ class Test_seeds(ElectrumTestCase):
         self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
 
     def test_seed_type(self):
-        for seed_words, _type in self.mnemonics:
-            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
+        for idx, (seed_words, _type) in enumerate(self.mnemonics):
+            with self.subTest(msg=f"seed_type_subcase_{idx}", seed_words=seed_words):
+                self.assertEqual(_type, seed_type(seed_words), msg=seed_words)

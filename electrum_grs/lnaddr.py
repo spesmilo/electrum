@@ -237,11 +237,11 @@ def lnencode(addr, privkey):
     return bech32_encode(hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
-    def __init__(self, paymenthash=None, amount=None, currency=None, tags=None, date=None):
+    def __init__(self, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
-        self.paymenthash=paymenthash
+        self.paymenthash = paymenthash
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency

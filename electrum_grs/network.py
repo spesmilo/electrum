@@ -35,6 +35,8 @@ import ipaddress
 import asyncio
 from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING
 import traceback
+import concurrent
+from concurrent import futures
 
 import dns
 import dns.resolver
@@ -290,6 +292,7 @@ class Network(Logger):
         self.nodes_retry_time = time.time()
         # the main server we are currently communicating with
         self.interface = None  # type: Interface
+        self.default_server_changed_event = asyncio.Event()
         # set of servers we have an ongoing connection with
         self.interfaces = {}  # type: Dict[str, Interface]
         self.auto_connect = self.config.get('auto_connect', True)
@@ -561,6 +564,9 @@ class Network(Logger):
                 # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
                 # see #4421
                 socket.getaddrinfo = self._fast_getaddrinfo
+                resolver = dns.resolver.get_default_resolver()
+                if resolver.cache is None:
+                    resolver.cache = dns.resolver.Cache()
             else:
                 socket.getaddrinfo = socket._getaddrinfo
         self.trigger_callback('proxy_set', self.proxy)
@@ -730,10 +736,13 @@ class Network(Logger):
         i = self.interfaces[server]
         if old_interface != i:
             self.logger.info(f"switching to {server}")
+            assert i.ready.done(), "interface we are switching to is not ready yet"
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
             await i.group.spawn(self._request_server_info(i))
             self.trigger_callback('default_server_changed')
+            self.default_server_changed_event.set()
+            self.default_server_changed_event.clear()
             self._set_status('connected')
             self.trigger_callback('network_updated')
             if blockchain_updated: self.trigger_callback('blockchain_updated')
@@ -840,30 +849,27 @@ class Network(Logger):
             b.update_size()
 
     def best_effort_reliable(func):
-        async def make_reliable_wrapper(self, *args, **kwargs):
+        async def make_reliable_wrapper(self: 'Network', *args, **kwargs):
             for i in range(10):
                 iface = self.interface
                 # retry until there is a main interface
                 if not iface:
-                    await asyncio.sleep(0.1)
+                    try:
+                        await asyncio.wait_for(self.default_server_changed_event.wait(), 1)
+                    except asyncio.TimeoutError:
+                        pass
                     continue  # try again
-                # wait for it to be usable
-                iface_ready = iface.ready
-                iface_disconnected = iface.got_disconnected
-                await asyncio.wait([iface_ready, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
-                if not iface_ready.done() or iface_ready.cancelled():
-                    await asyncio.sleep(0.1)
-                    continue  # try again
+                assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
-                await asyncio.wait([success_fut, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait([success_fut, iface.got_disconnected], return_when=asyncio.FIRST_COMPLETED)
                 if success_fut.done() and not success_fut.cancelled():
                     if success_fut.exception():
                         try:
                             raise success_fut.exception()
                         except RequestTimedOut:
                             await iface.close()
-                            await iface_disconnected
+                            await iface.got_disconnected
                             continue  # try again
                     return success_fut.result()
                 # otherwise; try again
@@ -1203,7 +1209,7 @@ class Network(Logger):
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
         try:
             fut.result(timeout=2)
-        except (asyncio.TimeoutError, asyncio.CancelledError): pass
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError): pass
 
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():

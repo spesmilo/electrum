@@ -17,8 +17,7 @@ import time
 import copy
 
 from electrum_grs.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-from electrum_grs.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
-                              is_address)
+from electrum_grs.bitcoin import public_key_to_p2pkh
 from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum_grs import ecc
 from electrum_grs.ecc import msg_magic
@@ -540,7 +539,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
             # Build hasharray from inputs
             for i, txin in enumerate(tx.inputs()):
-                if txin.is_coinbase():
+                if txin.is_coinbase_input():
                     self.give_error("Coinbase not supported") # should never happen
 
                 if txin.script_type != 'p2pkh':

@@ -4,7 +4,6 @@ import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
 from electrum_grs.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum_grs.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum_grs.bip32 import BIP32Node
 from electrum_grs import constants
 from electrum_grs.i18n import _
@@ -339,7 +338,7 @@ class SafeTPlugin(HW_PluginBase):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:
