@@ -17,6 +17,13 @@
         "t": "50001",
         "version": "1.4.1"
     },
+    "j2tjfxntnsqpojaamnndgmfrc6lh3thattnlpc2xx53h2ojoi7agccid.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1",
+        "display": "bch.loping.net"
+    },
     "bch.soul-dev.com": {
         "pruning": "-",
         "s": "50002",
