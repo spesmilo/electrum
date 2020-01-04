@@ -37,7 +37,7 @@ from .lnutil import funding_output_script_from_keys, ShortChannelID
 from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 from .interface import GracefulDisconnect
-from .crypto import sha256d
+from .crypto import sha256d, sha256
 from .lnmsg import decode_msg, encode_msg
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
     msg_bytes = chan_upd['raw']
     pre_hash = msg_bytes[2+64:]
-    h = sha256d(pre_hash)
+    h = sha256(pre_hash)
     sig = chan_upd['signature']
     if not ecc.verify_signature(node_id, sig, h):
         return False

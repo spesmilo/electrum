@@ -1585,7 +1585,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
-        _id = bh2u(sha256d(addr + "%d"%timestamp))[0:10]
+        _id = bh2u(sha256(addr + "%d"%timestamp))[0:10]
         return {
             'type': PR_TYPE_ONCHAIN,
             'time':timestamp,

@@ -305,7 +305,7 @@ class Peer(Logger):
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:
-            h = sha256d(payload['raw'][2+256:])
+            h = sha256(payload['raw'][2+256:])
             pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
             sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
             for pubkey, sig in zip(pubkeys, sigs):
@@ -316,7 +316,7 @@ class Peer(Logger):
         for payload in node_anns:
             pubkey = payload['node_id']
             signature = payload['signature']
-            h = sha256d(payload['raw'][66:])
+            h = sha256(payload['raw'][66:])
             if not ecc.verify_signature(pubkey, signature, h):
                 raise Exception('signature failed')
 
@@ -490,7 +490,7 @@ class Peer(Logger):
         return local_config
 
     @log_exceptions
-    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
+    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int,
                                          push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
         await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
@@ -1040,7 +1040,7 @@ class Peer(Logger):
             chain_hash=constants.net.rev_genesis_bytes(),
             timestamp=now.to_bytes(4, byteorder="big"),
         )
-        sighash = sha256d(chan_upd[2 + 64:])
+        sighash = sha256(chan_upd[2 + 64:])
         sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         message_type, payload = decode_msg(chan_upd)
         payload['signature'] = sig
@@ -1072,7 +1072,7 @@ class Peer(Logger):
             bitcoin_key_2=bitcoin_keys[1]
         )
         to_hash = chan_ann[256+2:]
-        h = sha256d(to_hash)
+        h = sha256(to_hash)
         bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         self.send_message("announcement_signatures",

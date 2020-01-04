@@ -372,7 +372,7 @@ class Channel(Logger):
 
         pending_local_commitment = self.get_next_commitment(LOCAL)
         preimage_hex = pending_local_commitment.serialize_preimage(0)
-        pre_hash = sha256d(bfh(preimage_hex))
+        pre_hash = sha256(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise Exception(f'failed verifying signature of our updated commitment transaction: {bh2u(sig)} preimage is {preimage_hex}')
 
@@ -410,7 +410,7 @@ class Channel(Logger):
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
-        pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
+        pre_hash = sha256(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
         if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
             raise Exception(f'failed verifying HTLC signatures: {htlc} {htlc_direction}')
@@ -778,7 +778,7 @@ class Channel(Logger):
     def signature_fits(self, tx: PartialTransaction):
         remote_sig = self.config[LOCAL].current_commitment_signature
         preimage_hex = tx.serialize_preimage(0)
-        msg_hash = sha256d(bfh(preimage_hex))
+        msg_hash = sha256(bfh(preimage_hex))
         assert remote_sig
         res = ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, msg_hash)
         return res
