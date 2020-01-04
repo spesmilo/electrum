@@ -152,7 +152,7 @@ class NodesListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, network):
+    def update(self, network, servers):
         self.clear()
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
@@ -168,7 +168,13 @@ class NodesListWidget(QTreeWidget):
                 x = self
             for i in items:
                 star = ' ◀' if i == network.interface else ''
-                item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
+
+                display_text = i.host
+                is_onion = i.host.lower().endswith('.onion')
+                if is_onion and i.host in servers and 'display' in servers[i.host]:
+                    display_text = servers[i.host]['display'] + ' (.onion)'
+
+                item = QTreeWidgetItem([display_text + star, '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
                 x.addChild(item)
@@ -194,7 +200,7 @@ class ServerListWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self)
         self.parent = parent
-        self.setHeaderLabels(['', _('Host'), _('Port')])
+        self.setHeaderLabels(['', _('Host'), '', _('Port')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
 
@@ -263,7 +269,8 @@ class ServerListWidget(QTreeWidget):
         self.setIndentation(0)
         wl_only = network.is_whitelist_only()
         for _host, d in sorted(servers.items()):
-            if _host.lower().endswith('.onion') and not use_tor:
+            is_onion = _host.lower().endswith('.onion')
+            if is_onion and not use_tor:
                 continue
             port = d.get(protocol)
             if port:
@@ -273,11 +280,18 @@ class ServerListWidget(QTreeWidget):
                 flag = flag or flag2; del flag2
                 tt = tt or tt2; del tt2
                 flagval |= flagval2; del flagval2
-                x = QTreeWidgetItem([flag, _host, port])
+
+                display_text = _host
+                if is_onion and 'display' in d:
+                    display_text = d['display'] + ' (.onion)'
+
+                x = QTreeWidgetItem([flag, display_text, '', port])
+                if is_onion:
+                    x.setIcon(2, QIcon(":icons/tor_logo.svg"))
                 if tt: x.setToolTip(0, tt)
                 if (wl_only and flagval != ServerFlag.Preferred) or flagval & ServerFlag.Banned:
                     # lighten the text of servers we can't/won't connect to for the given mode
-                    self.lightenItemText(x, range(1,3))
+                    self.lightenItemText(x, range(1,4))
                 x.setData(2, Qt.UserRole, server)
                 x.setData(0, Qt.UserRole, flagval)
                 self.addTopLevelItem(x)
@@ -287,6 +301,7 @@ class ServerListWidget(QTreeWidget):
         h.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         h.setSectionResizeMode(1, QHeaderView.Stretch)
         h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
 
 class NetworkChoiceLayout(QObject, PrintError):
@@ -521,11 +536,15 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.autoconnect_cb.setChecked(auto_connect)
         self.preferred_only_cb.setChecked(preferred_only)
 
+        self.servers = self.network.get_servers()
+
         host = self.network.interface.host if self.network.interface else pgettext('Referencing server', 'None')
+        is_onion = host.lower().endswith('.onion')
+        if is_onion and host in self.servers and 'display' in self.servers[host]:
+            host = self.servers[host]['display'] + ' (.onion)'
         self.server_label.setText(host)
 
         self.set_protocol(protocol)
-        self.servers = self.network.get_servers()
         def protocol_suffix():
             if protocol == 't':
                 return '  (non-SSL)'
@@ -562,7 +581,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         else:
             msg = ''
         self.split_label.setText(msg)
-        self.nodes_list_widget.update(self.network)
+        self.nodes_list_widget.update(self.network, self.servers)
 
     def fill_in_proxy_settings(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
