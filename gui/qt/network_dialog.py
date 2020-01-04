@@ -437,12 +437,6 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.proxy_user.editingFinished.connect(self.set_proxy)
         self.proxy_password.editingFinished.connect(self.set_proxy)
 
-        self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
-        self.proxy_host.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_port.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_user.textEdited.connect(self.proxy_settings_changed)
-        self.proxy_password.textEdited.connect(self.proxy_settings_changed)
-
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
         self.tor_cb.setIcon(QIcon(":icons/tor_logo.svg"))
         self.tor_cb.setEnabled(False)
@@ -500,6 +494,9 @@ class NetworkChoiceLayout(QObject, PrintError):
 
     def check_disable_proxy(self, b):
         if not self.config.is_modifiable('proxy'):
+            b = False
+        if self.tor_use:
+            # Disallow changing the proxy settings when Tor is in use
             b = False
         for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
             w.setEnabled(b)
@@ -590,6 +587,11 @@ class NetworkChoiceLayout(QObject, PrintError):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         if not proxy_config:
             proxy_config = {"mode": "none", "host": "localhost", "port": "9050"}
+
+        # We need to restore the "Use tor" checkbox as its value is needed in the server
+        # list, to determine whether to show .onion servers, before the TorDetector
+        # has been started.
+        self._set_tor_use(self.config.get('tor_use', False))
 
         b = proxy_config.get('mode') != "none"
         self.check_disable_proxy(b)
@@ -683,13 +685,12 @@ class NetworkChoiceLayout(QObject, PrintError):
                       'password':str(self.proxy_password.text())}
         else:
             proxy = None
-            self.tor_cb.setChecked(False)
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def suggest_proxy(self, found_proxy):
         if not found_proxy:
             self.tor_cb.setEnabled(False)
-            self.tor_cb.setChecked(False) # It's not clear to me that if the tor service goes away and comes back later, and in the meantime they unchecked proxy_cb, that this should remain checked. I can see it being confusing for that to be the case. Better to uncheck. It gets auto-re-checked anyway if it comes back and it's the same due to code below. -Calin
+            self._set_tor_use(False) # It's not clear to me that if the tor service goes away and comes back later, and in the meantime they unchecked proxy_cb, that this should remain checked. I can see it being confusing for that to be the case. Better to uncheck. It gets auto-re-checked anyway if it comes back and it's the same due to code below. -Calin
             return
         self.tor_proxy = found_proxy
         self.tor_cb.setText(_("Use Tor proxy at port {tor_port}").format(tor_port = found_proxy[1]))
@@ -697,10 +698,19 @@ class NetworkChoiceLayout(QObject, PrintError):
             and self.proxy_host.text() == found_proxy[0]
             and self.proxy_port.text() == str(found_proxy[1])
             and self.proxy_cb.isChecked()):
-            self.tor_cb.setChecked(True)
+            self._set_tor_use(True)
         self.tor_cb.setEnabled(True)
 
+    def _set_tor_use(self, use_it):
+        self.tor_use = use_it
+        self.config.set_key('tor_use', self.tor_use)
+        self.tor_cb.setChecked(self.tor_use)
+        self.proxy_cb.setEnabled(not self.tor_use)
+        self.check_disable_proxy(self.tor_use)
+
     def use_tor_proxy(self, use_it):
+        self._set_tor_use(use_it)
+
         if not use_it:
             self.proxy_cb.setChecked(False)
         else:
@@ -713,13 +723,8 @@ class NetworkChoiceLayout(QObject, PrintError):
             self.proxy_port.setText(str(self.tor_proxy[1]))
             self.proxy_user.setText("")
             self.proxy_password.setText("")
-            self.tor_cb.setChecked(True)
             self.proxy_cb.setChecked(True)
-        self.check_disable_proxy(use_it)
         self.set_proxy()
-
-    def proxy_settings_changed(self):
-        self.tor_cb.setChecked(False)
 
     def set_blacklisted(self, server, bl):
         self.network.server_set_blacklisted(server, bl, True)
