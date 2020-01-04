@@ -120,7 +120,7 @@ class NodesListWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self)
         self.parent = parent
-        self.setHeaderLabels([_('Connected node'), _('Height')])
+        self.setHeaderLabels([_('Connected node'), '', _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
 
@@ -161,7 +161,7 @@ class NodesListWidget(QTreeWidget):
             b = network.blockchains[k]
             name = b.get_name()
             if n_chains >1:
-                x = QTreeWidgetItem([name + '@%d'%b.get_base_height(), '%d'%b.height()])
+                x = QTreeWidgetItem([name + '@%d'%b.get_base_height(), '', '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.base_height)
             else:
@@ -174,9 +174,11 @@ class NodesListWidget(QTreeWidget):
                 if is_onion and i.host in servers and 'display' in servers[i.host]:
                     display_text = servers[i.host]['display'] + ' (.onion)'
 
-                item = QTreeWidgetItem([display_text + star, '%d'%i.tip])
+                item = QTreeWidgetItem([display_text + star, '', '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
+                if is_onion:
+                    item.setIcon(1, QIcon(":icons/tor_logo.svg"))
                 x.addChild(item)
             if n_chains>1:
                 self.addTopLevelItem(x)
@@ -186,6 +188,7 @@ class NodesListWidget(QTreeWidget):
         h.setStretchLastSection(False)
         h.setSectionResizeMode(0, QHeaderView.Stretch)
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
 class ServerFlag:
     ''' Used by ServerListWidget for Server flags & Symbols '''
