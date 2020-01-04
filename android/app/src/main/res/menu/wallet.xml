@@ -26,6 +26,11 @@
         android:title="@string/Rename_wallet"/>
 
     <item
+        android:id="@+id/menuExport"
+        android:icon="@drawable/ic_export_24dp"
+        android:title="@string/export_wallet"/>
+
+    <item
         android:id="@+id/menuDelete"
         android:icon="@drawable/ic_delete_24dp"
         android:title="@string/Delete_wallet"/>

@@ -8,6 +8,7 @@
 def _(s):
     return s
 
+_("Are you sure you want to delete your wallet \'%s\'?")
 _("Block explorer")
 _("Cannot specify private keys and addresses in the same wallet.")
 _("Change password")
@@ -20,6 +21,8 @@ _("Delete wallet")
 _("Derivation invalid")
 _("Disconnect")
 _("Enter password")
+_("Export wallet")
+_("Filenames cannot contain the '/' character. Please enter a different filename to proceed.")
 _("For support, please visit us on <a href='https://github.com/Electron-Cash/Electron-Cash/issues'>"
   "GitHub</a> or on <a href='https://t.me/electroncashwallet'>Telegram</a>.")
 _("ID")
@@ -41,6 +44,7 @@ _("Size")
 _("Transaction not found")
 _("Use a master key")
 _("Wallet names cannot contain the '/' character. Please enter a different wallet name to proceed.")
+_("Wallet exported successfully")
 _("Wallet renamed successfully")
 _("Wallet seed")
 _("You don't have any contacts.")
