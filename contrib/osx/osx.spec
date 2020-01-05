@@ -47,6 +47,8 @@ binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]
 binaries += [(home + "contrib/osx/libsecp256k1.0.dylib", ".")]
 # LibZBar for QR code scanning
 binaries += [(home + "contrib/osx/libzbar.0.dylib", ".")]
+# Add Tor binary
+binaries += [(home + "lib/tor/bin/tor", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
@@ -62,6 +64,7 @@ a = Analysis([home+MAIN_SCRIPT,
               home+'lib/bitcoin.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
+              home+'lib/tor/controller.py',
               home+'plugins/cosigner_pool/qt.py',
               home+'plugins/email_requests/qt.py',
               home+'plugins/trezor/clientbase.py',

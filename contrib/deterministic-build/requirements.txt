@@ -67,3 +67,5 @@ wheel==0.33.4 \
 colorama==0.4.1 \
     --hash=sha256:05eed71e2e327246ad6b38c540c4a3117230b19679b875190486ddd2d721422d \
     --hash=sha256:f8ac84de7840f5b9c4e3347b3c1eaa50f7e49c2b07596221daec5edaabbd7c48
+stem==1.8.0 \
+    --hash=sha256:a0b48ea6224e95f22aa34c0bc3415f0eb4667ddeae3dfb5e32a6920c185568c2
