@@ -195,8 +195,8 @@ class ServerFlag:
     Banned = 2 # Blacklisting/banning was a hidden mechanism inherited from Electrum. We would blacklist misbehaving servers under the hood. Now that facility is exposed (editable by the user). We never connect to blacklisted servers.
     Preferred = 1 # Preferred servers (white-listed) start off as the servers in servers.json and are "more trusted" and optionally the user can elect to connect to only these servers
     NoFlag = 0
-    Symbol = ("", "★", "⛔") # indexed using pseudo-enum above
-    UnSymbol = ("", "✖", "⚬") # used for "disable X" context menu
+    Symbol = ("", "⭐", "⛔") # indexed using pseudo-enum above
+    UnSymbol = ("", "❌", "✅") # used for "disable X" context menu
 
 class ServerListWidget(QTreeWidget):
 

@@ -130,7 +130,7 @@ U+1F35E
 
 # Network dialog server symbols
 
-U+2605
+U+2B50
 U+26D4
-U+26AC
-U+2716
+U+274C
+U+2705
