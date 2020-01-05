@@ -126,11 +126,14 @@ class TorController(PrintError):
                     self.active_port_changed(self)
 
     def _read_tor_msg(self):
-        while self._tor_process and not self._tor_process.poll():
-            line = self._tor_process.stdout.readline().decode('utf-8', 'replace').strip()
-            if not line:
-                break
-            self._tor_msg_handler(line)
+        try:
+            while self._tor_process and not self._tor_process.poll():
+                line = self._tor_process.stdout.readline().decode('utf-8', 'replace').strip()
+                if not line:
+                    break
+                self._tor_msg_handler(line)
+        except:
+            self.print_exception("Exception in Tor message reader")
 
     _orig_subprocess_popen = subprocess.Popen
 
@@ -139,10 +142,8 @@ class TorController(PrintError):
         if sys.platform in ('win32'):
             if hasattr(subprocess, 'CREATE_NO_WINDOW'):
                 kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-            elif hasattr(subprocess, 'STARTUPINFO'):
-                si = subprocess.STARTUPINFO()
-                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                kwargs['startupinfo'] = si
+            else:
+                kwargs['creationflags'] = 0x08000000 # CREATE_NO_WINDOW, for < Python 3.7
         return TorController._orig_subprocess_popen(*args, **kwargs)
 
     def start(self):
