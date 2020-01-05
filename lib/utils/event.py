@@ -44,8 +44,7 @@ class Event(list):
                     # This weak reference is dead, remove it from the list
                     dead_methods.append(method)
                     continue
-            else:
-                method(*args, **kwargs)
+            method(*args, **kwargs)
 
         # Remove all dead methods
         for dead_method in dead_methods:
