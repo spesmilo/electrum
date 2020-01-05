@@ -7,3 +7,15 @@
 [submodule "contrib/zbar"]
 	path = contrib/zbar
 	url = https://github.com/mchehab/zbar
+[submodule "contrib/openssl"]
+	path = contrib/openssl
+	url = https://github.com/openssl/openssl.git
+[submodule "contrib/libevent"]
+	path = contrib/libevent
+	url = https://github.com/libevent/libevent.git
+[submodule "contrib/zlib"]
+	path = contrib/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "contrib/tor"]
+	path = contrib/tor
+	url = https://github.com/torproject/tor.git

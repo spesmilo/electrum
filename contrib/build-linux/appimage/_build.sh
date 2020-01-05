@@ -10,6 +10,9 @@ APPDIR="$BUILDDIR/Electron-Cash.AppDir"
 CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 PYDIR="$APPDIR"/usr/lib/python3.6
 
+export GCC_STRIP_BINARIES="1"
+export GIT_SUBMODULE_FLAGS="--recommend-shallow --depth 1"
+
 . "$CONTRIB"/base.sh
 
 # pinned versions
@@ -23,10 +26,6 @@ APPIMAGE="$DISTDIR/Electron-Cash-$VERSION-x86_64.AppImage"
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
 
-
-info "Refreshing submodules ..."
-git submodule update --init
-
 info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"
 verify_hash "$CACHEDIR/functions.sh" "78b7ee5a04ffb84ee1c93f0cb2900123773bc6709e5d1e43c37519f590f86918"
@@ -37,12 +36,17 @@ verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" $PYTHON_SRC_TARBALL_HASH
 
+(
+    cd "$PROJECT_ROOT"
+    for pkg in secp zbar openssl libevent zlib tor ; do
+        "$CONTRIB"/make_$pkg || fail "Could not build $pkg"
+    done
+)
 
 info "Building Python"
 tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 (
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
-    export SOURCE_DATE_EPOCH=1530212462
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
     # Patch taken from Ubuntu python3.6_3.6.8-1~18.04.1.debian.tar.xz
@@ -54,7 +58,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
       --enable-shared \
       --with-threads \
       -q || fail "Python configure failed"
-    make -j 4 -s || fail "Could not build Python"
+    make -j$WORKER_COUNT -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Failed to install Python"
     # When building in docker on macOS, python builds with .exe extension because the
     # case insensitive file system of macOS leaks into docker. This causes the build
@@ -72,25 +76,6 @@ git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfski
     make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
 )
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
-
-#info "Building libsecp256k1"  # make_secp below already prints this
-(
-    pushd "$PROJECT_ROOT"
-
-    "$CONTRIB"/make_secp || fail "Could not build libsecp"
-
-    popd
-)
-
-#info "Building libzbar"  # make_zbar below already prints this
-(
-    pushd "$PROJECT_ROOT"
-
-    "$CONTRIB"/make_zbar || fail "Could not build libzbar"
-
-    popd
-)
-
 
 appdir_python() {
   env \

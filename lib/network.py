@@ -43,7 +43,7 @@ from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
 from . import version
-
+from .tor import TorController
 
 DEFAULT_AUTO_CONNECT = True
 DEFAULT_WHITELIST_SERVERS_ONLY = True
@@ -207,6 +207,8 @@ class Network(util.DaemonThread):
     SERVER_RETRY_INTERVAL = 10  # How often to reconnect when server down in secs
     MAX_MESSAGE_BYTES = 1024*1024*32 # = 32MB. The message size limit in bytes. This is to prevent a DoS vector whereby the server can fill memory with garbage data.
 
+    tor_controller: TorController = None
+
     def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
@@ -223,6 +225,10 @@ class Network(util.DaemonThread):
         self.whitelisted_servers, self.whitelisted_servers_hostmap = self._compute_whitelist()
         self.print_error("server blacklist: {} server whitelist: {}".format(self.blacklisted_servers, self.whitelisted_servers))
         self.default_server = self.get_config_server()
+
+        self.tor_controller = TorController(self.config)
+        self.tor_controller.active_port_changed.append(self.on_tor_port_changed)
+        self.tor_controller.start()
 
         self.lock = threading.Lock()
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
@@ -278,6 +284,20 @@ class Network(util.DaemonThread):
             self.print_error("A new instance has started and is replacing the old one.")
         Network.INSTANCE = self # This implicitly should force stale instances to eventually del
         self.start_network(deserialize_server(self.default_server)[2], deserialize_proxy(self.config.get('proxy')))
+
+    def on_tor_port_changed(self, controller: TorController):
+        if not controller.active_socks_port or not controller.is_enabled() or not self.config.get('tor_use', False):
+            return
+
+        proxy = deserialize_proxy(self.config.get('proxy'))
+        port = str(controller.active_socks_port)
+        if proxy["port"] == port:
+            return
+        proxy["port"] = port
+        self.config.set_key('proxy', serialize_proxy(proxy))
+        # This handler can run before `proxy` is present and `load_parameters` needs it
+        if hasattr(self, "proxy"):
+            self.load_parameters()
 
     def __del__(self):
         ''' NB: due to Network.INSTANCE keeping the singleton instance alive,
@@ -1466,6 +1486,11 @@ class Network(util.DaemonThread):
                 self.run_jobs()    # Synchronizer and Verifier and Fx
             self.process_pending_sends()
         self.stop_network()
+
+        self.tor_controller.active_port_changed.remove(self.on_tor_port_changed)
+        self.tor_controller.stop()
+        self.tor_controller = None
+
         self.on_stop()
 
     def on_server_version(self, interface, version_data):

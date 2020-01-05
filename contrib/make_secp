@@ -1,50 +1,37 @@
 #!/bin/bash
 
-contrib=$(dirname "$0")
-test -n "$contrib" -a -d "$contrib" || (echo "Could not find the contrib/ directory" && exit 1)
-pushd "$contrib"
-contrib=`pwd`  # get abs path
-. "$contrib"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
-
 set -e
 
-which git || fail "Git is required to proceed"
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
 
-info "Refreshing submodules..."
-git submodule init
-git submodule update
+pkgname="secp256k1"
+info "Building $pkgname..."
 
-info "Building libsecp256k1..."
-LIBSECP_VERSION="a0530612dd02c8d052631678b0f4f30d7aa7cb42"  # Using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
-
-pushd "$contrib"/secp256k1 || fail "Could not chdir to ${contrib}/secp256k1"
-git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
-git clean -dfxq
-./autogen.sh || fail "Could not run autogen for secp256k1. Please make sure you have automake and libtool installed, and try again."
-./configure \
-    --enable-module-recovery \
-    --enable-experimental \
-    --enable-module-ecdh \
-    --disable-jni \
-    --with-bignum=no \
-    --enable-module-schnorr \
-    --disable-tests \
-    --disable-static \
-    --enable-shared || fail "Could not configure secp256k1. Please make sure you have a C compiler installed and try again."
-make -j4 || fail "Could not build secp256k1"
-uname=`uname -s`
-if [ "$uname" = "Darwin" ]; then
-    libsec_lib="libsecp256k1.0.dylib"
-elif [ "$uname" = "Linux" ]; then
-    libsec_lib="libsecp256k1.so.0"
-else
-    fail "Unknown OS! Please manually copy the library produced in .libs/ and put it in the ../../lib folder (top level folder)"
+pushd "$here"/$pkgname || fail "Could not chdir to $here/$pkgname"
+if ! [ -x configure ] ; then
+    echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
+    echo "LDFLAGS = -no-undefined" >> Makefile.am
+    ./autogen.sh || fail "Could not run autogen for $pkgname. Please make sure you have automake and libtool installed, and try again."
 fi
-cp -fpv .libs/$libsec_lib ../../lib || fail "Could not copy the secp256k1 binary to its destination"
-#git checkout master  # Undo the previous explicit checkout to this hash
-git clean -dfxq
-popd
-
-info "$libsec_lib has been placed in the electroncash 'lib' folder."
-
+if ! [ -r config.status ] ; then
+    ./configure \
+        $AUTOCONF_FLAGS \
+        --prefix="$here/$pkgname/dist" \
+        --enable-module-recovery \
+        --enable-experimental \
+        --enable-module-ecdh \
+        --disable-jni \
+        --with-bignum=no \
+        --enable-module-schnorr \
+        --disable-tests \
+        --disable-static \
+        --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+fi
+make -j$WORKER_COUNT || fail "Could not build $pkgname"
+make install || fail "Could not install $pkgname"
+. "$here/$pkgname/dist/lib/libsecp256k1.la"
+host_strip "$here/$pkgname/dist/lib/$dlname"
+cp -fpv "$here/$pkgname/dist/lib/$dlname" "$here/../lib" || fail "Could not copy the $pkgname binary to its destination"
+info "$dlname has been placed in the 'lib' folder."
 popd

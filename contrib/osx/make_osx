@@ -146,10 +146,6 @@ pyinstaller --version
 
 rm -rf ./dist
 
-info "Refreshing submodules..."
-git submodule init
-git submodule update
-
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir -p $BUILDDIR
 
@@ -183,9 +179,13 @@ git clean -f -x -q
     --disable-static \
     --enable-shared || fail "Could not configure for secp256k1"
 make -j4 || fail "Could not build secp256k1"
-git checkout master  # Undo the previous explicit checkout to this hash
+#git checkout master  # Undo the previous explicit checkout to this hash
 popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
+
+info "Building integrated Tor"
+contrib/make_zlib && contrib/make_libevent && contrib/make_openssl && contrib/make_tor || fail "Could not build Tor"
+
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || fail "Could not install requirements"

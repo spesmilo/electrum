@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e
+
+CONFIG_OPTIONS="no-bf no-camellia no-capieng no-cast no-cms no-des no-dsa
+no-dso no-engines no-err no-hw no-idea no-jpake no-krb5 no-md2 no-mdc2 no-md4
+no-psk no-rc2 no-rc4 no-rc5 no-seed no-shared no-srp no-ssl2 no-ssl3 no-test
+no-zlib"
+
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+pkgname="openssl"
+info "Building $pkgname..."
+
+pushd "$here"/$pkgname || fail "Could not chdir to $here/$pkgname"
+if ! [ -d dist ] ; then
+    (
+        case $BUILD_TYPE in
+            linux)
+                ./config --prefix="$here/$pkgname/dist" $CONFIG_OPTIONS
+                ;;
+            darwin)
+                ./Configure darwin64-x86_64-cc --prefix="$here/$pkgname/dist" $CONFIG_OPTIONS
+                ;;
+            wine)
+                ./Configure --cross-compile-prefix=${GCC_TRIPLET_HOST}- mingw --prefix="$here/$pkgname/dist" $CONFIG_OPTIONS
+                ;;
+        esac
+    ) || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+    make depend || fail "Could not build $pkgname"
+fi
+make -j$WORKER_COUNT || fail "Could not build $pkgname"
+make install_sw || fail "Could not install $pkgname"
+popd

@@ -36,6 +36,7 @@ import itertools
 import subprocess
 from locale import localeconv
 from abc import ABC, abstractmethod
+from traceback import format_exception
 
 import queue
 
@@ -102,6 +103,12 @@ class PrintError:
 
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
+
+    def print_exception(self, *msg):
+        text = ' '.join(str(item) for item in msg)
+        text += ': '
+        text += ''.join(format_exception(*sys.exc_info()))
+        self.print_error(text)
 
     SPAM_MSG_RATE_LIMIT = 1.0  # Once every second
     _print_error_last_spam_msg = 0.0

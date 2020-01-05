@@ -25,10 +25,13 @@ hiddenimports += collect_submodules('smartcard')   # Satochip
 binaries = [("c:/tmp/libusb-1.0.dll", ".")]
 
 # Add secp library
-binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 
 # Add zbar libraries
 binaries += [('C:/tmp/libzbar-0.dll', '.')]
+
+# Add tor binary
+binaries += [('C:/tmp/tor.exe', '.')]
 
 # The below is no longer necessary. PyInstaller 3.4+ picks these up properly
 # now and puts them in the Qt dirs.
@@ -70,6 +73,7 @@ a = Analysis([home+'electron-cash',
               home+'lib/bitcoin.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
+              home+'lib/tor/controller.py',
               home+'plugins/cosigner_pool/qt.py',
               home+'plugins/email_requests/qt.py',
               home+'plugins/trezor/clientbase.py',

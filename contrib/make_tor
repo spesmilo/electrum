@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -e
+
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+pkgname="tor"
+info "Building $pkgname..."
+
+pushd "$here"/$pkgname || fail "Could not chdir to $here/$pkgname"
+LDFLAGS="-s"
+EXTRA_FLAGS=""
+if [ "$BUILD_TYPE" = "windows" ] ; then
+    LIBS="-lcrypt32 -lgdi32"
+fi
+if [ "$BUILD_TYPE" != "darwin" ] ; then
+    EXTRA_FLAGS="$EXTRA_FLAGS --enable-static-tor"
+fi
+if ! [ -x configure ] ; then
+    ./autogen.sh || fail "Could not configure $pkgname"
+fi
+if ! [ -r config.status ] ; then
+    ./configure \
+        $AUTOCONF_FLAGS \
+        --prefix="$here/$pkgname/dist" \
+        --disable-system-torrc \
+        --disable-manpage \
+        --disable-html-manual \
+        --disable-asciidoc \
+        --enable-static-libevent --with-libevent-dir=$here/libevent/dist \
+        --enable-static-openssl --with-openssl-dir=$here/openssl/dist \
+        --enable-static-zlib --with-zlib-dir=$here/zlib/dist \
+        --disable-systemd \
+        --disable-lzma \
+        --disable-zstd \
+        --disable-unittests \
+        --disable-seccomp \
+        --disable-libscrypt \
+        --disable-module-dirauth \
+        $EXTRA_FLAGS || fail "Could not configure $pkgname"
+fi
+make -j$WORKER_COUNT || fail "Could not build $pkgname"
+make install || fail "Could not install $pkgname"
+binary="tor"
+if [ "$BUILD_TYPE" = "wine" ] ; then
+    binary="tor.exe"
+fi
+host_strip "$here/$pkgname/dist/bin/$binary"
+mkdir -p "$here/../lib/tor/bin"
+cp -fpv "$here/$pkgname/dist/bin/$binary" "$here/../lib/tor/bin" || fail "Could not copy the $pkgname binary to its destination"
+$SHA256_PROG "$here/$pkgname/dist/bin/$binary"
+info "$binary has been placed in the 'lib' folder."
+popd

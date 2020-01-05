@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-#
 # Electron Cash - lightweight Bitcoin client
 # Copyright (C) 2019 Axel Gembe <derago@gmail.com>
 #
@@ -23,8 +21,4 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .aspect_layout import FixedAspectRatioLayout
-from .aspect_svg_widget import FixedAspectRatioSvgWidget
-from .image_effect import ImageGraphicsEffect
-from .color_utils import QColorLerp
-from .user_port_validator import UserPortValidator
+from .controller import TorController

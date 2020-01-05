@@ -3,7 +3,9 @@
 here=$(dirname "$0")
 test -n "$here" -a -d "$here" || (echo "Cannot determine build dir. FIXME!" && exit 1)
 
+GIT_SUBMODULE_SKIP=1
 . "$here"/../../base.sh # functions we use below (fail, et al)
+unset GIT_SUBMODULE_SKIP
 
 if [ ! -z "$1" ]; then
     REV="$1"
@@ -73,6 +75,7 @@ mkdir "$FRESH_CLONE_DIR/contrib/build-linux/home" || fail "Failed to create home
     $SUDO docker run $DOCKER_RUN_TTY \
     -e HOME="/opt/electroncash/contrib/build-linux/home" \
     -e GIT_REPO="$GIT_REPO" \
+    -e BUILD_DEBUG="$BUILD_DEBUG" \
     --name electroncash-srcdist-builder-cont \
     -v $FRESH_CLONE_DIR:/opt/electroncash:delegated \
     --rm \

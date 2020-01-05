@@ -38,8 +38,8 @@ def _load_library():
         library_paths = ('libsecp256k1.0.dylib',  # on Mac it's in the pyinstaller top level folder, which is in libpath
                          os.path.join(os.path.dirname(__file__), 'libsecp256k1.0.dylib'))  # fall back to "running from source" mode lib/ folder
     elif sys.platform in ('windows', 'win32'):
-        library_paths = ('libsecp256k1.dll',  # on Windows it's in the pyinstaller top level folder, which is in the path
-                         os.path.join(os.path.dirname(__file__), 'libsecp256k1.dll'))  # does running from source even make sense on Windows? Enquiring minds want to know.
+        library_paths = ('libsecp256k1-0.dll',  # on Windows it's in the pyinstaller top level folder, which is in the path
+                         os.path.join(os.path.dirname(__file__), 'libsecp256k1-0.dll'))  # does running from source even make sense on Windows? Enquiring minds want to know.
     elif 'ANDROID_DATA' in os.environ:
         # We don't actually use coincurve's Python API, it's just a convenient way to load
         # libsecp256k1.

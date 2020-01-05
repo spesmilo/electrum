@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e
+
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+git submodule foreach 'git reset --hard'
+git submodule foreach 'git clean -dfxq'
+git submodule update
