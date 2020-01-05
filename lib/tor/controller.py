@@ -26,8 +26,10 @@ import re
 import subprocess
 import sys
 import threading
+import socket
 from enum import Enum
 
+import stem.socket
 import stem.process
 import stem.control
 
@@ -35,6 +37,20 @@ from .. import util
 from ..util import PrintError
 from ..utils import Event
 from ..simple_config import SimpleConfig
+
+# The network code monkey patches socket to use a SOCKS socket in Network.set_proxy.
+# This causes the Tor control connection to go through Tor, which is not a good idea.
+# To work around this, we monkey patch Stem to always create a standard socket for the
+# control connection.
+_orig_socket = socket.socket
+def _make_socket_monkey_patch(self):
+    try:
+        control_socket = _orig_socket(socket.AF_INET, socket.SOCK_STREAM)
+        control_socket.connect((self.address, self.port))
+        return control_socket
+    except socket.error as exc:
+        raise stem.SocketError(exc)
+stem.socket.ControlPort._make_socket = _make_socket_monkey_patch
 
 if sys.platform in ('windows', 'win32'):
     _TOR_BINARY_NAME = os.path.join(
