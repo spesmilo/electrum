@@ -71,7 +71,7 @@ sed -e 's/Noto Color Emoji/Segoe UI Emoji/' \
     < "$here"/ecsupplemental.ttx \
     > "$here"/ecsupplemental_win.ttx
 # Make reproducible
-touch -h -d '2000-11-11T11:11:11+00:00' ecsupplemental_win.ttx
+touch -h -d '2000-11-11T11:11:11+00:00' "$here"/ecsupplemental_win.ttx
 ttx -f -o "$here"/../../gui/qt/data/ecsupplemental_win.ttf "$here"/ecsupplemental_win.ttx
 rm "$here"/ecsupplemental_win.ttx
 
@@ -83,7 +83,7 @@ sed -e 's/Noto Color Emoji/EC Supplemental/' \
     < "$here"/ecsupplemental.ttx \
     > "$here"/ecsupplemental_lnx.ttx
 # Make reproducible
-touch -h -d '2000-11-11T11:11:11+00:00' ecsupplemental_lnx.ttx
+touch -h -d '2000-11-11T11:11:11+00:00' "$here"/ecsupplemental_lnx.ttx
 ttx -f -o "$here"/../../gui/qt/data/ecsupplemental_lnx.ttf "$here"/ecsupplemental_lnx.ttx
 rm "$here"/ecsupplemental_lnx.ttx
 
