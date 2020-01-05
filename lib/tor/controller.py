@@ -26,6 +26,7 @@ import re
 import subprocess
 import sys
 import threading
+import shutil
 import socket
 from enum import Enum
 
@@ -57,6 +58,10 @@ if sys.platform in ('windows', 'win32'):
         os.path.dirname(__file__), '..', '..', 'tor.exe')
 else:
     _TOR_BINARY_NAME = os.path.join(os.path.dirname(__file__), 'bin', 'tor')
+
+if not os.path.isfile(_TOR_BINARY_NAME):
+    # Tor is not packaged / built, try to locate a system tor
+    _TOR_BINARY_NAME = shutil.which('tor')
 
 _TOR_ENABLED_KEY = 'tor_enabled'
 _TOR_ENABLED_DEFAULT = False
@@ -153,6 +158,10 @@ class TorController(PrintError):
 
         if not self.is_enabled():
             # Don't start Tor if not enabled
+            return
+
+        if not _TOR_BINARY_NAME:
+            self.print_error("No Tor binary found")
             return
 
         # When the socks port is set to zero, we let tor choose one
