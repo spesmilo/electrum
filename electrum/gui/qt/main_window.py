@@ -2908,10 +2908,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         combined_fee = QLabel('')
         combined_feerate = QLabel('')
         def on_fee_edit(x):
-            out_amt = max_fee - fee_e.get_amount()
+            fee_for_child = fee_e.get_amount()
+            if fee_for_child is None:
+                return
+            out_amt = max_fee - fee_for_child
             out_amt_str = (self.format_amount(out_amt) + ' ' + self.base_unit()) if out_amt else ''
             output_amount.setText(out_amt_str)
-            comb_fee = parent_fee + fee_e.get_amount()
+            comb_fee = parent_fee + fee_for_child
             comb_fee_str = (self.format_amount(comb_fee) + ' ' + self.base_unit()) if comb_fee else ''
             combined_fee.setText(comb_fee_str)
             comb_feerate = comb_fee / total_size * 1000
@@ -2946,6 +2949,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not d.exec_():
             return
         fee = fee_e.get_amount()
+        if fee is None:
+            return  # fee left empty, treat is as "cancel"
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return
