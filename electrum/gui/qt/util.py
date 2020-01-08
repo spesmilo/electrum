@@ -653,7 +653,11 @@ class MyTreeView(QTreeView):
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
-            column_data = item_col.text().strip()
+            data = item_col.data()
+            if data is None:
+                column_data = item_col.text().strip()
+            else:
+                column_data = data
             cc.addAction(column_title,
                          lambda text=column_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
