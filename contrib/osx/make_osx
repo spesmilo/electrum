@@ -48,7 +48,7 @@ VERSION=`git describe --tags`
 
 # Paramterize
 BUILDDIR=/tmp/electron-cash-build
-LIBSECP_VERSION="a0530612dd02c8d052631678b0f4f30d7aa7cb42"  # using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+LIBSECP_VERSION="69ccf0d2f758b1a4df9cde8222459381e08fc1dc"  # using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })
 MAJ_MIN=${MAJ_MIN[0]}.${MAJ_MIN[1]}
