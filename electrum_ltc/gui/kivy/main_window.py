@@ -82,6 +82,7 @@ if TYPE_CHECKING:
     from . import ElectrumGui
     from electrum_ltc.simple_config import SimpleConfig
     from electrum_ltc.plugin import Plugins
+    from electrum_ltc.paymentrequest import PaymentRequest
 
 
 class ElectrumWindow(App):
@@ -364,13 +365,13 @@ class ElectrumWindow(App):
         self.fee_status = self.electrum_config.get_fee_status()
         self.request_popup = None
 
-    def on_pr(self, pr):
+    def on_pr(self, pr: 'PaymentRequest'):
         if not self.wallet:
             self.show_error(_('No wallet loaded.'))
             return
         if pr.verify(self.wallet.contacts):
             key = pr.get_id()
-            invoice = self.wallet.get_invoice(key)
+            invoice = self.wallet.get_invoice(key)  # FIXME wrong key...
             if invoice and invoice['status'] == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()

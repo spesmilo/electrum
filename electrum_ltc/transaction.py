@@ -192,19 +192,29 @@ class TxInput:
     script_sig: Optional[bytes]
     nsequence: int
     witness: Optional[bytes]
+    _is_coinbase_output: bool
 
     def __init__(self, *,
                  prevout: TxOutpoint,
                  script_sig: bytes = None,
                  nsequence: int = 0xffffffff - 1,
-                 witness: bytes = None):
+                 witness: bytes = None,
+                 is_coinbase_output: bool = False):
         self.prevout = prevout
         self.script_sig = script_sig
         self.nsequence = nsequence
         self.witness = witness
+        self._is_coinbase_output = is_coinbase_output
 
-    def is_coinbase(self) -> bool:
+    def is_coinbase_input(self) -> bool:
+        """Whether this is the input of a coinbase tx."""
         return self.prevout.is_coinbase()
+
+    def is_coinbase_output(self) -> bool:
+        """Whether the coin being spent is an output of a coinbase tx.
+        This matters for coin maturity.
+        """
+        return self._is_coinbase_output
 
     def value_sats(self) -> Optional[int]:
         return None
@@ -213,7 +223,7 @@ class TxInput:
         d = {
             'prevout_hash': self.prevout.txid.hex(),
             'prevout_n': self.prevout.out_idx,
-            'coinbase': self.is_coinbase(),
+            'coinbase': self.is_coinbase_output(),
             'nsequence': self.nsequence,
         }
         if self.script_sig is not None:
@@ -550,7 +560,7 @@ class Transaction:
 
     @classmethod
     def get_siglist(self, txin: 'PartialTxInput', *, estimate_size=False):
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return [], []
 
         if estimate_size:
@@ -579,7 +589,7 @@ class Transaction:
     def serialize_witness(cls, txin: TxInput, *, estimate_size=False) -> str:
         if txin.witness is not None:
             return txin.witness.hex()
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return ''
         assert isinstance(txin, PartialTxInput)
 
@@ -643,7 +653,7 @@ class Transaction:
     def input_script(self, txin: TxInput, *, estimate_size=False) -> str:
         if txin.script_sig is not None:
             return txin.script_sig.hex()
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return ''
         assert isinstance(txin, PartialTxInput)
 
@@ -1090,7 +1100,8 @@ class PartialTxInput(TxInput, PSBTSection):
         res = PartialTxInput(prevout=txin.prevout,
                              script_sig=None if strip_witness else txin.script_sig,
                              nsequence=txin.nsequence,
-                             witness=None if strip_witness else txin.witness)
+                             witness=None if strip_witness else txin.witness,
+                             is_coinbase_output=txin.is_coinbase_output())
         return res
 
     def validate_data(self, *, for_signing=False) -> None:
@@ -1243,7 +1254,7 @@ class PartialTxInput(TxInput, PSBTSection):
     def is_complete(self) -> bool:
         if self.script_sig is not None and self.witness is not None:
             return True
-        if self.prevout.is_coinbase():
+        if self.is_coinbase_input():
             return True
         if self.script_sig is not None and not Transaction.is_segwit_input(self):
             return True
@@ -1750,7 +1761,7 @@ class PartialTransaction(Transaction):
         s = 0  # "num Sigs we have"
         r = 0  # "Required"
         for txin in self.inputs():
-            if txin.prevout.is_coinbase():
+            if txin.is_coinbase_input():
                 continue
             signatures = list(txin.part_sigs.values())
             s += len(signatures)

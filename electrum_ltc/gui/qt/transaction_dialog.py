@@ -480,7 +480,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         i_text.setReadOnly(True)
         cursor = i_text.textCursor()
         for txin in self.tx.inputs():
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 cursor.insertText('coinbase')
             else:
                 prevout_hash = txin.prevout.txid.hex()

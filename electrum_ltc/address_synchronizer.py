@@ -194,7 +194,7 @@ class AddressSynchronizer(Logger):
         conflicting_txns = set()
         with self.transaction_lock:
             for txin in tx.inputs():
-                if txin.is_coinbase():
+                if txin.is_coinbase_input():
                     continue
                 prevout_hash = txin.prevout.txid.hex()
                 prevout_n = txin.prevout.out_idx
@@ -228,7 +228,7 @@ class AddressSynchronizer(Logger):
             # BUT we track is_mine inputs in a txn, and during subsequent calls
             # of add_transaction tx, we might learn of more-and-more inputs of
             # being is_mine, as we roll the gap_limit forward
-            is_coinbase = tx.inputs()[0].is_coinbase()
+            is_coinbase = tx.inputs()[0].is_coinbase_input()
             tx_height = self.get_tx_height(tx_hash).height
             if not allow_unrelated:
                 # note that during sync, if the transactions are not properly sorted,
@@ -279,7 +279,7 @@ class AddressSynchronizer(Logger):
                                 self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
                             return
             for txi in tx.inputs():
-                if txi.is_coinbase():
+                if txi.is_coinbase_input():
                     continue
                 prevout_hash = txi.prevout.txid.hex()
                 prevout_n = txi.prevout.out_idx
@@ -314,7 +314,7 @@ class AddressSynchronizer(Logger):
             if tx is not None:
                 # if we have the tx, this branch is faster
                 for txin in tx.inputs():
-                    if txin.is_coinbase():
+                    if txin.is_coinbase_input():
                         continue
                     prevout_hash = txin.prevout.txid.hex()
                     prevout_n = txin.prevout.out_idx
@@ -758,7 +758,8 @@ class AddressSynchronizer(Logger):
         for prevout_str, v in coins.items():
             tx_height, value, is_cb = v
             prevout = TxOutpoint.from_str(prevout_str)
-            utxo = PartialTxInput(prevout=prevout)
+            utxo = PartialTxInput(prevout=prevout,
+                                  is_coinbase_output=is_cb)
             utxo._trusted_address = address
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
@@ -825,7 +826,7 @@ class AddressSynchronizer(Logger):
                     continue
                 if nonlocal_only and utxo.block_height == TX_HEIGHT_LOCAL:
                     continue
-                if (mature_only and utxo.prevout.is_coinbase()
+                if (mature_only and utxo.is_coinbase_output()
                         and utxo.block_height + COINBASE_MATURITY > mempool_height):
                     continue
                 coins.append(utxo)
