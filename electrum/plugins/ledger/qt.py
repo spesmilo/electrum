@@ -14,6 +14,7 @@ from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(LedgerPlugin, QtPluginBase):
+    # print("In kivy .py.................class Plugin ............@7......")
     icon_unpaired = "ledger_unpaired.png"
     icon_paired = "ledger.png"
 

@@ -528,7 +528,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             on_finished()
 
     @wizard_dialog
-    def choice_dialog(self, title, message, choices, run_next):
+    def choice_dialog(self, title, message, choices, run_next):        
         c_values = [x[0] for x in choices]
         c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)

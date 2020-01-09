@@ -1093,7 +1093,7 @@ class InstallWizard(BaseWizard, Widget):
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
-        if len(choices) > 1:
+        if len(choices) >= 1:
             WizardChoiceDialog(self, **kwargs).open()
         else:
             f = kwargs['run_next']

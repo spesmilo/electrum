@@ -35,6 +35,7 @@ try:
     BTCHIP = True
     BTCHIP_DEBUG = False
 except ImportError:
+    import hid
     BTCHIP = False
 
 MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + \
@@ -88,7 +89,7 @@ class Ledger_Client(HardwareClientBase):
     def has_usable_connection_with_device(self):
         try:
             self.dongleObject.getFirmwareVersion()
-        except BaseException:
+        except BaseException as e:
             return False
         return True
 
@@ -572,28 +573,34 @@ class LedgerPlugin(HW_PluginBase):
                 ledger = True
             else:
                 return None  # non-compatible interface of a Nano S or Blue
-        dev = hid.device()
-        dev.open_path(device.path)
-        dev.set_nonblocking(True)
-        return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
+        dev = hid.Device(path=device.path)
+        # dev.open_path(device.path)
+        dev.nonblocking(True)
+        return HIDDongleHIDAPI(dev, ledger, True)
 
     def create_client(self, device, handler):
         if handler:
             self.handler = handler
-
         client = self.get_btchip_device(device)
         if client is not None:
             is_hw1 = device.product_key[0] == 0x2581
             client = Ledger_Client(client, is_hw1=is_hw1)
         return client
+    def create_handler(self, window):
+        import kivy
+        from kivy.event import EventDispatcher
+        handler = EventDispatcher()
+        return handler
 
     def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
+        client = self.create_client(device_info.device,handler=None)
+        # client = devmgr.client_by_id(device_id)
         if client is None:
             raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
                                       _('Make sure it is in the correct state.'))
+
         client.handler = self.create_handler(wizard)
         client.get_xpub("m/44'/0'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
 

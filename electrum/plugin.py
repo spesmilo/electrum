@@ -444,7 +444,7 @@ class DeviceMgr(ThreadJob):
         '''Returns a client for the device ID if one is registered.  If
         a device is wiped or in bootloader mode pairing is impossible;
         in such cases we communicate by device ID and not wallet.'''
-        self.scan_devices()
+        dev = self.scan_devices()
         return self.client_lookup(id_)
 
     def client_for_keystore(self, plugin: 'HW_PluginBase', handler, keystore: 'Hardware_KeyStore',
@@ -536,7 +536,6 @@ class DeviceMgr(ThreadJob):
             infos.append(DeviceInfo(device=device,
                                     label=client.label(),
                                     initialized=client.is_initialized()))
-
         return infos
 
     def select_device(self, plugin: 'HW_PluginBase', handler,
@@ -588,12 +587,11 @@ class DeviceMgr(ThreadJob):
     def _scan_devices_with_hid(self) -> List['Device']:
         try:
             import hid
-        except ImportError:
+        except ImportError as e:
             return []
 
         with self.hid_lock:
             hid_list = hid.enumerate(0, 0)
-
         devices = []
         for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
@@ -615,10 +613,8 @@ class DeviceMgr(ThreadJob):
 
     def scan_devices(self) -> List['Device']:
         self.logger.info("scanning devices...")
-
         # First see what's connected that we know about
         devices = self._scan_devices_with_hid()
-
         # Let plugin handlers enumerate devices we don't know about
         for f in self.enumerate_func:
             try:
