@@ -186,6 +186,7 @@ class LNWorker(Logger):
         return sum([p.initialized.is_set() for p in self.peers.values()])
 
     def start_network(self, network: 'Network'):
+        assert network
         self.network = network
         self.config = network.config
         daemon = network.daemon
@@ -306,6 +307,7 @@ class LNGossip(LNWorker):
         assert is_using_fast_ecc(), "verifying LN gossip msgs without libsecp256k1 is hopeless"
 
     def start_network(self, network: 'Network'):
+        assert network
         super().start_network(network)
         asyncio.run_coroutine_threadsafe(network.daemon.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
 
@@ -407,6 +409,7 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
+        assert network
         self.lnwatcher = LNWatcher(network)
         self.lnwatcher.start_network(network)
         self.network = network
@@ -731,6 +734,8 @@ class LNWallet(LNWorker):
             name = sweep_info.name
             spender_txid = spenders.get(prevout)
             if spender_txid is not None:
+                # TODO handle exceptions for network.get_transaction
+                # TODO don't do network request every time... save tx at least in memory, or maybe wallet file?
                 spender_tx = await self.network.get_transaction(spender_txid)
                 spender_tx = Transaction(spender_tx)
                 e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)
