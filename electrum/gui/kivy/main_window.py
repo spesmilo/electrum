@@ -109,6 +109,7 @@ class ElectrumWindow(App):
     lightning_gossip_num_queries = NumericProperty(0)
 
     auto_connect = BooleanProperty(False)
+
     def on_auto_connect(self, instance, x):
         net_params = self.network.get_parameters()
         net_params = net_params._replace(auto_connect=self.auto_connect)
@@ -695,6 +696,7 @@ class ElectrumWindow(App):
             return True
 
     def settings_dialog(self):
+
         from .uix.dialogs.settings import SettingsDialog
         if self._settings_dialog is None:
             self._settings_dialog = SettingsDialog(self)
@@ -722,6 +724,7 @@ class ElectrumWindow(App):
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
     def popup_dialog(self, name):
+
         if name == 'settings':
             self.settings_dialog()
         elif name == 'wallets':
@@ -952,6 +955,7 @@ class ElectrumWindow(App):
         modal=False):
         ''' Show an error Message Bubble.
         '''
+
         self.show_info_bubble( text=error, icon=icon, width=width,
             pos=pos or Window.center, arrow_pos=arrow_pos, exit=exit,
             duration=duration, modal=modal)
