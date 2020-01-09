@@ -33,7 +33,7 @@ import json
 import sys
 import ipaddress
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable
 import traceback
 import concurrent
 from concurrent import futures
@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
     from .transaction import Transaction
+    from .daemon import Daemon
 
 
 _logger = get_logger(__name__)
@@ -237,7 +238,7 @@ class Network(Logger):
 
     LOGGING_SHORTCUT = 'n'
 
-    def __init__(self, config: SimpleConfig):
+    def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
         global _INSTANCE
         assert _INSTANCE is None, "Network is a singleton!"
         _INSTANCE = self
@@ -250,6 +251,9 @@ class Network(Logger):
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
+
+        self.daemon = daemon
+
         blockchain.read_blockchains(self.config)
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
@@ -747,7 +751,7 @@ class Network(Logger):
             self.trigger_callback('network_updated')
             if blockchain_updated: self.trigger_callback('blockchain_updated')
 
-    async def _close_interface(self, interface):
+    async def _close_interface(self, interface: Interface):
         if interface:
             with self.interfaces_lock:
                 if self.interfaces.get(interface.server) == interface:
@@ -1185,7 +1189,12 @@ class Network(Logger):
 
         self.trigger_callback('network_updated')
 
-    def start(self, jobs: List=None):
+    def start(self, jobs: Iterable = None):
+        """Schedule starting the network, along with the given job co-routines.
+
+        Note: the jobs will *restart* every time the network restarts, e.g. on proxy
+        setting changes.
+        """
         self._jobs = jobs or []
         asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
 
@@ -1264,7 +1273,7 @@ class Network(Logger):
             except asyncio.CancelledError:
                 # suppress spurious cancellations
                 group = self.main_taskgroup
-                if not group or group._closed:
+                if not group or group.closed():
                     raise
             await asyncio.sleep(0.1)
 
