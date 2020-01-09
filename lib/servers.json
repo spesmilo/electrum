@@ -145,5 +145,11 @@
         "t": "50001",
         "version": "1.4",
         "display": "electroncash.de"
+    },
+    "fulcrum.fountainhead.cash": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
     }
 }
