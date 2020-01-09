@@ -53,10 +53,11 @@ from .bitcoin import COIN
 from . import constants
 from . import blockchain
 from . import bitcoin
+from .transaction import Transaction
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import (Interface, serialize_server, deserialize_server,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-                        NetworkException)
+                        NetworkException, RequestCorrupted)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
@@ -66,7 +67,6 @@ if TYPE_CHECKING:
     from .channel_db import ChannelDB
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
-    from .transaction import Transaction
     from .daemon import Daemon
 
 
@@ -871,7 +871,7 @@ class Network(Logger):
                     if success_fut.exception():
                         try:
                             raise success_fut.exception()
-                        except RequestTimedOut:
+                        except (RequestTimedOut, RequestCorrupted):
                             await iface.close()
                             await iface.got_disconnected
                             continue  # try again
@@ -1068,8 +1068,19 @@ class Network(Logger):
     async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
         if not is_hash256_str(tx_hash):
             raise Exception(f"{repr(tx_hash)} is not a txid")
-        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash],
-                                                         timeout=timeout)
+        iface = self.interface
+        raw = await iface.session.send_request('blockchain.transaction.get', [tx_hash], timeout=timeout)
+        # validate response
+        tx = Transaction(raw)
+        try:
+            tx.deserialize()  # see if raises
+        except Exception as e:
+            self.logger.warning(f"cannot deserialize received transaction (txid {tx_hash}). from {str(iface)}")
+            raise RequestCorrupted() from e  # TODO ban server?
+        if tx.txid() != tx_hash:
+            self.logger.warning(f"received tx does not match expected txid {tx_hash} (got {tx.txid()}). from {str(iface)}")
+            raise RequestCorrupted()  # TODO ban server?
+        return raw
 
     @best_effort_reliable
     @catch_server_exceptions
