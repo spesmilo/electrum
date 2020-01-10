@@ -58,10 +58,10 @@ for msifile in core dev exe lib pip tools; do
 done
 
 info "Installing build dependencies."
-$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-wine-build.txt
+$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-wine-build.txt
 
 info "Installing dependencies specific to binaries."
-$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
+$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 
 info "Installing ZBar."
 download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
