@@ -547,29 +547,15 @@ class WalletRenameDialog : AlertDialogFragment() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val newWalletName = etWalletName.text.toString()
-                when {
-                    newWalletName == walletName -> {
-                        done()
-                    }
-                    newWalletName.contains('/') -> {
-                        toast(R.string.wallet_names)
-                    }
-                    newWalletName.isEmpty() -> {
-                        toast(R.string.name_is)
-                    }
-                    else -> {
-                        daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
-                        toast(R.string.wallet_renamed, Toast.LENGTH_SHORT)
-                        done(newWalletName)
-                    }
-                }
-            } catch (e: PyException) {
-                if (e.message!!.startsWith("FileExistsError")) {
-                    toast(R.string.a_wallet_with_that_name_already_exists_please_enter)
+                if (newWalletName == walletName) {
+                    done()
                 } else {
-                    throw e
+                    validateWalletName(newWalletName)
+                    daemonModel.commands.callAttr("rename_wallet", walletName, newWalletName)
+                    toast(R.string.wallet_renamed, Toast.LENGTH_SHORT)
+                    done(newWalletName)
                 }
-            }
+            } catch (e: ToastException) { e.show() }
         }
     }
 

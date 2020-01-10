@@ -37,13 +37,8 @@ class NewWalletDialog1 : AlertDialogFragment() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val name = etName.text.toString()
-                if (name.isEmpty()) throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
-                if (name.contains("/")) throw ToastException(R.string.wallet_names)
-                if (daemonModel.listWallets().contains(name)) {
-                    throw ToastException(R.string.a_wallet_with_that_name_already_exists_please_enter)
-                }
+                validateWalletName(name)
                 val password = confirmPassword(dialog)
-
                 val nextDialog: DialogFragment
                 val arguments = Bundle().apply {
                     putString("name", name)
@@ -67,6 +62,24 @@ class NewWalletDialog1 : AlertDialogFragment() {
                 showDialog(this, nextDialog.apply { setArguments(arguments) })
             } catch (e: ToastException) { e.show() }
         }
+    }
+}
+
+
+fun validateWalletName(name: String) {
+    if (name.isEmpty()) {
+        throw ToastException(R.string.name_is)
+    }
+    if (name.contains("/")) {
+        throw ToastException(R.string.wallet_names)
+    }
+    if (name.toByteArray().size > 200) {
+        // The filesystem limit is probably 255, but we need to leave room for the temporary
+        // filename suffix.
+        throw ToastException(R.string.wallet_name_is_too)
+    }
+    if (daemonModel.listWallets().contains(name)) {
+        throw ToastException(R.string.a_wallet_with_that_name_already_exists_please_enter)
     }
 }
 
