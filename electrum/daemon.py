@@ -315,6 +315,7 @@ class Daemon(Logger):
         try:
             async with self.taskgroup as group:
                 [await group.spawn(job) for job in jobs]
+                await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
         except BaseException as e:
             self.logger.exception('daemon.taskgroup died.')
         finally:
