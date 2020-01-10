@@ -12,7 +12,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
 from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32,
-                            normalize_bip32_derivation)
+                            normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
@@ -22,7 +22,7 @@ from electrum.keystore import xtype_from_derivation
 
 from electrum import ecc_fast
 
-from . import SequentialTestCase
+from . import ElectrumTestCase
 from . import TestCaseForTestnet
 from . import FAST_TESTS
 
@@ -84,7 +84,7 @@ def needs_test_with_all_aes_implementations(func):
     return run_test
 
 
-class Test_bitcoin(SequentialTestCase):
+class Test_bitcoin(ElectrumTestCase):
 
     def test_libsecp256k1_is_available(self):
         # we want the unit testing framework to test with libsecp256k1 available.
@@ -152,6 +152,8 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(inf, A + 2 * G)
         self.assertEqual(inf, D + (-1) * G)
         self.assertNotEqual(A, B)
+        self.assertEqual(2 * G, inf + 2 * G)
+        self.assertEqual(inf, 3 * G + (-3 * G))
 
     @needs_test_with_all_ecc_implementations
     def test_msg_signing(self):
@@ -173,8 +175,8 @@ class Test_bitcoin(SequentialTestCase):
         sig1_b64 = base64.b64encode(sig1)
         sig2_b64 = base64.b64encode(sig2)
 
-        self.assertEqual(sig1_b64, b'H/9jMOnj4MFbH3d7t4yCQ9i7DgZU/VZ278w3+ySv2F4yIsdqjsc5ng3kmN8OZAThgyfCZOQxZCWza9V5XzlVY0Y=')
-        self.assertEqual(sig2_b64, b'G84dmJ8TKIDKMT9qBRhpX2sNmR0y5t+POcYnFFJCs66lJmAs3T8A6Sbpx7KA6yTQ9djQMabwQXRrDomOkIKGn18=')
+        self.assertEqual(sig1_b64, b'Hzsu0U/THAsPz/MSuXGBKSULz2dTfmrg1NsAhFp+wH5aKfmX4Db7ExLGa7FGn0m6Mf43KsbEOWpvUUUBTM3Uusw=')
+        self.assertEqual(sig2_b64, b'HBQdYfv7kOrxmRewLJnG7sV6KlU71O04hUnE4tai97p7Pg+D+yKaWXsdGgHTrKw90caQMo/D6b//qX50ge9P9iI=')
 
         self.assertTrue(ecc.verify_message_with_address(addr1, sig1, msg1))
         self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg2))
@@ -209,11 +211,11 @@ class Test_bitcoin(SequentialTestCase):
     def test_sign_transaction(self):
         eckey1 = ecc.ECPrivkey(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
         sig1 = eckey1.sign_transaction(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'))
-        self.assertEqual(bfh('3045022100902a288b98392254cd23c0e9a49ac6d7920f171b8249a48e484b998f1874a2010220723d844826828f092cf400cb210c4fa0b8cd1b9d1a7f21590e78e022ff6476b9'), sig1)
+        self.assertEqual('3044022066e7d6a954006cce78a223f5edece8aaedcf3607142e9677acef1cfcb91cfdde022065cb0b5401bf16959ce7b785ea7fd408be5e4cb7d8f1b1a32c78eac6f73678d9', sig1.hex())
 
         eckey2 = ecc.ECPrivkey(bfh('c7ce8c1462c311eec24dff9e2532ac6241e50ae57e7d1833af21942136972f23'))
         sig2 = eckey2.sign_transaction(bfh('642a2e66332f507c92bda910158dfe46fc10afbf72218764899d3af99a043fac'))
-        self.assertEqual(bfh('30440220618513f4cfc87dde798ce5febae7634c23e7b9254a1eabf486be820f6a7c2c4702204fef459393a2b931f949e63ced06888f35e286e446dc46feb24b5b5f81c6ed52'), sig2)
+        self.assertEqual('30440220618513f4cfc87dde798ce5febae7634c23e7b9254a1eabf486be820f6a7c2c4702204fef459393a2b931f949e63ced06888f35e286e446dc46feb24b5b5f81c6ed52', sig2.hex())
 
     @needs_test_with_all_aes_implementations
     def test_aes_homomorphic(self):
@@ -391,7 +393,7 @@ class Test_bitcoin_testnet(TestCaseForTestnet):
         self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
-class Test_xprv_xpub(SequentialTestCase):
+class Test_xprv_xpub(ElectrumTestCase):
 
     xprv_xpub = (
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
@@ -492,6 +494,14 @@ class Test_xprv_xpub(SequentialTestCase):
         self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
         self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
 
+    def test_is_all_public_derivation(self):
+        self.assertFalse(is_all_public_derivation("m/0/1'/1'"))
+        self.assertFalse(is_all_public_derivation("m/0/2/1'"))
+        self.assertFalse(is_all_public_derivation("m/0/1'/1'/5"))
+        self.assertTrue(is_all_public_derivation("m"))
+        self.assertTrue(is_all_public_derivation("m/0"))
+        self.assertTrue(is_all_public_derivation("m/75/22/3"))
+
     def test_xtype_from_derivation(self):
         self.assertEqual('standard', xtype_from_derivation("m/44'"))
         self.assertEqual('standard', xtype_from_derivation("m/44'/"))
@@ -583,7 +593,7 @@ class Test_xprv_xpub_testnet(TestCaseForTestnet):
             self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
-class Test_keyImport(SequentialTestCase):
+class Test_keyImport(ElectrumTestCase):
 
     priv_pub_addr = (
            {'priv': 'KzMFjMC2MPadjvX5Cd7b8AKKjjpBSoRKUTpoAtN6B3J9ezWYyXS6',
@@ -701,6 +711,16 @@ class Test_keyImport(SequentialTestCase):
 
         self.assertFalse(is_address("not an address"))
 
+    def test_is_address_bad_checksums(self):
+        self.assertTrue(is_address('1819s5TxxbBtuRPr3qYskMVC8sb1pqapWx'))
+        self.assertFalse(is_address('1819s5TxxbBtuRPr3qYskMVC8sb1pqapWw'))
+
+        self.assertTrue(is_address('3LrjLVnngqnaJeo3BQwMBg34iqYsjZjQUe'))
+        self.assertFalse(is_address('3LrjLVnngqnaJeo3BQwMBg34iqYsjZjQUd'))
+
+        self.assertTrue(is_address('bc1qxq64lrwt02hm7tu25lr3hm9tgzh58snfe67yt6'))
+        self.assertFalse(is_address('bc1qxq64lrwt02hm7tu25lr3hm9tgzh58snfe67yt5'))
+
     @needs_test_with_all_ecc_implementations
     def test_is_private_key(self):
         for priv_details in self.priv_pub_addr:
@@ -749,25 +769,25 @@ class Test_keyImport(SequentialTestCase):
                            raise_on_error=True)
 
 
-class TestBaseEncode(SequentialTestCase):
+class TestBaseEncode(ElectrumTestCase):
 
     def test_base43(self):
         tx_hex = "020000000001021cd0e96f9ca202e017ca3465e3c13373c0df3a4cdd91c1fd02ea42a1a65d2a410000000000fdffffff757da7cf8322e5063785e2d8ada74702d2648fa2add2d533ba83c52eb110df690200000000fdffffff02d07e010000000000160014b544c86eaf95e3bb3b6d2cabb12ab40fc59cad9ca086010000000000232102ce0d066fbfcf150a5a1bbc4f312cd2eb080e8d8a47e5f2ce1a63b23215e54fb5ac02483045022100a9856bf10a950810abceeabc9a86e6ba533e130686e3d7863971b9377e7c658a0220288a69ef2b958a7c2ecfa376841d4a13817ed24fa9a0e0a6b9cb48e6439794c701210324e291735f83ff8de47301b12034950b80fa4724926a34d67e413d8ff8817c53024830450221008f885978f7af746679200ed55fe2e86c1303620824721f95cc41eb7965a3dfcf02207872082ac4a3c433d41a203e6d685a459e70e551904904711626ac899238c20a0121023d4c9deae1aacf3f822dd97a28deaec7d4e4ff97be746d124a63d20e582f5b290a971600"
         tx_bytes = bfh(tx_hex)
-        tx_base43 = base_encode(tx_bytes, 43)
+        tx_base43 = base_encode(tx_bytes, base=43)
         self.assertEqual("3E2DH7.J3PKVZJ3RCOXQVS3Y./6-WE.75DDU0K58-0N1FRL565N8ZH-DG1Z.1IGWTE5HK8F7PWH5P8+V3XGZZ6GQBPHNDE+RD8CAQVV1/6PQEMJIZTGPMIJ93B8P$QX+Y2R:TGT9QW8S89U4N2.+FUT8VG+34USI/N/JJ3CE*KLSW:REE8T5Y*9:U6515JIUR$6TODLYHSDE3B5DAF:5TF7V*VAL3G40WBOM0DO2+CFKTTM$G-SO:8U0EW:M8V:4*R9ZDX$B1IRBP9PLMDK8H801PNTFB4$HL1+/U3F61P$4N:UAO88:N5D+J:HI4YR8IM:3A7K1YZ9VMRC/47$6GGW5JEL1N690TDQ4XW+TWHD:V.1.630QK*JN/.EITVU80YS3.8LWKO:2STLWZAVHUXFHQ..NZ0:.J/FTZM.KYDXIE1VBY7/:PHZMQ$.JZQ2.XT32440X/HM+UY/7QP4I+HTD9.DUSY-8R6HDR-B8/PF2NP7I2-MRW9VPW3U9.S0LQ.*221F8KVMD5ANJXZJ8WV4UFZ4R.$-NXVE+-FAL:WFERGU+WHJTHAP",
                          tx_base43)
         self.assertEqual(tx_bytes,
-                         base_decode(tx_base43, None, 43))
+                         base_decode(tx_base43, base=43))
 
     def test_base58(self):
         data_hex = '0cd394bef396200774544c58a5be0189f3ceb6a41c8da023b099ce547dd4d8071ed6ed647259fba8c26382edbf5165dfd2404e7a8885d88437db16947a116e451a5d1325e3fd075f9d370120d2ab537af69f32e74fc0ba53aaaa637752964b3ac95cfea7'
         data_bytes = bfh(data_hex)
-        data_base58 = base_encode(data_bytes, 58)
+        data_base58 = base_encode(data_bytes, base=58)
         self.assertEqual("VuvZ2K5UEcXCVcogny7NH4Evd9UfeYipsTdWuU4jLDhyaESijKtrGWZTFzVZJPjaoC9jFBs3SFtarhDhQhAxkXosUD8PmUb5UXW1tafcoPiCp8jHy7Fe2CUPXAbYuMvAyrkocbe6",
                          data_base58)
         self.assertEqual(data_bytes,
-                         base_decode(data_base58, None, 58))
+                         base_decode(data_base58, base=58))
 
     def test_base58check(self):
         data_hex = '0cd394bef396200774544c58a5be0189f3ceb6a41c8da023b099ce547dd4d8071ed6ed647259fba8c26382edbf5165dfd2404e7a8885d88437db16947a116e451a5d1325e3fd075f9d370120d2ab537af69f32e74fc0ba53aaaa637752964b3ac95cfea7'

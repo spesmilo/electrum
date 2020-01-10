@@ -23,7 +23,15 @@ Builder.load_string('''
             Label:
                 text: _('Extend Seed')
             CheckBox:
-                id:cb
+                id:ext
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.2
+            Label:
+                text: _('BIP39')
+                id:bip39_label
+            CheckBox:
+                id:bip39
         Widget:
             size_hint: 1, 0.1
         BoxLayout:
@@ -39,13 +47,19 @@ Builder.load_string('''
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
-                    root.callback(cb.active)
+                    root.callback(ext.active, bip39.active)
                     popup.dismiss()
 ''')
 
 
 class SeedOptionsDialog(Factory.Popup):
-    def __init__(self, status, callback):
+    def __init__(self, is_ext, is_bip39, callback):
         Factory.Popup.__init__(self)
-        self.ids.cb.active = status
+        self.ids.ext.active = is_ext
+        if is_bip39 is None:
+            self.ids.bip39.opacity = 0
+            self.ids.bip39_label.opacity = 0
+            self.ids.bip39.disabled = True
+        else:
+            self.ids.bip39.active = is_bip39
         self.callback = callback

@@ -1,9 +1,9 @@
 from electrum.plugins.revealer.revealer import RevealerPlugin
 
-from . import SequentialTestCase
+from . import ElectrumTestCase
 
 
-class TestRevealer(SequentialTestCase):
+class TestRevealer(ElectrumTestCase):
 
     def test_version_0_noisemap(self):
         versioned_seed = RevealerPlugin.get_versioned_seed_from_user_input('03b0c557d6d0d4308a3393851d78bd8c7861')

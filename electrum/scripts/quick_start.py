@@ -18,15 +18,15 @@ assert network.asyncio_loop.is_running()
 wallet_dir = os.path.dirname(config.get_wallet_path())
 wallet_path = os.path.join(wallet_dir, "test_wallet")
 if not os.path.exists(wallet_path):
-    create_new_wallet(path=wallet_path, segwit=True)
+    create_new_wallet(path=wallet_path, config=config)
 
 # open wallet
 storage = WalletStorage(wallet_path)
-wallet = Wallet(storage)
+wallet = Wallet(storage, config=config)
 wallet.start_network(network)
 
 # you can use ~CLI commands by accessing command_runner
-command_runner = Commands(config, wallet=None, network=network)
+command_runner = Commands(config=config, daemon=daemon, network=network)
 command_runner.wallet = wallet
 print("balance", command_runner.getbalance())
 print("addr",    command_runner.getunusedaddress())

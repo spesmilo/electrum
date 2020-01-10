@@ -31,13 +31,13 @@ hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 hiddenimports.remove('safetlib.qt.pinmatrix')
 
 
-# Add libusb binary
-binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
+binaries = []
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 
 # pyscard binaries for Satochip
 binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp36-win32.pyd', '.')] #satochip
@@ -55,6 +55,8 @@ datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
+datas += collect_data_files('jsonrpcserver')
+datas += collect_data_files('jsonrpcclient')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',

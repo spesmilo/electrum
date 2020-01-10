@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Sequence
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.factory import Factory
@@ -8,6 +10,9 @@ from kivy.uix.boxlayout import BoxLayout
 
 from electrum.gui.kivy.i18n import _
 
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+    from electrum.transaction import TxOutput
 
 
 class AnimatedPopup(Factory.Popup):
@@ -202,13 +207,13 @@ class OutputList(RecycleView):
 
     def __init__(self, **kwargs):
         super(OutputList, self).__init__(**kwargs)
-        self.app = App.get_running_app()
+        self.app = App.get_running_app()  # type: ElectrumWindow
 
-    def update(self, outputs):
+    def update(self, outputs: Sequence['TxOutput']):
         res = []
         for o in outputs:
             value = self.app.format_amount_and_units(o.value)
-            res.append({'address': o.address, 'value': value})
+            res.append({'address': o.get_ui_address_str(), 'value': value})
         self.data = res
 
 

@@ -121,8 +121,8 @@ class SPV(NetworkJobOnDefaultServer):
             if self.network.config.get("skipmerklecheck"):
                 self.logger.info(f"skipping merkle proof check {tx_hash}")
             else:
-                self.logger.info(str(e))
-                raise GracefulDisconnect(e)
+                self.logger.info(repr(e))
+                raise GracefulDisconnect(e) from e
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         self.requested_merkle.discard(tx_hash)
@@ -133,8 +133,6 @@ class SPV(NetworkJobOnDefaultServer):
                               txpos=pos,
                               header_hash=header_hash)
         self.wallet.add_verified_tx(tx_hash, tx_info)
-        #if self.is_up_to_date() and self.wallet.is_up_to_date():
-        #    self.wallet.save_verified_tx(write=True)
 
     @classmethod
     def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):

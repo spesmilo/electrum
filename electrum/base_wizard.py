@@ -33,11 +33,11 @@ from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 from . import bitcoin
 from . import keystore
 from . import mnemonic
-from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation
-from .keystore import bip44_derivation, purpose48_derivation
+from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
-from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
+from .storage import (WalletStorage, StorageEncryptionVersion,
                       get_derivation_used_for_hw_device_encryption)
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
@@ -47,7 +47,7 @@ from .logging import Logger
 from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
 
 if TYPE_CHECKING:
-    from .plugin import DeviceInfo
+    from .plugin import DeviceInfo, BasePlugin
 
 
 # hardware device setup purpose
@@ -67,6 +67,13 @@ class WizardStackItem(NamedTuple):
     storage_data: dict
 
 
+class WizardWalletPasswordSetting(NamedTuple):
+    password: Optional[str]
+    encrypt_storage: bool
+    storage_enc_version: StorageEncryptionVersion
+    encrypt_keystore: bool
+
+
 class BaseWizard(Logger):
 
     def __init__(self, config: SimpleConfig, plugins: Plugins):
@@ -75,10 +82,10 @@ class BaseWizard(Logger):
         self.config = config
         self.plugins = plugins
         self.data = {}
-        self.pw_args = None
+        self.pw_args = None  # type: Optional[WizardWalletPasswordSetting]
         self._stack = []  # type: List[WizardStackItem]
-        self.plugin = None
-        self.keystores = []
+        self.plugin = None  # type: Optional[BasePlugin]
+        self.keystores = []  # type: List[KeyStore]
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 
@@ -223,7 +230,7 @@ class BaseWizard(Logger):
                 assert bitcoin.is_private_key(pk)
                 txin_type, pubkey = k.import_privkey(pk, None)
                 addr = bitcoin.pubkey_to_address(txin_type, pubkey)
-                self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey, 'redeem_script':None}
+                self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
             return self.terminate()
@@ -362,7 +369,7 @@ class BaseWizard(Logger):
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
-            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ()).hex()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
@@ -377,7 +384,7 @@ class BaseWizard(Logger):
 
     def derivation_and_script_type_dialog(self, f):
         message1 = _('Choose the type of addresses in your wallet.')
-        message2 = '\n'.join([
+        message2 = ' '.join([
             _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
@@ -387,7 +394,7 @@ class BaseWizard(Logger):
             # For segwit, a custom path is used, as there is no standard at all.
             default_choice_idx = 2
             choices = [
-                ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
+                ('standard',   'legacy multisig (p2sh)',            normalize_bip32_derivation("m/45'/0")),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
@@ -411,8 +418,12 @@ class BaseWizard(Logger):
 
     def on_hw_derivation(self, name, device_info, derivation, xtype):
         from .keystore import hardware_keystore
+        devmgr = self.plugins.device_manager
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
+            client = devmgr.client_by_id(device_info.device.id_)
+            if not client: raise Exception("failed to find client for device id")
+            root_fingerprint = client.request_root_fingerprint_from_device()
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
@@ -423,6 +434,7 @@ class BaseWizard(Logger):
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
+            'root_fingerprint': root_fingerprint,
             'xpub': xpub,
             'label': device_info.label,
         }
@@ -522,9 +534,9 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
-            k = self.keystores[0]
+            k = self.keystores[0]  # type: Hardware_KeyStore
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()
@@ -541,20 +553,23 @@ class BaseWizard(Logger):
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=STO_EV_XPUB_PW,
+                    storage_enc_version=StorageEncryptionVersion.XPUB_PASSWORD,
                     encrypt_keystore=False))
         else:
+            # reset stack to disable 'back' button in password dialog
+            self.reset_stack()
             # prompt the user to set an arbitrary password
             self.request_password(
                 run_next=lambda password, encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=STO_EV_USER_PW,
+                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
                     encrypt_keystore=encrypt_keystore),
                 force_disable_encrypt_cb=not encrypt_keystore)
 
-    def on_password(self, password, *, encrypt_storage,
-                    storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+    def on_password(self, password, *, encrypt_storage: bool,
+                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
+                    encrypt_keystore: bool):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
@@ -571,7 +586,10 @@ class BaseWizard(Logger):
                 self.data['keystore'] = keys
         else:
             raise Exception('Unknown wallet type')
-        self.pw_args = password, encrypt_storage, storage_enc_version
+        self.pw_args = WizardWalletPasswordSetting(password=password,
+                                                   encrypt_storage=encrypt_storage,
+                                                   storage_enc_version=storage_enc_version,
+                                                   encrypt_keystore=encrypt_keystore)
         self.terminate()
 
     def create_storage(self, path):
@@ -579,11 +597,12 @@ class BaseWizard(Logger):
             raise Exception('file already exists at path')
         if not self.pw_args:
             return
-        password, encrypt_storage, storage_enc_version = self.pw_args
+        pw_args = self.pw_args
+        self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
-        storage.set_keystore_encryption(bool(password))
-        if encrypt_storage:
-            storage.set_password(password, enc_version=storage_enc_version)
+        storage.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
+        if pw_args.encrypt_storage:
+            storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
         for key, value in self.data.items():
             storage.put(key, value)
         storage.write()

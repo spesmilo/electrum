@@ -8,19 +8,19 @@ from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device, run_hook
 from electrum.keystore import Hardware_KeyStore, bip39_to_seed
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.wallet import Standard_Wallet
 from electrum.util import bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
 from electrum.mnemonic import Mnemonic
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
+from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 
-from ..hw_wallet import HW_PluginBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 #pysatochip
 from .CardConnector import CardConnector, UninitializedSeedError
@@ -65,7 +65,7 @@ def bip32path2bytes(bip32path:str) -> (int, bytes):
         bytePath+= index.to_bytes(4, byteorder='big', signed=False)
     return (depth, bytePath)
 
-class SatochipClient():
+class SatochipClient(HardwareClientBase):
     def __init__(self, plugin, handler):
         _logger.info(f"[SatochipClient] __init__()")#debugSatochip
         self.device = plugin.device
@@ -176,9 +176,6 @@ class Satochip_KeyStore(Hardware_KeyStore):
         d = Hardware_KeyStore.dump(self)
         return d
 
-    def get_derivation(self):
-        return self.derivation
-
     def get_client(self):
         # called when user tries to do something like view address, sign something.
         # - not called during probing/setup
@@ -202,7 +199,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
         message_byte = message.encode('utf8')
         message_hash = hashlib.sha256(message_byte).hexdigest().upper()
         client = self.get_client()
-        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
         _logger.info(f"[Satochip_KeyStore] sign_message: path: {address_path}")
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
          # check if 2FA is required
@@ -256,120 +253,119 @@ class Satochip_KeyStore(Hardware_KeyStore):
         
     def sign_transaction(self, tx, password):
         _logger.info(f"[Satochip_KeyStore] sign_transaction(): tx: {str(tx)}") #debugSatochip
+        if tx.is_complete():
+            return
+            
         client = self.get_client()
         segwitTransaction = False
         
         # outputs
-        txOutputs= ''.join(tx.serialize_output(o) for o in tx.outputs())
+        txOutputs= ''.join(o.serialize_to_network().hex() for o in tx.outputs())  
         hashOutputs = bh2u(sha256d(bfh(txOutputs)))
         txOutputs = var_int(len(tx.outputs()))+txOutputs
         _logger.info(f"[Satochip_KeyStore] sign_transaction(): hashOutputs= {hashOutputs}") #debugSatochip
         _logger.info(f"[Satochip_KeyStore] sign_transaction(): outputs= {txOutputs}") #debugSatochip
         
         # Fetch inputs of the transaction to sign
-        derivations = self.get_tx_derivations(tx)
         for i,txin in enumerate(tx.inputs()):
-            _logger.info(f"[Satochip_KeyStore] sign_transaction(): input= {str(i)} - input[type]: {txin['type']}") #debugSatochip
-            if txin['type'] == 'coinbase':
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): input= {str(i)} - input[type]: {txin.script_type}") #debugSatochip
+            if txin.is_coinbase_input(): 
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if txin['type'] in ['p2sh']:
+            if txin.script_type in ['p2sh']: 
                 p2shTransaction = True
 
-            if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']: 
                 segwitTransaction = True
 
-            if txin['type'] in ['p2wpkh', 'p2wsh']:
+            if txin.script_type in ['p2wpkh', 'p2wsh']: 
                 segwitTransaction = True
             
-            pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
-            for j, x_pubkey in enumerate(x_pubkeys):
-                _logger.info(f"[Satochip_KeyStore] sign_transaction(): forforloop: j= {str(j)}") #debugSatochip
-                if tx.is_txin_complete(txin):
-                    break
-                    
-                if x_pubkey in derivations:
-                    signingPos = j
-                    s = derivations.get(x_pubkey)
-                    address_path = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
-                    
-                    # get corresponing extended key
-                    (depth, bytepath)= bip32path2bytes(address_path)
-                    (key, chaincode)=client.cc.card_bip32_get_extendedkey(bytepath)
-                    
-                    # parse tx
-                    pre_tx_hex= tx.serialize_preimage(i)
-                    pre_tx= bytes.fromhex(pre_tx_hex)# hex representation => converted to bytes
-                    pre_hash = sha256d(bfh(pre_tx_hex))
-                    pre_hash_hex= pre_hash.hex()
-                    _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_tx_hex= {pre_tx_hex}") #debugSatochip
-                    _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash_hex}") #debugSatochip
-                    (response, sw1, sw2) = client.cc.card_parse_transaction(pre_tx, segwitTransaction)
-                    (tx_hash, needs_2fa)= client.parser.parse_parse_transaction(response)
-                    tx_hash_hex= bytearray(tx_hash).hex()
-                    if pre_hash_hex!= tx_hash_hex:
-                        raise RuntimeError("[Satochip_KeyStore] Tx preimage mismatch: {pre_hash_hex} vs {tx_hash_hex}")
-                    
-                    # sign tx
-                    keynbr= 0xFF #for extended key
-                    if needs_2fa:
-                        # format & encrypt msg
-                        import json
-                        coin_type= 1 if constants.net.TESTNET else 0
-                        if segwitTransaction:
-                            msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs, 'ty':txin['type']} 
-                        else:
-                            msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction} 
-                        msg=  json.dumps(msg)
-                        (id_2FA, msg_out)= client.cc.card_crypt_transaction_2FA(msg, True)
-                        d={}
-                        d['msg_encrypt']= msg_out
-                        d['id_2FA']= id_2FA
-                        #_logger.info(f"encrypted message: {msg_out}")
-                        #_logger.info(f"id_2FA: {id_2FA}")
-                        
-                        #do challenge-response with 2FA device...
-                        client.handler.show_message('2FA request sent! Approve or reject request on your second device.')
-                        run_hook('do_challenge_response', d)
-                        # decrypt and parse reply to extract challenge response
-                        try:      
-                            reply_encrypt= d['reply_encrypt']
-                        except Exception as e:
-                            self.give_error("No response received from 2FA.\nPlease ensure that the Satochip-2FA plugin is enabled in Tools>Optional Features", True)
-                        if reply_encrypt is None:
-                            #todo: abort tx
-                            break
-                        reply_decrypt= client.cc.card_crypt_transaction_2FA(reply_encrypt, False)
-                        _logger.info(f"[Satochip_KeyStore] sign_transaction(): challenge:response= {reply_decrypt}")
-                        reply_decrypt= reply_decrypt.split(":")
-                        rep_pre_hash_hex= reply_decrypt[0][0:64]
-                        if rep_pre_hash_hex!= pre_hash_hex:
-                            #todo: abort tx or retry?
-                            break
-                        chalresponse=reply_decrypt[1]
-                        if chalresponse=="00"*20:
-                            #todo: abort tx
-                            _logger.info("Abort transaction: tx mismatch: "+rep_pre_hash_hex+" != "+pre_hash_hex)
-                            break
-                        chalresponse= list(bytes.fromhex(chalresponse))
-                    else:
-                        chalresponse= None
-                    (tx_sig, sw1, sw2) = client.cc.card_sign_transaction(keynbr, tx_hash, chalresponse)
-                    #_logger.info(f"sign_transaction(): sig= {bytearray(tx_sig).hex()}") #debugSatochip
-                    #todo: check sw1sw2 for error (0x9c0b if wrong challenge-response)
-                    # enforce low-S signature (BIP 62)
-                    tx_sig = bytearray(tx_sig)
-                    r,s= get_r_and_s_from_der_sig(tx_sig)
-                    if s > CURVE_ORDER//2:
-                        s = CURVE_ORDER - s
-                    tx_sig=der_sig_from_r_and_s(r, s)
-                    #update tx with signature
-                    tx_sig = tx_sig.hex()+'01'
-                    tx.add_signature_to_txin(i,j,tx_sig)
-                    break
-            else:
-                self.give_error("No matching x_key for sign_transaction") # should never happen
+            my_pubkey, full_path = self.find_my_pubkey_in_txinout(txin)
+            if not full_path:
+                self.give_error("No matching pubkey for sign_transaction")  # should never happen
+            full_path = convert_bip32_intpath_to_strpath(full_path)
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): full_path= {full_path}") #debugSatochip
+            # get corresponing extended key
+            (depth, bytepath)= bip32path2bytes(full_path)
+            (key, chaincode)=client.cc.card_bip32_get_extendedkey(bytepath)
             
+            # parse tx
+            pre_tx_hex= tx.serialize_preimage(i)
+            pre_tx= bytes.fromhex(pre_tx_hex)# hex representation => converted to bytes
+            pre_hash = sha256d(bfh(pre_tx_hex))
+            pre_hash_hex= pre_hash.hex()
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_tx_hex= {pre_tx_hex}") #debugSatochip
+            _logger.info(f"[Satochip_KeyStore] sign_transaction(): pre_hash= {pre_hash_hex}") #debugSatochip
+            (response, sw1, sw2) = client.cc.card_parse_transaction(pre_tx, segwitTransaction)
+            (tx_hash, needs_2fa)= client.parser.parse_parse_transaction(response)
+            tx_hash_hex= bytearray(tx_hash).hex()
+            if pre_hash_hex!= tx_hash_hex:
+                raise RuntimeError("[Satochip_KeyStore] Tx preimage mismatch: {pre_hash_hex} vs {tx_hash_hex}")
+             
+            # 2FA request if enabled
+            if needs_2fa:
+                # format & encrypt msg
+                import json
+                coin_type= 1 if constants.net.TESTNET else 0
+                if segwitTransaction:
+                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs, 'ty':txin.script_type} 
+                else:
+                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction} 
+                msg=  json.dumps(msg)
+                (id_2FA, msg_out)= client.cc.card_crypt_transaction_2FA(msg, True)
+                d={}
+                d['msg_encrypt']= msg_out
+                d['id_2FA']= id_2FA
+                #_logger.info(f"encrypted message: {msg_out}")
+                #_logger.info(f"id_2FA: {id_2FA}")
+                
+                #do challenge-response with 2FA device...
+                client.handler.show_message('2FA request sent! Approve or reject request on your second device.')
+                run_hook('do_challenge_response', d)
+                # decrypt and parse reply to extract challenge response
+                try:      
+                    reply_encrypt= d['reply_encrypt']
+                except Exception as e:
+                    self.give_error("No response received from 2FA.\nPlease ensure that the Satochip-2FA plugin is enabled in Tools>Optional Features", True)
+                if reply_encrypt is None:
+                    #todo: abort tx
+                    _logger.info("Abort transaction: 2FA reply is missing")
+                    break
+                reply_decrypt= client.cc.card_crypt_transaction_2FA(reply_encrypt, False)
+                _logger.info(f"[Satochip_KeyStore] sign_transaction(): challenge:response= {reply_decrypt}")
+                reply_decrypt= reply_decrypt.split(":")
+                rep_pre_hash_hex= reply_decrypt[0][0:64]
+                if rep_pre_hash_hex!= pre_hash_hex:
+                    #todo: abort tx or retry?
+                    _logger.info("Abort transaction: tx mismatch: "+rep_pre_hash_hex+" != "+pre_hash_hex)
+                    break
+                chalresponse=reply_decrypt[1]
+                if chalresponse=="00"*20:
+                    #todo: abort tx
+                    _logger.info("Abort transaction: rejected by 2FA device!")
+                    self.give_error("Transaction rejected by 2FA device!", True)
+                    break
+                chalresponse= list(bytes.fromhex(chalresponse))
+            else:
+                chalresponse= None
+                
+             # sign the tx on Satochip
+            keynbr= 0xFF #for extended key
+            (tx_sig, sw1, sw2) = client.cc.card_sign_transaction(keynbr, tx_hash, chalresponse)
+            _logger.info(f"sign_transaction(): sig= {bytearray(tx_sig).hex()}") #debugSatochip
+            #todo: check sw1sw2 for error (0x9c0b if wrong challenge-response)
+            # enforce low-S signature (BIP 62)
+            tx_sig = bytearray(tx_sig)
+            r,s= get_r_and_s_from_der_sig(tx_sig)
+            if s > CURVE_ORDER//2:
+                s = CURVE_ORDER - s
+            tx_sig=der_sig_from_r_and_s(r, s)
+            #update tx with signature
+            tx_sig = tx_sig.hex()+'01'
+            tx.add_signature_to_txin(txin_idx=i, signing_pubkey=my_pubkey.hex(), sig=tx_sig) #tx.add_signature_to_txin(i,j,tx_sig)
+            _logger.info(f"sign_transaction(): sig added!") #debugSatochip
+
         _logger.info(f"Tx is complete: {str(tx.is_complete())}")
         tx.raw = tx.serialize()    
         return
