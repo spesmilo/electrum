@@ -1,3 +1,2 @@
 PyQt5<5.12
-pycryptodomex
 PyQt5-sip<=4.19.13
