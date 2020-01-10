@@ -186,12 +186,14 @@ class LNWorker(Logger):
         return sum([p.initialized.is_set() for p in self.peers.values()])
 
     def start_network(self, network: 'Network'):
+        assert network
         self.network = network
         self.config = network.config
+        daemon = network.daemon
         self.channel_db = self.network.channel_db
         self._last_tried_peer = {}  # type: Dict[LNPeerAddr, float]  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
-        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -305,8 +307,9 @@ class LNGossip(LNWorker):
         assert is_using_fast_ecc(), "verifying LN gossip msgs without libsecp256k1 is hopeless"
 
     def start_network(self, network: 'Network'):
+        assert network
         super().start_network(network)
-        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(network.daemon.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
 
     async def maintain_db(self):
         await self.channel_db.load_data()
@@ -406,9 +409,11 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
+        assert network
         self.lnwatcher = LNWatcher(network)
         self.lnwatcher.start_network(network)
         self.network = network
+        daemon = network.daemon
         self.network.register_callback(self.on_update_open_channel, ['update_open_channel'])
         self.network.register_callback(self.on_update_closed_channel, ['update_closed_channel'])
         for chan_id, chan in self.channels.items():
@@ -422,8 +427,8 @@ class LNWallet(LNWorker):
                 self.sync_with_local_watchtower(),
                 self.sync_with_remote_watchtower(),
         ]:
-            # FIXME: exceptions in those coroutines will cancel network.main_taskgroup
-            asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(coro), self.network.asyncio_loop)
+            # FIXME: exceptions in those coroutines will cancel daemon.taskgroup
+            asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(coro), self.network.asyncio_loop)
 
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
@@ -729,6 +734,8 @@ class LNWallet(LNWorker):
             name = sweep_info.name
             spender_txid = spenders.get(prevout)
             if spender_txid is not None:
+                # TODO handle exceptions for network.get_transaction
+                # TODO don't do network request every time... save tx at least in memory, or maybe wallet file?
                 spender_tx = await self.network.get_transaction(spender_txid)
                 spender_tx = Transaction(spender_tx)
                 e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)

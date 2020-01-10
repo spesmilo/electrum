@@ -435,7 +435,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
-        if wallet.lnworker:
+        if wallet.lnworker and wallet.network:
             wallet.network.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
@@ -642,7 +642,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         if self.network:
             tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog)
-        if self.wallet.has_lightning():
+        if self.wallet.has_lightning() and self.network:
             tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
             tools_menu.addAction(_("&Watchtower"), self.gui_object.show_watchtower_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
@@ -889,7 +889,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
-        self.status_button.setIcon( icon )
+        if self.status_button:
+            self.status_button.setIcon( icon )
 
     def update_wallet(self):
         self.update_status()
@@ -907,6 +908,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
+        self.channels_list.update_rows.emit(wallet)
         self.update_completions()
 
     def create_channels_tab(self, wallet):
@@ -2027,12 +2029,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
-        if self.wallet.has_lightning():
+        if self.wallet.has_lightning() and self.network:
             self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             sb.addPermanentWidget(self.lightning_button)
+        self.status_button = None
         if self.network:
             self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
-        sb.addPermanentWidget(self.status_button)
+            sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
 
@@ -2908,10 +2911,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         combined_fee = QLabel('')
         combined_feerate = QLabel('')
         def on_fee_edit(x):
-            out_amt = max_fee - fee_e.get_amount()
+            fee_for_child = fee_e.get_amount()
+            if fee_for_child is None:
+                return
+            out_amt = max_fee - fee_for_child
             out_amt_str = (self.format_amount(out_amt) + ' ' + self.base_unit()) if out_amt else ''
             output_amount.setText(out_amt_str)
-            comb_fee = parent_fee + fee_e.get_amount()
+            comb_fee = parent_fee + fee_for_child
             comb_fee_str = (self.format_amount(comb_fee) + ' ' + self.base_unit()) if comb_fee else ''
             combined_fee.setText(comb_fee_str)
             comb_feerate = comb_fee / total_size * 1000
@@ -2946,6 +2952,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not d.exec_():
             return
         fee = fee_e.get_amount()
+        if fee is None:
+            return  # fee left empty, treat is as "cancel"
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return

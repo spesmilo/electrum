@@ -181,6 +181,8 @@ class RequestTimedOut(GracefulDisconnect):
         return _("Network request timed out.")
 
 
+class RequestCorrupted(GracefulDisconnect): pass
+
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
 class ConnectError(NetworkException): pass
@@ -257,6 +259,9 @@ class Interface(Logger):
 
     def diagnostic_name(self):
         return str(NetAddress(self.host, self.port))
+
+    def __str__(self):
+        return f"<Interface {self.diagnostic_name()}>"
 
     def _set_proxy(self, proxy: dict):
         if proxy:

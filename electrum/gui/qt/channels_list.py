@@ -127,9 +127,12 @@ class ChannelsList(MyTreeView):
     def do_update_rows(self, wallet):
         if wallet != self.parent.wallet:
             return
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker:
+            return
         self.model().clear()
         self.update_headers(self.headers)
-        for chan in self.parent.wallet.lnworker.channels.values():
+        for chan in lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
             items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
