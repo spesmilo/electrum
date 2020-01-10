@@ -256,7 +256,7 @@ class CardConnector:
         response, sw1, sw2 = self.card_transmit(apdu) 
         if sw1==0x9c and sw2==0x14: 
             _logger.info(f"card_bip32_get_authentikey(): Seed is not initialized => Raising error!")
-            raise UninitializedSeedError('Seed is not initialized\n\n "+MSG_WARNING)
+            raise UninitializedSeedError("Seed is not initialized\n\n "+MSG_WARNING)
         if sw1==0x9c and sw2==0x04: 
             _logger.info("card_bip32_get_authentikey(): Satochip is not initialized => Raising error!")
             raise UninitializedSeedError("Satochip is not initialized! You should create a new wallet!!\n\n"+MSG_WARNING)

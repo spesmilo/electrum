@@ -191,12 +191,6 @@
         "s": "50002",
         "version": "1.4"
     },
-    "electrumx.ml": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrumx.soon.it": {
         "pruning": "-",
         "s": "50002",
@@ -245,12 +239,6 @@
         "version": "1.4"
     },
     "hsmiths5mjk6uijs.onion": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "icarus.tetradrachm.net": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",

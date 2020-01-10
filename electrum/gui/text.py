@@ -9,8 +9,8 @@ import logging
 
 import electrum
 from electrum.util import format_satoshis
-from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
-from electrum.transaction import TxOutput
+from electrum.bitcoin import is_address, COIN
+from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
@@ -33,7 +33,7 @@ class ElectrumGui:
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        self.wallet = Wallet(storage)
+        self.wallet = Wallet(storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
@@ -117,9 +117,9 @@ class ElectrumGui:
 
         b = 0
         self.history = []
-        for tx_hash, tx_mined_status, value, balance in self.wallet.get_history():
-            if tx_mined_status.conf:
-                timestamp = tx_mined_status.timestamp
+        for hist_item in self.wallet.get_history():
+            if hist_item.tx_mined_status.conf:
+                timestamp = hist_item.tx_mined_status.timestamp
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
@@ -127,10 +127,11 @@ class ElectrumGui:
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label(tx_hash)
+            label = self.wallet.get_label(hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
-            self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
+            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.value, whitespaces=True),
+                                              format_satoshis(hist_item.balance, whitespaces=True)))
 
 
     def print_balance(self):
@@ -359,10 +360,11 @@ class ElectrumGui:
         else:
             password = None
         try:
-            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
-                                  password, self.config, fee)
+            tx = self.wallet.mktx(outputs=[PartialTxOutput.from_address_and_value(self.str_recipient, amount)],
+                                  password=password,
+                                  fee=fee)
         except Exception as e:
-            self.show_message(str(e))
+            self.show_message(repr(e))
             return
 
         if self.str_description:

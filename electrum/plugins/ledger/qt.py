@@ -47,7 +47,7 @@ class Ledger_Handler(QtHandlerBase):
         else:
             self.word = str(response[0])
         self.done.set()
-    
+
     def message_dialog(self, msg):
         self.clear_dialog()
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Ledger Status"))
@@ -60,24 +60,24 @@ class Ledger_Handler(QtHandlerBase):
         try:
             from .auth2fa import LedgerAuthDialog
         except ImportError as e:
-            self.message_dialog(str(e))
+            self.message_dialog(repr(e))
             return
         dialog = LedgerAuthDialog(self, data)
         dialog.exec_()
         self.word = dialog.pin
         self.done.set()
-                    
+
     def get_auth(self, data):
         self.done.clear()
         self.auth_signal.emit(data)
         self.done.wait()
         return self.word
-        
+
     def get_setup(self):
         self.done.clear()
         self.setup_signal.emit()
         self.done.wait()
-        return 
-        
+        return
+
     def setup_dialog(self):
         self.show_error(_('Initialization of Ledger HW devices is currently disabled.'))

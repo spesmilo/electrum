@@ -1,5 +1,5 @@
-ELECTRUM_VERSION = '3.3.8'   # version of the client package
-APK_VERSION = '3.3.8.0'      # read by buildozer.spec
+ELECTRUM_VERSION = '4.0.0a0' # version of the client package
+APK_VERSION = '4.0.0.0'      # read by buildozer.spec
 
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
@@ -19,3 +19,4 @@ def seed_prefix(seed_type):
         return SEED_PREFIX_2FA
     elif seed_type == '2fa_segwit':
         return SEED_PREFIX_2FA_SW
+    raise Exception(f"unknown seed_type: {seed_type}")

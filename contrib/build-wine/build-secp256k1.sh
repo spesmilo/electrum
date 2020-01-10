@@ -14,10 +14,14 @@ info "building libsecp256k1..."
 build_dll() {
     #sudo apt-get install -y mingw-w64
     export SOURCE_DATE_EPOCH=1530212462
-    ./autogen.sh
     echo "LDFLAGS = -no-undefined" >> Makefile.am
+    ./autogen.sh
+    # Note: set both --build and --host when running configure
+    # Otherwise weird voodoo magic happens with Docker and Wine.
+    # https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Hosts-and-Cross_002dCompilation.html
     LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
         --host=$1 \
+        --build=x86_64-pc-linux-gnu \
         --enable-module-recovery \
         --enable-experimental \
         --enable-module-ecdh \

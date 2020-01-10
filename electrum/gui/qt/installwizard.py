@@ -6,17 +6,18 @@ import os
 import sys
 import threading
 import traceback
-from typing import Tuple, List, Callable, NamedTuple, Optional
+from typing import Tuple, List, Callable, NamedTuple, Optional, TYPE_CHECKING
+from functools import partial
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
-                             QGridLayout, QSlider, QScrollArea)
+                             QGridLayout, QSlider, QScrollArea, QApplication)
 
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage
-from electrum.util import UserCancelled, InvalidPassword, WalletFileException
+from electrum.storage import WalletStorage, StorageReadWriteError
+from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
@@ -25,7 +26,11 @@ from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
-from electrum.plugin import run_hook
+from electrum.plugin import run_hook, Plugins
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
 
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
                      + _("Leave this field empty if you want to disable encryption.")
@@ -115,7 +120,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
 
-    def __init__(self, config, app, plugins):
+    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
         self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
@@ -176,7 +181,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox.addWidget(button)
         vbox.addLayout(hbox)
 
-        self.msg_label = QLabel('')
+        self.msg_label = WWLabel('')
         vbox.addWidget(self.msg_label)
         hbox2 = QHBoxLayout()
         self.pw_e = QLineEdit('', self)
@@ -187,10 +192,22 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
+
+        vbox.addSpacing(50)
+        vbox_create_new = QVBoxLayout()
+        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignLeft)
+        button_create_new = QPushButton(_('Create New Wallet'))
+        button_create_new.setMinimumWidth(120)
+        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignLeft)
+        widget_create_new = QWidget()
+        widget_create_new.setLayout(vbox_create_new)
+        vbox_create_new.setContentsMargins(0, 0, 0, 0)
+        vbox.addWidget(widget_create_new)
+
         self.set_layout(vbox, title=_('Electrum wallet'))
 
-        self.temp_storage = WalletStorage(path, manual_upgrades=True)
-        wallet_folder = os.path.dirname(self.temp_storage.path)
+        temp_storage = None  # type: Optional[WalletStorage]
+        wallet_folder = os.path.dirname(path)
 
         def on_choose():
             path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
@@ -198,29 +215,34 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.name_e.setText(path)
 
         def on_filename(filename):
+            # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
+            nonlocal temp_storage
+            temp_storage = None
+            msg = None
             path = os.path.join(wallet_folder, filename)
             wallet_from_memory = get_wallet_from_daemon(path)
             try:
                 if wallet_from_memory:
-                    self.temp_storage = wallet_from_memory.storage
+                    temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                 else:
-                    self.temp_storage = WalletStorage(path, manual_upgrades=True)
-                self.next_button.setEnabled(True)
-            except BaseException:
+                    temp_storage = WalletStorage(path, manual_upgrades=True)
+            except (StorageReadWriteError, WalletFileException) as e:
+                msg = _('Cannot read file') + f'\n{repr(e)}'
+            except Exception as e:
                 self.logger.exception('')
-                self.temp_storage = None
-                self.next_button.setEnabled(False)
+                msg = _('Cannot read file') + f'\n{repr(e)}'
+            self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
-            if self.temp_storage:
-                if not self.temp_storage.file_exists():
+            if temp_storage:
+                if not temp_storage.file_exists():
                     msg =_("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
                 elif not wallet_from_memory:
-                    if self.temp_storage.is_encrypted_with_user_pw():
+                    if temp_storage.is_encrypted_with_user_pw():
                         msg = _("This file is encrypted with a password.") + '\n' \
                               + _('Enter your password or choose another file.')
                         user_needs_to_enter_password = True
-                    elif self.temp_storage.is_encrypted_with_hw_device():
+                    elif temp_storage.is_encrypted_with_hw_device():
                         msg = _("This file is encrypted using a hardware device.") + '\n' \
                               + _("Press 'Next' to choose device to decrypt.")
                     else:
@@ -228,9 +250,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
                         + _("Press 'Next' to create/focus window.")
-            else:
+            if msg is None:
                 msg = _('Cannot read file')
             self.msg_label.setText(msg)
+            widget_create_new.setVisible(temp_storage and temp_storage.file_exists())
             if user_needs_to_enter_password:
                 self.pw_label.show()
                 self.pw_e.show()
@@ -240,36 +263,40 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.pw_e.hide()
 
         button.clicked.connect(on_choose)
+        button_create_new.clicked.connect(
+            partial(
+                self.name_e.setText,
+                get_new_wallet_name(wallet_folder)))
         self.name_e.textChanged.connect(on_filename)
-        n = os.path.basename(self.temp_storage.path)
-        self.name_e.setText(n)
+        self.name_e.setText(os.path.basename(path))
 
         while True:
             if self.loop.exec_() != 2:  # 2 = next
                 raise UserCancelled
-            if self.temp_storage.file_exists() and not self.temp_storage.is_encrypted():
+            assert temp_storage
+            if temp_storage.file_exists() and not temp_storage.is_encrypted():
                 break
-            if not self.temp_storage.file_exists():
+            if not temp_storage.file_exists():
                 break
-            wallet_from_memory = get_wallet_from_daemon(self.temp_storage.path)
+            wallet_from_memory = get_wallet_from_daemon(temp_storage.path)
             if wallet_from_memory:
                 raise WalletAlreadyOpenInMemory(wallet_from_memory)
-            if self.temp_storage.file_exists() and self.temp_storage.is_encrypted():
-                if self.temp_storage.is_encrypted_with_user_pw():
+            if temp_storage.file_exists() and temp_storage.is_encrypted():
+                if temp_storage.is_encrypted_with_user_pw():
                     password = self.pw_e.text()
                     try:
-                        self.temp_storage.decrypt(password)
+                        temp_storage.decrypt(password)
                         break
                     except InvalidPassword as e:
                         self.show_message(title=_('Error'), msg=str(e))
                         continue
                     except BaseException as e:
                         self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=str(e))
+                        self.show_message(title=_('Error'), msg=repr(e))
                         raise UserCancelled()
-                elif self.temp_storage.is_encrypted_with_hw_device():
+                elif temp_storage.is_encrypted_with_hw_device():
                     try:
-                        self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=self.temp_storage)
+                        self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=temp_storage)
                     except InvalidPassword as e:
                         self.show_message(title=_('Error'),
                                           msg=_('Failed to decrypt using this hardware device.') + '\n' +
@@ -278,16 +305,16 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         return self.select_storage(path, get_wallet_from_daemon)
                     except BaseException as e:
                         self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=str(e))
+                        self.show_message(title=_('Error'), msg=repr(e))
                         raise UserCancelled()
-                    if self.temp_storage.is_past_initial_decryption():
+                    if temp_storage.is_past_initial_decryption():
                         break
                     else:
                         raise UserCancelled()
                 else:
                     raise Exception('Unexpected encryption version')
 
-        return self.temp_storage.path, (self.temp_storage if self.temp_storage.file_exists() else None)  #
+        return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
     def run_upgrades(self, storage):
         path = storage.path

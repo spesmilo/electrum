@@ -89,20 +89,29 @@ def normalize_text(seed: str) -> str:
     seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
     return seed
 
-def load_wordlist(filename):
+
+_WORDLIST_CACHE = {}
+
+
+def load_wordlist(filename) -> tuple:
     path = resource_path('wordlist', filename)
-    with open(path, 'r', encoding='utf-8') as f:
-        s = f.read().strip()
-    s = unicodedata.normalize('NFKD', s)
-    lines = s.split('\n')
-    wordlist = []
-    for line in lines:
-        line = line.split('#')[0]
-        line = line.strip(' \r')
-        assert ' ' not in line
-        if line:
-            wordlist.append(line)
-    return wordlist
+    if path not in _WORDLIST_CACHE:
+        with open(path, 'r', encoding='utf-8') as f:
+            s = f.read().strip()
+        s = unicodedata.normalize('NFKD', s)
+        lines = s.split('\n')
+        wordlist = []
+        for line in lines:
+            line = line.split('#')[0]
+            line = line.strip(' \r')
+            assert ' ' not in line
+            if line:
+                wordlist.append(line)
+
+        # wordlists shouldn't be mutated, but just in case,
+        # convert it to a tuple
+        _WORDLIST_CACHE[path] = tuple(wordlist)
+    return _WORDLIST_CACHE[path]
 
 
 filenames = {
@@ -114,8 +123,6 @@ filenames = {
 }
 
 
-# FIXME every time we instantiate this class, we read the wordlist from disk
-# and store a new copy of it in memory
 class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
@@ -126,6 +133,7 @@ class Mnemonic(Logger):
         self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
         self.wordlist = load_wordlist(filename)
+        self.wordlist_indexes = {w: i for i, w in enumerate(self.wordlist)}
         self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
@@ -156,11 +164,13 @@ class Mnemonic(Logger):
         i = 0
         while words:
             w = words.pop()
-            k = self.wordlist.index(w)
+            k = self.wordlist_indexes[w]
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type='standard', num_bits=132):
+    def make_seed(self, seed_type=None, *, num_bits=132):
+        if seed_type is None:
+            seed_type = 'segwit'
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)

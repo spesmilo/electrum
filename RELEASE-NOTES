@@ -1,3 +1,9 @@
+# Release 4.0 - (Not released yet; release notes are incomplete)
+
+ * Lightning Network
+ * Qt GUI: Separation between output selection and transaction finalization.
+ * Http PayServer can be configured from GUI
+
 # Release 3.3.8 - (July 11, 2019)
 
  * fix some bugs with recent bump fee (RBF) improvements (#5483, #5502)

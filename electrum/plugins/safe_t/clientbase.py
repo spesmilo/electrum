@@ -7,6 +7,7 @@ from electrum.util import UserCancelled
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
 from electrum.logging import Logger
+from electrum.plugins.hw_wallet.plugin import HardwareClientBase
 
 
 class GuiMixin(object):
@@ -96,7 +97,7 @@ class GuiMixin(object):
         return self.proto.WordAck(word=word)
 
 
-class SafeTClientBase(GuiMixin, Logger):
+class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     def __init__(self, handler, plugin, proto):
         assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
@@ -114,11 +115,9 @@ class SafeTClientBase(GuiMixin, Logger):
         return "%s/%s" % (self.label(), self.features.device_id)
 
     def label(self):
-        '''The name given by the user to the device.'''
         return self.features.label
 
     def is_initialized(self):
-        '''True if initialized, False if wiped.'''
         return self.features.initialized
 
     def is_pairable(self):
