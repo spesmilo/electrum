@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Please update these carefully, some versions won't work under Wine
-NSIS_FILENAME=nsis-3.04-setup.exe
+NSIS_FILENAME=nsis-3.05-setup.exe
 NSIS_URL=https://prdownloads.sourceforge.net/nsis/$NSIS_FILENAME?download
-NSIS_SHA256=4e1db5a7400e348b1b46a4a11b6d9557fd84368e4ad3d4bc4c1be636c89638aa
+NSIS_SHA256=1a3cc9401667547b9b9327a177b13485f7c59c2303d4b6183e7bc9e6c8d6bfdb
 
 ZBAR_FILENAME=zbarw-20121031-setup.exe
 ZBAR_URL=https://sourceforge.net/projects/zbarw/files/$ZBAR_FILENAME/download
