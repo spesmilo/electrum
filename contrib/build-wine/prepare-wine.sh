@@ -14,8 +14,8 @@ LIBUSB_COMMIT=e782eeb2514266f6738e242cdcb18e3ae1ed06fa
 # ^ tag v1.0.23
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT=46fc8155710631f84ebe20e32e0a6ba6df76d366
-# ^ tag 3.5, plus a custom commit that fixes cross-compilation with MinGW
+PYINSTALLER_COMMIT=e934539374e30d1500fcdbe8e4eb0860413935b2
+# ^ tag 3.6, plus a custom commit that fixes cross-compilation with MinGW
 
 PYTHON_VERSION=3.6.8
 
@@ -127,7 +127,7 @@ info "Building PyInstaller."
     echo "const char *electrum_tag = \"tagged by Electrum@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
     pushd bootloader
     # cross-compile to Windows using host python
-    python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-Wno-stringop-overflow -static"
+    python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-static -Wno-dangling-else -Wno-error=unused-value"
     popd
     # sanity check bootloader is there:
     [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir!"
