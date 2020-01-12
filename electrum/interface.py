@@ -382,7 +382,13 @@ class Interface(Logger):
         try:
             await self.open_session(ssl_context)
         except (asyncio.CancelledError, ConnectError, aiorpcx.socks.SOCKSError) as e:
-            self.logger.info(f'disconnecting due to: {repr(e)}')
+            # make SSL errors for main interface more visible (to help servers ops debug cert pinning issues)
+            if (isinstance(e, ConnectError) and isinstance(e.__cause__, ssl.SSLError)
+                    and self.is_main_server() and not self.network.auto_connect):
+                self.logger.warning(f'Cannot connect to main server due to SSL error '
+                                    f'(maybe cert changed compared to "{self.cert_path}"). Exc: {repr(e)}')
+            else:
+                self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
     def _mark_ready(self) -> None:
