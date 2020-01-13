@@ -1,0 +1,12 @@
+--- pyhidapi-master/hid/__init__.py.orig 2019-11-27 13:20:22.000000000 +0100
++++ pyhidapi-master/hid/__init__.py 2019-12-11 13:59:31.801133959 +0100
+@@ -15,7 +15,8 @@ library_paths = (
+'libhidapi-iohidmanager.so.0',
+'libhidapi.dylib',
+'hidapi.dll',
+- 'libhidapi-0.dll'
++ 'libhidapi-0.dll',
++ 'libhidapi.so', # for android compatibility
+)
+
+for lib in library_paths:

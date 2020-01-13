@@ -195,7 +195,7 @@ class BaseWizard(Logger):
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]
-            if not self.is_kivy:
+            if self.is_kivy:
                 choices.append(('choose_hw_device',  _('Use a hardware device')))
         else:
             message = _('Add a cosigner to your multi-sig wallet')
@@ -203,7 +203,7 @@ class BaseWizard(Logger):
                 ('restore_from_key', _('Enter cosigner key')),
                 ('restore_from_seed', _('Enter cosigner seed')),
             ]
-            if not self.is_kivy:
+            if self.is_kivy:
                 choices.append(('choose_hw_device',  _('Cosign with hardware device')))
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
@@ -260,7 +260,6 @@ class BaseWizard(Logger):
         devices = []  # type: List[Tuple[str, DeviceInfo]]
         devmgr = self.plugins.device_manager
         debug_msg = ''
-
         def failed_getting_device_infos(name, e):
             nonlocal debug_msg
             err_str_oneline = ' // '.join(str(e).splitlines())
@@ -321,6 +320,7 @@ class BaseWizard(Logger):
         # select device
         self.devices = devices
         choices = []
+        device_name,device_info="",""
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
@@ -328,12 +328,14 @@ class BaseWizard(Logger):
             except: transport_str = 'unknown transport'
             descr = f"{label} [{name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
+            device_name,device_info=name,info
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info, *, purpose, storage=None):
-        self.plugin = self.plugins.get_plugin(name)  # type: HW_PluginBase
+    def on_device(self, name,*, purpose, storage=None):
+        device_info = name[1]
+        self.plugin = self.plugins.get_plugin(name[0])  # type: HW_PluginBase
         try:
             self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:

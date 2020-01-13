@@ -5,10 +5,10 @@ import io
 import zipfile
 import sys
 
-try:
-    import requests
-except ImportError as e:
-    sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+# try:
+import requests
+# except ImportError as e:
+#     sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
 
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
