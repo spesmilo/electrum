@@ -221,15 +221,6 @@ class Synchronizer(SynchronizerBase):
         finally:
             self._requests_answered += 1
         tx = Transaction(raw_tx)
-        try:
-            tx.deserialize()  # see if raises
-        except Exception as e:
-            # possible scenarios:
-            # 1: server is sending garbage
-            # 2: there is a bug in the deserialization code
-            # 3: there was a segwit-like upgrade that changed the tx structure
-            #    that we don't know about
-            raise SynchronizerFailure(f"cannot deserialize transaction {tx_hash}") from e
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)

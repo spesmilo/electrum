@@ -1,4 +1,3 @@
 PyQt5<5.12
-pycryptodomex
-scrypt>=0.6.0
 PyQt5-sip<=4.19.13
+scrypt>=0.6.0

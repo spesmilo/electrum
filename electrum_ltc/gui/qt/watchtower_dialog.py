@@ -62,6 +62,7 @@ class WatchtowerDialog(QDialog):
         self.gui_object = gui_object
         self.config = gui_object.config
         self.network = gui_object.daemon.network
+        assert self.network
         self.lnwatcher = self.network.local_watchtower
         self.setWindowTitle(_('Watchtower'))
         self.setMinimumSize(600, 20)

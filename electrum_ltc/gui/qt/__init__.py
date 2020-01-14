@@ -157,9 +157,9 @@ class ElectrumGui(Logger):
             m.clear()
         network = self.daemon.network
         m.addAction(_("Network"), self.show_network_dialog)
-        if network.lngossip:
+        if network and network.lngossip:
             m.addAction(_("Lightning Network"), self.show_lightning_dialog)
-        if network.local_watchtower:
+        if network and network.local_watchtower:
             m.addAction(_("Local Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()

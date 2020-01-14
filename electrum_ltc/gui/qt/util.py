@@ -480,6 +480,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         return super().createEditor(parent, option, idx)
 
 class MyTreeView(QTreeView):
+    ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
 
     def __init__(self, parent: 'ElectrumWindow', create_menu, *,
                  stretch_column=None, editable_columns=None):
@@ -653,9 +654,11 @@ class MyTreeView(QTreeView):
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
-            column_data = item_col.text().strip()
+            clipboard_data = item_col.data(self.ROLE_CLIPBOARD_DATA)
+            if clipboard_data is None:
+                clipboard_data = item_col.text().strip()
             cc.addAction(column_title,
-                         lambda text=column_data, title=column_title:
+                         lambda text=clipboard_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
