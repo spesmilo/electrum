@@ -201,7 +201,7 @@ class QrReaderCameraDialog(PrintError, MessageBoxMixin, QDialog):
 
 
         # Sort the usable resolutions, least number of pixels first, get the first element
-        resolution = sorted(candidate_resolutions, key=lambda r: r.width() * r.height())[0]
+        resolution = sorted(candidate_resolutions, key=lambda r: r.width() * r.height(), reverse=not is_ideal)[0]
         format_str = 'chosen resolution is {}x{}'
         self.print_error(format_str.format(resolution.width(), resolution.height()))
 
