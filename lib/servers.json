@@ -151,5 +151,11 @@
         "s": "50002",
         "t": "50001",
         "version": "1.4"
+    },
+    "electrs.bitcoinunlimited.info": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
     }
 }
