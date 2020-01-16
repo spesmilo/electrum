@@ -11,7 +11,7 @@ APPDIR="$BUILDDIR/electrum.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
 # pinned versions
-PYTHON_VERSION=3.6.8
+PYTHON_VERSION=3.7.6
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
@@ -37,7 +37,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395c31f619d9aaf7030499a13"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "35446241e995773b1bed7d196f4b624dadcadc8429f26282e756b2fb8a351193"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "55a2cce72049f0794e9a11a84862e9039af9183603b78bc60d89539f82cf533f"
 
 
 
@@ -48,14 +48,13 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     export SOURCE_DATE_EPOCH=1530212462
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
-    # Patch taken from Ubuntu python3.6_3.6.8-1~18.04.1.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.6.8-reproducible-buildinfo.diff"
+    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.7/python3.7_3.7.6-1.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.7-reproducible-buildinfo.diff"
     ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
       --enable-ipv6 \
       --enable-shared \
-      --with-threads \
       -q
     make -j4 -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Could not install Python"
@@ -64,7 +63,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # to result in a different output on macOS compared to Linux. We simply patch
     # sysconfigdata to remove the extension.
     # Some more info: https://bugs.python.org/issue27631
-    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.6/_sysconfigdata*
+    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.7/_sysconfigdata*
 )
 
 
@@ -104,7 +103,7 @@ appdir_python() {
   env \
     PYTHONNOUSERSITE=1 \
     LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
-    "$APPDIR/usr/bin/python3.6" "$@"
+    "$APPDIR/usr/bin/python3.7" "$@"
 }
 
 python='appdir_python'
@@ -163,7 +162,7 @@ info "finalizing AppDir."
     move_lib
 
     # apply global appimage blacklist to exclude stuff
-    # move usr/include out of the way to preserve usr/include/python3.6m.
+    # move usr/include out of the way to preserve usr/include/python3.7m.
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
@@ -183,7 +182,7 @@ strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
-    printf '%s\0' "$APPDIR/usr/bin/python3.6"
+    printf '%s\0' "$APPDIR/usr/bin/python3.7"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
@@ -198,11 +197,11 @@ remove_emptydirs
 
 info "removing some unneeded stuff to decrease binary size."
 rm -rf "$APPDIR"/usr/{share,include}
-PYDIR="$APPDIR"/usr/lib/python3.6
+PYDIR="$APPDIR"/usr/lib/python3.7
 rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
 rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}
-rm -rf "$PYDIR"/config-3.6m-x86_64-linux-gnu
+rm -rf "$PYDIR"/config-3.7m-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
@@ -223,10 +222,13 @@ rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 find "$APPDIR" -path '*/__pycache__*' -delete
 rm "$APPDIR"/usr/lib/libsecp256k1.a
 # note that jsonschema-*.dist-info is needed by that package as it uses 'pkg_resources.get_distribution'
+# also, see https://gitlab.com/python-devs/importlib_metadata/issues/71
 for f in "$PYDIR"/site-packages/jsonschema-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
 for f in "$PYDIR"/site-packages/jsonschema-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
+for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
