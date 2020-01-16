@@ -253,7 +253,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if msg is None:
                 msg = _('Cannot read file')
             self.msg_label.setText(msg)
-            widget_create_new.setVisible(temp_storage and temp_storage.file_exists())
+            widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
                 self.pw_label.show()
                 self.pw_e.show()

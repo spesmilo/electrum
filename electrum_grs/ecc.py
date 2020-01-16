@@ -26,6 +26,7 @@
 import base64
 import hashlib
 import functools
+import copy
 from typing import Union, Tuple, Optional
 
 import ecdsa
@@ -267,6 +268,21 @@ class ECPubkey(object):
             raise TypeError('comparison not defined for ECPubkey and {}'.format(type(other)))
         return self._pubkey.point.x() < other._pubkey.point.x()
 
+    def __deepcopy__(self, memo: dict = None):
+        # note: This custom deepcopy implementation needed as copy.deepcopy(self._pubkey) raises.
+        if memo is None: memo = {}
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == '_pubkey' and not self.is_at_infinity():
+                point = _ser_to_python_ecdsa_point(self.get_public_key_bytes(compressed=False))
+                _pubkey_copy = ecdsa.ecdsa.Public_key(generator_secp256k1, point)
+                setattr(result, k, _pubkey_copy)
+            else:
+                setattr(result, k, copy.deepcopy(v, memo))
+        return result
+
     def verify_message_for_address(self, sig65: bytes, message: bytes, algo=lambda x: sha256(msg_magic(x))) -> None:
         assert_bytes(message)
         h = algo(message)
@@ -373,7 +389,6 @@ class ECPrivkey(ECPubkey):
 
         point = generator_secp256k1 * secret
         super().__init__(point_to_ser(point))
-        self._privkey = ecdsa.ecdsa.Private_key(self._pubkey, secret)
 
     @classmethod
     def from_secret_scalar(cls, secret_scalar: int):

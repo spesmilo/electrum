@@ -54,7 +54,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 info "install dependencies specific to binaries"
 # note that this also installs pinned versions of both pip and setuptools
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
     || fail "Could not install pyinstaller"
 
 
@@ -119,15 +119,15 @@ DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$A
 
 
 info "Installing requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements.txt --user || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
 info "Building $PACKAGE..."
-python3 -m pip install --user . > /dev/null || fail "Could not build $PACKAGE"
+python3 -m pip install --no-dependencies --user . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
 for d in ~/Library/Python/ ~/.pyenv .; do

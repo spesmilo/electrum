@@ -97,6 +97,7 @@ class UTXOList(MyTreeView):
         labels = [name_short, address, label, amount, '%d'%height]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
+        utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
         utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))

@@ -307,7 +307,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        if self.lnworker:
+        if self.lnworker and network:
             network.maybe_init_lightning()
             self.lnworker.start_network(network)
 
