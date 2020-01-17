@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -e
+here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+. "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
+
+info "Making all Electron Cash binaries ..."
+
+"$here"/make_clean && \
+    "$here"/make_secp && \
+    "$here"/make_zbar && \
+    "$here"/make_openssl && "$here"/make_libevent && "$here"/make_zlib && "$here"/make_tor && \
+"$here"/make_clean
+
+info "Success!"
