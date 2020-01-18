@@ -1700,7 +1700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return None
         return clayout.selected_index()
 
-    def lock_amount(self, b):
+    def lock_amount(self, b: bool) -> None:
         self.amount_e.setFrozen(b)
         self.max_button.setEnabled(not b)
 

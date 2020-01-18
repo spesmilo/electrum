@@ -182,10 +182,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.payto_scriptpubkey = None
 
         if self.win.max_button.isChecked():
-            self.win.do_update_fee()
+            self.win.spend_max()
         else:
             self.amount_edit.setAmount(total if outputs else None)
-            self.win.lock_amount(total or len(lines)>1)
+        self.win.lock_amount(self.win.max_button.isChecked() or bool(outputs))
 
     def get_errors(self) -> Sequence[PayToLineError]:
         return self.errors
