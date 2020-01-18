@@ -136,9 +136,9 @@ class BaseWizard(Logger):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('2fa', _("Wallet with two-factor authentication")),
+            # ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('imported',  _("Import Verge addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -191,7 +191,7 @@ class BaseWizard(Logger):
         if self.wallet_type =='standard' or i==0:
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
-                ('choose_seed_type', _('Create a new seed')),
+                ('create_standard_seed', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]
@@ -610,21 +610,22 @@ class BaseWizard(Logger):
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
-    def choose_seed_type(self, message=None, choices=None):
-        title = _('Choose Seed type')
-        if message is None:
-            message = ' '.join([
-                _("The type of addresses used by your wallet will depend on your seed."),
-                _("Segwit wallets use bech32 addresses, defined in BIP173."),
-                _("Please note that websites and other wallets may not support these addresses yet."),
-                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
-            ])
-        if choices is None:
-            choices = [
-                ('create_segwit_seed', _('Segwit')),
-                ('create_standard_seed', _('Legacy')),
-            ]
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+    # We do not allow segwit or bech32 encoded address :^)
+    # def choose_seed_type(self, message=None, choices=None):
+    #     title = _('Choose Seed type')
+    #     if message is None:
+    #         message = ' '.join([
+    #             _("The type of addresses used by your wallet will depend on your seed."),
+    #             _("Segwit wallets use bech32 addresses, defined in BIP173."),
+    #             _("Please note that websites and other wallets may not support these addresses yet."),
+    #             _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
+    #         ])
+    #     if choices is None:
+    #         choices = [
+    #             ('create_segwit_seed', _('Segwit')),
+    #             ('create_standard_seed', _('Legacy')),
+    #         ]
+    #     self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
     def create_segwit_seed(self): self.create_seed('segwit')
     def create_standard_seed(self): self.create_seed('standard')
