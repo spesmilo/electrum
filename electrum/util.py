@@ -155,6 +155,11 @@ class NoDynamicFeeEstimates(Exception):
         return _('Dynamic fee estimates not available')
 
 
+class MultipleSpendMaxTxOutputs(Exception):
+    def __str__(self):
+        return _('At most one output can be set to spend max')
+
+
 class InvalidPassword(Exception):
     def __str__(self):
         return _("Incorrect password")

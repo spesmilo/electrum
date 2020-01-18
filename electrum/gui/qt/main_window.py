@@ -61,7 +61,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
-                           NoDynamicFeeEstimates)
+                           NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
@@ -1317,7 +1317,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         try:
             tx = make_tx(None)
-        except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+        except (NotEnoughFunds, NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs) as e:
             self.max_button.setChecked(False)
             self.show_error(str(e))
             return

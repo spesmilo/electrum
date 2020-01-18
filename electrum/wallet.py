@@ -48,7 +48,7 @@ from .bip32 import BIP32Node
 from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   WalletFileException, BitcoinException,
+                   WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
@@ -993,7 +993,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         for i, o in enumerate(outputs):
             if o.value == '!':
                 if i_max is not None:
-                    raise Exception("More than one output set to spend max")
+                    raise MultipleSpendMaxTxOutputs()
                 i_max = i
 
         if fee is None and self.config.fee_per_kb() is None:
