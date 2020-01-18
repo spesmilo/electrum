@@ -548,28 +548,8 @@ class Blockchain(Logger):
     def get_chainwork(self, height=None) -> int:
         if height is None:
             height = max(0, self.height())
-        if constants.net.TESTNET:
-            # On testnet/regtest, difficulty works somewhat different.
-            # It's out of scope to properly implement that.
-            return height
-        last_retarget = height // 2016 * 2016 - 1
-        cached_height = last_retarget
-        while _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
-            if cached_height <= -1:
-                break
-            cached_height -= 2016
-        assert cached_height >= -1, cached_height
-        running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
-        while cached_height < last_retarget:
-            cached_height += 2016
-            work_in_single_header = self.chainwork_of_header_at_height(cached_height)
-            work_in_chunk = 2016 * work_in_single_header
-            running_total += work_in_chunk
-            _CHAINWORK_CACHE[self.get_hash(cached_height)] = running_total
-        cached_height += 2016
-        work_in_single_header = self.chainwork_of_header_at_height(cached_height)
-        work_in_last_partial_chunk = (height % 2016 + 1) * work_in_single_header
-        return running_total + work_in_last_partial_chunk
+
+        return height
 
     def can_connect(self, header: dict, check_height: bool=True) -> bool:
         if header is None:
