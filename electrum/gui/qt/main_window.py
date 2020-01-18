@@ -156,7 +156,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.checking_accounts = False
         self.qr_window = None
         self.pluginsdialog = None
-        self.require_fee_update = False
         self.tl_windows = []
         Logger.__init__(self)
 
@@ -403,13 +402,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if wallet == self.wallet:
                 self.history_model.update_tx_mined_status(tx_hash, tx_mined_status)
         elif event == 'fee':
-            if self.config.is_dynfee():
-                #self.fee_slider.update()
-                self.require_fee_update = True
+            pass
         elif event == 'fee_histogram':
-            if self.config.is_dynfee():
-                #self.fee_slider.update()
-                self.require_fee_update = True
             self.history_model.on_fee_histogram()
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
@@ -775,10 +769,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
-        # update fee
-        if self.require_fee_update:
-            #self.do_update_fee()
-            self.require_fee_update = False
         self.notify_transactions()
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
