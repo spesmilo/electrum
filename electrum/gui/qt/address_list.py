@@ -137,6 +137,8 @@ class AddressList(MyTreeView):
 
     @profiler
     def update(self):
+        if self.maybe_defer_update():
+            return
         current_address = self.current_item_user_role(col=self.Columns.LABEL)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()
