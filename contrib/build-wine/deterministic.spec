@@ -22,6 +22,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += collect_submodules('scrypt')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 # safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
