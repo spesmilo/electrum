@@ -2968,6 +2968,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             self.wallet.update_password(password, new_password, encrypt_file)
+            self.gui_object.cache_password(self.wallet, None)  # clear password cache when user changes it, just in case
             run_hook("on_new_password", self, password, new_password)
         except BaseException as e:
             self.show_error(str(e))
