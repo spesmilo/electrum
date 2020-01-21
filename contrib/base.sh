@@ -160,6 +160,18 @@ function host_strip()
     fi
 }
 
+# From: https://stackoverflow.com/a/4024263
+# By kanaka (https://stackoverflow.com/users/471795/)
+function verlte()
+{
+    [  "$1" = "`echo -e "$1\n$2" | $SORT_PROG -V | head -n1`" ]
+}
+
+function verlt()
+{
+    [ "$1" = "$2" ] && return 1 || verlte $1 $2
+}
+
 if [ -n "$_BASE_SH_SOURCED" ] ; then
     # Base.sh has been sourced already, no need to source it again
     return 0
@@ -233,9 +245,21 @@ if [ -z "$SHA256_PROG" ]; then
     fail "Please install sha256sum or gsha256sum"
 fi
 
+export SORT_PROG=`which sort || which gsort`
+if [ -z "$SORT_PROG" ]; then
+    fail "Please install sort or gsort"
+fi
+
 if [ "${GIT_SUBMODULE_SKIP:-0}" -eq 0 ] ; then
     info "Refreshing submodules ($GIT_SUBMODULE_FLAGS)..."
-    git submodule update --init $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"
+    gitflags=""
+    if ! verlt $(git --version | awk '{print $3}') 2.18.0 ; then
+        # For shallow clones to work with git versions >= 2.22.0 we need to ensure we
+        # use git protocol version 2, which is available starting with version 2.18.0.
+        # See https://public-inbox.org/git/20191013064314.GA28018@sigill.intra.peff.net/
+        gitflags="-c protocol.version=2"
+    fi
+    git $gitflags submodule update --init --jobs 0 $GIT_SUBMODULE_FLAGS || fail "Failed to update git submodules"
 fi
 
 # This variable is set to avoid sourcing base.sh multiple times

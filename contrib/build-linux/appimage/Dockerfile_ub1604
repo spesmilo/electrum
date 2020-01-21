@@ -20,6 +20,12 @@ RUN apt-get update -q && \
         libdbus-1-3=1.10.6-1ubuntu3.4 \
         libpcsclite-dev=1.8.14-1ubuntu1.16.04.1 \
         swig=3.0.8-0ubuntu3 \
+        software-properties-common=0.96.20.9 \
+        && \
+    add-apt-repository ppa:git-core/ppa && \
+    apt-get update -q && \
+    apt-get install -qy \
+        git=1:2.25.0-1~ppa0~ubuntu16.04.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
@@ -38,7 +44,6 @@ RUN sed -i -e 's/xenial/bionic/' /etc/apt/sources.list
 # platforms we support.
 RUN apt-get update -q && \
     apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.5 \
         zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
         libfreetype6=2.8.1-2ubuntu2 \
         libfontconfig1=2.12.6-0ubuntu2 \
