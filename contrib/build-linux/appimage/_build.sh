@@ -162,6 +162,8 @@ cp -f "$CONTRIB/build-linux/appimage/scripts/test-fontconfig.py" "$APPDIR" || fa
 # libfreetype needs a recent enough zlib
 cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
 
+# some distros lack libxkbcommon-x11
+cp -f /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libxkbcommon-x11"
 
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id

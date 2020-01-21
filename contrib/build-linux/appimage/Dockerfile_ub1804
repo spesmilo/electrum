@@ -22,6 +22,7 @@ RUN apt-get update -q && \
         gettext=0.19.8.1-6ubuntu0.1 \
         libzbar0=0.10+doc-10.1build2 \
         faketime=0.9.7-2 \
+        libxkbcommon-x11-0=0.8.0-1ubuntu0.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
