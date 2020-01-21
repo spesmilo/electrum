@@ -1447,7 +1447,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():
             return
-        if not self.is_onchain:
+        if not self._is_onchain:
             invoice = self.payto_e.lightning_invoice
             if not invoice:
                 return
@@ -1768,7 +1768,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.set_onchain(False)
 
     def set_onchain(self, b):
-        self.is_onchain = b
+        self._is_onchain = b
         self.max_button.setEnabled(b)
 
     def pay_to_URI(self, URI):
@@ -1808,7 +1808,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payment_request = None
         self.payto_URI = None
         self.payto_e.is_pr = False
-        self.is_onchain = False
         self.set_onchain(False)
         for e in [self.payto_e, self.message_e, self.amount_e]:
             e.setText('')
