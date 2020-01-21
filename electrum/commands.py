@@ -1171,6 +1171,7 @@ def add_global_options(parser):
 
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    parser.add_argument("--forgetconfig", action="store_true", dest="forget_config", default=False, help="Forget config on exit")
 
 def get_parser():
     # create main parser

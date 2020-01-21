@@ -226,6 +226,8 @@ class SimpleConfig(Logger):
         return key not in self.cmdline_options
 
     def save_user_config(self):
+        if self.get('forget_config'):
+            return
         if not self.path:
             return
         path = os.path.join(self.path, "config")
