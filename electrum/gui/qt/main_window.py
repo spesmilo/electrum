@@ -2063,7 +2063,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_buttons_on_seed(self):
         self.seed_button.setVisible(self.wallet.has_seed())
         self.password_button.setVisible(self.wallet.may_have_password())
-        self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
         from electrum.storage import StorageEncryptionVersion
