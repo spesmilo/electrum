@@ -1,4 +1,4 @@
 PyQt5<5.12
 pycryptodomex
 PyQt5-sip<=4.19.13
-scrypt==0.8.13
+viacoin_scrypt==1.0.1
