@@ -107,8 +107,7 @@ class RequestList(MyTreeView):
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
-        if self.maybe_defer_update():
-            return
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.parent.update_receive_address_styling()
         self.model().clear()
         self.update_headers(self.__class__.headers)
