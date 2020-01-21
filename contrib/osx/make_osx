@@ -59,7 +59,7 @@ python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requi
 
 
 info "Installing pyinstaller"
-python3 -m pip install -I --user pyinstaller==3.5 || fail "Could not install pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.6 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
