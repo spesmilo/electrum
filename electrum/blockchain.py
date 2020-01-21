@@ -23,11 +23,10 @@
 import os
 import threading
 from typing import Optional, Dict, Mapping, Sequence
+from viacoin_scrypt import getPoWHash as scryptHash
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
-import scrypt
-from .crypto import sha256d
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
@@ -80,8 +79,8 @@ def hash_header(header: dict) -> str:
 
 
 def hash_raw_header(header: str) -> str:
-    headerBytes = bfh(header)
-    return hash_encode(scrypt.hash(headerBytes, headerBytes, 1024, 1, 1, 32))
+    header_bytes = bfh(header)
+    return hash_encode(scryptHash(header_bytes))
 
 
 # key: blockhash hex at forkpoint
