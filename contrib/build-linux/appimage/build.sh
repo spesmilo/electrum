@@ -171,11 +171,12 @@ info "finalizing AppDir."
     mv usr/include.tmp usr/include
 ) || fail "Could not finalize AppDir"
 
-# We copy some libraries here that are on the AppImage excludelist
 info "Copying additional libraries"
 (
-    # On some systems it can cause problems to use the system libusb
+    # On some systems it can cause problems to use the system libusb (on AppImage excludelist)
     cp -f /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR/usr/lib/libusb-1.0.so" || fail "Could not copy libusb"
+    # some distros lack libxkbcommon-x11
+    cp -f /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libxkbcommon-x11"
 )
 
 info "stripping binaries from debug symbols."
