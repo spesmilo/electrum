@@ -23,6 +23,7 @@ RUN apt-get update -q && \
         gettext=0.19.7-2ubuntu3.1 \
         libzbar0=0.10+doc-10ubuntu1  \
         libdbus-1-3=1.10.6-1ubuntu3.4 \
+        libxkbcommon-x11-0=0.5.0-1ubuntu2.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
