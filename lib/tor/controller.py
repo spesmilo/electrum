@@ -109,9 +109,15 @@ class TorController(PrintError):
     _listener_re = re.compile(r".*\[notice\] Opened ([^ ]*) listener on (.*)$")
     _endpoint_re = re.compile(r".*:(\d*)")
 
+    # If a log string matches any of the included regex it is ignored
+    _ignored_res = [
+        re.compile(r".*This port is not an HTTP proxy.*"), # This is caused by the network dialog TorDetector
+    ]
+
     def _tor_msg_handler(self, message: str):
         if util.is_verbose:
-            self.print_msg(message)
+            if all(not regex.match(message) for regex in TorController._ignored_res):
+                self.print_msg(message)
 
         # Check if this is a "Opened listener" message and extract the information
         # into the active_socks_port and active_control_port variables
