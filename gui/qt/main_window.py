@@ -25,6 +25,7 @@
 
 import sys, time, threading
 import os, json, traceback
+import copy
 import shutil
 import csv
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
@@ -2089,8 +2090,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             #return
 
         if preview:
+            # NB: this ultimately takes a deepcopy of the tx in question
+            # (TxDialog always takes a deep copy).
             self.show_transaction(tx, tx_desc)
             return
+
+        # We must "freeze" the tx and take a deep copy of it here. This is
+        # because it's possible that it points to coins in self.pay_from and
+        # other shared data. We want the tx to be immutable from this point
+        # forward with its own private data. This fixes a bug where sometimes
+        # the tx would stop being "is_complete" randomly after broadcast!
+        tx = copy.deepcopy(tx)
 
         # confirmation dialog
         msg = [
