@@ -192,6 +192,8 @@ rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}
 rm -rf "$PYDIR"/config-3.6m-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
+rm -rf "$PYDIR"/site-packages/Cython/Tests
+rm -rf "$PYDIR"/site-packages/Cython/*/Tests
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
 for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do

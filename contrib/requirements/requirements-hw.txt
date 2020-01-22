@@ -1,3 +1,4 @@
+Cython>=0.27
 trezor[hidapi]>=0.11.0
 keepkey>=6.1
 btchip-python
