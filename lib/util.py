@@ -785,6 +785,43 @@ def versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
+class Handlers:
+    ''' A place to put app-global handlers. Currently the
+    "do_in_main_thread_handler" lives here '''
+    @staticmethod
+    def default_do_in_main_thread_handler(func, *args, **kwargs):
+        ''' The default "do_in_main_thread_handler" simply immediately calls
+        func, but it does print a warning if the current thread is not
+        the main thread. '''
+        this_thread = threading.current_thread()
+        if this_thread is not threading.main_thread():
+            print_stderr(f"Warning: do_in_main_thread called with the default handler"
+                         f" from outside the main thread (thr: {this_thread.name});"
+                          " such usage may lead to undefined behavior.  Traceback:\n",
+                          ''.join(traceback.format_stack()))
+        func(*args, **kwargs)
+
+    # GUI subsystems that wish to use `do_in_main_thread` (defined below) must
+    # register a handler by setting this class-level attribute. See
+    # ElectrumGui._setup_do_in_main_thread_handler in gui/qt/__init__py for an
+    # example of how this is done for Qt.
+    do_in_main_thread = default_do_in_main_thread_handler
+
+
+def do_in_main_thread(func, *args, **kwargs):
+    ''' Calls func(*args, **kwargs) in the main thread, or immediately if the
+    calling context *is* the main thread. Note that for this to work the GUI
+    system in question must install a handler for this mechanism (if it has an
+    event loop that is!) and set the global Handlers.do_in_main_thread =
+    someFunc() to actually post the invocation to the main thread. The default
+    handler immediately invokes func, but it does print a warning if the current
+    thread is not the main thread '''
+    if threading.current_thread() is threading.main_thread():
+        func(*args, **kwargs)
+    else:
+        Handlers.do_in_main_thread(func, *args, **kwargs)
+
+
 class Weak:
     '''
     Weak reference factory. Create either a weak proxy to a bound method

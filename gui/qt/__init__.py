@@ -58,7 +58,7 @@ from electroncash.plugins import run_hook
 from electroncash import WalletStorage
 from electroncash.util import (UserCancelled, PrintError, print_error,
                                standardize_path, finalization_print_error, Weak,
-                               get_new_wallet_name)
+                               get_new_wallet_name, Handlers)
 from electroncash import version
 from electroncash.address import Address
 
@@ -78,6 +78,7 @@ class ElectrumGui(QObject, PrintError):
     cashaddr_toggled_signal = pyqtSignal()  # app-wide signal for when cashaddr format is toggled. This used to live in each ElectrumWindow instance but it was recently refactored to here.
     cashaddr_status_button_hidden_signal = pyqtSignal(bool)  # app-wide signal for when cashaddr toggle button is hidden from the status bar
     shutdown_signal = pyqtSignal()  # signal for requesting an app-wide full shutdown
+    do_in_main_thread_signal = pyqtSignal(object, object, object)
 
     instance = None
 
@@ -91,6 +92,8 @@ class ElectrumGui(QObject, PrintError):
         self.daemon = daemon
         self.plugins = plugins
         self.windows = []
+
+        self._setup_do_in_main_thread_handler()
 
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
@@ -159,6 +162,30 @@ class ElectrumGui(QObject, PrintError):
         print_error("[{}] finalized{}".format(__class__.__name__, ' (stale instance)' if stale else ''))
         if hasattr(super(), '__del__'):
             super().__del__()
+
+    def _setup_do_in_main_thread_handler(self):
+        ''' Sets up "do_in_main_thread" handler mechanism for Qt GUI. '''
+        self.do_in_main_thread_signal.connect(self._do_in_main_thread_handler_slot)
+        orig_handler = Handlers.do_in_main_thread
+        weakSelf = Weak.ref(self)
+        def my_do_in_main_thread_handler(func, *args, **kwargs):
+            strongSelf = weakSelf()
+            if strongSelf:
+                # We are still alive, emit the signal which will be handled
+                # in the main thread.
+                strongSelf.do_in_main_thread_signal.emit(func, args, kwargs)
+            else:
+                # We died. Uninstall this handler, invoke original handler.
+                Handlers.do_in_main_thread = orig_handler
+                orig_handler(func, *args, **kwargs)
+        Handlers.do_in_main_thread = my_do_in_main_thread_handler
+
+    def _do_in_main_thread_handler_slot(self, func, args, kwargs):
+        ''' Hooked in to util.Handlers.do_in_main_thread via the
+        do_in_main_thread_signal. This ensures that there is an app-wide
+        mechanism for posting invocations to the main thread.  Currently
+        CashFusion uses this mechanism, but other code may as well. '''
+        func(*args, **kwargs)
 
     def _pre_and_post_app_setup(self):
         ''' Call this before instantiating the QApplication object.  It sets up
@@ -324,6 +351,9 @@ class ElectrumGui(QObject, PrintError):
             slf = weakSelf()
             slf and slf._expire_cached_password(weakWallet)
         timer.setSingleShot(True); timer.timeout.connect(timeout); timer.start(10000)  # 10 sec
+
+    def cache_password(self, wallet, password):
+        self._cache_password(wallet, password)
 
     def _set_icon(self):
         icon = None
