@@ -470,12 +470,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())
         self.tor_enabled.clicked.connect(self.tor_custom_port_cb.setEnabled)
         self.tor_custom_port_cb.setChecked(bool(self.network.tor_controller.get_socks_port()))
-        def on_custom_port_cb_click(b):
-            self.tor_socks_port.setEnabled(b)
-            if not b:
-                self.tor_socks_port.setText("0")
-                self.set_tor_socks_port()
-        self.tor_custom_port_cb.clicked.connect(on_custom_port_cb_click)
+        self.tor_custom_port_cb.clicked.connect(self.on_custom_port_cb_click)
         custom_port_tooltip = _("Leave unspecified to automatically allocate a port.")
         self.tor_custom_port_cb.setToolTip(custom_port_tooltip)
 
@@ -804,6 +799,12 @@ class NetworkChoiceLayout(QObject, PrintError):
     def set_tor_socks_port(self):
         socks_port = int(self.tor_socks_port.text())
         self.network.tor_controller.set_socks_port(socks_port)
+
+    def on_custom_port_cb_click(self, b):
+        self.tor_socks_port.setEnabled(b)
+        if not b:
+            self.tor_socks_port.setText("0")
+            self.set_tor_socks_port()
 
     def proxy_settings_changed(self):
         self.tor_cb.setChecked(False)
