@@ -803,6 +803,7 @@ class NetworkChoiceLayout(QObject, PrintError):
             self.tor_enabled.setChecked(True)
         else:
             self.tor_enabled.setChecked(False)
+        self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())
 
     def set_tor_socks_port(self):
         socks_port = int(self.tor_socks_port.text())
