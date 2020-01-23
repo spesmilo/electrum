@@ -40,15 +40,13 @@ class Event(list):
 
     """
     def __call__(self, *args, **kwargs):
-        # Holds dead weak methods to remove
-        dead_methods = []
-
-        for method in self.copy():  # prevent mutation while invoking, in case callbacks add to this list
+        for method in self.copy():  # prevent mutation while invoking, in case callbacks themselves add to this list
             if isinstance(method, weakref.WeakMethod):
                 strong_method = method()
                 if not strong_method:
                     # This weak reference is dead, remove it from the list
-                    dead_methods.append(method)
+                    try: self.remove(method)
+                    except ValueError: pass  # allow for the possibility some other callback removed it already while we were iterating
                     continue
                 else:
                     # it's good, proceed with dereferenced strong_method
@@ -56,11 +54,6 @@ class Event(list):
             # contract is callbacks always are in the main thread to make GUI
             # code's life easier.
             do_in_main_thread(method, *args, **kwargs)
-
-        # Remove all dead methods
-        for dead_method in dead_methods:
-            try: self.remove(dead_method)
-            except ValueError: pass  # paranoia
 
     def __repr__(self):
         return "Event(%s)" % list.__repr__(self)
