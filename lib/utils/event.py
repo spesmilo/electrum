@@ -59,7 +59,8 @@ class Event(list):
 
         # Remove all dead methods
         for dead_method in dead_methods:
-            self.remove(dead_method)
+            try: self.remove(dead_method)
+            except ValueError: pass  # paranoia
 
     def __repr__(self):
         return "Event(%s)" % list.__repr__(self)
