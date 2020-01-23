@@ -1,5 +1,7 @@
 import weakref
 
+from electroncash.util import do_in_main_thread
+
 # Based on: https://stackoverflow.com/a/2022629
 # By Longpoke (https://stackoverflow.com/users/80243)
 class Event(list):
@@ -7,6 +9,10 @@ class Event(list):
 
     A list of callable objects. Calling an instance of this will cause a
     call to each item in the list in ascending order by index.
+
+    Note that in Electron Cash, calling this list (if using the Qt GUI) will
+    guarantee the calls are sent to the main thread's event loop. Thus it's safe
+    to use this as an improvised signal/slot mechanism with GUI code.
 
     The list can also contain WeakMethods using the append_weak and
     insert_weak methods. When a weak method is dead, it will be removed
@@ -37,14 +43,19 @@ class Event(list):
         # Holds dead weak methods to remove
         dead_methods = []
 
-        for method in self:
+        for method in self.copy():  # prevent mutation while invoking, in case callbacks add to this list
             if isinstance(method, weakref.WeakMethod):
-                method = method()
-                if not method:
+                strong_method = method()
+                if not strong_method:
                     # This weak reference is dead, remove it from the list
                     dead_methods.append(method)
                     continue
-            method(*args, **kwargs)
+                else:
+                    # it's good, proceed with dereferenced strong_method
+                    method = strong_method
+            # contract is callbacks always are in the main thread to make GUI
+            # code's life easier.
+            do_in_main_thread(method, *args, **kwargs)
 
         # Remove all dead methods
         for dead_method in dead_methods:

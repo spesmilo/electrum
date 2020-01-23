@@ -23,7 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import socket, queue
+import queue
+import socket
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -473,6 +474,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.tor_custom_port_cb.clicked.connect(self.on_custom_port_cb_click)
         custom_port_tooltip = _("Leave unspecified to automatically allocate a port.")
         self.tor_custom_port_cb.setToolTip(custom_port_tooltip)
+        self.network.tor_controller.status_changed.append_weak(self.on_tor_status_changed)
 
         self.tor_socks_port = QLineEdit()
         self.tor_socks_port.setFixedWidth(60)
@@ -795,6 +797,12 @@ class NetworkChoiceLayout(QObject, PrintError):
 
     def set_tor_enabled(self, enabled: bool):
         self.network.tor_controller.set_enabled(enabled)
+
+    def on_tor_status_changed(self, controller):
+        if controller.status in (TorController.Status.STARTED, TorController.Status.READY):
+            self.tor_enabled.setChecked(True)
+        else:
+            self.tor_enabled.setChecked(False)
 
     def set_tor_socks_port(self):
         socks_port = int(self.tor_socks_port.text())
