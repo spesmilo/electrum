@@ -78,8 +78,9 @@ class AddressList(MyTreeView):
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.LABEL)
+        self.wallet = self.parent.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
@@ -136,7 +137,8 @@ class AddressList(MyTreeView):
 
     @profiler
     def update(self):
-        self.wallet = self.parent.wallet
+        if self.maybe_defer_update():
+            return
         current_address = self.current_item_user_role(col=self.Columns.LABEL)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.6.4
+PYTHON_VERSION=3.7.6
 BUILDDIR=/tmp/electrum-ltc-build
 PACKAGE=Electrum-LTC
 GIT_REPO=https://github.com/pooler/electrum-ltc
@@ -41,7 +41,7 @@ else
 fi
 
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
+export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.7/bin:$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
@@ -62,7 +62,7 @@ python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requi
 
 
 info "Installing pyinstaller"
-python3 -m pip install -I --user pyinstaller==3.5 || fail "Could not install pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.6 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers

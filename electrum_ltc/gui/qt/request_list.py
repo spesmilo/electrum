@@ -61,6 +61,7 @@ class RequestList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
+        self.wallet = self.parent.wallet
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()
@@ -106,8 +107,7 @@ class RequestList(MyTreeView):
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
-        self.wallet = self.parent.wallet
-        domain = self.wallet.get_receiving_addresses()
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.parent.update_receive_address_styling()
         self.model().clear()
         self.update_headers(self.__class__.headers)

@@ -8,4 +8,4 @@ export LD_LIBRARY_PATH="${APPDIR}/usr/lib/:${APPDIR}/usr/lib/x86_64-linux-gnu${L
 export PATH="${APPDIR}/usr/bin:${PATH}"
 export LDFLAGS="-L${APPDIR}/usr/lib/x86_64-linux-gnu -L${APPDIR}/usr/lib"
 
-exec "${APPDIR}/usr/bin/python3.6" -s "${APPDIR}/usr/bin/electrum-ltc" "$@"
+exec "${APPDIR}/usr/bin/python3.7" -s "${APPDIR}/usr/bin/electrum-ltc" "$@"

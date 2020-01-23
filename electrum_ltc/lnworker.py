@@ -1139,7 +1139,7 @@ class LNWallet(LNWorker):
     def get_preimage(self, payment_hash: bytes) -> bytes:
         return bfh(self.preimages.get(bh2u(payment_hash)))
 
-    def get_payment_info(self, payment_hash: bytes) -> bytes:
+    def get_payment_info(self, payment_hash: bytes) -> PaymentInfo:
         key = payment_hash.hex()
         with self.lock:
             if key not in self.payments:
@@ -1147,7 +1147,7 @@ class LNWallet(LNWorker):
             amount, direction, status = self.payments[key]
             return PaymentInfo(payment_hash, amount, direction, status)
 
-    def save_payment_info(self, info):
+    def save_payment_info(self, info: PaymentInfo) -> None:
         key = info.payment_hash.hex()
         assert info.status in [PR_PAID, PR_UNPAID, PR_INFLIGHT]
         with self.lock:
