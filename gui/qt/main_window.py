@@ -2573,7 +2573,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def get_coins(self, isInvoice = False):
         coins = []
         if self.pay_from:
-            coins = self.pay_from.copy()
+            coins = copy.deepcopy(self.pay_from)
         else:
             coins = self.wallet.get_spendable_coins(None, self.config, isInvoice)
         run_hook("spendable_coin_filter", self, coins) # may modify coins -- used by CashShuffle if in shuffle = ENABLED mode.
