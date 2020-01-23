@@ -417,6 +417,7 @@ class NetworkChoiceLayout(QObject, PrintError):
 
         # proxy setting
         self.proxy_cb = QCheckBox(_('Use proxy'))
+        self.proxy_cb.setToolTip(_("If enabled, all connections application-wide will be routed through this proxy."))
         self.proxy_cb.clicked.connect(self.check_disable_proxy)
         self.proxy_cb.clicked.connect(self.set_proxy)
 
@@ -443,31 +444,75 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.tor_cb.setIcon(QIcon(":icons/tor_logo.svg"))
         self.tor_cb.setEnabled(False)
         self.tor_cb.clicked.connect(self.use_tor_proxy)
+        tor_proxy_tooltip = _("If enabled, all connections application-wide will be routed through Tor.")
+        tor_proxy_help = (
+            tor_proxy_tooltip + "\n\n" +
+            _("Depending on your configuration and preferences as a user, this may or may not be ideal.  "
+              "In general, connections routed through Tor hide your IP address from servers, at the expense of "
+              "performance and network throughput.") + "\n\n" +
+            _("For the average user, it's recommended that you leave this option "
+              "disabled and only leave the 'integrated Tor client' option enabled.") )
+        self.tor_cb.setToolTip(tor_proxy_tooltip)
 
         self.tor_enabled = QCheckBox(_("Start integrated Tor client"))
         self.tor_enabled.setIcon(QIcon(":icons/tor_logo.svg"))
         self.tor_enabled.clicked.connect(self.set_tor_enabled)
         self.tor_enabled.setChecked(self.network.tor_controller.is_enabled())
+        tor_enabled_tooltip = _("This will enable the integrated Tor proxy.")
+        self.tor_enabled.setToolTip(tor_enabled_tooltip)
+        tor_enabled_help = (
+            tor_enabled_tooltip + "\n\n"
+            + _("If unsure, it's safe to enable this feature, and leave 'Use Tor Proxy' disabled.  "
+                "In that situation, only certain plugins (such as CashFusion) will use Tor, but your "
+                "regular SPV server connections will remain unaffected.") )
+
+        self.tor_custom_port_cb = QCheckBox(_("Custom port"))
+        self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())
+        self.tor_enabled.clicked.connect(self.tor_custom_port_cb.setEnabled)
+        self.tor_custom_port_cb.setChecked(bool(self.network.tor_controller.get_socks_port()))
+        def on_custom_port_cb_click(b):
+            self.tor_socks_port.setEnabled(b)
+            if not b:
+                self.tor_socks_port.setText("0")
+                self.set_tor_socks_port()
+        self.tor_custom_port_cb.clicked.connect(on_custom_port_cb_click)
+        custom_port_tooltip = _("Leave unspecified to automatically allocate a port.")
+        self.tor_custom_port_cb.setToolTip(custom_port_tooltip)
 
         self.tor_socks_port = QLineEdit()
         self.tor_socks_port.setFixedWidth(60)
         self.tor_socks_port.editingFinished.connect(self.set_tor_socks_port)
         self.tor_socks_port.setText(str(self.network.tor_controller.get_socks_port()))
+        self.tor_socks_port.setToolTip(custom_port_tooltip)
         port_validator = UserPortValidator(self.tor_socks_port)
         port_validator.stateChanged.connect(UserPortValidator.setRedBorder)
         self.tor_socks_port.setValidator(port_validator)
+        self.tor_socks_port.setEnabled(self.tor_custom_port_cb.isChecked())
 
-        grid.addWidget(self.tor_cb, 1, 0, 1, 3)
-        grid.addWidget(self.tor_enabled, 2, 0, 1, 2)
-        grid.addWidget(self.tor_socks_port, 2, 2)
-        grid.addWidget(self.proxy_cb, 3, 0, 1, 3)
-        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electron Cash servers, but also with third-party services.')), 3, 4)
-        grid.addWidget(self.proxy_mode, 5, 1)
-        grid.addWidget(self.proxy_host, 5, 2)
-        grid.addWidget(self.proxy_port, 5, 3)
-        grid.addWidget(self.proxy_user, 6, 2)
-        grid.addWidget(self.proxy_password, 6, 3)
-        grid.setRowStretch(7, 1)
+        # Start integrated Tor
+        grid.addWidget(self.tor_enabled, 1, 0, 1, 2)
+        grid.addWidget(HelpButton(tor_enabled_help), 1, 4)
+        # Custom integrated Tor port
+        hbox = QHBoxLayout()
+        hbox.addSpacing(20)  # indentation
+        hbox.addWidget(self.tor_custom_port_cb, 0, Qt.AlignLeft|Qt.AlignVCenter)
+        hbox.addWidget(self.tor_socks_port, 0, Qt.AlignLeft|Qt.AlignVCenter)
+        hbox.addStretch(2)
+        hbox.setContentsMargins(0,0,0,6)  # a bit of a "paragraph break" here
+        grid.addLayout(hbox, 2, 0, 1, 3)
+        grid.addWidget(HelpButton(custom_port_tooltip), 2, 4)
+        # Use Tor Proxy
+        grid.addWidget(self.tor_cb, 3, 0, 1, 3)
+        grid.addWidget(HelpButton(tor_proxy_help), 3, 4)
+        # Proxy settings
+        grid.addWidget(self.proxy_cb, 4, 0, 1, 3)
+        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electron Cash servers, but also with third-party services.')), 4, 4)
+        grid.addWidget(self.proxy_mode, 6, 1)
+        grid.addWidget(self.proxy_host, 6, 2)
+        grid.addWidget(self.proxy_port, 6, 3)
+        grid.addWidget(self.proxy_user, 7, 2)
+        grid.addWidget(self.proxy_password, 7, 3)
+        grid.setRowStretch(8, 1)
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
