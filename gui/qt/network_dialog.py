@@ -801,6 +801,9 @@ class NetworkChoiceLayout(QObject, PrintError):
     def on_tor_status_changed(self, controller):
         if controller.status in (TorController.Status.STARTED, TorController.Status.READY):
             self.tor_enabled.setChecked(True)
+        elif controller.status == TorController.Status.ERRORED and self.tabs.isVisible():
+            QMessageBox.critical(None, _("Tor Client Error"),
+                                 _("The integrated Tor client experienced an error or could not be started."))
         else:
             self.tor_enabled.setChecked(False)
         self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())

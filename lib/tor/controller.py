@@ -75,6 +75,7 @@ class TorController(PrintError):
         STOPPED = 1
         STARTED = 2
         READY = 3
+        ERRORED = 4
 
     _config: SimpleConfig = None
     _tor_process: subprocess.Popen = None
@@ -194,6 +195,8 @@ class TorController(PrintError):
         except:
             self.print_exception("Failed to start Tor")
             self._tor_process = None
+            self.status = TorController.Status.ERRORED
+            self.status_changed(self)
             return
         finally:
             subprocess.Popen = TorController._orig_subprocess_popen
