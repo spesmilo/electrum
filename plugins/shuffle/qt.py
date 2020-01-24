@@ -574,6 +574,12 @@ class Plugin(BasePlugin):
             st = nd.__shuffle_settings__
             st.refreshFromSettings()
 
+    @hook
+    def window_update_status(self, window):
+        but = getattr(window, '__shuffle__status__button__', None)
+        if but:
+            but.update_cashshuffle_icon()
+
     def show_cashshuffle_tab_in_network_dialog(self, window):
         window.gui_object.show_network_dialog(window)
         nd = Plugin.network_dialog
@@ -630,13 +636,37 @@ class Plugin(BasePlugin):
             del extra # hopefully object refct goes immediately to 0 and this widget dies quickly.
             return True
 
+    @classmethod
+    def is_wallet_cashshuffle_compatible(cls, window):
+        from electroncash.wallet import ImportedWalletBase, Multisig_Wallet
+        if (window.wallet.is_watching_only()
+            or window.wallet.is_hardware()
+            or isinstance(window.wallet, (Multisig_Wallet, ImportedWalletBase))):
+            # wallet is watching-only, multisig, or hardware so.. not compatible
+            return False
+        return True
+
+    def add_button_to_window(self, window):
+        if not hasattr(window, '__shuffle__status__button__'):
+            from .qt_status_bar_mgr import ShuffleStatusBarButtonMgr
+            window.__shuffle__status__button__ = ShuffleStatusBarButtonMgr(self, window)
+            window.print_error("Added cashshuffle status button")
+
+    @classmethod
+    def remove_button_from_window(cls, window):
+        if hasattr(window, '__shuffle__status__button__'):
+            window.__shuffle__status__button__.remove()
+            delattr(window, '__shuffle__status__button__')
+            window.print_error("Removed cashshuffle status button")
+
     @hook
     def on_new_window(self, window):
-        if not window.is_wallet_cashshuffle_compatible():
+        if not self.is_wallet_cashshuffle_compatible(window):
             # wallet is watching-only, multisig, or hardware so.. mark it permanently for no cashshuffle
             self.window_set_cashshuffle(window, False)
             window.update_status()  # this has the side-effect of refreshing the cash shuffle status bar button's context menu (which has actions even for disabled/incompatible windows)
             return
+        self.add_button_to_window(window)  # unconditionally add the button if compatible -- they may want to enable it later
         if window.wallet and not self.window_has_cashshuffle(window):
             if self.window_wants_cashshuffle(window):
                 self._enable_for_window(window) or self._window_add_to_disabled(window)
@@ -783,6 +813,7 @@ class Plugin(BasePlugin):
     def on_close_window(self, window):
         def didRemove(window):
             self.print_error("Window '{}' removed".format(window.wallet.basename()))
+        self.remove_button_from_window(window)
         if self._window_remove_from_disabled(window):
             didRemove(window)
             return
@@ -815,6 +846,7 @@ class Plugin(BasePlugin):
         if window not in self.disabled_windows:
             self._window_set_disabled_extra(window)
             self.disabled_windows.append(window)
+            window.update_status()  # ensure cashshuffle icon has the right menus, etc
             return True
 
     def _window_remove_from_disabled(self, window):
@@ -984,6 +1016,12 @@ class Plugin(BasePlugin):
             # this should not normally be reachable in the UI, hence why we don't i18n the error string.
             window.show_error("CashShuffle is not properly set up -- no server defined! Please select a server from the settings.")
 
+    def restart_cashshuffle(self, window, msg = None, parent = None):
+        if (parent or window).question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?")),
+                                       app_modal=True):
+            self.restart_all()
+            window.notify(_("CashShuffle restarted"))
+
     def settings_dialog(self, window, msg=None, restart_ask = True):
         def window_parent(w):
             # this is needed because WindowModalDialog overrides window.parent
@@ -1010,7 +1048,7 @@ class Plugin(BasePlugin):
             if ns:
                 Plugin.save_network_settings(window.config, ns)
                 if restart_ask:
-                    window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+                    self.restart_cashshuffle(window, msg = _("CashShuffle must be restarted for the server change to take effect."))
             return ns
         finally:
             d.deleteLater()
@@ -1039,10 +1077,11 @@ class Plugin(BasePlugin):
                 # If that fails, get any old window...
                 window = gui.windows[-1]
             # NB: if no window at this point, settings will take effect next time CashShuffle is enabled for a window
-            if window:
+            if window and instance:
                 # window will raise itself.
-                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."),
-                                           parent = Plugin.network_dialog)
+                instance.restart_cashshuffle(window,
+                                             msg = _("CashShuffle must be restarted for the server change to take effect."),
+                                             parent = Plugin.network_dialog)
 
     @staticmethod
     def save_network_settings(config, network_settings):
