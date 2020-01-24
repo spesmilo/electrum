@@ -245,7 +245,7 @@ if [ -z "$SHA256_PROG" ]; then
     fail "Please install sha256sum or gsha256sum"
 fi
 
-export SORT_PROG=`which sort || which gsort`
+export SORT_PROG=`which gsort || which sort`
 if [ -z "$SORT_PROG" ]; then
     fail "Please install sort or gsort"
 fi
