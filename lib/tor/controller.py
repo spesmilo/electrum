@@ -169,6 +169,8 @@ class TorController(PrintError):
 
         if not _TOR_BINARY_NAME:
             self.print_error("No Tor binary found")
+            self.status = TorController.Status.ERRORED
+            self.status_changed(self)
             return
 
         # When the socks port is set to zero, we let tor choose one
