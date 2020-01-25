@@ -27,4 +27,4 @@ from .aspect_layout import FixedAspectRatioLayout
 from .aspect_svg_widget import FixedAspectRatioSvgWidget
 from .image_effect import ImageGraphicsEffect
 from .color_utils import QColorLerp
-from .user_port_validator import UserPortValidator
+from .user_port_validator import PortValidator, UserPortValidator
