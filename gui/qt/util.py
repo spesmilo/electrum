@@ -205,7 +205,8 @@ class MessageBoxMixin:
 
     def question(self, msg, parent=None, title=None, icon=None, defaultButton=QMessageBox.No, **kwargs):
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        retval = self.msg_box(icon or QMessageBox.Question,
+        if icon is None: icon = QMessageBox.Question
+        retval = self.msg_box(icon,
                               parent, title or '',
                               msg, buttons=Yes|No, defaultButton=defaultButton, **kwargs)
         if isinstance(retval, (list, tuple)):
@@ -220,19 +221,27 @@ class MessageBoxMixin:
         return retval
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
-        return self.msg_box(QMessageBox.Warning, parent,
+        icon = kwargs.pop('icon', None)  # may be 0
+        if icon is None: icon = QMessageBox.Warning
+        return self.msg_box(icon, parent,
                             title or _('Warning'), msg, **kwargs)
 
     def show_error(self, msg, parent=None, title=None, **kwargs):
-        return self.msg_box(QMessageBox.Warning, parent,
+        icon = kwargs.pop('icon', None)  # may be 0
+        if icon is None: icon = QMessageBox.Warning
+        return self.msg_box(icon, parent,
                             title or _('Error'), msg, **kwargs)
 
     def show_critical(self, msg, parent=None, title=None, **kwargs):
-        return self.msg_box(QMessageBox.Critical, parent,
+        icon = kwargs.pop('icon', None)  # may be 0
+        if icon is None: icon = QMessageBox.Critical
+        return self.msg_box(icon, parent,
                             title or _('Critical Error'), msg, **kwargs)
 
     def show_message(self, msg, parent=None, title=None, **kwargs):
-        return self.msg_box(QMessageBox.Information, parent,
+        icon = kwargs.pop('icon', None)  # may be 0
+        if icon is None: icon = QMessageBox.Information
+        return self.msg_box(icon, parent,
                             title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text,
