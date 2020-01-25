@@ -1,5 +1,5 @@
 from test import TestProtocolCase
-# from electroncash_plugins.shuffle.messages import Messages()
+# from electroncash_plugins.shuffle_deprecated.messages import Messages()
 
 class TestProtocol(TestProtocolCase):
 

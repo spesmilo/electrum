@@ -166,7 +166,7 @@ setup(
         'electroncash_plugins.trezor',
         'electroncash_plugins.digitalbitbox',
         'electroncash_plugins.virtualkeyboard',
-        'electroncash_plugins.shuffle',
+        'electroncash_plugins.shuffle_deprecated',
         'electroncash_plugins.satochip',
         'electroncash_plugins.satochip_2FA',
         'electroncash_plugins.fusion',
@@ -188,7 +188,7 @@ setup(
             'locale/*/LC_MESSAGES/electron-cash.mo',
             'tor/bin/*'
         ],
-        'electroncash_plugins.shuffle' : [
+        'electroncash_plugins.shuffle_deprecated' : [
             'servers.json'
         ],
         'electroncash_plugins.fusion' : [

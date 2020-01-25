@@ -48,10 +48,10 @@ from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.amountedit import BTCAmountEdit
 from electroncash_gui.qt.utils import FixedAspectRatioSvgWidget
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK
-from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
-from electroncash_plugins.shuffle.conf_keys import ConfKeys  # config keys per wallet and global
-from electroncash_plugins.shuffle.coin_utils import CoinUtils
+from .client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK
+from .comms import query_server_for_stats, verify_ssl_socket
+from .conf_keys import ConfKeys  # config keys per wallet and global
+from .coin_utils import CoinUtils
 
 def is_coin_busy_shuffling(window, utxo_or_name):
     ''' Convenience wrapper for BackgroundShufflingThread.is_coin_busy_shuffling '''

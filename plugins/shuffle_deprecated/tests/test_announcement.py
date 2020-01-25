@@ -25,7 +25,7 @@ class TestProtocol(TestProtocolCase):
         self.assertIn('Error: The same keys appears!', last_messages)
 
     def test_002_insufficient_funds(self):
-        from electroncash_plugins.shuffle.coin import Coin
+        from electroncash_plugins.shuffle_deprecated.coin import Coin
         coin = Coin(self.network)
         protocolThreads = self.make_clients_threads(with_print = True)
         coins_1 = coin.get_coins(protocolThreads[0].inputs)

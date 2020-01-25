@@ -17,12 +17,12 @@ imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
 from electroncash.address import Address
 from electroncash.util import InvalidPassword
-from electroncash_plugins.shuffle.client import ProtocolThread
-from electroncash_plugins.shuffle.comms import (ChannelWithPrint, Channel)
-from electroncash_plugins.shuffle.coin import Coin
-from electroncash_plugins.shuffle.crypto import Crypto
-# from electroncash_plugins.shuffle.phase import Phase
-from electroncash_plugins.shuffle.round import Round
+from electroncash_plugins.shuffle_deprecated.client import ProtocolThread
+from electroncash_plugins.shuffle_deprecated.comms import (ChannelWithPrint, Channel)
+from electroncash_plugins.shuffle_deprecated.coin import Coin
+from electroncash_plugins.shuffle_deprecated.crypto import Crypto
+# from electroncash_plugins.shuffle_deprecated.phase import Phase
+from electroncash_plugins.shuffle_deprecated.round import Round
 from electroncash.bitcoin import (regenerate_key, deserialize_privkey, EC_KEY, generator_secp256k1,
                                   number_to_string ,public_key_to_p2pkh, point_to_ser, Hash)
 
@@ -450,7 +450,7 @@ class TestProtocolCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestProtocolCase,self).__init__(*args, **kwargs)
         config = configparser.ConfigParser()
-        config.read_file(open('plugins/shuffle/tests/config.ini'))
+        config.read_file(open('plugins/shuffle_deprecated/tests/config.ini'))
         self.HOST = config["CashShuffle"]["address"]
         self.PORT = int(config["CashShuffle"]["port"])
         self.fee = int(config["Clients"]["fee"])
