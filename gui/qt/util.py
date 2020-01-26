@@ -572,14 +572,28 @@ class MyTreeWidget(QTreeWidget):
     class SortSpec(namedtuple("SortSpec", "column, qt_sort_order")):
         ''' Used to specify member: default_sort '''
 
-    # Specify this in subclasses to apply a default sort order to the widget
+    # Specify this in subclasses to apply a default sort order to the widget.
     # If None, nothing is applied (items are presented in the order they are
     # added).
     default_sort : SortSpec = None
 
     # Specify this in subclasses to enable substring search/filtering (Ctrl+F)
-    # (if empty, no search is applied)
+    # (if this and filter_data_columns are both empty, no search is applied)
     filter_columns = []
+    # Like the above but rather than search the item .text() field, it searches
+    # for *data* in columns, e.g. item.data(col, Qt.UserRole). The data must
+    # live in filter_data_role (Qt.UserRole by default) in the specified
+    # column(s) and be a str. Leave empty to disable this facility. Note that
+    # data matches for the Ctrl+F filter must be a full string match (no
+    # substring matching is done) -- this is in contrast to filter_columns
+    # matching above which does substring matching. This reason we match on full
+    # strings is this facility was initially added to allow for searching the
+    # history_list by txid. If this criterion doesn't suit your use-case when
+    # inheriting from this, you may always override this class's `filter`
+    # method.
+    filter_data_columns = []
+    # the QTreeWidgetItem data role to use when searching data columns
+    filter_data_role : int = Qt.UserRole
 
     def __init__(self, parent, create_menu, headers, stretch_column=None,
                  editable_columns=None,
@@ -773,13 +787,29 @@ class MyTreeWidget(QTreeWidget):
 
     def filter(self, p):
         columns = self.__class__.filter_columns
-        if not columns:
+        data_columns = self.__class__.filter_data_columns
+        if not columns and not data_columns:
             return
         p = p.lower()
         self.current_filter = p
+        bad_data_column = False
+        data_role = self.__class__.filter_data_role
         for item in self.get_leaves(self.invisibleRootItem()):
-            item.setHidden(all([item.text(column).lower().find(p) == -1
-                                for column in columns]))
+            no_match_text = all([item.text(column).lower().find(p) == -1
+                                 for column in columns])
+            no_match_data = True
+            if no_match_text and not bad_data_column and data_columns:
+                try:
+                    # data matching is different -- it must match exactly the
+                    # specified search string. This was originally designed
+                    # to allow for tx-hash searching of the history list.
+                    no_match_data = all([item.data(column, data_role).strip().lower() != p
+                                         for column in data_columns])
+                except (AttributeError, TypeError, ValueError):
+                    # flag so we don't keep raising for each iteration of this
+                    # loop.  Programmer error here in subclass, silently ignore.
+                    bad_data_column = True
+            item.setHidden(no_match_text and no_match_data)
 
 
 class OverlayControlMixin:
