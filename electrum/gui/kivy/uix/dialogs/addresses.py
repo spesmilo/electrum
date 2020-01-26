@@ -8,6 +8,7 @@ from decimal import Decimal
 from kivy.uix.popup import Popup
 
 from electrum.gui.kivy.i18n import _
+from ...util import address_colors
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -111,6 +112,8 @@ Builder.load_string('''
     status: ''
     script_type: ''
     pk: ''
+    address_color: 1, 1, 1, 1
+    address_background_color: 0.3, 0.3, 0.3, 1
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -123,6 +126,8 @@ Builder.load_string('''
                 TopLabel:
                     text: _('Address')
                 RefLabel:
+                    color: root.address_color
+                    background_color: root.address_background_color
                     data: root.address
                     name: _('Address')
                 GridLayout:
@@ -175,6 +180,7 @@ class AddressPopup(Popup):
         self.status = status
         self.script_type = self.app.wallet.get_txin_type(self.address)
         self.balance = self.app.format_amount_and_units(balance)
+        self.address_color, self.address_background_color = address_colors(self.app.wallet, address)
 
     def receive_at(self):
         self.dismiss()
