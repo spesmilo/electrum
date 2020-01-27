@@ -1856,7 +1856,7 @@ class Network(util.DaemonThread):
         elif r"scriptsig-size" in server_msg:
             return _("The transaction was rejected because it contains a script that is too large.")
         elif r"scriptpubkey" in server_msg:
-            return _("The transaction was rejected because it contains a non-standard script public key signature.")
+            return _("The transaction was rejected because it contains a non-standard output script.")
         elif r"bare-multisig" in server_msg:
             return _("The transaction was rejected because it contains a bare multisig input.")
         elif r"multi-op-return" in server_msg:
