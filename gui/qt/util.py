@@ -795,16 +795,16 @@ class MyTreeWidget(QTreeWidget):
         bad_data_column = False
         data_role = self.__class__.filter_data_role
         for item in self.get_leaves(self.invisibleRootItem()):
-            no_match_text = all([item.text(column).lower().find(p) == -1
-                                 for column in columns])
+            no_match_text = all(item.text(column).lower().find(p) == -1
+                                for column in columns)
             no_match_data = True
             if no_match_text and not bad_data_column and data_columns:
                 try:
                     # data matching is different -- it must match exactly the
                     # specified search string. This was originally designed
                     # to allow for tx-hash searching of the history list.
-                    no_match_data = all([item.data(column, data_role).strip().lower() != p
-                                         for column in data_columns])
+                    no_match_data = all(item.data(column, data_role).strip().lower() != p
+                                        for column in data_columns)
                 except (AttributeError, TypeError, ValueError):
                     # flag so we don't keep raising for each iteration of this
                     # loop.  Programmer error here in subclass, silently ignore.
