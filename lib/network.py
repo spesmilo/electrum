@@ -1849,8 +1849,8 @@ class Network(util.DaemonThread):
             return _("The transaction was rejected due to its use of non-standard inputs.")
         elif r"absurdly-high-fee" in server_msg:
             return _("The transaction was rejected because it specifies an absurdly high fee.")
-        elif r"non-mandatory-script-verify-flag" in server_msg:
-            return _("The transaction was rejected because it contains a non-mandatory script verify flag.")
+        elif r"non-mandatory-script-verify-flag" in server_msg or r"mandatory-script-verify-flag-failed" in server_msg or r"upgrade-conditional-script-failure" in server_msg:
+            return _("The transaction was rejected due to an error in script execution.")
         elif r"tx-size" in server_msg:
             return _("The transaction was rejected because it is too large (in bytes).")
         elif r"scriptsig-size" in server_msg:
