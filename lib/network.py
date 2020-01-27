@@ -1827,7 +1827,7 @@ class Network(util.DaemonThread):
                 dust_thold = dust_threshold(Network.get_instance())
             except: pass
             return _("Transaction could not be broadcast due to dust outputs (dust threshold is {} satoshis).").format(dust_thold)
-        elif r'Missing inputs' in server_msg or r'Inputs unavailable' in server_msg or r"bad-txns-inputs-spent" in server_msg:
+        elif r'Missing inputs' in server_msg or r'Inputs unavailable' in server_msg or r"bad-txns-inputs-spent" in server_msg or r"bad-txns-inputs-missingorspent" in server_msg:
             return _("Transaction could not be broadcast due to missing, already-spent, or otherwise invalid inputs.")
         elif r"transaction already in block chain" in server_msg:
             # We get this message whenever any of this transaction's outputs are already in confirmed utxo set (and are unspent).
@@ -1835,7 +1835,7 @@ class Network(util.DaemonThread):
             return _("The transaction already exists in the blockchain.")
         elif r'insufficient priority' in server_msg or r'rate limited free transaction' in server_msg or r'min relay fee not met' in server_msg:
             return _("The transaction was rejected due to paying insufficient fees.")
-        elif r'mempool min fee not met' in server_msg:
+        elif r'mempool min fee not met' in server_msg or r"mempool full" in server_msg:
             return _("The transaction was rejected due to paying insufficient fees (possibly due to network congestion).")
         elif r'bad-txns-premature-spend-of-coinbase' in server_msg:
             return _("Transaction could not be broadcast due to an attempt to spend a coinbase input before maturity.")
@@ -1849,22 +1849,37 @@ class Network(util.DaemonThread):
             return _("The transaction was rejected due to its use of non-standard inputs.")
         elif r"absurdly-high-fee" in server_msg:
             return _("The transaction was rejected because it specifies an absurdly high fee.")
-        elif r"non-mandatory-script-verify-flag" in server_msg:
-            return _("The transaction was rejected because it contains a non-mandatory script verify flag.")
-        elif r"tx-size" in server_msg:
+        elif r"non-mandatory-script-verify-flag" in server_msg or r"mandatory-script-verify-flag-failed" in server_msg or r"upgrade-conditional-script-failure" in server_msg:
+            return _("The transaction was rejected due to an error in script execution.")
+        elif r"tx-size" in server_msg or r"bad-txns-oversize" in server_msg:
             return _("The transaction was rejected because it is too large (in bytes).")
         elif r"scriptsig-size" in server_msg:
             return _("The transaction was rejected because it contains a script that is too large.")
         elif r"scriptpubkey" in server_msg:
-            return _("The transaction was rejected because it contains a non-standard script public key signature.")
+            return _("The transaction was rejected because it contains a non-standard output script.")
         elif r"bare-multisig" in server_msg:
-            return _("The transaction was rejected because it contains a bare multisig input.")
+            return _("The transaction was rejected because it contains a bare multisig output.")
         elif r"multi-op-return" in server_msg:
             return _("The transaction was rejected because it contains multiple OP_RETURN outputs.")
         elif r"scriptsig-not-pushonly" in server_msg:
             return _("The transaction was rejected because it contains non-push-only script sigs.")
-        elif r'bad-txns-nonfinal' in server_msg:
+        elif r'bad-txns-nonfinal' in server_msg or r'non-BIP68-final' in server_msg:
             return _("The transaction was rejected because it is not considered final according to network rules.")
+        elif r"bad-txns-too-many-sigops" in server_msg or r"bad-txn-sigops" in server_msg:
+            # std limit is 4000; this is basically impossible to reach on mainnet using normal txes, due to the 100kB size limit.
+            return _("The transaction was rejected because it contains too many signature-check opcodes.")
+        elif r"bad-txns-inputvalues-outofrange" in server_msg or r"bad-txns-vout-negative" in server_msg or r"bad-txns-vout-toolarge" in server_msg or r"bad-txns-txouttotal-toolarge" in server_msg:
+            return _("The transaction was rejected because its amounts are out of range.")
+        elif r"bad-txns-in-belowout" in server_msg or r"bad-txns-fee-outofrange" in server_msg:
+            return _("The transaction was rejected because it pays a negative or huge fee.")
+        elif r"bad-tx-coinbase" in server_msg:
+            return _("The transaction was rejected because it is a coinbase transaction.")
+        elif r"bad-txns-prevout-null" in server_msg or r"bad-txns-inputs-duplicate" in server_msg:
+            return _("The transaction was rejected because it contains null or duplicate inputs.")
+        elif r"bad-txns-vin-empty" in server_msg or r"bad-txns-vout-empty" in server_msg:
+            return _("The transaction was rejected because it is has no inputs or no outputs.")
+        elif r"bad-txns-undersize" in server_msg:
+            return _("The transaction was rejected because it is too small.")
         elif r'version' in server_msg:
             return _("The transaction was rejected because it uses a non-standard version.")
         return _("An error occurred broadcasting the transaction")
