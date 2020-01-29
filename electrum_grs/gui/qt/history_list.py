@@ -264,6 +264,8 @@ class HistoryModel(QAbstractItemModel, Logger):
         self.logger.info(f"refreshing... reason: {reason}")
         assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         assert self.view, 'view not set'
+        if self.view.maybe_defer_update():
+            return
         selected = self.view.selectionModel().currentIndex()
         selected_row = None
         if selected:
@@ -429,6 +431,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         for col in HistoryColumns:
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
+
+    def update(self):
+        self.hm.refresh('HistoryList.update()')
 
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')

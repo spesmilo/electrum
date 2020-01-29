@@ -14,7 +14,7 @@ RUN apt-get update -q && \
         libssl-dev=1.0.2g-1ubuntu4.15 \
         libssl1.0.0=1.0.2g-1ubuntu4.15 \
         openssl=1.0.2g-1ubuntu4.15 \
-        zlib1g-dev=1:1.2.8.dfsg-2ubuntu4.1 \
+        zlib1g-dev=1:1.2.8.dfsg-2ubuntu4.3 \
         libffi-dev=3.2.1-4 \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
         libsqlite3-dev=3.11.0-1ubuntu1.3 \
@@ -23,6 +23,7 @@ RUN apt-get update -q && \
         gettext=0.19.7-2ubuntu3.1 \
         libzbar0=0.10+doc-10ubuntu1  \
         libdbus-1-3=1.10.6-1ubuntu3.4 \
+        libxkbcommon-x11-0=0.5.0-1ubuntu2.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

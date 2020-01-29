@@ -94,6 +94,7 @@ class InvoiceList(MyTreeView):
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         _list = self.parent.wallet.get_invoices()
         # filter out paid invoices unless we have the log
         lnworker_logs = self.parent.wallet.lnworker.logs if self.parent.wallet.lnworker else {}

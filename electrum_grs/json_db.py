@@ -913,7 +913,8 @@ class JsonDB(Logger):
         self._prevouts_by_scripthash = self.get_data_ref('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
         # convert raw transactions to Transaction objects
         for tx_hash, raw_tx in self.transactions.items():
-            self.transactions[tx_hash] = tx_from_any(raw_tx)
+            # note: for performance, "deserialize=False" so that we will deserialize these on-demand
+            self.transactions[tx_hash] = tx_from_any(raw_tx, deserialize=False)
         # convert txi, txo: list to set
         for t in self.txi, self.txo:
             for d in t.values():

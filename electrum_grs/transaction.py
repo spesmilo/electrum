@@ -932,7 +932,8 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     raise ValueError(f"failed to recognize transaction encoding for txt: {raw[:30]}...")
 
 
-def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transaction']:
+def tx_from_any(raw: Union[str, bytes], *,
+                deserialize: bool = True) -> Union['PartialTransaction', 'Transaction']:
     if isinstance(raw, bytearray):
         raw = bytes(raw)
     raw = convert_raw_tx_to_hex(raw)
@@ -945,7 +946,8 @@ def tx_from_any(raw: Union[str, bytes]) -> Union['PartialTransaction', 'Transact
                                      "the other machine where this transaction was created.")
     try:
         tx = Transaction(raw)
-        tx.deserialize()
+        if deserialize:
+            tx.deserialize()
         return tx
     except Exception as e:
         raise SerializationError(f"Failed to recognise tx encoding, or to parse transaction. "
