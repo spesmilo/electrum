@@ -263,6 +263,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.storage:
             self.db.write(self.storage)
 
+    def save_backup(self, path):
+        # fixme: we need to change password...
+        new_storage = WalletStorage(path)
+        self.db.put('is_backup', True)
+        self.db.write(new_storage)
+        self.db.put('is_backup', None)
+
     def has_lightning(self):
         return bool(self.lnworker)
 
@@ -285,6 +292,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.db.put('lightning_privkey2', None)
         self.save_db()
 
+    def is_lightning_backup(self):
+        return self.has_lightning() and self.db.get('is_backup')
+
     def stop_threads(self):
         super().stop_threads()
         if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
@@ -301,7 +311,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        if self.lnworker and network:
+        if self.lnworker and network and not self.is_lightning_backup():
             network.maybe_init_lightning()
             self.lnworker.start_network(network)
 

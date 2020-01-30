@@ -513,6 +513,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
+    def warn_if_lightning_backup(self):
+        if self.wallet.is_lightning_backup():
+            msg = '\n\n'.join([
+                _("This file is a backup of a lightning wallet."),
+                _("You will not be able to perform lightning payments using this file, and the lightning balance displayed in this wallet might be outdated.") + ' ' + \
+                _("If you have lost the original wallet file, you can use this file to trigger a forced closure of your channels."),
+                _("Do you want to have your channels force-closed?")
+            ])
+            if self.question(msg, title=_('Lightning Backup')):
+                self.network.maybe_init_lightning()
+                self.wallet.lnworker.start_network(self.network)
+
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
             return
@@ -549,7 +561,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.gui_object.new_window(filename)
 
-
     def backup_wallet(self):
         path = self.wallet.storage.path
         wallet_folder = os.path.dirname(path)
@@ -557,12 +568,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not filename:
             return
         new_path = os.path.join(wallet_folder, filename)
-        if new_path != path:
-            try:
-                shutil.copy2(path, new_path)
-                self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
-            except BaseException as reason:
-                self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+        if new_path == path:
+            return
+        try:
+            self.wallet.save_backup(new_path)
+        except BaseException as reason:
+            self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            return
+        self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
 
     def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])
