@@ -422,7 +422,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore()
+            receiver = RevocationStore({})
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
 
@@ -445,14 +445,14 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore()
+        consumer = RevocationStore({})
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
                 raise Exception("iteration " + str(i) + ": " + str(e))
-            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore.from_json_obj(json.loads(json.dumps(consumer.serialize()))).serialize())
+            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore(json.loads(json.dumps(consumer.serialize()))).serialize())
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000

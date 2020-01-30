@@ -548,7 +548,6 @@ class Peer(Logger):
         if remote_to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
             raise Exception(f"Remote Lightning peer reports to_self_delay={remote_to_self_delay}," +
                     f" which is above Electrums required maximum ({MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED})")
-        their_revocation_store = RevocationStore()
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
@@ -564,7 +563,6 @@ class Peer(Logger):
             htlc_minimum_msat = htlc_min,
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
-            revocation_store=their_revocation_store,
         )
         # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
@@ -592,6 +590,7 @@ class Peer(Logger):
             "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
             "remote_update": None,
             "state": channel_states.PREOPENING.name,
+            "revocation_store": {},
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -645,7 +644,6 @@ class Peer(Logger):
         funding_idx = int.from_bytes(funding_created['funding_output_index'], 'big')
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
-        their_revocation_store = RevocationStore()
         remote_balance_sat = funding_sat * 1000 - push_msat
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
@@ -669,12 +667,12 @@ class Peer(Logger):
                     htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
-                    revocation_store=their_revocation_store,
                 ),
                 "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
                 "remote_update": None,
                 "state": channel_states.PREOPENING.name,
+                "revocation_store": {},
         }
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
@@ -740,9 +738,8 @@ class Peer(Logger):
             if oldest_unrevoked_remote_ctn == 0:
                 last_rev_secret = 0
             else:
-                revocation_store = chan.config[REMOTE].revocation_store
                 last_rev_index = oldest_unrevoked_remote_ctn - 1
-                last_rev_secret = revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
+                last_rev_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
             self.send_message(
                 "channel_reestablish",
@@ -895,10 +892,8 @@ class Peer(Logger):
         if not chan.config[LOCAL].funding_locked_received:
             our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point)
-            new_local_state = chan.config[LOCAL]._replace(funding_locked_received = True)
-            chan.config[REMOTE]=new_remote_state
-            chan.config[LOCAL]=new_local_state
+            chan.config[REMOTE].next_per_commitment_point = their_next_point
+            chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)
         if chan.short_channel_id:
             self.mark_open(chan)
@@ -913,9 +908,9 @@ class Peer(Logger):
             # don't announce our channels
             # FIXME should this be a field in chan.local_state maybe?
             return
-            chan.config[LOCAL]=chan.config[LOCAL]._replace(was_announced=True)
-            coro = self.handle_announcements(chan)
+            chan.config[LOCAL].was_announced = True
             self.lnworker.save_channel(chan)
+            coro = self.handle_announcements(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     @log_exceptions
