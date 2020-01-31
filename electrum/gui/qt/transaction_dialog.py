@@ -183,6 +183,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             vbox.addWidget(self.feecontrol_fields)
         self.hbox = hbox = QHBoxLayout()
         hbox.addLayout(Buttons(*self.sharing_buttons))
+        hbox.addWidget(QLabel(_("Electrum 3.2.0 or newer required to import.")))
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
