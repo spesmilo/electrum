@@ -580,18 +580,9 @@ class Peer(Logger):
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
-        chan_dict = {
-            "node_id": self.pubkey,
-            "channel_id": channel_id,
-            "short_channel_id": None,
-            "funding_outpoint": Outpoint(funding_txid, funding_index),
-            "remote_config": remote_config,
-            "local_config": local_config,
-            "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
-            "remote_update": None,
-            "state": channel_states.PREOPENING.name,
-            "revocation_store": {},
-        }
+        outpoint = Outpoint(funding_txid, funding_index)
+        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
+        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
@@ -608,6 +599,21 @@ class Peer(Logger):
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         return chan, funding_tx
+
+    def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints):
+        chan_dict = {
+            "node_id": self.pubkey.hex(),
+            "channel_id": channel_id.hex(),
+            "short_channel_id": None,
+            "funding_outpoint": outpoint,
+            "remote_config": remote_config,
+            "local_config": local_config,
+            "constraints": constraints,
+            "remote_update": None,
+            "state": channel_states.PREOPENING.name,
+            "revocation_store": {},
+        }
+        return chan_dict
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
@@ -647,33 +653,25 @@ class Peer(Logger):
         remote_balance_sat = funding_sat * 1000 - push_msat
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
-        chan_dict = {
-                "node_id": self.pubkey,
-                "channel_id": channel_id,
-                "short_channel_id": None,
-                "funding_outpoint": Outpoint(funding_txid, funding_idx),
-                "remote_config": RemoteConfig(
-                    payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
-                    multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
-                    htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
-                    delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
-                    revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-                    to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
-                    dust_limit_sat=remote_dust_limit_sat,
-                    max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
-                    max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
-                    initial_msat=remote_balance_sat,
-                    reserve_sat = remote_reserve_sat,
-                    htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
-                    next_per_commitment_point=payload['first_per_commitment_point'],
-                    current_per_commitment_point=None,
-                ),
-                "local_config": local_config,
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
-                "remote_update": None,
-                "state": channel_states.PREOPENING.name,
-                "revocation_store": {},
-        }
+        remote_config = RemoteConfig(
+            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
+            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+            to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
+            dust_limit_sat=remote_dust_limit_sat,
+            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
+            max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
+            initial_msat=remote_balance_sat,
+            reserve_sat = remote_reserve_sat,
+            htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
+            next_per_commitment_point=payload['first_per_commitment_point'],
+            current_per_commitment_point=None,
+        )
+        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth)
+        outpoint = Outpoint(funding_txid, funding_idx)
+        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
