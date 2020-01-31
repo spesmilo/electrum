@@ -45,7 +45,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     assert local_amount > 0
     assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
-    their_revocation_store = lnpeer.RevocationStore()
 
     return {
             "channel_id":channel_id,
@@ -67,7 +66,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
 
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
-                revocation_store=their_revocation_store,
             ),
             "local_config":lnpeer.LocalConfig(
                 payment_basepoint=privkeys[0],
@@ -96,6 +94,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             "node_id":other_node_id,
             'onion_keys': {},
             'state': 'PREOPENING',
+            'revocation_store': {},
     }
 
 def bip32(sequence):
@@ -151,14 +150,16 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     assert len(a_htlc_sigs) == 0
     assert len(b_htlc_sigs) == 0
 
-    alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
-    bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
+    alice.config[LOCAL].current_commitment_signature = sig_from_bob
+    bob.config[LOCAL].current_commitment_signature = sig_from_alice
 
     alice_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
     bob_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
 
-    alice.config[REMOTE] = alice.config[REMOTE]._replace(next_per_commitment_point=bob_second, current_per_commitment_point=bob_first)
-    bob.config[REMOTE] = bob.config[REMOTE]._replace(next_per_commitment_point=alice_second, current_per_commitment_point=alice_first)
+    alice.config[REMOTE].next_per_commitment_point = bob_second
+    alice.config[REMOTE].current_per_commitment_point = bob_first
+    bob.config[REMOTE].next_per_commitment_point = alice_second
+    bob.config[REMOTE].current_per_commitment_point = alice_first
 
     alice.hm.channel_open_finished()
     bob.hm.channel_open_finished()
@@ -663,15 +664,11 @@ class TestChanReserve(ElectrumTestCase):
         bob_min_reserve = 6 * one_bitcoin_in_msat // 1000
         # bob min reserve was decided by alice, but applies to bob
 
-        alice_channel.config[LOCAL] =\
-            alice_channel.config[LOCAL]._replace(reserve_sat=bob_min_reserve)
-        alice_channel.config[REMOTE] =\
-            alice_channel.config[REMOTE]._replace(reserve_sat=alice_min_reserve)
+        alice_channel.config[LOCAL].reserve_sat = bob_min_reserve
+        alice_channel.config[REMOTE].reserve_sat = alice_min_reserve
 
-        bob_channel.config[LOCAL] =\
-            bob_channel.config[LOCAL]._replace(reserve_sat=alice_min_reserve)
-        bob_channel.config[REMOTE] =\
-            bob_channel.config[REMOTE]._replace(reserve_sat=bob_min_reserve)
+        bob_channel.config[LOCAL].reserve_sat = alice_min_reserve
+        bob_channel.config[REMOTE].reserve_sat = bob_min_reserve
 
         self.alice_channel = alice_channel
         self.bob_channel = bob_channel

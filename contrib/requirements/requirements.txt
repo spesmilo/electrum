@@ -13,3 +13,4 @@ pycryptodomex>=3.7
 scrypt>=0.6.0
 jsonrpcserver
 jsonrpcclient
+attrs

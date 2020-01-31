@@ -293,7 +293,7 @@ def analyze_ctx(chan: 'Channel', ctx: Transaction):
         is_revocation = False
     elif ctn < oldest_unrevoked_remote_ctn:  # breach
         try:
-            per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+            per_commitment_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:
             return
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
