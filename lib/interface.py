@@ -392,7 +392,7 @@ class Interface(util.PrintError):
                         # Electron Cash:
                         #   https://github.com/Electron-Cash/Electron-Cash/issues/1774
                         # Fulcrum:
-                        #   https://github.com/cculianu/Fulcrum/issues/20f
+                        #   https://github.com/cculianu/Fulcrum/issues/20
                         self.print_error("Ignoring spurious error message from server:", response.get('error'))
                         continue
                     else:
