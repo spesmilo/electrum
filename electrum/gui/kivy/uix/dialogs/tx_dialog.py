@@ -10,7 +10,6 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
-from kivy.utils import get_color_from_hex
 
 from .question import Question
 from electrum.gui.kivy.i18n import _
@@ -19,6 +18,7 @@ from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.wallet import CannotBumpFee
 from electrum.transaction import Transaction, PartialTransaction
+from ...util import address_colors
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -183,29 +183,8 @@ class TxDialog(Factory.Popup):
             self.feerate_str = _('unknown')
         self.ids.output_list.update(self.tx.outputs())
 
-        def text_format(addr):
-            """
-            Chooses the appropriate text color and background color to 
-            mark receiving, change and billing addresses.
-
-            Returns: color, background_color
-            """
-            
-            # modified colors (textcolor, background_color) from electrum/gui/qt/util.py
-            GREEN = ("#000000", "#8af296")
-            YELLOW = ("#000000", "#ffff00")
-            BLUE = ("#000000", "#8cb3f2")
-            DEFAULT = ('#ffffff', '#4c4c4c')
-
-            colors = DEFAULT
-            if self.wallet.is_mine(addr):
-                colors = YELLOW if self.wallet.is_change(addr) else GREEN
-            elif self.wallet.is_billing_address(addr):
-                colors = BLUE
-            return (get_color_from_hex(color) for color in colors)
-
         for dict_entry in self.ids.output_list.data:
-            dict_entry['color'], dict_entry['background_color'] = text_format(dict_entry['address'])
+            dict_entry['color'], dict_entry['background_color'] = address_colors(self.wallet, dict_entry['address'])
 
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
