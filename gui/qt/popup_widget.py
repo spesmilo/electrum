@@ -364,8 +364,11 @@ def KillPopupLabel(name="Global"):
     if extant:
         try: extant.destroyed.disconnect()
         except: pass
-        destroyed_print_error(extant, "[PopupLabel/{}] destroyed".format(name))
-        extant._cleanUp()
-        extant.setParent(None)
-        extant.deleteLater()
+        try:
+            destroyed_print_error(extant, "[PopupLabel/{}] destroyed".format(name))
+            extant._cleanUp()
+            extant.setParent(None)
+            extant.deleteLater()
+        except RuntimeError:
+            ''' In rare cases, wrapped C++ object may be dead already; see #1796 '''
         #print("----> Found and killed extant label")
