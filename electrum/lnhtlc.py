@@ -14,7 +14,7 @@ class HTLCManager:
                 'locked_in': {},
                 'settles': {},
                 'fails': {},
-                'fee_updates': [],
+                'fee_updates': {},       # "side who initiated fee update" -> action -> list of FeeUpdates
                 'revack_pending': False,
                 'next_htlc_id': 0,
                 'ctn': -1,  # oldest unrevoked ctx of sub
@@ -32,7 +32,8 @@ class HTLCManager:
                 log[sub]['settles'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['settles'].items()}
                 log[sub]['fails'] = {int(htlc_id): coerceHtlcOwner2IntMap(ctns) for htlc_id, ctns in log[sub]['fails'].items()}
                 # "side who initiated fee update" -> action -> list of FeeUpdates
-                log[sub]['fee_updates'] = [FeeUpdate.from_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
+                log[sub]['fee_updates'] = { int(x): FeeUpdate(**fee_upd) for x,fee_upd in log[sub]['fee_updates'].items() }
+
         if 'unacked_local_updates2' not in log:
             log['unacked_local_updates2'] = {}
         log['unacked_local_updates2'] = {int(ctn): [bfh(msg) for msg in messages]
@@ -42,7 +43,7 @@ class HTLCManager:
             assert type(initial_feerate) is int
             for sub in (LOCAL, REMOTE):
                 if not log[sub]['fee_updates']:
-                    log[sub]['fee_updates'].append(FeeUpdate(initial_feerate, ctns={LOCAL:0, REMOTE:0}))
+                    log[sub]['fee_updates'][0] = FeeUpdate(initial_feerate, ctn_local=0, ctn_remote=0)
         self.log = log
 
     def ctn_latest(self, sub: HTLCOwner) -> int:
@@ -74,7 +75,7 @@ class HTLCManager:
                 d[htlc_id] = (htlc[0], bh2u(htlc[1])) + htlc[2:]
             log[sub]['adds'] = d
             # fee_updates
-            log[sub]['fee_updates'] = [FeeUpdate.to_dict(fee_upd) for fee_upd in log[sub]['fee_updates']]
+            log[sub]['fee_updates'] = { x:fee_upd.to_json() for x, fee_upd in self.log[sub]['fee_updates'].items() }
         log['unacked_local_updates2'] = {ctn: [bh2u(msg) for msg in messages]
                                          for ctn, messages in log['unacked_local_updates2'].items()}
         return log
@@ -120,22 +121,25 @@ class HTLCManager:
 
     def send_update_fee(self, feerate: int) -> None:
         fee_update = FeeUpdate(rate=feerate,
-                               ctns={LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1})
+                               ctn_local=None, ctn_remote=self.ctn_latest(REMOTE) + 1)
         self._new_feeupdate(fee_update, subject=LOCAL)
 
     def recv_update_fee(self, feerate: int) -> None:
         fee_update = FeeUpdate(rate=feerate,
-                               ctns={LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None})
+                               ctn_local=self.ctn_latest(LOCAL) + 1, ctn_remote=None)
         self._new_feeupdate(fee_update, subject=REMOTE)
 
     def _new_feeupdate(self, fee_update: FeeUpdate, subject: HTLCOwner) -> None:
         # overwrite last fee update if not yet committed to by anyone; otherwise append
-        last_fee_update = self.log[subject]['fee_updates'][-1]
-        if (last_fee_update.ctns[LOCAL] is None or last_fee_update.ctns[LOCAL] > self.ctn_latest(LOCAL)) \
-                and (last_fee_update.ctns[REMOTE] is None or last_fee_update.ctns[REMOTE] > self.ctn_latest(REMOTE)):
-            self.log[subject]['fee_updates'][-1] = fee_update
+        d = self.log[subject]['fee_updates']
+        assert type(d) is dict
+        n = len(d)
+        last_fee_update = d[n-1]
+        if (last_fee_update.ctn_local is None or last_fee_update.ctn_local > self.ctn_latest(LOCAL)) \
+                and (last_fee_update.ctn_remote is None or last_fee_update.ctn_remote > self.ctn_latest(REMOTE)):
+            d[n-1] = fee_update
         else:
-            self.log[subject]['fee_updates'].append(fee_update)
+            d[n] = fee_update
 
     def send_ctx(self) -> None:
         assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
@@ -157,9 +161,9 @@ class HTLCManager:
                 if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                     ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
         # fee updates
-        for fee_update in self.log[REMOTE]['fee_updates']:
-            if fee_update.ctns[REMOTE] is None and fee_update.ctns[LOCAL] <= self.ctn_latest(LOCAL):
-                fee_update.ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
+        for k, fee_update in list(self.log[REMOTE]['fee_updates'].items()):
+            if fee_update.ctn_remote is None and fee_update.ctn_local <= self.ctn_latest(LOCAL):
+                fee_update.ctn_remote = self.ctn_latest(REMOTE) + 1
 
     def recv_rev(self) -> None:
         self.log[REMOTE]['ctn'] += 1
@@ -173,9 +177,10 @@ class HTLCManager:
                 if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                     ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
         # fee updates
-        for fee_update in self.log[LOCAL]['fee_updates']:
-            if fee_update.ctns[LOCAL] is None and fee_update.ctns[REMOTE] <= self.ctn_latest(REMOTE):
-                fee_update.ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+        for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
+            if fee_update.ctn_local is None and fee_update.ctn_remote <= self.ctn_latest(REMOTE):
+                fee_update.ctn_local = self.ctn_latest(LOCAL) + 1
+
         # no need to keep local update raw msgs anymore, they have just been ACKed.
         self.log['unacked_local_updates2'].pop(self.log[REMOTE]['ctn'], None)
 
@@ -198,9 +203,9 @@ class HTLCManager:
                 if ctns[LOCAL] > self.ctn_latest(LOCAL):
                     del self.log[LOCAL][log_action][htlc_id]
         # fee updates
-        for i, fee_update in enumerate(list(self.log[REMOTE]['fee_updates'])):
-            if fee_update.ctns[LOCAL] > self.ctn_latest(LOCAL):
-                del self.log[REMOTE]['fee_updates'][i]
+        for k, fee_update in list(self.log[REMOTE]['fee_updates'].items()):
+            if fee_update.ctn_local > self.ctn_latest(LOCAL):
+                self.log[REMOTE]['fee_updates'].pop(k)
 
     def store_local_update_raw_msg(self, raw_update_msg: bytes, *, is_commitment_signed: bool) -> None:
         """We need to be able to replay unacknowledged updates we sent to the remote
@@ -331,7 +336,7 @@ class HTLCManager:
         right = len(fee_log)
         while True:
             i = (left + right) // 2
-            ctn_at_i = fee_log[i].ctns[subject]
+            ctn_at_i = fee_log[i].ctn_local if subject==LOCAL else fee_log[i].ctn_remote
             if right - left <= 1:
                 break
             if ctn_at_i is None:  # Nones can only be on the right end

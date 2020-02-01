@@ -82,31 +82,17 @@ class RemoteConfig(Config):
     next_per_commitment_point = attr.ib(type=bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes)
 
-#@attr.s
-#class FeeUpdate(StoredAttr):
-#    rate = attr.ib(type=int)  # in sat/kw
-#    ctn_local = attr.ib(default=None, type=int)
-#    ctn_remote = attr.ib(default=None, type=int)
+@attr.s
+class FeeUpdate(StoredAttr):
+    rate = attr.ib(type=int)  # in sat/kw
+    ctn_local = attr.ib(default=None, type=int)
+    ctn_remote = attr.ib(default=None, type=int)
 
-
-
-class FeeUpdate(NamedTuple):
-    rate: int  # in sat/kw
-    ctns: Dict['HTLCOwner', Optional[int]]
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'FeeUpdate':
-        return FeeUpdate(rate=d['rate'],
-                         ctns={LOCAL: d['ctns'][str(int(LOCAL))],
-                               REMOTE: d['ctns'][str(int(REMOTE))]})
-
-    def to_dict(self) -> dict:
-        return {'rate': self.rate,
-                'ctns': {int(LOCAL): self.ctns[LOCAL],
-                         int(REMOTE): self.ctns[REMOTE]}}
-
-
-ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
+@attr.s
+class ChannelConstraints(StoredAttr):
+    capacity = attr.ib(type=int)
+    is_initiator = attr.ib(type=bool)
+    funding_txn_minimum_depth = attr.ib(type=int)
 
 
 class ScriptHtlc(NamedTuple):
@@ -115,7 +101,11 @@ class ScriptHtlc(NamedTuple):
 
 
 # FIXME duplicate of TxOutpoint in transaction.py??
-class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
+@attr.s
+class Outpoint(StoredAttr):
+    txid = attr.ib(type=str)
+    output_index = attr.ib(type=int)
+
     def to_str(self):
         return "{}:{}".format(self.txid, self.output_index)
 

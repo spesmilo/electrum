@@ -40,7 +40,7 @@ from .logging import Logger
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 22     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 23     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -216,6 +216,7 @@ class JsonDB(Logger):
         self._convert_version_20()
         self._convert_version_21()
         self._convert_version_22()
+        self._convert_version_23()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -514,6 +515,33 @@ class JsonDB(Logger):
         self.put('prevouts_by_scripthash', prevouts_by_scripthash)
 
         self.put('seed_version', 22)
+
+    def _convert_version_23(self):
+        if not self._is_upgrade_method_needed(22, 22):
+            return
+        channels = self.get('channels', [])
+        LOCAL = 1
+        REMOTE = -1
+        for c in channels:
+            # move revocation store from remote_config
+            r = c['remote_config'].pop('revocation_store')
+            c['revocation_store'] = r
+            # convert fee updates
+            log = c.get('log', {})
+            for sub in LOCAL, REMOTE:
+                l = log[str(sub)]['fee_updates']
+                d = {}
+                for i, fu in enumerate(l):
+                    d[str(i)] = {
+                        'rate':fu['rate'],
+                        'ctn_local':fu['ctns'][str(LOCAL)],
+                        'ctn_remote':fu['ctns'][str(REMOTE)]
+                    }
+                log[str(int(sub))]['fee_updates'] = d
+        self.data['channels'] = channels
+
+        self.data['seed_version'] = 23
+
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
