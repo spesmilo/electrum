@@ -381,6 +381,26 @@ class Interface(util.PrintError):
                 self.print_error("<--", response)
             wire_id = response.get('id', None)
             if wire_id is None:  # Notification
+                if not isinstance(response.get('method'), str):  # defend against funny/out-of-spec JSON
+                    if response.get('error'):
+                        # Fulcrum servers versions 1.0.1 and earlier sometimes
+                        # would send spurious 'error' messages with id=null and
+                        # no 'method'. This would only happen on idle timeout
+                        # of the client.  We will tolerate this and simply
+                        # discard the message in that case.
+                        #
+                        # Electron Cash:
+                        #   https://github.com/Electron-Cash/Electron-Cash/issues/1774
+                        # Fulcrum:
+                        #   https://github.com/cculianu/Fulcrum/issues/20f
+                        self.print_error("Ignoring spurious error message from server:", response.get('error'))
+                        continue
+                    else:
+                        # Malforned notification -- signal bad server
+                        self.print_error("Server sent us a notification message without a 'method':", response)
+                        responses.append((None, None))  # Signal
+                        break
+                # At this point the notification has a 'method' defined, so we know it's good.
                 responses.append((None, response))
             else:
                 request = self.unanswered_requests.pop(wire_id, None)
@@ -388,7 +408,7 @@ class Interface(util.PrintError):
                     responses.append((request, response))
                 else:
                     self.print_error("unknown wire ID", wire_id)
-                    responses.append((None, None)) # Signal
+                    responses.append((None, None))  # Signal
                     break
 
         return responses
