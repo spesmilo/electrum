@@ -1430,6 +1430,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_receive_address_widget()
 
     def update_receive_qr(self):
+        if not self.receive_address:
+            return
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
