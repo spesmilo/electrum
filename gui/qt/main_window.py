@@ -322,8 +322,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         window, but that isn't something hardware wallet prompts know.'''
         self.tl_windows.append(window)
 
-    def pop_top_level_window(self, window):
-        self.tl_windows.remove(window)
+    def pop_top_level_window(self, window, *, raise_if_missing=False):
+        try:
+            self.tl_windows.remove(window)
+        except ValueError:
+            if raise_if_missing:
+                raise
+            ''' Window not in list. Suppressing the exception by default makes
+            writing cleanup handlers easier. Doing it this way fixes #1707. '''
 
     def top_level_window(self):
         '''Do the right thing in the presence of tx dialog windows'''

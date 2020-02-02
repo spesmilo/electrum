@@ -291,7 +291,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             while True:
                 try:
                     # Esoteric bug happens when user rejects password dialog on top of this window.. so we must keep popping self off the top_level_windows
-                    self.main_window.pop_top_level_window(self)
+                    self.main_window.pop_top_level_window(self, raise_if_missing=True)
                 except ValueError:
                     break
             # The below is used to clean up any modal dialogs this txdialog may have up
