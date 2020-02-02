@@ -710,12 +710,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def donate_to_server(self):
-        d = self.network.get_donation_address()
-        if d:
+        if self.gui_object.warn_if_no_network(self):
+            return
+        d = {}
+        spv_address = self.network.get_donation_address()
+        spv_prefix = _("Blockchain Server")
+        donation_for = _("Donation for")
+        if spv_address:
             host = self.network.get_parameters()[0]
+            d[spv_prefix + ": " + host] = spv_address
+        plugin_servers = run_hook('donation_address', self, multi=True)
+        for tup in plugin_servers:
+            if not isinstance(tup, (list, tuple)) or len(tup) != 2:
+                continue
+            desc, address = tup
+            if (desc and address and isinstance(desc, str) and isinstance(address, Address)
+                    and desc not in d and not desc.lower().startswith(spv_prefix.lower())):
+                d[desc] = address.to_ui_string()
+        def do_payto(desc):
+            addr = d[desc]
             # The message is intentionally untranslated, leave it like that
-            self.pay_to_URI('{}:{}?message=donation for {}'
-                            .format(networks.net.CASHADDR_PREFIX, d, host))
+            self.pay_to_URI('{pre}:{addr}?message={donation_for} {desc}'
+                            .format(pre = networks.net.CASHADDR_PREFIX,
+                                    addr = addr,
+                                    donation_for = donation_for,
+                                    desc = desc))
+        if len(d) == 1:
+            do_payto(next(iter(d.keys())))
+        elif len(d) > 1:
+            choices = tuple(d.keys())
+            index = self.query_choice(_('Please select which server you would like to donate to:'), choices, add_cancel_button = True)
+            if index is not None:
+                do_payto(choices[index])
         else:
             self.show_error(_('No donation address for this server'))
 
@@ -2289,13 +2315,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
-    def query_choice(self, msg, choices):
+    def query_choice(self, msg, choices, *, add_cancel_button=False):
         # Needed by QtHandler for hardware wallets
         dialog = WindowModalDialog(self.top_level_window())
         clayout = ChoicesLayout(msg, choices)
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
-        vbox.addLayout(Buttons(OkButton(dialog)))
+        buts = [OkButton(dialog)]
+        if add_cancel_button:
+            buts.insert(0, CancelButton(dialog))
+        vbox.addLayout(Buttons(*buts))
         result = dialog.exec_()
         dialog.setParent(None)
         if not result:
