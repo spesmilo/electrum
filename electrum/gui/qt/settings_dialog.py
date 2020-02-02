@@ -224,7 +224,7 @@ open. For this to work, your computer needs to be online regularly.""")
         self.payserver_port_e.setEnabled(self.config.get('run_payserver', False))
         services_widgets.append((payserver_cb, self.payserver_port_e))
 
-        help_local_wt = _("""To setup a local watchtower, you must run Electrum on a machine
+        help_local_wt = _("""To run a watchtower, you must run Electrum on a machine
 that is always connected to the internet. Configure a port if you want it to be public.""")
         local_wt_cb = QCheckBox(_("Run Watchtower"))
         local_wt_cb.setToolTip(help_local_wt)

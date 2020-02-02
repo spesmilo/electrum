@@ -634,11 +634,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # Settings / Preferences are all reserved keywords in macOS using this as work around
         tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
-        if self.network:
-            tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog)
-        if self.wallet.has_lightning() and self.network:
-            tools_menu.addAction(_("&Lightning"), self.gui_object.show_lightning_dialog)
-            tools_menu.addAction(_("&Watchtower"), self.gui_object.show_watchtower_dialog)
+        tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
+        tools_menu.addAction(_("&Lightning Network"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
+        tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
