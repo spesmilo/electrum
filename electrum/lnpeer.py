@@ -1357,7 +1357,7 @@ class Peer(Logger):
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         #self.network.trigger_callback('htlc_added', htlc, invoice, RECEIVED)
-        await asyncio.sleep(self.network.config.lightning_settle_delay)
+        await asyncio.sleep(self.network.config.get('lightning_settle_delay', 0))
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):

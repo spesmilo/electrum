@@ -988,6 +988,12 @@ class Commands:
         tx = chan.force_close_tx()
         return tx.serialize()
 
+    @command('wn')
+    async def get_watchtower_ctn(self, channel_point, wallet: Abstract_Wallet = None):
+        """ return the local watchtower's ctn of channel. used in regtests """
+        return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
+
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True

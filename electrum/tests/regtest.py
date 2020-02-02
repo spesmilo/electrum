@@ -15,11 +15,25 @@ class TestLightning(unittest.TestCase):
         assert process.returncode == 0
 
     def setUp(self):
-        self.run_shell(['init'])
-        self.run_shell(['start'])
+        test_name = self.id().split('.')[-1]
+        sys.stdout.write("***** %s ******\n" % test_name)
+        self.agents = ['alice', 'bob']
+        if test_name in ['test_forwarding', 'test_watchtower']:
+            self.agents.append('carol')
+        # initialize and get funds
+        for agent in self.agents:
+            self.run_shell(['init', agent])
+        # mine a block so that funds are confirmed
+        self.run_shell(['new_block'])
+        # extra configuration (optional)
+        self.run_shell(['configure_' + test_name])
+        # start daemons
+        for agent in self.agents:
+            self.run_shell(['start', agent])
 
     def tearDown(self):
-        self.run_shell(['stop'])
+        for agent in self.agents:
+            self.run_shell(['stop', agent])
 
     def test_breach(self):
         self.run_shell(['breach'])
