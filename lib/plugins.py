@@ -519,7 +519,42 @@ def _get_func_if_hook(plugin, attr_name) -> Optional[Callable]:
         if callable(func):
             return func
 
-def run_hook(name, *args):
+def run_hook(name, *args, **kwargs):
+    """ Invokes a named @hook on all enabled plugins. Not all plugins or hooks
+    return values. Example follows:
+
+    # in plugin A
+    @hook
+    def myhook(self, arg1, arg2):
+        # ...
+        return  # None return value will be discarded
+
+    # in plugin B (loaded after A)
+    @hook
+    def myhook(self, arg1, arg2):
+        # ...
+        return "hello"
+
+    # in plugin C (loaded after B)
+    @hook
+    def myhook(self, arg1, arg2):
+        # ...
+        return "hiya"
+
+    # in application code
+    res = run_hook("myhook", arg1, arg2)  # res = "hello" here
+    res = run_hook("myhook", arg1, arg2, multi=True)  # res = ["hello", "hiya"]
+
+    kwargs:
+        multi - default False. Specify multi=True to return a list of results.
+            This is for cases where multiple plugins implement the same hook
+            that returns results. Note that 'None' results are never present in
+            the result set if multi=True. The empty list is returned if no
+            plugins returned any non-None results. multi=False will return a
+            single item: the first non-None result encountered, or None if no
+            such result was returned from any invoked hooks. """
+    multi = bool(kwargs.get('multi', False))
+
     this_thread = threading.current_thread()
     if this_thread is not threading.main_thread():
         msg = (f'Warning: run_hook "{name}" being called from outside the main'
@@ -540,10 +575,12 @@ def run_hook(name, *args):
             except Exception:
                 print_error("Plugin error")
                 traceback.print_exc(file=sys.stdout)
-                r = False
-            if r:
-                results.append(r)
+            else:
+                if r is not None:
+                    results.append(r)
 
+    if multi:
+        return results
     if results:
         if len(results) > 1:
             print_error(f"run_hook: got more than 1 result from @hook '{name}':", results)
