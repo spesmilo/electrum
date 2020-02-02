@@ -566,7 +566,7 @@ def run_hook(name, *args, **kwargs):
     f_list = hooks.get(name)
     if not f_list:
         # short-circuit return: most of the time this code path is taken
-        return
+        return None if not multi else []
     results = []
     for p, f in f_list:
         if p.is_enabled():
