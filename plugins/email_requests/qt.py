@@ -190,10 +190,16 @@ class Plugin(BasePlugin):
         from electroncash import paymentrequest
         r = window.wallet.receive_requests.get(addr)
         message = r.get('memo', '')
-        if r.get('signature'):
-            pr = paymentrequest.serialize_request(r)
-        else:
-            pr = paymentrequest.make_request(self.config, r)
+        try:
+            if r.get('signature'):
+                pr = paymentrequest.serialize_request(r)
+            else:
+                pr = paymentrequest.make_request(self.config, r)
+        except ValueError as e:
+            ''' Bad data such as out-of-range amount, see #1738 '''
+            self.print_error('Error serializing request:', repr(e))
+            window.show_error(str(e))
+            return
         if not pr:
             return
         recipient, ok = QInputDialog.getText(window, _('Send request'), _('Email invoice to:'))

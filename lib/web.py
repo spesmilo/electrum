@@ -25,13 +25,14 @@ import decimal # Qt 5.12 also exports Decimal, so take the package name
 import os
 import re
 import shutil
+import sys
 import threading
 import urllib
 
 from .address import Address
 from . import bitcoin
 from . import networks
-from .util import format_satoshis_plain, bh2u, bfh, print_error
+from .util import format_satoshis_plain, bh2u, bfh, print_error, do_in_main_thread
 from . import cashacct
 from .i18n import _
 
@@ -168,15 +169,27 @@ class BadURIParameter(ValueError):
         args[0] is the bad argument name e.g. 'amount'
         args[1] is the underlying Exception that was raised (if any, may be missing). '''
 
-def parse_URI(uri, on_pr=None, *, net=None, strict=False):
-    ''' If strict=True, may raise ExtraParametersInURIWarning (see docstring
+def parse_URI(uri, on_pr=None, *, net=None, strict=False, on_exc=None):
+    """ If strict=True, may raise ExtraParametersInURIWarning (see docstring
     above).
+
+    on_pr - a callable that will run in the context of a daemon thread if this
+    is a payment request which requires further network processing. A single
+    argument is passed to the callable, the payment request after being verified
+    on the network. Note: as stated, this runs in the context of the daemon
+    thread, unlike on_exc below.
+
+    on_exc - (optional) a callable that will be executed in the *main thread*
+    only in the cases of payment requests and only if they fail to serialize or
+    deserialize. The callable must take 1 arg, a sys.exc_info() tuple. Note: as
+    stateed, this runs in the context of the main thread always, unlike on_pr
+    above.
 
     May raise DuplicateKeyInURIError if duplicate keys were found.
     May raise BadSchemeError if unknown scheme.
     May raise Exception subclass on other misc. failure.
 
-    Returns a dict of uri_param -> value on success'''
+    Returns a dict of uri_param -> value on success """
     if net is None:
         net = networks.net
     if ':' not in uri:
@@ -272,12 +285,25 @@ def parse_URI(uri, on_pr=None, *, net=None, strict=False):
     if on_pr and is_pr:
         def get_payment_request_thread():
             from . import paymentrequest as pr
-            if name and sig:
-                s = pr.serialize_request(out).SerializeToString()
-                request = pr.PaymentRequest(s)
-            else:
-                request = pr.get_payment_request(r)
+            try:
+                if name and sig:
+                    s = pr.serialize_request(out).SerializeToString()
+                    request = pr.PaymentRequest(s)
+                else:
+                    request = pr.get_payment_request(r)
+            except:
+                ''' May happen if the values in the request are such
+                that they cannot be serialized to a protobuf. '''
+                einfo = sys.exc_info()
+                print_error("Error processing payment request:", str(einfo[1]))
+                if on_exc:
+                    do_in_main_thread(on_exc, einfo)
+                return
             if on_pr:
+                # FIXME: See about also making this use do_in_main_thread.
+                # However existing code for Android and/or iOS may not be
+                # expecting this, so we will leave the original code here where
+                # it runs in the daemon thread context. :/
                 on_pr(request)
         t = threading.Thread(target=get_payment_request_thread, daemon=True)
         t.start()

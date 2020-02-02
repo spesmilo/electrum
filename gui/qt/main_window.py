@@ -1326,7 +1326,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests[addr]
-        pr = paymentrequest.serialize_request(r).SerializeToString()
+        try:
+            pr = paymentrequest.serialize_request(r).SerializeToString()
+        except ValueError as e:
+            ''' User entered some large amount or other value that doesn't fit
+            into a C++ type.  See #1738. '''
+            self.show_error(str(e))
+            return
         name = r['id'] + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
@@ -2359,7 +2365,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not URI:
             return
         try:
-            out = web.parse_URI(URI, self.on_pr, strict=True)
+            out = web.parse_URI(URI, self.on_pr, strict=True, on_exc=self.on_error)
         except web.ExtraParametersInURIWarning as e:
             out = e.args[0]  # out dict is in e.args[0]
             extra_params = e.args[1:]
