@@ -17,9 +17,6 @@ class TestLightning(unittest.TestCase):
     def setUp(self):
         test_name = self.id().split('.')[-1]
         sys.stdout.write("***** %s ******\n" % test_name)
-        self.agents = ['alice', 'bob']
-        if test_name in ['test_forwarding', 'test_watchtower']:
-            self.agents.append('carol')
         # initialize and get funds
         for agent in self.agents:
             self.run_shell(['init', agent])
@@ -35,13 +32,12 @@ class TestLightning(unittest.TestCase):
         for agent in self.agents:
             self.run_shell(['stop', agent])
 
+
+class TestLightningAB(TestLightning):
+    agents = ['alice', 'bob']
+
     def test_breach(self):
         self.run_shell(['breach'])
-
-    def test_forwarding(self):
-        self.run_shell(['open'])
-        self.run_shell(['alice_pays_carol'])
-        self.run_shell(['close'])
 
     def test_redeem_htlcs(self):
         self.run_shell(['redeem_htlcs'])
@@ -51,6 +47,15 @@ class TestLightning(unittest.TestCase):
 
     def test_breach_with_spent_htlc(self):
         self.run_shell(['breach_with_spent_htlc'])
+
+
+class TestLightningABC(TestLightning):
+    agents = ['alice', 'bob', 'carol']
+
+    def test_forwarding(self):
+        self.run_shell(['open'])
+        self.run_shell(['alice_pays_carol'])
+        self.run_shell(['close'])
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])
