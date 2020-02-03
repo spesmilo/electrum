@@ -34,7 +34,7 @@ from . import ecc
 from .util import profiler, InvalidPassword, WalletFileException, bfh, standardize_path
 from .plugin import run_hook, plugin_loaders
 
-from .json_db import JsonDB
+from .wallet_db import WalletDB
 from .logging import Logger
 
 
@@ -62,7 +62,6 @@ class WalletStorage(Logger):
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self._manual_upgrades = manual_upgrades
 
-        DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
         self._test_read_write_permissions(self.path)
@@ -71,12 +70,12 @@ class WalletStorage(Logger):
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
-                self.db = DB_Class(self.raw, manual_upgrades=manual_upgrades)
+                self.db = WalletDB(self.raw, manual_upgrades=manual_upgrades)
                 self.load_plugins()
         else:
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
             # avoid new wallets getting 'upgraded'
-            self.db = DB_Class('', manual_upgrades=False)
+            self.db = WalletDB('', manual_upgrades=False)
 
     @classmethod
     def _test_read_write_permissions(cls, path):
@@ -214,7 +213,7 @@ class WalletStorage(Logger):
             s = None
         self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
-        self.db = JsonDB(s, manual_upgrades=self._manual_upgrades)
+        self.db = WalletDB(s, manual_upgrades=self._manual_upgrades)
         self.load_plugins()
 
     def encrypt_before_writing(self, plaintext: str) -> str:
