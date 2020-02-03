@@ -57,7 +57,6 @@ class WalletStorage(Logger):
 
     def __init__(self, path, *, manual_upgrades: bool = False):
         Logger.__init__(self)
-        self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
         self._manual_upgrades = manual_upgrades
@@ -112,7 +111,7 @@ class WalletStorage(Logger):
 
     @profiler
     def write(self):
-        with self.lock:
+        with self.db.lock:
             self._write()
 
     def _write(self):
@@ -121,7 +120,6 @@ class WalletStorage(Logger):
             return
         if not self.db.modified():
             return
-        self.db.commit()
         s = self.encrypt_before_writing(self.db.dump())
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w", encoding='utf-8') as f:

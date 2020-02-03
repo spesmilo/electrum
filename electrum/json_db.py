@@ -61,9 +61,6 @@ class JsonDB(Logger):
             return True
         return False
 
-    def commit(self):
-        pass
-
     @locked
     def dump(self):
         return json.dumps(self.data, indent=4, sort_keys=True, cls=JsonDBJsonEncoder)
