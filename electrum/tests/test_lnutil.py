@@ -2,13 +2,14 @@ import unittest
 import json
 
 from electrum import bitcoin
+from electrum.json_db import StorageDict
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_onchain_fees, UpdateAddHtlc)
-from electrum.util import bh2u, bfh
+from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
 
 from . import ElectrumTestCase
@@ -422,7 +423,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore({})
+            receiver = RevocationStore(StorageDict({}, None, []))
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
 
@@ -445,14 +446,19 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore({})
+        consumer = RevocationStore(StorageDict({}, None, []))
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
                 raise Exception("iteration " + str(i) + ": " + str(e))
-            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore(json.loads(json.dumps(consumer.serialize()))).serialize())
+            if i % 1000 == 0:
+                c1 = consumer
+                s1 = json.dumps(c1.storage, cls=MyEncoder)
+                c2 = RevocationStore(StorageDict(json.loads(s1), None, []))
+                s2 = json.dumps(c2.storage, cls=MyEncoder)
+                self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000

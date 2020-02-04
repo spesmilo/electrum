@@ -240,21 +240,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # saved fields
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
-        self.labels                = storage.get('labels', {})
+        self.labels                = storage.db.get_dict('labels')
         self.frozen_addresses      = set(storage.get('frozen_addresses', []))
         self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
-        self.fiat_value            = storage.get('fiat_value', {})
-        self.receive_requests      = storage.get('payment_requests', {})
-        self.invoices              = storage.get('invoices', {})
-        # convert invoices
-        # TODO invoices being these contextual dicts even internally,
-        #      where certain keys are only present depending on values of other keys...
-        #      it's horrible. we need to change this, at least for the internal representation,
-        #      to something that can be typed.
-        for invoice_key, invoice in self.invoices.items():
-            if invoice.get('type') == PR_TYPE_ONCHAIN:
-                outputs = [PartialTxOutput.from_legacy_tuple(*output) for output in invoice.get('outputs')]
-                invoice['outputs'] = outputs
+        self.fiat_value            = storage.db.get_dict('fiat_value')
+        self.receive_requests      = storage.db.get_dict('payment_requests')
+        self.invoices              = storage.db.get_dict('invoices')
+
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
         # save wallet type the first time
@@ -372,7 +364,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 changed = True
         if changed:
             run_hook('set_label', self, name, text)
-            self.storage.put('labels', self.labels)
         return changed
 
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
@@ -404,7 +395,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if ccy not in self.fiat_value:
                 self.fiat_value[ccy] = {}
             self.fiat_value[ccy][txid] = text
-        self.storage.put('fiat_value', self.fiat_value)
         return reset
 
     def get_fiat_value(self, txid, ccy):
@@ -625,12 +615,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             raise Exception('Unsupported invoice type')
         self.invoices[key] = invoice
-        self.storage.put('invoices', self.invoices)
         self.storage.write()
 
     def clear_invoices(self):
         self.invoices = {}
-        self.storage.put('invoices', self.invoices)
         self.storage.write()
 
     def get_invoices(self):
@@ -642,7 +630,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_invoice(self, key):
         if key not in self.invoices:
             return
-        item = copy.copy(self.invoices[key])
+        # convert StorageDict to dict
+        item = dict(self.invoices[key])
         request_type = item.get('type')
         if request_type == PR_TYPE_ONCHAIN:
             item['status'] = PR_PAID if self.is_onchain_invoice_paid(item) else PR_UNPAID
@@ -1553,7 +1542,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         req = self.receive_requests.get(key)
         if not req:
             return
-        req = copy.copy(req)
+        # convert StorageDict to dict
+        req = dict(req)
         _type = req.get('type')
         if _type == PR_TYPE_ONCHAIN:
             addr = req['address']
@@ -1610,7 +1600,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         req['name'] = pr.pki_data
         req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
-        self.storage.put('payment_requests', self.receive_requests)
 
     def add_payment_request(self, req):
         if req['type'] == PR_TYPE_ONCHAIN:
@@ -1628,7 +1617,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             raise Exception('Unknown request type')
         amount = req.get('amount')
         self.receive_requests[key] = req
-        self.storage.put('payment_requests', self.receive_requests)
         self.set_label(key, message) # should be a default label
         return req
 
@@ -1643,7 +1631,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """ lightning or on-chain """
         if key in self.invoices:
             self.invoices.pop(key)
-            self.storage.put('invoices', self.invoices)
         elif self.lnworker:
             self.lnworker.delete_payment(key)
 
@@ -1651,7 +1638,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if addr not in self.receive_requests:
             return False
         self.receive_requests.pop(addr)
-        self.storage.put('payment_requests', self.receive_requests)
         return True
 
     def get_sorted_requests(self):

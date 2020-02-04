@@ -149,8 +149,6 @@ class LabelsPlugin(BasePlugin):
                 wallet.labels[key] = value
 
         self.logger.info(f"received {len(response)} labels")
-        # do not write to disk because we're in a daemon thread
-        wallet.storage.put('labels', wallet.labels)
         self.set_nonce(wallet, response["nonce"] + 1)
         self.on_pulled(wallet)
 

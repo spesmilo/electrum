@@ -54,6 +54,7 @@ from .lnhtlc import HTLCManager
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
+    from .json_db import StorageDict
 
 
 # lightning channel states
@@ -92,17 +93,6 @@ state_transitions = [
     (cs.CLOSED, cs.REDEEMED),
 ]
 
-class ChannelJsonEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, bytes):
-            return binascii.hexlify(o).decode("ascii")
-        if isinstance(o, RevocationStore):
-            return o.serialize()
-        if isinstance(o, set):
-            return list(o)
-        if hasattr(o, 'to_json') and callable(o.to_json):
-            return o.to_json()
-        return super().default(o)
 
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
@@ -110,30 +100,8 @@ RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_co
 class RemoteCtnTooFarInFuture(Exception): pass
 
 
-def decodeAll(d, local):
-    for k, v in d.items():
-        if k == 'revocation_store':
-            yield (k, RevocationStore(v))
-        elif k.endswith("_basepoint") or k.endswith("_key"):
-            if local:
-                yield (k, Keypair(**dict(decodeAll(v, local))))
-            else:
-                yield (k, OnlyPubkeyKeypair(**dict(decodeAll(v, local))))
-        elif k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature", "current_htlc_signatures"] and v is not None:
-            yield (k, binascii.unhexlify(v))
-        else:
-            yield (k, v)
-
 def htlcsum(htlcs):
     return sum([x.amount_msat for x in htlcs])
-
-# following two functions are used because json
-# doesn't store int keys and byte string values
-def str_bytes_dict_from_save(x) -> Dict[int, bytes]:
-    return {int(k): bfh(v) for k,v in x.items()}
-
-def str_bytes_dict_to_save(x) -> Dict[str, str]:
-    return {str(k): bh2u(v) for k, v in x.items()}
 
 
 class Channel(Logger):
@@ -149,43 +117,52 @@ class Channel(Logger):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
+    def __init__(self, state: 'StorageDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         Logger.__init__(self)
         self.lnworker = lnworker  # type: Optional[LNWallet]
         self.sweep_address = sweep_address
-        assert 'local_state' not in state
-        self.db_lock = self.lnworker.wallet.storage.db.lock if self.lnworker else threading.RLock()
+        self.storage = state
+        self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
         self.config = {}
         self.config[LOCAL] = state["local_config"]
-        if type(self.config[LOCAL]) is not LocalConfig:
-            conf = dict(decodeAll(self.config[LOCAL], True))
-            self.config[LOCAL] = LocalConfig(**conf)
-        assert type(self.config[LOCAL].htlc_basepoint.privkey) is bytes
-
         self.config[REMOTE] = state["remote_config"]
-        if type(self.config[REMOTE]) is not RemoteConfig:
-            conf = dict(decodeAll(self.config[REMOTE], False))
-            self.config[REMOTE] = RemoteConfig(**conf)
-        assert type(self.config[REMOTE].htlc_basepoint.pubkey) is bytes
-
-        self.channel_id = bfh(state["channel_id"]) if type(state["channel_id"]) not in (bytes, type(None)) else state["channel_id"]
-        self.constraints = ChannelConstraints(**state["constraints"]) if type(state["constraints"]) is not ChannelConstraints else state["constraints"]
-        self.funding_outpoint = Outpoint(**dict(decodeAll(state["funding_outpoint"], False))) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
-        self.node_id = bfh(state["node_id"]) if type(state["node_id"]) not in (bytes, type(None)) else state["node_id"]  # type: bytes
+        self.channel_id = bfh(state["channel_id"])
+        self.constraints = state["constraints"]
+        self.funding_outpoint = state["funding_outpoint"]
+        self.node_id = bfh(state["node_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
         self.short_channel_id_predicted = self.short_channel_id
-        self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
-        self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
-        self.remote_update = bfh(state.get('remote_update')) if state.get('remote_update') else None
-
-        log = state.get('log')
-        self.hm = HTLCManager(log=log, initial_feerate=initial_feerate)
+        self.onion_keys = state['onion_keys']
+        self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
+        self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
         self._state = channel_states[state['state']]
         self.peer_state = peer_states.DISCONNECTED
         self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
+
+    def set_onion_key(self, key, value):
+        self.onion_keys[key] = value
+
+    def get_onion_key(self, key):
+        return self.onion_keys.get(key)
+
+    def set_data_loss_protect_remote_pcp(self, key, value):
+        self.data_loss_protect_remote_pcp[key] = value
+
+    def get_data_loss_protect_remote_pcp(self, key):
+        self.data_loss_protect_remote_pcp.get(key)
+
+    def set_remote_update(self, raw):
+        self.storage['remote_update'] = raw.hex()
+
+    def get_remote_update(self):
+        return bfh(self.storage.get('remote_update')) if self.storage.get('remote_update') else None
+
+    def set_short_channel_id(self, short_id):
+        self.short_channel_id = short_id
+        self.storage["short_channel_id"] = short_id
 
     def get_feerate(self, subject, ctn):
         return self.hm.get_feerate(subject, ctn)
@@ -229,8 +206,10 @@ class Channel(Logger):
         old_state = self._state
         if (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self._state = state
         self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
+        self._state = state
+        self.storage['state'] = self._state.name
+
         if self.lnworker:
             self.lnworker.save_channel(self)
             self.lnworker.network.trigger_callback('channel', self)
@@ -655,51 +634,6 @@ class Channel(Logger):
                 self.hm.send_update_fee(feerate)
             else:
                 self.hm.recv_update_fee(feerate)
-
-    def to_save(self):
-        to_save = {
-                "local_config": self.config[LOCAL],
-                "remote_config": self.config[REMOTE],
-                "channel_id": self.channel_id,
-                "short_channel_id": self.short_channel_id,
-                "constraints": self.constraints,
-                "funding_outpoint": self.funding_outpoint,
-                "node_id": self.node_id,
-                "log": self.hm.to_save(),
-                "revocation_store": self.revocation_store,
-                "onion_keys": str_bytes_dict_to_save(self.onion_keys),
-                "state": self._state.name,
-                "data_loss_protect_remote_pcp": str_bytes_dict_to_save(self.data_loss_protect_remote_pcp),
-                "remote_update": self.remote_update.hex() if self.remote_update else None
-        }
-        return to_save
-
-    def serialize(self):
-        namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
-        serialized_channel = {}
-        to_save_ref = self.to_save()
-        for k, v in to_save_ref.items():
-            if isinstance(v, tuple):
-                serialized_channel[k] = namedtuples_to_dict(v)
-            else:
-                serialized_channel[k] = v
-        dumped = ChannelJsonEncoder().encode(serialized_channel)
-        roundtripped = json.loads(dumped)
-        reconstructed = Channel(roundtripped)
-        to_save_new = reconstructed.to_save()
-        if to_save_new != to_save_ref:
-            from pprint import PrettyPrinter
-            pp = PrettyPrinter(indent=168)
-            try:
-                from deepdiff import DeepDiff
-            except ImportError:
-                raise Exception("Channels did not roundtrip serialization without changes:\n" + pp.pformat(to_save_ref) + "\n" + pp.pformat(to_save_new))
-            else:
-                raise Exception("Channels did not roundtrip serialization without changes:\n" + pp.pformat(DeepDiff(to_save_ref, to_save_new)))
-        return roundtripped
-
-    def __str__(self):
-        return str(self.serialize())
 
     def make_commitment(self, subject, this_point, ctn) -> PartialTransaction:
         assert type(subject) is HTLCOwner

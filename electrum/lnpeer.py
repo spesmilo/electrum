@@ -221,7 +221,7 @@ class Peer(Logger):
     def maybe_save_remote_update(self, payload):
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
-                chan.remote_update = payload['raw']
+                chan.set_remote_update(payload['raw'])
                 self.logger.info("saved remote_update")
 
     def on_announcement_signatures(self, payload):
@@ -611,9 +611,15 @@ class Peer(Logger):
             "constraints": constraints,
             "remote_update": None,
             "state": channel_states.PREOPENING.name,
+            'onion_keys': {},
+            'data_loss_protect_remote_pcp': {},
+            "log": {},
             "revocation_store": {},
         }
-        return chan_dict
+        channel_id = chan_dict.get('channel_id')
+        channels = self.lnworker.storage.db.get_dict('channels')
+        channels[channel_id] = chan_dict
+        return channels.get(channel_id)
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
@@ -684,7 +690,7 @@ class Peer(Logger):
             signature=sig_64,
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
-        self.lnworker.save_channel(chan)
+        self.lnworker.add_channel(chan)
         self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
@@ -850,7 +856,7 @@ class Peer(Logger):
         else:
             if dlp_enabled and should_close_they_are_ahead:
                 self.logger.warning(f"channel_reestablish: remote is ahead of us! luckily DLP is enabled. remote PCP: {bh2u(their_local_pcp)}")
-                chan.data_loss_protect_remote_pcp[their_next_local_ctn - 1] = their_local_pcp
+                chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
                 self.lnworker.save_channel(chan)
         if should_close_they_are_ahead:
             self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
@@ -885,7 +891,6 @@ class Peer(Logger):
         self.logger.info(f"on_funding_locked. channel: {bh2u(channel_id)}")
         chan = self.channels.get(channel_id)
         if not chan:
-            print(self.channels)
             raise Exception("Got unknown funding_locked", channel_id)
         if not chan.config[LOCAL].funding_locked_received:
             our_next_point = chan.config[REMOTE].next_per_commitment_point
@@ -1004,11 +1009,11 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            chan.remote_update = pending_channel_update['raw']
+            chan.set_remote_update(pending_channel_update['raw'])
         # add remote update with a fresh timestamp
-        if chan.remote_update:
+        if chan.get_remote_update():
             now = int(time.time())
-            remote_update_decoded = decode_msg(chan.remote_update)[1]
+            remote_update_decoded = decode_msg(chan.get_remote_update())[1]
             remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
             self.channel_db.add_channel_update(remote_update_decoded)
 

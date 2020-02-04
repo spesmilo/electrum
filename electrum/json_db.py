@@ -45,6 +45,101 @@ def locked(func):
     return wrapper
 
 
+class StoredAttr:
+
+    db = None
+
+    def __setattr__(self, key, value):
+        if self.db:
+            self.db.set_modified(True)
+        object.__setattr__(self, key, value)
+
+    def set_db(self, db):
+        self.db = db
+
+    def to_json(self):
+        d = dict(vars(self))
+        d.pop('db', None)
+        return d
+
+
+_RaiseKeyError = object() # singleton for no-default behavior
+
+class StorageDict(dict):
+
+    def __init__(self, data, db, path):
+        self.db = db
+        self.lock = self.db.lock if self.db else threading.RLock()
+        self.path = path
+        # recursively convert dicts to storagedict
+        for k, v in list(data.items()):
+            self.__setitem__(k, v)
+
+    def convert_key(self, key):
+        # convert int, HTLCOwner to str
+        return str(int(key)) if isinstance(key, int) else key
+
+    @locked
+    def __setitem__(self, key, v):
+        key = self.convert_key(key)
+        is_new = key not in self
+        # early return to prevent unnecessary disk writes
+        if not is_new and self[key] == v:
+            return
+        # recursively convert dict to StorageDict.
+        # _convert_dict is called breadth-first
+        if isinstance(v, dict):
+            if self.db:
+                v = self.db._convert_dict(self.path, key, v)
+            v = StorageDict(v, self.db, self.path + [key])
+        # convert_value is called depth-first
+        if isinstance(v, dict) or isinstance(v, str):
+            if self.db:
+                v = self.db._convert_value(self.path, key, v)
+        # set parent of StoredAttr
+        if isinstance(v, StoredAttr):
+            v.set_db(self.db)
+        # set item
+        dict.__setitem__(self, key, v)
+        if self.db:
+            self.db.set_modified(True)
+
+    @locked
+    def __delitem__(self, key):
+        key = self.convert_key(key)
+        dict.__delitem__(self, key)
+        if self.db:
+            self.db.set_modified(True)
+
+    @locked
+    def __getitem__(self, key):
+        key = self.convert_key(key)
+        return dict.__getitem__(self, key)
+
+    @locked
+    def __contains__(self, key):
+        key = self.convert_key(key)
+        return dict.__contains__(self, key)
+
+    @locked
+    def pop(self, key, v=_RaiseKeyError):
+        key = self.convert_key(key)
+        if v is _RaiseKeyError:
+            r = dict.pop(self, key)
+        else:
+            r = dict.pop(self, key, v)
+        if self.db:
+            self.db.set_modified(True)
+        return r
+
+    @locked
+    def get(self, key, default=None):
+        key = self.convert_key(key)
+        return dict.get(self, key, default)
+
+
+
+
 class JsonDB(Logger):
 
     def __init__(self, data):
@@ -65,8 +160,6 @@ class JsonDB(Logger):
         v = self.data.get(key)
         if v is None:
             v = default
-        else:
-            v = copy.deepcopy(v)
         return v
 
     @modifier
