@@ -15,7 +15,6 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
-from electrum.ecc import number_to_string, string_to_number
 from electrum.util import bfh, bh2u, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
@@ -111,7 +110,7 @@ class Test_bitcoin(ElectrumTestCase):
         addr_c = public_key_to_p2pkh(pubkey_c)
 
         #print "Private key            ", '%064x'%pvk
-        eck = ecc.ECPrivkey(number_to_string(pvk,_r))
+        eck = ecc.ECPrivkey.from_secret_scalar(pvk)
 
         #print "Compressed public key  ", pubkey_c.encode('hex')
         enc = ecc.ECPubkey(pubkey_c).encrypt_message(message)

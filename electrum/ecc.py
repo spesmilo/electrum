@@ -33,7 +33,6 @@ import ecdsa
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
-from ecdsa.util import string_to_number, number_to_string
 
 from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
@@ -55,6 +54,10 @@ def generator():
 
 def point_at_infinity():
     return ECPubkey(None)
+
+
+def string_to_number(b: bytes) -> int:
+    return int.from_bytes(b, byteorder='big', signed=False)
 
 
 def sig_string_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> bytes:
@@ -392,7 +395,7 @@ class ECPrivkey(ECPubkey):
 
     @classmethod
     def from_secret_scalar(cls, secret_scalar: int):
-        secret_bytes = number_to_string(secret_scalar, CURVE_ORDER)
+        secret_bytes = int.to_bytes(secret_scalar, length=32, byteorder='big', signed=False)
         return ECPrivkey(secret_bytes)
 
     @classmethod
@@ -408,7 +411,7 @@ class ECPrivkey(ECPubkey):
         scalar = string_to_number(privkey_bytes) % CURVE_ORDER
         if scalar == 0:
             raise Exception('invalid EC private key scalar: zero')
-        privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
+        privkey_32bytes = int.to_bytes(scalar, length=32, byteorder='big', signed=False)
         return privkey_32bytes
 
     def __repr__(self):
@@ -417,11 +420,11 @@ class ECPrivkey(ECPubkey):
     @classmethod
     def generate_random_key(cls):
         randint = randrange(CURVE_ORDER)
-        ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
+        ephemeral_exponent = int.to_bytes(randint, length=32, byteorder='big', signed=False)
         return ECPrivkey(ephemeral_exponent)
 
     def get_secret_bytes(self) -> bytes:
-        return number_to_string(self.secret_scalar, CURVE_ORDER)
+        return int.to_bytes(self.secret_scalar, length=32, byteorder='big', signed=False)
 
     def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
         if sigencode is None:

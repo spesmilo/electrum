@@ -36,7 +36,7 @@ from .bitcoin import deserialize_privkey, serialize_privkey
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
                     convert_bip32_intpath_to_strpath)
-from .ecc import string_to_number, number_to_string
+from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
 from .util import (InvalidPassword, WalletFileException,
@@ -626,7 +626,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     def _get_private_key_from_stretched_exponent(self, for_change, n, secexp):
         secexp = (secexp + self.get_sequence(self.mpk, for_change, n)) % ecc.CURVE_ORDER
-        pk = number_to_string(secexp, ecc.CURVE_ORDER)
+        pk = int.to_bytes(secexp, length=32, byteorder='big', signed=False)
         return pk
 
     def get_private_key(self, sequence: Sequence[int], password):

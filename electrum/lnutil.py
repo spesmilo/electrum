@@ -275,7 +275,7 @@ def derive_blinded_privkey(basepoint_secret: bytes, per_commitment_secret: bytes
     k1 = ecc.string_to_number(basepoint_secret) * ecc.string_to_number(sha256(basepoint + per_commitment_point))
     k2 = ecc.string_to_number(per_commitment_secret) * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     sum = (k1 + k2) % ecc.CURVE_ORDER
-    return ecc.number_to_string(sum, CURVE_ORDER)
+    return int.to_bytes(sum, length=32, byteorder='big', signed=False)
 
 
 def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_delayedpubkey, success, to_self_delay):
