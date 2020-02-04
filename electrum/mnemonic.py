@@ -28,9 +28,7 @@ import hashlib
 import unicodedata
 import string
 
-import ecdsa
-
-from .util import resource_path, bfh, bh2u
+from .util import resource_path, bfh, bh2u, randrange
 from .crypto import hmac_oneshot
 from . import version
 from .logging import Logger
@@ -180,7 +178,7 @@ class Mnemonic(Logger):
         entropy = 1
         while entropy < pow(2, n - bpw):
             # try again if seed would not contain enough words
-            entropy = ecdsa.util.randrange(pow(2, n))
+            entropy = randrange(pow(2, n))
         nonce = 0
         while True:
             nonce += 1

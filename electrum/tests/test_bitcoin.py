@@ -16,7 +16,7 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
-from electrum.util import bfh, bh2u, InvalidPassword
+from electrum.util import bfh, bh2u, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
 
@@ -103,7 +103,7 @@ class Test_bitcoin(ElectrumTestCase):
     def _do_test_crypto(self, message):
         G = ecc.generator()
         _r  = G.order()
-        pvk = ecdsa.util.randrange(_r)
+        pvk = randrange(_r)
 
         Pub = pvk*G
         pubkey_c = Pub.get_public_key_bytes(True)

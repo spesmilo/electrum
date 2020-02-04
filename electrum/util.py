@@ -47,6 +47,7 @@ from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
+import ecdsa
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -1266,3 +1267,9 @@ def resolve_dns_srv(host: str):
             'port': srv.port,
         }
     return [dict_from_srv_record(srv) for srv in srv_records]
+
+
+def randrange(bound: int) -> int:
+    """Return a random integer k such that 1 <= k < bound, uniformly
+    distributed across that range."""
+    return ecdsa.util.randrange(bound)

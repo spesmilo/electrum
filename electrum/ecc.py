@@ -35,7 +35,7 @@ from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
-from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler
+from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
@@ -145,7 +145,7 @@ class _MyVerifyingKey(ecdsa.VerifyingKey):
         G = curve.generator
         order = G.order()
         # extract r,s from signature
-        r, s = util.sigdecode_string(sig, order)
+        r, s = get_r_and_s_from_sig_string(sig, order)
         # 1.1
         x = r + (recid//2) * order
         # 1.3
@@ -299,7 +299,7 @@ class ECPubkey(object):
             raise Exception('Wrong encoding')
         ecdsa_point = self._pubkey.point
         verifying_key = _MyVerifyingKey.from_public_point(ecdsa_point, curve=SECP256k1)
-        verifying_key.verify_digest(sig_string, msg_hash, sigdecode=ecdsa.util.sigdecode_string)
+        verifying_key.verify_digest(sig_string, msg_hash, sigdecode=get_r_and_s_from_sig_string)
 
     def encrypt_message(self, message: bytes, magic: bytes = b'BIE1') -> bytes:
         """
@@ -416,7 +416,7 @@ class ECPrivkey(ECPubkey):
 
     @classmethod
     def generate_random_key(cls):
-        randint = ecdsa.util.randrange(CURVE_ORDER)
+        randint = randrange(CURVE_ORDER)
         ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
         return ECPrivkey(ephemeral_exponent)
 
