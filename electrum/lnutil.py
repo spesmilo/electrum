@@ -180,12 +180,10 @@ class RevocationStore:
     START_INDEX = 2 ** 48 - 1
 
     def __init__(self, storage):
-        self.buckets = [None] * 49
-        self.index = self.START_INDEX
-        if storage:
-            decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
-            self.buckets = [k if k is None else decode(k) for k in storage["buckets"]]
-            self.index = storage["index"]
+        self.index = storage.get('index', self.START_INDEX)
+        buckets = storage.get('buckets', {})
+        decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
+        self.buckets = dict((int(k), decode(v)) for k, v in buckets.items())
 
     def add_next_entry(self, hsh):
         new_element = ShachainElement(index=self.index, secret=hsh)
@@ -200,7 +198,8 @@ class RevocationStore:
 
     def retrieve_secret(self, index: int) -> bytes:
         assert index <= self.START_INDEX, index
-        for bucket in self.buckets:
+        for i in range(0, 49):
+            bucket = self.buckets.get(i)
             if bucket is None:
                 raise UnableToDeriveSecret()
             try:
@@ -211,7 +210,7 @@ class RevocationStore:
         raise UnableToDeriveSecret()
 
     def serialize(self):
-        return {"index": self.index, "buckets": [[bh2u(k.secret), k.index] if k is not None else None for k in self.buckets]}
+        return {"index": self.index, "buckets": dict( (k, [bh2u(v.secret), v.index]) for k, v in self.buckets.items()) }
 
     def __eq__(self, o):
         return type(o) is RevocationStore and self.serialize() == o.serialize()

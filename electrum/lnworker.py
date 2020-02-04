@@ -355,7 +355,7 @@ class LNWallet(LNWorker):
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self.channels = {}  # type: Dict[bytes, Channel]
-        for x in wallet.storage.get("channels", []):
+        for x in wallet.storage.get("channels", {}).values():
             c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
             self.channels[c.channel_id] = c
         # timestamps of opening and closing transactions
@@ -617,7 +617,7 @@ class LNWallet(LNWorker):
 
     def save_channels(self):
         with self.lock:
-            dumped = [x.serialize() for x in self.channels.values()]
+            dumped = dict( (k.hex(), c.serialize()) for k, c in self.channels.items() )
         self.storage.put("channels", dumped)
         self.storage.write()
 

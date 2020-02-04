@@ -40,7 +40,7 @@ from .json_db import JsonDB, locked, modifier
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 23     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 24     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -164,6 +164,7 @@ class WalletDB(JsonDB):
         self._convert_version_21()
         self._convert_version_22()
         self._convert_version_23()
+        self._convert_version_24()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -489,6 +490,43 @@ class WalletDB(JsonDB):
 
         self.data['seed_version'] = 23
 
+    def _convert_version_24(self):
+        if not self._is_upgrade_method_needed(23, 23):
+            return
+        channels = self.get('channels', [])
+        for c in channels:
+            # convert revocation store to dict
+            r = c['revocation_store']
+            d = {}
+            for i in range(49):
+                v = r['buckets'][i]
+                if v is not None:
+                    d[str(i)] = v
+            r['buckets'] = d
+            c['revocation_store'] = r
+        # convert channels to dict
+        self.data['channels'] = { x['channel_id']: x for x in channels }
+        # convert txi & txo
+        txi = self.get('txi', {})
+        for tx_hash, d in txi.items():
+            d2 = {}
+            for addr, l in d.items():
+                d2[addr] = {}
+                for ser, v in l:
+                    d2[addr][ser] = v
+            txi[tx_hash] = d2
+        self.data['txi'] = txi
+        txo = self.get('txo', {})
+        for tx_hash, d in txo.items():
+            d2 = {}
+            for addr, l in d.items():
+                d2[addr] = {}
+                for n, v, cb in l:
+                    d2[addr][str(n)] = (v, cb)
+            txo[tx_hash] = d2
+        self.data['txo'] = txo
+
+        self.data['seed_version'] = 24
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -581,12 +619,14 @@ class WalletDB(JsonDB):
     @locked
     def get_txi_addr(self, tx_hash, address) -> Iterable[Tuple[str, int]]:
         """Returns an iterable of (prev_outpoint, value)."""
-        return self.txi.get(tx_hash, {}).get(address, []).copy()
+        d = self.txi.get(tx_hash, {}).get(address, {})
+        return list(d.items())
 
     @locked
     def get_txo_addr(self, tx_hash, address) -> Iterable[Tuple[int, int, bool]]:
         """Returns an iterable of (output_index, value, is_coinbase)."""
-        return self.txo.get(tx_hash, {}).get(address, []).copy()
+        d = self.txo.get(tx_hash, {}).get(address, {})
+        return [(int(n), v, cb) for (n, (v, cb)) in d.items()]
 
     @modifier
     def add_txi_addr(self, tx_hash, addr, ser, v):
@@ -594,9 +634,8 @@ class WalletDB(JsonDB):
             self.txi[tx_hash] = {}
         d = self.txi[tx_hash]
         if addr not in d:
-            # note that as this is a set, we can ignore "duplicates"
-            d[addr] = set()
-        d[addr].add((ser, v))
+            d[addr] = {}
+        d[addr][ser] = v
 
     @modifier
     def add_txo_addr(self, tx_hash, addr, n, v, is_coinbase):
@@ -604,9 +643,8 @@ class WalletDB(JsonDB):
             self.txo[tx_hash] = {}
         d = self.txo[tx_hash]
         if addr not in d:
-            # note that as this is a set, we can ignore "duplicates"
-            d[addr] = set()
-        d[addr].add((n, v, is_coinbase))
+            d[addr] = {}
+        d[addr][n] = (v, is_coinbase)
 
     @locked
     def list_txi(self):
@@ -890,11 +928,6 @@ class WalletDB(JsonDB):
         for tx_hash, raw_tx in self.transactions.items():
             # note: for performance, "deserialize=False" so that we will deserialize these on-demand
             self.transactions[tx_hash] = tx_from_any(raw_tx, deserialize=False)
-        # convert txi, txo: list to set
-        for t in self.txi, self.txo:
-            for d in t.values():
-                for addr, lst in d.items():
-                    d[addr] = set([tuple(x) for x in lst])
         # convert prevouts_by_scripthash: list to set, list to tuple
         for scripthash, lst in self._prevouts_by_scripthash.items():
             self._prevouts_by_scripthash[scripthash] = {(prevout, value) for prevout, value in lst}
