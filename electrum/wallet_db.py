@@ -40,7 +40,7 @@ from .logging import Logger
 from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, RevocationStore
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
-from .json_db import StoredDict, JsonDB, locked, modifier
+from .json_db import StoredDict, StorageList, JsonDB, locked, modifier
 from .plugin import run_hook, plugin_loaders
 from .paymentrequest import PaymentRequest
 from .submarine_swaps import SwapData
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 40     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 41     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -189,6 +189,7 @@ class WalletDB(JsonDB):
         self._convert_version_38()
         self._convert_version_39()
         self._convert_version_40()
+        self._convert_version_41()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -514,6 +515,7 @@ class WalletDB(JsonDB):
 
         self.data['seed_version'] = 23
 
+
     def _convert_version_24(self):
         if not self._is_upgrade_method_needed(23, 23):
             return
@@ -810,6 +812,25 @@ class WalletDB(JsonDB):
             if seed_type is not None:
                 ks['seed_type'] = seed_type
         self.data['seed_version'] = 40
+
+    def _convert_version_41(self):
+        if not self._is_upgrade_method_needed(40, 40):
+            return
+        # convert addresses to dict. flatten structure.
+        wallet_type = self.get('wallet_type')
+        _addresses = self.data.pop('addresses', {})
+        if wallet_type == 'imported':
+            self.data['imported_addresses'] = _addresses
+        else:
+            receiving_addresses = {}
+            for i, addr in enumerate(_addresses.get('receiving', [])):
+                receiving_addresses[str(i)] = addr
+            self.data['receiving_addresses'] = receiving_addresses
+            change_addresses = {}
+            for i, addr in enumerate(_addresses.get('change', [])):
+                change_addresses[str(i)] = addr
+            self.data['change_addresses'] = change_addresses
+        self.data['seed_version'] = 25
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -1238,19 +1259,15 @@ class WalletDB(JsonDB):
     def load_addresses(self, wallet_type):
         """ called from Abstract_Wallet.__init__ """
         if wallet_type == 'imported':
-            self.imported_addresses = self.get_dict('addresses')  # type: Dict[str, dict]
+            self.imported_addresses = self.get_dict('imported_addresses') # type: Dict[str, dict]
         else:
-            self.get_dict('addresses')
-            for name in ['receiving', 'change']:
-                if name not in self.data['addresses']:
-                    self.data['addresses'][name] = []
-            self.change_addresses = self.data['addresses']['change']
-            self.receiving_addresses = self.data['addresses']['receiving']
+            self.change_addresses = self.get_dict('change_addresses')
+            self.receiving_addresses = self.get_dict('receiving_addresses')
             self._addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]  # key: address, value: (is_change, index)
             for i, addr in enumerate(self.receiving_addresses):
-                self._addr_to_addr_index[addr] = (0, i)
+                self._addr_to_addr_index[addr] = (0, int(i))
             for i, addr in enumerate(self.change_addresses):
-                self._addr_to_addr_index[addr] = (1, i)
+                self._addr_to_addr_index[addr] = (1, int(i))
 
     @profiler
     def _load_transactions(self):
@@ -1323,6 +1340,8 @@ class WalletDB(JsonDB):
     def _convert_value(self, path, key, v):
         if key == 'local_config':
             v = LocalConfig(**v)
+        elif key in ['change_addresses', 'receiving_addresses']:
+            v = StorageList(v, self, path + [key])
         elif key == 'remote_config':
             v = RemoteConfig(**v)
         elif key == 'constraints':
