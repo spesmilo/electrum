@@ -38,12 +38,7 @@ LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 def ln_dummy_address():
     return redeem_script_to_address('p2wsh', '')
 
-
-class StoredObject:
-
-    def to_json(self):
-        return dict(vars(self))
-
+from .json_db import StoredObject
 
 @attr.s
 class OnlyPubkeyKeypair(StoredObject):
@@ -180,21 +175,23 @@ class RevocationStore:
     START_INDEX = 2 ** 48 - 1
 
     def __init__(self, storage):
-        self.index = storage.get('index', self.START_INDEX)
-        buckets = storage.get('buckets', {})
-        decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
-        self.buckets = dict((int(k), decode(v)) for k, v in buckets.items())
+        if len(storage) == 0:
+            storage['index'] = self.START_INDEX
+            storage['buckets'] = {}
+        self.storage = storage
+        self.buckets = storage['buckets']
 
     def add_next_entry(self, hsh):
-        new_element = ShachainElement(index=self.index, secret=hsh)
-        bucket = count_trailing_zeros(self.index)
+        index = self.storage['index']
+        new_element = ShachainElement(index=index, secret=hsh)
+        bucket = count_trailing_zeros(index)
         for i in range(0, bucket):
             this_bucket = self.buckets[i]
             e = shachain_derive(new_element, this_bucket.index)
             if e != this_bucket:
                 raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
         self.buckets[bucket] = new_element
-        self.index -= 1
+        self.storage['index'] = index - 1
 
     def retrieve_secret(self, index: int) -> bytes:
         assert index <= self.START_INDEX, index
@@ -208,9 +205,6 @@ class RevocationStore:
                 continue
             return element.secret
         raise UnableToDeriveSecret()
-
-    def serialize(self):
-        return {"index": self.index, "buckets": dict( (k, [bh2u(v.secret), v.index]) for k, v in self.buckets.items()) }
 
     def __eq__(self, o):
         return type(o) is RevocationStore and self.serialize() == o.serialize()

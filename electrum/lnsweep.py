@@ -299,8 +299,8 @@ def analyze_ctx(chan: 'Channel', ctx: Transaction):
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
         #_logger.info(f'tx for revoked: {list(txs.keys())}')
-    elif ctn in chan.data_loss_protect_remote_pcp:
-        their_pcp = chan.data_loss_protect_remote_pcp[ctn]
+    elif chan.get_data_loss_protect_remote_pcp(ctn):
+        their_pcp = chan.get_data_loss_protect_remote_pcp(ctn)
         is_revocation = False
     else:
         return
