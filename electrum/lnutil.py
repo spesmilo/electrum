@@ -39,14 +39,14 @@ def ln_dummy_address():
     return redeem_script_to_address('p2wsh', '')
 
 
-class StoredAttr:
+class StoredObject:
 
     def to_json(self):
         return dict(vars(self))
 
 
 @attr.s
-class OnlyPubkeyKeypair(StoredAttr):
+class OnlyPubkeyKeypair(StoredObject):
     pubkey = attr.ib(type=bytes)
 
 @attr.s
@@ -54,7 +54,7 @@ class Keypair(OnlyPubkeyKeypair):
     privkey = attr.ib(type=bytes)
 
 @attr.s
-class Config(StoredAttr):
+class Config(StoredObject):
     # shared channel config fields
     payment_basepoint = attr.ib(type=OnlyPubkeyKeypair)
     multisig_key = attr.ib(type=OnlyPubkeyKeypair)
@@ -83,13 +83,13 @@ class RemoteConfig(Config):
     current_per_commitment_point = attr.ib(default=None, type=bytes)
 
 @attr.s
-class FeeUpdate(StoredAttr):
+class FeeUpdate(StoredObject):
     rate = attr.ib(type=int)  # in sat/kw
     ctn_local = attr.ib(default=None, type=int)
     ctn_remote = attr.ib(default=None, type=int)
 
 @attr.s
-class ChannelConstraints(StoredAttr):
+class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)
     is_initiator = attr.ib(type=bool)
     funding_txn_minimum_depth = attr.ib(type=int)
@@ -102,7 +102,7 @@ class ScriptHtlc(NamedTuple):
 
 # FIXME duplicate of TxOutpoint in transaction.py??
 @attr.s
-class Outpoint(StoredAttr):
+class Outpoint(StoredObject):
     txid = attr.ib(type=str)
     output_index = attr.ib(type=int)
 
