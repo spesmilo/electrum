@@ -22,14 +22,18 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import threading
-import copy
+import os
+import ast
 import json
+import copy
+import threading
+import binascii
 
 from . import util
 from .logging import Logger
 
 JsonDBJsonEncoder = util.MyEncoder
+
 
 def modifier(func):
     def wrapper(self, *args, **kwargs):
@@ -138,6 +142,64 @@ class StorageDict(dict):
         return dict.get(self, key, default)
 
 
+class StorageList:
+
+    def __init__(self, data, db, path):
+        self.l = [data[str(i)] for i in range(len(data))]
+        self.db = db
+        self.path = path
+        self.lock = self.db.lock if self.db else threading.RLock()
+
+    def locked(func):
+        def wrapper(self, *args, **kwargs):
+            with self.lock:
+                r = func(self, *args, **kwargs)
+                return r
+        return wrapper
+
+    @locked
+    def to_json(self):
+        return dict(enumerate(self.l))
+
+    @locked
+    def __getitem__(self, key):
+        return self.l.__getitem__(key)
+
+    @locked
+    def __contains__(self, v):
+        return self.l.__contains__(v)
+
+    @locked
+    def __len__(self):
+        return self.l.__len__()
+
+    @locked
+    def count(self, v):
+        return self.l.count(v)
+
+    @locked
+    def append(self, x):
+        self.l.append(x)
+        if self.db:
+            self.db.set_modified(True)
+
+    @locked
+    def remove(self, x):
+        self.l.remove(x)
+        if self.db:
+            self.db.set_modified(True)
+
+    @locked
+    def clear(self):
+        self.l.clear()
+        if self.db:
+            self.db.set_modified(True)
+
+    @locked
+    def reverse(self):
+        self.l.reverse()
+
+
 
 
 class JsonDB(Logger):
@@ -154,6 +216,7 @@ class JsonDB(Logger):
 
     def modified(self):
         return self._modified
+
 
     @locked
     def get(self, key, default=None):
