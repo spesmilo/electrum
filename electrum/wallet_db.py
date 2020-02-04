@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 47     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 48     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -196,6 +196,7 @@ class WalletDB(JsonDB):
         self._convert_version_45()
         self._convert_version_46()
         self._convert_version_47()
+        self._convert_version_48()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -521,6 +522,7 @@ class WalletDB(JsonDB):
         self.data['channels'] = channels
 
         self.data['seed_version'] = 23
+
 
     def _convert_version_24(self):
         if not self._is_upgrade_method_needed(23, 23):
@@ -942,6 +944,29 @@ class WalletDB(JsonDB):
                     del requests[key]
         self.data['seed_version'] = 47
 
+    def _convert_version_48(self):
+        if not self._is_upgrade_method_needed(47, 47):
+            return
+        # convert address lists to StoredDict
+        wallet_type = self.get('wallet_type')
+        _addresses = self.data.pop('addresses', {})
+        if wallet_type == 'imported':
+            self.data['imported_addresses'] = _addresses
+        else:
+            receiving_addresses = {}
+            for i, addr in enumerate(_addresses.get('receiving', [])):
+                receiving_addresses[str(i)] = addr
+            self.data['receiving_addresses'] = receiving_addresses
+            change_addresses = {}
+            for i, addr in enumerate(_addresses.get('change', [])):
+                change_addresses[str(i)] = addr
+            self.data['change_addresses'] = change_addresses
+        # do not use '/' in dict keys
+        for key in list(self.data.keys()):
+            if key.endswith('/'):
+                self.data[key[:-1]] = self.data.pop(key)
+        self.data['seed_version'] = 48
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1318,24 +1343,26 @@ class WalletDB(JsonDB):
     @locked
     def get_change_addresses(self, *, slice_start=None, slice_stop=None) -> List[str]:
         # note: slicing makes a shallow copy
-        return self.change_addresses[slice_start:slice_stop]
+        return self.change_addresses.get_slice(slice_start, slice_stop)
 
     @locked
     def get_receiving_addresses(self, *, slice_start=None, slice_stop=None) -> List[str]:
         # note: slicing makes a shallow copy
-        return self.receiving_addresses[slice_start:slice_stop]
+        return self.receiving_addresses.get_slice(slice_start, slice_stop)
 
     @modifier
     def add_change_address(self, addr: str) -> None:
         assert isinstance(addr, str)
-        self._addr_to_addr_index[addr] = (1, len(self.change_addresses))
-        self.change_addresses.append(addr)
+        n = len(self.change_addresses)
+        self._addr_to_addr_index[addr] = (1, n)
+        self.change_addresses[str(n)] = addr
 
     @modifier
     def add_receiving_address(self, addr: str) -> None:
         assert isinstance(addr, str)
-        self._addr_to_addr_index[addr] = (0, len(self.receiving_addresses))
-        self.receiving_addresses.append(addr)
+        n = len(self.receiving_addresses)
+        self._addr_to_addr_index[addr] = (0, n)
+        self.receiving_addresses[str(n)] = addr
 
     @locked
     def get_address_index(self, address: str) -> Optional[Sequence[int]]:
@@ -1369,19 +1396,15 @@ class WalletDB(JsonDB):
     def load_addresses(self, wallet_type):
         """ called from Abstract_Wallet.__init__ """
         if wallet_type == 'imported':
-            self.imported_addresses = self.get_dict('addresses')  # type: Dict[str, dict]
+            self.imported_addresses = self.get_dict('imported_addresses') # type: Dict[str, dict]
         else:
-            self.get_dict('addresses')
-            for name in ['receiving', 'change']:
-                if name not in self.data['addresses']:
-                    self.data['addresses'][name] = []
-            self.change_addresses = self.data['addresses']['change']
-            self.receiving_addresses = self.data['addresses']['receiving']
+            self.change_addresses = self.get_dict('change_addresses')
+            self.receiving_addresses = self.get_dict('receiving_addresses')
             self._addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]  # key: address, value: (is_change, index)
-            for i, addr in enumerate(self.receiving_addresses):
-                self._addr_to_addr_index[addr] = (0, i)
-            for i, addr in enumerate(self.change_addresses):
-                self._addr_to_addr_index[addr] = (1, i)
+            for i, addr in self.receiving_addresses.items():
+                self._addr_to_addr_index[addr] = (0, int(i))
+            for i, addr in self.change_addresses.items():
+                self._addr_to_addr_index[addr] = (1, int(i))
 
     @profiler
     def _load_transactions(self):
@@ -1463,6 +1486,8 @@ class WalletDB(JsonDB):
     def _convert_value(self, path, key, v):
         if key == 'local_config':
             v = LocalConfig(**v)
+        elif key in ['change_addresses', 'receiving_addresses']:
+            v = StoredDict(v, self, path + [key])
         elif key == 'remote_config':
             v = RemoteConfig(**v)
         elif key == 'constraints':
@@ -1476,7 +1501,7 @@ class WalletDB(JsonDB):
     def _should_convert_to_stored_dict(self, key) -> bool:
         if key == 'keystore':
             return False
-        multisig_keystore_names = [('x%d/' % i) for i in range(1, 16)]
+        multisig_keystore_names = [('x%d' % i) for i in range(1, 16)]
         if key in multisig_keystore_names:
             return False
         return True

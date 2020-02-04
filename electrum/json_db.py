@@ -22,14 +22,18 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import threading
-import copy
+import os
+import ast
 import json
+import copy
+import threading
+import binascii
 
 from . import util
 from .logging import Logger
 
 JsonDBJsonEncoder = util.MyEncoder
+
 
 def modifier(func):
     def wrapper(self, *args, **kwargs):
@@ -82,8 +86,9 @@ class StoredDict(dict):
     def __setitem__(self, key, v):
         is_new = key not in self
         # early return to prevent unnecessary disk writes
-        if not is_new and self[key] == v:
-            return
+        if not is_new:
+            if json.dumps(v, cls=JsonDBJsonEncoder) == json.dumps(self[key], cls=JsonDBJsonEncoder):
+                return
         # recursively set db and path
         if isinstance(v, StoredDict):
             v.db = self.db
@@ -125,6 +130,13 @@ class StoredDict(dict):
             self.db.set_modified(True)
         return r
 
+    @locked
+    def get_slice(self, slice_start=None, slice_stop=None):
+        # for dict storing a list, with integer keys
+        l = [self[str(i)] for i in range(len(self))]
+        return l[slice_start:slice_stop]
+
+
 
 
 
@@ -142,6 +154,7 @@ class JsonDB(Logger):
 
     def modified(self):
         return self._modified
+
 
     @locked
     def get(self, key, default=None):

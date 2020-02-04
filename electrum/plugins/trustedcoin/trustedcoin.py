@@ -402,8 +402,8 @@ class Wallet_2fa(Multisig_Wallet):
 def get_user_id(db):
     def make_long_id(xpub_hot, xpub_cold):
         return sha256(''.join(sorted([xpub_hot, xpub_cold])))
-    xpub1 = db.get('x1/')['xpub']
-    xpub2 = db.get('x2/')['xpub']
+    xpub1 = db.get('x1')['xpub']
+    xpub2 = db.get('x2')['xpub']
     long_id = make_long_id(xpub1, xpub2)
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
@@ -463,7 +463,7 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
+        if not wallet.keystores['x3'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):
@@ -607,8 +607,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_password(self, wizard, password, encrypt_storage, k1, k2):
         k1.update_password(None, password)
-        wizard.data['x1/'] = k1.dump()
-        wizard.data['x2/'] = k2.dump()
+        wizard.data['x1'] = k1.dump()
+        wizard.data['x2'] = k2.dump()
         wizard.pw_args = WizardWalletPasswordSetting(password=password,
                                                      encrypt_storage=encrypt_storage,
                                                      storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
@@ -654,13 +654,13 @@ class TrustedCoinPlugin(BasePlugin):
         k1.add_seed(seed)
         k1.update_password(None, password)
         k2.update_password(None, password)
-        wizard.data['x1/'] = k1.dump()
-        wizard.data['x2/'] = k2.dump()
+        wizard.data['x1'] = k1.dump()
+        wizard.data['x2'] = k2.dump()
         long_user_id, short_id = get_user_id(wizard.data)
         xtype = xpub_type(xpub1)
         xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
         k3 = keystore.from_xpub(xpub3)
-        wizard.data['x3/'] = k3.dump()
+        wizard.data['x3'] = k3.dump()
         wizard.pw_args = WizardWalletPasswordSetting(password=password,
                                                      encrypt_storage=encrypt_storage,
                                                      storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
@@ -668,8 +668,8 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.terminate()
 
     def create_remote_key(self, email, wizard):
-        xpub1 = wizard.data['x1/']['xpub']
-        xpub2 = wizard.data['x2/']['xpub']
+        xpub1 = wizard.data['x1']['xpub']
+        xpub2 = wizard.data['x2']['xpub']
         # Generate third key deterministically.
         long_user_id, short_id = get_user_id(wizard.data)
         xtype = xpub_type(xpub1)
@@ -736,14 +736,14 @@ class TrustedCoinPlugin(BasePlugin):
             wizard.terminate(aborted=True)
         else:
             k3 = keystore.from_xpub(xpub3)
-            wizard.data['x3/'] = k3.dump()
+            wizard.data['x3'] = k3.dump()
             wizard.data['use_trustedcoin'] = True
             wizard.terminate()
 
     def on_reset_auth(self, wizard, short_id, seed, passphrase, xpub3):
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
-        if (wizard.data['x1/']['xpub'] != xpub1 or
-                wizard.data['x2/']['xpub'] != xpub2):
+        if (wizard.data['x1']['xpub'] != xpub1 or
+                wizard.data['x2']['xpub'] != xpub2):
             wizard.show_message(_('Incorrect seed'))
             return
         r = server.get_challenge(short_id)
@@ -767,9 +767,9 @@ class TrustedCoinPlugin(BasePlugin):
     def get_action(self, db):
         if db.get('wallet_type') != '2fa':
             return
-        if not db.get('x1/'):
+        if not db.get('x1'):
             return self, 'show_disclaimer'
-        if not db.get('x2/'):
+        if not db.get('x2'):
             return self, 'show_disclaimer'
-        if not db.get('x3/'):
+        if not db.get('x3'):
             return self, 'accept_terms_of_use'
