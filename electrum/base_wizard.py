@@ -218,19 +218,19 @@ class BaseWizard(Logger):
     def on_import(self, text):
         # text is already sanitized by is_address_list and is_private_keys_list
         if keystore.is_address_list(text):
-            self.data['addresses'] = {}
+            self.data['imported_addresses'] = {}
             for addr in text.split():
                 assert bitcoin.is_address(addr)
-                self.data['addresses'][addr] = {}
+                self.data['imported_addresses'][addr] = {}
         elif keystore.is_private_key_list(text):
-            self.data['addresses'] = {}
+            self.data['imported_addresses'] = {}
             k = keystore.Imported_KeyStore({})
             keys = keystore.get_private_keys(text)
             for pk in keys:
                 assert bitcoin.is_private_key(pk)
                 txin_type, pubkey = k.import_privkey(pk, None)
                 addr = bitcoin.pubkey_to_address(txin_type, pubkey)
-                self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
+                self.data['imported_addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
             return self.terminate()

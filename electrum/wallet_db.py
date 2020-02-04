@@ -38,13 +38,13 @@ from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransactio
 from .logging import Logger
 from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, RevocationStore
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
-from .json_db import StoredDict, JsonDB, locked, modifier
+from .json_db import StoredDict, StorageList, JsonDB, locked, modifier
 
 # seed_version is now used for the version of the wallet file
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 24     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 25     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -163,6 +163,7 @@ class WalletDB(JsonDB):
         self._convert_version_22()
         self._convert_version_23()
         self._convert_version_24()
+        self._convert_version_25()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -488,6 +489,7 @@ class WalletDB(JsonDB):
 
         self.data['seed_version'] = 23
 
+
     def _convert_version_24(self):
         if not self._is_upgrade_method_needed(23, 23):
             return
@@ -525,6 +527,25 @@ class WalletDB(JsonDB):
         self.data['txo'] = txo
 
         self.data['seed_version'] = 24
+
+    def _convert_version_25(self):
+        if not self._is_upgrade_method_needed(24, 24):
+            return
+        # convert addresses to dict. flatten structure.
+        wallet_type = self.get('wallet_type')
+        _addresses = self.data.pop('addresses', {})
+        if wallet_type == 'imported':
+            self.data['imported_addresses'] = _addresses
+        else:
+            receiving_addresses = {}
+            for i, addr in enumerate(_addresses.get('receiving', [])):
+                receiving_addresses[str(i)] = addr
+            self.data['receiving_addresses'] = receiving_addresses
+            change_addresses = {}
+            for i, addr in enumerate(_addresses.get('change', [])):
+                change_addresses[str(i)] = addr
+            self.data['change_addresses'] = change_addresses
+        self.data['seed_version'] = 25
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -893,19 +914,15 @@ class WalletDB(JsonDB):
     def load_addresses(self, wallet_type):
         """ called from Abstract_Wallet.__init__ """
         if wallet_type == 'imported':
-            self.imported_addresses = self.get_dict('addresses')  # type: Dict[str, dict]
+            self.imported_addresses = self.get_dict('imported_addresses') # type: Dict[str, dict]
         else:
-            self.get_dict('addresses')
-            for name in ['receiving', 'change']:
-                if name not in self.data['addresses']:
-                    self.data['addresses'][name] = []
-            self.change_addresses = self.data['addresses']['change']
-            self.receiving_addresses = self.data['addresses']['receiving']
+            self.change_addresses = self.get_dict('change_addresses')
+            self.receiving_addresses = self.get_dict('receiving_addresses')
             self._addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]  # key: address, value: (is_change, index)
             for i, addr in enumerate(self.receiving_addresses):
-                self._addr_to_addr_index[addr] = (0, i)
+                self._addr_to_addr_index[addr] = (0, int(i))
             for i, addr in enumerate(self.change_addresses):
-                self._addr_to_addr_index[addr] = (1, i)
+                self._addr_to_addr_index[addr] = (1, int(i))
 
     @profiler
     def _load_transactions(self):
@@ -974,6 +991,8 @@ class WalletDB(JsonDB):
     def _convert_value(self, path, key, v):
         if key == 'local_config':
             v = LocalConfig(**v)
+        elif key in ['change_addresses', 'receiving_addresses']:
+            v = StorageList(v, self, path + [key])
         elif key == 'remote_config':
             v = RemoteConfig(**v)
         elif key == 'constraints':
