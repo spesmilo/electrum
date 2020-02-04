@@ -59,7 +59,7 @@ class WalletRequiresSplit(WalletFileException):
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 54     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 55     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -217,6 +217,7 @@ class WalletDBUpgrader(Logger):
         self._convert_version_52()
         self._convert_version_53()
         self._convert_version_54()
+        self._convert_version_55()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
     def _convert_wallet_type(self):
@@ -1065,6 +1066,15 @@ class WalletDBUpgrader(Logger):
                     del d[key]
         self.data['seed_version'] = 54
 
+    def _convert_version_55(self):
+        if not self._is_upgrade_method_needed(54, 54):
+            return
+        # do not use '/' in dict keys
+        for key in list(self.data.keys()):
+            if key.endswith('/'):
+                self.data[key[:-1]] = self.data.pop(key)
+        self.data['seed_version'] = 55
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1619,7 +1629,7 @@ class WalletDB(JsonDB):
     def _should_convert_to_stored_dict(self, key) -> bool:
         if key == 'keystore':
             return False
-        multisig_keystore_names = [('x%d/' % i) for i in range(1, 16)]
+        multisig_keystore_names = [('x%d' % i) for i in range(1, 16)]
         if key in multisig_keystore_names:
             return False
         return True

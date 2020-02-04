@@ -420,7 +420,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not d['wallet_exists']:
             self.logger.info('about to create wallet')
             wizard.create_storage()
-            if d['wallet_type'] == '2fa' and 'x3/' not in d:
+            if d['wallet_type'] == '2fa' and 'x3' not in d:
                 return
             wallet_file = wizard.path
         else:
@@ -441,16 +441,16 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if action := db.get_action():
             # wallet creation is not complete, 2fa online phase
             assert action[1] == 'accept_terms_of_use', 'only support for resuming trustedcoin split setup'
-            k1 = load_keystore(db, 'x1/')
+            k1 = load_keystore(db, 'x1')
             if 'password' in d and d['password']:
                 xprv = k1.get_master_private_key(d['password'])
             else:
-                xprv = db.get('x1/')['xprv']
+                xprv = db.get('x1')['xprv']
             data = {
                 'wallet_name': os.path.basename(wallet_file),
                 'xprv1': xprv,
-                'xpub1': db.get('x1/')['xpub'],
-                'xpub2': db.get('x2/')['xpub'],
+                'xpub1': db.get('x1')['xpub'],
+                'xpub2': db.get('x2')['xpub'],
             }
             wizard = QENewWalletWizard(self.config, self.app, self.plugins, self.daemon, path,
                                        start_viewstate=WizardViewState('trustedcoin_tos_email', data, {}))
@@ -458,7 +458,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             if result == QENewWalletWizard.Rejected:
                 self.logger.info('ok bye bye')
                 return
-            db.put('x3/', wizard.get_wizard_data()['x3/'])
+            db.put('x3', wizard.get_wizard_data()['x3'])
             db.write()
 
         wallet = Wallet(db, config=self.config)

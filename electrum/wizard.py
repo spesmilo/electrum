@@ -547,7 +547,7 @@ class NewWalletWizard(AbstractWizard):
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
             elif is_any_2fa_seed_type(data['seed_type']):
                 self._logger.debug('creating keystore from 2fa seed')
-                k = keystore.from_xprv(data['x1/']['xprv'])
+                k = keystore.from_xprv(data['x1']['xprv'])
             else:
                 raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
         elif data['keystore_type'] == 'masterkey':
@@ -597,23 +597,23 @@ class NewWalletWizard(AbstractWizard):
         if data['wallet_type'] == 'standard':
             db.put('keystore', k.dump())
         elif data['wallet_type'] == '2fa':
-            db.put('x1/', k.dump())
+            db.put('x1', k.dump())
             if 'trustedcoin_keepordisable' in data and data['trustedcoin_keepordisable'] == 'disable':
-                k2 = keystore.from_xprv(data['x2/']['xprv'])
+                k2 = keystore.from_xprv(data['x2']['xprv'])
                 if data['encrypt'] and k2.may_have_password():
                     k2.update_password(None, data['password'])
-                db.put('x2/', k2.dump())
+                db.put('x2', k2.dump())
             else:
-                db.put('x2/', data['x2/'])
-            if 'x3/' in data:
-                db.put('x3/', data['x3/'])
+                db.put('x2', data['x2'])
+            if 'x3' in data:
+                db.put('x3', data['x3'])
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
             if not isinstance(k, keystore.Xpub):
                 raise Exception(f'unexpected keystore(main) type={type(k)} in multisig. not bip32.')
             k_xpub_type = xpub_type(k.xpub)
             db.put('wallet_type', '%dof%d' % (data['multisig_signatures'], data['multisig_participants']))
-            db.put('x1/', k.dump())
+            db.put('x1', k.dump())
             for cosigner in data['multisig_cosigner_data']:
                 cosigner_keystore = self.keystore_from_data('multisig', data['multisig_cosigner_data'][cosigner])
                 if not isinstance(cosigner_keystore, keystore.Xpub):
@@ -622,7 +622,7 @@ class NewWalletWizard(AbstractWizard):
                     raise Exception('multisig wallet needs to have homogeneous xpub types')
                 if data['encrypt'] and cosigner_keystore.may_have_password():
                     cosigner_keystore.update_password(None, data['password'])
-                db.put(f'x{cosigner}/', cosigner_keystore.dump())
+                db.put(f'x{cosigner}', cosigner_keystore.dump())
         elif data['wallet_type'] == 'imported':
             if k:
                 db.put('keystore', k.dump())

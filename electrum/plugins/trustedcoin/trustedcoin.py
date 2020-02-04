@@ -405,8 +405,8 @@ class Wallet_2fa(Multisig_Wallet):
 def get_user_id(db):
     def make_long_id(xpub_hot, xpub_cold):
         return sha256(''.join(sorted([xpub_hot, xpub_cold])))
-    xpub1 = db.get('x1/')['xpub']
-    xpub2 = db.get('x2/')['xpub']
+    xpub1 = db.get('x1')['xpub']
+    xpub2 = db.get('x2')['xpub']
     long_id = make_long_id(xpub1, xpub2)
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
@@ -468,7 +468,7 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
+        if not wallet.keystores['x3'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):
@@ -587,11 +587,11 @@ class TrustedCoinPlugin(BasePlugin):
     def get_action(self, db):
         if db.get('wallet_type') != '2fa':
             return
-        if not db.get('x1/'):
+        if not db.get('x1'):
             return self, 'show_disclaimer'
-        if not db.get('x2/'):
+        if not db.get('x2'):
             return self, 'show_disclaimer'
-        if not db.get('x3/'):
+        if not db.get('x3'):
             return self, 'accept_terms_of_use'
 
     # insert trustedcoin pages in new wallet wizard
@@ -644,7 +644,7 @@ class TrustedCoinPlugin(BasePlugin):
         else:
             xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(wizard_data['seed'], wizard_data['seed_extra_words'])
 
-        data = {'x1/': {'xpub': xpub1}, 'x2/': {'xpub': xpub2}}
+        data = {'x1': {'xpub': xpub1}, 'x2': {'xpub': xpub2}}
 
         # Generate third key deterministically.
         long_user_id, short_id = get_user_id(data)
@@ -660,9 +660,9 @@ class TrustedCoinPlugin(BasePlugin):
         k2 = keystore.from_xpub(xpub2)
         k3 = keystore.from_xpub(xpub3)
 
-        wizard_data['x1/'] = k1.dump()
-        wizard_data['x2/'] = k2.dump()
-        wizard_data['x3/'] = k3.dump()
+        wizard_data['x1'] = k1.dump()
+        wizard_data['x2'] = k2.dump()
+        wizard_data['x3'] = k3.dump()
 
     def recovery_disable(self, wizard_data):
         if wizard_data['trustedcoin_keepordisable'] != 'disable':
@@ -674,7 +674,7 @@ class TrustedCoinPlugin(BasePlugin):
         k2 = keystore.from_xprv(xprv2)
         k3 = keystore.from_xpub(xpub3)
 
-        wizard_data['x1/'] = k1.dump()
-        wizard_data['x2/'] = k2.dump()
-        wizard_data['x3/'] = k3.dump()
+        wizard_data['x1'] = k1.dump()
+        wizard_data['x2'] = k2.dump()
+        wizard_data['x3'] = k3.dump()
 

@@ -75,7 +75,7 @@ class HandlerTwoFactor(QObject, Logger):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
+        if not wallet.keystores['x3'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         window = self.window.top_level_window()
@@ -414,8 +414,8 @@ class Plugin(TrustedCoinPlugin):
             k1 = keystore.from_xprv(xprv1)
             k2 = keystore.from_xpub(xpub2)
 
-            wizard_data['x1/'] = k1.dump()
-            wizard_data['x2/'] = k2.dump()
+            wizard_data['x1'] = k1.dump()
+            wizard_data['x2'] = k2.dump()
 
 
 class WCDisclaimer(WizardComponent):
