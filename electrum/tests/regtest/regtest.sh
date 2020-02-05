@@ -139,6 +139,8 @@ fi
 
 
 if [[ $1 == "breach" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
@@ -161,11 +163,12 @@ fi
 
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob setconfig lightning_settle_delay 10
-    # alice opens channel
+    wait_for_balance alice 1
+    echo "alice opens channel"
     bob_node=$($bob nodeid)
     $alice open_channel $bob_node 0.15
-    new_blocks 6
-    sleep 10
+    new_blocks 3
+    wait_until_channel_open alice
     # alice pays bob
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
