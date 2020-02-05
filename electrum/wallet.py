@@ -60,6 +60,7 @@ from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK, AddressIndexGeneric
 from .util import multisig_type
 from .storage import StorageEncryptionVersion, WalletStorage
+from .wallet_db import WalletDB
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
@@ -225,44 +226,49 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     txin_type: str
     wallet_type: str
 
-    def __init__(self, storage: WalletStorage, *, config: SimpleConfig):
-        if not storage.is_ready_to_be_used_by_wallet():
+    def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
+        if not db.is_ready_to_be_used_by_wallet():
             raise Exception("storage not ready to be used by Abstract_Wallet")
 
         self.config = config
         assert self.config is not None, "config must not be None"
+        self.db = db
         self.storage = storage
         # load addresses needs to be called before constructor for sanity checks
-        self.storage.db.load_addresses(self.wallet_type)
+        db.load_addresses(self.wallet_type)
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
-        AddressSynchronizer.__init__(self, storage.db)
+        AddressSynchronizer.__init__(self, db)
 
         # saved fields
-        self.use_change            = storage.get('use_change', True)
-        self.multiple_change       = storage.get('multiple_change', False)
-        self.labels                = storage.db.get_dict('labels')
-        self.frozen_addresses      = set(storage.get('frozen_addresses', []))
-        self.frozen_coins          = set(storage.get('frozen_coins', []))  # set of txid:vout strings
-        self.fiat_value            = storage.db.get_dict('fiat_value')
-        self.receive_requests      = storage.db.get_dict('payment_requests')
-        self.invoices              = storage.db.get_dict('invoices')
+        self.use_change            = db.get('use_change', True)
+        self.multiple_change       = db.get('multiple_change', False)
+        self.labels                = db.get_dict('labels')
+        self.frozen_addresses      = set(db.get('frozen_addresses', []))
+        self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
+        self.fiat_value            = db.get_dict('fiat_value')
+        self.receive_requests      = db.get_dict('payment_requests')
+        self.invoices              = db.get_dict('invoices')
 
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
         # save wallet type the first time
-        if self.storage.get('wallet_type') is None:
-            self.storage.put('wallet_type', self.wallet_type)
-        self.contacts = Contacts(self.storage)
+        if self.db.get('wallet_type') is None:
+            self.db.put('wallet_type', self.wallet_type)
+        self.contacts = Contacts(self.db)
         self._coin_price_cache = {}
         # lightning
-        ln_xprv = self.storage.get('lightning_privkey2')
+        ln_xprv = self.db.get('lightning_privkey2')
         self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+
+    def save_db(self):
+        if self.storage:
+            self.db.write(self.storage)
 
     def has_lightning(self):
         return bool(self.lnworker)
 
     def init_lightning(self):
-        if self.storage.get('lightning_privkey2'):
+        if self.db.get('lightning_privkey2'):
             return
         if not is_using_fast_ecc():
             raise Exception('libsecp256k1 library not available. '
@@ -272,30 +278,30 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         ln_xprv = node.to_xprv()
-        self.storage.put('lightning_privkey2', ln_xprv)
-        self.storage.write()
+        self.db.put('lightning_privkey2', ln_xprv)
+        self.save_db()
 
     def remove_lightning(self):
-        if not self.storage.get('lightning_privkey2'):
+        if not self.db.get('lightning_privkey2'):
             return
         if bool(self.lnworker.channels):
             raise Exception('Error: This wallet has channels')
-        self.storage.put('lightning_privkey2', None)
-        self.storage.write()
+        self.db.put('lightning_privkey2', None)
+        self.save_db()
 
     def stop_threads(self):
         super().stop_threads()
         if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
             self.save_keystore()
-        self.storage.write()
+        self.save_db()
 
     def set_up_to_date(self, b):
         super().set_up_to_date(b)
-        if b: self.storage.write()
+        if b: self.save_db()
 
     def clear_history(self):
         super().clear_history()
-        self.storage.write()
+        self.save_db()
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
@@ -325,7 +331,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return []
 
     def basename(self) -> str:
-        return self.storage.basename()
+        return self.storage.basename() if self.storage else 'no name'
 
     def test_addresses_sanity(self) -> None:
         addrs = self.get_receiving_addresses()
@@ -615,11 +621,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             raise Exception('Unsupported invoice type')
         self.invoices[key] = invoice
-        self.storage.write()
+        self.save_db()
 
     def clear_invoices(self):
         self.invoices = {}
-        self.storage.write()
+        self.save_db()
 
     def get_invoices(self):
         out = [self.get_invoice(key) for key in self.invoices.keys()]
@@ -1094,7 +1100,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 self.frozen_addresses |= set(addrs)
             else:
                 self.frozen_addresses -= set(addrs)
-            self.storage.put('frozen_addresses', list(self.frozen_addresses))
+            self.db.put('frozen_addresses', list(self.frozen_addresses))
             return True
         return False
 
@@ -1106,7 +1112,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.frozen_coins |= set(utxos)
         else:
             self.frozen_coins -= set(utxos)
-        self.storage.put('frozen_coins', list(self.frozen_coins))
+        self.db.put('frozen_coins', list(self.frozen_coins))
 
     def wait_until_synchronized(self, callback=None):
         def wait_for_wallet():
@@ -1683,12 +1689,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         If True, e.g. signing a transaction will require a password.
         """
         if self.can_have_keystore_encryption():
-            return self.storage.get('use_encryption', False)
+            return self.db.get('use_encryption', False)
         return False
 
     def has_storage_encryption(self):
         """Returns whether encryption is enabled for the wallet file on disk."""
-        return self.storage.is_encrypted()
+        return self.storage and self.storage.is_encrypted()
 
     @classmethod
     def may_have_password(cls):
@@ -1697,18 +1703,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def check_password(self, password):
         if self.has_keystore_encryption():
             self.keystore.check_password(password)
-        self.storage.check_password(password)
+        if self.has_storage_encryption():
+            self.storage.check_password(password)
 
     def update_password(self, old_pw, new_pw, *, encrypt_storage: bool = True):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)
-
-        if encrypt_storage:
-            enc_version = self.get_available_storage_encryption_version()
-        else:
-            enc_version = StorageEncryptionVersion.PLAINTEXT
-        self.storage.set_password(new_pw, enc_version)
+        if self.storage:
+            if encrypt_storage:
+                enc_version = self.get_available_storage_encryption_version()
+            else:
+                enc_version = StorageEncryptionVersion.PLAINTEXT
+            self.storage.set_password(new_pw, enc_version)
+        # make sure next storage.write() saves changes
+        self.db.set_modified(True)
 
         # note: Encrypting storage with a hw device is currently only
         #       allowed for non-multisig wallets. Further,
@@ -1717,8 +1726,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         #       extra care would need to be taken when encrypting keystores.
         self._update_password_for_keystore(old_pw, new_pw)
         encrypt_keystore = self.can_have_keystore_encryption()
-        self.storage.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
-        self.storage.write()
+        self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
+        self.save_db()
 
     @abstractmethod
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
@@ -1840,7 +1849,7 @@ class Simple_Wallet(Abstract_Wallet):
             self.save_keystore()
 
     def save_keystore(self):
-        self.storage.put('keystore', self.keystore.dump())
+        self.db.put('keystore', self.keystore.dump())
 
     @abstractmethod
     def get_public_key(self, address: str) -> Optional[str]:
@@ -1870,8 +1879,8 @@ class Imported_Wallet(Simple_Wallet):
     wallet_type = 'imported'
     txin_type = 'address'
 
-    def __init__(self, storage, *, config):
-        Abstract_Wallet.__init__(self, storage, config=config)
+    def __init__(self, db, storage, *, config):
+        Abstract_Wallet.__init__(self, db, storage, config=config)
 
     def is_watching_only(self):
         return self.keystore is None
@@ -1880,10 +1889,10 @@ class Imported_Wallet(Simple_Wallet):
         return bool(self.keystore)
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.storage, 'keystore') if self.storage.get('keystore') else None
+        self.keystore = load_keystore(self.db, 'keystore') if self.db.get('keystore') else None
 
     def save_keystore(self):
-        self.storage.put('keystore', self.keystore.dump())
+        self.db.put('keystore', self.keystore.dump())
 
     def can_import_address(self):
         return self.is_watching_only()
@@ -1931,7 +1940,7 @@ class Imported_Wallet(Simple_Wallet):
             self.db.add_imported_address(address, {})
             self.add_address(address)
         if write_to_disk:
-            self.storage.write()
+            self.save_db()
         return good_addr, bad_addr
 
     def import_address(self, address: str) -> str:
@@ -1977,7 +1986,7 @@ class Imported_Wallet(Simple_Wallet):
             else:
                 self.keystore.delete_imported_key(pubkey)
                 self.save_keystore()
-        self.storage.write()
+        self.save_db()
 
     def is_mine(self, address) -> bool:
         return self.db.has_imported_address(address)
@@ -2009,7 +2018,7 @@ class Imported_Wallet(Simple_Wallet):
             self.add_address(addr)
         self.save_keystore()
         if write_to_disk:
-            self.storage.write()
+            self.save_db()
         return good_addr, bad_keys
 
     def import_private_key(self, key: str, password: Optional[str]) -> str:
@@ -2050,10 +2059,10 @@ class Imported_Wallet(Simple_Wallet):
 
 class Deterministic_Wallet(Abstract_Wallet):
 
-    def __init__(self, storage, *, config):
+    def __init__(self, db, storage, *, config):
         self._ephemeral_addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]
-        Abstract_Wallet.__init__(self, storage, config=config)
-        self.gap_limit = storage.get('gap_limit', 20)
+        Abstract_Wallet.__init__(self, db, storage, config=config)
+        self.gap_limit = db.get('gap_limit', 20)
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
         self.synchronize()
@@ -2100,8 +2109,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         '''This method is not called in the code, it is kept for console use'''
         if value >= self.min_acceptable_gap():
             self.gap_limit = value
-            self.storage.put('gap_limit', self.gap_limit)
-            self.storage.write()
+            self.db.put('gap_limit', self.gap_limit)
+            self.save_db()
             return True
         else:
             return False
@@ -2232,8 +2241,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
     """ Deterministic Wallet with a single pubkey per address """
 
-    def __init__(self, storage, *, config):
-        Deterministic_Wallet.__init__(self, storage, config=config)
+    def __init__(self, db, storage, *, config):
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
 
     def get_public_key(self, address):
         sequence = self.get_address_index(address)
@@ -2241,7 +2250,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         return pubkeys[0]
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.storage, 'keystore')
+        self.keystore = load_keystore(self.db, 'keystore')
         try:
             xtype = bip32.xpub_type(self.keystore.xpub)
         except:
@@ -2270,10 +2279,10 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
 class Multisig_Wallet(Deterministic_Wallet):
     # generic m of n
 
-    def __init__(self, storage, *, config):
-        self.wallet_type = storage.get('wallet_type')
+    def __init__(self, db, storage, *, config):
+        self.wallet_type = db.get('wallet_type')
         self.m, self.n = multisig_type(self.wallet_type)
-        Deterministic_Wallet.__init__(self, storage, config=config)
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
 
     def get_public_keys(self, address):
         return [pk.hex() for pk in self.get_public_keys_with_deriv_info(address)]
@@ -2314,14 +2323,14 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.keystores = {}
         for i in range(self.n):
             name = 'x%d/'%(i+1)
-            self.keystores[name] = load_keystore(self.storage, name)
+            self.keystores[name] = load_keystore(self.db, name)
         self.keystore = self.keystores['x1/']
         xtype = bip32.xpub_type(self.keystore.xpub)
         self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
     def save_keystore(self):
         for name, k in self.keystores.items():
-            self.storage.put(name, k.dump())
+            self.db.put(name, k.dump())
 
     def get_keystore(self):
         return self.keystores.get('x1/')
@@ -2336,13 +2345,14 @@ class Multisig_Wallet(Deterministic_Wallet):
         for name, keystore in self.keystores.items():
             if keystore.may_have_password():
                 keystore.update_password(old_pw, new_pw)
-                self.storage.put(name, keystore.dump())
+                self.db.put(name, keystore.dump())
 
     def check_password(self, password):
         for name, keystore in self.keystores.items():
             if keystore.may_have_password():
                 keystore.check_password(password)
-        self.storage.check_password(password)
+        if self.has_storage_encryption():
+            self.storage.check_password(password)
 
     def get_available_storage_encryption_version(self):
         # multisig wallets are not offered hw device encryption
@@ -2385,10 +2395,10 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, storage: WalletStorage, *, config: SimpleConfig):
-        wallet_type = storage.get('wallet_type')
+    def __new__(self, db, storage: WalletStorage, *, config: SimpleConfig):
+        wallet_type = db.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
-        wallet = WalletClass(storage, config=config)
+        wallet = WalletClass(db, storage, config=config)
         return wallet
 
     @staticmethod
@@ -2406,19 +2416,20 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
+    db = WalletDB('', manual_upgrades=False)
 
     seed = Mnemonic('en').make_seed(seed_type)
     k = keystore.from_seed(seed, passphrase)
-    storage.put('keystore', k.dump())
-    storage.put('wallet_type', 'standard')
+    db.put('keystore', k.dump())
+    db.put('wallet_type', 'standard')
     if gap_limit is not None:
-        storage.put('gap_limit', gap_limit)
-    wallet = Wallet(storage, config=config)
+        db.put('gap_limit', gap_limit)
+    wallet = Wallet(db, storage, config=config)
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
 
-    wallet.storage.write()
+    wallet.save_db()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
@@ -2431,10 +2442,10 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
     storage = WalletStorage(path)
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
-
+    db = WalletDB('', manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):
-        wallet = Imported_Wallet(storage, config=config)
+        wallet = Imported_Wallet(db, storage, config=config)
         addresses = text.split()
         good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -2442,8 +2453,8 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
             raise Exception("None of the given addresses can be imported")
     elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
         k = keystore.Imported_KeyStore({})
-        storage.put('keystore', k.dump())
-        wallet = Imported_Wallet(storage, config=config)
+        db.put('keystore', k.dump())
+        wallet = Imported_Wallet(db, storage, config=config)
         keys = keystore.get_private_keys(text, allow_spaces_inside_key=False)
         good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
         # FIXME tell user about bad_inputs
@@ -2456,11 +2467,11 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
             k = keystore.from_seed(text, passphrase)
         else:
             raise Exception("Seed or key not recognized")
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
+        db.put('keystore', k.dump())
+        db.put('wallet_type', 'standard')
         if gap_limit is not None:
-            storage.put('gap_limit', gap_limit)
-        wallet = Wallet(storage, config=config)
+            db.put('gap_limit', gap_limit)
+        wallet = Wallet(db, storage, config=config)
 
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
@@ -2468,5 +2479,5 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
 
-    wallet.storage.write()
+    wallet.save_db()
     return {'wallet': wallet, 'msg': msg}

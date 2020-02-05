@@ -617,7 +617,7 @@ class Peer(Logger):
             "revocation_store": {},
         }
         channel_id = chan_dict.get('channel_id')
-        channels = self.lnworker.storage.db.get_dict('channels')
+        channels = self.lnworker.db.get_dict('channels')
         channels[channel_id] = chan_dict
         return channels.get(channel_id)
 

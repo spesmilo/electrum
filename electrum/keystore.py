@@ -864,8 +864,8 @@ def hardware_keystore(d) -> Hardware_KeyStore:
     raise WalletFileException(f'unknown hardware type: {hw_type}. '
                               f'hw_keystores: {list(hw_keystores)}')
 
-def load_keystore(storage, name) -> KeyStore:
-    d = storage.get(name, {})
+def load_keystore(db, name) -> KeyStore:
+    d = db.get(name, {})
     t = d.get('type')
     if not t:
         raise WalletFileException(

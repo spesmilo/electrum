@@ -262,13 +262,13 @@ class Commands:
             raise Exception("Can't change the password of a wallet encrypted with a hw device.")
         b = wallet.storage.is_encrypted()
         wallet.update_password(password, new_password, encrypt_storage=b)
-        wallet.storage.write()
+        wallet.save_db()
         return {'password':wallet.has_password()}
 
     @command('w')
     async def get(self, key, wallet: Abstract_Wallet = None):
         """Return item from wallet storage"""
-        return wallet.storage.get(key)
+        return wallet.db.get(key)
 
     @command('')
     async def getconfig(self, key):
@@ -830,7 +830,7 @@ class Commands:
         tx = Transaction(tx)
         if not wallet.add_transaction(tx):
             return False
-        wallet.storage.write()
+        wallet.save_db()
         return tx.txid()
 
     @command('wp')
@@ -906,7 +906,7 @@ class Commands:
         to_delete |= wallet.get_depending_transactions(txid)
         for tx_hash in to_delete:
             wallet.remove_transaction(tx_hash)
-        wallet.storage.write()
+        wallet.save_db()
 
     @command('wn')
     async def get_tx_status(self, txid, wallet: Abstract_Wallet = None):

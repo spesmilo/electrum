@@ -39,6 +39,7 @@ from .logging import Logger
 from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, RevocationStore
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
+from .plugin import run_hook, plugin_loaders
 
 # seed_version is now used for the version of the wallet file
 
@@ -62,6 +63,7 @@ class WalletDB(JsonDB):
         self._called_after_upgrade_tasks = False
         if raw:  # loading existing db
             self.load_data(raw)
+            self.load_plugins()
         else:  # creating new db
             self.put('seed_version', FINAL_SEED_VERSION)
             self._after_upgrade_tasks()
@@ -99,7 +101,7 @@ class WalletDB(JsonDB):
         d = self.get('accounts', {})
         return len(d) > 1
 
-    def split_accounts(self):
+    def get_split_accounts(self):
         result = []
         # backward compatibility with old wallets
         d = self.get('accounts', {})
@@ -993,3 +995,45 @@ class WalletDB(JsonDB):
         elif len(path) > 2 and path[-2] in ['local_config', 'remote_config'] and key in ["pubkey", "privkey"]:
             v = binascii.unhexlify(v) if v is not None else None
         return v
+
+    def write(self, storage):
+        with self.lock:
+            self._write(storage)
+
+    def _write(self, storage):
+        if threading.currentThread().isDaemon():
+            self.logger.warning('daemon thread cannot write db')
+            return
+        if not self.modified():
+            return
+        storage.write(self.dump())
+        self.set_modified(False)
+
+    def is_ready_to_be_used_by_wallet(self):
+        return not self.requires_upgrade() and self._called_after_upgrade_tasks
+
+    def split_accounts(self, root_path):
+        from .storage import WalletStorage
+        out = []
+        result = self.get_split_accounts()
+        for data in result:
+            path = root_path + '.' + data['suffix']
+            storage = WalletStorage(path)
+            db = WalletDB(json.dumps(data), manual_upgrades=False)
+            db._called_after_upgrade_tasks = False
+            db.upgrade()
+            db.write(storage)
+            out.append(path)
+        return out
+
+    def get_action(self):
+        action = run_hook('get_action', self)
+        return action
+
+    def load_plugins(self):
+        wallet_type = self.get('wallet_type')
+        if wallet_type in plugin_loaders:
+            plugin_loaders[wallet_type]()
+
+    def set_keystore_encryption(self, enable):
+        self.put('use_encryption', enable)

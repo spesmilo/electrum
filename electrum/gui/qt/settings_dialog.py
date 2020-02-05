@@ -324,7 +324,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             usechange_result = x == Qt.Checked
             if self.window.wallet.use_change != usechange_result:
                 self.window.wallet.use_change = usechange_result
-                self.window.wallet.storage.put('use_change', self.window.wallet.use_change)
+                self.window.wallet.db.put('use_change', self.window.wallet.use_change)
                 multiple_cb.setEnabled(self.window.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
         usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
@@ -334,7 +334,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             multiple = x == Qt.Checked
             if self.wallet.multiple_change != multiple:
                 self.wallet.multiple_change = multiple
-                self.wallet.storage.put('multiple_change', multiple)
+                self.wallet.db.put('multiple_change', multiple)
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
         multiple_cb.setEnabled(self.wallet.use_change)

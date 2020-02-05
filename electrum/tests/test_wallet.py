@@ -58,13 +58,15 @@ class TestWalletStorage(WalletTestCase):
         with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
 
-        storage = WalletStorage(self.wallet_path, manual_upgrades=True)
-        self.assertEqual("b", storage.get("a"))
-        self.assertEqual("d", storage.get("c"))
+        storage = WalletStorage(self.wallet_path)
+        db = WalletDB(storage.read(), manual_upgrades=True)
+        self.assertEqual("b", db.get("a"))
+        self.assertEqual("d", db.get("c"))
 
     def test_write_dictionary_to_file(self):
 
         storage = WalletStorage(self.wallet_path)
+        db = WalletDB('', manual_upgrades=True)
 
         some_dict = {
             u"a": u"b",
@@ -72,8 +74,8 @@ class TestWalletStorage(WalletTestCase):
             u"seed_version": FINAL_SEED_VERSION}
 
         for key, value in some_dict.items():
-            storage.put(key, value)
-        storage.write()
+            db.put(key, value)
+        db.write(storage)
 
         with open(self.wallet_path, "r") as f:
             contents = f.read()
