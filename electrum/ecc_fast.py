@@ -79,6 +79,12 @@ def load_library():
         secp256k1.secp256k1_ecdsa_signature_serialize_compact.argtypes = [c_void_p, c_char_p, c_char_p]
         secp256k1.secp256k1_ecdsa_signature_serialize_compact.restype = c_int
 
+        secp256k1.secp256k1_ecdsa_signature_parse_der.argtypes = [c_void_p, c_char_p, c_char_p, c_size_t]
+        secp256k1.secp256k1_ecdsa_signature_parse_der.restype = c_int
+
+        secp256k1.secp256k1_ecdsa_signature_serialize_der.argtypes = [c_void_p, c_char_p, c_void_p, c_char_p]
+        secp256k1.secp256k1_ecdsa_signature_serialize_der.restype = c_int
+
         secp256k1.secp256k1_ec_pubkey_tweak_mul.argtypes = [c_void_p, c_char_p, c_char_p]
         secp256k1.secp256k1_ec_pubkey_tweak_mul.restype = c_int
 
