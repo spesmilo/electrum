@@ -29,11 +29,6 @@ import functools
 import copy
 from typing import Union, Tuple, Optional
 
-import ecdsa
-from ecdsa.ecdsa import generator_secp256k1
-from ecdsa.curves import SECP256k1
-from ecdsa.ellipticcurve import Point
-
 from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from . import constants
@@ -50,11 +45,9 @@ from .ecc_fast import _libsecp256k1, SECP256K1_EC_UNCOMPRESSED
 
 _logger = get_logger(__name__)
 
-CURVE_ORDER = SECP256k1.order
-
 
 def generator():
-    return ECPubkey.from_point(generator_secp256k1)
+    return GENERATOR
 
 
 def point_at_infinity():
@@ -65,17 +58,17 @@ def string_to_number(b: bytes) -> int:
     return int.from_bytes(b, byteorder='big', signed=False)
 
 
-def sig_string_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> bytes:
+def sig_string_from_der_sig(der_sig: bytes, order=None) -> bytes:
     r, s = get_r_and_s_from_der_sig(der_sig)
     return sig_string_from_r_and_s(r, s)
 
 
-def der_sig_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> bytes:
+def der_sig_from_sig_string(sig_string: bytes, order=None) -> bytes:
     r, s = get_r_and_s_from_sig_string(sig_string)
     return der_sig_from_r_and_s(r, s)
 
 
-def der_sig_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
+def der_sig_from_r_and_s(r: int, s: int, order=None) -> bytes:
     sig_string = (int.to_bytes(r, length=32, byteorder="big") +
                   int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
@@ -92,7 +85,7 @@ def der_sig_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return bytes(der_sig)[:der_sig_size]
 
 
-def get_r_and_s_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
+def get_r_and_s_from_der_sig(der_sig: bytes, order=None) -> Tuple[int, int]:
     assert isinstance(der_sig, bytes)
     sig = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ecdsa_signature_parse_der(_libsecp256k1.ctx, sig, der_sig, len(der_sig))
@@ -106,7 +99,7 @@ def get_r_and_s_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> Tuple[int, in
     return r, s
 
 
-def get_r_and_s_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
+def get_r_and_s_from_sig_string(sig_string: bytes, order=None) -> Tuple[int, int]:
     if not (isinstance(sig_string, bytes) and len(sig_string) == 64):
         raise Exception("sig_string must be bytes, and 64 bytes exactly")
     sig = create_string_buffer(64)
@@ -121,7 +114,7 @@ def get_r_and_s_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> Tuple[i
     return r, s
 
 
-def sig_string_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
+def sig_string_from_r_and_s(r: int, s: int, order=None) -> bytes:
     sig_string = (int.to_bytes(r, length=32, byteorder="big") +
                   int.to_bytes(s, length=32, byteorder="big"))
     sig = create_string_buffer(64)
@@ -132,19 +125,6 @@ def sig_string_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     compact_signature = create_string_buffer(64)
     _libsecp256k1.secp256k1_ecdsa_signature_serialize_compact(_libsecp256k1.ctx, compact_signature, sig)
     return bytes(compact_signature)
-
-
-def point_to_ser(point, compressed=True) -> Optional[bytes]:  # TODO rm?
-    if isinstance(point, tuple):
-        assert len(point) == 2, f'unexpected point: {point}'
-        x, y = point
-    else:
-        x, y = point.x(), point.y()
-    if x is None or y is None:  # infinity
-        return None
-    if compressed:
-        return bfh(('%02x' % (2+(y&1))) + ('%064x' % x))
-    return bfh('04'+('%064x' % x)+('%064x' % y))
 
 
 def _x_and_y_from_pubkey_bytes(pubkey: bytes) -> Tuple[int, int]:
@@ -169,50 +149,6 @@ class InvalidECPointException(Exception):
     """e.g. not on curve, or infinity"""
 
 
-class _MyVerifyingKey(ecdsa.VerifyingKey):
-    @classmethod
-    def from_signature(klass, sig, recid, h, curve):  # TODO use libsecp??
-        """ See http://www.secg.org/download/aid-780/sec1-v2.pdf, chapter 4.1.6 """
-        from ecdsa import util, numbertheory
-        from . import msqr
-        curveFp = curve.curve
-        G = curve.generator
-        order = G.order()
-        # extract r,s from signature
-        r, s = get_r_and_s_from_sig_string(sig, order)
-        # 1.1
-        x = r + (recid//2) * order
-        # 1.3
-        alpha = ( x * x * x  + curveFp.a() * x + curveFp.b() ) % curveFp.p()
-        beta = msqr.modular_sqrt(alpha, curveFp.p())
-        y = beta if (beta - recid) % 2 == 0 else curveFp.p() - beta
-        # 1.4 the constructor checks that nR is at infinity
-        try:
-            R = Point(curveFp, x, y, order)
-        except:
-            raise InvalidECPointException()
-        # 1.5 compute e from message:
-        e = string_to_number(h)
-        minus_e = -e % order
-        # 1.6 compute Q = r^-1 (sR - eG)
-        inv_r = numbertheory.inverse_mod(r,order)
-        try:
-            Q = inv_r * ( s * R + minus_e * G )
-        except:
-            raise InvalidECPointException()
-        return klass.from_public_point( Q, curve )
-
-
-class _MySigningKey(ecdsa.SigningKey):
-    """Enforce low S values in signatures"""
-
-    def sign_number(self, number, entropy=None, k=None):
-        r, s = ecdsa.SigningKey.sign_number(self, number, entropy, k)
-        if s > CURVE_ORDER//2:
-            s = CURVE_ORDER - s
-        return r, s
-
-
 @functools.total_ordering
 class ECPubkey(object):
 
@@ -227,12 +163,19 @@ class ECPubkey(object):
     def from_sig_string(cls, sig_string: bytes, recid: int, msg_hash: bytes) -> 'ECPubkey':
         assert_bytes(sig_string)
         if len(sig_string) != 64:
-            raise Exception('Wrong encoding')
+            raise Exception(f'wrong encoding used for signature? len={len(sig_string)} (should be 64)')
         if recid < 0 or recid > 3:
             raise ValueError('recid is {}, but should be 0 <= recid <= 3'.format(recid))
-        ecdsa_verifying_key = _MyVerifyingKey.from_signature(sig_string, recid, msg_hash, curve=SECP256k1)
-        ecdsa_point = ecdsa_verifying_key.pubkey.point
-        return ECPubkey.from_point(ecdsa_point)
+        sig65 = create_string_buffer(65)
+        ret = _libsecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
+            _libsecp256k1.ctx, sig65, sig_string, recid)
+        if not ret:
+            raise Exception('failed to parse signature')
+        pubkey = create_string_buffer(64)
+        ret = _libsecp256k1.secp256k1_ecdsa_recover(_libsecp256k1.ctx, pubkey, sig65, msg_hash)
+        if not ret:
+            raise InvalidECPointException('failed to recover public key')
+        return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey)
 
     @classmethod
     def from_signature65(cls, sig: bytes, msg_hash: bytes) -> Tuple['ECPubkey', bool]:
@@ -250,11 +193,6 @@ class ECPubkey(object):
         return cls.from_sig_string(sig[1:], recid, msg_hash), compressed
 
     @classmethod
-    def from_point(cls, point) -> 'ECPubkey':
-        _bytes = point_to_ser(point, compressed=False)  # faster than compressed
-        return ECPubkey(_bytes)
-
-    @classmethod
     def from_x_and_y(cls, x: int, y: int) -> 'ECPubkey':
         _bytes = (b'\x04'
                   + int.to_bytes(x, length=32, byteorder='big', signed=False)
@@ -263,7 +201,14 @@ class ECPubkey(object):
 
     def get_public_key_bytes(self, compressed=True):
         if self.is_at_infinity(): raise Exception('point is at infinity')
-        return point_to_ser(self.point(), compressed)
+        x = int.to_bytes(self.x(), length=32, byteorder='big', signed=False)
+        y = int.to_bytes(self.y(), length=32, byteorder='big', signed=False)
+        if compressed:
+            header = b'\x03' if self.y() & 1 else b'\x02'
+            return header + x
+        else:
+            header = b'\x04'
+            return header + x + y
 
     def get_public_key_hex(self, compressed=True):
         return bh2u(self.get_public_key_bytes(compressed))
@@ -411,6 +356,11 @@ class ECPubkey(object):
             return False
 
 
+GENERATOR = ECPubkey(bytes.fromhex('0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+                                   '483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8'))
+CURVE_ORDER = 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
+
+
 def msg_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
     length = bfh(var_int(len(message)))
@@ -464,8 +414,8 @@ class ECPrivkey(ECPubkey):
             raise InvalidECPointException('Invalid secret scalar (not within curve order)')
         self.secret_scalar = secret
 
-        point = generator_secp256k1 * secret
-        super().__init__(point_to_ser(point))  # TODO
+        pubkey = generator() * secret
+        super().__init__(pubkey.get_public_key_bytes(compressed=False))
 
     @classmethod
     def from_secret_scalar(cls, secret_scalar: int):
@@ -505,8 +455,6 @@ class ECPrivkey(ECPubkey):
             raise Exception("msg_hash to be signed must be bytes, and 32 bytes exactly")
         if sigencode is None:
             sigencode = sig_string_from_r_and_s
-        if sigdecode is None:
-            sigdecode = get_r_and_s_from_sig_string
 
         privkey_bytes = self.secret_scalar.to_bytes(32, byteorder="big")
         nonce_function = None
@@ -530,10 +478,10 @@ class ECPrivkey(ECPubkey):
             extra_entropy = counter.to_bytes(32, byteorder="little")
             r, s = sign_with_extra_entropy(extra_entropy=extra_entropy)
 
+        sig_string = sig_string_from_r_and_s(r, s)
+        self.verify_message_hash(sig_string, msg_hash)
+
         sig = sigencode(r, s, CURVE_ORDER)
-        # public_key = private_key.get_verifying_key()  # TODO
-        # if not public_key.verify_digest(sig, data, sigdecode=sigdecode):
-        #     raise Exception('Sanity check verifying our own signature failed.')
         return sig
 
     def sign_transaction(self, hashed_preimage: bytes) -> bytes:

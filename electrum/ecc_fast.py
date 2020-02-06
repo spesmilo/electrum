@@ -91,6 +91,12 @@ def load_library():
         secp256k1.secp256k1_ec_pubkey_combine.argtypes = [c_void_p, c_char_p, c_void_p, c_size_t]
         secp256k1.secp256k1_ec_pubkey_combine.restype = c_int
 
+        secp256k1.secp256k1_ecdsa_recover.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p]
+        secp256k1.secp256k1_ecdsa_recover.restype = c_int
+
+        secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.argtypes = [c_void_p, c_char_p, c_char_p, c_int]
+        secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.restype = c_int
+
         secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
         ret = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
         if ret:
