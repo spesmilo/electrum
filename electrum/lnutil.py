@@ -254,7 +254,7 @@ def privkey_to_pubkey(priv: bytes) -> bytes:
     return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
 
 def derive_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
-    p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(sha256(per_commitment_point + basepoint))
+    p = ecc.ECPubkey(basepoint) + ecc.GENERATOR * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return p.get_public_key_bytes()
 
 def derive_privkey(secret: int, per_commitment_point: bytes) -> int:

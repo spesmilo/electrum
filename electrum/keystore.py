@@ -615,7 +615,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def get_pubkey_from_mpk(cls, mpk, for_change, n) -> bytes:
         z = cls.get_sequence(mpk, for_change, n)
         master_public_key = ecc.ECPubkey(bfh('04'+mpk))
-        public_key = master_public_key + z*ecc.generator()
+        public_key = master_public_key + z*ecc.GENERATOR
         return public_key.get_public_key_bytes(compressed=False)
 
     @lru_cache(maxsize=None)

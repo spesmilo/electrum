@@ -109,10 +109,6 @@ def load_library():
         return None
 
 
-def is_using_fast_ecc():
-    return True  # TODO rm
-
-
 try:
     _libsecp256k1 = load_library()
 except BaseException as e:

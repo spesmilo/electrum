@@ -100,7 +100,7 @@ class Test_bitcoin(ElectrumTestCase):
             self._do_test_crypto(message)
 
     def _do_test_crypto(self, message):
-        G = ecc.generator()
+        G = ecc.GENERATOR
         _r  = G.order()
         pvk = randrange(_r)
 
@@ -128,11 +128,11 @@ class Test_bitcoin(ElectrumTestCase):
 
     @needs_test_with_all_ecc_implementations
     def test_ecc_sanity(self):
-        G = ecc.generator()
+        G = ecc.GENERATOR
         n = G.order()
         self.assertEqual(ecc.CURVE_ORDER, n)
         inf = n * G
-        self.assertEqual(ecc.point_at_infinity(), inf)
+        self.assertEqual(ecc.POINT_AT_INFINITY, inf)
         self.assertTrue(inf.is_at_infinity())
         self.assertFalse(G.is_at_infinity())
         self.assertEqual(11 * G, 7 * G + 4 * G)

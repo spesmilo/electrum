@@ -1039,7 +1039,7 @@ class Peer(Logger):
             timestamp=now.to_bytes(4, byteorder="big"),
         )
         sighash = sha256d(chan_upd[2 + 64:])
-        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s)
         message_type, payload = decode_msg(chan_upd)
         payload['signature'] = sig
         chan_upd = encode_msg(message_type, **payload)
@@ -1071,8 +1071,8 @@ class Peer(Logger):
         )
         to_hash = chan_ann[256+2:]
         h = sha256d(to_hash)
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
         self.send_message("announcement_signatures",
             channel_id=chan.channel_id,
             short_channel_id=chan.short_channel_id,
