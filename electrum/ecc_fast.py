@@ -33,6 +33,9 @@ SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BI
 SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
 
 
+class LibModuleMissing(Exception): pass
+
+
 def load_library():
     if sys.platform == 'darwin':
         library_path = 'libsecp256k1.0.dylib'
@@ -45,7 +48,7 @@ def load_library():
 
     secp256k1 = ctypes.cdll.LoadLibrary(library_path)
     if not secp256k1:
-        _logger.warning('libsecp256k1 library failed to load')
+        _logger.error('libsecp256k1 library failed to load')
         return None
 
     try:
@@ -91,26 +94,36 @@ def load_library():
         secp256k1.secp256k1_ec_pubkey_combine.argtypes = [c_void_p, c_char_p, c_void_p, c_size_t]
         secp256k1.secp256k1_ec_pubkey_combine.restype = c_int
 
-        secp256k1.secp256k1_ecdsa_recover.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p]
-        secp256k1.secp256k1_ecdsa_recover.restype = c_int
+        # --enable-module-recovery
+        try:
+            secp256k1.secp256k1_ecdsa_recover.argtypes = [c_void_p, c_char_p, c_char_p, c_char_p]
+            secp256k1.secp256k1_ecdsa_recover.restype = c_int
 
-        secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.argtypes = [c_void_p, c_char_p, c_char_p, c_int]
-        secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.restype = c_int
+            secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.argtypes = [c_void_p, c_char_p, c_char_p, c_int]
+            secp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact.restype = c_int
+        except (OSError, AttributeError):
+            raise LibModuleMissing('libsecp256k1 library found but it was built '
+                                   'without required module (--enable-module-recovery)')
 
         secp256k1.ctx = secp256k1.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
         ret = secp256k1.secp256k1_context_randomize(secp256k1.ctx, os.urandom(32))
-        if ret:
-            return secp256k1
-        else:
-            _logger.warning('secp256k1_context_randomize failed')
+        if not ret:
+            _logger.error('secp256k1_context_randomize failed')
             return None
-    except (OSError, AttributeError):
-        _logger.warning('libsecp256k1 library was found and loaded but there was an error when using it')
+
+        return secp256k1
+    except (OSError, AttributeError) as e:
+        _logger.error(f'libsecp256k1 library was found and loaded but there was an error when using it: {repr(e)}')
         return None
 
 
+_libsecp256k1 = None
 try:
     _libsecp256k1 = load_library()
 except BaseException as e:
-    _logger.warning(f'failed to load libsecp256k1: {repr(e)}')
-    _libsecp256k1 = None
+    _logger.error(f'failed to load libsecp256k1: {repr(e)}')
+
+
+if _libsecp256k1 is None:
+    # hard fail:
+    sys.exit(f"Error: Failed to load libsecp256k1.")
