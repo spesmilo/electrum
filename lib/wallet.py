@@ -185,6 +185,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # verifier (SPV) and synchronizer are started in start_threads
         self.synchronizer = None
         self.verifier = None
+        self.weak_window = None  # Some of the GUI classes, such as the Qt ElectrumWindow, use this to refer back to themselves.  This should always be a weakref.ref (Weak.ref), or None
         # CashAccounts subsystem. Its network-dependent layer is started in
         # start_threads. Note: object instantiation should be lightweight here.
         # self.cashacct.load() is called later in this function to load data.
@@ -225,6 +226,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # The two types of freezing are flagged independently of each other and 'spendable' is defined as a coin that satisfies
         # BOTH levels of freezing.
         self.frozen_coins = set(storage.get('frozen_coins', []))
+        self.frozen_coins_tmp = set()  # in-memory only
 
         self.change_reserved = set(Address.from_string(a) for a in storage.get('change_reserved', ()))
         self.change_reserved_default = [Address.from_string(a) for a in storage.get('change_reserved_default', ())]
@@ -808,6 +810,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             coins.pop(txi)
             # cleanup/detect if the 'frozen coin' was spent and remove it from the frozen coin set
             self.frozen_coins.discard(txi)
+            self.frozen_coins_tmp.discard(txi)
         out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
@@ -819,7 +822,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 'prevout_hash':prevout_hash,
                 'height':tx_height,
                 'coinbase':is_cb,
-                'is_frozen_coin':txo in self.frozen_coins,
+                'is_frozen_coin':txo in self.frozen_coins or txo in self.frozen_coins_tmp,
                 'slp_token':self.slp.token_info_for_txo(txo),  # (token_id_hex, qty) tuple or None
             }
             out[txo] = x
@@ -845,7 +848,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         c = u = x = 0
         had_cb = False
         for txo, (tx_height, v, is_cb) in received.items():
-            if exclude_frozen_coins and txo in self.frozen_coins:
+            if exclude_frozen_coins and (txo in self.frozen_coins or txo in self.frozen_coins_tmp):
                 continue
             had_cb = had_cb or is_cb  # remember if this address has ever seen a coinbase txo
             if is_cb and tx_height + COINBASE_MATURITY > mempoolHeight:
@@ -953,7 +956,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return []
 
     def get_frozen_balance(self):
-        if not self.frozen_coins:
+        if not self.frozen_coins and not self.frozen_coins_tmp:
             # performance short-cut -- get the balance of the frozen address set only IFF we don't have any frozen coins
             return self.get_balance(self.frozen_addresses)
         # otherwise, do this more costly calculation...
@@ -1816,26 +1819,31 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return tx
 
     def is_frozen(self, addr):
-        ''' Address-level frozen query. Note: this is set/unset independent of 'coin' level freezing. '''
+        ''' Address-level frozen query. Note: this is set/unset independent of
+        'coin' level freezing. '''
         assert isinstance(addr, Address)
         return addr in self.frozen_addresses
 
     def is_frozen_coin(self, utxo):
-        ''' 'coin' level frozen query. `utxo' is a prevout:n string, or a dict as returned from get_utxos().
-            Note: this is set/unset independent of 'address' level freezing. '''
+        ''' 'coin' level frozen query. `utxo' is a prevout:n string, or a dict
+        as returned from get_utxos(). Note: this is set/unset independent of
+        'address' level freezing. '''
         assert isinstance(utxo, (str, dict))
         if isinstance(utxo, dict):
-            ret = ("{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])) in self.frozen_coins
+            name = ("{}:{}".format(utxo['prevout_hash'], utxo['prevout_n']))
+            ret = name in self.frozen_coins or name in self.frozen_coins_tmp
             if ret != utxo['is_frozen_coin']:
-                self.print_error("*** WARNING: utxo has stale is_frozen_coin flag")
+                self.print_error("*** WARNING: utxo has stale is_frozen_coin flag", name)
                 utxo['is_frozen_coin'] = ret # update stale flag
             return ret
-        return utxo in self.frozen_coins
+        else:
+            return utxo in self.frozen_coins or utxo in self.frozen_coins_tmp
 
     def set_frozen_state(self, addrs, freeze):
-        ''' Set frozen state of the addresses to FREEZE, True or False
-            Note that address-level freezing is set/unset independent of coin-level freezing, however both must
-            be satisfied for a coin to be defined as spendable.. '''
+        ''' Set frozen state of the addresses to `freeze`, True or False. Note
+        that address-level freezing is set/unset independent of coin-level
+        freezing, however both must be satisfied for a coin to be defined as
+        spendable. '''
         if all(self.is_mine(addr) for addr in addrs):
             if freeze:
                 self.frozen_addresses |= set(addrs)
@@ -1847,30 +1855,47 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             return True
         return False
 
-    def set_frozen_coin_state(self, utxos, freeze):
-        ''' Set frozen state of the COINS to FREEZE, True or False.
-            utxos is a (possibly mixed) list of either "prevout:n" strings and/or coin-dicts as returned from get_utxos().
-            Note that if passing prevout:n strings as input, 'is_mine()' status is not checked for the specified coin.
-            Also note that coin-level freezing is set/unset independent of address-level freezing, however both must
-            be satisfied for a coin to be defined as spendable. '''
+    def set_frozen_coin_state(self, utxos, freeze, *, temporary = False):
+        '''Set frozen state of the `utxos` to `freeze`, True or False. `utxos`
+        is a (possibly mixed) list of either "prevout:n" strings and/or
+        coin-dicts as returned from get_utxos(). Note that if passing prevout:n
+        strings as input, 'is_mine()' status is not checked for the specified
+        coin. Also note that coin-level freezing is set/unset independent of
+        address-level freezing, however both must be satisfied for a coin to be
+        defined as spendable.
+
+        The `temporary` flag only applies if `freeze = True`. In that case,
+        freezing coins will only affect the in-memory-only frozen set, which
+        doesn't get saved to storage. This mechanism was added so that plugins
+        (such as CashFusion) have a mechanism for ephemeral coin freezing that
+        doesn't persist across sessions.
+
+        Note that setting `freeze = False` effectively unfreezes both the
+        temporary and the permanent frozen coin sets all in 1 call. Thus after a
+        call to `set_frozen_coin_state(utxos, False), both the temporary and the
+        persistent frozen sets are cleared of all coins in `utxos`. '''
+        add_set = self.frozen_coins if not temporary else self.frozen_coins_tmp
+        def add(utxo):
+            add_set.add( utxo )
+        def discard(utxo):
+            self.frozen_coins.discard( utxo )
+            self.frozen_coins_tmp.discard( utxo )
+        apply_operation = add if freeze else discard
+        original_size = len(self.frozen_coins)
         with self.lock:
             ok = 0
             for utxo in utxos:
                 if isinstance(utxo, str):
-                    if freeze:
-                        self.frozen_coins.add( utxo )
-                    else:
-                        self.frozen_coins.discard( utxo )
+                    apply_operation( utxo )
                     ok += 1
                 elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
                     txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
-                    if freeze:
-                        self.frozen_coins.add( txo )
-                    else:
-                        self.frozen_coins.discard( txo )
+                    apply_operation( txo )
                     utxo['is_frozen_coin'] = bool(freeze)
                     ok += 1
-            if ok:
+            if original_size != len(self.frozen_coins):
+                # Performance optimization: only set storage if the perma-set
+                # changed.
                 self.storage.put('frozen_coins', list(self.frozen_coins))
             return ok
 
