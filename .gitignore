@@ -31,6 +31,10 @@ xcuserdata/
 
 # IntelliJ Pycharm IDE
 /.idea
+# vs code
+.vscode/
+# mypy
+.mypy_cache/
 
 # Some people need to set up these symlinks to get their IDE completion working
 electroncash

@@ -42,6 +42,7 @@ from .bitcoin import hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugins import run_hook
+from .wallet import create_new_wallet, restore_wallet_from_text
 from .transaction import Transaction, multisig_script, OPReturn
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, to_bytes
 
@@ -174,17 +175,39 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self):
-        """Create a new wallet"""
-        raise BaseException('Not a JSON-RPC command')
+    def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None):
+        """Create a new wallet.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
+        d = create_new_wallet(path=wallet_path,
+                              passphrase=passphrase,
+                              password=password,
+                              encrypt_file=encrypt_file,
+                              seed_type=seed_type,
+                              config=self.config)
+        return {
+            'seed': d['seed'],
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
-    @command('wn')
-    def restore(self, text):
+    @command('')
+    def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin cash addresses
-        or bitcoin cash private keys. If you want to be prompted for your
-        seed, type '?' or ':' (concealed) """
-        raise BaseException('Not a JSON-RPC command')
+        or bitcoin cash private keys.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
+        d = restore_wallet_from_text(text,
+                                     path=wallet_path,
+                                     passphrase=passphrase,
+                                     password=password,
+                                     encrypt_file=encrypt_file,
+                                     config=self.config)
+        return {
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -789,6 +812,7 @@ class Commands:
         return sorted(known_commands.keys())
 
 param_descriptions = {
+    'wallet_path': 'Wallet path(create/restore commands)',
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin Cash address, contact or alias',
     'address': 'Bitcoin Cash address',
@@ -812,6 +836,7 @@ command_options = {
     'change':      (None, "Show only change addresses"),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'domain':      ("-D", "List of addresses"),
+    'encrypt_file':(None, "Whether the file on disk should be encrypted with the provided password"),
     'entropy':     (None, "Custom entropy"),
     'expiration':  (None, "Time in seconds"),
     'expired':     (None, "Show only expired requests."),
@@ -832,17 +857,20 @@ command_options = {
     'op_return':   (None, "Specify string data to add to the transaction as an OP_RETURN output"),
     'op_return_raw': (None, 'Specify raw hex data to add to the transaction as an OP_RETURN output (0x6a aka the OP_RETURN byte will be auto-prepended for you so do not include it)'),
     'paid':        (None, "Show only paid requests."),
+    'passphrase':  (None, "Seed extension"),
     'password':    ("-W", "Password"),
     'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
     'pending':     (None, "Show only pending requests."),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'receiving':   (None, "Show only receiving addresses"),
+    'seed_type':   (None, "The type of seed to create, currently only 'standard' is supported"),
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'timeout':     (None, "Timeout in seconds to wait for the overall operation to complete. Defaults to 30.0."),
     'unsigned':    ("-u", "Do not sign transaction"),
     'unused':      (None, "Show only unused addresses"),
     'use_net':     (None, "Go out to network for accurate fiat value and/or fee calculations for history. If not specified only the wallet's cache is used which may lead to inaccurate/missing fees and/or FX rates."),
+    'wallet_path': (None, "Wallet path(create/restore commands)"),
     'year':        (None, "Show history for a given year"),
 }
 
