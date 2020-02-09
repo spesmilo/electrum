@@ -46,6 +46,10 @@ class KeyStore(PrintError):
     def has_seed(self):
         return False
 
+    def has_derivation(self):
+        """ Only applies to BIP32 keystores. """
+        return False
+
     def is_watching_only(self):
         return False
 
@@ -219,6 +223,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         Software_KeyStore.__init__(self)
         self.seed = d.get('seed', '')
         self.passphrase = d.get('passphrase', '')
+        self.is_seed_bip39 = d.get('is_seed_bip39')
 
     def is_deterministic(self):
         return True
@@ -229,6 +234,8 @@ class Deterministic_KeyStore(Software_KeyStore):
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
+        if self.is_seed_bip39 is not None:
+            d['is_seed_bip39'] = self.is_seed_bip39
         return d
 
     def has_seed(self):
@@ -240,10 +247,11 @@ class Deterministic_KeyStore(Software_KeyStore):
     def can_change_password(self):
         return not self.is_watching_only()
 
-    def add_seed(self, seed):
+    def add_seed(self, seed, *, is_seed_bip39=False):
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
+        self.is_seed_bip39 = is_seed_bip39
 
     def get_seed(self, password):
         return pw_decode(self.seed, password)
@@ -338,6 +346,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         Deterministic_KeyStore.__init__(self, d)
         self.xpub = d.get('xpub')
         self.xprv = d.get('xprv')
+        self.derivation = d.get('derivation')
 
     def format_seed(self, seed):
         return ' '.join(seed.split())
@@ -347,6 +356,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         d['type'] = 'bip32'
         d['xpub'] = self.xpub
         d['xprv'] = self.xprv
+        d['derivation'] = self.derivation
         return d
 
     def get_master_private_key(self, password):
@@ -376,6 +386,11 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             b = pw_decode(self.xprv, old_password)
             self.xprv = pw_encode(b, new_password)
 
+    def has_derivation(self) -> bool:
+        """ Note: the derivation path may not always be saved. Older versions
+        of Electron Cash would not save the path to keystore :/. """
+        return bool(self.derivation)
+
     def is_watching_only(self):
         return self.xprv is None
 
@@ -387,6 +402,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         xprv, xpub = bip32_root(bip32_seed, xtype)
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         self.add_xprv(xprv)
+        self.derivation = derivation
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
@@ -646,6 +662,8 @@ def bip39_is_checksum_valid(mnemonic):
 
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
+    k.add_seed(seed, is_seed_bip39 = True)
+    k.passphrase = passphrase
     bip32_seed = bip39_to_seed(seed, passphrase)
     t = 'standard'  # bip43
     k.add_xprv_from_seed(bip32_seed, t, derivation)
@@ -773,7 +791,7 @@ def from_seed(seed, passphrase, is_p2sh):
         keystore.add_seed(seed)
     elif t in ['standard']:
         keystore = BIP32_KeyStore({})
-        keystore.add_seed(seed)
+        keystore.add_seed(seed, is_seed_bip39 = False)
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         der = "m/"
