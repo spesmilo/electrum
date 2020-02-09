@@ -72,6 +72,7 @@ class UTXOList(MyTreeWidget):
         self.cyanBlue = QColor('#3399ff')
         self.slpBG = ColorScheme.SLPGREEN.as_color(True)
         self.immatureColor = ColorScheme.BLUE.as_color(False)
+        self.output_point_prefix_text = columns[self.Col.output_point]
 
         self.cleaned_up = False
 
@@ -195,6 +196,17 @@ class UTXOList(MyTreeWidget):
             if name in prev_selection:
                 # NB: This needs to be here after the item is added to the widget. See #979.
                 utxo_item.setSelected(True) # restore previous selection
+        self._update_utxo_count_display(len(self.utxos))
+
+    def _update_utxo_count_display(self, num_utxos: int):
+        headerItem = self.headerItem()
+        if headerItem:
+            if num_utxos:
+                output_point_text = self.output_point_prefix_text + f" ({num_utxos})"
+            else:
+                output_point_text = self.output_point_prefix_text
+            headerItem.setText(self.Col.output_point, output_point_text)
+
 
     def get_selected(self):
         return { x.data(0, self.DataRoles.name) : x.data(0, self.DataRoles.frozen_flags) # dict of "name" -> frozen flags string (eg: "ac")
