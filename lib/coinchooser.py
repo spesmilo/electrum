@@ -82,7 +82,7 @@ def strip_unneeded(bkts, sufficient_funds):
 class CoinChooserBase(PrintError):
 
     def keys(self, coins):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def bucketize_coins(self, coins, sign_schnorr=False):
         keys = self.keys(coins)
@@ -210,7 +210,7 @@ class CoinChooserBase(PrintError):
         return tx
 
     def choose_buckets(self, buckets, sufficient_funds, penalty_func):
-        raise NotImplemented('To be subclassed')
+        raise NotImplementedError('To be subclassed')
 
 class CoinChooserRandom(CoinChooserBase):
 

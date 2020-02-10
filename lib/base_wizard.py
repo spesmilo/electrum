@@ -143,7 +143,7 @@ class BaseWizard(util.PrintError):
 
     def bip38_prompt_for_pw(self, bip38_keys):
         ''' Implemented in Qt InstallWizard subclass '''
-        raise NotImplemented('bip38_prompt_for_pw not implemented')
+        raise NotImplementedError('bip38_prompt_for_pw not implemented')
 
     def on_import(self, text):
         if keystore.is_address_list(text):
