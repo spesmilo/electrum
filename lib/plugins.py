@@ -106,6 +106,35 @@ class Plugins(DaemonThread):
             self.register_keystore(name, gui_good, details, is_external)
         return True
 
+    def retranslate_internal_plugin_metadata(self, name):
+        """ Retranslate: "fullname" and "description". We need to do this
+        because the static _("some text") strings in the plugin's __init__.py is
+        not translated at startup even though it has a _() decorator because
+        gettext language is set *after* internal plugin modules are loaded.
+
+        This needs to be called once at startup and then again from the GUI. """
+        d = self.internal_plugin_metadata.get(name)
+        if not d:
+            return
+        ut_prefix = '_untranslated_'
+        for key in ('fullname', 'description'):
+            ut_key = ut_prefix + key
+            ut_val = val = d.get(ut_key)  # first see if saved original untranslated metadata is available
+            if val is None:
+                ut_val = val = d.get(key)
+                if not val:
+                    continue
+            delim = d.get(key + '_delimiter', ' ')
+            if isinstance(val, (list, tuple)):
+                val = delim.join([_(x) for x in val])  # retranslate each list item
+            elif isinstance(val, str):
+                val = _(val)  # retranslate
+            if not isinstance(val, str):
+                self.print_error(f'Warning: plugin "{name}" metadata key "{key}" expected str, instead got {type(val)}')
+            else:
+                d[key] = val  # rewrite translated string
+                d[ut_key] = ut_val # save untranslated metadata for later so that this function may be called again from GUI
+
     def load_internal_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.internal_plugins_pkgpath]):
             # do not load deprecated plugins
@@ -116,6 +145,7 @@ class Plugins(DaemonThread):
             if not self.register_plugin(name, d):
                 continue
             self.internal_plugin_metadata[name] = d
+            self.retranslate_internal_plugin_metadata(name)
             conf_key = INTERNAL_USE_PREFIX + name
             conf_value = self.config.get(conf_key)
             if conf_value is None and d.get('default_on'):
