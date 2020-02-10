@@ -10,10 +10,11 @@ BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
+export GCC_STRIP_BINARIES="1"
+
 # pinned versions
 PYTHON_VERSION=3.7.6
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
-LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
 
@@ -45,7 +46,6 @@ info "building python."
 tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 (
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
-    export SOURCE_DATE_EPOCH=1530212462
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
     # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.7/python3.7_3.7.6-1.debian.tar.xz
@@ -77,26 +77,8 @@ git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfski
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
 
-info "building libsecp256k1."
-(
-    git clone https://github.com/bitcoin-core/secp256k1 "$CACHEDIR"/secp256k1 \
-        || (cd "$CACHEDIR"/secp256k1 && git reset --hard && git pull)
-    cd "$CACHEDIR"/secp256k1
-    git reset --hard "$LIBSECP_VERSION"
-    git clean -f -x -q
-    export SOURCE_DATE_EPOCH=1530212462
-    echo "LDFLAGS = -no-undefined" >> Makefile.am
-    ./autogen.sh
-    ./configure \
-      --prefix="$APPDIR/usr" \
-      --enable-module-recovery \
-      --enable-experimental \
-      --enable-module-ecdh \
-      --disable-jni \
-      -q
-    make -j4 -s || fail "Could not build libsecp"
-    make -s install > /dev/null || fail "Could not install libsecp"
-)
+"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+cp -f "$PROJECT_ROOT/electrum/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
 
 
 appdir_python() {
@@ -224,7 +206,6 @@ rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
-rm "$APPDIR"/usr/lib/libsecp256k1.a
 # note that jsonschema-*.dist-info is needed by that package as it uses 'pkg_resources.get_distribution'
 # also, see https://gitlab.com/python-devs/importlib_metadata/issues/71
 for f in "$PYDIR"/site-packages/jsonschema-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
