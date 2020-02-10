@@ -495,9 +495,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         xkey = ((hasattr(self.wallet, 'get_master_public_key') and self.wallet.get_master_public_key())
                 or None)
         if xkey:
-            from electroncash.bitcoin import deserialize_xpub, InvalidXKeyFormat
+            from electroncash.bitcoin import deserialize_xpub, InvalidXKeyFormat, InvalidXKeyNotBase58
             try:
                 xp = deserialize_xpub(xkey)
+            except InvalidXKeyNotBase58:
+                pass  # old_keystore uses some other key format, so we will let it slide.
             except InvalidXKeyFormat:
                 is_old_bad = True
         return is_old_bad

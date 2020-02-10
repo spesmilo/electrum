@@ -851,9 +851,14 @@ class InvalidXKeyFormat(InvalidXKey):
 class InvalidXKeyLength(InvalidXKey):
     pass
 
+class InvalidXKeyNotBase58(InvalidXKey):
+    pass
+
 def deserialize_xkey(xkey, prv, *, net=None):
     if net is None: net = networks.net
     xkey = DecodeBase58Check(xkey)
+    if xkey is None:
+        raise InvalidXKeyNotBase58('The supplied xkey is not encoded using base58')
     if len(xkey) != 78:
         raise InvalidXKeyLength('Invalid length')
     depth = xkey[4]
