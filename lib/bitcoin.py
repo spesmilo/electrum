@@ -237,6 +237,9 @@ hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
 
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
+    """ This is called by mnemonic.Mnemonic_Electrum is_checksum_valid, among
+    other places.  Returns True if the text in question matches the checksum
+    for Electrum seeds."""
     from . import mnemonic
     x = mnemonic.normalize_text(x)
     s = bh2u(hmac_sha_512(b"Seed version", x.encode('utf8')))

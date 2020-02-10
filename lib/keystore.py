@@ -24,14 +24,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from unicodedata import normalize
-
 from . import bitcoin
 from .bitcoin import *
 
 from .address import Address, PublicKey
 from . import networks
-from .mnemonic import Mnemonic, load_wordlist
+from .mnemonic import Mnemonic, Mnemonic_Electrum
 from .plugins import run_hook
 from .util import PrintError, InvalidPassword, hfu
 
@@ -253,6 +251,11 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed = self.format_seed(seed)
         self.is_seed_bip39 = is_seed_bip39
 
+    def format_seed(self, seed):
+        """ Default impl. for BIP39 or Electrum seed wallets.  Old_Keystore
+        overrides this. """
+        return Mnemonic.normalize_text(seed)
+
     def get_seed(self, password):
         return pw_decode(self.seed, password)
 
@@ -348,9 +351,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         self.xprv = d.get('xprv')
         self.derivation = d.get('derivation')
 
-    def format_seed(self, seed):
-        return ' '.join(seed.split())
-
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
         d['type'] = 'bip32'
@@ -438,8 +438,8 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.mpk = mpk
 
     def format_seed(self, seed):
-        from . import old_mnemonic, mnemonic
-        seed = mnemonic.normalize_text(seed)
+        from . import old_mnemonic
+        seed = super().format_seed(seed)
         # see if seed was entered as hex
         if seed:
             try:
@@ -623,42 +623,16 @@ class Hardware_KeyStore(KeyStore, Xpub):
 
 
 def bip39_normalize_passphrase(passphrase):
-    return normalize('NFKD', passphrase or '')
+    """ This is called by some plugins """
+    return Mnemonic.normalize_text(passphrase or '')
 
 def bip39_to_seed(mnemonic, passphrase):
-    import hashlib, hmac
-    PBKDF2_ROUNDS = 2048
-    mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
-    passphrase = bip39_normalize_passphrase(passphrase)
-    return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'),
-        b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
+    return Mnemonic.mnemonic_to_seed(mnemonic, passphrase)
 
-def bip39_is_checksum_valid(mnemonic):
-    """Test checksum of bip39 mnemonic assuming English wordlist.
+def bip39_is_checksum_valid(mnemonic, lang=None):
+    """Test checksum of bip39 mnemonic assuming English wordlist if lang=None.
     Returns tuple (is_checksum_valid, is_wordlist_valid) """
-    words = [ normalize('NFKD', word) for word in mnemonic.split() ]
-    words_len = len(words)
-    wordlist = load_wordlist("english.txt")
-    n = len(wordlist)
-    i = 0
-    words.reverse()
-    while words:
-        w = words.pop()
-        try:
-            k = wordlist.index(w)
-        except ValueError:
-            return False, False
-        i = i*n + k
-    if words_len not in [12, 15, 18, 21, 24]:
-        return False, True
-    checksum_length = 11 * words_len // 33  # num bits
-    entropy_length = 32 * checksum_length  # num bits
-    entropy = i >> checksum_length
-    checksum = i % 2**checksum_length
-    entropy_bytes = int.to_bytes(entropy, length=entropy_length//8, byteorder="big")
-    hashed = int.from_bytes(sha256(entropy_bytes), byteorder="big")
-    calculated_checksum = hashed >> (256 - checksum_length)
-    return checksum == calculated_checksum, True
+    return Mnemonic.is_checksum_valid(mnemonic, lang)
 
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
@@ -793,7 +767,7 @@ def from_seed(seed, passphrase, is_p2sh):
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed, is_seed_bip39 = False)
         keystore.passphrase = passphrase
-        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        bip32_seed = Mnemonic_Electrum.mnemonic_to_seed(seed, passphrase)
         der = "m/"
         xtype = 'standard'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)

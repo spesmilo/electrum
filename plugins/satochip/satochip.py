@@ -14,7 +14,7 @@ from electroncash.transaction import Transaction
 from electroncash.wallet import Standard_Wallet
 from electroncash.util import print_error, bfh, bh2u, versiontuple, PrintError
 from electroncash.bitcoin import hash_160, Hash
-from electroncash.mnemonic import Mnemonic
+from electroncash.mnemonic import Mnemonic, Mnemonic_Electrum
 from electroncash.keystore import bip39_to_seed
 from electroncash.plugins import run_hook
 from electroncash.bitcoin import serialize_xpub
@@ -646,7 +646,7 @@ class SatochipPlugin(HW_PluginBase):
     def create_seed(self, wizard):
         wizard.seed_type = 'standard'
         wizard.opt_bip39 = False
-        seed = Mnemonic('en').make_seed(wizard.seed_type)
+        seed = Mnemonic_Electrum('en').make_seed(wizard.seed_type)
         f = lambda x: self.request_passphrase(wizard, seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
@@ -674,7 +674,7 @@ class SatochipPlugin(HW_PluginBase):
             f('')
 
     def derive_bip32_seed(self, seed, passphrase):
-        self.bip32_seed= Mnemonic('en').mnemonic_to_seed(seed, passphrase)
+        self.bip32_seed= Mnemonic_Electrum('en').mnemonic_to_seed(seed, passphrase)
 
     #restore from seed
     def restore_from_seed(self, wizard):

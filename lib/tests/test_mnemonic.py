@@ -8,14 +8,14 @@ from ..util import bh2u
 class Test_NewMnemonic(unittest.TestCase):
 
     def test_to_seed(self):
-        seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
+        seed = mnemonic.Mnemonic_Electrum.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
         self.assertEqual(bh2u(seed),
                           '741b72fd15effece6bfe5a26a52184f66811bd2be363190e07a42cca442b1a5b'
                           'b22b3ad0eb338197287e6d314866c7fba863ac65d3f156087a5052ebc7157fce')
 
     def test_random_seeds(self):
         iters = 10
-        m = mnemonic.Mnemonic(lang='en')
+        m = mnemonic.Mnemonic_Electrum(lang='en')
         for _ in range(iters):
             seed = m.make_seed()
             i = m.mnemonic_decode(seed)

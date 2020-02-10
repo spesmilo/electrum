@@ -7,7 +7,7 @@
 from . import utils
 from . import gui
 from electroncash.i18n import _, language
-from electroncash.mnemonic import Mnemonic
+from electroncash.mnemonic import Mnemonic_Electrum
 from electroncash.old_mnemonic import words as old_words
 from typing import Any
 from .uikit_bindings import *
@@ -1378,7 +1378,7 @@ def _IsOnBoarding(vc : UIViewController) -> bool:
 _mnem = None
 def _Mnem() -> None:
     global _mnem
-    if not _mnem: _mnem = Mnemonic()
+    if not _mnem: _mnem = Mnemonic_Electrum()
     return _mnem
 
 def _GetOldSuggestions(prefix) -> set:

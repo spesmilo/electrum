@@ -60,7 +60,6 @@ from .verifier import SPV, SPVDelegate
 from . import schnorr
 from . import ecc_fast
 from .blockchain import NULL_HASH_HEX
-from .mnemonic import Mnemonic
 
 
 from . import paymentrequest
@@ -3045,7 +3044,7 @@ class UnknownWalletType(RuntimeError):
     pass
 
 # former WalletFactory
-class Wallet(object):
+class Wallet:
     """The main wallet "entry point".
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
@@ -3080,7 +3079,8 @@ def create_new_wallet(*, path, config, passphrase=None, password=None,
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
 
-    seed = Mnemonic('en').make_seed(seed_type)
+    from .mnemonic import Mnemonic_Electrum
+    seed = Mnemonic_Electrum('en').make_seed(seed_type)  # TODO: Make the default be BIP39
     k = keystore.from_seed(seed, passphrase, False)
     storage.put('keystore', k.dump())
     storage.put('wallet_type', 'standard')
@@ -3117,7 +3117,7 @@ def restore_wallet_from_text(text, *, path, config,
         if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
         elif keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase, False)
+            k = keystore.from_seed(text, passphrase, False)  # TODO: make default be BIP39
         else:
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())
