@@ -153,19 +153,26 @@ class SeedLayout(QVBoxLayout):
             opt_button = EnterButton(_('Options'), self.seed_options)
             hbox.addWidget(opt_button)
             self.addLayout(hbox)
+        grid_maybe = None
+        grid_row = 0
         if passphrase:
-            hbox = QHBoxLayout()
+            grid_maybe = QGridLayout()
             passphrase_e = QLineEdit()
             passphrase_e.setText(passphrase)
             passphrase_e.setReadOnly(True)
-            hbox.addWidget(QLabel(_("Your seed extension is") + ':'))
-            hbox.addWidget(passphrase_e)
-            self.addLayout(hbox)
+            grid_maybe.addWidget(QLabel(_("Your seed extension is") + ':'), grid_row, 0)
+            grid_maybe.addWidget(passphrase_e, grid_row, 1)
+            grid_row += 1
         if derivation:
-            hbox = QHBoxLayout()
-            hbox.addWidget(QLabel(_("Wallet derivation path") + ':'))
-            hbox.addWidget(WWLabel(f'<b>{derivation}</b>'))
-            self.addLayout(hbox)
+            grid_maybe = grid_maybe or QGridLayout()
+            der_e = QLineEdit()
+            der_e.setText(str(derivation))
+            der_e.setReadOnly(True)
+            grid_maybe.addWidget(QLabel(_("Wallet derivation path") + ':'), grid_row, 0)
+            grid_maybe.addWidget(der_e, grid_row, 1)
+            grid_row += 1
+        if grid_maybe:
+            self.addLayout(grid_maybe)
         self.addStretch(1)
         self.seed_warning = WWLabel('')
         if msg:
