@@ -584,6 +584,9 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def is_deterministic(self):
         return True
 
+    def has_derivation(self) -> bool:
+        return bool(self.derivation)
+
     def dump(self):
         return {
             'type': 'hardware',
