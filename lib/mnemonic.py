@@ -34,9 +34,10 @@ import os
 import pkgutil
 import string
 import unicodedata
+import weakref
 
 from enum import IntEnum, unique, auto
-from typing import List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from . import version
 from .bitcoin import hmac_sha_512
@@ -125,8 +126,7 @@ class SeedType(IntEnum):
     Old      = auto()
 
 def autodetect_seed_type(seed: str, lang: Optional[str] = None, *,
-                         prefix: str = version.SEED_PREFIX,
-                         reuse_instance : Optional[object] = None) -> Set[SeedType]:
+                         prefix: str = version.SEED_PREFIX) -> Set[SeedType]:
     ''' Given a mnemonic seed phrase, auto-detect the possible seed types it can
     be. Note that some lucky seed phrases match all three types. Electron Cash
     will never generate a seed that matches more than one type, but it is
@@ -134,7 +134,8 @@ def autodetect_seed_type(seed: str, lang: Optional[str] = None, *,
     seed phrase is invalid and/or fails checksum checks for all three types. '''
     ret = set()
     from . import old_mnemonic
-    if (reuse_instance or Mnemonic(lang)).is_seed(seed):
+    mn_bip39 = Mnemonic(lang)
+    if mn_bip39.is_seed(seed):
         ret.add( SeedType.BIP39 )
     if Mnemonic_Electrum.verify_checksum_only(seed, prefix):
         ret.add( SeedType.Electrum )
@@ -148,16 +149,37 @@ class MnemonicBase(PrintError):
     They both use the same word list, so the commonality between them is
     captured in this class. """
 
+    class Data:
+        """ Each instance of Mnemonic* shares common Data, per language. """
+        words : Tuple[str] = None
+        word_indices : Dict[str, int] = None
+
+    shared_datas = weakref.WeakValueDictionary()  # key: 2-char lang -> weakvalue: Data
+
     def __init__(self, lang=None):
-        self.lang = lang = (lang or 'en')[:2]
-        self.print_error('language', lang)
-        filename = filenames.get(lang, 'english.txt')
-        self.wordlist = load_wordlist(filename)
-        self.wordlist_indices = dict()
-        for i, word in enumerate(self.wordlist):
-            self.wordlist_indices[word] = i  # saves on O(N) lookups for words. The alternative is to call wordlist.index(w) for each word which is slow.
-        self.print_error("wordlist has %d words"%len(self.wordlist))
-        assert len(self.wordlist) == len(self.wordlist_indices)  # Paranoia to ensure word list is composed of unique words.
+        if isinstance(lang, str):
+            lang = lang[:2].lower()
+        if lang not in filenames:
+            lang = 'en'
+        self.lang = lang
+        self.data = self.shared_datas.get(lang)
+        if not self.data:
+            self.data = self.Data()
+            self.print_error('loading wordlist for:', lang)
+            filename = filenames[lang]
+            self.data.words = tuple(load_wordlist(filename))
+            self.data.word_indices = dict()
+            for i, word in enumerate(self.data.words):
+                self.data.word_indices[word] = i  # saves on O(N) lookups for words. The alternative is to call wordlist.index(w) for each word which is slow.
+            self.print_error("wordlist has %d words"%len(self.data.words))
+            assert len(self.data.words) == len(self.data.word_indices)  # Paranoia to ensure word list is composed of unique words.
+            self.shared_datas[self.lang] = self.data
+
+    @property
+    def wordlist(self) -> Tuple[str]: return self.data.words
+
+    @property
+    def wordlist_indices(self) -> Dict[str, int]: return self.data.word_indices
 
     def get_suggestions(self, prefix):
         for w in self.wordlist:
@@ -165,7 +187,7 @@ class MnemonicBase(PrintError):
                 yield w
 
     @classmethod
-    def list_languages(cls):
+    def list_languages(cls) -> List[str]:
         return list(filenames.keys())
 
     @classmethod
@@ -178,7 +200,7 @@ class MnemonicBase(PrintError):
         return normalize_text(txt)
 
     @classmethod
-    def detect_language(cls, code):
+    def detect_language(cls, code: str) -> str:
         code = cls.normalize_text(code)
         first = code.split(' ')[0]
         languages = cls.list_languages()
@@ -251,6 +273,9 @@ class Mnemonic(MnemonicBase):
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
     def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) -> str:
+        if self.lang not in ('en', 'es'):
+            raise NotImplementedError(f"Cannot make a seed for language '{self.lang}'. "
+                                      + "Only English and Spanish are supported as seed generation languages in this implementation")
         if num_bits not in (128, 160, 192, 224, 256):
             raise ValueError('Strength should be one of the following [128, 160, 192, 224, 256], not %d.' % num_bits)
         def inner(num_bits):
@@ -271,7 +296,7 @@ class Mnemonic(MnemonicBase):
             iters += 1
             seed = inner(num_bits)
             # avoid ambiguity between old-style seeds and BIP39, as well as avoid clashes with Electrum seeds
-            if autodetect_seed_type(seed, reuse_instance=self) == {SeedType.BIP39}:
+            if autodetect_seed_type(seed, self.lang) == {SeedType.BIP39}:
                 self.print_error("make_seed iterations:", iters)
                 return seed
 
@@ -338,6 +363,9 @@ class Mnemonic_Electrum(MnemonicBase):
 
     def make_seed(self, seed_type=None, num_bits=132, custom_entropy=1):
         """ Electrum format """
+        if self.lang not in ('en', 'es', 'pt'):
+            raise NotImplementedError(f"Cannot make a seed for language '{self.lang}'. "
+                                      + "Only English, Spanish, and Portuguese are supported as seed generation languages in this implementation")
         if seed_type is None:
             seed_type = 'standard'
         prefix = version.seed_prefix(seed_type)
@@ -353,14 +381,13 @@ class Mnemonic_Electrum(MnemonicBase):
             # try again if seed would not contain enough words
             my_entropy = ecdsa.util.randrange(pow(2, n))
         nonce = 0
-        mn_bip39 = Mnemonic(self.lang)
         while True:
             nonce += 1
             i = custom_entropy * (my_entropy + nonce)
             seed = self.mnemonic_encode(i)
             assert i == self.mnemonic_decode(seed)
-             # avoid ambiguity between old-style seeds and new-style, as well as avoid clashes with BIP39 seeds
-            if autodetect_seed_type(seed, reuse_instance=mn_bip39, prefix=prefix) == {SeedType.Electrum}:
+            # avoid ambiguity between old-style seeds and new-style, as well as avoid clashes with BIP39 seeds
+            if autodetect_seed_type(seed, self.lang, prefix=prefix) == {SeedType.Electrum}:
                 break
         self.print_error('{nwords} words, {nonce} iterations'.format(nwords=len(seed.split()), nonce=nonce))
         return seed
