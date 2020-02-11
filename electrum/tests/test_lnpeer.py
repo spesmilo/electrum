@@ -85,6 +85,7 @@ class MockLNWallet:
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
 
     def get_invoice_status(self, key):
