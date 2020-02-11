@@ -49,7 +49,7 @@ mainnet_block_explorers = {
     'BTC.com': ('https://bch.btc.com',
                        Address.FMT_CASHADDR,
                        {'tx': '', 'addr': '', 'block' : 'block'}),
-    'ViaBTC.com': ('https://www.viabtc.com/bch',
+    'ViaBTC.com': ('https://explorer.viawallet.com/bch',
                    Address.FMT_CASHADDR,
                    {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
     'BlockExplorer.one': ('https://blockexplorer.one/bch/mainnet',
