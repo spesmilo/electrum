@@ -38,7 +38,7 @@ import unicodedata
 from typing import List, Optional, Tuple, Union
 
 from . import version
-from .bitcoin import is_old_seed, is_new_seed, sha256
+from .bitcoin import hmac_sha_512
 from .util import PrintError
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
@@ -121,16 +121,17 @@ class MnemonicBase(PrintError):
     """ Base class for both Mnemonic (BIP39-based) and Mnemonic_Electrum.
     They both use the same word list, so the commonality between them is
     captured in this class. """
+
     def __init__(self, lang=None):
-        lang = lang or 'en'
+        self.lang = lang = (lang or 'en')[:2]
         self.print_error('language', lang)
-        filename = filenames.get(lang[:2], 'english.txt')
+        filename = filenames.get(lang, 'english.txt')
         self.wordlist = load_wordlist(filename)
         self.wordlist_indices = dict()
         for i, word in enumerate(self.wordlist):
-            self.wordlist_indices[word] = i  # saves on O(N) lookups for words. The alternative is to call worlist.index(w) for each word which is slow.
-        assert len(self.wordlist) == len(self.wordlist_indices)  # Paranoia to ensure word list is composed of unique words.
+            self.wordlist_indices[word] = i  # saves on O(N) lookups for words. The alternative is to call wordlist.index(w) for each word which is slow.
         self.print_error("wordlist has %d words"%len(self.wordlist))
+        assert len(self.wordlist) == len(self.wordlist_indices)  # Paranoia to ensure word list is composed of unique words.
 
     def get_suggestions(self, prefix):
         for w in self.wordlist:
@@ -163,35 +164,12 @@ class MnemonicBase(PrintError):
 
         raise Exception("Language not detected")
 
-    def mnemonic_encode(self, i):
-        n = len(self.wordlist)
-        words = []
-        while i:
-            x = i%n
-            i = i//n
-            words.append(self.wordlist[x])
-        return ' '.join(words)
-
-    def mnemonic_decode(self, seed):
-        n = len(self.wordlist)
-        words = seed.split()
-        i = 0
-        while words:
-            w = words.pop()
-            k = self.wordlist.index(w)
-            i = i*n + k
-        return i
-
     @classmethod
     def mnemonic_to_seed(cls, mnemonic: str, passphrase: Optional[str]) -> bytes:
         raise NotImplementedError(f'mnemonic_to_seed is not implemented in {cls.__name__}')
 
     def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) -> str:
         raise NotImplementedError(f'make_seed is not implemented in {type(self).__name__}')
-
-    @classmethod
-    def is_checksum_valid(cls, mnemonic : str, lang : Optional[str] = None) -> Tuple[bool, bool]:
-        raise NotImplementedError(f'is_checksum_valid is not implemented in {cls.__name__}')
 
     @classmethod
     def is_wordlist_valid(cls, mnemonic: str, lang: Optional[str] = None) -> Tuple[bool, str]:
@@ -209,15 +187,25 @@ class MnemonicBase(PrintError):
                 lang = 'en'
         elif lang not in cls.list_languages():
             lang = 'en'
-        words = cls.normalize_text(mnemonic).split()
-        wordlist_indices = cls(lang).wordlist_indices
-        while words:
-            w = words.pop()
-            try:
-                wordlist_indices[w]
-            except KeyError:
-                return False, lang
-        return True, lang
+        return cls(lang).verify_wordlist(mnemonic), lang
+
+    def verify_wordlist(self, mnemonic: str) -> bool:
+        """ Instance method which is a variation on is_wordlist_valid, which
+        does no language detection and simply checks all of the words in
+        mnemonic versus this instance's wordlist, returns True if they are all
+        in the wordlist. """
+        mnemonic = self.normalize_text(mnemonic)
+        for w in mnemonic.split():
+            if w not in self.wordlist_indices:
+                return False
+        return True
+
+    def is_checksum_valid(self, mnemonic : str) -> Tuple[bool, bool]:
+        raise NotImplementedError(f'is_checksum_valid is not implemented in {type(self).__name__}')
+
+    def is_seed(self, mnemonic: str) -> bool:
+        """ Convenient alias for is_checksum_valid()[0] """
+        return self.is_checksum_valid(mnemonic)[0]
 
 
 class Mnemonic(MnemonicBase):
@@ -236,36 +224,44 @@ class Mnemonic(MnemonicBase):
         passphrase = cls.normalize_text(passphrase or '')
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
-    def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) ->str:
+    def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) -> str:
         if num_bits not in (128, 160, 192, 224, 256):
             raise ValueError('Strength should be one of the following [128, 160, 192, 224, 256], not %d.' % num_bits)
-        data = os.urandom(num_bits // 8)
-        h = hashlib.sha256(data).hexdigest()
-        b = bin(int(binascii.hexlify(data), 16))[2:].zfill(len(data) * 8) + bin(int(h, 16))[2:].zfill(256)[:len(data) * 8 // 32]
-        result = []
-        for i in range(len(b) // 11):
-            idx = int(b[i * 11:(i + 1) * 11], 2)
-            result.append(self.wordlist[idx])
-        if self.detect_language(' '.join(result)) == 'japanese':  # Japanese must be joined by ideographic space.
-            result_phrase = u'\u3000'.join(result)
-        else:
-            result_phrase = ' '.join(result)
-        return result_phrase
+        def inner(num_bits):
+            data = os.urandom(num_bits // 8)
+            h = hashlib.sha256(data).hexdigest()
+            b = bin(int(binascii.hexlify(data), 16))[2:].zfill(len(data) * 8) + bin(int(h, 16))[2:].zfill(256)[:len(data) * 8 // 32]
+            result = []
+            for i in range(len(b) // 11):
+                idx = int(b[i * 11:(i + 1) * 11], 2)
+                result.append(self.wordlist[idx])
+            if self.detect_language(' '.join(result)) == 'japanese':  # Japanese must be joined by ideographic space.
+                result_phrase = u'\u3000'.join(result)
+            else:
+                result_phrase = ' '.join(result)
+            return result_phrase
+        from . import old_mnemonic
+        mn_electrum = Mnemonic_Electrum(self.lang)
+        iters = 0
+        while True:
+            iters += 1
+            seed = inner(num_bits)
+            # avoid ambiguity between old-style seeds and BIP39, as well as avoid clashes with Electrum seeds
+            if not old_mnemonic.mn_is_seed(seed) and not mn_electrum.is_seed(seed):
+                self.print_error("make_seed iterations:", iters)
+                return seed
 
-    @classmethod
-    def is_checksum_valid(cls, mnemonic : str, lang : Optional[str] = None) -> Tuple[bool, bool]:
-        """Test checksum of bip39 mnemonic for lang, assuming English wordlist if
-        lang = None. Returns tuple (is_checksum_valid, is_wordlist_valid) """
-        if lang is None:
-            lang = 'en'
-        words = cls.normalize_text(mnemonic).split()
+    def is_checksum_valid(self, mnemonic : str) -> Tuple[bool, bool]:
+        """Test checksum of BIP39 mnemonic. Returns tuple (is_checksum_valid,
+        is_wordlist_valid). Note that for an invalid worlist, is_checksum_valid
+        will always be False (this is because BIP39 relies on the wordlist for
+        the checksum)."""
+        words = self.normalize_text(mnemonic).split()
         words_len = len(words)
-        worddict = cls(lang).wordlist_indices
+        worddict = self.wordlist_indices
         n = len(worddict)
         i = 0
-        words.reverse()
-        while words:
-            w = words.pop()
+        for w in words:
             try:
                 k = worddict[w]
             except KeyError:
@@ -278,7 +274,7 @@ class Mnemonic(MnemonicBase):
         entropy = i >> checksum_length
         checksum = i % 2**checksum_length
         entropy_bytes = int.to_bytes(entropy, length=entropy_length//8, byteorder="big")
-        hashed = int.from_bytes(sha256(entropy_bytes), byteorder="big")
+        hashed = int.from_bytes(hashlib.sha256(entropy_bytes).digest(), byteorder="big")
         calculated_checksum = hashed >> (256 - checksum_length)
         return checksum == calculated_checksum, True
 
@@ -299,8 +295,26 @@ class Mnemonic_Electrum(MnemonicBase):
         passphrase = cls.normalize_text(passphrase or '')
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
+    def mnemonic_encode(self, i):
+        n = len(self.wordlist)
+        words = []
+        while i:
+            x = i%n
+            i = i//n
+            words.append(self.wordlist[x])
+        return ' '.join(words)
+
+    def mnemonic_decode(self, seed):
+        n = len(self.wordlist)
+        i = 0
+        for w in reversed(seed.split()):
+            k = self.wordlist_indices[w]
+            i = i*n + k
+        return i
+
     def make_seed(self, seed_type=None, num_bits=132, custom_entropy=1):
         """ Electrum format """
+        from . import old_mnemonic
         if seed_type is None:
             seed_type = 'standard'
         prefix = version.seed_prefix(seed_type)
@@ -316,26 +330,35 @@ class Mnemonic_Electrum(MnemonicBase):
             # try again if seed would not contain enough words
             my_entropy = ecdsa.util.randrange(pow(2, n))
         nonce = 0
+        mn_bip39 = Mnemonic(self.lang)
         while True:
             nonce += 1
             i = custom_entropy * (my_entropy + nonce)
             seed = self.mnemonic_encode(i)
             assert i == self.mnemonic_decode(seed)
-            if is_old_seed(seed):
+             # avoid ambiguity between old-style seeds and new-style, as well as avoid clashes with BIP39 seeds
+            if old_mnemonic.mn_is_seed(seed) or mn_bip39.is_seed(seed):
                 continue
-            if is_new_seed(seed, prefix):
+            if self.verify_checksum_only(seed, prefix):
                 break
-        self.print_error('%d words'%len(seed.split()))
+        self.print_error('{nwords} words, {nonce} iterations'.format(nwords=len(seed.split()), nonce=nonce))
         return seed
 
     def check_seed(self, seed: str, custom_entropy: int) -> bool:
-        assert is_new_seed(seed)
+        assert self.verify_checksum_only(seed)
         i = self.mnemonic_decode(seed)
         return i % custom_entropy == 0
 
+    def is_checksum_valid(self, mnemonic: str, *, prefix: str = version.SEED_PREFIX) -> Tuple[bool, bool]:
+        return self.verify_checksum_only(mnemonic, prefix), self.verify_wordlist(mnemonic)
+
     @classmethod
-    def is_checksum_valid(cls, mnemonic : str, lang : Optional[str] = None, *, prefix=version.SEED_PREFIX) -> Tuple[bool, bool]:
-        if lang is None:
-            lang = 'en'
-        is_valid_words, lang = cls.is_wordlist_valid(mnemonic)
-        return is_new_seed(mnemonic, prefix), is_valid_words
+    def verify_checksum_only(cls, mnemonic: str, prefix: str = version.SEED_PREFIX) -> bool:
+        x = cls.normalize_text(mnemonic)
+        s = hmac_sha_512(b"Seed version", x.encode('utf8')).hex()
+        return s.startswith(prefix)
+
+    def is_seed(self, mnemonic: str) -> bool:
+        """ Overrides super, skips the wordlist check which is not needed to
+        answer this question for Electrum seeds. """
+        return self.verify_checksum_only(mnemonic)

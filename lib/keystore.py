@@ -635,7 +635,7 @@ def bip39_to_seed(mnemonic, passphrase):
 def bip39_is_checksum_valid(mnemonic, lang=None):
     """Test checksum of bip39 mnemonic assuming English wordlist if lang=None.
     Returns tuple (is_checksum_valid, is_wordlist_valid) """
-    return Mnemonic.is_checksum_valid(mnemonic, lang)
+    return Mnemonic(lang).is_checksum_valid(mnemonic)
 
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})

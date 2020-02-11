@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
 # list of words from http://en.wiktionary.org/wiki/Wiktionary:Frequency_lists/Contemporary_poetry
 
 words = [
@@ -1685,6 +1684,25 @@ def mn_decode( wlist ):
         x = w1 +n*((w2-w1)%n) +n*n*((w3-w2)%n)
         out += '%08x'%x
     return out
+
+def mn_is_seed(seed: str) -> bool:
+    """ Returns True if seed is a valid "old" seed phrase of 12 or 24 words *OR*
+    if it's a hex string encoding 16 or 32 bytes. """
+    from . import mnemonic
+    seed = mnemonic.normalize_text(seed)
+    words = seed.split()
+    try:
+        # checks here are deliberately left weak for legacy reasons, see #3149
+        mn_decode(words)
+        uses_electrum_words = True
+    except Exception:
+        uses_electrum_words = False
+    try:
+        seed = bytes.fromhex(seed)
+        is_hex = (len(seed) == 16 or len(seed) == 32)
+    except Exception:
+        is_hex = False
+    return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
 
 if __name__ == '__main__':
