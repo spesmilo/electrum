@@ -36,12 +36,6 @@ pr_icons = {
 
 def _(message): return message
 
-pr_tooltips = {
-    PR_UNPAID:_('Pending'),
-    PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired')
-}
-
 expiration_values = [
     (_('1 hour'), 60*60),
     (_('1 day'), 24*60*60),

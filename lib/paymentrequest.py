@@ -53,6 +53,22 @@ from .util import print_error, bh2u, bfh, PrintError
 from .util import FileImportFailed, FileImportFailedEncrypted
 from .transaction import Transaction
 
+def _(message): return message
+
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_UNKNOWN = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+
+pr_tooltips = {
+    PR_UNPAID:_('Pending'),
+    PR_UNKNOWN:_('Unknown'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
+
+del _
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoincash-paymentrequest', 'User-Agent': 'Electron-Cash'}
 ACK_HEADERS = {'Content-Type':'application/bitcoincash-payment','Accept':'application/bitcoincash-paymentack','User-Agent':'Electron-Cash'}
@@ -65,15 +81,6 @@ def load_ca_list():
     global ca_list, ca_keyID
     if ca_list is None:
         ca_list, ca_keyID = x509.load_certificates(ca_path)
-
-
-
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_UNKNOWN = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-
 
 
 def get_payment_request(url):

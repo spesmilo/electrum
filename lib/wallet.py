@@ -63,8 +63,7 @@ from .blockchain import NULL_HASH_HEX
 
 
 from . import paymentrequest
-from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .paymentrequest import InvoiceStore
+from .paymentrequest import InvoiceStore, PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .contacts import Contacts
 from . import cashacct
 from . import slp
@@ -1326,6 +1325,12 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx)
         self.add_unverified_tx(tx_hash, tx_height)
+        if self.network and self.network.callback_listener_count("payment_received") > 0:
+            for _, addr, _ in tx.outputs():
+                status = self.get_request_status(addr)  # returns PR_UNKNOWN quickly if addr has no requests, otherwise returns tuple
+                if status != PR_UNKNOWN:
+                    status = status[0]  # unpack status from tuple
+                    self.network.trigger_callback('payment_received', self, addr, status)
 
     def receive_history_callback(self, addr, hist, tx_fees):
         with self.lock:
@@ -2228,13 +2233,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             expiration = 0
         conf = None
         if amount:
-            if self.up_to_date:
-                paid, conf = self.get_payment_status(address, amount)
-                status = PR_PAID if paid else PR_UNPAID
-                if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
-                    status = PR_EXPIRED
-            else:
-                status = PR_UNKNOWN
+            paid, conf = self.get_payment_status(address, amount)
+            status = PR_PAID if paid else PR_UNPAID
+            if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
+                status = PR_EXPIRED
         else:
             status = PR_UNKNOWN
         return status, conf

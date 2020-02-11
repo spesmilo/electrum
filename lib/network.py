@@ -316,6 +316,9 @@ class Network(util.DaemonThread):
         ''' Returns the extant Network singleton, if any, or None if in offline mode '''
         return Network.INSTANCE
 
+    def callback_listener_count(self, event):
+        return len(self.callbacks.get(event, []))  # we intentionally don't take any locks here as a performance optimization
+
     def register_callback(self, callback, events):
         with self.lock:
             for event in events:
@@ -326,8 +329,10 @@ class Network(util.DaemonThread):
     def unregister_callback(self, callback):
         with self.lock:
             for callbacks in self.callbacks.values():
-                if callback in callbacks:
+                try:
                     callbacks.remove(callback)
+                except ValueError:
+                    pass
 
     def trigger_callback(self, event, *args):
         with self.lock:
