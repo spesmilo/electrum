@@ -72,6 +72,7 @@ class peer_states(IntEnum):
     DISCONNECTED   = 0
     REESTABLISHING = 1
     GOOD           = 2
+    BAD            = 3
 
 cs = channel_states
 state_transitions = [

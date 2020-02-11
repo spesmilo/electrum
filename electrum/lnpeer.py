@@ -848,10 +848,12 @@ class Peer(Logger):
         else:
             if dlp_enabled and should_close_they_are_ahead:
                 self.logger.warning(f"channel_reestablish: remote is ahead of us! luckily DLP is enabled. remote PCP: {bh2u(their_local_pcp)}")
+                # data_loss_protect_remote_pcp is used in lnsweep
                 chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
                 self.lnworker.save_channel(chan)
         if should_close_they_are_ahead:
-            self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
+            self.logger.warning(f"channel_reestablish: remote is ahead of us! They should force-close.")
+            chan.peer_state = peer_states.BAD
             return
         elif should_close_we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
