@@ -4,11 +4,11 @@ LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 set -e
 
+. $(dirname "$0")/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
+
 here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
 CONTRIB="$here"
 PROJECT_ROOT="$CONTRIB/.."
-
-. "$here"/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
 
 pkgname="secp256k1"
 info "Building $pkgname..."

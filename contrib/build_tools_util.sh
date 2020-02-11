@@ -107,6 +107,12 @@ function host_strip()
     fi
 }
 
+# on MacOS, there is no realpath by default
+if ! [ -x "$(command -v realpath)" ]; then
+    function realpath() {
+        [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+    }
+fi
 
 
 export SOURCE_DATE_EPOCH=1530212462
