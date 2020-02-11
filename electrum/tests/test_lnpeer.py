@@ -18,7 +18,7 @@ from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnLocalFeatures
-from electrum.lnchannel import channel_states
+from electrum.lnchannel import channel_states, peer_states
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
 from electrum.lnworker import LNWallet, NoPathFound
@@ -217,6 +217,21 @@ class TestPeer(ElectrumTestCase):
                           ('d', 'coffee')
                          ])
         return lnencode(lnaddr, w2.node_keypair.privkey)
+
+    def test_reestablish(self):
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
+        async def reestablish():
+            await asyncio.gather(
+                p1.reestablish_channel(self.alice_channel),
+                p2.reestablish_channel(self.bob_channel))
+            self.assertEqual(self.alice_channel.peer_state, peer_states.GOOD)
+            self.assertEqual(self.bob_channel.peer_state, peer_states.GOOD)
+            gath.cancel()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
 
     def test_payment(self):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
