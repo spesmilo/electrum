@@ -709,14 +709,6 @@ class Peer(Logger):
             raise Exception('Unknown channel_reestablish')
         self.channel_reestablished[chan_id].put_nowait(payload)
 
-    def try_to_get_remote_to_force_close_with_their_latest(self, chan_id):
-        self.logger.info(f"trying to get remote to force close {bh2u(chan_id)}")
-        self.send_message(
-            "channel_reestablish",
-            channel_id=chan_id,
-            next_local_commitment_number=0,
-            next_remote_revocation_number=0)
-
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
         await self.initialized.wait()
@@ -860,7 +852,6 @@ class Peer(Logger):
                 self.lnworker.save_channel(chan)
         if should_close_they_are_ahead:
             self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
-            self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
             return
         elif should_close_we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
