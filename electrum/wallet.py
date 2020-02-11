@@ -70,7 +70,6 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .util import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT
 from .contacts import Contacts
 from .interface import NetworkException
-from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet
@@ -270,9 +269,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def init_lightning(self):
         if self.db.get('lightning_privkey2'):
             return
-        if not is_using_fast_ecc():
-            raise Exception('libsecp256k1 library not available. '
-                            'Verifying Lightning channels is too computationally expensive without libsecp256k1, aborting.')
         # TODO derive this deterministically from wallet.keystore at keystore generation time
         # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
         seed = os.urandom(32)
@@ -2085,9 +2081,6 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     @profiler
     def try_detecting_internal_addresses_corruption(self):
-        if not is_using_fast_ecc():
-            self.logger.info("internal address corruption test skipped due to missing libsecp256k1")
-            return
         addresses_all = self.get_addresses()
         # sample 1: first few
         addresses_sample1 = addresses_all[:10]

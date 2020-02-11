@@ -65,7 +65,7 @@ def _CKD_priv(parent_privkey: bytes, parent_chaincode: bytes,
     child_privkey = (I_left + ecc.string_to_number(parent_privkey)) % ecc.CURVE_ORDER
     if I_left >= ecc.CURVE_ORDER or child_privkey == 0:
         raise ecc.InvalidECPointException()
-    child_privkey = ecc.number_to_string(child_privkey, ecc.CURVE_ORDER)
+    child_privkey = int.to_bytes(child_privkey, length=32, byteorder='big', signed=False)
     child_chaincode = I[32:]
     return child_privkey, child_chaincode
 

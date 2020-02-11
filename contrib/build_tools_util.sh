@@ -70,3 +70,64 @@ function retry() {
 
   return $result
 }
+
+function gcc_with_triplet()
+{
+    TRIPLET="$1"
+    CMD="$2"
+    shift 2
+    if [ -n "$TRIPLET" ] ; then
+        "$TRIPLET-$CMD" "$@"
+    else
+        "$CMD" "$@"
+    fi
+}
+
+function gcc_host()
+{
+    gcc_with_triplet "$GCC_TRIPLET_HOST" "$@"
+}
+
+function gcc_build()
+{
+    gcc_with_triplet "$GCC_TRIPLET_BUILD" "$@"
+}
+
+function host_strip()
+{
+    if [ "$GCC_STRIP_BINARIES" -ne "0" ] ; then
+        case "$BUILD_TYPE" in
+            linux|wine)
+                gcc_host strip "$@"
+                ;;
+            darwin)
+                # TODO: Strip on macOS?
+                ;;
+        esac
+    fi
+}
+
+# on MacOS, there is no realpath by default
+if ! [ -x "$(command -v realpath)" ]; then
+    function realpath() {
+        [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+    }
+fi
+
+
+export SOURCE_DATE_EPOCH=1530212462
+export PYTHONHASHSEED=22
+# Set the build type, overridden by wine build
+export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"
+# No additional autoconf flags by default
+export AUTOCONF_FLAGS=""
+# Add host / build flags if the triplets are set
+if [ -n "$GCC_TRIPLET_HOST" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --host=$GCC_TRIPLET_HOST"
+fi
+if [ -n "$GCC_TRIPLET_BUILD" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --build=$GCC_TRIPLET_BUILD"
+fi
+
+export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
+
