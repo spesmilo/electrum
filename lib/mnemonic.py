@@ -35,7 +35,8 @@ import pkgutil
 import string
 import unicodedata
 
-from typing import List, Optional, Tuple, Union
+from enum import IntEnum, unique, auto
+from typing import List, Optional, Set, Tuple, Union
 
 from . import version
 from .bitcoin import hmac_sha_512
@@ -116,6 +117,31 @@ filenames = {
     'pt':'portuguese.txt',
     'zh':'chinese_simplified.txt'
 }
+
+@unique
+class SeedType(IntEnum):
+    BIP39    = auto()
+    Electrum = auto()
+    Old      = auto()
+
+def autodetect_seed_type(seed: str, lang: Optional[str] = None, *,
+                         prefix: str = version.SEED_PREFIX,
+                         reuse_instance : Optional[object] = None) -> Set[SeedType]:
+    ''' Given a mnemonic seed phrase, auto-detect the possible seed types it can
+    be. Note that some lucky seed phrases match all three types. Electron Cash
+    will never generate a seed that matches more than one type, but it is
+    possible for imported seeds to be ambiguous. May return the empty set if the
+    seed phrase is invalid and/or fails checksum checks for all three types. '''
+    ret = set()
+    from . import old_mnemonic
+    if (reuse_instance or Mnemonic(lang)).is_seed(seed):
+        ret.add( SeedType.BIP39 )
+    if Mnemonic_Electrum.verify_checksum_only(seed, prefix):
+        ret.add( SeedType.Electrum )
+    if old_mnemonic.mn_is_seed(seed):
+        ret.add( SeedType.Old )
+    return ret
+
 
 class MnemonicBase(PrintError):
     """ Base class for both Mnemonic (BIP39-based) and Mnemonic_Electrum.
@@ -235,19 +261,17 @@ class Mnemonic(MnemonicBase):
             for i in range(len(b) // 11):
                 idx = int(b[i * 11:(i + 1) * 11], 2)
                 result.append(self.wordlist[idx])
-            if self.detect_language(' '.join(result)) == 'japanese':  # Japanese must be joined by ideographic space.
+            if self.lang == 'ja':  # Japanese must be joined by ideographic space.
                 result_phrase = u'\u3000'.join(result)
             else:
                 result_phrase = ' '.join(result)
             return result_phrase
-        from . import old_mnemonic
-        mn_electrum = Mnemonic_Electrum(self.lang)
         iters = 0
         while True:
             iters += 1
             seed = inner(num_bits)
             # avoid ambiguity between old-style seeds and BIP39, as well as avoid clashes with Electrum seeds
-            if not old_mnemonic.mn_is_seed(seed) and not mn_electrum.is_seed(seed):
+            if autodetect_seed_type(seed, reuse_instance=self) == {SeedType.BIP39}:
                 self.print_error("make_seed iterations:", iters)
                 return seed
 
@@ -314,7 +338,6 @@ class Mnemonic_Electrum(MnemonicBase):
 
     def make_seed(self, seed_type=None, num_bits=132, custom_entropy=1):
         """ Electrum format """
-        from . import old_mnemonic
         if seed_type is None:
             seed_type = 'standard'
         prefix = version.seed_prefix(seed_type)
@@ -337,9 +360,7 @@ class Mnemonic_Electrum(MnemonicBase):
             seed = self.mnemonic_encode(i)
             assert i == self.mnemonic_decode(seed)
              # avoid ambiguity between old-style seeds and new-style, as well as avoid clashes with BIP39 seeds
-            if old_mnemonic.mn_is_seed(seed) or mn_bip39.is_seed(seed):
-                continue
-            if self.verify_checksum_only(seed, prefix):
+            if autodetect_seed_type(seed, reuse_instance=mn_bip39, prefix=prefix) == {SeedType.Electrum}:
                 break
         self.print_error('{nwords} words, {nonce} iterations'.format(nwords=len(seed.split()), nonce=nonce))
         return seed
