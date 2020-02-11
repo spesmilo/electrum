@@ -88,6 +88,7 @@ from electrum_ltc.logging import get_logger, configure_logging
 from electrum_ltc import util
 from electrum_ltc import constants
 from electrum_ltc import SimpleConfig
+from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
 from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
@@ -141,10 +142,17 @@ def init_cmdline(config_options, wallet_path, server):
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
+    # will we need a password
+    if not storage.is_encrypted():
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        use_encryption = db.get('use_encryption')
+    else:
+        use_encryption = True
+
     # commands needing password
     if  ( (cmd.requires_wallet and storage.is_encrypted() and server is False)\
        or (cmdname == 'load_wallet' and storage.is_encrypted())\
-       or (cmd.requires_password and (storage.is_encrypted() or storage.get('use_encryption')))):
+       or (cmd.requires_password and use_encryption)):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
@@ -218,7 +226,8 @@ async def run_offline_command(config, config_options, plugins):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        wallet = Wallet(storage, config=config)
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        wallet = Wallet(db, storage, config=config)
         config_options['wallet'] = wallet
     else:
         wallet = None
@@ -245,7 +254,7 @@ async def run_offline_command(config, config_options, plugins):
     result = await func(*args, **kwargs)
     # save wallet
     if wallet:
-        wallet.storage.write()
+        wallet.save_db()
     return result
 
 

@@ -633,7 +633,7 @@ class WizardDialog(EventsDialog):
         self._on_release = True
         self.close()
         if not button:
-            self.parent.dispatch('on_wizard_complete', None)
+            self.parent.dispatch('on_wizard_complete', None, None)
             return
         if button is self.ids.back:
             self.wizard.go_back()
@@ -1055,7 +1055,7 @@ class InstallWizard(BaseWizard, Widget):
 
     __events__ = ('on_wizard_complete', )
 
-    def on_wizard_complete(self, wallet):
+    def on_wizard_complete(self, storage, db):
         """overriden by main_window"""
         pass
 
@@ -1086,10 +1086,10 @@ class InstallWizard(BaseWizard, Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def terminate(self, *, storage=None, aborted=False):
+    def terminate(self, *, storage=None, db=None, aborted=False):
         if storage is None and not aborted:
-            storage = self.create_storage(self.path)
-        self.dispatch('on_wizard_complete', storage)
+            storage, db = self.create_storage(self.path)
+        self.dispatch('on_wizard_complete', storage, db)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']

@@ -32,9 +32,8 @@ from enum import IntEnum
 
 from . import ecc
 from .util import profiler, InvalidPassword, WalletFileException, bfh, standardize_path
-from .plugin import run_hook, plugin_loaders
 
-from .json_db import JsonDB
+from .wallet_db import WalletDB
 from .logging import Logger
 
 
@@ -53,30 +52,27 @@ class StorageEncryptionVersion(IntEnum):
 class StorageReadWriteError(Exception): pass
 
 
+# TODO: Rename to Storage
 class WalletStorage(Logger):
 
-    def __init__(self, path, *, manual_upgrades: bool = False):
+    def __init__(self, path):
         Logger.__init__(self)
-        self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = bool(self.path and os.path.exists(self.path))
-        self._manual_upgrades = manual_upgrades
-
-        DB_Class = JsonDB
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
+        self.decrypted = ''
         self._test_read_write_permissions(self.path)
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
-            if not self.is_encrypted():
-                self.db = DB_Class(self.raw, manual_upgrades=manual_upgrades)
-                self.load_plugins()
         else:
+            self.raw = ''
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
-            # avoid new wallets getting 'upgraded'
-            self.db = DB_Class('', manual_upgrades=False)
+
+    def read(self):
+        return self.decrypted if self.is_encrypted() else self.raw
 
     @classmethod
     def _test_read_write_permissions(cls, path):
@@ -100,30 +96,9 @@ class WalletStorage(Logger):
         if echo != echo2:
             raise StorageReadWriteError('echo sanity-check failed')
 
-    def load_plugins(self):
-        wallet_type = self.db.get('wallet_type')
-        if wallet_type in plugin_loaders:
-            plugin_loaders[wallet_type]()
-
-    def put(self, key,value):
-        self.db.put(key, value)
-
-    def get(self, key, default=None):
-        return self.db.get(key, default)
-
     @profiler
-    def write(self):
-        with self.lock:
-            self._write()
-
-    def _write(self):
-        if threading.currentThread().isDaemon():
-            self.logger.warning('daemon thread cannot write db')
-            return
-        if not self.db.modified():
-            return
-        self.db.commit()
-        s = self.encrypt_before_writing(self.db.dump())
+    def write(self, data):
+        s = self.encrypt_before_writing(data)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w", encoding='utf-8') as f:
             f.write(s)
@@ -138,7 +113,6 @@ class WalletStorage(Logger):
         os.chmod(self.path, mode)
         self._file_exists = True
         self.logger.info(f"saved {self.path}")
-        self.db.set_modified(False)
 
     def file_exists(self) -> bool:
         return self._file_exists
@@ -151,7 +125,7 @@ class WalletStorage(Logger):
             or if encryption is enabled but the contents have already been decrypted.
         """
         try:
-            return bool(self.db.data)
+            return not self.is_encrypted() or bool(self.decrypted)
         except AttributeError:
             return False
 
@@ -210,12 +184,12 @@ class WalletStorage(Logger):
         if self.raw:
             enc_magic = self._get_encryption_magic()
             s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
+            s = s.decode('utf8')
         else:
-            s = None
+            s = ''
         self.pubkey = ec_key.get_public_key_hex()
-        s = s.decode('utf8')
-        self.db = JsonDB(s, manual_upgrades=self._manual_upgrades)
-        self.load_plugins()
+        self.decrypted = s
+        return s
 
     def encrypt_before_writing(self, plaintext: str) -> str:
         s = plaintext
@@ -237,9 +211,6 @@ class WalletStorage(Logger):
         if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
-    def set_keystore_encryption(self, enable):
-        self.put('use_encryption', enable)
-
     def set_password(self, password, enc_version=None):
         """Set a password to be used for encrypting this storage."""
         if enc_version is None:
@@ -251,40 +222,7 @@ class WalletStorage(Logger):
         else:
             self.pubkey = None
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
-        # make sure next storage.write() saves changes
-        self.db.set_modified(True)
 
     def basename(self) -> str:
         return os.path.basename(self.path)
 
-    def requires_upgrade(self):
-        if not self.is_past_initial_decryption():
-            raise Exception("storage not yet decrypted!")
-        return self.db.requires_upgrade()
-
-    def is_ready_to_be_used_by_wallet(self):
-        return not self.requires_upgrade() and self.db._called_after_upgrade_tasks
-
-    def upgrade(self):
-        self.db.upgrade()
-        self.write()
-
-    def requires_split(self):
-        return self.db.requires_split()
-
-    def split_accounts(self):
-        out = []
-        result = self.db.split_accounts()
-        for data in result:
-            path = self.path + '.' + data['suffix']
-            storage = WalletStorage(path)
-            storage.db.data = data
-            storage.db._called_after_upgrade_tasks = False
-            storage.db.upgrade()
-            storage.write()
-            out.append(path)
-        return out
-
-    def get_action(self):
-        action = run_hook('get_action', self)
-        return action

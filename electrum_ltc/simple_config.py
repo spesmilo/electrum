@@ -56,7 +56,6 @@ class SimpleConfig(Logger):
             options = {}
 
         Logger.__init__(self)
-        self.lightning_settle_delay = int(os.environ.get('ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY', 0))
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.

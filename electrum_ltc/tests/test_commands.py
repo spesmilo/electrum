@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from electrum_ltc.util import create_and_start_event_loop
 from electrum_ltc.commands import Commands, eval_bool
-from electrum_ltc import storage
+from electrum_ltc import storage, wallet
 from electrum_ltc.wallet import restore_wallet_from_text
 from electrum_ltc.simple_config import SimpleConfig
 
@@ -77,8 +77,8 @@ class TestCommands(ElectrumTestCase):
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, cmds._run('convert_xkey', (xkey1, xtype2)))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_encrypt_decrypt(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_encrypt_decrypt(self, mock_save_db):
         wallet = restore_wallet_from_text('p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D',
                                           path='if_this_exists_mocking_failed_648151893',
                                           config=self.config)['wallet']
@@ -88,8 +88,8 @@ class TestCommands(ElectrumTestCase):
         ciphertext = cmds._run('encrypt', (pubkey, cleartext))
         self.assertEqual(cleartext, cmds._run('decrypt', (pubkey, ciphertext), wallet=wallet))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_export_private_key_imported(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_export_private_key_imported(self, mock_save_db):
         wallet = restore_wallet_from_text('p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3',
                                           path='if_this_exists_mocking_failed_648151893',
                                           config=self.config)['wallet']
@@ -107,8 +107,8 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(['p2wpkh:TAa25Tq4PdzhDKBoVaFaCdV3yxvLrRikQviNkuFQLeYopsVvNTV3', 'p2wpkh:TAgoypi14k5Y54svysG62xp5QFRWiF1W64zxaFRFPo2jMPSMoa5D'],
                          cmds._run('getprivatekeys', (['ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', 'ltc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq7n0qjr'], ), wallet=wallet))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_export_private_key_deterministic(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_export_private_key_deterministic(self, mock_save_db):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
                                           gap_limit=2,
                                           path='if_this_exists_mocking_failed_648151893',

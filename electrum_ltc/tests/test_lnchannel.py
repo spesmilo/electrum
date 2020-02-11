@@ -35,6 +35,7 @@ from electrum_ltc.lnutil import FeeUpdate
 from electrum_ltc.ecc import sig_string_from_der_sig
 from electrum_ltc.logging import console_stderr_handler
 from electrum_ltc.lnchannel import channel_states
+from electrum_ltc.json_db import StoredDict
 
 from . import ElectrumTestCase
 
@@ -45,9 +46,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     assert local_amount > 0
     assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
-
-    return {
-            "channel_id":channel_id,
+    state = {
+            "channel_id":channel_id.hex(),
             "short_channel_id":channel_id[:8],
             "funding_outpoint":lnpeer.Outpoint(funding_txid, funding_index),
             "remote_config":lnpeer.RemoteConfig(
@@ -63,7 +63,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 initial_msat=remote_amount,
                 reserve_sat=0,
                 htlc_minimum_msat=1,
-
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
             ),
@@ -79,7 +78,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 max_accepted_htlcs=5,
                 initial_msat=local_amount,
                 reserve_sat=0,
-
                 per_commitment_secret_seed=seed,
                 funding_locked_received=True,
                 was_announced=False,
@@ -91,11 +89,14 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,
             ),
-            "node_id":other_node_id,
+            "node_id":other_node_id.hex(),
             'onion_keys': {},
+            'data_loss_protect_remote_pcp': {},
             'state': 'PREOPENING',
+            'log': {},
             'revocation_store': {},
     }
+    return StoredDict(state, None, [])
 
 def bip32(sequence):
     node = bip32_utils.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
@@ -317,7 +318,6 @@ class TestChannel(ElectrumTestCase):
         # Bob revokes his prior commitment given to him by Alice, since he now
         # has a valid signature for a newer commitment.
         bobRevocation, _ = bob_channel.revoke_current_commitment()
-        bob_channel.serialize()
         self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
         # Bob finally sends a signature for Alice's commitment transaction.
@@ -341,18 +341,14 @@ class TestChannel(ElectrumTestCase):
         # her prior commitment transaction. Alice shouldn't have any HTLCs to
         # forward since she's sending an outgoing HTLC.
         alice_channel.receive_revocation(bobRevocation)
-        alice_channel.serialize()
 
         self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
-        alice_channel.serialize()
 
         self.assertEqual(len(alice_channel.get_latest_commitment(LOCAL).outputs()), 2)
         self.assertEqual(len(alice_channel.get_latest_commitment(REMOTE).outputs()), 3)
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 2)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
-        alice_channel.serialize()
-
         self.assertEqual(alice_channel.get_next_commitment(LOCAL).outputs(),
                          bob_channel.get_latest_commitment(REMOTE).outputs())
 
@@ -365,14 +361,12 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 3)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
-        alice_channel.serialize()
 
         tx1 = str(alice_channel.force_close_tx())
         self.assertNotEqual(tx0, tx1)
 
         # Alice then generates a revocation for bob.
         aliceRevocation, _ = alice_channel.revoke_current_commitment()
-        alice_channel.serialize()
 
         tx2 = str(alice_channel.force_close_tx())
         # since alice already has the signature for the next one, it doesn't change her force close tx (it was already the newer one)
@@ -384,7 +378,6 @@ class TestChannel(ElectrumTestCase):
         # into both commitment transactions.
         self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
         bob_channel.receive_revocation(aliceRevocation)
-        bob_channel.serialize()
 
         # At this point, both sides should have the proper number of satoshis
         # sent, and commitment height updated within their local channel
@@ -450,20 +443,16 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(1, alice_channel.get_oldest_unrevoked_ctn(LOCAL))
         self.assertEqual(len(alice_channel.included_htlcs(LOCAL, RECEIVED, ctn=2)), 0)
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
-        alice_channel.serialize()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
         self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
         self.assertEqual(len(bob_channel.get_latest_commitment(LOCAL).outputs()), 3)
         bob_channel.receive_revocation(aliceRevocation2)
-        bob_channel.serialize()
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
 
         bobRevocation2, (received, sent) = bob_channel.revoke_current_commitment()
         self.assertEqual(one_bitcoin_in_msat, received)
-        bob_channel.serialize()
         alice_channel.receive_revocation(bobRevocation2)
-        alice_channel.serialize()
 
         # At this point, Bob should have 6 BTC settled, with Alice still having
         # 4 BTC. Alice's channel should show 1 BTC sent and Bob's channel
@@ -508,8 +497,6 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(alice_channel.total_msat(RECEIVED), 5 * one_bitcoin_in_msat, "alice satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(RECEIVED), one_bitcoin_in_msat, "bob satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
-
-        alice_channel.serialize()
 
 
     def alice_to_bob_fee_update(self, fee=111):

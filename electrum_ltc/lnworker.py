@@ -34,13 +34,14 @@ from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime
+from .util import MyEncoder
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .ecc_fast import is_using_fast_ecc
-from .lnchannel import Channel, ChannelJsonEncoder
+from .lnchannel import Channel
 from .lnchannel import channel_states, peer_states
 from . import lnutil
 from .lnutil import funding_output_script
@@ -105,8 +106,6 @@ FALLBACK_NODE_LIST_MAINNET = [
     LNPeerAddr(host='138.68.14.104', port=9735, pubkey=bfh('03bb88ccc444534da7b5b64b4f7b15e1eccb18e102db0e400d4b9cfe93763aa26d')),
     LNPeerAddr(host='3.124.63.44', port=9735, pubkey=bfh('0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3')),
 ]
-
-encoder = ChannelJsonEncoder()
 
 
 from typing import NamedTuple
@@ -342,24 +341,25 @@ class LNWallet(LNWorker):
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
         self.wallet = wallet
-        self.storage = wallet.storage
+        self.db = wallet.db
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
         self.ln_keystore = keystore.from_xprv(xprv)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.payments = self.storage.get('lightning_payments', {})        # RHASH -> amount, direction, is_paid
-        self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> preimage
+        self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
+        self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH
 
         # note: accessing channels (besides simple lookup) needs self.lock!
-        self.channels = {}  # type: Dict[bytes, Channel]
-        for x in wallet.storage.get("channels", []):
-            c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
-            self.channels[c.channel_id] = c
+        self.channels = {}
+        channels = self.db.get_dict("channels")
+        for channel_id, c in channels.items():
+            self.channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
+
         # timestamps of opening and closing transactions
-        self.channel_timestamps = self.storage.get('lightning_channel_timestamps', {})
+        self.channel_timestamps = self.db.get_dict('lightning_channel_timestamps')
         self.pending_payments = defaultdict(asyncio.Future)
 
     @ignore_exceptions
@@ -585,10 +585,10 @@ class LNWallet(LNWorker):
 
     def get_and_inc_counter_for_channel_keys(self):
         with self.lock:
-            ctr = self.storage.get('lightning_channel_key_der_ctr', -1)
+            ctr = self.db.get('lightning_channel_key_der_ctr', -1)
             ctr += 1
-            self.storage.put('lightning_channel_key_der_ctr', ctr)
-            self.storage.write()
+            self.db.put('lightning_channel_key_der_ctr', ctr)
+            self.wallet.save_db()
             return ctr
 
     def suggest_peer(self):
@@ -610,16 +610,8 @@ class LNWallet(LNWorker):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
-        with self.lock:
-            self.channels[chan.channel_id] = chan
-            self.save_channels()
+        self.wallet.save_db()
         self.network.trigger_callback('channel', chan)
-
-    def save_channels(self):
-        with self.lock:
-            dumped = [x.serialize() for x in self.channels.values()]
-        self.storage.put("channels", dumped)
-        self.storage.write()
 
     def save_short_chan_id(self, chan):
         """
@@ -648,8 +640,8 @@ class LNWallet(LNWorker):
             return
         block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
         assert tx_pos >= 0
-        chan.short_channel_id = ShortChannelID.from_components(
-            block_height, tx_pos, chan.funding_outpoint.output_index)
+        chan.set_short_channel_id(ShortChannelID.from_components(
+            block_height, tx_pos, chan.funding_outpoint.output_index))
         self.logger.info(f"save_short_channel_id: {chan.short_channel_id}")
         self.save_channel(chan)
 
@@ -669,7 +661,6 @@ class LNWallet(LNWorker):
 
         # save timestamp regardless of state, so that funding tx is returned in get_history
         self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
-        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
@@ -714,7 +705,6 @@ class LNWallet(LNWorker):
 
         # fixme: this is wasteful
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
-        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
 
         # remove from channel_db
         if chan.short_channel_id is not None:
@@ -836,7 +826,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        self.save_channel(chan)
+        self.add_channel(chan)
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
@@ -845,6 +835,10 @@ class LNWallet(LNWorker):
             # TODO make more robust (timeout low? server returns error?)
             await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
         return chan, funding_tx
+
+    def add_channel(self, chan):
+        with self.lock:
+            self.channels[chan.channel_id] = chan
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
@@ -1133,8 +1127,7 @@ class LNWallet(LNWorker):
     def save_preimage(self, payment_hash: bytes, preimage: bytes):
         assert sha256(preimage) == payment_hash
         self.preimages[bh2u(payment_hash)] = bh2u(preimage)
-        self.storage.put('lightning_preimages', self.preimages)
-        self.storage.write()
+        self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> bytes:
         return bfh(self.preimages.get(bh2u(payment_hash)))
@@ -1152,8 +1145,7 @@ class LNWallet(LNWorker):
         assert info.status in [PR_PAID, PR_UNPAID, PR_INFLIGHT]
         with self.lock:
             self.payments[key] = info.amount, info.direction, info.status
-        self.storage.put('lightning_payments', self.payments)
-        self.storage.write()
+        self.wallet.save_db()
 
     def get_payment_status(self, payment_hash):
         try:
@@ -1238,14 +1230,14 @@ class LNWallet(LNWorker):
                 del self.payments[payment_hash_hex]
         except KeyError:
             return
-        self.storage.put('lightning_payments', self.payments)
-        self.storage.write()
+        self.wallet.save_db()
 
     def get_balance(self):
         with self.lock:
             return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0 for chan in self.channels.values()))/1000
 
     def list_channels(self):
+        encoder = MyEncoder()
         with self.lock:
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             for channel_id, chan in self.channels.items():
@@ -1283,7 +1275,9 @@ class LNWallet(LNWorker):
         assert chan.is_closed()
         with self.lock:
             self.channels.pop(chan_id)
-        self.save_channels()
+            self.channel_timestamps.pop(chan_id.hex())
+            self.db.get('channels').pop(chan_id.hex())
+
         self.network.trigger_callback('channels_updated', self.wallet)
         self.network.trigger_callback('wallet_updated', self.wallet)
 
