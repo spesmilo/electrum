@@ -747,14 +747,14 @@ class Peer(Logger):
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
 
-        channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
-        their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
-        their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        msg = await self.channel_reestablished[chan_id].get()
+        their_next_local_ctn = int.from_bytes(msg["next_local_commitment_number"], 'big')
+        their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_remote_revocation_number"], 'big')
+        their_local_pcp = msg.get("my_current_per_commitment_point")
+        their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
         self.logger.info(f'channel_reestablish: received channel_reestablish with '
                          f'(their_next_local_ctn={their_next_local_ctn}, '
                          f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
-        their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
-        their_claim_of_our_last_per_commitment_secret = channel_reestablish_msg.get("your_last_per_commitment_secret")
         # sanity checks of received values
         if their_next_local_ctn < 0:
             raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
@@ -779,8 +779,8 @@ class Peer(Logger):
                 n_replayed_msgs += 1
         self.logger.info(f'channel_reestablish: replayed {n_replayed_msgs} unacked messages')
 
-        should_close_we_are_ahead = False
-        should_close_they_are_ahead = False
+        we_are_ahead = False
+        they_are_ahead = False
         # compare remote ctns
         if next_remote_ctn != their_next_local_ctn:
             if their_next_local_ctn == latest_remote_ctn and chan.hm.is_revack_pending(REMOTE):
@@ -790,9 +790,9 @@ class Peer(Logger):
             else:
                 self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
                 if their_next_local_ctn < next_remote_ctn:
-                    should_close_we_are_ahead = True
+                    we_are_ahead = True
                 else:
-                    should_close_they_are_ahead = True
+                    they_are_ahead = True
         # compare local ctns
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
@@ -810,9 +810,9 @@ class Peer(Logger):
             else:
                 self.logger.warning(f"channel_reestablish: expected local ctn {oldest_unrevoked_local_ctn}, got {their_oldest_unrevoked_remote_ctn}")
                 if their_oldest_unrevoked_remote_ctn < oldest_unrevoked_local_ctn:
-                    should_close_we_are_ahead = True
+                    we_are_ahead = True
                 else:
-                    should_close_they_are_ahead = True
+                    they_are_ahead = True
         # option_data_loss_protect
         def are_datalossprotect_fields_valid() -> bool:
             if their_local_pcp is None or their_claim_of_our_last_per_commitment_secret is None:
@@ -838,14 +838,14 @@ class Peer(Logger):
         if not are_datalossprotect_fields_valid():
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
 
-        if should_close_they_are_ahead:
+        if they_are_ahead:
             self.logger.warning(f"channel_reestablish: remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             self.lnworker.save_channel(chan)
             chan.peer_state = peer_states.BAD
             return
-        elif should_close_we_are_ahead:
+        elif we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
             await self.lnworker.force_close_channel(chan_id)
             return
