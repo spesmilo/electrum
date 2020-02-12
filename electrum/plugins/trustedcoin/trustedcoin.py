@@ -458,7 +458,7 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):

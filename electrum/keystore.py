@@ -33,6 +33,7 @@ from abc import ABC, abstractmethod
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey
+from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
                     convert_bip32_intpath_to_strpath)
@@ -47,7 +48,6 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .gui.qt.util import TaskThread
-    from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase
 
 
@@ -75,7 +75,7 @@ class KeyStore(Logger, ABC):
         """Returns whether the keystore can be encrypted with a password."""
         pass
 
-    def get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
+    def _get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
         keypairs = {}
         for txin in tx.inputs():
             if txin.is_complete():
@@ -90,10 +90,13 @@ class KeyStore(Logger, ABC):
                 keypairs[pubkey.hex()] = derivation
         return keypairs
 
-    def can_sign(self, tx) -> bool:
-        if self.is_watching_only():
+    def can_sign(self, tx: 'Transaction', *, ignore_watching_only=False) -> bool:
+        """Returns whether this keystore could sign *something* in this tx."""
+        if not ignore_watching_only and self.is_watching_only():
             return False
-        return bool(self.get_tx_derivations(tx))
+        if not isinstance(tx, PartialTransaction):
+            return False
+        return bool(self._get_tx_derivations(tx))
 
     def ready_to_sign(self) -> bool:
         return not self.is_watching_only()
@@ -169,7 +172,7 @@ class Software_KeyStore(KeyStore):
         # Raise if password is not correct.
         self.check_password(password)
         # Add private keys
-        keypairs = self.get_tx_derivations(tx)
+        keypairs = self._get_tx_derivations(tx)
         for k, v in keypairs.items():
             keypairs[k] = self.get_private_key(v, password)
         # Sign
