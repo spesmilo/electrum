@@ -153,7 +153,7 @@ class Channel(Logger):
         self.data_loss_protect_remote_pcp[key] = value
 
     def get_data_loss_protect_remote_pcp(self, key):
-        self.data_loss_protect_remote_pcp.get(key)
+        return self.data_loss_protect_remote_pcp.get(key)
 
     def set_remote_update(self, raw):
         self.storage['remote_update'] = raw.hex()

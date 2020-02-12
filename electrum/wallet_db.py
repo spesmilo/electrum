@@ -971,6 +971,8 @@ class WalletDB(JsonDB):
             v = dict((k, {(prevout, value) for (prevout, value) in x}) for k, x in v.items())
         elif key == 'buckets':
             v = dict((k, ShachainElement(bfh(x[0]), int(x[1]))) for k, x in v.items())
+        elif key == 'data_loss_protect_remote_pcp':
+            v = dict((k, bfh(x)) for k, x in v.items())
         return v
 
     def _convert_value(self, path, key, v):
