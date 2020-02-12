@@ -221,7 +221,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         Software_KeyStore.__init__(self)
         self.seed = d.get('seed', '')
         self.passphrase = d.get('passphrase', '')
-        self.is_seed_bip39 = d.get('is_seed_bip39')
+        self.seed_type = d.get('seed_type')
 
     def is_deterministic(self):
         return True
@@ -232,8 +232,8 @@ class Deterministic_KeyStore(Software_KeyStore):
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
-        if self.is_seed_bip39 is not None:
-            d['is_seed_bip39'] = self.is_seed_bip39
+        if self.seed_type is not None:
+            d['seed_type'] = self.seed_type
         return d
 
     def has_seed(self):
@@ -245,11 +245,11 @@ class Deterministic_KeyStore(Software_KeyStore):
     def can_change_password(self):
         return not self.is_watching_only()
 
-    def add_seed(self, seed, *, is_seed_bip39=False):
+    def add_seed(self, seed, *, seed_type='electrum'):
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
-        self.is_seed_bip39 = is_seed_bip39
+        self.seed_type = seed_type
 
     def format_seed(self, seed):
         """ Default impl. for BIP39 or Electrum seed wallets.  Old_Keystore
@@ -429,8 +429,8 @@ class Old_KeyStore(Deterministic_KeyStore):
         d['type'] = 'old'
         return d
 
-    def add_seed(self, seedphrase):
-        Deterministic_KeyStore.add_seed(self, seedphrase)
+    def add_seed(self, seedphrase, *, seed_type='old'):
+        Deterministic_KeyStore.add_seed(self, seedphrase, seed_type=seed_type)
         s = self.get_hex_seed(None)
         self.mpk = self.mpk_from_seed(s)
 
@@ -639,7 +639,7 @@ def bip39_is_checksum_valid(mnemonic, lang=None):
 
 def from_bip39_seed(seed, passphrase, derivation):
     k = BIP32_KeyStore({})
-    k.add_seed(seed, is_seed_bip39 = True)
+    k.add_seed(seed, seed_type = "bip39")
     k.passphrase = passphrase
     bip32_seed = bip39_to_seed(seed, passphrase)
     t = 'standard'  # bip43
@@ -765,10 +765,10 @@ def from_seed(seed, passphrase, is_p2sh):
     t = seed_type(seed)
     if t == 'old':
         keystore = Old_KeyStore({})
-        keystore.add_seed(seed)
-    elif t in ['standard']:
+        keystore.add_seed(seed, seed_type="old")
+    elif t in ['standard', 'electrum']:
         keystore = BIP32_KeyStore({})
-        keystore.add_seed(seed, is_seed_bip39 = False)
+        keystore.add_seed(seed, seed_type="electrum")
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic_Electrum.mnemonic_to_seed(seed, passphrase)
         der = "m/"

@@ -367,7 +367,7 @@ class Mnemonic_Electrum(MnemonicBase):
             raise NotImplementedError(f"Cannot make a seed for language '{self.lang}'. "
                                       + "Only English, Spanish, and Portuguese are supported as seed generation languages in this implementation")
         if seed_type is None:
-            seed_type = 'standard'
+            seed_type = 'electrum'
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)

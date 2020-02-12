@@ -247,9 +247,9 @@ class Commands:
     @command('')
     def make_seed(self, nbits=132, entropy=1, language=None):
         """Create a seed"""
-        from .mnemonic import Mnemonic
+        from .mnemonic import Mnemonic_Electrum
         t = 'standard'
-        s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
+        s = Mnemonic_Electrum(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
     @command('')

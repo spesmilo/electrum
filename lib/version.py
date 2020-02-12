@@ -1,12 +1,12 @@
 PACKAGE_VERSION  = '4.0.13'  # version of the client package
 PROTOCOL_VERSION = '1.4'     # protocol version requested
 
-# The hash of the mnemonic seed must begin with this
-SEED_PREFIX      = '01'      # Standard wallet
+# The hash of the Electrum mnemonic seed must begin with this
+SEED_PREFIX      = '01'      # Standard wallet, Electrum seed
 
 
 def seed_prefix(seed_type):
-    assert seed_type == 'standard'
+    assert seed_type in ('standard', 'electrum')
     return SEED_PREFIX
 
 import re

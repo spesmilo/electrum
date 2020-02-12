@@ -278,7 +278,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.slp.load()  # try to load first so we can pick up the remove_transaction hook from load_transactions if need be
 
         # Now, finally, after object is constructed -- we can do this
-        self.load_keystore()
+        self.load_keystore_wrapper()
         self.load_addresses()
         self.load_transactions()
         self.build_reverse_history()
@@ -312,6 +312,74 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
     def get_master_public_key(self):
         return None
+
+    def load_keystore_wrapper(self):
+        """ Loads the keystore, but also tries to preserve derivation(s). Older
+        Electron Cash versions would not save the derivation for all keystore
+        types. So this function ensures:
+
+        1. That on first run, we store the keystore_derivations to top-level
+           storage (which is preserved always).
+        2. On subsequent runs we try and load the keystore_derivations from
+           storage and restore them if the individual keystore.derivation data
+           items were lost (because user loaded wallet with older Electron
+           Cash).
+
+        This function is provided to allow users to switch between old and new
+        EC versions.  In the future if we deprecate the wallet format, or if
+        enough time has passed, this function may be removed and the simple
+        self.load_keystore() may be used instead. """
+        self.load_keystore()
+        if not hasattr(self, 'get_keystores'):
+            return
+        from .keystore import Deterministic_KeyStore, Old_KeyStore
+        keystores = self.get_keystores()
+        keystore_derivations = self.storage.get('keystore_derivations', [])
+        if len(keystore_derivations) != len(keystores):
+            keystore_derivations = [None] * len(keystores)
+        updated, updated_ks, updated_st = False, False, False
+        for i, keystore in enumerate(keystores):
+            if i == 0 and isinstance(keystore, Deterministic_KeyStore) and not keystore.seed_type:
+                # Attempt to update keystore.seed_type
+                if isinstance(keystore, Old_KeyStore):
+                    keystore.seed_type = 'old'
+                    updated_st = True
+                else:
+                    # attempt to restore the seed_type based on wallet saved "seed_type"
+                    typ = self.storage.get('seed_type')
+                    if typ in ('standard', 'electrum'):
+                        keystore.seed_type = 'electrum'
+                        updated_st = True
+                    elif typ == 'bip39':
+                        keystore.seed_type = 'bip39'
+                        updated_st = True
+            saved_der = keystore_derivations[i]
+            der = (keystore.has_derivation() and keystore.derivation) or None
+            if der != saved_der:
+                if der:
+                    # keystore had a derivation, but top-level storage did not
+                    # (this branch is typically taken on first run after
+                    # restoring from seed or creating a new wallet)
+                    keystore_derivations[i] = saved_der = der
+                    updated = True
+                elif saved_der:
+                    # we had a derivation but keystore did not. This branch is
+                    # taken if the user has loaded this wallet with an older
+                    # version of Electron Cash. Attempt to restore their
+                    # derivation item in keystore.
+                    keystore.derivation = der  # write to keystore
+                    updated_ks = True  # tell it to re-save
+        if updated:
+            self.print_error("Updated keystore_derivations")
+            self.storage.put('keystore_derivations', keystore_derivations)
+        if updated_ks or updated_st:
+            if updated_ks:
+                self.print_error("Updated keystore (lost derivations restored)")
+            if updated_st:
+                self.print_error("Updated keystore (lost seed_type restored)")
+            self.save_keystore()
+        if any((updated, updated_ks, updated_st)):
+            self.storage.write()
 
     @profiler
     def load_transactions(self):

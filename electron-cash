@@ -109,7 +109,7 @@ from electroncash.i18n import _
 from electroncash.commands import get_parser, known_commands, Commands, config_variables
 from electroncash import daemon
 from electroncash import keystore
-from electroncash.mnemonic import Mnemonic
+from electroncash.mnemonic import Mnemonic_Electrum
 from electroncash.winconsole import create_or_attach_console  # Import ok on other platforms, won't be called.
 import electroncash_plugins
 import electroncash.web as web
@@ -176,7 +176,7 @@ def run_non_RPC(config):
         password = password_dialog()
         passphrase = config.get('passphrase', '')
         seed_type = 'standard'
-        seed = Mnemonic('en').make_seed(seed_type)
+        seed = Mnemonic_Electrum('en').make_seed(seed_type)  # TODO: default to BIP39 here
         k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
