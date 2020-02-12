@@ -848,6 +848,10 @@ class Peer(Logger):
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
             await self.lnworker.force_close_channel(chan_id)
             return
+        elif self.lnworker.wallet.is_lightning_backup():
+            self.logger.warning(f"channel_reestablish: force-closing because we are a recent backup")
+            await self.lnworker.force_close_channel(chan_id)
+            return
 
         chan.peer_state = peer_states.GOOD
         # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
