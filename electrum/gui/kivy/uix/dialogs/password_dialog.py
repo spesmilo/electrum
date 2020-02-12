@@ -19,6 +19,7 @@ Builder.load_string('''
 
 <PasswordDialog@Popup>
     id: popup
+    is_generic: False
     title: 'Electrum'
     message: ''
     BoxLayout:
@@ -26,31 +27,17 @@ Builder.load_string('''
         orientation: 'vertical'
         Widget:
             size_hint: 1, 0.05
-        BoxLayout:
-            size_hint: 1, None
-            orientation: 'horizontal'
-            Label:
-                size_hint: 0.70, None
-                font_size: '20dp'
-                text: root.message
-                text_size: self.width, None
-            Label:
-                size_hint: 0.23, None
-                font_size: '9dp'
-                text: _('Generic password')
-            CheckBox:
-                size_hint: 0.07, None
-                id: cb_generic_password
-                on_active:
-                    box_generic_password.visible = self.active
-                    kb.disabled = box_generic_password.visible
-                    textinput_generic_password.focus = box_generic_password.visible
+        Label:
+            size_hint: 0.70, None
+            font_size: '20dp'
+            text: root.message
+            text_size: self.width, None
         Widget:
             size_hint: 1, 0.05
         BoxLayout:
             orientation: 'horizontal'
             id: box_generic_password
-            visible: False
+            visible: root.is_generic
             size_hint_y: 0.05
             opacity: 1 if self.visible else 0
             disabled: not self.visible
@@ -59,10 +46,11 @@ Builder.load_string('''
                 valign: 'center'
                 multiline: False
                 on_text_validate:
-                    popup.on_password(self.text, is_generic=True)
+                    popup.on_password(self.text)
                 password: True
                 size_hint: 0.9, None
                 unfocus_on_touch: False
+                focus: root.is_generic
             Button:
                 size_hint: 0.1, None
                 valign: 'center'
@@ -75,7 +63,7 @@ Builder.load_string('''
                     textinput_generic_password.password = False if textinput_generic_password.password else True
         Label:
             id: label_pin
-            visible: not box_generic_password.visible
+            visible: not root.is_generic
             size_hint_y: 0.05
             opacity: 1 if self.visible else 0
             disabled: not self.visible
@@ -86,6 +74,7 @@ Builder.load_string('''
             size_hint: 1, 0.05
         GridLayout:
             id: kb
+            disabled: root.is_generic
             size_hint: 1, None
             height: self.minimum_height
             update_amount: popup.update_password
@@ -125,8 +114,9 @@ class PasswordDialog(Factory.Popup):
     def init(self, app: 'ElectrumWindow', *,
              wallet: Union['Abstract_Wallet', 'WalletStorage'] = None,
              msg: str, on_success: Callable = None, on_failure: Callable = None,
-             is_change: int = 0):
+             is_change: int = 0, is_backup: bool = False):
         self.app = app
+        self.is_backup = is_backup
         self.wallet = wallet
         self.message = msg
         self.on_success = on_success
@@ -138,7 +128,7 @@ class PasswordDialog(Factory.Popup):
         self.pw = None
         self.new_password = None
         self.title = 'Electrum' + ('  -  ' + self.wallet.basename() if self.wallet else '')
-        self.ids.cb_generic_password.active = False
+        #self.ids.cb_generic_password.active = False
 
     def check_password(self, password):
         if self.is_change > 1:
@@ -172,8 +162,8 @@ class PasswordDialog(Factory.Popup):
             text += c
         kb.password = text
 
-    def on_password(self, pw: str, *, is_generic=False):
-        if is_generic:
+    def on_password(self, pw: str):
+        if self.is_generic:
             if len(pw) < 6:
                 self.app.show_error(_('Password is too short (min {} characters)').format(6))
                 return
@@ -186,18 +176,20 @@ class PasswordDialog(Factory.Popup):
                     self.dismiss()
                 elif self.is_change == 1:
                     self.pw = pw
-                    self.message = _('Enter new PIN')
+                    self.message = _('Enter a strong password for your backup') if self.is_backup else _('Enter new PIN')
                     self.ids.kb.password = ''
                     self.ids.textinput_generic_password.text = ''
                     self.is_change = 2
+                    self.is_generic = self.is_backup
                 elif self.is_change == 2:
                     self.new_password = pw
-                    self.message = _('Confirm new PIN')
+                    self.message = _('Confirm backup password') if self.is_backup else _('Confirm new PIN')
                     self.ids.kb.password = ''
                     self.ids.textinput_generic_password.text = ''
                     self.is_change = 3
                 elif self.is_change == 3:
                     self.success = pw == self.new_password
+                    self.is_generic = False
                     self.dismiss()
             else:
                 self.app.show_error(_('Wrong PIN'))

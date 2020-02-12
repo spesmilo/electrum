@@ -263,12 +263,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.storage:
             self.db.write(self.storage)
 
-    def save_backup(self, path):
-        # fixme: we need to change password...
+    def save_backup(self, path, *, old_password=None, new_password=None):
+        new_db = WalletDB(self.storage.read(), manual_upgrades=False)
+        new_db.put('is_backup', True)
         new_storage = WalletStorage(path)
-        self.db.put('is_backup', True)
-        self.db.write(new_storage)
-        self.db.put('is_backup', None)
+        #new_storage._encryption_version = self.storage.get_encryption_version()
+        new_storage._encryption_version = StorageEncryptionVersion.PLAINTEXT
+        w2 = Wallet(new_db, new_storage, config=self.config)
+        if new_password:
+            w2.update_password(old_password, new_password, encrypt_storage=True)
+        w2.save_db()
 
     def has_lightning(self):
         return bool(self.lnworker)

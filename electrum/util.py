@@ -425,10 +425,24 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
+def android_ext_dir():
+    import jnius
+    env = jnius.autoclass('android.os.Environment')
+    return env.getExternalStorageDirectory().getPath()
+
+def android_backup_dir():
+    d = android_ext_dir() + '/org.electrum.electrum'
+    if not os.path.exists(d):
+        os.mkdir(d)
+    return d
+
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+
+def get_backup_dir(config):
+    return android_backup_dir() if 'ANDROID_DATA' in os.environ else config.path
 
 
 def ensure_sparse_file(filename):

@@ -1199,6 +1199,21 @@ class ElectrumWindow(App):
                                    on_success=on_success, on_failure=on_failure, is_change=1)
         self._password_dialog.open()
 
+    def save_backup(self):
+        from .uix.dialogs.password_dialog import PasswordDialog
+        from electrum.util import get_backup_dir
+        if self._password_dialog is None:
+            self._password_dialog = PasswordDialog()
+        message = _("Create backup.") + '\n' + _("Enter your current PIN:")
+        def on_success(old_password, new_password):
+            new_path = os.path.join(get_backup_dir(self.electrum_config), self.wallet.basename() + '.backup')
+            self.wallet.save_backup(new_path, old_password=old_password, new_password=new_password)
+            self.show_info(_("Backup saved:") + f"\n{new_path}")
+        on_failure = lambda: self.show_error(_("PIN codes do not match"))
+        self._password_dialog.init(self, wallet=self.wallet, msg=message,
+                                   on_success=on_success, on_failure=on_failure, is_change=1, is_backup=True)
+        self._password_dialog.open()
+
     def export_private_keys(self, pk_label, addr):
         if self.wallet.is_watching_only():
             self.show_info(_('This is a watching-only wallet. It does not contain private keys.'))
