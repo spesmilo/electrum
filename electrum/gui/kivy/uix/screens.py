@@ -294,7 +294,7 @@ class SendScreen(CScreen):
     def read_invoice(self):
         address = str(self.screen.address)
         if not address:
-            self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
+            self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Navcoin address or a payment request'))
             return
         if not self.screen.amount:
             self.app.show_error(_('Please enter an amount'))
@@ -309,7 +309,7 @@ class SendScreen(CScreen):
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
         else:
             if not bitcoin.is_address(address):
-                self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                self.app.show_error(_('Invalid Navcoin Address') + ':\n' + address)
                 return
             outputs = [PartialTxOutput.from_address_and_value(address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)

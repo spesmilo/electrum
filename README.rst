@@ -4,9 +4,10 @@ Electrum - Lightweight Bitcoin client
 ::
 
   Licence: MIT Licence
-  Author: Thomas Voegtlin
+  Original Author: Thomas Voegtlin
+  Port Maintainer: alex v
   Language: Python (>= 3.6)
-  Homepage: https://electrum.org/
+  Homepage: https://electrum.nav.community/
 
 
 .. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
@@ -59,7 +60,7 @@ Development version
 
 Check out the code from GitHub::
 
-    git clone git://github.com/spesmilo/electrum.git
+    git clone git://github.com/aguycalled/electrum.git
     cd electrum
     git submodule update --init
 

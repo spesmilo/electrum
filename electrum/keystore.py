@@ -879,7 +879,7 @@ def bip44_derivation(account_id, bip43_purpose=44):
 
 def purpose48_derivation(account_id: int, xtype: str) -> str:
     # m / purpose' / coin_type' / account' / script_type' / change / address_index
-    bip43_purpose = 48
+    bip43_purpose = 44
     coin = constants.net.BIP44_COIN_TYPE
     account_id = int(account_id)
     script_type_int = PURPOSE48_SCRIPT_TYPES.get(xtype)

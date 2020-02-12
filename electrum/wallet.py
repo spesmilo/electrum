@@ -33,6 +33,7 @@ import time
 import json
 import copy
 import errno
+import time
 import traceback
 import operator
 from functools import partial
@@ -51,13 +52,15 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
 from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
-                      is_minikey, relayfee, dust_threshold)
-from .crypto import sha256d
+                      is_minikey, relayfee, dust_threshold,
+                      hash160_to_p2cs, b58_address_to_hash160,
+                      public_key_to_p2cs)
+from .crypto import sha256d, hash_160
 from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore, KeyStore
 from .util import multisig_type
 from .storage import StorageEncryptionVersion, WalletStorage
-from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
+from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32, constants
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
 from .plugin import run_hook
@@ -333,7 +336,7 @@ class Abstract_Wallet(AddressSynchronizer):
             addr = str(addrs[0])
             if not bitcoin.is_address(addr):
                 neutered_addr = addr[:5] + '..' + addr[-2:]
-                raise WalletFileException(f'The addresses in this wallet are not bitcoin addresses.\n'
+                raise WalletFileException(f'The addresses in this wallet are not Navcoin addresses.\n'
                                           f'e.g. {neutered_addr} (length: {len(addr)})')
 
     def calc_unused_change_addresses(self):
@@ -418,7 +421,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_redeem_script(self, address: str) -> Optional[str]:
         txin_type = self.get_txin_type(address)
-        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk'):
+        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk', 'p2cs'):
             return None
         if txin_type == 'p2wpkh-p2sh':
             pubkey = self.get_public_key(address)
@@ -438,7 +441,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
         if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
+            raise Exception(f"Invalid Navcoin address: {address}")
         if not self.is_mine(address):
             raise Exception(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
@@ -913,7 +916,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
-            assert is_address(addr), f"not valid bitcoin address: {addr}"
+            assert is_address(addr), f"not valid Navcoin address: {addr}"
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
             self.check_address(addr)
@@ -1005,6 +1008,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
+        tx.ntime = int(time.time())
+        tx.nversion = 3
+        tx.strdzeel = b''
 
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
@@ -1551,7 +1557,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if req['type'] == PR_TYPE_ONCHAIN:
             addr = req['address']
             if not bitcoin.is_address(addr):
-                raise Exception(_('Invalid Bitcoin address.'))
+                raise Exception(_('Invalid Navcoin address.'))
             if not self.is_mine(addr):
                 raise Exception(_('Address not in wallet.'))
             key = addr
@@ -2160,7 +2166,32 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
 
 
+class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
+    def __init__(self, storage, *, config):
+        self.wallet_type = storage.get('wallet_type')
+        _, pkh = b58_address_to_hash160(storage.get('staking_address'))
+        self.staking_pkh = pkh
+        Deterministic_Wallet.__init__(self, storage, config=config)
 
+    def pubkeys_to_address(self, pubkey):
+        return hash160_to_p2cs(self.staking_pkh, hash_160(bfh(pubkey)), net=constants.net)
+
+    def load_keystore(self):
+        self.keystore = load_keystore(self.storage, 'keystore')
+        self.txin_type = 'p2cs'
+
+    def _add_input_sig_info(self, txin, address, *, only_der_suffix=True):
+        if not self.is_mine(address):
+            return
+        pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
+        txin.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
+        for pubkey_hex in pubkey_deriv_info:
+            ks, der_suffix = pubkey_deriv_info[pubkey_hex]
+            fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
+                                                                                   only_der_suffix=only_der_suffix)
+            txin.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
+        if txin.script_type in ('p2cs'):
+            txin.pubkeys.insert(0, self.staking_pkh)
 
 
 class Standard_Wallet(Simple_Deterministic_Wallet):
@@ -2268,13 +2299,14 @@ class Multisig_Wallet(Deterministic_Wallet):
         return ''.join(sorted(self.get_master_public_keys()))
 
 
-wallet_types = ['standard', 'multisig', 'imported']
+wallet_types = ['standard', 'coldstaking', 'multisig', 'imported']
 
 def register_wallet_type(category):
     wallet_types.append(category)
 
 wallet_constructors = {
     'standard': Standard_Wallet,
+    'coldstaking': Cold_Staking_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
     'imported': Imported_Wallet

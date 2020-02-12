@@ -30,6 +30,7 @@
 import struct
 import traceback
 import sys
+import time
 import io
 import base64
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
@@ -42,12 +43,12 @@ import binascii
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
 from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
-from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
+from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      int_to_hex, push_script, b58_address_to_hash160,
+                      int_to_hex, push_script, b58_address_to_hash160, public_key_to_p2pkh,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
-from .crypto import sha256d
+from .crypto import sha256d, hash_160
 from .logging import get_logger
 
 if TYPE_CHECKING:
@@ -409,6 +410,11 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     if match_decoded(decoded, match):
         return hash160_to_p2pkh(decoded[2][1], net=net)
 
+    # p2cs
+    match = [opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
+    if match_decoded(decoded, match):
+        return hash160_to_p2cs(decoded[4][1], decoded[10][1], net=net)
+
     # p2sh
     match = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUAL]
     if match_decoded(decoded, match):
@@ -498,13 +504,16 @@ class Transaction:
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
-        self.version = 2
+        self.version = 3
+        self.ntime = int(time.time())
+        self.strdzeel = b''
 
         self._cached_txid = None  # type: Optional[str]
 
     def to_json(self) -> dict:
         d = {
             'version': self.version,
+            'time': self.ntime,
             'locktime': self.locktime,
             'inputs': [txin.to_json() for txin in self.inputs()],
             'outputs': [txout.to_json() for txout in self.outputs()],
@@ -531,6 +540,7 @@ class Transaction:
         vds = BCDataStream()
         vds.write(raw_bytes)
         self.version = vds.read_int32()
+        self.ntime = vds.read_uint32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -545,6 +555,8 @@ class Transaction:
             for txin in self._inputs:
                 parse_witness(vds, txin)
         self.locktime = vds.read_uint32()
+        if self.version >= 2:
+            self.strdzeel=vds.read_bytes(vds.read_compact_size())
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 
@@ -630,6 +642,8 @@ class Transaction:
         addrtype, hash_160_ = b58_address_to_hash160(addr)
         if addrtype == constants.net.ADDRTYPE_P2PKH:
             return 'p2pkh'
+        elif addrtype == constants.net.ADDRTYPE_P2CS:
+            return 'p2cs'
         elif addrtype == constants.net.ADDRTYPE_P2SH:
             return 'p2wpkh-p2sh'
         raise Exception(f'unrecognized address: {repr(addr)}')
@@ -663,6 +677,9 @@ class Transaction:
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
             return script
+        elif _type == 'p2cs':
+            script += push_script(pubkeys[1])
+            return script
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
@@ -688,7 +705,12 @@ class Transaction:
         pubkeys = [pk.hex() for pk in txin.pubkeys]
         if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             return multisig_script(pubkeys, txin.num_sig)
-        elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+        elif txin.script_type in ['p2cs'] and len(pubkeys) >= 2:
+            pkh = pubkeys[0]
+            pubkey2 = pubkeys[1]
+            pkh2 = bh2u(hash_160(bfh(pubkey2)))
+            return bitcoin.pubkeyhash_to_p2cs_script(pkh, pkh2)
+        elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             pubkey = pubkeys[0]
             pkh = bh2u(hash_160(bfh(pubkey)))
             return bitcoin.pubkeyhash_to_p2pkh_script(pkh)
@@ -742,9 +764,11 @@ class Transaction:
         """
         self.deserialize()
         nVersion = int_to_hex(self.version, 4)
+        nTime = int_to_hex(self.ntime, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
 
         def create_script_sig(txin: TxInput) -> str:
             if include_sigs:
@@ -761,9 +785,9 @@ class Transaction:
             marker = '00'
             flag = '01'
             witness = ''.join(self.serialize_witness(x, estimate_size=estimate_size) for x in inputs)
-            return nVersion + marker + flag + txins + txouts + witness + nLocktime
+            return nVersion + nTime + marker + flag + txins + txouts + witness + nLocktime + strdzeel
         else:
-            return nVersion + txins + txouts + nLocktime
+            return nVersion + nTime + txins + txouts + nLocktime + strdzeel
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
@@ -1249,7 +1273,7 @@ class PartialTxInput(TxInput, PSBTSection):
         #       that are related to the wallet.
         #       The 'fix' would be adding extra logic that matches on templates,
         #       and figures out the script_type from available fields.
-        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
+        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs'):
             return s >= 1
         if self.script_type in ('p2sh', 'p2wsh', 'p2wsh-p2sh'):
             return s >= self.num_sig
@@ -1453,6 +1477,8 @@ class PartialTransaction(Transaction):
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
         res.locktime = tx.locktime
+        res.ntime = tx.ntime
+        res.strdzeel = tx.strdzeel
         return res
 
     @classmethod
@@ -1677,9 +1703,11 @@ class PartialTransaction(Transaction):
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
+        nTime = int_to_hex(self.ntime, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
         if sighash != SIGHASH_ALL:
@@ -1696,12 +1724,12 @@ class PartialTransaction(Transaction):
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
             nSequence = int_to_hex(txin.nsequence, 4)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
+            preimage = nVersion + nTime + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + strdzeel + nHashType
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, preimage_script if txin_index==k else '')
                                                    for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
+            preimage = nVersion + nTime + txins + txouts + nLocktime + strdzeel + nHashType
         return preimage
 
     def sign(self, keypairs) -> None:

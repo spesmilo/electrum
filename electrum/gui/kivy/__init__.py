@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 class ElectrumGui:
 
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        Logger.debug('ElectrumGUI: initialising')
+        Logger.debug('NavCashGUI: initialising')
         self.daemon = daemon
         self.network = daemon.network
         self.config = config

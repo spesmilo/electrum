@@ -123,7 +123,7 @@ class ElectrumGui(Logger):
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('Electrum')
+        self.tray.setToolTip('NavCash')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -155,7 +155,7 @@ class ElectrumGui(Logger):
         else:
             m = self.tray.contextMenu()
             m.clear()
-        m.addAction(_("Lightning"), self.show_lightning_dialog)
+        #m.addAction(_("Lightning"), self.show_lightning_dialog)
         m.addAction(_("Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
@@ -212,7 +212,7 @@ class ElectrumGui(Logger):
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:
-            parent.show_warning(_('You are using Electrum in offline mode; restart Electrum if you want to get connected'), title=_('Offline'))
+            parent.show_warning(_('You are using NavCash in offline mode; restart NavCash if you want to get connected'), title=_('Offline'))
             return
         if self.network_dialog:
             self.network_dialog.on_update()
