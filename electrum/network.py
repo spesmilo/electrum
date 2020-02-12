@@ -57,7 +57,7 @@ SERVER_RETRY_INTERVAL = 10
 def parse_servers(result):
     """ parse servers list into dict format"""
     servers = {}
-    for item in result:
+    for num, item in enumerate(result):
         host = item[1]
         out = {}
         version = None
@@ -76,7 +76,8 @@ def parse_servers(result):
         if out:
             out['pruning'] = pruning_level
             out['version'] = version
-            servers[host] = out
+            out['host'] = host
+            servers[host + '_' + str(num)] = out
     return servers
 
 
@@ -90,15 +91,16 @@ def filter_version(servers):
 
 
 def filter_noonion(servers):
-    return {k: v for k, v in servers.items() if not k.endswith('.onion')}
+    return {k: v for k, v in servers.items() if not v.get('host', k).endswith('.onion')}
 
 
 def filter_protocol(hostmap, protocol='s'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
     eligible = []
-    for host, portmap in hostmap.items():
+    for name, portmap in hostmap.items():
         port = portmap.get(protocol)
+        host = portmap.get('host', name)
         if port:
             eligible.append(serialize_server(host, port, protocol))
     return eligible
@@ -194,11 +196,16 @@ class Network(util.DaemonThread):
         if self.default_server:
             try:
                 deserialize_server(self.default_server)
+            except constants.VersionedValue.Error:
+                raise
             except:
                 self.print_error('Warning: failed to parse server-string; falling back to random.')
                 self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server()
+            self.default_server = pick_random_server(protocol=constants.net.DEFAULT_PROTOCOL)
+
+        if not self.default_server:
+            raise RuntimeError("No server found. " + str(constants.net.DEFAULT_SERVERS)) # TODO: throw better exception here
 
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.interface_lock = threading.RLock()            # <- re-entrant
@@ -283,6 +290,8 @@ class Network(util.DaemonThread):
             with open(path, "r", encoding='utf-8') as f:
                 data = f.read()
                 return json.loads(data)
+        except constants.VersionedValue.Error:
+            raise
         except:
             return []
 
@@ -295,6 +304,8 @@ class Network(util.DaemonThread):
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
+        except constants.VersionedValue.Error:
+            raise
         except:
             pass
 
@@ -411,6 +422,8 @@ class Network(util.DaemonThread):
             for s in self.recent_servers:
                 try:
                     host, port, protocol = deserialize_server(s)
+                except constants.VersionedValue.Error:
+                    raise
                 except:
                     continue
                 if host not in out:
@@ -539,6 +552,8 @@ class Network(util.DaemonThread):
             if proxy:
                 proxy_modes.index(proxy["mode"]) + 1
                 int(proxy['port'])
+        except constants.VersionedValue.Error:
+            raise
         except:
             return
         self.config.set_key('auto_connect', auto_connect, False)

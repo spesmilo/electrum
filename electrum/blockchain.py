@@ -28,7 +28,7 @@ from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex, op_push
 from .transaction import parse_redeemScript_multisig, script_GetOp
 from . import constants
-from .util import bfh, bh2u
+from .util import bfh, bh2u, print_error
 from . import ecc 
 from pprint import pprint
 
@@ -87,18 +87,21 @@ def verify_header_proof(h):
     rchallenge = h['challenge']
     proof = "".join(reversed([rproof[i:i+2] for i in range(0, len(rproof), 2)]))
     challenge = "".join(reversed([rchallenge[i:i+2] for i in range(0, len(rchallenge), 2)]))
-    if challenge != constants.net.CHALLENGE: 
+    if challenge != constants.net.CHALLENGE[h['block_height']]:
+        print_error("challenge script mismatch:", challenge)
         return False
 
     try:
         m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(bytearray.fromhex(challenge))
     except:
+        print_error("could not retrieve redeem script params")
         return False
 
     signatures = []
     try:
         decoded = [ x for x in script_GetOp(bytearray.fromhex(proof)) ]
     except struct.error:
+        print_error("could not decode proof in binary format")
         return False
 
     for element in decoded[1:]:
@@ -124,6 +127,8 @@ def verify_header_proof(h):
                 pass
         if nverified >= m: 
             return True
+
+    print_error("not enough signatures:", nverified, "required", m)
 
     return False
 

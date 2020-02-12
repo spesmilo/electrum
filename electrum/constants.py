@@ -38,6 +38,36 @@ def read_json(filename, default):
         r = default
     return r
 
+
+
+class VersionedValue:
+    "Class for values that change after a hard fork."
+    
+    class Error(Exception):
+        pass
+    
+    class NoVersion(Error, KeyError):
+        pass
+    
+    class NotComparable(Error):
+        pass
+    
+    def __init__(self, value):
+        "Provide a dict of int->object values. Dict index is the block number."
+        self.__value = value
+    
+    def __getitem__(self, block_number):
+        print(repr(block_number))
+        try:
+            key = sorted(_key for _key in self.__value.keys() if _key <= block_number)[-1]
+            return self.__value[key]
+        except (IndexError, KeyError):
+            raise self.NoVersion
+
+    def __eq__(self, other):
+        raise self.NotComparable
+
+
 class OceanMainnet:
 
     TESTNET = False
@@ -52,9 +82,10 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 38
     ADDRTYPE_P2SH = 97
     SEGWIT_HRP = "bc"
-    GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
+    GENESIS = "788eff0bd74b2add8e980e349a0b59aaa959e77c483421e7ce82512635d34bbd"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
+    DEFAULT_PROTOCOL = 't' # 't' - tcp; 's' - ssl
     MAPPING_URL = 'https://s3.eu-west-1.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
@@ -84,7 +115,9 @@ class OceanMainnet:
     WHITELISTCOINSADDRESS = "GT3NDU8J5NkBeZf6sU2UoHjc1uaiyES5Ld"
     WHITELISTASSET="d109a2432528b0a9208e7f4258f569e246c25bd0cd90f4d8160f1704be833c23"
 
-    CHALLENGE = "5321024cc60ff6ca8423c8353142fab8b4aa8b42e66eac2ae51a7cde1eaeb54a73a31e21034878127e5f0a5c84e775d754f02bcea9393c17b7fc05a01a2c011f7a419e6f932103b7d99275aba3db614faeeba3920295e8d661a3a0a705d999b8a38aca0f8fc5d321039d1175c43f855f003fd1e980b618b3d504f2099754b8afa3667ead04b9dbb6d921027c2e025fb4d41e7c4b757a722bff6172233fa576b0aac7d5d8e4e32cfbf2a1df55ae"
+    CHALLENGE = VersionedValue({
+        0: "512103ee033d22050c7e45910d36102e4e7a01e1e339e8e74923a638a21415f1b8284651ae"
+    })
     ENCRYPTED_WHITELIST=False
 
     
@@ -97,8 +130,9 @@ class OceanTestnet(OceanMainnet):
     WHITELISTCOINSADDRESS = "GR4ha3BeUaMvekwX5JeDbsB54yYhPcJrRZ"
     GENESIS = "9e18c41bcffcb32e1fe3ec5f305baa61696e21fba1e570cfafc3a250013cce26"
 
-    CHALLENGE = "532103041f9d9edc4e494b07eec7d3f36cedd4b2cfbb6fe038b6efaa5f56b9636abd7b21037c06b0c66c98468d64bb43aff91a65c0a576113d8d978c3af191e38845ae5dab21031bd16518d76451e7cf13f64087e4ae4816d08ae1d579fa6c172dcfe4476bd7da210226c839b56b99af781bbb4ce14365744253ae75ffe6f9182dd7b0df95c439537a21023cd2fc00c9cb185b4c0da16a45a1039e16709a61fb22340645790b7d1391b66055ae"
-
+    CHALLENGE = VersionedValue({
+        0: "532103041f9d9edc4e494b07eec7d3f36cedd4b2cfbb6fe038b6efaa5f56b9636abd7b21037c06b0c66c98468d64bb43aff91a65c0a576113d8d978c3af191e38845ae5dab21031bd16518d76451e7cf13f64087e4ae4816d08ae1d579fa6c172dcfe4476bd7da210226c839b56b99af781bbb4ce14365744253ae75ffe6f9182dd7b0df95c439537a21023cd2fc00c9cb185b4c0da16a45a1039e16709a61fb22340645790b7d1391b66055ae"
+    })
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # xprv
