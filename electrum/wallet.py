@@ -407,6 +407,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return
 
     def is_mine(self, address) -> bool:
+        if not address: return False
         return bool(self.get_address_index(address))
 
     def is_change(self, address) -> bool:
@@ -1985,6 +1986,7 @@ class Imported_Wallet(Simple_Wallet):
         self.save_db()
 
     def is_mine(self, address) -> bool:
+        if not address: return False
         return self.db.has_imported_address(address)
 
     def get_address_index(self, address) -> Optional[str]:
