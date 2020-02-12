@@ -25,12 +25,12 @@ _logger = get_logger(__name__)
 
 try:
     import hid
-    from navhip.btchipComm import HIDDongleHIDAPI, DongleWait
-    from navhip.btchip import btchip
-    from navhip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
+    from navhip.navhipComm import HIDDongleHIDAPI, DongleWait
+    from navhip.navhip import navhip
+    from navhip.navhipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
     from navhip.bitcoinTransaction import bitcoinTransaction
-    from navhip.btchipFirmwareWizard import checkFirmware, updateFirmware
-    from navhip.btchipException import BTChipException
+    from navhip.navhipFirmwareWizard import checkFirmware, updateFirmware
+    from navhip.navhipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
 except ImportError:
@@ -62,7 +62,7 @@ def test_pin_unlocked(func):
 
 class Ledger_Client(HardwareClientBase):
     def __init__(self, hidDevice):
-        self.dongleObject = btchip(hidDevice)
+        self.dongleObject = navhip(hidDevice)
         self.preflightDone = False
 
     def is_pairable(self):

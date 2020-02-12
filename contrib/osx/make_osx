@@ -148,9 +148,9 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/NavCash-$VERSION.dmg || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe ".DMG" "dist/NavCash-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 if [ -z "$APP_SIGN" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."

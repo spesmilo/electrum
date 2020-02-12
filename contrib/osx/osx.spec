@@ -61,7 +61,7 @@ block_cipher = None
 hiddenimports = []
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
-hiddenimports += collect_submodules('btchip')
+hiddenimports += collect_submodules('navhip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
@@ -81,7 +81,7 @@ datas = [
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
-datas += collect_data_files('btchip')
+datas += collect_data_files('navhip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('jsonrpcserver')

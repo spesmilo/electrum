@@ -7,7 +7,7 @@ CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
-APPDIR="$BUILDDIR/electrum.AppDir"
+APPDIR="$BUILDDIR/NavCash.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
 # pinned versions
@@ -18,7 +18,7 @@ SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
 
 VERSION=`git describe --tags --dirty --always`
-APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
+APPIMAGE="$DISTDIR/NavCash-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
 
