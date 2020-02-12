@@ -1478,6 +1478,58 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, 10995000, 0), wallet1.get_balance())
         self.assertEqual((0, 10495000, 0), wallet2.get_balance())
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_standard_wallet_cannot_sign_multisig_input_even_if_cosigner(self, mock_save_db):
+        """Just because our keystore recognizes the pubkeys in a txin, if the prevout does not belong to the wallet,
+        then wallet.is_mine and wallet.can_sign should return False (e.g. multisig input for single-sig wallet).
+        (see issue #5948)
+        """
+        wallet_2of2 = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                # seed: frost repair depend effort salon ring foam oak cancel receive save usage
+                # convert_xkey(wallet.get_master_public_key(), "p2wsh")
+                keystore.from_xpub('Vpub5gqF73Wpbp9ThwEgZKHLjBDthsatXjajYvrN8CVnkdBYeTR1M1sfZFQqQ5wpKHGhnwKhzgMhaWrtgKG2LthCzxjd653KqKVUAw7UrwYnbKQ'),
+                # seed: bitter grass shiver impose acquire brush forget axis eager alone wine silver
+                # convert_xkey(wallet.get_master_public_key(), "p2wsh")
+                keystore.from_xpub('Vpub5gSKXzxK7FeKNi2WPNW9iuA48SbJRZvKFBwtgucpegMWPdohQPeK2DoR6XFtC7BBLsHhfWDAPKaiecqJ7jTzYSfeg5YATowmPcgCWxARabT')
+            ],
+            '2of2', gap_limit=2,
+            config=self.config
+        )
+        wallet_frost = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage')
+
+        # bootstrap wallet_2of2
+        funding_tx = Transaction('020000000001018ed0132bb5f35d097572081524cd5e847c895e765b93d5af46b8a8bef621244a0100000000fdffffff0220a1070000000000220020302981db44eb5dad0dab3987134a985b360ae2227a7e7a10cfe8cffd23bacdc9b07912000000000016001442b423aab2aa803f957084832b10359beaa2469002473044022065c5e28900b4706487223357e8539e176552e3560e2081ac18de7c26e8e420ba02202755c7fc8177ff502634104c090e3fd4c4252bfa8566d4eb6605bb9e236e7839012103b63bbf85ec9e5e312e4d7a2b45e690f48b916a442e787a47a6092d6c052394c5966a1900')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('0c2f5981981a6cb69d7b729feceb55be7962b16dc41e8aaf64e5203f7cb604d0', funding_txid)
+        wallet_2of2.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # create tx
+        outputs = [PartialTxOutput.from_address_and_value('tb1qfrlx5pza9vmez6vpx7swt8yp0nmgz3qa7jjkuf', 100_000)]
+        coins = wallet_2of2.get_spendable_coins(domain=None)
+        tx = wallet_2of2.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx.set_rbf(True)
+        tx.locktime = 1665628
+
+        partial_tx = tx.serialize_as_bytes().hex()
+        self.assertEqual("70736274ff01007d0200000001d004b67c3f20e564af8a1ec46db16279be55ebec9f727b9db66c1a9881592f0c0000000000fdffffff02a08601000000000016001448fe6a045d2b3791698137a0e59c817cf681441df806060000000000220020eb428a0bdeca2c1b3731aedb81c0518456875a99755d177d204d6516d8f6b3075c6a19000001012b20a1070000000000220020302981db44eb5dad0dab3987134a985b360ae2227a7e7a10cfe8cffd23bacdc90105475221028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c521030faee9b4a25b7db82023ca989192712cdd4cb53d3d9338591c7909e581ae1c0c52ae2206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c50c3c14aede00000000000000002206030faee9b4a25b7db82023ca989192712cdd4cb53d3d9338591c7909e581ae1c0c0c13a993c700000000000000000000010147522102105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea21028584e789e39f41391b2f27852ca18abec06a5411c21be350fed61eec7120de5352ae220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea0c3c14aede01000000000000002202028584e789e39f41391b2f27852ca18abec06a5411c21be350fed61eec7120de530c13a993c7010000000000000000",
+                         partial_tx)
+        tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+
+        self.assertFalse(tx.is_complete())
+        self.assertTrue(tx.is_segwit())
+        self.assertEqual('652c1a903a659c9fabb9caf4a2281a9fbcc59cd598bf6edc88cd60f940c2352c', tx.txid())
+
+        self.assertEqual('tb1qxq5crk6yadw66rdt8xr3xj5ctvmq4c3z0fl85yx0ar8l6ga6ehysk0rjrk', tx.inputs()[0].address)
+        self.assertEqual('tb1qfrlx5pza9vmez6vpx7swt8yp0nmgz3qa7jjkuf',                     tx.outputs()[0].address)
+        self.assertEqual('tb1qadpg5z77egkpkde34mdcrsz3s3tgwk5ew4w3wlfqf4j3dk8kkvrs3t3mn0', tx.outputs()[1].address)
+
+        # check that wallet_frost does not mistakenly think tx is related to it in any way
+        tx.add_info_from_wallet(wallet_frost)
+        self.assertFalse(wallet_frost.can_sign(tx))
+        self.assertFalse(any([wallet_frost.is_mine(txin.address) for txin in tx.inputs()]))
+        self.assertFalse(any([wallet_frost.is_mine(txout.address) for txout in tx.outputs()]))
+
 
 class TestWalletOfflineSigning(TestCaseForTestnet):
 

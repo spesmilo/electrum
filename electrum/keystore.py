@@ -33,7 +33,7 @@ from abc import ABC, abstractmethod
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey
-from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
                     convert_bip32_intpath_to_strpath)
@@ -78,16 +78,21 @@ class KeyStore(Logger, ABC):
     def _get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
         keypairs = {}
         for txin in tx.inputs():
-            if txin.is_complete():
+            keypairs.update(self._get_txin_derivations(txin))
+        return keypairs
+
+    def _get_txin_derivations(self, txin: 'PartialTxInput') -> Dict[str, Union[Sequence[int], str]]:
+        if txin.is_complete():
+            return {}
+        keypairs = {}
+        for pubkey in txin.pubkeys:
+            if pubkey in txin.part_sigs:
+                # this pubkey already signed
                 continue
-            for pubkey in txin.pubkeys:
-                if pubkey in txin.part_sigs:
-                    # this pubkey already signed
-                    continue
-                derivation = self.get_pubkey_derivation(pubkey, txin)
-                if not derivation:
-                    continue
-                keypairs[pubkey.hex()] = derivation
+            derivation = self.get_pubkey_derivation(pubkey, txin)
+            if not derivation:
+                continue
+            keypairs[pubkey.hex()] = derivation
         return keypairs
 
     def can_sign(self, tx: 'Transaction', *, ignore_watching_only=False) -> bool:
@@ -97,6 +102,14 @@ class KeyStore(Logger, ABC):
         if not isinstance(tx, PartialTransaction):
             return False
         return bool(self._get_tx_derivations(tx))
+
+    def can_sign_txin(self, txin: 'TxInput', *, ignore_watching_only=False) -> bool:
+        """Returns whether this keystore could sign this txin."""
+        if not ignore_watching_only and self.is_watching_only():
+            return False
+        if not isinstance(txin, PartialTxInput):
+            return False
+        return bool(self._get_txin_derivations(txin))
 
     def ready_to_sign(self) -> bool:
         return not self.is_watching_only()

@@ -1372,9 +1372,15 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return False
         # add info to inputs if we can; otherwise we might return a false negative:
         tx.add_info_from_wallet(self)
-        for k in self.get_keystores():
-            if k.can_sign(tx):
-                return True
+        for txin in tx.inputs():
+            # note: is_mine check needed to avoid false positives.
+            #       just because keystore could sign, txin does not necessarily belong to wallet.
+            #       Example: we have p2pkh-like addresses and txin is a multisig that involves our pubkey.
+            if not self.is_mine(txin.address):
+                continue
+            for k in self.get_keystores():
+                if k.can_sign_txin(txin):
+                    return True
         return False
 
     def get_input_tx(self, tx_hash, *, ignore_network_issues=False) -> Optional[Transaction]:
@@ -2218,8 +2224,13 @@ class Deterministic_Wallet(Abstract_Wallet):
         for ks in self.get_keystores():
             pubkey, der_suffix = ks.find_my_pubkey_in_txinout(txinout, only_der_suffix=True)
             if der_suffix is not None:
-                self._ephemeral_addr_to_addr_index[address] = list(der_suffix)
-                return True
+                # note: we already know the pubkey belongs to the keystore,
+                #       but the script template might be different
+                if len(der_suffix) != 2: continue
+                my_address = self.derive_address(*der_suffix)
+                if my_address == address:
+                    self._ephemeral_addr_to_addr_index[address] = list(der_suffix)
+                    return True
         return False
 
     def get_master_public_keys(self):
