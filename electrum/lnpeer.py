@@ -1150,6 +1150,8 @@ class Peer(Logger):
     def on_commitment_signed(self, payload):
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
+        if chan.peer_state == peer_states.BAD:
+            return
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(LOCAL), chan.hm.get_htlcs_in_latest_ctx(LOCAL)
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}. '
@@ -1376,6 +1378,8 @@ class Peer(Logger):
     def on_revoke_and_ack(self, payload):
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
+        if chan.peer_state == peer_states.BAD:
+            return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)

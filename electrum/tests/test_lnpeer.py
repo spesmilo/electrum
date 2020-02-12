@@ -76,11 +76,10 @@ class MockWallet:
 
 class MockLNWallet:
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
-        self.chan = chan
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
-        self.channels = {self.chan.channel_id: self.chan}
+        self.channels = {chan.channel_id: chan}
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
@@ -175,7 +174,6 @@ class TestPeer(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
-        self.alice_channel, self.bob_channel = create_test_channels()
 
     def tearDown(self):
         super().tearDown()
@@ -220,6 +218,7 @@ class TestPeer(ElectrumTestCase):
         return lnencode(lnaddr, w2.node_keypair.privkey)
 
     def test_reestablish(self):
+        self.alice_channel, self.bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
         async def reestablish():
             await asyncio.gather(
@@ -234,7 +233,31 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    def test_reestablish_with_old_state(self):
+        self.alice_channel, self.bob_channel = create_test_channels()
+        self.alice_channel_0, self.bob_channel_0 = create_test_channels() # these are identical
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
+        pay_req = self.prepare_invoice(w2)
+        async def reestablish():
+            result = await LNWallet._pay(w1, pay_req)
+            self.assertEqual(result, True)
+            w1.channels = {self.alice_channel_0.channel_id: self.alice_channel_0}
+            await asyncio.gather(
+                p1.reestablish_channel(self.alice_channel_0),
+                p2.reestablish_channel(self.bob_channel))
+            self.assertEqual(self.alice_channel_0.peer_state, peer_states.BAD)
+            self.assertEqual(self.bob_channel._state, channel_states.FORCE_CLOSING)
+            # wait so that pending messages are processed
+            #await asyncio.sleep(1)
+            gath.cancel()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
     def test_payment(self):
+        self.alice_channel, self.bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
         pay_req = self.prepare_invoice(w2)
         async def pay():
@@ -248,6 +271,7 @@ class TestPeer(ElectrumTestCase):
             run(f())
 
     def test_channel_usage_after_closing(self):
+        self.alice_channel, self.bob_channel = create_test_channels()
         p1, p2, w1, w2, q1, q2 = self.prepare_peers()
         pay_req = self.prepare_invoice(w2)
 
