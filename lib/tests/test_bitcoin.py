@@ -5,14 +5,12 @@ from ecdsa.util import number_to_string
 
 from ..address import Address
 from ..bitcoin import (
-    generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
-    bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
-    pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, regenerate_key,
-    verify_message, deserialize_privkey, serialize_privkey,
-    is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, Bip38Key)
+    generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY, bip32_root,
+    bip32_public_derivation, bip32_private_derivation, pw_encode, pw_decode,
+    Hash, public_key_from_private_key, address_from_private_key, is_private_key,
+    xpub_from_xprv, var_int, op_push, regenerate_key, verify_message,
+    deserialize_privkey, serialize_privkey, is_minikey, is_compressed, is_xpub,
+    xpub_type, is_xprv, is_bip32_derivation, Bip38Key)
 from ..networks import set_mainnet, set_testnet
 from ..util import bfh
 
@@ -341,47 +339,6 @@ class Test_keyImport(unittest.TestCase):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed(priv_details['priv']))
-
-
-class Test_seeds(unittest.TestCase):
-    """ Test old and new seeds. """
-
-    mnemonics = {
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze', 'old'),
-        ('cell dumb heartbeat north boom tease ' * 4, 'old'),
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
-        ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
-        ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
-        # below seed is actually 'invalid old' as it maps to 33 hex chars
-        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
-        ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
-        ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
-        ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
-        ('x8', 'standard'),
-        ('science dawn member doll dutch real ca brick knife deny drive list', ''),
-    }
-
-    def test_new_seed(self):
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
-        self.assertTrue(is_new_seed(seed))
-
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
-        self.assertFalse(is_new_seed(seed))
-
-    def test_old_seed(self):
-        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
-        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
-        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
-        self.assertFalse(is_old_seed("not a seed"))
-
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
-
-    def test_seed_type(self):
-        for seed_words, _type in self.mnemonics:
-            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
 
 class Test_Bip38(unittest.TestCase):
     ''' Test Bip38 encryption/decryption. Test cases taken from:

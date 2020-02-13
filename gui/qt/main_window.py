@@ -3096,13 +3096,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             seed = keystore.get_seed(password)
             passphrase = keystore.get_passphrase(password)  # may be None or ''
             derivation = keystore.has_derivation() and keystore.derivation  # may be None or ''
-            if derivation == 'm/':
+            seed_type = getattr(keystore, 'seed_type', '')
+            if derivation == 'm/' and seed_type in ['electrum', 'standard']:
                 derivation = None  # suppress Electrum seed 'm/' derivation from UI
         except BaseException as e:
             self.show_error(str(e))
             return
         from .seed_dialog import SeedDialog
-        d = SeedDialog(self.top_level_window(), seed, passphrase, derivation)
+        d = SeedDialog(self.top_level_window(), seed, passphrase, derivation, seed_type)
         d.exec_()
 
     def show_qrcode(self, data, title = _("QR code"), parent=None):

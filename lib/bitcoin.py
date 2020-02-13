@@ -235,38 +235,6 @@ hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
 hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
 
-
-def is_bip39_seed(seed: str, lang: str=None) -> bool:
-    """ Checks if `seed` is a valid BIP39 seed phrase (passes wordlist AND
-    checksum tests). If lang=None, then the english wordlist is assumed. This
-    function is added here as a convenience. """
-    from . import mnemonic
-    return mnemonic.Mnemonic(lang).is_seed(seed)
-
-def is_new_seed(seed: str, prefix: str=version.SEED_PREFIX) -> bool:
-    """ Checks if `seed` is a valid Electrum seed phrase.
-
-    Returns True if the text in question matches the checksum for Electrum
-    seeds. Does not depend on any particular word list. """
-    from . import mnemonic
-    return mnemonic.Mnemonic_Electrum.verify_checksum_only(seed, prefix)
-
-def is_old_seed(seed: str) -> bool:
-    """ Returns True if `seed` is a valid "old" seed phrase of 12 or 24 words
-    *OR* if it's a hex string encoding 16 or 32 bytes. """
-    from . import old_mnemonic
-    return old_mnemonic.mn_is_seed(seed)
-
-
-def seed_type(x):
-    if is_old_seed(x):
-        return 'old'
-    elif is_new_seed(x):
-        return 'standard'
-    return ''
-
-is_seed = lambda x: bool(seed_type(x))
-
 # pywallet openssl private key implementation
 
 def i2o_ECPublicKey(pubkey, compressed=False):

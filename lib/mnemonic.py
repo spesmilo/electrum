@@ -125,6 +125,18 @@ class SeedType(IntEnum):
     Electrum = auto()
     Old      = auto()
 
+seed_type_names = {
+    SeedType.BIP39    : "bip39",
+    SeedType.Electrum : "electrum",
+    SeedType.Old     : "old",
+}
+seed_type_names_inv = {
+    "bip39"    : SeedType.BIP39,
+    "electrum" : SeedType.Electrum,
+    "standard" : SeedType.Electrum,  # this was the old name for this type
+    "old"      : SeedType.Old,
+}
+
 def autodetect_seed_type(seed: str, lang: Optional[str] = None, *,
                          prefix: str = version.SEED_PREFIX) -> Set[SeedType]:
     ''' Given a mnemonic seed phrase, auto-detect the possible seed types it can
@@ -133,15 +145,60 @@ def autodetect_seed_type(seed: str, lang: Optional[str] = None, *,
     possible for imported seeds to be ambiguous. May return the empty set if the
     seed phrase is invalid and/or fails checksum checks for all three types. '''
     ret = set()
-    from . import old_mnemonic
-    mn_bip39 = Mnemonic(lang)
-    if mn_bip39.is_seed(seed):
+    if is_bip39_seed(seed, lang):
         ret.add( SeedType.BIP39 )
-    if Mnemonic_Electrum.verify_checksum_only(seed, prefix):
+    if is_electrum_seed(seed, prefix):
         ret.add( SeedType.Electrum )
-    if old_mnemonic.mn_is_seed(seed):
+    if is_old_seed(seed):
         ret.add( SeedType.Old )
     return ret
+
+def is_bip39_seed(seed: str, lang: Optional[str]=None) -> bool:
+    """ Checks if `seed` is a valid BIP39 seed phrase (passes wordlist AND
+    checksum tests). If lang=None, then the English wordlist is assumed. This
+    function is added here as a convenience. """
+    from . import mnemonic
+    return mnemonic.Mnemonic(lang).is_seed(seed)
+
+def is_electrum_seed(seed: str, prefix: str=version.SEED_PREFIX) -> bool:
+    """ Checks if `seed` is a valid Electrum seed phrase.
+
+    Returns True if the text in question matches the checksum for Electrum
+    seeds. Does not depend on any particular word list, just checks unicode
+    data.  Very fast. """
+    from . import mnemonic
+    return mnemonic.Mnemonic_Electrum.verify_checksum_only(seed, prefix)
+
+def is_old_seed(seed: str) -> bool:
+    """ Returns True if `seed` is a valid "old" seed phrase of 12 or 24 words
+    *OR* if it's a hex string encoding 16 or 32 bytes. """
+    from . import old_mnemonic
+    return old_mnemonic.mn_is_seed(seed)
+
+
+def seed_type(seed: str) -> Optional[SeedType]:
+    if is_old_seed(seed):
+        return SeedType.Old
+    elif is_electrum_seed(seed):
+        return SeedType.Electrum
+    elif is_bip39_seed(seed):
+        return SeedType.BIP39
+
+def seed_type_name(seed: str) -> str:
+    return seed_type_names.get(seed_type(seed), '')
+
+def format_seed_type_name_for_ui(name : str) -> str:
+    """ Given a seed type name e.g. bip39 or standard, transforms it to a
+    canonical UI string "BIP39" or "Electrum" """
+    name = name.strip().lower()  # paranoia
+    name = seed_type_names.get(seed_type_names_inv.get(name)) or name  # transforms 'standard' -> 'electrum'
+    if name == 'bip39':
+        return name.upper()
+    else:
+        return name.title()  # Title Caps for "Old" and "Electrum"
+
+is_seed = lambda x: seed_type(x) is not None
+
 
 
 class MnemonicBase(PrintError):

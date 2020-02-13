@@ -109,7 +109,7 @@ from electroncash.i18n import _
 from electroncash.commands import get_parser, known_commands, Commands, config_variables
 from electroncash import daemon
 from electroncash import keystore
-from electroncash.mnemonic import Mnemonic_Electrum
+from electroncash.mnemonic import Mnemonic, Mnemonic_Electrum
 from electroncash.winconsole import create_or_attach_console  # Import ok on other platforms, won't be called.
 import electroncash_plugins
 import electroncash.web as web
@@ -148,7 +148,7 @@ def run_non_RPC(config):
             wallet = ImportedPrivkeyWallet.from_text(storage, text, password)
         else:
             if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase, False)
+                k = keystore.from_seed(text, passphrase)  # seed format will be auto-detected with preference order: old, electrum, bip39
             elif keystore.is_master_key(text):
                 k = keystore.from_master_key(text)
             else:
@@ -158,6 +158,9 @@ def run_non_RPC(config):
             storage.put('keystore', k.dump())
             storage.put('wallet_type', 'standard')
             storage.put('use_encryption', bool(password))
+            seed_type = getattr(k, 'seed_type', None)
+            if seed_type:
+                storage.put('seed_type', seed_type)  # save to top-level storage too so it doesn't get lost if user switches EC versions
             storage.write()
             wallet = Wallet(storage)
         if not config.get('offline'):
@@ -175,16 +178,26 @@ def run_non_RPC(config):
     elif cmdname == 'create':
         password = password_dialog()
         passphrase = config.get('passphrase', '')
-        seed_type = 'standard'
-        seed = Mnemonic_Electrum('en').make_seed(seed_type)  # TODO: default to BIP39 here
-        k = keystore.from_seed(seed, passphrase, False)
+        seed_type = config.get('seed_type', 'bip39')
+        if seed_type == 'bip39':
+            seed = Mnemonic('en').make_seed()
+        elif seed_type in ['electrum', 'standard']:
+            seed_type = 'electrum'
+            seed = Mnemonic_Electrum('en').make_seed()
+        else:
+            raise RuntimeError("Unknown seed_type " + str(seed_type))
+        k = keystore.from_seed(seed, passphrase, seed_type=seed_type)
+        storage.put('seed_type', seed_type)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
         wallet = Wallet(storage)
         wallet.update_password(None, password, True)
         wallet.synchronize()
-        print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-        print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
+        print_msg("Your wallet generation seed is:\n    \"%s\"" % seed)
+        print_msg("Wallet seed format:", seed_type)
+        if k.has_derivation() and seed_type != "electrum":
+            print_msg("Your wallet derivation path is:", str(k.derivation))
+        print_msg("Please keep your seed information in a safe place; if you lose it, you will not be able to restore your wallet.")
 
     wallet.storage.write()
     print_msg("Wallet saved in '%s'" % wallet.storage.path)

@@ -4,6 +4,7 @@ from unittest import mock
 from ..address import Address
 from .. import bitcoin
 from .. import keystore
+from .. import mnemonic
 from .. import storage
 from .. import wallet
 
@@ -11,12 +12,15 @@ from .. import wallet
 class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
     gap_limit = 1  # make tests run faster
+    mnem = mnemonic.Mnemonic()  # cache language data
 
     def _check_seeded_keystore_sanity(self, ks):
         self.assertTrue (ks.is_deterministic())
         self.assertFalse(ks.is_watching_only())
         self.assertFalse(ks.can_import())
         self.assertTrue (ks.has_seed())
+        if isinstance(ks, keystore.BIP32_KeyStore):
+            self.assertTrue (ks.has_derivation())
 
     def _check_xpub_keystore_sanity(self, ks):
         self.assertTrue (ks.is_deterministic())
@@ -46,7 +50,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_standard(self, mock_write):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+        self.assertEqual(mnemonic.seed_type_name(seed_words), 'electrum')
 
         ks = keystore.from_seed(seed_words, '', False)
 
@@ -65,7 +69,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_old(self, mock_write):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'old')
+        self.assertEqual(mnemonic.seed_type_name(seed_words), 'old')
 
         ks = keystore.from_seed(seed_words, '', False)
 
@@ -84,9 +88,10 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_seed_bip44_standard(self, mock_write):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
-        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
 
-        ks = keystore.from_bip39_seed(seed_words, '', "m/44'/0'/0'")
+        self.assertEqual(self.mnem.is_checksum_valid(seed_words), (True, True))
+
+        ks = keystore.from_seed(seed_words, '', seed_type='bip39', derivation="m/44'/0'/0'")
 
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
@@ -102,7 +107,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_multisig_seed_standard(self, mock_write):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
-        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+        self.assertEqual(mnemonic.seed_type_name(seed_words), 'electrum')
 
         ks1 = keystore.from_seed(seed_words, '', True)
         self._check_seeded_keystore_sanity(ks1)
@@ -121,10 +126,12 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_multisig_seed_bip45_standard(self, mock_write):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
-        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+        self.assertEqual(self.mnem.is_checksum_valid(seed_words), (True, True))
 
-        ks1 = keystore.from_bip39_seed(seed_words, '', "m/45'/0")
+        ks1 = keystore.from_seed(seed_words, '', seed_type='bip39', derivation="m/45'/0")
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
+        self.assertEqual(ks1.derivation, "m/45'/0")
+        self.assertEqual(ks1.seed_type, 'bip39')
         self.assertEqual(ks1.xpub, 'xpub69xafV4YxC6o8Yiga5EiGLAtqR7rgNgNUGiYgw3S9g9pp6XYUne1KxdcfYtxwmA3eBrzMFuYcNQKfqsXCygCo4GxQFHfywxpUbKNfYvGJka')
 
         ks2 = keystore.from_xpub('xpub6Bco9vrgo8rNUSi8Bjomn8xLA41DwPXeuPcgJamNRhTTyGVHsp8fZXaGzp9ypHoei16J6X3pumMAP1u3Dy4jTSWjm4GZowL7Dcn9u4uZC9W')

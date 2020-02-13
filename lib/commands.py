@@ -245,18 +245,30 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=132, entropy=1, language=None):
-        """Create a seed"""
+    def make_electrum_seed(self, nbits=132, entropy=1, language=None):
+        """Create an Electrum seed"""
         from .mnemonic import Mnemonic_Electrum
-        t = 'standard'
+        t = 'electrum'
         s = Mnemonic_Electrum(language).make_seed(t, nbits, custom_entropy=entropy)
         return s
 
     @command('')
-    def check_seed(self, seed, entropy=1, language=None):
-        """Check that a seed was generated with given entropy"""
+    def make_seed(self, nbits=128, language=None):
+        """Create a BIP39 seed"""
+        from .mnemonic import Mnemonic
+        s = Mnemonic(language).make_seed(num_bits=nbits)
+        return s
+
+    @command('')
+    def check_electrum_seed(self, seed, entropy=1, language=None):
+        """Check that an Electrum seed was generated with given entropy"""
         from .mnemonic import Mnemonic_Electrum
         return Mnemonic_Electrum(language).check_seed(seed, entropy)
+
+    @command('')
+    def check_seed(self, seed, entropy=1, language=None):
+        """This command is deprecated and will fail, use check_electrum_seed instead. """
+        raise NotImplementedError('check_seed has been removed.  Use check_electrum_seed instead.')
 
     @command('n')
     def getaddresshistory(self, address):
@@ -863,7 +875,7 @@ command_options = {
     'pending':     (None, "Show only pending requests."),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'receiving':   (None, "Show only receiving addresses"),
-    'seed_type':   (None, "The type of seed to create, currently only 'standard' is supported"),
+    'seed_type':   (None, "The type of seed to create, currently: 'electrum' and 'bip39' is supported. Default 'bip39'."),
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'timeout':     (None, "Timeout in seconds to wait for the overall operation to complete. Defaults to 30.0."),

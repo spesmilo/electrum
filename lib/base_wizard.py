@@ -29,8 +29,8 @@ import sys
 import traceback
 from . import bitcoin
 from . import keystore
+from . import mnemonic
 from . import util
-from .keystore import bip44_derivation, bip44_derivation_145
 from .wallet import (ImportedAddressWallet, ImportedPrivkeyWallet,
                      Standard_Wallet, Multisig_Wallet, wallet_types)
 from .i18n import _
@@ -269,7 +269,7 @@ class BaseWizard(util.PrintError):
             # This is partially compatible with BIP45; assumes index=0
             default_derivation = "m/45'/0"
         else:
-            default_derivation = bip44_derivation_145(0)
+            default_derivation = keystore.bip44_derivation_145(0)
         self.derivation_dialog(f, default_derivation)
 
     def derivation_dialog(self, f, default_derivation):
@@ -316,15 +316,15 @@ class BaseWizard(util.PrintError):
     def restore_from_seed(self):
         self.opt_bip39 = True
         self.opt_ext = True
-        test = bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
+        test = mnemonic.is_seed # TODO FIX #bitcoin.is_seed if self.wallet_type == 'standard' else bitcoin.is_new_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
-        self.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
+        self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type_name(seed)  # NB: seed_type_name here may also auto-detect 'bip39'
         if self.seed_type == 'bip39':
             f=lambda passphrase: self.on_restore_bip39(seed, passphrase)
             self.passphrase_dialog(run_next=f) if is_ext else f('')
-        elif self.seed_type in ['standard']:
+        elif self.seed_type in ['standard', 'electrum']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
             self.passphrase_dialog(run_next=f) if is_ext else f('')
         elif self.seed_type == 'old':
@@ -334,14 +334,17 @@ class BaseWizard(util.PrintError):
 
     def on_restore_bip39(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
-        self.derivation_dialog(f, bip44_derivation_145(0))
+        self.derivation_dialog(f, keystore.bip44_derivation_145(0))
 
     def create_keystore(self, seed, passphrase):
-        k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
+        # auto-detect, prefers old, electrum, bip39 in that order. Since we
+        # never create ambiguous seeds, this is fine.
+        k = keystore.from_seed(seed, passphrase)
         self.on_keystore(k)
 
     def on_bip44(self, seed, passphrase, derivation):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation)
+        # BIP39
+        k = keystore.from_seed(seed, passphrase, derivation=derivation, seed_type='bip39')
         self.on_keystore(k)
 
     def on_keystore(self, k):
@@ -416,12 +419,21 @@ class BaseWizard(util.PrintError):
         k = keystore.from_master_key(text, password)
         self.on_keystore(k)
 
-    def create_standard_seed(self): self.create_seed('standard')
+    def create_standard_seed(self):
+        # we now generate bip39 by default; changing the below back to
+        # 'electrum' would default to electrum seeds again.
+        self.create_seed('bip39')
 
     def create_seed(self, seed_type):
         from . import mnemonic
         self.seed_type = seed_type
-        seed = mnemonic.Mnemonic_Electrum('en').make_seed(self.seed_type)  # TODO make default be BIP39
+        if seed_type in ['standard', 'electrum']:
+            seed = mnemonic.Mnemonic_Electrum('en').make_seed()
+        elif seed_type == 'bip39':
+            seed = mnemonic.Mnemonic('en').make_seed()
+        else:
+            # This should never happen.
+            raise ValueError('Cannot make seed for unknown seed type ' + str(seed_type))
         self.opt_bip39 = False
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)

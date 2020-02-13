@@ -3149,11 +3149,15 @@ def create_new_wallet(*, path, config, passphrase=None, password=None,
     if storage.file_exists():
         raise Exception("Remove the existing wallet first!")
 
-    from .mnemonic import Mnemonic_Electrum
-    seed = Mnemonic_Electrum('en').make_seed(seed_type)  # TODO: Make the default be BIP39
-    k = keystore.from_seed(seed, passphrase, False)
+    from .mnemonic import Mnemonic_Electrum, Mnemonic
+    if seed_type == 'electrum':
+        seed = Mnemonic_Electrum('en').make_seed()
+    else:
+        seed = Mnemonic('en').make_seed()
+    k = keystore.from_seed(seed, passphrase, seed_type = seed_type)
     storage.put('keystore', k.dump())
     storage.put('wallet_type', 'standard')
+    storage.put('seed_type', seed_type)
     if gap_limit is not None:
         storage.put('gap_limit', gap_limit)
     wallet = Wallet(storage)
@@ -3187,11 +3191,14 @@ def restore_wallet_from_text(text, *, path, config,
         if keystore.is_master_key(text):
             k = keystore.from_master_key(text)
         elif keystore.is_seed(text):
-            k = keystore.from_seed(text, passphrase, False)  # TODO: make default be BIP39
+            k = keystore.from_seed(text, passphrase)  # auto-detects seed type, preference order: old, electrum, bip39
         else:
             raise Exception("Seed or key not recognized")
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
+        seed_type = getattr(k, 'seed_type', None)
+        if seed_type:
+            storage.put('seed_type', seed_type)  # Save, just in case
         if gap_limit is not None:
             storage.put('gap_limit', gap_limit)
         wallet = Wallet(storage)

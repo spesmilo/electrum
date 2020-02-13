@@ -14,8 +14,7 @@ from electroncash.transaction import Transaction
 from electroncash.wallet import Standard_Wallet
 from electroncash.util import print_error, bfh, bh2u, versiontuple, PrintError
 from electroncash.bitcoin import hash_160, Hash
-from electroncash.mnemonic import Mnemonic, Mnemonic_Electrum
-from electroncash.keystore import bip39_to_seed
+from electroncash.mnemonic import Mnemonic, Mnemonic_Electrum, seed_type_name, is_seed
 from electroncash.plugins import run_hook
 from electroncash.bitcoin import serialize_xpub
 from electroncash_gui.qt.qrcodewidget import QRCodeWidget, QRDialog #from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
@@ -644,7 +643,7 @@ class SatochipPlugin(HW_PluginBase):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
     #create seed
     def create_seed(self, wizard):
-        wizard.seed_type = 'standard'
+        wizard.seed_type = 'electrum'
         wizard.opt_bip39 = False
         seed = Mnemonic_Electrum('en').make_seed(wizard.seed_type)
         f = lambda x: self.request_passphrase(wizard, seed, x)
@@ -674,30 +673,28 @@ class SatochipPlugin(HW_PluginBase):
             f('')
 
     def derive_bip32_seed(self, seed, passphrase):
-        self.bip32_seed= Mnemonic_Electrum('en').mnemonic_to_seed(seed, passphrase)
+        self.bip32_seed = Mnemonic_Electrum('en').mnemonic_to_seed(seed, passphrase)
 
     #restore from seed
     def restore_from_seed(self, wizard):
         wizard.opt_bip39 = True
         wizard.opt_ext = True
-        test = bitcoin.is_seed
+        test = is_seed
         f= lambda seed, is_bip39, is_ext: self.on_restore_seed(wizard, seed, is_bip39, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=test)
 
     def on_restore_seed(self, wizard, seed, is_bip39, is_ext):
-        wizard.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
+        wizard.seed_type = 'bip39' if is_bip39 else seed_type_name(seed)
         if wizard.seed_type == 'bip39':
             f = lambda passphrase: self.derive_bip39_seed(seed, passphrase)
             wizard.passphrase_dialog(run_next=f) if is_ext else f('')
-        elif wizard.seed_type in ['standard', 'segwit']:
+        elif wizard.seed_type in ['standard', 'electrum']:
             f = lambda passphrase: self.derive_bip32_seed(seed, passphrase)
             wizard.passphrase_dialog(run_next=f) if is_ext else f('')
         elif wizard.seed_type == 'old':
-            raise Exception('Unsupported seed type', wizard.seed_type)
-        elif bitcoin.is_any_2fa_seed_type(wizard.seed_type):
             raise Exception('Unsupported seed type', wizard.seed_type)
         else:
             raise Exception('Unknown seed type', wizard.seed_type)
 
     def derive_bip39_seed(self, seed, passphrase):
-        self.bip32_seed=bip39_to_seed(seed, passphrase)
+        self.bip32_seed = Mnemonic('en').mnemonic_to_seed(seed, passphrase)

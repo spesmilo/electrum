@@ -7,7 +7,7 @@
 from . import utils
 from . import gui
 from electroncash.i18n import _, language
-from electroncash.mnemonic import Mnemonic_Electrum
+from electroncash import mnemonic
 from electroncash.old_mnemonic import words as old_words
 from typing import Any
 from .uikit_bindings import *
@@ -638,7 +638,7 @@ class RestoreWallet1(NewWalletSeed2):
         is_bip39 = self.bip39.isOn()
         if not is_bip39: seed = seed.lower()
 
-        if not seed or (not is_bip39 and not bitcoin.is_seed(seed)):
+        if not seed or (not is_bip39 and not mnemonic.is_seed(seed)):
             err = _('The seed you entered does not appear to be a valid wallet seed.')
             utils.uilabel_replace_attributed_text(self.errMsg, err, font=UIFont.italicSystemFontOfSize_(14.0))
             self.errMsgView.setHidden_(False)
@@ -646,7 +646,7 @@ class RestoreWallet1(NewWalletSeed2):
             return
 
         seedext = self.seedExt.text.strip() if self.seedExt.text else ''
-        seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
+        seed_type = 'bip39' if is_bip39 else mnemonic.seed_type_name(seed)
 
         def PushIt() -> None:
             _SetParam(self, 'seed', seed)
@@ -707,7 +707,7 @@ class RestoreWallet1(NewWalletSeed2):
     def doBip44Keystore(self, seed, passphrase, derivation) -> bool:
         seed, passphrase, derivation = py_from_ns(seed), py_from_ns(passphrase), py_from_ns(derivation)
         try:
-            k = keystore.from_bip39_seed(seed, passphrase, derivation)
+            k = keystore.from_seed(seed, passphrase, derivation=derivation, seed_type='bip39')
             return _AddKeystore(self, k)
         except:
             utils.NSLog("Exception in doBip44Keystore: %s",sys.exc_info()[1])
@@ -717,7 +717,9 @@ class RestoreWallet1(NewWalletSeed2):
     def doStandardKeystore(self, seed, passphrase) -> bool:
         seed, passphrase = py_from_ns(seed), py_from_ns(passphrase)
         try:
-            k = keystore.from_seed(seed, passphrase, False)
+            # not specifying a seed_type below triggers auto-detect, with
+            # preference order: old, electrum, bip39
+            k = keystore.from_seed(seed, passphrase)
             return _AddKeystore(self, k)
         except:
             utils.NSLog("Exception in doStandardKeystore: %s",sys.exc_info()[1])
@@ -1378,7 +1380,7 @@ def _IsOnBoarding(vc : UIViewController) -> bool:
 _mnem = None
 def _Mnem() -> None:
     global _mnem
-    if not _mnem: _mnem = Mnemonic_Electrum()
+    if not _mnem: _mnem = mnemonic.Mnemonic_Electrum()
     return _mnem
 
 def _GetOldSuggestions(prefix) -> set:

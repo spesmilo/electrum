@@ -29,7 +29,7 @@ from .bitcoin import *
 
 from .address import Address, PublicKey
 from . import networks
-from .mnemonic import Mnemonic, Mnemonic_Electrum
+from .mnemonic import Mnemonic, Mnemonic_Electrum, seed_type_name, is_seed
 from .plugins import run_hook
 from .util import PrintError, InvalidPassword, hfu
 
@@ -624,28 +624,6 @@ class Hardware_KeyStore(KeyStore, Xpub):
         return True
 
 
-
-def bip39_normalize_passphrase(passphrase):
-    """ This is called by some plugins """
-    return Mnemonic.normalize_text(passphrase or '')
-
-def bip39_to_seed(mnemonic, passphrase):
-    return Mnemonic.mnemonic_to_seed(mnemonic, passphrase)
-
-def bip39_is_checksum_valid(mnemonic, lang=None):
-    """Test checksum of bip39 mnemonic assuming English wordlist if lang=None.
-    Returns tuple (is_checksum_valid, is_wordlist_valid) """
-    return Mnemonic(lang).is_checksum_valid(mnemonic)
-
-def from_bip39_seed(seed, passphrase, derivation):
-    k = BIP32_KeyStore({})
-    k.add_seed(seed, seed_type = "bip39")
-    k.passphrase = passphrase
-    bip32_seed = bip39_to_seed(seed, passphrase)
-    t = 'standard'  # bip43
-    k.add_xprv_from_seed(bip32_seed, t, derivation)
-    return k
-
 # extended pubkeys
 
 def is_xpubkey(x_pubkey):
@@ -761,19 +739,38 @@ def bip44_derivation(account_id):
 def bip44_derivation_145(account_id):
 	return "m/44'/145'/%d'"% int(account_id)
 
-def from_seed(seed, passphrase, is_p2sh):
-    t = seed_type(seed)
-    if t == 'old':
+def bip39_normalize_passphrase(passphrase):
+    """ This is called by some plugins """
+    return Mnemonic.normalize_text(passphrase or '')
+
+def bip39_to_seed(seed: str, passphrase: str) -> bytes:
+    """This is called by some plugins """
+    return Mnemonic.mnemonic_to_seed(seed, passphrase)
+
+
+def from_seed(seed, passphrase, is_p2sh=None, *, seed_type='', derivation=None) -> KeyStore:
+    del is_p2sh  # argument totally ignored.  Legacy API.
+    if not seed_type:
+        seed_type = seed_type_name(seed)  # auto-detect
+    if seed_type == 'old':
         keystore = Old_KeyStore({})
-        keystore.add_seed(seed, seed_type="old")
-    elif t in ['standard', 'electrum']:
+        keystore.add_seed(seed, seed_type=seed_type)
+    elif seed_type in ['standard', 'electrum']:
         keystore = BIP32_KeyStore({})
-        keystore.add_seed(seed, seed_type="electrum")
+        keystore.add_seed(seed, seed_type = "electrum")  # force it to be "electrum"
         keystore.passphrase = passphrase
         bip32_seed = Mnemonic_Electrum.mnemonic_to_seed(seed, passphrase)
-        der = "m/"
+        derivation = 'm/'
         xtype = 'standard'
-        keystore.add_xprv_from_seed(bip32_seed, xtype, der)
+        keystore.add_xprv_from_seed(bip32_seed, xtype, derivation)
+    elif seed_type == 'bip39':
+        keystore = BIP32_KeyStore({})
+        keystore.add_seed(seed, seed_type = seed_type)
+        keystore.passphrase = passphrase
+        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        xtype = 'standard'  # bip43
+        derivation = derivation or bip44_derivation_145(0)
+        keystore.add_xprv_from_seed(bip32_seed, xtype, derivation)
     else:
         raise InvalidSeed()
     return keystore
