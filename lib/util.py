@@ -416,7 +416,7 @@ def assert_str(*args):
 
 
 
-def to_string(x, enc):
+def to_string(x, enc='utf8'):
     if isinstance(x, (bytes, bytearray)):
         return x.decode(enc)
     if isinstance(x, str):

@@ -1308,7 +1308,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         try:
                             self.wallet.sign_payment_request(addr, alias, alias_addr, password)
                         except Exception as e:
-                            self.show_error(str(e))
+                            traceback.print_exc(file=sys.stderr)
+                            self.show_error(str(e) or repr(e))
                             return
                     else:
                         return

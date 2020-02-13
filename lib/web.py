@@ -201,7 +201,7 @@ def parse_URI(uri, on_pr=None, *, net=None, strict=False, on_exc=None):
     # The scheme always comes back in lower case
     accept_schemes = parseable_schemes(net=net)
     if u.scheme not in accept_schemes:
-        raise BadSchemeError(_("Not a {schemes} URI")).format(schemes=str(accept_schemes))
+        raise BadSchemeError(_("Not a {schemes} URI").format(schemes=str(accept_schemes)))
     address = u.path
 
     is_cashacct = u.scheme == cashacct.URI_SCHEME
