@@ -18,7 +18,7 @@ RUN apt-get update -q && \
         libncurses5-dev=6.1-1ubuntu1.18.04 \
         libsqlite3-dev=3.22.0-1 \
         libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.17 \
+        libudev-dev=237-3ubuntu10.38 \
         gettext=0.19.8.1-6ubuntu0.1 \
         libzbar0=0.10+doc-10.1build2 \
         faketime=0.9.7-2 \
