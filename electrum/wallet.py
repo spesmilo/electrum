@@ -264,10 +264,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.db.write(self.storage)
 
     def save_backup(self, path, *, old_password=None, new_password=None):
-        new_db = WalletDB(self.storage.read(), manual_upgrades=False)
+        new_db = WalletDB(self.db.dump(), manual_upgrades=False)
         new_db.put('is_backup', True)
         new_storage = WalletStorage(path)
-        #new_storage._encryption_version = self.storage.get_encryption_version()
         new_storage._encryption_version = StorageEncryptionVersion.PLAINTEXT
         w2 = Wallet(new_db, new_storage, config=self.config)
         if new_password:
