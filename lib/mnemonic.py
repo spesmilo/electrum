@@ -76,8 +76,20 @@ CJK_INTERVALS = [
     (0xA490, 0xA4CF, 'Yi Radicals'),
 ]
 
+_cjk_min_max = None
 def is_CJK(c) -> bool:
+    global _cjk_min_max
+    if not _cjk_min_max:
+        # cache some values for fast path
+        _cjk_min_max = (
+            min(x[0] for x in CJK_INTERVALS),
+            max(x[1] for x in CJK_INTERVALS),
+        )
     n = ord(c)
+    if n < _cjk_min_max[0] or n > _cjk_min_max[1]:
+        # Fast path -- n is clearly out of range.
+        return False
+    # Slow path: n may be in range of one of the intervals so scan them all using a slow linear search
     for imin,imax,name in CJK_INTERVALS:
         if n>=imin and n<=imax: return True
     return False
