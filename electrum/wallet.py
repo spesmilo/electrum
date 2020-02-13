@@ -51,7 +51,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN, get_backup_dir
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -263,15 +263,25 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.storage:
             self.db.write(self.storage)
 
-    def save_backup(self, path, *, old_password=None, new_password=None):
+    def save_backup(self):
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
         new_db.put('is_backup', True)
-        new_storage = WalletStorage(path)
-        new_storage._encryption_version = StorageEncryptionVersion.PLAINTEXT
-        w2 = Wallet(new_db, new_storage, config=self.config)
-        if new_password:
-            w2.update_password(old_password, new_password, encrypt_storage=True)
-        w2.save_db()
+        new_path = os.path.join(get_backup_dir(self.config), self.basename() + '.backup')
+        if new_path is None:
+            return
+        new_storage = WalletStorage(new_path)
+        if 'ANDROID_DATA' in os.environ:
+            pin_code = self.config.get('pin_code')
+            w2 = Wallet(new_db, None, config=self.config)
+            w2.update_password(pin_code, None)
+            new_storage._encryption_version = StorageEncryptionVersion.USER_PASSWORD
+            new_storage.pubkey = self.config.get('backup_pubkey')
+        else:
+            new_storage._encryption_version = self.storage._encryption_version
+            new_storage.pubkey = self.storage.pubkey
+        new_db.set_modified(True)
+        new_db.write(new_storage)
+        return new_path
 
     def has_lightning(self):
         return bool(self.lnworker)

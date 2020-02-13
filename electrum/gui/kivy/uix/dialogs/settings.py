@@ -82,6 +82,11 @@ Builder.load_string('''
                     description: _("Send your change to separate addresses.")
                     message: _('Send excess coins to change addresses')
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
+                CardSeparator
+                SettingsItem:
+                    title: _('Backups')
+                    description: _("Set password for encrypted backups.")
+                    action: root.change_backup_password
 
                 # disabled: there is currently only one coin selection policy
                 #CardSeparator
@@ -120,6 +125,9 @@ class SettingsDialog(Factory.Popup):
 
     def change_password(self, item, dt):
         self.app.change_password(self.update)
+
+    def change_backup_password(self, dt):
+        self.app.change_backup_password()
 
     def language_dialog(self, item, dt):
         if self._language_dialog is None:

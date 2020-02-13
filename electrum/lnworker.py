@@ -842,6 +842,7 @@ class LNWallet(LNWorker):
         with self.lock:
             self.channels[chan.channel_id] = chan
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.wallet.save_backup()
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:

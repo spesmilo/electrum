@@ -1199,20 +1199,30 @@ class ElectrumWindow(App):
                                    on_success=on_success, on_failure=on_failure, is_change=1)
         self._password_dialog.open()
 
-    def save_backup(self):
+    def change_backup_password(self):
         from .uix.dialogs.password_dialog import PasswordDialog
         from electrum.util import get_backup_dir
+        from electrum.storage import WalletStorage
         if self._password_dialog is None:
             self._password_dialog = PasswordDialog()
         message = _("Create backup.") + '\n' + _("Enter your current PIN:")
         def on_success(old_password, new_password):
-            new_path = os.path.join(get_backup_dir(self.electrum_config), self.wallet.basename() + '.backup')
-            self.wallet.save_backup(new_path, old_password=old_password, new_password=new_password)
-            self.show_info(_("Backup saved:") + f"\n{new_path}")
-        on_failure = lambda: self.show_error(_("PIN codes do not match"))
+            backup_pubkey = WalletStorage.get_eckey_from_password(new_password).get_public_key_hex()
+            # TODO: use a unique PIN for all wallets
+            self.electrum_config.set_key('pin_code', old_password)
+            self.electrum_config.set_key('backup_pubkey', backup_pubkey)
+            self.show_info(_("Backup password set"))
+        on_failure = lambda: self.show_error(_("Passwords do not match"))
         self._password_dialog.init(self, wallet=self.wallet, msg=message,
                                    on_success=on_success, on_failure=on_failure, is_change=1, is_backup=True)
         self._password_dialog.open()
+
+    def save_backup(self):
+        new_path = self.wallet.save_backup()
+        if new_path:
+            self.show_info(_("Backup saved:") + f"\n{new_path}")
+        else:
+            self.show_error(_("Backup directory not configured"))
 
     def export_private_keys(self, pk_label, addr):
         if self.wallet.is_watching_only():
