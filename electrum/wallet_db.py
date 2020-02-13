@@ -28,7 +28,7 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
+from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, TYPE_CHECKING
 import binascii
 
 from . import util, bitcoin
@@ -40,6 +40,10 @@ from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, Remote
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
 from .plugin import run_hook, plugin_loaders
+
+if TYPE_CHECKING:
+    from .storage import WalletStorage
+
 
 # seed_version is now used for the version of the wallet file
 
@@ -998,11 +1002,11 @@ class WalletDB(JsonDB):
             v = binascii.unhexlify(v) if v is not None else None
         return v
 
-    def write(self, storage):
+    def write(self, storage: 'WalletStorage'):
         with self.lock:
             self._write(storage)
 
-    def _write(self, storage):
+    def _write(self, storage: 'WalletStorage'):
         if threading.currentThread().isDaemon():
             self.logger.warning('daemon thread cannot write db')
             return

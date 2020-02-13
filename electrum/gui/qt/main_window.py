@@ -3006,7 +3006,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             win.show_error(e)
             return False
         else:
-            self.wallet.storage.write()
+            self.wallet.save_db()
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
             msg = (_("Transaction added to wallet history.") + '\n\n' +

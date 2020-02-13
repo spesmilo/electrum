@@ -294,7 +294,7 @@ class TxDialog(Factory.Popup):
             if b:
                 for tx in to_delete:
                     self.wallet.remove_transaction(tx)
-                self.wallet.storage.write()
+                self.wallet.save_db()
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()
         d = Question(question, on_prompt)

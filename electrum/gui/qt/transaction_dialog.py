@@ -308,7 +308,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             name = 'signed_%s.txn' % (tx.txid()[0:8])
         else:
             name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M.psbt')
-        fileName = self.main_window.getSaveFileName(_("Select where to save your signed transaction"),
+        fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
                                                     name,
                                                     TRANSACTION_FILE_EXTENSION_FILTER)
         if not fileName:
