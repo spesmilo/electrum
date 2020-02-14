@@ -221,7 +221,7 @@ class Peer(Logger):
     def maybe_save_remote_update(self, payload):
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
-                chan.remote_update = payload['raw']
+                chan.set_remote_update(payload['raw'])
                 self.logger.info("saved remote_update")
 
     def on_announcement_signatures(self, payload):
@@ -548,7 +548,6 @@ class Peer(Logger):
         if remote_to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
             raise Exception(f"Remote Lightning peer reports to_self_delay={remote_to_self_delay}," +
                     f" which is above Electrum-GRS' required maximum ({MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED})")
-        their_revocation_store = RevocationStore()
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
@@ -564,7 +563,6 @@ class Peer(Logger):
             htlc_minimum_msat = htlc_min,
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
-            revocation_store=their_revocation_store,
         )
         # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
@@ -582,17 +580,9 @@ class Peer(Logger):
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
-        chan_dict = {
-            "node_id": self.pubkey,
-            "channel_id": channel_id,
-            "short_channel_id": None,
-            "funding_outpoint": Outpoint(funding_txid, funding_index),
-            "remote_config": remote_config,
-            "local_config": local_config,
-            "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
-            "remote_update": None,
-            "state": channel_states.PREOPENING.name,
-        }
+        outpoint = Outpoint(funding_txid, funding_index)
+        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
+        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
@@ -609,6 +599,27 @@ class Peer(Logger):
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         return chan, funding_tx
+
+    def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints):
+        chan_dict = {
+            "node_id": self.pubkey.hex(),
+            "channel_id": channel_id.hex(),
+            "short_channel_id": None,
+            "funding_outpoint": outpoint,
+            "remote_config": remote_config,
+            "local_config": local_config,
+            "constraints": constraints,
+            "remote_update": None,
+            "state": channel_states.PREOPENING.name,
+            'onion_keys': {},
+            'data_loss_protect_remote_pcp': {},
+            "log": {},
+            "revocation_store": {},
+        }
+        channel_id = chan_dict.get('channel_id')
+        channels = self.lnworker.db.get_dict('channels')
+        channels[channel_id] = chan_dict
+        return channels.get(channel_id)
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
@@ -645,37 +656,28 @@ class Peer(Logger):
         funding_idx = int.from_bytes(funding_created['funding_output_index'], 'big')
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
-        their_revocation_store = RevocationStore()
         remote_balance_sat = funding_sat * 1000 - push_msat
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
-        chan_dict = {
-                "node_id": self.pubkey,
-                "channel_id": channel_id,
-                "short_channel_id": None,
-                "funding_outpoint": Outpoint(funding_txid, funding_idx),
-                "remote_config": RemoteConfig(
-                    payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
-                    multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
-                    htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
-                    delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
-                    revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-                    to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
-                    dust_limit_sat=remote_dust_limit_sat,
-                    max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
-                    max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
-                    initial_msat=remote_balance_sat,
-                    reserve_sat = remote_reserve_sat,
-                    htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
-                    next_per_commitment_point=payload['first_per_commitment_point'],
-                    current_per_commitment_point=None,
-                    revocation_store=their_revocation_store,
-                ),
-                "local_config": local_config,
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
-                "remote_update": None,
-                "state": channel_states.PREOPENING.name,
-        }
+        remote_config = RemoteConfig(
+            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
+            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+            to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
+            dust_limit_sat=remote_dust_limit_sat,
+            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
+            max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
+            initial_msat=remote_balance_sat,
+            reserve_sat = remote_reserve_sat,
+            htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
+            next_per_commitment_point=payload['first_per_commitment_point'],
+            current_per_commitment_point=None,
+        )
+        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth)
+        outpoint = Outpoint(funding_txid, funding_idx)
+        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(chan_dict,
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
@@ -688,8 +690,7 @@ class Peer(Logger):
             signature=sig_64,
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
-        self.lnworker.save_channel(chan)
-        self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.lnworker.add_channel(chan)
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')
@@ -706,14 +707,6 @@ class Peer(Logger):
             self.logger.info(f"Received unknown channel_reestablish {bh2u(chan_id)} {payload}")
             raise Exception('Unknown channel_reestablish')
         self.channel_reestablished[chan_id].put_nowait(payload)
-
-    def try_to_get_remote_to_force_close_with_their_latest(self, chan_id):
-        self.logger.info(f"trying to get remote to force close {bh2u(chan_id)}")
-        self.send_message(
-            "channel_reestablish",
-            channel_id=chan_id,
-            next_local_commitment_number=0,
-            next_remote_revocation_number=0)
 
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
@@ -734,41 +727,33 @@ class Peer(Logger):
         oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         latest_remote_ctn = chan.get_latest_ctn(REMOTE)
         next_remote_ctn = chan.get_next_ctn(REMOTE)
+        assert self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         # send message
-        dlp_enabled = self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        if dlp_enabled:
-            if oldest_unrevoked_remote_ctn == 0:
-                last_rev_secret = 0
-            else:
-                revocation_store = chan.config[REMOTE].revocation_store
-                last_rev_index = oldest_unrevoked_remote_ctn - 1
-                last_rev_secret = revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
-            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
-            self.send_message(
-                "channel_reestablish",
-                channel_id=chan_id,
-                next_local_commitment_number=next_local_ctn,
-                next_remote_revocation_number=oldest_unrevoked_remote_ctn,
-                your_last_per_commitment_secret=last_rev_secret,
-                my_current_per_commitment_point=latest_point)
+        if oldest_unrevoked_remote_ctn == 0:
+            last_rev_secret = 0
         else:
-            self.send_message(
-                "channel_reestablish",
-                channel_id=chan_id,
-                next_local_commitment_number=next_local_ctn,
-                next_remote_revocation_number=oldest_unrevoked_remote_ctn)
+            last_rev_index = oldest_unrevoked_remote_ctn - 1
+            last_rev_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - last_rev_index)
+        latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
+        self.send_message(
+            "channel_reestablish",
+            channel_id=chan_id,
+            next_local_commitment_number=next_local_ctn,
+            next_remote_revocation_number=oldest_unrevoked_remote_ctn,
+            your_last_per_commitment_secret=last_rev_secret,
+            my_current_per_commitment_point=latest_point)
         self.logger.info(f'channel_reestablish: sent channel_reestablish with '
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
 
-        channel_reestablish_msg = await self.channel_reestablished[chan_id].get()
-        their_next_local_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
-        their_oldest_unrevoked_remote_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        msg = await self.channel_reestablished[chan_id].get()
+        their_next_local_ctn = int.from_bytes(msg["next_local_commitment_number"], 'big')
+        their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_remote_revocation_number"], 'big')
+        their_local_pcp = msg.get("my_current_per_commitment_point")
+        their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
         self.logger.info(f'channel_reestablish: received channel_reestablish with '
                          f'(their_next_local_ctn={their_next_local_ctn}, '
                          f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
-        their_local_pcp = channel_reestablish_msg.get("my_current_per_commitment_point")
-        their_claim_of_our_last_per_commitment_secret = channel_reestablish_msg.get("your_last_per_commitment_secret")
         # sanity checks of received values
         if their_next_local_ctn < 0:
             raise RemoteMisbehaving(f"channel reestablish: their_next_local_ctn < 0")
@@ -793,8 +778,8 @@ class Peer(Logger):
                 n_replayed_msgs += 1
         self.logger.info(f'channel_reestablish: replayed {n_replayed_msgs} unacked messages')
 
-        should_close_we_are_ahead = False
-        should_close_they_are_ahead = False
+        we_are_ahead = False
+        they_are_ahead = False
         # compare remote ctns
         if next_remote_ctn != their_next_local_ctn:
             if their_next_local_ctn == latest_remote_ctn and chan.hm.is_revack_pending(REMOTE):
@@ -804,9 +789,9 @@ class Peer(Logger):
             else:
                 self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
                 if their_next_local_ctn < next_remote_ctn:
-                    should_close_we_are_ahead = True
+                    we_are_ahead = True
                 else:
-                    should_close_they_are_ahead = True
+                    they_are_ahead = True
         # compare local ctns
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
@@ -824,14 +809,13 @@ class Peer(Logger):
             else:
                 self.logger.warning(f"channel_reestablish: expected local ctn {oldest_unrevoked_local_ctn}, got {their_oldest_unrevoked_remote_ctn}")
                 if their_oldest_unrevoked_remote_ctn < oldest_unrevoked_local_ctn:
-                    should_close_we_are_ahead = True
+                    we_are_ahead = True
                 else:
-                    should_close_they_are_ahead = True
+                    they_are_ahead = True
         # option_data_loss_protect
         def are_datalossprotect_fields_valid() -> bool:
             if their_local_pcp is None or their_claim_of_our_last_per_commitment_secret is None:
-                # if DLP was enabled, absence of fields is not OK
-                return not dlp_enabled
+                return False
             if their_oldest_unrevoked_remote_ctn > 0:
                 our_pcs, __ = chan.get_secret_and_point(LOCAL, their_oldest_unrevoked_remote_ctn - 1)
             else:
@@ -852,16 +836,15 @@ class Peer(Logger):
 
         if not are_datalossprotect_fields_valid():
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
-        else:
-            if dlp_enabled and should_close_they_are_ahead:
-                self.logger.warning(f"channel_reestablish: remote is ahead of us! luckily DLP is enabled. remote PCP: {bh2u(their_local_pcp)}")
-                chan.data_loss_protect_remote_pcp[their_next_local_ctn - 1] = their_local_pcp
-                self.lnworker.save_channel(chan)
-        if should_close_they_are_ahead:
-            self.logger.warning(f"channel_reestablish: remote is ahead of us! trying to get them to force-close.")
-            self.try_to_get_remote_to_force_close_with_their_latest(chan_id)
+
+        if they_are_ahead:
+            self.logger.warning(f"channel_reestablish: remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
+            # data_loss_protect_remote_pcp is used in lnsweep
+            chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
+            self.lnworker.save_channel(chan)
+            chan.peer_state = peer_states.BAD
             return
-        elif should_close_we_are_ahead:
+        elif we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
             await self.lnworker.force_close_channel(chan_id)
             return
@@ -890,15 +873,12 @@ class Peer(Logger):
         self.logger.info(f"on_funding_locked. channel: {bh2u(channel_id)}")
         chan = self.channels.get(channel_id)
         if not chan:
-            print(self.channels)
             raise Exception("Got unknown funding_locked", channel_id)
         if not chan.config[LOCAL].funding_locked_received:
             our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point)
-            new_local_state = chan.config[LOCAL]._replace(funding_locked_received = True)
-            chan.config[REMOTE]=new_remote_state
-            chan.config[LOCAL]=new_local_state
+            chan.config[REMOTE].next_per_commitment_point = their_next_point
+            chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)
         if chan.short_channel_id:
             self.mark_open(chan)
@@ -913,9 +893,9 @@ class Peer(Logger):
             # don't announce our channels
             # FIXME should this be a field in chan.local_state maybe?
             return
-            chan.config[LOCAL]=chan.config[LOCAL]._replace(was_announced=True)
-            coro = self.handle_announcements(chan)
+            chan.config[LOCAL].was_announced = True
             self.lnworker.save_channel(chan)
+            coro = self.handle_announcements(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     @log_exceptions
@@ -1011,11 +991,11 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            chan.remote_update = pending_channel_update['raw']
+            chan.set_remote_update(pending_channel_update['raw'])
         # add remote update with a fresh timestamp
-        if chan.remote_update:
+        if chan.get_remote_update():
             now = int(time.time())
-            remote_update_decoded = decode_msg(chan.remote_update)[1]
+            remote_update_decoded = decode_msg(chan.get_remote_update())[1]
             remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
             self.channel_db.add_channel_update(remote_update_decoded)
 
@@ -1041,7 +1021,7 @@ class Peer(Logger):
             timestamp=now.to_bytes(4, byteorder="big"),
         )
         sighash = sha256(chan_upd[2 + 64:])
-        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s)
         message_type, payload = decode_msg(chan_upd)
         payload['signature'] = sig
         chan_upd = encode_msg(message_type, **payload)
@@ -1073,8 +1053,8 @@ class Peer(Logger):
         )
         to_hash = chan_ann[256+2:]
         h = sha256(to_hash)
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
         self.send_message("announcement_signatures",
             channel_id=chan.channel_id,
             short_channel_id=chan.short_channel_id,
@@ -1169,6 +1149,8 @@ class Peer(Logger):
     def on_commitment_signed(self, payload):
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
+        if chan.peer_state == peer_states.BAD:
+            return
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(LOCAL), chan.hm.get_htlcs_in_latest_ctx(LOCAL)
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}. '
@@ -1364,7 +1346,7 @@ class Peer(Logger):
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
         #self.network.trigger_callback('htlc_added', htlc, invoice, RECEIVED)
-        await asyncio.sleep(self.network.config.lightning_settle_delay)
+        await asyncio.sleep(self.network.config.get('lightning_settle_delay', 0))
         await self._fulfill_htlc(chan, htlc.htlc_id, preimage)
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
@@ -1395,6 +1377,8 @@ class Peer(Logger):
     def on_revoke_and_ack(self, payload):
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
+        if chan.peer_state == peer_states.BAD:
+            return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)

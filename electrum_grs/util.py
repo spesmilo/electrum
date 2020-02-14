@@ -47,6 +47,7 @@ from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
+import ecdsa
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -280,6 +281,8 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
+        if isinstance(obj, bytes): # for nametuples in lnchannel
+            return obj.hex()
         if hasattr(obj, 'to_json') and callable(obj.to_json):
             return obj.to_json()
         return super(MyEncoder, self).default(obj)
@@ -1236,3 +1239,9 @@ def resolve_dns_srv(host: str):
             'port': srv.port,
         }
     return [dict_from_srv_record(srv) for srv in srv_records]
+
+
+def randrange(bound: int) -> int:
+    """Return a random integer k such that 1 <= k < bound, uniformly
+    distributed across that range."""
+    return ecdsa.util.randrange(bound)

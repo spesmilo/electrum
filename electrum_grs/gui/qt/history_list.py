@@ -666,7 +666,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
-        self.wallet.storage.write()
+        self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
 

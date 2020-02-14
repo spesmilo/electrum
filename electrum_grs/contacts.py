@@ -33,10 +33,10 @@ from .logging import Logger
 
 class Contacts(dict, Logger):
 
-    def __init__(self, storage):
+    def __init__(self, db):
         Logger.__init__(self)
-        self.storage = storage
-        d = self.storage.get('contacts', {})
+        self.db = db
+        d = self.db.get('contacts', {})
         try:
             self.update(d)
         except:
@@ -49,7 +49,7 @@ class Contacts(dict, Logger):
                 self[n] = ('address', k)
 
     def save(self):
-        self.storage.put('contacts', dict(self))
+        self.db.put('contacts', dict(self))
 
     def import_file(self, path):
         import_meta(path, self._validate, self.load_meta)

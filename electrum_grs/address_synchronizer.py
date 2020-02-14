@@ -40,7 +40,7 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .network import Network
-    from .json_db import JsonDB
+    from .wallet_db import WalletDB
 
 
 TX_HEIGHT_FUTURE = -3
@@ -70,7 +70,7 @@ class AddressSynchronizer(Logger):
     inherited by wallet
     """
 
-    def __init__(self, db: 'JsonDB'):
+    def __init__(self, db: 'WalletDB'):
         self.db = db
         self.network = None  # type: Network
         Logger.__init__(self)
@@ -104,7 +104,8 @@ class AddressSynchronizer(Logger):
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
-    def is_mine(self, address) -> bool:
+    def is_mine(self, address: Optional[str]) -> bool:
+        if not address: return False
         return self.db.is_addr_in_history(address)
 
     def get_addresses(self):

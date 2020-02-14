@@ -18,7 +18,7 @@ from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum_grs.lnutil import PaymentFailure, LnLocalFeatures
-from electrum_grs.lnchannel import channel_states
+from electrum_grs.lnchannel import channel_states, peer_states
 from electrum_grs.lnrouter import LNPathFinder
 from electrum_grs.channel_db import ChannelDB
 from electrum_grs.lnworker import LNWallet, NoPathFound
@@ -68,33 +68,23 @@ class MockNetwork:
         if self.tx_queue:
             await self.tx_queue.put(tx)
 
-class MockStorage:
-    def put(self, key, value):
-        pass
-
-    def get(self, key, default=None):
-        pass
-
-    def write(self):
-        pass
-
 class MockWallet:
-    storage = MockStorage()
     def set_label(self, x, y):
+        pass
+    def save_db(self):
         pass
 
 class MockLNWallet:
-    storage = MockStorage()
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
-        self.chan = chan
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
-        self.channels = {self.chan.channel_id: self.chan}
+        self.channels = {chan.channel_id: chan}
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
         self.localfeatures = LnLocalFeatures(0)
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
 
     def get_invoice_status(self, key):
@@ -184,30 +174,29 @@ class TestPeer(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
-        self.alice_channel, self.bob_channel = create_test_channels()
 
     def tearDown(self):
         super().tearDown()
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
 
-    def prepare_peers(self):
+    def prepare_peers(self, alice_channel, bob_channel):
         k1, k2 = keypair(), keypair()
-        t1, t2 = transport_pair(self.alice_channel.name, self.bob_channel.name)
+        t1, t2 = transport_pair(alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
-        w1 = MockLNWallet(k1, k2, self.alice_channel, tx_queue=q1)
-        w2 = MockLNWallet(k2, k1, self.bob_channel, tx_queue=q2)
+        w1 = MockLNWallet(k1, k2, alice_channel, tx_queue=q1)
+        w2 = MockLNWallet(k2, k1, bob_channel, tx_queue=q2)
         p1 = Peer(w1, k1.pubkey, t1)
         p2 = Peer(w2, k2.pubkey, t2)
         w1.peer = p1
         w2.peer = p2
         # mark_open won't work if state is already OPEN.
         # so set it to FUNDED
-        self.alice_channel._state = channel_states.FUNDED
-        self.bob_channel._state = channel_states.FUNDED
+        alice_channel._state = channel_states.FUNDED
+        bob_channel._state = channel_states.FUNDED
         # this populates the channel graph:
-        p1.mark_open(self.alice_channel)
-        p2.mark_open(self.bob_channel)
+        p1.mark_open(alice_channel)
+        p2.mark_open(bob_channel)
         return p1, p2, w1, w2, q1, q2
 
     @staticmethod
@@ -228,8 +217,48 @@ class TestPeer(ElectrumTestCase):
                          ])
         return lnencode(lnaddr, w2.node_keypair.privkey)
 
+    def test_reestablish(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def reestablish():
+            await asyncio.gather(
+                p1.reestablish_channel(alice_channel),
+                p2.reestablish_channel(bob_channel))
+            self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
+            self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
+            gath.cancel()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+    def test_reestablish_with_old_state(self):
+        alice_channel, bob_channel = create_test_channels()
+        alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        pay_req = self.prepare_invoice(w2)
+        async def reestablish():
+            result = await LNWallet._pay(w1, pay_req)
+            self.assertEqual(result, True)
+            w1.channels = {alice_channel_0.channel_id: alice_channel_0}
+            await asyncio.gather(
+                p1.reestablish_channel(alice_channel_0),
+                p2.reestablish_channel(bob_channel))
+            self.assertEqual(alice_channel_0.peer_state, peer_states.BAD)
+            self.assertEqual(bob_channel._state, channel_states.FORCE_CLOSING)
+            # wait so that pending messages are processed
+            #await asyncio.sleep(1)
+            gath.cancel()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
     def test_payment(self):
-        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers()
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
             result = await LNWallet._pay(w1, pay_req)
@@ -242,13 +271,14 @@ class TestPeer(ElectrumTestCase):
             run(f())
 
     def test_channel_usage_after_closing(self):
-        p1, p2, w1, w2, q1, q2 = self.prepare_peers()
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
 
         addr = w1._check_invoice(pay_req)
         route = run(w1._create_route_from_invoice(decoded_invoice=addr))
 
-        run(w1.force_close_channel(self.alice_channel.channel_id))
+        run(w1.force_close_channel(alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 

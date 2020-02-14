@@ -224,7 +224,7 @@ open. For this to work, your computer needs to be online regularly.""")
         self.payserver_port_e.setEnabled(self.config.get('run_payserver', False))
         services_widgets.append((payserver_cb, self.payserver_port_e))
 
-        help_local_wt = _("""To setup a local watchtower, you must run Electrum-GRS on a machine
+        help_local_wt = _("""To run a watchtower, you must run Electrum-GRS on a machine
 that is always connected to the internet. Configure a port if you want it to be public.""")
         local_wt_cb = QCheckBox(_("Run Watchtower"))
         local_wt_cb.setToolTip(help_local_wt)
@@ -324,7 +324,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             usechange_result = x == Qt.Checked
             if self.window.wallet.use_change != usechange_result:
                 self.window.wallet.use_change = usechange_result
-                self.window.wallet.storage.put('use_change', self.window.wallet.use_change)
+                self.window.wallet.db.put('use_change', self.window.wallet.use_change)
                 multiple_cb.setEnabled(self.window.wallet.use_change)
         usechange_cb.stateChanged.connect(on_usechange)
         usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
@@ -334,7 +334,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             multiple = x == Qt.Checked
             if self.wallet.multiple_change != multiple:
                 self.wallet.multiple_change = multiple
-                self.wallet.storage.put('multiple_change', multiple)
+                self.wallet.db.put('multiple_change', multiple)
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
         multiple_cb.setEnabled(self.wallet.use_change)

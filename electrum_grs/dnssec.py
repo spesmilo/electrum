@@ -101,8 +101,8 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 keyptr = keyptr[2:]
             rsa_e = keyptr[0:bytes]
             rsa_n = keyptr[bytes:]
-            n = ecdsa.util.string_to_number(rsa_n)
-            e = ecdsa.util.string_to_number(rsa_e)
+            n = int.from_bytes(rsa_n, byteorder='big', signed=False)
+            e = int.from_bytes(rsa_e, byteorder='big', signed=False)
             pubkey = rsakey.RSAKey(n, e)
             sig = rrsig.signature
 
@@ -117,15 +117,15 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 # shouldn't happen
                 raise ValidationFailure('unknown ECDSA curve')
             keyptr = candidate_key.key
-            x = ecdsa.util.string_to_number(keyptr[0:key_len])
-            y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
+            x = int.from_bytes(keyptr[0:key_len], byteorder='big', signed=False)
+            y = int.from_bytes(keyptr[key_len:key_len * 2], byteorder='big', signed=False)
             assert ecdsa.ecdsa.point_is_valid(curve.generator, x, y)
             point = ecdsa.ellipticcurve.Point(curve.curve, x, y, curve.order)
             verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point, curve)
             r = rrsig.signature[:key_len]
             s = rrsig.signature[key_len:]
-            sig = ecdsa.ecdsa.Signature(ecdsa.util.string_to_number(r),
-                                        ecdsa.util.string_to_number(s))
+            sig = ecdsa.ecdsa.Signature(int.from_bytes(r, byteorder='big', signed=False),
+                                        int.from_bytes(s, byteorder='big', signed=False))
 
         else:
             raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
@@ -156,7 +156,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 return
 
         elif _is_ecdsa(rrsig.algorithm):
-            diglong = ecdsa.util.string_to_number(digest)
+            diglong = int.from_bytes(digest, byteorder='big', signed=False)
             if verifying_key.pubkey.verifies(diglong, sig):
                 return
 

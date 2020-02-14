@@ -311,21 +311,21 @@ class Network(Logger):
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]
+        if self.config.get('run_watchtower', False):
+            from . import lnwatcher
+            self.local_watchtower = lnwatcher.WatchTower(self)
+            self.local_watchtower.start_network(self)
+            asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def maybe_init_lightning(self):
         if self.channel_db is None:
-            from . import lnwatcher
             from . import lnworker
             from . import lnrouter
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip(self)
-            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
             self.lngossip.start_network(self)
-            if self.local_watchtower:
-                self.local_watchtower.start_network(self)
-                asyncio.ensure_future(self.local_watchtower.start_watching)
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'

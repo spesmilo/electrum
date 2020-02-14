@@ -66,7 +66,7 @@ class HandlerTwoFactor(QObject, Logger):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         window = self.window.top_level_window()
@@ -227,7 +227,7 @@ class Plugin(TrustedCoinPlugin):
             wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
         except GoBack:
             # user clicked 'Cancel' and decided to move wallet file manually
-            wizard.create_storage(wizard.path)
+            storage, db = wizard.create_storage(wizard.path)
             raise
 
     def accept_terms_of_use(self, window):

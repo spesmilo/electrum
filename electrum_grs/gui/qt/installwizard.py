@@ -3,6 +3,7 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
+import json
 import sys
 import threading
 import traceback
@@ -225,7 +226,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 if wallet_from_memory:
                     temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                 else:
-                    temp_storage = WalletStorage(path, manual_upgrades=True)
+                    temp_storage = WalletStorage(path)
             except (StorageReadWriteError, WalletFileException) as e:
                 msg = _('Cannot read file') + f'\n{repr(e)}'
             except Exception as e:
@@ -316,24 +317,24 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
-    def run_upgrades(self, storage):
+    def run_upgrades(self, storage, db):
         path = storage.path
-        if storage.requires_split():
+        if db.requires_split():
             self.hide()
             msg = _("The wallet '{}' contains multiple accounts, which are no longer supported since Electrum-GRS 2.7.\n\n"
                     "Do you want to split your wallet into multiple files?").format(path)
             if not self.question(msg):
                 return
-            file_list = '\n'.join(storage.split_accounts())
-            msg = _('Your accounts have been moved to') + ':\n' + file_list + '\n\n'+ _('Do you want to delete the old file') + ':\n' + path
+            file_list = db.split_accounts(path)
+            msg = _('Your accounts have been moved to') + ':\n' + '\n'.join(file_list) + '\n\n'+ _('Do you want to delete the old file') + ':\n' + path
             if self.question(msg):
                 os.remove(path)
                 self.show_warning(_('The file was removed'))
             # raise now, to avoid having the old storage opened
             raise UserCancelled()
 
-        action = storage.get_action()
-        if action and storage.requires_upgrade():
+        action = db.get_action()
+        if action and db.requires_upgrade():
             raise WalletFileException('Incomplete wallet files cannot be upgraded.')
         if action:
             self.hide()
@@ -345,15 +346,17 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     self.show_warning(_('The file was removed'))
                 return
             self.show()
-            self.data = storage.db.data # FIXME
+            self.data = json.loads(storage.read())
             self.run(action)
             for k, v in self.data.items():
-                storage.put(k, v)
-            storage.write()
+                db.put(k, v)
+            db.write(storage)
             return
 
-        if storage.requires_upgrade():
-            self.upgrade_storage(storage)
+        if db.requires_upgrade():
+            self.upgrade_db(storage, db)
+
+        return db
 
     def finished(self):
         """Called in hardware client wrapper, in order to close popups."""

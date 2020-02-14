@@ -13,7 +13,7 @@ from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 
 from .sql_db import SqlDB, sql
-from .json_db import JsonDB
+from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions
 from . import wallet
 from .storage import WalletStorage
@@ -77,11 +77,10 @@ class SweepStore(SqlDB):
         return set([r[0] for r in c.fetchall()])
 
     @sql
-    def add_sweep_tx(self, funding_outpoint, ctn, prevout, tx: Transaction):
+    def add_sweep_tx(self, funding_outpoint, ctn, prevout, raw_tx):
         c = self.conn.cursor()
-        assert tx.is_complete()
-        raw_tx = bfh(tx.serialize())
-        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, raw_tx))
+        assert Transaction(raw_tx).is_complete()
+        c.execute("""INSERT INTO sweep_txs (funding_outpoint, ctn, prevout, tx) VALUES (?,?,?,?)""", (funding_outpoint, ctn, prevout, bfh(raw_tx)))
         self.conn.commit()
 
     @sql
@@ -140,7 +139,7 @@ class LNWatcher(AddressSynchronizer):
     LOGGING_SHORTCUT = 'W'
 
     def __init__(self, network: 'Network'):
-        AddressSynchronizer.__init__(self, JsonDB({}, manual_upgrades=False))
+        AddressSynchronizer.__init__(self, WalletDB({}, manual_upgrades=False))
         self.config = network.config
         self.channels = {}
         self.network = network
@@ -296,11 +295,6 @@ class WatchTower(LNWatcher):
     def get_num_tx(self, outpoint):
         async def f():
             return await self.sweepstore.get_num_tx(outpoint)
-        return self.network.run_from_another_thread(f())
-
-    def add_sweep_tx(self, funding_outpoint: str, ctn:int, prevout: str, tx: str):
-        async def f():
-            return await self.sweepstore.add_sweep_tx(funding_outpoint, ctn, prevout, tx)
         return self.network.run_from_another_thread(f())
 
     def list_sweep_tx(self):

@@ -39,6 +39,7 @@ from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
 from .storage import (WalletStorage, StorageEncryptionVersion,
                       get_derivation_used_for_hw_device_encryption)
+from .wallet_db import WalletDB
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
@@ -64,7 +65,7 @@ class WizardStackItem(NamedTuple):
     action: Any
     args: Any
     kwargs: Dict[str, Any]
-    storage_data: dict
+    db_data: dict
 
 
 class WizardWalletPasswordSetting(NamedTuple):
@@ -95,8 +96,8 @@ class BaseWizard(Logger):
     def run(self, *args, **kwargs):
         action = args[0]
         args = args[1:]
-        storage_data = copy.deepcopy(self.data)
-        self._stack.append(WizardStackItem(action, args, kwargs, storage_data))
+        db_data = copy.deepcopy(self.data)
+        self._stack.append(WizardStackItem(action, args, kwargs, db_data))
         if not action:
             return
         if type(action) is tuple:
@@ -122,7 +123,7 @@ class BaseWizard(Logger):
         stack_item = self._stack.pop()
         # try to undo side effects since we last entered 'previous' frame
         # FIXME only self.storage is properly restored
-        self.data = copy.deepcopy(stack_item.storage_data)
+        self.data = copy.deepcopy(stack_item.db_data)
         # rerun 'previous' frame
         self.run(stack_item.action, *stack_item.args, **stack_item.kwargs)
 
@@ -144,17 +145,17 @@ class BaseWizard(Logger):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
-    def upgrade_storage(self, storage):
+    def upgrade_db(self, storage, db):
         exc = None
         def on_finished():
             if exc is None:
-                self.terminate(storage=storage)
+                self.terminate(storage=storage, db=db)
             else:
                 raise exc
         def do_upgrade():
             nonlocal exc
             try:
-                storage.upgrade()
+                db.upgrade()
             except Exception as e:
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
@@ -593,6 +594,7 @@ class BaseWizard(Logger):
                                                    encrypt_keystore=encrypt_keystore)
         self.terminate()
 
+
     def create_storage(self, path):
         if os.path.exists(path):
             raise Exception('file already exists at path')
@@ -601,16 +603,17 @@ class BaseWizard(Logger):
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
-        storage.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         if pw_args.encrypt_storage:
             storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
+        db = WalletDB('', manual_upgrades=False)
+        db.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         for key, value in self.data.items():
-            storage.put(key, value)
-        storage.write()
-        storage.load_plugins()
-        return storage
+            db.put(key, value)
+        db.load_plugins()
+        db.write(storage)
+        return storage, db
 
-    def terminate(self, *, storage: Optional[WalletStorage] = None):
+    def terminate(self, *, storage: Optional[WalletStorage], db: Optional[WalletDB] = None):
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):

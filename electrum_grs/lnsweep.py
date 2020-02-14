@@ -293,14 +293,14 @@ def analyze_ctx(chan: 'Channel', ctx: Transaction):
         is_revocation = False
     elif ctn < oldest_unrevoked_remote_ctn:  # breach
         try:
-            per_commitment_secret = their_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+            per_commitment_secret = chan.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:
             return
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
         #_logger.info(f'tx for revoked: {list(txs.keys())}')
-    elif ctn in chan.data_loss_protect_remote_pcp:
-        their_pcp = chan.data_loss_protect_remote_pcp[ctn]
+    elif chan.get_data_loss_protect_remote_pcp(ctn):
+        their_pcp = chan.get_data_loss_protect_remote_pcp(ctn)
         is_revocation = False
     else:
         return

@@ -10,6 +10,7 @@ import asyncio
 from typing import TYPE_CHECKING, Optional, Union, Callable
 
 from electrum_grs.storage import WalletStorage, StorageReadWriteError
+from electrum_grs.wallet_db import WalletDB
 from electrum_grs.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
 from electrum_grs.plugin import run_hook
 from electrum_grs.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
@@ -166,8 +167,8 @@ class ElectrumWindow(App):
     def on_use_change(self, instance, x):
         if self.wallet:
             self.wallet.use_change = self.use_change
-            self.wallet.storage.put('use_change', self.use_change)
-            self.wallet.storage.write()
+            self.wallet.db.put('use_change', self.use_change)
+            self.wallet.save_db()
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
@@ -588,9 +589,9 @@ class ElectrumWindow(App):
         else:
             return ''
 
-    def on_wizard_complete(self, wizard, storage):
+    def on_wizard_complete(self, wizard, storage, db):
         if storage:
-            wallet = Wallet(storage, config=self.electrum_config)
+            wallet = Wallet(db, storage, config=self.electrum_config)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
@@ -602,13 +603,14 @@ class ElectrumWindow(App):
 
     def _on_decrypted_storage(self, storage: WalletStorage):
         assert storage.is_past_initial_decryption()
-        if storage.requires_upgrade():
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        if db.requires_upgrade():
             wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
             wizard.path = storage.path
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
-            wizard.upgrade_storage(storage)
+            wizard.upgrade_storage(storage, db)
         else:
-            self.on_wizard_complete(wizard=None, storage=storage)
+            self.on_wizard_complete(None, storage, db)
 
     def load_wallet_by_name(self, path, ask_if_wizard=False):
         if not path:
@@ -624,7 +626,7 @@ class ElectrumWindow(App):
                 self.load_wallet(wallet)
         else:
             def launch_wizard():
-                storage = WalletStorage(path, manual_upgrades=True)
+                storage = WalletStorage(path)
                 if not storage.file_exists():
                     wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
                     wizard.path = path
@@ -656,8 +658,6 @@ class ElectrumWindow(App):
 
     def on_stop(self):
         Logger.info('on_stop')
-        if self.wallet:
-            self.electrum_config.save_last_wallet(self.wallet)
         self.stop_wallet()
 
     def stop_wallet(self):
@@ -831,6 +831,7 @@ class ElectrumWindow(App):
             send_exception_to_crash_reporter(e)
             return
         self.use_change = self.wallet.use_change
+        self.electrum_config.save_last_wallet(wallet)
 
     def update_status(self, *dt):
         if not self.wallet:

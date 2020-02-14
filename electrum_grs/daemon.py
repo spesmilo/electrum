@@ -30,7 +30,7 @@ import traceback
 import sys
 import threading
 from typing import Dict, Optional, Tuple, Iterable
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from collections import defaultdict
 
 import aiohttp
@@ -44,9 +44,10 @@ from aiorpcx import TaskGroup
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .util import PR_PAID, PR_EXPIRED, get_request_status
-from .util import log_exceptions, ignore_exceptions
+from .util import log_exceptions, ignore_exceptions, randrange
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
+from .wallet_db import WalletDB
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
@@ -123,11 +124,10 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_password = config.get('rpcpassword', None)
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
-        import ecdsa, base64
         bits = 128
         nbytes = bits // 8 + (bits % 8 > 0)
-        pw_int = ecdsa.util.randrange(pow(2, bits))
-        pw_b64 = base64.b64encode(
+        pw_int = randrange(pow(2, bits))
+        pw_b64 = b64encode(
             pw_int.to_bytes(nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')
         config.set_key('rpcuser', rpc_user)
@@ -401,20 +401,22 @@ class Daemon(Logger):
         if path in self._wallets:
             wallet = self._wallets[path]
             return wallet
-        storage = WalletStorage(path, manual_upgrades=manual_upgrades)
+        storage = WalletStorage(path)
         if not storage.file_exists():
             return
         if storage.is_encrypted():
             if not password:
                 return
             storage.decrypt(password)
-        if storage.requires_split():
+        # read data, pass it to db
+        db = WalletDB(storage.read(), manual_upgrades=manual_upgrades)
+        if db.requires_split():
             return
-        if storage.requires_upgrade():
+        if db.requires_upgrade():
             return
-        if storage.get_action():
+        if db.get_action():
             return
-        wallet = Wallet(storage, config=self.config)
+        wallet = Wallet(db, storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet
         self.wallet = wallet

@@ -130,7 +130,7 @@ class ElectrumGui:
             label = self.wallet.get_label(hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
-            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.value, whitespaces=True),
+            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.delta, whitespaces=True),
                                               format_satoshis(hist_item.balance, whitespaces=True)))
 
 
@@ -331,6 +331,8 @@ class ElectrumGui:
             curses.echo()
             curses.endwin()
 
+    def stop(self):
+        pass
 
     def do_clear(self):
         self.str_amount = ''
