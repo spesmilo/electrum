@@ -72,6 +72,7 @@ class peer_states(IntEnum):
     DISCONNECTED   = 0
     REESTABLISHING = 1
     GOOD           = 2
+    BAD            = 3
 
 cs = channel_states
 state_transitions = [
@@ -152,7 +153,7 @@ class Channel(Logger):
         self.data_loss_protect_remote_pcp[key] = value
 
     def get_data_loss_protect_remote_pcp(self, key):
-        self.data_loss_protect_remote_pcp.get(key)
+        return self.data_loss_protect_remote_pcp.get(key)
 
     def set_remote_update(self, raw):
         self.storage['remote_update'] = raw.hex()

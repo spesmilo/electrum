@@ -30,7 +30,7 @@ import traceback
 import sys
 import threading
 from typing import Dict, Optional, Tuple, Iterable
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from collections import defaultdict
 
 import aiohttp
@@ -44,7 +44,7 @@ from aiorpcx import TaskGroup
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .util import PR_PAID, PR_EXPIRED, get_request_status
-from .util import log_exceptions, ignore_exceptions
+from .util import log_exceptions, ignore_exceptions, randrange
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB
@@ -124,11 +124,10 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_password = config.get('rpcpassword', None)
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
-        import ecdsa, base64
         bits = 128
         nbytes = bits // 8 + (bits % 8 > 0)
-        pw_int = ecdsa.util.randrange(pow(2, bits))
-        pw_b64 = base64.b64encode(
+        pw_int = randrange(pow(2, bits))
+        pw_b64 = b64encode(
             pw_int.to_bytes(nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')
         config.set_key('rpcuser', rpc_user)

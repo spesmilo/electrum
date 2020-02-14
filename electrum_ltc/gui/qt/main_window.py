@@ -124,6 +124,31 @@ class StatusBarButton(QPushButton):
             self.func()
 
 
+def protected(func):
+    '''Password request wrapper.  The password is passed to the function
+        as the 'password' named argument.  "None" indicates either an
+        unencrypted wallet, or the user cancelled the password request.
+        An empty input is passed as the empty string.'''
+    def request_password(self, *args, **kwargs):
+        parent = self.top_level_window()
+        password = None
+        while self.wallet.has_keystore_encryption():
+            password = self.password_dialog(parent=parent)
+            if password is None:
+                # User cancelled password input
+                return
+            try:
+                self.wallet.check_password(password)
+                break
+            except Exception as e:
+                self.show_error(str(e), parent=parent)
+                continue
+
+        kwargs['password'] = password
+        return func(self, *args, **kwargs)
+    return request_password
+
+
 class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
@@ -1333,30 +1358,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_completions(self):
         l = [self.get_contact_payto(key) for key in self.contacts.keys()]
         self.completions.setStringList(l)
-
-    def protected(func):
-        '''Password request wrapper.  The password is passed to the function
-        as the 'password' named argument.  "None" indicates either an
-        unencrypted wallet, or the user cancelled the password request.
-        An empty input is passed as the empty string.'''
-        def request_password(self, *args, **kwargs):
-            parent = self.top_level_window()
-            password = None
-            while self.wallet.has_keystore_encryption():
-                password = self.password_dialog(parent=parent)
-                if password is None:
-                    # User cancelled password input
-                    return
-                try:
-                    self.wallet.check_password(password)
-                    break
-                except Exception as e:
-                    self.show_error(str(e), parent=parent)
-                    continue
-
-            kwargs['password'] = password
-            return func(self, *args, **kwargs)
-        return request_password
 
     @protected
     def protect(self, func, args, password):
@@ -3005,7 +3006,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             win.show_error(e)
             return False
         else:
-            self.wallet.storage.write()
+            self.wallet.save_db()
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
             msg = (_("Transaction added to wallet history.") + '\n\n' +

@@ -40,7 +40,6 @@ from .lntransport import LNTransport, LNResponderTransport
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .ecc_fast import is_using_fast_ecc
 from .lnchannel import Channel
 from .lnchannel import channel_states, peer_states
 from . import lnutil
@@ -303,7 +302,6 @@ class LNGossip(LNWorker):
         self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_OPT
         self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
         self.unknown_ids = set()
-        assert is_using_fast_ecc(), "verifying LN gossip msgs without libsecp256k1 is hopeless"
 
     def start_network(self, network: 'Network'):
         assert network

@@ -51,13 +51,6 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/ele
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
-# when running from source, on Windows, also search for DLLs in '.dlls' top-level folder
-if is_local and os.name == 'nt':
-    dll_dir = os.path.join(os.path.dirname(__file__), '.dlls')
-    if os.path.exists(dll_dir):
-        if hasattr(os, 'add_dll_directory'):  # requires python 3.8+
-            os.add_dll_directory(dll_dir)
-
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller

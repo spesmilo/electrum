@@ -658,8 +658,6 @@ class ElectrumWindow(App):
 
     def on_stop(self):
         Logger.info('on_stop')
-        if self.wallet:
-            self.electrum_config.save_last_wallet(self.wallet)
         self.stop_wallet()
 
     def stop_wallet(self):
@@ -833,6 +831,7 @@ class ElectrumWindow(App):
             send_exception_to_crash_reporter(e)
             return
         self.use_change = self.wallet.use_change
+        self.electrum_config.save_last_wallet(wallet)
 
     def update_status(self, *dt):
         if not self.wallet:

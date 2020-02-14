@@ -16,7 +16,6 @@ bin/
 .idea
 .mypy_cache
 .vscode
-.dlls
 
 # icons
 electrum_ltc/gui/kivy/theming/light-0.png
@@ -35,3 +34,9 @@ contrib/build-wine/fresh_clone/
 contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
 contrib/android_debug.keystore
+
+# shared objects
+electrum_ltc/*.so
+electrum_ltc/*.so.0
+electrum_ltc/*.dll
+electrum_ltc/*.dylib

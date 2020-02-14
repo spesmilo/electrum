@@ -33,10 +33,11 @@ from abc import ABC, abstractmethod
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey
+from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
                     convert_bip32_intpath_to_strpath)
-from .ecc import string_to_number, number_to_string
+from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
 from .util import (InvalidPassword, WalletFileException,
@@ -47,7 +48,6 @@ from .logging import Logger
 
 if TYPE_CHECKING:
     from .gui.qt.util import TaskThread
-    from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase
 
 
@@ -75,25 +75,41 @@ class KeyStore(Logger, ABC):
         """Returns whether the keystore can be encrypted with a password."""
         pass
 
-    def get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
+    def _get_tx_derivations(self, tx: 'PartialTransaction') -> Dict[str, Union[Sequence[int], str]]:
         keypairs = {}
         for txin in tx.inputs():
-            if txin.is_complete():
-                continue
-            for pubkey in txin.pubkeys:
-                if pubkey in txin.part_sigs:
-                    # this pubkey already signed
-                    continue
-                derivation = self.get_pubkey_derivation(pubkey, txin)
-                if not derivation:
-                    continue
-                keypairs[pubkey.hex()] = derivation
+            keypairs.update(self._get_txin_derivations(txin))
         return keypairs
 
-    def can_sign(self, tx) -> bool:
-        if self.is_watching_only():
+    def _get_txin_derivations(self, txin: 'PartialTxInput') -> Dict[str, Union[Sequence[int], str]]:
+        if txin.is_complete():
+            return {}
+        keypairs = {}
+        for pubkey in txin.pubkeys:
+            if pubkey in txin.part_sigs:
+                # this pubkey already signed
+                continue
+            derivation = self.get_pubkey_derivation(pubkey, txin)
+            if not derivation:
+                continue
+            keypairs[pubkey.hex()] = derivation
+        return keypairs
+
+    def can_sign(self, tx: 'Transaction', *, ignore_watching_only=False) -> bool:
+        """Returns whether this keystore could sign *something* in this tx."""
+        if not ignore_watching_only and self.is_watching_only():
             return False
-        return bool(self.get_tx_derivations(tx))
+        if not isinstance(tx, PartialTransaction):
+            return False
+        return bool(self._get_tx_derivations(tx))
+
+    def can_sign_txin(self, txin: 'TxInput', *, ignore_watching_only=False) -> bool:
+        """Returns whether this keystore could sign this txin."""
+        if not ignore_watching_only and self.is_watching_only():
+            return False
+        if not isinstance(txin, PartialTxInput):
+            return False
+        return bool(self._get_txin_derivations(txin))
 
     def ready_to_sign(self) -> bool:
         return not self.is_watching_only()
@@ -169,7 +185,7 @@ class Software_KeyStore(KeyStore):
         # Raise if password is not correct.
         self.check_password(password)
         # Add private keys
-        keypairs = self.get_tx_derivations(tx)
+        keypairs = self._get_tx_derivations(tx)
         for k, v in keypairs.items():
             keypairs[k] = self.get_private_key(v, password)
         # Sign
@@ -615,7 +631,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     def get_pubkey_from_mpk(cls, mpk, for_change, n) -> bytes:
         z = cls.get_sequence(mpk, for_change, n)
         master_public_key = ecc.ECPubkey(bfh('04'+mpk))
-        public_key = master_public_key + z*ecc.generator()
+        public_key = master_public_key + z*ecc.GENERATOR
         return public_key.get_public_key_bytes(compressed=False)
 
     @lru_cache(maxsize=None)
@@ -626,7 +642,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 
     def _get_private_key_from_stretched_exponent(self, for_change, n, secexp):
         secexp = (secexp + self.get_sequence(self.mpk, for_change, n)) % ecc.CURVE_ORDER
-        pk = number_to_string(secexp, ecc.CURVE_ORDER)
+        pk = int.to_bytes(secexp, length=32, byteorder='big', signed=False)
         return pk
 
     def get_private_key(self, sequence: Sequence[int], password):

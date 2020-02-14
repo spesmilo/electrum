@@ -6,7 +6,6 @@ NAME_ROOT=electrum-ltc
 export WINEPREFIX=/opt/wine64
 export WINEDEBUG=-all
 export PYTHONDONTWRITEBYTECODE=1
-export PYTHONHASHSEED=22
 
 PYHOME=c:/python3
 PYTHON="wine $PYHOME/python.exe -OO -B"

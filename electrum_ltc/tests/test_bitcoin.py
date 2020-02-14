@@ -15,8 +15,7 @@ from electrum_ltc.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                                 normalize_bip32_derivation, is_all_public_derivation)
 from electrum_ltc.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum_ltc import ecc, crypto, constants
-from electrum_ltc.ecc import number_to_string, string_to_number
-from electrum_ltc.util import bfh, bh2u, InvalidPassword
+from electrum_ltc.util import bfh, bh2u, InvalidPassword, randrange
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.keystore import xtype_from_derivation
 
@@ -31,31 +30,6 @@ try:
     import ecdsa
 except ImportError:
     sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo python3 -m pip install ecdsa'")
-
-
-def needs_test_with_all_ecc_implementations(func):
-    """Function decorator to run a unit test twice:
-    once when libsecp256k1 is not available, once when it is.
-
-    NOTE: this is inherently sequential;
-    tests running in parallel would break things
-    """
-    def run_test(*args, **kwargs):
-        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
-            func(*args, **kwargs)
-            return
-        ecc_fast.undo_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
-        try:
-            # first test without libsecp
-            func(*args, **kwargs)
-        finally:
-            ecc_fast.do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
-        # if libsecp is not available, we are done
-        if not ecc_fast._libsecp256k1:
-            return
-        # if libsecp is available, test again now
-        func(*args, **kwargs)
-    return run_test
 
 
 def needs_test_with_all_aes_implementations(func):
@@ -95,15 +69,14 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertTrue(bool(crypto.AES))
 
     @needs_test_with_all_aes_implementations
-    @needs_test_with_all_ecc_implementations
     def test_crypto(self):
         for message in [b"Chancellor on brink of second bailout for banks", b'\xff'*512]:
             self._do_test_crypto(message)
 
     def _do_test_crypto(self, message):
-        G = ecc.generator()
+        G = ecc.GENERATOR
         _r  = G.order()
-        pvk = ecdsa.util.randrange(_r)
+        pvk = randrange(_r)
 
         Pub = pvk*G
         pubkey_c = Pub.get_public_key_bytes(True)
@@ -111,7 +84,7 @@ class Test_bitcoin(ElectrumTestCase):
         addr_c = public_key_to_p2pkh(pubkey_c)
 
         #print "Private key            ", '%064x'%pvk
-        eck = ecc.ECPrivkey(number_to_string(pvk,_r))
+        eck = ecc.ECPrivkey.from_secret_scalar(pvk)
 
         #print "Compressed public key  ", pubkey_c.encode('hex')
         enc = ecc.ECPubkey(pubkey_c).encrypt_message(message)
@@ -127,13 +100,12 @@ class Test_bitcoin(ElectrumTestCase):
         #print signature
         eck.verify_message_for_address(signature, message)
 
-    @needs_test_with_all_ecc_implementations
     def test_ecc_sanity(self):
-        G = ecc.generator()
+        G = ecc.GENERATOR
         n = G.order()
         self.assertEqual(ecc.CURVE_ORDER, n)
         inf = n * G
-        self.assertEqual(ecc.point_at_infinity(), inf)
+        self.assertEqual(ecc.POINT_AT_INFINITY, inf)
         self.assertTrue(inf.is_at_infinity())
         self.assertFalse(G.is_at_infinity())
         self.assertEqual(11 * G, 7 * G + 4 * G)
@@ -155,7 +127,6 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(2 * G, inf + 2 * G)
         self.assertEqual(inf, 3 * G + (-3 * G))
 
-    @needs_test_with_all_ecc_implementations
     def test_msg_signing(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
@@ -185,7 +156,6 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertFalse(ecc.verify_message_with_address(addr1, sig2, msg1))
 
     @needs_test_with_all_aes_implementations
-    @needs_test_with_all_ecc_implementations
     def test_decrypt_message(self):
         key = WalletStorage.get_eckey_from_password('pw123')
         self.assertEqual(b'me<(s_s)>age', key.decrypt_message(b'QklFMQMDFtgT3zWSQsa+Uie8H/WvfUjlu9UN9OJtTt3KlgKeSTi6SQfuhcg1uIz9hp3WIUOFGTLr4RNQBdjPNqzXwhkcPi2Xsbiw6UCNJncVPJ6QBg=='))
@@ -193,7 +163,6 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(b'hey_there' * 100, key.decrypt_message(b'QklFMQLOOsabsXtGQH8edAa6VOUa5wX8/DXmxX9NyHoAx1a5bWgllayGRVPeI2bf0ZdWK0tfal0ap0ZIVKbd2eOJybqQkILqT6E1/Syzq0Zicyb/AA1eZNkcX5y4gzloxinw00ubCA8M7gcUjJpOqbnksATcJ5y2YYXcHMGGfGurWu6uJ/UyrNobRidWppRMW5yR9/6utyNvT6OHIolCMEf7qLcmtneoXEiz51hkRdZS7weNf9mGqSbz9a2NL3sdh1A0feHIjAZgcCKcAvksNUSauf0/FnIjzTyPRpjRDMeDC8Ci3sGiuO3cvpWJwhZfbjcS26KmBv2CHWXfRRNFYOInHZNIXWNAoBB47Il5bGSMd+uXiGr+SQ9tNvcu+BiJNmFbxYqg+oQ8dGAl1DtvY2wJVY8k7vO9BIWSpyIxfGw7EDifhc5vnOmGe016p6a01C3eVGxgl23UYMrP7+fpjOcPmTSF4rk5U5ljEN3MSYqlf1QEv0OqlI9q1TwTK02VBCjMTYxDHsnt04OjNBkNO8v5uJ4NR+UUDBEp433z53I59uawZ+dbk4v4ZExcl8EGmKm3Gzbal/iJ/F7KQuX2b/ySEhLOFVYFWxK73X1nBvCSK2mC2/8fCw8oI5pmvzJwQhcCKTdEIrz3MMvAHqtPScDUOjzhXxInQOCb3+UBj1PPIdqkYLvZss1TEaBwYZjLkVnK2MBj7BaqT6Rp6+5A/fippUKHsnB6eYMEPR2YgDmCHL+4twxHJG6UWdP3ybaKiiAPy2OHNP6PTZ0HrqHOSJzBSDD+Z8YpaRg29QX3UEWlqnSKaan0VYAsV1VeaN0XFX46/TWO0L5tjhYVXJJYGqo6tIQJymxATLFRF6AZaD1Mwd27IAL04WkmoQoXfO6OFfwdp/shudY/1gBkDBvGPICBPtnqkvhGF+ZF3IRkuPwiFWeXmwBxKHsRx/3+aJu32Ml9+za41zVk2viaxcGqwTc5KMexQFLAUwqhv+aIik7U+5qk/gEVSuRoVkihoweFzKolNF+BknH2oB4rZdPixag5Zje3DvgjsSFlOl69W/67t/Gs8htfSAaHlsB8vWRQr9+v/lxTbrAw+O0E+sYGoObQ4qQMyQshNZEHbpPg63eWiHtJJnrVBvOeIbIHzoLDnMDsWVWZSMzAQ1vhX1H5QLgSEbRlKSliVY03kDkh/Nk/KOn+B2q37Ialq4JcRoIYFGJ8AoYEAD0tRuTqFddIclE75HzwaNG7NyKW1plsa72ciOPwsPJsdd5F0qdSQ3OSKtooTn7uf6dXOc4lDkfrVYRlZ0PX'))
 
     @needs_test_with_all_aes_implementations
-    @needs_test_with_all_ecc_implementations
     def test_encrypt_message(self):
         key = WalletStorage.get_eckey_from_password('secret_password77')
         msgs = [
@@ -207,7 +176,6 @@ class Test_bitcoin(ElectrumTestCase):
             self.assertEqual(plaintext, key.decrypt_message(ciphertext2))
             self.assertNotEqual(ciphertext1, ciphertext2)
 
-    @needs_test_with_all_ecc_implementations
     def test_sign_transaction(self):
         eckey1 = ecc.ECPrivkey(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
         sig1 = eckey1.sign_transaction(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'))
@@ -423,7 +391,6 @@ class Test_xprv_xpub(ElectrumTestCase):
 
         return xpub, xprv
 
-    @needs_test_with_all_ecc_implementations
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
@@ -434,14 +401,12 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)
         self.assertEqual("xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j", xprv)
 
-    @needs_test_with_all_ecc_implementations
     def test_xpub_from_xprv(self):
         """We can derive the xpub key from a xprv."""
         for xprv_details in self.xprv_xpub:
             result = xpub_from_xprv(xprv_details['xprv'])
             self.assertEqual(result, xprv_details['xpub'])
 
-    @needs_test_with_all_ecc_implementations
     def test_is_xpub(self):
         for xprv_details in self.xprv_xpub:
             xpub = xprv_details['xpub']
@@ -449,13 +414,11 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertFalse(is_xpub('xpub1nval1d'))
         self.assertFalse(is_xpub('xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
 
-    @needs_test_with_all_ecc_implementations
     def test_xpub_type(self):
         for xprv_details in self.xprv_xpub:
             xpub = xprv_details['xpub']
             self.assertEqual(xprv_details['xtype'], xpub_type(xpub))
 
-    @needs_test_with_all_ecc_implementations
     def test_is_xprv(self):
         for xprv_details in self.xprv_xpub:
             xprv = xprv_details['xprv']
@@ -680,7 +643,6 @@ class Test_keyImport(ElectrumTestCase):
             'scripthash': '5b07ddfde826f5125ee823900749103cea37808038ecead5505a766a07c34445'},
     )
 
-    @needs_test_with_all_ecc_implementations
     def test_public_key_from_private_key(self):
         for priv_details in self.priv_pub_addr:
             txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
@@ -689,13 +651,11 @@ class Test_keyImport(ElectrumTestCase):
             self.assertEqual(priv_details['txin_type'], txin_type)
             self.assertEqual(priv_details['compressed'], compressed)
 
-    @needs_test_with_all_ecc_implementations
     def test_address_from_private_key(self):
         for priv_details in self.priv_pub_addr:
             addr2 = address_from_private_key(priv_details['priv'])
             self.assertEqual(priv_details['address'], addr2)
 
-    @needs_test_with_all_ecc_implementations
     def test_is_valid_address(self):
         for priv_details in self.priv_pub_addr:
             addr = priv_details['address']
@@ -721,7 +681,6 @@ class Test_keyImport(ElectrumTestCase):
         self.assertTrue(is_address('ltc1qxq64lrwt02hm7tu25lr3hm9tgzh58snfaxyqn2'))
         self.assertFalse(is_address('ltc1qxq64lrwt02hm7tu25lr3hm9tgzh58snfaxyqn1'))
 
-    @needs_test_with_all_ecc_implementations
     def test_is_private_key(self):
         for priv_details in self.priv_pub_addr:
             self.assertTrue(is_private_key(priv_details['priv']))
@@ -730,39 +689,33 @@ class Test_keyImport(ElectrumTestCase):
             self.assertFalse(is_private_key(priv_details['address']))
         self.assertFalse(is_private_key("not a privkey"))
 
-    @needs_test_with_all_ecc_implementations
     def test_serialize_privkey(self):
         for priv_details in self.priv_pub_addr:
             txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
             priv2 = serialize_privkey(privkey, compressed, txin_type)
             self.assertEqual(priv_details['exported_privkey'], priv2)
 
-    @needs_test_with_all_ecc_implementations
     def test_address_to_scripthash(self):
         for priv_details in self.priv_pub_addr:
             sh = address_to_scripthash(priv_details['address'])
             self.assertEqual(priv_details['scripthash'], sh)
 
-    @needs_test_with_all_ecc_implementations
     def test_is_minikey(self):
         for priv_details in self.priv_pub_addr:
             minikey = priv_details['minikey']
             priv = priv_details['priv']
             self.assertEqual(minikey, is_minikey(priv))
 
-    @needs_test_with_all_ecc_implementations
     def test_is_compressed_privkey(self):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed_privkey(priv_details['priv']))
 
-    @needs_test_with_all_ecc_implementations
     def test_segwit_uncompressed_pubkey(self):
         with self.assertRaises(BitcoinException):
             is_private_key("p2wpkh-p2sh:6udGRabU4ykVSyC14CYs5JdKtHTa7hcpaXaerM9xDQayw9V3r76",
                            raise_on_error=True)
 
-    @needs_test_with_all_ecc_implementations
     def test_wif_with_invalid_magic_byte_for_compressed_pubkey(self):
         with self.assertRaises(BitcoinException):
             is_private_key("T35S1qU6BBimysGNP3HG2FbQg9Mox1UbMDgGw5vfsgJakYaq8SfU",

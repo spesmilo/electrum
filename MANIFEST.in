@@ -12,6 +12,9 @@ graft electrum_ltc
 prune electrum_ltc/tests
 graft contrib/udev
 
+exclude electrum_ltc/*.so
+exclude electrum_ltc/*.so.0
+
 global-exclude __pycache__
 global-exclude *.py[co~]
 global-exclude *.py.orig
