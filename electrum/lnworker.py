@@ -706,12 +706,14 @@ class LNWallet(LNWorker):
         if not chan:
             return
 
+        # fixme: this is wasteful
+        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
+
         # remove from channel_db
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
 
         if chan.get_state() < channel_states.CLOSED:
-            self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
             chan.set_state(channel_states.CLOSED)
 
         if chan.get_state() == channel_states.CLOSED and not keep_watching:
