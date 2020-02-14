@@ -218,8 +218,12 @@ class Channel(Logger):
     def get_state(self):
         return self._state
 
+    def is_closing(self):
+        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
+
     def is_closed(self):
-        return self.get_state() > channel_states.OPEN
+        # the closing txid has been saved
+        return self.get_state() >= channel_states.CLOSED
 
     def _check_can_pay(self, amount_msat: int) -> None:
         # TODO check if this method uses correct ctns (should use "latest" + 1)

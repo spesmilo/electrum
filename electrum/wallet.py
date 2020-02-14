@@ -729,7 +729,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)
                 tx_item['txpos'] = i # for sorting
-                key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
+                key = tx_item.get('txid') or tx_item['payment_hash']
                 transactions[key] = tx_item
         now = time.time()
         balance = 0

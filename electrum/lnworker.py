@@ -562,6 +562,7 @@ class LNWallet(LNWorker):
             out.append(item)
             if not chan.is_closed():
                 continue
+            assert closing_txid
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -657,6 +658,10 @@ class LNWallet(LNWorker):
         if not chan:
             return
 
+        # return early to prevent overwriting closing_txid with None
+        if chan.is_closed():
+            return
+
         # save timestamp regardless of state, so that funding tx is returned in get_history
         self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
 
@@ -701,14 +706,12 @@ class LNWallet(LNWorker):
         if not chan:
             return
 
-        # fixme: this is wasteful
-        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
-
         # remove from channel_db
         if chan.short_channel_id is not None:
             self.channel_db.remove_channel(chan.short_channel_id)
 
         if chan.get_state() < channel_states.CLOSED:
+            self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
             chan.set_state(channel_states.CLOSED)
 
         if chan.get_state() == channel_states.CLOSED and not keep_watching:
@@ -1309,7 +1312,7 @@ class LNWallet(LNWorker):
             with self.lock:
                 channels = list(self.channels.values())
             for chan in channels:
-                if chan.is_closed():
+                if chan.is_closed() or chan.is_closing():
                     continue
                 if constants.net is not constants.BitcoinRegtest:
                     chan_feerate = chan.get_latest_feerate(LOCAL)
