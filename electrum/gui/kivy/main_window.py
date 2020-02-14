@@ -7,7 +7,7 @@ import traceback
 from decimal import Decimal
 import threading
 import asyncio
-from typing import TYPE_CHECKING, Optional, Union, Callable
+from typing import TYPE_CHECKING, Optional, Union, Callable, Sequence
 
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet_db import WalletDB
@@ -1223,11 +1223,26 @@ class ElectrumWindow(App):
         self._password_dialog.open()
 
     def save_backup(self):
+        if platform != 'android':
+            self._save_backup()
+            return
+
+        from android.permissions import request_permissions, Permission
+        def cb(permissions, grant_results: Sequence[bool]):
+            if not grant_results or not grant_results[0]:
+                self.show_error(_("Cannot save backup without STORAGE permission"))
+                return
+            # note: Clock.schedule_once is a hack so that we get called on a non-daemon thread
+            #       (needed for WalletDB.write)
+            Clock.schedule_once(lambda dt: self._save_backup())
+        request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
+
+    def _save_backup(self):
         new_path = self.wallet.save_backup(pin_code=self.pin_code)
         if new_path:
             self.show_info(_("Backup saved:") + f"\n{new_path}")
         else:
-            self.show_error(_("Backup directory not configured"))
+            self.show_error(_("Backup NOT saved. Backup directory or password not configured."))
 
     def export_private_keys(self, pk_label, addr):
         if self.wallet.is_watching_only():

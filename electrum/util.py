@@ -426,12 +426,11 @@ def profiler(func):
 
 
 def android_ext_dir():
-    import jnius
-    env = jnius.autoclass('android.os.Environment')
-    return env.getExternalStorageDirectory().getPath()
+    from android.storage import primary_external_storage_path
+    return primary_external_storage_path()
 
 def android_backup_dir():
-    d = android_ext_dir() + '/org.electrum.electrum'
+    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
     if not os.path.exists(d):
         os.mkdir(d)
     return d
