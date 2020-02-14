@@ -691,7 +691,6 @@ class Peer(Logger):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.add_channel(chan)
-        self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')

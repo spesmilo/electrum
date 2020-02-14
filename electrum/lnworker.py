@@ -830,7 +830,6 @@ class LNWallet(LNWorker):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.add_channel(chan)
-        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
@@ -842,6 +841,7 @@ class LNWallet(LNWorker):
     def add_channel(self, chan):
         with self.lock:
             self.channels[chan.channel_id] = chan
+        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
