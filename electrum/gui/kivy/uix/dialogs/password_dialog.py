@@ -114,24 +114,34 @@ class PasswordDialog(Factory.Popup):
     def init(self, app: 'ElectrumWindow', *,
              wallet: Union['Abstract_Wallet', 'WalletStorage'] = None,
              msg: str, on_success: Callable = None, on_failure: Callable = None,
-             is_change: int = 0, is_backup: bool = False):
+             is_change: bool = False, is_backup: bool = False):
         self.app = app
         self.is_backup = is_backup
         self.wallet = wallet
         self.message = msg
         self.on_success = on_success
         self.on_failure = on_failure
-        self.ids.kb.password = ''
-        self.ids.textinput_generic_password.text = ''
         self.success = False
         self.is_change = is_change
         self.pw = None
         self.new_password = None
         self.title = 'Electrum' + ('  -  ' + self.wallet.basename() if self.wallet else '')
-        #self.ids.cb_generic_password.active = False
+        self.level = 1 if is_backup else 0
+        self.is_generic = self.is_backup
+        self.update_screen()
+
+    def update_screen(self):
+        self.ids.kb.password = ''
+        self.ids.textinput_generic_password.text = ''
+        if self.level == 0:
+            self.message = _('Enter your PIN')
+        elif self.level == 1:
+            self.message = _('Enter a strong password for your backup') if self.is_backup else _('Enter new PIN')
+        elif self.level == 2:
+            self.message = _('Confirm backup password') if self.is_backup else _('Confirm new PIN')
 
     def check_password(self, password):
-        if self.is_change > 1:
+        if self.level > 0:
             return True
         try:
             self.wallet.check_password(password)
@@ -162,6 +172,7 @@ class PasswordDialog(Factory.Popup):
             text += c
         kb.password = text
 
+
     def on_password(self, pw: str):
         if self.is_generic:
             if len(pw) < 6:
@@ -169,25 +180,20 @@ class PasswordDialog(Factory.Popup):
                 return
         if len(pw) >= 6:
             if self.check_password(pw):
-                if self.is_change == 0:
+                if self.is_change is False:
                     self.success = True
                     self.pw = pw
                     self.message = _('Please wait...')
                     self.dismiss()
-                elif self.is_change == 1:
+                elif self.level == 0:
+                    self.level = 1
                     self.pw = pw
-                    self.message = _('Enter a strong password for your backup') if self.is_backup else _('Enter new PIN')
-                    self.ids.kb.password = ''
-                    self.ids.textinput_generic_password.text = ''
-                    self.is_change = 2
-                    self.is_generic = self.is_backup
-                elif self.is_change == 2:
+                    self.update_screen()
+                elif self.level == 1:
+                    self.level = 2
                     self.new_password = pw
-                    self.message = _('Confirm backup password') if self.is_backup else _('Confirm new PIN')
-                    self.ids.kb.password = ''
-                    self.ids.textinput_generic_password.text = ''
-                    self.is_change = 3
-                elif self.is_change == 3:
+                    self.update_screen()
+                elif self.level == 2:
                     self.success = pw == self.new_password
                     self.is_generic = False
                     self.dismiss()

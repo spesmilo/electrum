@@ -326,6 +326,7 @@ class ElectrumWindow(App):
         self.wallet = None  # type: Optional[Abstract_Wallet]
         self.pause_time = 0
         self.asyncio_loop = asyncio.get_event_loop()
+        self.pin_code = None
 
         App.__init__(self)#, **kwargs)
 
@@ -619,9 +620,13 @@ class ElectrumWindow(App):
             return
         wallet = self.daemon.load_wallet(path, None)
         if wallet:
-            if platform == 'android' and wallet.has_password():
+            if wallet.has_password():
+                def on_success(x):
+                    # save pin_code so that we can create backups
+                    self.pin_code = x
+                    self.load_wallet(wallet)
                 self.password_dialog(wallet=wallet, msg=_('Enter PIN code'),
-                                     on_success=lambda x: self.load_wallet(wallet), on_failure=self.stop)
+                                     on_success=on_success, on_failure=self.stop)
             else:
                 self.load_wallet(wallet)
         else:
@@ -637,6 +642,7 @@ class ElectrumWindow(App):
                         if not storage.is_encrypted_with_user_pw():
                             raise Exception("Kivy GUI does not support this type of encrypted wallet files.")
                         def on_password(pw):
+                            self.pin_code = pw
                             storage.decrypt(pw)
                             self._on_decrypted_storage(storage)
                         self.password_dialog(wallet=storage, msg=_('Enter PIN code'),
@@ -1196,7 +1202,7 @@ class ElectrumWindow(App):
             self.show_info(_("Your PIN code was updated"))
         on_failure = lambda: self.show_error(_("PIN codes do not match"))
         self._password_dialog.init(self, wallet=self.wallet, msg=message,
-                                   on_success=on_success, on_failure=on_failure, is_change=1)
+                                   on_success=on_success, on_failure=on_failure, is_change=True)
         self._password_dialog.open()
 
     def change_backup_password(self):
@@ -1209,16 +1215,15 @@ class ElectrumWindow(App):
         def on_success(old_password, new_password):
             backup_pubkey = WalletStorage.get_eckey_from_password(new_password).get_public_key_hex()
             # TODO: use a unique PIN for all wallets
-            self.electrum_config.set_key('pin_code', old_password)
             self.electrum_config.set_key('backup_pubkey', backup_pubkey)
             self.show_info(_("Backup password set"))
         on_failure = lambda: self.show_error(_("Passwords do not match"))
         self._password_dialog.init(self, wallet=self.wallet, msg=message,
-                                   on_success=on_success, on_failure=on_failure, is_change=1, is_backup=True)
+                                   on_success=on_success, on_failure=on_failure, is_change=True, is_backup=True)
         self._password_dialog.open()
 
     def save_backup(self):
-        new_path = self.wallet.save_backup()
+        new_path = self.wallet.save_backup(pin_code=self.pin_code)
         if new_path:
             self.show_info(_("Backup saved:") + f"\n{new_path}")
         else:
