@@ -51,7 +51,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN, get_backup_dir
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -263,6 +263,20 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.storage:
             self.db.write(self.storage)
 
+    def save_backup(self):
+        backup_dir = get_backup_dir(self.config)
+        if backup_dir is None:
+            return
+        new_db = WalletDB(self.db.dump(), manual_upgrades=False)
+        new_db.put('is_backup', True)
+        new_path = os.path.join(backup_dir, self.basename() + '.backup')
+        new_storage = WalletStorage(new_path)
+        new_storage._encryption_version = self.storage._encryption_version
+        new_storage.pubkey = self.storage.pubkey
+        new_db.set_modified(True)
+        new_db.write(new_storage)
+        return new_path
+
     def has_lightning(self):
         return bool(self.lnworker)
 
@@ -285,6 +299,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.db.put('lightning_privkey2', None)
         self.save_db()
 
+    def is_lightning_backup(self):
+        return self.has_lightning() and self.db.get('is_backup')
+
     def stop_threads(self):
         super().stop_threads()
         if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
@@ -301,7 +318,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        if self.lnworker and network:
+        if self.lnworker and network and not self.is_lightning_backup():
             network.maybe_init_lightning()
             self.lnworker.start_network(network)
 

@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import Channel
+from electrum.lnchannel import Channel, peer_states
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
@@ -84,10 +84,14 @@ class ChannelsList(MyTreeView):
         WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
 
     def force_close(self, channel_id):
-        def task():
-            coro = self.lnworker.force_close_channel(channel_id)
-            return self.network.run_from_another_thread(coro)
-        if self.parent.question('Force-close channel?\nReclaimed funds will not be immediately available.'):
+        if self.lnworker.wallet.is_lightning_backup():
+            msg = _('WARNING: force-closing from an old state might result in fund loss.\nAre you sure?')
+        else:
+            msg = _('Force-close channel?\nReclaimed funds will not be immediately available.')
+        if self.parent.question(msg):
+            def task():
+                coro = self.lnworker.force_close_channel(channel_id)
+                return self.network.run_from_another_thread(coro)
             WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
 
     def remove_channel(self, channel_id):
@@ -105,7 +109,8 @@ class ChannelsList(MyTreeView):
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
         self.add_copy_menu(menu, idx)
         if not chan.is_closed():
-            menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
+            if chan.peer_state == peer_states.GOOD:
+                menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
         else:
             menu.addAction(_("Remove"), lambda: self.remove_channel(channel_id))

@@ -513,6 +513,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
+    def warn_if_lightning_backup(self):
+        if self.wallet.is_lightning_backup():
+            msg = '\n\n'.join([
+                _("This file is a backup of a lightning wallet."),
+                _("You will not be able to perform lightning payments using this file, and the lightning balance displayed in this wallet might be outdated.") + ' ' + \
+                _("If you have lost the original wallet file, you can use this file to trigger a forced closure of your channels."),
+                _("Do you want to have your channels force-closed?")
+            ])
+            if self.question(msg, title=_('Lightning Backup')):
+                self.network.maybe_init_lightning()
+                self.wallet.lnworker.start_network(self.network)
+
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
             return
@@ -549,20 +561,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.gui_object.new_window(filename)
 
-
     def backup_wallet(self):
-        path = self.wallet.storage.path
-        wallet_folder = os.path.dirname(path)
-        filename, __ = QFileDialog.getSaveFileName(self, _('Enter a filename for the copy of your wallet'), wallet_folder)
-        if not filename:
+        try:
+            new_path = self.wallet.save_backup()
+        except BaseException as reason:
+            self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
-        new_path = os.path.join(wallet_folder, filename)
-        if new_path != path:
-            try:
-                shutil.copy2(path, new_path)
-                self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
-            except BaseException as reason:
-                self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+        if new_path:
+            self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
+        else:
+            self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not created"))
 
     def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])
@@ -604,7 +612,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.recently_visited_menu = file_menu.addMenu(_("&Recently open"))
         file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
         file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
-        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("&Save backup"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
         file_menu.addAction(_("Delete"), self.remove_wallet)
         file_menu.addSeparator()
         file_menu.addAction(_("&Quit"), self.close)
