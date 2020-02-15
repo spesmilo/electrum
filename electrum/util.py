@@ -441,8 +441,10 @@ def android_data_dir():
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
 def get_backup_dir(config):
-    return android_backup_dir() if 'ANDROID_DATA' in os.environ else config.get('backup_dir')
-
+    if 'ANDROID_DATA' in os.environ:
+        return android_backup_dir() if config.get('android_backups') else None
+    else:
+        return config.get('backup_dir')
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.

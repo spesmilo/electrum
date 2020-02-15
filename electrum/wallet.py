@@ -264,11 +264,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.db.write(self.storage)
 
     def save_backup(self):
+        backup_dir = get_backup_dir(self.config)
+        if backup_dir is None:
+            return
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
         new_db.put('is_backup', True)
-        new_path = os.path.join(get_backup_dir(self.config), self.basename() + '.backup')
-        if new_path is None:
-            return
+        new_path = os.path.join(backup_dir, self.basename() + '.backup')
         new_storage = WalletStorage(new_path)
         new_storage._encryption_version = self.storage._encryption_version
         new_storage.pubkey = self.storage.pubkey

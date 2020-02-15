@@ -164,6 +164,10 @@ class ElectrumWindow(App):
     def on_use_rbf(self, instance, x):
         self.electrum_config.set_key('use_rbf', self.use_rbf, True)
 
+    android_backups = BooleanProperty(False)
+    def on_android_backups(self, instance, x):
+        self.electrum_config.set_key('android_backups', self.android_backups, True)
+
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
         if self.wallet:
@@ -1252,7 +1256,7 @@ class ElectrumWindow(App):
         if new_path:
             self.show_info(_("Backup saved:") + f"\n{new_path}")
         else:
-            self.show_error(_("Backup NOT saved. Backup directory or password not configured."))
+            self.show_error(_("Backup NOT saved. Backup directory not configured."))
 
     def export_private_keys(self, pk_label, addr):
         if self.wallet.is_watching_only():
