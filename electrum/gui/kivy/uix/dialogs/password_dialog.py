@@ -112,44 +112,48 @@ Builder.load_string('''
 class PasswordDialog(Factory.Popup):
 
     def init(self, app: 'ElectrumWindow', *,
-             wallet: Union['Abstract_Wallet', 'WalletStorage'] = None,
-             msg: str, on_success: Callable = None, on_failure: Callable = None,
-             is_change: bool = False, is_backup: bool = False):
+             check_password = None,
+             on_success: Callable = None, on_failure: Callable = None,
+             is_change: bool = False,
+             is_password: bool = False,
+             has_password: bool = False):
         self.app = app
-        self.is_backup = is_backup
-        self.wallet = wallet
-        self.message = msg
+        self.pw_check = check_password
+        self.message = ''
         self.on_success = on_success
         self.on_failure = on_failure
         self.success = False
         self.is_change = is_change
         self.pw = None
         self.new_password = None
-        self.title = 'Electrum' + ('  -  ' + self.wallet.basename() if self.wallet else '')
-        self.level = 1 if is_backup else 0
-        self.is_generic = self.is_backup
+        self.title = 'Electrum'
+        self.level = 1 if is_change and not has_password else 0
+        self.is_generic = is_password
         self.update_screen()
 
     def update_screen(self):
         self.ids.kb.password = ''
         self.ids.textinput_generic_password.text = ''
         if self.level == 0:
-            self.message = _('Enter your PIN')
+            self.message = _('Enter your password') if self.is_generic else _('Enter your PIN')
         elif self.level == 1:
-            self.message = _('Enter a strong password for your backup') if self.is_backup else _('Enter new PIN')
+            self.message = _('Enter new password') if self.is_generic else _('Enter new PIN')
         elif self.level == 2:
-            self.message = _('Confirm backup password') if self.is_backup else _('Confirm new PIN')
+            self.message = _('Confirm new password') if self.is_generic else _('Confirm new PIN')
 
     def check_password(self, password):
         if self.level > 0:
             return True
         try:
-            self.wallet.check_password(password)
+            self.pw_check(password)
             return True
         except InvalidPassword as e:
             return False
 
     def on_dismiss(self):
+        if self.level == 1 and not self.is_generic and self.on_success:
+            self.on_success(self.pw, None)
+            return False
         if not self.success:
             if self.on_failure:
                 self.on_failure()
@@ -195,7 +199,6 @@ class PasswordDialog(Factory.Popup):
                     self.update_screen()
                 elif self.level == 2:
                     self.success = pw == self.new_password
-                    self.is_generic = False
                     self.dismiss()
             else:
                 self.app.show_error(_('Wrong PIN'))
