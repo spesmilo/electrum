@@ -85,7 +85,7 @@ class ChannelsList(MyTreeView):
 
     def force_close(self, channel_id):
         if self.lnworker.wallet.is_lightning_backup():
-            msg = _('<b>WARNING<b>: force-closing from an old state might result in fund loss.\nAre you sure?')
+            msg = _('WARNING: force-closing from an old state might result in fund loss.\nAre you sure?')
         else:
             msg = _('Force-close channel?\nReclaimed funds will not be immediately available.')
         if self.parent.question(msg):
