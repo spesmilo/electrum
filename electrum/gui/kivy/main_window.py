@@ -370,6 +370,7 @@ class ElectrumWindow(App):
         self._channels_dialog = None
         self._addresses_dialog = None
         self.fee_status = self.electrum_config.get_fee_status()
+        self.invoice_popup = None
         self.request_popup = None
 
     def on_pr(self, pr: 'PaymentRequest'):
