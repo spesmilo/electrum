@@ -112,7 +112,7 @@ class ChannelsList(MyTreeView):
             if chan.peer_state == peer_states.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
-        else:
+        if chan.is_redeemed():
             menu.addAction(_("Remove"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 

@@ -88,6 +88,7 @@ Builder.load_string(r'''
     id: popuproot
     data: []
     is_closed: False
+    is_redeemed: False
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -115,7 +116,7 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_channel()
-                disabled: not root.is_closed
+                disabled: not root.is_redeemed
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -129,6 +130,7 @@ class ChannelDetailsPopup(Popup):
     def __init__(self, chan, app, **kwargs):
         super(ChannelDetailsPopup,self).__init__(**kwargs)
         self.is_closed = chan.is_closed()
+        self.is_redeemed = chan.is_redeemed()
         self.app = app
         self.chan = chan
         self.title = _('Channel details')

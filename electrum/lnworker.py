@@ -1192,9 +1192,8 @@ class LNWallet(LNWorker):
         return tx.txid()
 
     def remove_channel(self, chan_id):
-        # TODO: assert that closing tx is deep-mined and htlcs are swept
         chan = self.channels[chan_id]
-        assert chan.is_closed()
+        assert chan.get_state() == channel_states.REDEEMED
         with self.lock:
             self.channels.pop(chan_id)
             self.channel_timestamps.pop(chan_id.hex())

@@ -176,21 +176,24 @@ class LNWatcher(AddressSynchronizer):
             await self.check_onchain_situation(address, outpoint)
 
     async def check_onchain_situation(self, address, funding_outpoint):
-        keep_watching, spenders = self.inspect_tx_candidate(funding_outpoint, 0)
+        spenders = self.inspect_tx_candidate(funding_outpoint, 0)
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.get_tx_height(funding_txid)
         closing_txid = spenders.get(funding_outpoint)
         closing_height = self.get_tx_height(closing_txid)
+        if closing_txid:
+            closing_tx = self.db.get_transaction(closing_txid)
+            if closing_tx:
+                keep_watching = await self.do_breach_remedy(funding_outpoint, closing_tx, spenders)
+            else:
+                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
+                keep_watching = True
+        else:
+            keep_watching = True
         await self.update_channel_state(
             funding_outpoint, funding_txid,
             funding_height, closing_txid,
             closing_height, keep_watching)
-        if closing_txid:
-            closing_tx = self.db.get_transaction(closing_txid)
-            if closing_tx:
-                await self.do_breach_remedy(funding_outpoint, closing_tx, spenders)
-            else:
-                self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
@@ -201,32 +204,24 @@ class LNWatcher(AddressSynchronizer):
         raise NotImplementedError() # implemented by subclasses
 
     def inspect_tx_candidate(self, outpoint, n):
-        # FIXME: instead of stopping recursion at n == 2,
-        # we should detect which outputs are HTLCs
         prev_txid, index = outpoint.split(':')
         txid = self.db.get_spent_outpoint(prev_txid, int(index))
         result = {outpoint:txid}
         if txid is None:
             self.channel_status[outpoint] = 'open'
-            #self.logger.info('keep watching because outpoint is unspent')
-            return True, result
-        keep_watching = (self.get_tx_mined_depth(txid) != TxMinedDepth.DEEP)
-        if keep_watching:
+            return result
+        if n == 0 and not self.is_deeply_mined(txid):
             self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
-            #self.logger.info('keep watching because spending tx is not deep')
         else:
             self.channel_status[outpoint] = 'closed (deep)'
-
         tx = self.db.get_transaction(txid)
         for i, o in enumerate(tx.outputs()):
             if o.address not in self.get_addresses():
                 self.add_address(o.address)
-                keep_watching = True
             elif n < 2:
-                k, r = self.inspect_tx_candidate(txid+':%d'%i, n+1)
-                keep_watching |= k
+                r = self.inspect_tx_candidate(txid+':%d'%i, n+1)
                 result.update(r)
-        return keep_watching, result
+        return result
 
     def get_tx_mined_depth(self, txid: str):
         if not txid:
@@ -246,6 +241,9 @@ class LNWatcher(AddressSynchronizer):
             return TxMinedDepth.MEMPOOL
         else:
             raise NotImplementedError()
+
+    def is_deeply_mined(self, txid):
+        return self.get_tx_mined_depth(txid) == TxMinedDepth.DEEP
 
 
 class WatchTower(LNWatcher):
@@ -267,12 +265,16 @@ class WatchTower(LNWatcher):
             self.add_channel(outpoint, address)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+        keep_watching = False
         for prevout, spender in spenders.items():
             if spender is not None:
+                keep_watching |= not self.is_deeply_mined(spender)
                 continue
             sweep_txns = await self.sweepstore.get_sweep_tx(funding_outpoint, prevout)
             for tx in sweep_txns:
                 await self.broadcast_or_log(funding_outpoint, tx)
+                keep_watching = True
+        return keep_watching
 
     async def broadcast_or_log(self, funding_outpoint: str, tx: Transaction):
         height = self.get_tx_height(tx.txid()).height
@@ -345,6 +347,7 @@ class LNWalletWatcher(LNWatcher):
             return
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
+        keep_watching = False
         self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
@@ -360,14 +363,19 @@ class LNWalletWatcher(LNWatcher):
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:
                         self.logger.info(f'htlc is already spent {name}: {prevout}')
+                        keep_watching |= not self.is_deeply_mined(spender2)
                     else:
                         self.logger.info(f'trying to redeem htlc {name}: {prevout}')
                         await self.try_redeem(spender_txid+':0', e_htlc_tx)
+                        keep_watching = True
                 else:
                     self.logger.info(f'outpoint already spent {name}: {prevout}')
+                    keep_watching |= not self.is_deeply_mined(spender_txid)
             else:
                 self.logger.info(f'trying to redeem {name}: {prevout}')
                 await self.try_redeem(prevout, sweep_info)
+                keep_watching = True
+        return keep_watching
 
     @log_exceptions
     async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo') -> None:

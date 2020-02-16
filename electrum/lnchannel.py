@@ -228,6 +228,9 @@ class Channel(Logger):
         # the closing txid has been saved
         return self.get_state() >= channel_states.CLOSED
 
+    def is_redeemed(self):
+        return self.get_state() == channel_states.REDEEMED
+
     def _check_can_pay(self, amount_msat: int) -> None:
         # TODO check if this method uses correct ctns (should use "latest" + 1)
         if self.is_closed():
