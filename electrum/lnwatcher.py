@@ -178,11 +178,13 @@ class LNWatcher(AddressSynchronizer):
         keep_watching, spenders = self.inspect_tx_candidate(funding_outpoint, 0)
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.get_tx_height(funding_txid)
+        if funding_height.height == TX_HEIGHT_LOCAL:
+            return
         closing_txid = spenders.get(funding_outpoint)
-        if closing_txid is None:
+        closing_height = self.get_tx_height(closing_txid)
+        if closing_height.height == TX_HEIGHT_LOCAL:
             self.network.trigger_callback('update_open_channel', funding_outpoint, funding_txid, funding_height)
         else:
-            closing_height = self.get_tx_height(closing_txid)
             closing_tx = self.db.get_transaction(closing_txid)
             if not closing_tx:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
