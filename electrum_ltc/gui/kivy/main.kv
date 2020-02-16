@@ -449,7 +449,7 @@ BoxLayout:
                 color: 0.7, 0.7, 0.7, 1
                 font_size: '22dp'
                 on_release:
-                    Clock.schedule_once(lambda dt: app.popup_dialog('wallets'), 0.05)
+                    Clock.schedule_once(lambda dt: app.popup_dialog('status'), 0.05)
                     self.state = 'normal'
 
             ActionButton:
@@ -464,14 +464,14 @@ BoxLayout:
                     name: 'about'
                     text: _('About')
                 ActionOvrButton:
+                    name: 'wallets'
+                    text: _('Wallets')
+                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
                 ActionOvrButton:
                     name: 'lightning'
                     text: _('Lightning')
-                ActionOvrButton:
-                    name: 'status'
-                    text: _('Wallet Info')
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')

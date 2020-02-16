@@ -691,7 +691,6 @@ class Peer(Logger):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         self.lnworker.add_channel(chan)
-        self.lnworker.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')
@@ -847,6 +846,10 @@ class Peer(Logger):
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
+            await self.lnworker.force_close_channel(chan_id)
+            return
+        elif self.lnworker.wallet.is_lightning_backup():
+            self.logger.warning(f"channel_reestablish: force-closing because we are a recent backup")
             await self.lnworker.force_close_channel(chan_id)
             return
 

@@ -73,6 +73,8 @@ class MockWallet:
         pass
     def save_db(self):
         pass
+    def is_lightning_backup(self):
+        return False
 
 class MockLNWallet:
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):

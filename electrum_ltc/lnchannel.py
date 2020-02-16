@@ -58,13 +58,15 @@ if TYPE_CHECKING:
 
 
 # lightning channel states
+# Note: these states are persisted by name (for a given channel) in the wallet file,
+#       so consider doing a wallet db upgrade when changing them.
 class channel_states(IntEnum):
-    PREOPENING      = 0 # negociating
+    PREOPENING      = 0 # negotiating
     OPENING         = 1 # awaiting funding tx
     FUNDED          = 2 # funded (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
     FORCE_CLOSING   = 4 # force-close tx has been broadcast
-    CLOSING         = 5 # closing negociation
+    CLOSING         = 5 # closing negotiation
     CLOSED          = 6 # funding txo has been spent
     REDEEMED        = 7 # we can stop watching
 
@@ -93,6 +95,7 @@ state_transitions = [
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.CLOSED, cs.REDEEMED),
 ]
+del cs  # delete as name is ambiguous without context
 
 
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
@@ -218,8 +221,12 @@ class Channel(Logger):
     def get_state(self):
         return self._state
 
+    def is_closing(self):
+        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
+
     def is_closed(self):
-        return self.get_state() > channel_states.OPEN
+        # the closing txid has been saved
+        return self.get_state() >= channel_states.CLOSED
 
     def _check_can_pay(self, amount_msat: int) -> None:
         # TODO check if this method uses correct ctns (should use "latest" + 1)

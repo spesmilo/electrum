@@ -19,6 +19,7 @@ Builder.load_string('''
 
 <PasswordDialog@Popup>
     id: popup
+    is_generic: False
     title: 'Electrum-LTC'
     message: ''
     BoxLayout:
@@ -27,14 +28,45 @@ Builder.load_string('''
         Widget:
             size_hint: 1, 0.05
         Label:
+            size_hint: 0.70, None
             font_size: '20dp'
             text: root.message
             text_size: self.width, None
-            size: self.texture_size
         Widget:
             size_hint: 1, 0.05
+        BoxLayout:
+            orientation: 'horizontal'
+            id: box_generic_password
+            visible: root.is_generic
+            size_hint_y: 0.05
+            opacity: 1 if self.visible else 0
+            disabled: not self.visible
+            WizardTextInput:
+                id: textinput_generic_password
+                valign: 'center'
+                multiline: False
+                on_text_validate:
+                    popup.on_password(self.text)
+                password: True
+                size_hint: 0.9, None
+                unfocus_on_touch: False
+                focus: root.is_generic
+            Button:
+                size_hint: 0.1, None
+                valign: 'center'
+                background_normal: 'atlas://electrum_ltc/gui/kivy/theming/light/eye1'
+                background_down: self.background_normal
+                height: '50dp'
+                width: '50dp'
+                padding: '5dp', '5dp'
+                on_release:
+                    textinput_generic_password.password = False if textinput_generic_password.password else True
         Label:
-            id: a
+            id: label_pin
+            visible: not root.is_generic
+            size_hint_y: 0.05
+            opacity: 1 if self.visible else 0
+            disabled: not self.visible
             font_size: '50dp'
             text: '*'*len(kb.password) + '-'*(6-len(kb.password))
             size: self.texture_size
@@ -42,6 +74,7 @@ Builder.load_string('''
             size_hint: 1, 0.05
         GridLayout:
             id: kb
+            disabled: root.is_generic
             size_hint: 1, None
             height: self.minimum_height
             update_amount: popup.update_password
@@ -79,31 +112,48 @@ Builder.load_string('''
 class PasswordDialog(Factory.Popup):
 
     def init(self, app: 'ElectrumWindow', *,
-             wallet: Union['Abstract_Wallet', 'WalletStorage'] = None,
-             msg: str, on_success: Callable = None, on_failure: Callable = None,
-             is_change: int = 0):
+             check_password = None,
+             on_success: Callable = None, on_failure: Callable = None,
+             is_change: bool = False,
+             is_password: bool = False,
+             has_password: bool = False):
         self.app = app
-        self.wallet = wallet
-        self.message = msg
+        self.pw_check = check_password
+        self.message = ''
         self.on_success = on_success
         self.on_failure = on_failure
-        self.ids.kb.password = ''
         self.success = False
         self.is_change = is_change
         self.pw = None
         self.new_password = None
-        self.title = 'Electrum-LTC' + ('  -  ' + self.wallet.basename() if self.wallet else '')
+        self.title = 'Electrum-LTC'
+        self.level = 1 if is_change and not has_password else 0
+        self.is_generic = is_password
+        self.update_screen()
+
+    def update_screen(self):
+        self.ids.kb.password = ''
+        self.ids.textinput_generic_password.text = ''
+        if self.level == 0:
+            self.message = _('Enter your password') if self.is_generic else _('Enter your PIN')
+        elif self.level == 1:
+            self.message = _('Enter new password') if self.is_generic else _('Enter new PIN')
+        elif self.level == 2:
+            self.message = _('Confirm new password') if self.is_generic else _('Confirm new PIN')
 
     def check_password(self, password):
-        if self.is_change > 1:
+        if self.level > 0:
             return True
         try:
-            self.wallet.check_password(password)
+            self.pw_check(password)
             return True
         except InvalidPassword as e:
             return False
 
     def on_dismiss(self):
+        if self.level == 1 and not self.is_generic and self.on_success:
+            self.on_success(self.pw, None)
+            return False
         if not self.success:
             if self.on_failure:
                 self.on_failure()
@@ -126,25 +176,28 @@ class PasswordDialog(Factory.Popup):
             text += c
         kb.password = text
 
-    def on_password(self, pw):
-        if len(pw) == 6:
+
+    def on_password(self, pw: str):
+        if self.is_generic:
+            if len(pw) < 6:
+                self.app.show_error(_('Password is too short (min {} characters)').format(6))
+                return
+        if len(pw) >= 6:
             if self.check_password(pw):
-                if self.is_change == 0:
+                if self.is_change is False:
                     self.success = True
                     self.pw = pw
                     self.message = _('Please wait...')
                     self.dismiss()
-                elif self.is_change == 1:
+                elif self.level == 0:
+                    self.level = 1
                     self.pw = pw
-                    self.message = _('Enter new PIN')
-                    self.ids.kb.password = ''
-                    self.is_change = 2
-                elif self.is_change == 2:
+                    self.update_screen()
+                elif self.level == 1:
+                    self.level = 2
                     self.new_password = pw
-                    self.message = _('Confirm new PIN')
-                    self.ids.kb.password = ''
-                    self.is_change = 3
-                elif self.is_change == 3:
+                    self.update_screen()
+                elif self.level == 2:
                     self.success = pw == self.new_password
                     self.dismiss()
             else:

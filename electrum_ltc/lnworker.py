@@ -562,6 +562,7 @@ class LNWallet(LNWorker):
             out.append(item)
             if not chan.is_closed():
                 continue
+            assert closing_txid
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -655,6 +656,10 @@ class LNWallet(LNWorker):
     async def on_update_open_channel(self, event, funding_outpoint, funding_txid, funding_height):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
+            return
+
+        # return early to prevent overwriting closing_txid with None
+        if chan.is_closed():
             return
 
         # save timestamp regardless of state, so that funding tx is returned in get_history
@@ -825,7 +830,6 @@ class LNWallet(LNWorker):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.add_channel(chan)
-        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         self.network.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
@@ -837,6 +841,8 @@ class LNWallet(LNWorker):
     def add_channel(self, chan):
         with self.lock:
             self.channels[chan.channel_id] = chan
+        self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+        self.wallet.save_backup()
 
     @log_exceptions
     async def add_peer(self, connect_str: str) -> Peer:
@@ -1309,7 +1315,7 @@ class LNWallet(LNWorker):
             with self.lock:
                 channels = list(self.channels.values())
             for chan in channels:
-                if chan.is_closed():
+                if chan.is_closed() or chan.is_closing():
                     continue
                 if constants.net is not constants.BitcoinRegtest:
                     chan_feerate = chan.get_latest_feerate(LOCAL)
