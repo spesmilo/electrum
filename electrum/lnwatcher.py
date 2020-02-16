@@ -178,28 +178,26 @@ class LNWatcher(AddressSynchronizer):
         keep_watching, spenders = self.inspect_tx_candidate(funding_outpoint, 0)
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.get_tx_height(funding_txid)
-        if funding_height.height == TX_HEIGHT_LOCAL:
-            return
         closing_txid = spenders.get(funding_outpoint)
         closing_height = self.get_tx_height(closing_txid)
-        if closing_height.height == TX_HEIGHT_LOCAL:
-            self.network.trigger_callback('update_open_channel', funding_outpoint, funding_txid, funding_height)
-        else:
+        await self.update_channel_state(
+            funding_outpoint, funding_txid,
+            funding_height, closing_txid,
+            closing_height, keep_watching)
+        if closing_txid:
             closing_tx = self.db.get_transaction(closing_txid)
-            if not closing_tx:
+            if closing_tx:
+                await self.do_breach_remedy(funding_outpoint, closing_tx, spenders)
+            else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
-                return
-            self.network.trigger_callback('update_closed_channel', funding_outpoint, spenders,
-                                          funding_txid, funding_height, closing_txid,
-                                          closing_height, closing_tx, keep_watching)  # FIXME sooo many args..
-            # TODO: add tests for local_watchtower
-            await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    async def do_breach_remedy(self, funding_outpoints, spenders):
-        # overloaded in WatchTower
-        pass
+    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+        raise NotImplementedError() # implemented by subclasses
+
+    async def update_channel_state(self, *args):
+        raise NotImplementedError() # implemented by subclasses
 
     def inspect_tx_candidate(self, outpoint, n):
         # FIXME: instead of stopping recursion at n == 2,
@@ -267,7 +265,7 @@ class WatchTower(LNWatcher):
         for outpoint, address in l:
             self.add_channel(outpoint, address)
 
-    async def do_breach_remedy(self, funding_outpoint, spenders):
+    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
         for prevout, spender in spenders.items():
             if spender is not None:
                 continue
@@ -315,3 +313,90 @@ class WatchTower(LNWatcher):
         await self.sweepstore.remove_channel(funding_outpoint)
         if funding_outpoint in self.tx_progress:
             self.tx_progress[funding_outpoint].all_done.set()
+
+    async def update_channel_state(self, *args):
+        pass
+
+
+class LNWalletWatcher(LNWatcher):
+
+    def __init__(self, lnworker, network):
+        LNWatcher.__init__(self, network)
+        self.network = network
+        self.lnworker = lnworker
+
+    @ignore_exceptions
+    @log_exceptions
+    async def update_channel_state(self, funding_outpoint, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
+        chan = self.lnworker.channel_by_txo(funding_outpoint)
+        if not chan:
+            return
+        if funding_height.height == TX_HEIGHT_LOCAL:
+            return
+        elif closing_height.height == TX_HEIGHT_LOCAL:
+            await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
+        else:
+            await self.lnworker.update_closed_channel(chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+
+    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+        chan = self.lnworker.channel_by_txo(funding_outpoint)
+        if not chan:
+            return
+        # detect who closed and set sweep_info
+        sweep_info_dict = chan.sweep_ctx(closing_tx)
+        self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
+        # create and broadcast transaction
+        for prevout, sweep_info in sweep_info_dict.items():
+            name = sweep_info.name
+            spender_txid = spenders.get(prevout)
+            if spender_txid is not None:
+                # TODO handle exceptions for network.get_transaction
+                # TODO don't do network request every time... save tx at least in memory, or maybe wallet file?
+                spender_tx = await self.network.get_transaction(spender_txid)
+                spender_tx = Transaction(spender_tx)
+                e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)
+                if e_htlc_tx:
+                    spender2 = spenders.get(spender_txid+':0')
+                    if spender2:
+                        self.logger.info(f'htlc is already spent {name}: {prevout}')
+                    else:
+                        self.logger.info(f'trying to redeem htlc {name}: {prevout}')
+                        await self.try_redeem(spender_txid+':0', e_htlc_tx)
+                else:
+                    self.logger.info(f'outpoint already spent {name}: {prevout}')
+            else:
+                self.logger.info(f'trying to redeem {name}: {prevout}')
+                await self.try_redeem(prevout, sweep_info)
+
+    @log_exceptions
+    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo') -> None:
+        name = sweep_info.name
+        prev_txid, prev_index = prevout.split(':')
+        broadcast = True
+        if sweep_info.cltv_expiry:
+            local_height = self.network.get_local_height()
+            remaining = sweep_info.cltv_expiry - local_height
+            if remaining > 0:
+                self.logger.info('waiting for {}: CLTV ({} > {}), prevout {}'
+                                 .format(name, local_height, sweep_info.cltv_expiry, prevout))
+                broadcast = False
+        if sweep_info.csv_delay:
+            prev_height = self.get_tx_height(prev_txid)
+            remaining = sweep_info.csv_delay - prev_height.conf
+            if remaining > 0:
+                self.logger.info('waiting for {}: CSV ({} >= {}), prevout: {}'
+                                 .format(name, prev_height.conf, sweep_info.csv_delay, prevout))
+                broadcast = False
+        tx = sweep_info.gen_tx()
+        if tx is None:
+            self.logger.info(f'{name} could not claim output: {prevout}, dust')
+        self.lnworker.wallet.set_label(tx.txid(), name)
+        if broadcast:
+            await self.network.try_broadcasting(tx, name)
+        else:
+            # it's OK to add local transaction, the fee will be recomputed
+            try:
+                self.lnworker.wallet.add_future_tx(tx, remaining)
+                self.logger.info(f'adding future tx: {name}. prevout: {prevout}')
+            except Exception as e:
+                self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
