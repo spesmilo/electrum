@@ -261,7 +261,8 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
-        self.screen.locked = False
+        self.screen.is_lightning = False
+        self.screen.is_bip70 = False
         self.parsed_URI = None
 
     def set_request(self, pr: 'PaymentRequest'):
