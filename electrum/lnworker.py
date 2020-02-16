@@ -66,7 +66,6 @@ from .lnwatcher import LNWalletWatcher
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
-    from .lnsweep import SweepInfo
 
 
 NUM_PEERS_TARGET = 4
@@ -677,8 +676,7 @@ class LNWallet(LNWorker):
             if peer is None:
                 self.logger.info("peer not found for {}".format(bh2u(chan.node_id)))
                 return
-            if event == 'fee':
-                await peer.bitcoin_fee_update(chan)
+            await peer.bitcoin_fee_update(chan)
             conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
             peer.on_network_update(chan, conf)
 

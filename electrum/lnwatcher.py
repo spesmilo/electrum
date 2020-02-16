@@ -22,6 +22,7 @@ from .transaction import Transaction
 
 if TYPE_CHECKING:
     from .network import Network
+    from .lnsweep import SweepInfo
 
 class ListenerItem(NamedTuple):
     # this is triggered when the lnwatcher is all done with the outpoint used as index in LNWatcher.tx_progress
