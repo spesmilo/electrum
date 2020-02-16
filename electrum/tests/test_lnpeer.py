@@ -64,7 +64,7 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
-    async def broadcast_transaction(self, tx):
+    async def try_broadcasting(self, tx, name):
         if self.tx_queue:
             await self.tx_queue.put(tx)
 

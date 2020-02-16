@@ -692,12 +692,12 @@ class LNWallet(LNWorker):
             peer.on_network_update(chan, conf)
 
         elif chan.get_state() == channel_states.FORCE_CLOSING:
-            txid = chan.force_close_tx().txid()
+            force_close_tx = chan.force_close_tx()
+            txid = force_close_tx.txid()
             height = self.lnwatcher.get_tx_height(txid).height
-            self.logger.info(f"force closing tx {txid}, height {height}")
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
-                await self.force_close_channel(chan.channel_id)
+                await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     @ignore_exceptions
     @log_exceptions
@@ -769,12 +769,7 @@ class LNWallet(LNWorker):
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
         self.wallet.set_label(tx.txid(), name)
         if broadcast:
-            try:
-                await self.network.broadcast_transaction(tx)
-            except Exception as e:
-                self.logger.info(f'could NOT publish {name} for prevout: {prevout}, {str(e)}')
-            else:
-                self.logger.info(f'success: broadcasting {name} for prevout: {prevout}')
+            await self.network.try_broadcasting(tx, name)
         else:
             # it's OK to add local transaction, the fee will be recomputed
             try:
@@ -1266,11 +1261,7 @@ class LNWallet(LNWorker):
         chan = self.channels[chan_id]
         tx = chan.force_close_tx()
         chan.set_state(channel_states.FORCE_CLOSING)
-        try:
-            await self.network.broadcast_transaction(tx)
-        except Exception as e:
-            self.logger.info(f'could NOT publish {tx.txid()}, {str(e)}')
-            return
+        await self.network.try_broadcasting(tx, 'force-close')
         return tx.txid()
 
     def remove_channel(self, chan_id):

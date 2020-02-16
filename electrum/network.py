@@ -854,6 +854,14 @@ class Network(Logger):
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
+    async def try_broadcasting(self, tx, name):
+        try:
+            await self.broadcast_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'error: could not broadcast {name} {tx.txid()}, {str(e)}')
+        else:
+            self.logger.info(f'success: broadcasting {name} {tx.txid()}')
+
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:
         # Unfortunately, bitcoind and hence the Electrum protocol doesn't return a useful error code.
