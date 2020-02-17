@@ -716,7 +716,7 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
 
 
 def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as string
-    ipv6  = re.compile(r'\[(?P<host>[:0-9]+)\](?P<port>:\d+)?$')
+    ipv6  = re.compile(r'\[(?P<host>[:0-9a-f]+)\](?P<port>:\d+)?$')
     other = re.compile(r'(?P<host>[^:]+)(?P<port>:\d+)?$')
     m = ipv6.match(host_port)
     if not m:
