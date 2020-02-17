@@ -578,13 +578,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return balance
 
     def get_onchain_history(self, *, domain=None):
+        monotonic_timestamp = 0
         for hist_item in self.get_history(domain=domain):
+            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or float('inf')))
             yield {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
                 'height': hist_item.tx_mined_status.height,
                 'confirmations': hist_item.tx_mined_status.conf,
                 'timestamp': hist_item.tx_mined_status.timestamp,
+                'monotonic_timestamp': monotonic_timestamp,
                 'incoming': True if hist_item.delta>0 else False,
                 'bc_value': Satoshis(hist_item.delta),
                 'bc_balance': Satoshis(hist_item.balance),
@@ -724,29 +727,35 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
-        transactions = OrderedDictWithIndex()
+        transactions_tmp = OrderedDictWithIndex()
+        # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
         for tx_item in onchain_history:
             txid = tx_item['txid']
-            transactions[txid] = tx_item
+            transactions_tmp[txid] = tx_item
+        # add LN txns
         if self.lnworker and include_lightning:
             lightning_history = self.lnworker.get_history()
         else:
             lightning_history = []
-
         for i, tx_item in enumerate(lightning_history):
             txid = tx_item.get('txid')
             ln_value = Decimal(tx_item['amount_msat']) / 1000
-            if txid and txid in transactions:
-                item = transactions[txid]
+            if txid and txid in transactions_tmp:
+                item = transactions_tmp[txid]
                 item['label'] = tx_item['label']
                 item['ln_value'] = Satoshis(ln_value)
             else:
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)
-                tx_item['txpos'] = i # for sorting
                 key = tx_item.get('txid') or tx_item['payment_hash']
-                transactions[key] = tx_item
+                transactions_tmp[key] = tx_item
+        # sort on-chain and LN stuff into new dict, by timestamp
+        # (we rely on this being a *stable* sort)
+        transactions = OrderedDictWithIndex()
+        for k, v in sorted(list(transactions_tmp.items()),
+                           key=lambda x: x[1].get('monotonic_timestamp') or x[1].get('timestamp') or float('inf')):
+            transactions[k] = v
         now = time.time()
         balance = 0
         for item in transactions.values():

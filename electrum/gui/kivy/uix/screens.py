@@ -176,7 +176,7 @@ class HistoryScreen(CScreen):
         wallet = self.app.wallet
         if wallet is None:
             return
-        history = sorted(wallet.get_full_history(self.app.fx).values(), key=lambda x: x.get('timestamp') or float('inf'), reverse=True)
+        history = reversed(wallet.get_full_history(self.app.fx).values())
         history_card = self.screen.ids.history_container
         history_card.data = [self.get_card(item) for item in history]
 

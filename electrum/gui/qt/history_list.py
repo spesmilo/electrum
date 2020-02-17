@@ -141,7 +141,6 @@ class HistoryModel(QAbstractItemModel, Logger):
         timestamp = tx_item['timestamp']
         if is_lightning:
             status = 0
-            txpos = tx_item['txpos']
             if timestamp is None:
                 status_str = 'unconfirmed'
             else:
@@ -149,25 +148,18 @@ class HistoryModel(QAbstractItemModel, Logger):
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
-            txpos = tx_item['txpos_in_block'] or 0
-            height = tx_item['height']
             try:
                 status, status_str = self.tx_status_cache[tx_hash]
             except KeyError:
                 tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
                 status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        # we sort by timestamp
-        if timestamp is None:
-            timestamp = float("inf")
-
         if role == Qt.UserRole:
             # for sorting
             d = {
                 HistoryColumns.STATUS:
-                    # height breaks ties for unverified txns
-                    # txpos breaks ties for verified same block txns
-                    (-timestamp, conf, -status, -height, -txpos) if not is_lightning else (-timestamp, 0,0,0,-txpos),
+                    # respect sort order of self.transactions (wallet.get_full_history)
+                    -index.row(),
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
                 HistoryColumns.AMOUNT:
