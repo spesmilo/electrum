@@ -1112,10 +1112,15 @@ class ElectrumWindow(App):
     def on_fee(self, event, *arg):
         self.fee_status = self.electrum_config.get_fee_status()
 
-    def protected(self, f, args):
+    def protected(self, msg, f, args):
         if self.electrum_config.get('pin_code'):
             on_success = lambda pw: f(*(args + (self.password,)))
-            self.password_dialog(check_password=self.check_pin_code, on_success=on_success, on_failure=lambda: None, is_password=False)
+            self.password_dialog(
+                message = msg,
+                check_password=self.check_pin_code,
+                on_success=on_success,
+                on_failure=lambda: None,
+                is_password=False)
         else:
             f(*(args + (self.password,)))
 
@@ -1177,7 +1182,7 @@ class ElectrumWindow(App):
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
-        self.protected(self._show_seed, (label,))
+        self.protected(_("Enter PIN code to display your seed"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
         if self.wallet.has_password() and password is None:
@@ -1196,31 +1201,23 @@ class ElectrumWindow(App):
         if pin != self.electrum_config.get('pin_code'):
             raise InvalidPassword
 
-    def password_dialog(self, *, check_password: Callable = None,
-                        on_success: Callable = None, on_failure: Callable = None,
-                        is_password=True):
+    def password_dialog(self, **kwargs):
         if self._password_dialog is None:
             self._password_dialog = PasswordDialog()
-        self._password_dialog.init(
-            self, check_password = check_password,
-            on_success=on_success, on_failure=on_failure,
-            is_password=is_password)
+        self._password_dialog.init(self, **kwargs)
         self._password_dialog.open()
 
     def change_password(self, cb):
-        if self._password_dialog is None:
-            self._password_dialog = PasswordDialog()
         def on_success(old_password, new_password):
             self.wallet.update_password(old_password, new_password)
             self.password = new_password
             self.show_info(_("Your password was updated"))
         on_failure = lambda: self.show_error(_("Password not updated"))
-        self._password_dialog.init(
-            self, check_password = self.wallet.check_password,
+        self.password_dialog(
+            check_password = self.wallet.check_password,
             on_success=on_success, on_failure=on_failure,
             is_change=True, is_password=True,
             has_password=self.wallet.has_password())
-        self._password_dialog.open()
 
     def change_pin_code(self, cb):
         if self._password_dialog is None:

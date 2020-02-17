@@ -115,11 +115,12 @@ class PasswordDialog(Factory.Popup):
              check_password = None,
              on_success: Callable = None, on_failure: Callable = None,
              is_change: bool = False,
-             is_password: bool = False,
-             has_password: bool = False):
+             is_password: bool = True,
+             has_password: bool = False,
+             message: str = ''):
         self.app = app
         self.pw_check = check_password
-        self.message = ''
+        self.message = message
         self.on_success = on_success
         self.on_failure = on_failure
         self.success = False
@@ -134,7 +135,7 @@ class PasswordDialog(Factory.Popup):
     def update_screen(self):
         self.ids.kb.password = ''
         self.ids.textinput_generic_password.text = ''
-        if self.level == 0:
+        if self.level == 0 and self.message == '':
             self.message = _('Enter your password') if self.is_generic else _('Enter your PIN')
         elif self.level == 1:
             self.message = _('Enter new password') if self.is_generic else _('Enter new PIN')
