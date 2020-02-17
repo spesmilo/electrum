@@ -354,10 +354,10 @@ class LNWalletWatcher(LNWatcher):
             name = sweep_info.name
             spender_txid = spenders.get(prevout)
             if spender_txid is not None:
-                # TODO handle exceptions for network.get_transaction
-                # TODO don't do network request every time... save tx at least in memory, or maybe wallet file?
-                spender_tx = await self.network.get_transaction(spender_txid)
-                spender_tx = Transaction(spender_tx)
+                spender_tx = self.db.get_transaction(spender_txid)
+                if not spender_tx:
+                    keep_watching = True
+                    continue
                 e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)
                 if e_htlc_tx:
                     spender2 = spenders.get(spender_txid+':0')
