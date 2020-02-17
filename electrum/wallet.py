@@ -765,6 +765,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 value += item['bc_value'].value
             if item.get('ln_value'):
                 value += item.get('ln_value').value
+            # note: 'value' and 'balance' has msat precision (as LN has msat precision)
             item['value'] = Satoshis(value)
             balance += value
             item['balance'] = Satoshis(balance)
@@ -2426,7 +2427,7 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, db, storage: WalletStorage, *, config: SimpleConfig):
+    def __new__(self, db: 'WalletDB', storage: Optional[WalletStorage], *, config: SimpleConfig):
         wallet_type = db.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
         wallet = WalletClass(db, storage, config=config)
