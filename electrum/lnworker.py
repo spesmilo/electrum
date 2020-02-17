@@ -449,14 +449,14 @@ class LNWallet(LNWorker):
         timestamp = int(time.time())
         self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
 
-    def get_payments(self):
+    def get_settled_payments(self):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
         out = defaultdict(list)
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
-            d = chan.get_payments()
+            d = chan.get_settled_payments()
             for k, v in d.items():
                 out[k].append(v)
         return out
@@ -475,36 +475,13 @@ class LNWallet(LNWorker):
             'rhash': lnaddr.paymenthash.hex(),
         }
 
-    def get_unsettled_payments(self):
-        out = []
-        for payment_hash, plist in self.get_payments().items():
-            if len(plist) != 1:
-                continue
-            chan_id, htlc, _direction, status = plist[0]
-            if _direction != SENT:
-                continue
-            if status == 'settled':
-                continue
-            amount = htlc.amount_msat//1000
-            item = {
-                'is_lightning': True,
-                'status': status,
-                'key': payment_hash,
-                'amount': amount,
-                'timestamp': htlc.timestamp,
-                'label': self.wallet.get_label(payment_hash)
-            }
-            out.append(item)
-        return out
-
     def get_history(self):
         out = []
-        for key, plist in self.get_payments().items():
-            plist = list(filter(lambda x: x[3] == 'settled', plist))
+        for key, plist in self.get_settled_payments().items():
             if len(plist) == 0:
                 continue
             elif len(plist) == 1:
-                chan_id, htlc, _direction, status = plist[0]
+                chan_id, htlc, _direction = plist[0]
                 direction = 'sent' if _direction == SENT else 'received'
                 amount_msat = int(_direction) * htlc.amount_msat
                 timestamp = htlc.timestamp
@@ -520,10 +497,9 @@ class LNWallet(LNWorker):
             else:
                 # assume forwarding
                 direction = 'forwarding'
-                amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction, status in plist])
-                status = ''
+                amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction in plist])
                 label = _('Forwarding')
-                timestamp = min([htlc.timestamp for chan_id, htlc, _direction, status in plist])
+                timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
                 fee_msat = None # fixme
 
             item = {
@@ -532,7 +508,6 @@ class LNWallet(LNWorker):
                 'timestamp': timestamp or 0,
                 'date': timestamp_to_datetime(timestamp),
                 'direction': direction,
-                'status': status,
                 'amount_msat': amount_msat,
                 'fee_msat': fee_msat,
                 'payment_hash': key,
