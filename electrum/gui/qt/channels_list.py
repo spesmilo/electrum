@@ -5,6 +5,7 @@ from enum import IntEnum
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
+from PyQt5.QtGui import QFont
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
@@ -12,7 +13,8 @@ from electrum.lnchannel import Channel, peer_states
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WaitingDialog
+from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
+                   EnterButton, WaitingDialog, MONOSPACE_FONT)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .channel_details import ChannelDetailsDialog
 
@@ -48,6 +50,7 @@ class ChannelsList(MyTreeView):
         self.update_single_row.connect(self.do_update_single_row)
         self.network = self.parent.network
         self.lnworker = self.parent.wallet.lnworker
+        self.setSortingEnabled(True)
 
     def format_fields(self, chan):
         labels = {}
@@ -141,6 +144,9 @@ class ChannelsList(MyTreeView):
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
             items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
+            items[self.Columns.NODE_ID].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             self.model().insertRow(0, items)
 
     def get_toolbar(self):
