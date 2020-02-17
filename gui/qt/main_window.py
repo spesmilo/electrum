@@ -942,30 +942,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     status_tip = status_tip_dict["status_lagging_fork"] + "; " + text
             else:
                 c, u, x = self.wallet.get_balance()
-                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
+
+                text_items = [
+                    _("Balance: {amount_and_unit}").format(
+                        amount_and_unit=self.format_amount_and_units(c))
+                ]
+
                 if u:
-                    text +=  " [%s unconfirmed]"%(self.format_amount(u, True).strip())
+                    text_items.append(_("[{amount} unconfirmed]").format(
+                        amount=self.format_amount(u, True).strip()))
+
                 if x:
-                    text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
+                    text_items.append(_("[{amount} unmatured]").format(
+                        amount=self.format_amount(x, True).strip()))
 
                 extra = run_hook("balance_label_extra", self)
                 if isinstance(extra, str) and extra:
-                    text += " [{}]".format(extra)
+                    text_items.append(_("[{extra}]").format(extra=extra))
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
-                    text += self.fx.get_fiat_status_text(c + u + x,
-                        self.base_unit(), self.get_decimal_point()) or ''
+                    fiat_text = self.fx.get_fiat_status_text(c + u + x,
+                        self.base_unit(), self.get_decimal_point()).strip()
+                    if fiat_text:
+                        text_items.append(fiat_text)
                 n_unverif = self.wallet.get_unverified_tx_pending_count()
                 if n_unverif >= 10:
                     # if there are lots left to verify, display this informative text
-                    text += " " + ( _("[%d unverified TXs]") % n_unverif )
+                    text_items.append(_("[{count} unverified TXs]").format(count=n_unverif))
                 if not self.network.proxy:
                     icon = icon_dict["status_connected"] if num_chains <= 1 else icon_dict["status_connected_fork"]
                     status_tip = status_tip_dict["status_connected"] if num_chains <= 1 else status_tip_dict["status_connected_fork"]
                 else:
                     icon = icon_dict["status_connected_proxy"] if num_chains <= 1 else icon_dict["status_connected_proxy_fork"]
                     status_tip = status_tip_dict["status_connected_proxy"] if num_chains <= 1 else status_tip_dict["status_connected_proxy_fork"]
+
+                text = ' '.join(text_items)
         else:
             text = _("Not connected")
             icon = icon_dict["status_disconnected"]
