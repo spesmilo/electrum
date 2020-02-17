@@ -174,8 +174,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                     (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
                     + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
                 HistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0)\
-                    + (tx_item['balance_msat']//1000 if 'balance_msat'in tx_item else 0),
+                    (tx_item['balance'].value if 'balance' in tx_item else 0),
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 HistoryColumns.FIAT_ACQ_PRICE:

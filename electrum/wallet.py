@@ -741,7 +741,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 item = transactions[txid]
                 item['label'] = tx_item['label']
                 item['ln_value'] = Satoshis(ln_value)
-                item['ln_balance_msat'] = tx_item['balance_msat']
             else:
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)
