@@ -226,7 +226,11 @@ class ElectrumWindow(App):
             self.show_info(_('Payment Received') + '\n' + key)
             self._trigger_update_history()
 
-    def on_invoice_status(self, event, key, status):
+    def on_invoice_status(self, event, key):
+        req = self.wallet.get_invoice(key)
+        if req is None:
+            return
+        status = req['status']
         # todo: update single item
         self.update_tab('send')
         if self.invoice_popup and self.invoice_popup.key == key:

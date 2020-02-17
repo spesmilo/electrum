@@ -818,16 +818,18 @@ class LNWallet(LNWorker):
         for i in range(attempts):
             try:
                 route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
-            except NoPathFound as e:
+                self.set_payment_status(payment_hash, PR_INFLIGHT)
+                self.network.trigger_callback('invoice_status', key)
+                payment_attempt_log = await self._pay_to_route(route, lnaddr)
+            except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
+                self.set_payment_status(payment_hash, PR_UNPAID)
                 break
-            self.network.trigger_callback('invoice_status', key, PR_INFLIGHT)
-            payment_attempt_log = await self._pay_to_route(route, lnaddr)
             log.append(payment_attempt_log)
             success = payment_attempt_log.success
             if success:
                 break
-        self.network.trigger_callback('invoice_status', key, PR_PAID if success else PR_FAILED)
+        self.network.trigger_callback('invoice_status', key)
         return success
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
@@ -837,8 +839,9 @@ class LNWallet(LNWorker):
             self.channel_db.remove_channel(short_channel_id)
             raise Exception(f"PathFinder returned path with short_channel_id "
                             f"{short_channel_id} that is not in channel list")
-        self.set_payment_status(lnaddr.paymenthash, PR_INFLIGHT)
-        peer = self.peers[route[0].node_id]
+        peer = self.peers.get(route[0].node_id)
+        if not peer:
+            raise Exception('Dropped peer')
         htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
@@ -1054,6 +1057,14 @@ class LNWallet(LNWorker):
             status = info.status
         except UnknownPaymentHash:
             status = PR_UNPAID
+        return status
+
+    def get_invoice_status(self, key):
+        # status may be PR_FAILED
+        status = self.get_payment_status(bfh(key))
+        log = self.logs[key]
+        if status == PR_UNPAID and log:
+            status = PR_FAILED
         return status
 
     async def await_payment(self, payment_hash):

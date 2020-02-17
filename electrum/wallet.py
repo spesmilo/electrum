@@ -656,7 +656,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if request_type == PR_TYPE_ONCHAIN:
             item['status'] = PR_PAID if self.is_onchain_invoice_paid(item) else PR_UNPAID
         elif self.lnworker and request_type == PR_TYPE_LN:
-            item['status'] = self.lnworker.get_payment_status(bfh(item['rhash']))
+            item['status'] = self.lnworker.get_invoice_status(key)
         else:
             return
         return item
