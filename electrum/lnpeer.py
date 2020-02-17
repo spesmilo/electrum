@@ -953,112 +953,25 @@ class Peer(Logger):
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state(channel_states.OPEN)
         self.network.trigger_callback('channel', chan)
-        self.add_own_channel(chan)
+        # peer may have sent us a channel update for the incoming direction previously
+        pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
+        if pending_channel_update:
+            chan.set_remote_update(pending_channel_update['raw'])
         self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if forwarding_enabled:
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to to receive payments
             self.logger.info(f"sending channel update for outgoing edge of {scid}")
-            chan_upd = self.get_outgoing_gossip_channel_update_for_chan(chan)
+            chan_upd = chan.get_outgoing_gossip_channel_update()
             self.transport.send_bytes(chan_upd)
 
-    def add_own_channel(self, chan):
-        # add channel to database
-        bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
-        sorted_node_ids = list(sorted(self.node_ids))
-        if sorted_node_ids != self.node_ids:
-            bitcoin_keys.reverse()
-        # note: we inject a channel announcement, and a channel update (for outgoing direction)
-        # This is atm needed for
-        # - finding routes
-        # - the ChanAnn is needed so that we can anchor to it a future ChanUpd
-        #   that the remote sends, even if the channel was not announced
-        #   (from BOLT-07: "MAY create a channel_update to communicate the channel
-        #    parameters to the final node, even though the channel has not yet been announced")
-        self.channel_db.add_channel_announcement(
-            {
-                "short_channel_id": chan.short_channel_id,
-                "node_id_1": sorted_node_ids[0],
-                "node_id_2": sorted_node_ids[1],
-                'chain_hash': constants.net.rev_genesis_bytes(),
-                'len': b'\x00\x00',
-                'features': b'',
-                'bitcoin_key_1': bitcoin_keys[0],
-                'bitcoin_key_2': bitcoin_keys[1]
-            },
-            trusted=True)
-        # only inject outgoing direction:
-        chan_upd_bytes = self.get_outgoing_gossip_channel_update_for_chan(chan)
-        chan_upd_payload = decode_msg(chan_upd_bytes)[1]
-        self.channel_db.add_channel_update(chan_upd_payload)
-        # peer may have sent us a channel update for the incoming direction previously
-        pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
-        if pending_channel_update:
-            chan.set_remote_update(pending_channel_update['raw'])
-        # add remote update with a fresh timestamp
-        if chan.get_remote_update():
-            now = int(time.time())
-            remote_update_decoded = decode_msg(chan.get_remote_update())[1]
-            remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
-            self.channel_db.add_channel_update(remote_update_decoded)
-
-    def get_outgoing_gossip_channel_update_for_chan(self, chan: Channel) -> bytes:
-        if chan._outgoing_channel_update is not None:
-            return chan._outgoing_channel_update
-        sorted_node_ids = list(sorted(self.node_ids))
-        channel_flags = b'\x00' if sorted_node_ids[0] == privkey_to_pubkey(self.privkey) else b'\x01'
-        now = int(time.time())
-        htlc_maximum_msat = min(chan.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * chan.constraints.capacity)
-
-        chan_upd = encode_msg(
-            "channel_update",
-            short_channel_id=chan.short_channel_id,
-            channel_flags=channel_flags,
-            message_flags=b'\x01',
-            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
-            htlc_minimum_msat=chan.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
-            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
-            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
-            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
-            chain_hash=constants.net.rev_genesis_bytes(),
-            timestamp=now.to_bytes(4, byteorder="big"),
-        )
-        sighash = sha256d(chan_upd[2 + 64:])
-        sig = ecc.ECPrivkey(self.privkey).sign(sighash, sig_string_from_r_and_s)
-        message_type, payload = decode_msg(chan_upd)
-        payload['signature'] = sig
-        chan_upd = encode_msg(message_type, **payload)
-
-        chan._outgoing_channel_update = chan_upd
-        return chan_upd
-
     def send_announcement_signatures(self, chan: Channel):
-
-        bitcoin_keys = [chan.config[REMOTE].multisig_key.pubkey,
-                        chan.config[LOCAL].multisig_key.pubkey]
-
-        sorted_node_ids = list(sorted(self.node_ids))
-        if sorted_node_ids != self.node_ids:
-            node_ids = sorted_node_ids
-            bitcoin_keys.reverse()
-        else:
-            node_ids = self.node_ids
-
-        chan_ann = encode_msg("channel_announcement",
-            len=0,
-            #features not set (defaults to zeros)
-            chain_hash=constants.net.rev_genesis_bytes(),
-            short_channel_id=chan.short_channel_id,
-            node_id_1=node_ids[0],
-            node_id_2=node_ids[1],
-            bitcoin_key_1=bitcoin_keys[0],
-            bitcoin_key_2=bitcoin_keys[1]
-        )
-        to_hash = chan_ann[256+2:]
-        h = sha256d(to_hash)
-        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s)
+        chan_ann = chan.construct_channel_announcement_without_sigs()
+        preimage = chan_ann[256+2:]
+        msg_hash = sha256d(preimage)
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(msg_hash, sig_string_from_r_and_s)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(msg_hash, sig_string_from_r_and_s)
         self.send_message("announcement_signatures",
             channel_id=chan.channel_id,
             short_channel_id=chan.short_channel_id,
@@ -1066,7 +979,7 @@ class Peer(Logger):
             bitcoin_signature=bitcoin_signature
         )
 
-        return h, node_signature, bitcoin_signature
+        return msg_hash, node_signature, bitcoin_signature
 
     def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
@@ -1255,7 +1168,7 @@ class Peer(Logger):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
             return
-        outgoing_chan_upd = self.get_outgoing_gossip_channel_update_for_chan(next_chan)[2:]
+        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         if next_chan.get_state() != channel_states.OPEN:
             self.logger.info(f"cannot forward htlc. next_chan not OPEN: {next_chan_scid} in state {next_chan.get_state()}")

@@ -32,13 +32,14 @@ import time
 import threading
 
 from . import ecc
+from . import constants
 from .util import bfh, bh2u
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction
 from .logging import Logger
-
 from .lnonion import decode_onion_error
+from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
                     sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
@@ -47,10 +48,10 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
                     ShortChannelID, map_htlcs_to_ctx_output_idxs)
-from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
+from .lnmsg import encode_msg, decode_msg
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -136,7 +137,6 @@ class Channel(Logger):
         self.funding_outpoint = state["funding_outpoint"]
         self.node_id = bfh(state["node_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
-        self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = state['onion_keys']
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
@@ -144,6 +144,7 @@ class Channel(Logger):
         self.peer_state = peer_states.DISCONNECTED
         self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
         self._outgoing_channel_update = None  # type: Optional[bytes]
+        self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
 
     def set_onion_key(self, key, value):
@@ -158,11 +159,76 @@ class Channel(Logger):
     def get_data_loss_protect_remote_pcp(self, key):
         return self.data_loss_protect_remote_pcp.get(key)
 
-    def set_remote_update(self, raw):
+    def get_local_pubkey(self) -> bytes:
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+        return self.lnworker.node_keypair.pubkey
+
+    def set_remote_update(self, raw: bytes) -> None:
         self.storage['remote_update'] = raw.hex()
 
-    def get_remote_update(self):
+    def get_remote_update(self) -> Optional[bytes]:
         return bfh(self.storage.get('remote_update')) if self.storage.get('remote_update') else None
+
+    def get_outgoing_gossip_channel_update(self) -> bytes:
+        if self._outgoing_channel_update is not None:
+            return self._outgoing_channel_update
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+        sorted_node_ids = list(sorted([self.node_id, self.get_local_pubkey()]))
+        channel_flags = b'\x00' if sorted_node_ids[0] == self.get_local_pubkey() else b'\x01'
+        now = int(time.time())
+        htlc_maximum_msat = min(self.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * self.constraints.capacity)
+
+        chan_upd = encode_msg(
+            "channel_update",
+            short_channel_id=self.short_channel_id,
+            channel_flags=channel_flags,
+            message_flags=b'\x01',
+            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
+            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
+            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
+            chain_hash=constants.net.rev_genesis_bytes(),
+            timestamp=now.to_bytes(4, byteorder="big"),
+        )
+        sighash = sha256d(chan_upd[2 + 64:])
+        sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
+        message_type, payload = decode_msg(chan_upd)
+        payload['signature'] = sig
+        chan_upd = encode_msg(message_type, **payload)
+
+        self._outgoing_channel_update = chan_upd
+        return chan_upd
+
+    def construct_channel_announcement_without_sigs(self) -> bytes:
+        if self._chan_ann_without_sigs is not None:
+            return self._chan_ann_without_sigs
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+
+        bitcoin_keys = [self.config[REMOTE].multisig_key.pubkey,
+                        self.config[LOCAL].multisig_key.pubkey]
+        node_ids = [self.node_id, self.get_local_pubkey()]
+        sorted_node_ids = list(sorted(node_ids))
+        if sorted_node_ids != node_ids:
+            node_ids = sorted_node_ids
+            bitcoin_keys.reverse()
+
+        chan_ann = encode_msg("channel_announcement",
+            len=0,
+            features=b'',
+            chain_hash=constants.net.rev_genesis_bytes(),
+            short_channel_id=self.short_channel_id,
+            node_id_1=node_ids[0],
+            node_id_2=node_ids[1],
+            bitcoin_key_1=bitcoin_keys[0],
+            bitcoin_key_2=bitcoin_keys[1]
+        )
+
+        self._chan_ann_without_sigs = chan_ann
+        return chan_ann
 
     def set_short_channel_id(self, short_id):
         self.short_channel_id = short_id

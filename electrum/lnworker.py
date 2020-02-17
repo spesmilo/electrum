@@ -942,16 +942,20 @@ class LNWallet(LNWorker):
         random.shuffle(r_tags)
         with self.lock:
             channels = list(self.channels.values())
+        scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
+                               if chan.short_channel_id is not None}
         for private_route in r_tags:
             if len(private_route) == 0:
                 continue
             if len(private_route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
                 continue
             border_node_pubkey = private_route[0][0]
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, channels)
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                                                                  my_channels=scid_to_my_channels)
             if not path:
                 continue
-            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
+            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
+                                                                    my_channels=scid_to_my_channels)
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
             private_route_rest = [edge[1:] for edge in private_route]
@@ -961,7 +965,9 @@ class LNWallet(LNWorker):
                 short_channel_id = ShortChannelID(short_channel_id)
                 # if we have a routing policy for this edge in the db, that takes precedence,
                 # as it is likely from a previous failure
-                channel_policy = self.channel_db.get_routing_policy_for_channel(prev_node_id, short_channel_id)
+                channel_policy = self.channel_db.get_policy_for_node(short_channel_id=short_channel_id,
+                                                                     node_id=prev_node_id,
+                                                                     my_channels=scid_to_my_channels)
                 if channel_policy:
                     fee_base_msat = channel_policy.fee_base_msat
                     fee_proportional_millionths = channel_policy.fee_proportional_millionths
@@ -977,10 +983,12 @@ class LNWallet(LNWorker):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat, channels)
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                                                                  my_channels=scid_to_my_channels)
             if not path:
                 raise NoPathFound()
-            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
+            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
+                                                                    my_channels=scid_to_my_channels)
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
@@ -1099,6 +1107,8 @@ class LNWallet(LNWorker):
         routing_hints = []
         with self.lock:
             channels = list(self.channels.values())
+        scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
+                               if chan.short_channel_id is not None}
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
             # check channel is open
@@ -1110,7 +1120,7 @@ class LNWallet(LNWorker):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
-            channel_info = self.channel_db.get_channel_info(chan_id)
+            channel_info = self.channel_db.get_channel_info(chan_id, my_channels=scid_to_my_channels)
             # note: as a fallback, if we don't have a channel update for the
             # incoming direction of our private channel, we fill the invoice with garbage.
             # the sender should still be able to pay us, but will incur an extra round trip
@@ -1120,7 +1130,8 @@ class LNWallet(LNWorker):
             cltv_expiry_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
-                policy = self.channel_db.get_policy_for_node(channel_info.short_channel_id, chan.node_id)
+                policy = self.channel_db.get_policy_for_node(channel_info.short_channel_id, chan.node_id,
+                                                             my_channels=scid_to_my_channels)
                 if policy:
                     fee_base_msat = policy.fee_base_msat
                     fee_proportional_millionths = policy.fee_proportional_millionths
