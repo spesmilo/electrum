@@ -246,6 +246,22 @@ class Channel(Logger):
     def get_next_feerate(self, subject):
         return self.hm.get_feerate_in_next_ctx(subject)
 
+    def get_payments(self):
+        out = []
+        for subject in LOCAL, REMOTE:
+            log = self.hm.log[subject]
+            for htlc_id, htlc in log.get('adds', {}).items():
+                if htlc_id in log.get('fails',{}):
+                    status = 'failed'
+                elif htlc_id in log.get('settles',{}):
+                    status = 'settled'
+                else:
+                    status = 'inflight'
+                direction = SENT if subject is LOCAL else RECEIVED
+                rhash = bh2u(htlc.payment_hash)
+                out.append((rhash, self.channel_id, htlc, direction, status))
+        return out
+
     def get_settled_payments(self):
         out = {}
         for subject in LOCAL, REMOTE:

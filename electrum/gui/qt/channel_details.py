@@ -54,8 +54,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-            for pay_hash, item in htlcs.items():
-                chan_id, i, direction, status = item
+            for item in htlcs:
+                pay_hash, chan_id, i, direction, status = item
                 if status != keyname:
                     continue
                 it = self.make_htlc_item(i, direction)
