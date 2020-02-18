@@ -137,7 +137,6 @@ class HistoryScreen(CScreen):
         key = tx_item.get('txid') or tx_item['payment_hash']
         if is_lightning:
             status = 0
-            txpos = tx_item['txpos']
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = "atlas://electrum/gui/kivy/theming/light/lightning"
             message = tx_item['label']
@@ -147,8 +146,6 @@ class HistoryScreen(CScreen):
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
-            txpos = tx_item['txpos_in_block'] or 0
-            height = tx_item['height']
             tx_mined_info = TxMinedInfo(height=tx_item['height'],
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
