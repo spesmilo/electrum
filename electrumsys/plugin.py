@@ -650,6 +650,10 @@ class DeviceMgr(ThreadJob):
                 if len(id_) == 0:
                     id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
+                # The BitBox02's product_id is not unique per device, thus use the path instead to
+                # distinguish devices.
+                if d["product_id"] == 0x2403:
+                    id_ = d['path']
                 devices.append(Device(path=d['path'],
                                       interface_number=interface_number,
                                       id_=id_,

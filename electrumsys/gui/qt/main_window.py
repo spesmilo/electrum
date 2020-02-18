@@ -2513,7 +2513,9 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             def show_mpk(index):
                 mpk_text.setText(mpk_list[index])
                 mpk_text.repaint()  # macOS hack for #4777
-                
+
+            # declare this value such that the hooks can later figure out what to do
+            labels_clayout = None
             # only show the combobox in case multiple accounts are available
             if len(mpk_list) > 1:
                 # only show the combobox if multiple master keys are defined
@@ -2528,6 +2530,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
                 on_click = lambda clayout: show_mpk(clayout.selected_index())
                 labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
+                labels_clayout.selected_index()
             else:
                 vbox.addWidget(QLabel(_("Master Public Key")))
 
@@ -2535,7 +2538,10 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             vbox.addWidget(mpk_text)
 
         vbox.addStretch(1)
-        btns = run_hook('wallet_info_buttons', self, dialog) or Buttons(CloseButton(dialog))
+        btn_export_info = run_hook('wallet_info_buttons', self, dialog)
+        btn_show_xpub = run_hook('show_xpub_button', self, dialog, labels_clayout)
+        btn_close = CloseButton(dialog)
+        btns = Buttons(btn_export_info, btn_show_xpub, btn_close)
         vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()
