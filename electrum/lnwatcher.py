@@ -336,7 +336,7 @@ class LNWalletWatcher(LNWatcher):
         if not chan:
             return
         if funding_height.height == TX_HEIGHT_LOCAL:
-            self.lnworker.channel_timestamps.pop(bh2u(chan.channel_id))
+            self.lnworker.channel_timestamps.pop(bh2u(chan.channel_id), None)
             return
         elif closing_height.height == TX_HEIGHT_LOCAL:
             await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
