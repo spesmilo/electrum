@@ -170,13 +170,14 @@ class LNWatcher(AddressSynchronizer):
         if not self.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
-        if not self.up_to_date:
-            return
         for address, outpoint in self.channels.items():
             await self.check_onchain_situation(address, outpoint)
 
     async def check_onchain_situation(self, address, funding_outpoint):
         spenders = self.inspect_tx_candidate(funding_outpoint, 0)
+        # inspect_tx_candidate might have added new addresses, in which case we return ealy
+        if not self.is_up_to_date():
+            return
         funding_txid = funding_outpoint.split(':')[0]
         funding_height = self.get_tx_height(funding_txid)
         closing_txid = spenders.get(funding_outpoint)
