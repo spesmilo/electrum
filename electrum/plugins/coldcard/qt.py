@@ -57,7 +57,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         btn = QPushButton(_("Export for Coldcard"))
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
 
-        return Buttons(btn, CloseButton(dialog))
+        return btn
 
     def export_multisig_setup(self, main_window, wallet):
 

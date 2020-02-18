@@ -432,6 +432,21 @@ def address_to_script(addr: str, *, net=None) -> str:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
+def address_to_hash(addr: str, *, net=None) -> Tuple[int, bytes]:
+    """Return the pubkey hash / witness program of an address"""
+    if net is None: net = constants.net
+    if not is_address(addr, net=net):
+        raise BitcoinException(f"invalid bitcoin address: {addr}")
+    witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+    if witprog is not None:
+        if len(witprog) == 20:
+            return WIF_SCRIPT_TYPES['p2wpkh'], bytes(witprog)
+        return WIF_SCRIPT_TYPES['p2wsh'], bytes(witprog)
+    addrtype, hash_160_ = b58_address_to_hash160(addr)
+    if addrtype == net.ADDRTYPE_P2PKH:
+        return WIF_SCRIPT_TYPES['p2pkh'], hash_160_
+    return WIF_SCRIPT_TYPES['p2sh'], hash_160_
+
 def address_to_scripthash(addr: str) -> str:
     script = address_to_script(addr)
     return script_to_scripthash(script)
