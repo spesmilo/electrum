@@ -576,16 +576,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
-            self.show_transaction(tx_item)
+            tx_hash = tx_item['txid']
+            tx = self.wallet.db.get_transaction(tx_hash)
+            if not tx:
+                return
+            self.show_transaction(tx_item, tx)
 
-    def show_transaction(self, tx_item):
-        if tx_item.get('lightning'):
-            self.parent.show_lightning_transaction(tx_item)
-            return
+    def show_transaction(self, tx_item, tx):
         tx_hash = tx_item['txid']
-        tx = self.wallet.db.get_transaction(tx_hash)
-        if not tx:
-            return
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
         self.parent.show_transaction(tx, tx_desc=label)
 
@@ -608,15 +606,16 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # can happen e.g. before list is populated for the first time
             return
         tx_item = self.hm.transactions.value_from_pos(idx.row())
-        if tx_item.get('lightning'):
+        if tx_item.get('lightning') and tx_item['type'] == 'payment':
             menu = QMenu()
-            #tx_hash = tx_item['txid']
-            #menu.addAction(_("Copy Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
             menu.addAction(_("Details"), lambda: self.parent.show_lightning_transaction(tx_item))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
-        tx = self.wallet.db.get_transaction(tx_hash)
+        if tx_item.get('lightning'):
+            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(tx_hash)
+        else:
+            tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
@@ -635,7 +634,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item, tx))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None

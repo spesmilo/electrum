@@ -41,7 +41,7 @@ class LightningTxDialog(WindowModalDialog):
     def __init__(self, parent: 'ElectrumWindow', tx_item: dict):
         WindowModalDialog.__init__(self, parent, _("Lightning Payment"))
         self.parent = parent
-        self.is_sent = bool(tx_item['direction'] is 'sent')
+        self.is_sent = bool(tx_item['direction'] == 'sent')
         self.label = tx_item['label']
         self.timestamp = tx_item['timestamp']
         self.amount = Decimal(tx_item['amount_msat']) /1000
