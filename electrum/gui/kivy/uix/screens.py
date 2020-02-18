@@ -126,6 +126,10 @@ class HistoryScreen(CScreen):
 
     def show_item(self, obj):
         key = obj.key
+        tx_item = self.history.get(key)
+        if obj.is_lightning:
+            self.app.lightning_tx_dialog(tx_item)
+            return
         tx = self.app.wallet.db.get_transaction(key)
         if not tx:
             return
@@ -156,6 +160,7 @@ class HistoryScreen(CScreen):
             fee_text = '' if fee is None else 'fee: %d sat'%fee
         ri = {}
         ri['screen'] = self
+        ri['is_lightning'] = is_lightning
         ri['key'] = key
         ri['icon'] = icon
         ri['date'] = status_str
@@ -173,7 +178,8 @@ class HistoryScreen(CScreen):
         wallet = self.app.wallet
         if wallet is None:
             return
-        history = reversed(wallet.get_full_history(self.app.fx).values())
+        self.history = wallet.get_full_history(self.app.fx)
+        history = reversed(self.history.values())
         history_card = self.screen.ids.history_container
         history_card.data = [self.get_card(item) for item in history]
 

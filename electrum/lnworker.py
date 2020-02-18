@@ -502,6 +502,9 @@ class LNWallet(LNWorker):
                 timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
                 fee_msat = None # fixme
 
+            payment_hash = bytes.fromhex(key)
+            preimage = self.get_preimage(payment_hash).hex()
+
             item = {
                 'type': 'payment',
                 'label': label,
@@ -511,6 +514,7 @@ class LNWallet(LNWorker):
                 'amount_msat': amount_msat,
                 'fee_msat': fee_msat,
                 'payment_hash': key,
+                'preimage': preimage,
             }
             out.append(item)
         # add funding events

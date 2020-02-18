@@ -956,6 +956,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, parent=self, desc=tx_desc)
 
+    def show_lightning_transaction(self, tx_item):
+        from .lightning_tx_dialog import LightningTxDialog
+        d = LightningTxDialog(self, tx_item)
+        d.show()
+
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2

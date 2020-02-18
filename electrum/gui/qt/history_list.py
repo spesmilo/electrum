@@ -580,6 +580,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def show_transaction(self, tx_item):
         if tx_item.get('lightning'):
+            self.parent.show_lightning_transaction(tx_item)
             return
         tx_hash = tx_item['txid']
         tx = self.wallet.db.get_transaction(tx_hash)
@@ -608,6 +609,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         tx_item = self.hm.transactions.value_from_pos(idx.row())
         if tx_item.get('lightning'):
+            menu = QMenu()
+            #tx_hash = tx_item['txid']
+            #menu.addAction(_("Copy Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
+            menu.addAction(_("Details"), lambda: self.parent.show_lightning_transaction(tx_item))
+            menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
         tx = self.wallet.db.get_transaction(tx_hash)

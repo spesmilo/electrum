@@ -1040,6 +1040,11 @@ class ElectrumWindow(App):
         d = TxDialog(self, tx)
         d.open()
 
+    def lightning_tx_dialog(self, tx):
+        from .uix.dialogs.lightning_tx_dialog import LightningTxDialog
+        d = LightningTxDialog(self, tx)
+        d.open()
+
     def sign_tx(self, *args):
         threading.Thread(target=self._sign_tx, args=args).start()
 
