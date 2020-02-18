@@ -98,7 +98,7 @@ class LightningTxDialog(Factory.Popup):
         self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
         self._action_button_fn = lambda btn: None
-        self.is_sent = bool(tx_item['direction'] is 'sent')
+        self.is_sent = bool(tx_item['direction'] == 'sent')
         self.description = tx_item['label']
         self.timestamp = tx_item['timestamp']
         self.date_str = datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
