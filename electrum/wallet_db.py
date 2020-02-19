@@ -538,7 +538,7 @@ class WalletDB(JsonDB):
         if not self._is_upgrade_method_needed(24, 24):
             return
         # add 'type' feld to onchain requests
-        requests = self.data['payment_requests']
+        requests = self.data.get('payment_requests', {})
         for k, r in list(requests.items()):
             if r.get('address') == k:
                 requests[k] = {
@@ -551,7 +551,7 @@ class WalletDB(JsonDB):
                     'type': PR_TYPE_ONCHAIN,
                 }
         # convert bip70 invoices
-        invoices = self.data['invoices']
+        invoices = self.data.get('invoices', {})
         for k, r in list(invoices.items()):
             data = r.get("hex")
             if data:
