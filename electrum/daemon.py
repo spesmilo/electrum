@@ -198,7 +198,7 @@ class PayServer(Logger):
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
-        app.add_routes([web.static(root, 'electrum/www')])
+        app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, port=port, host=host, ssl_context=self.config.get_ssl_context())
