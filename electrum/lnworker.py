@@ -1163,6 +1163,14 @@ class LNWallet(LNWorker):
         with self.lock:
             return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0 for chan in self.channels.values()))/1000
 
+    def can_send(self):
+        with self.lock:
+            return Decimal(max(chan.available_to_spend(LOCAL) if chan.is_open() else 0 for chan in self.channels.values()))/1000
+
+    def can_receive(self):
+        with self.lock:
+            return Decimal(max(chan.available_to_spend(REMOTE) if chan.is_open() else 0 for chan in self.channels.values()))/1000
+
     def list_channels(self):
         encoder = MyEncoder()
         with self.lock:

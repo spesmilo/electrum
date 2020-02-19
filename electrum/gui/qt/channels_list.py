@@ -130,6 +130,7 @@ class ChannelsList(MyTreeView):
             if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
                 for column, v in enumerate(self.format_fields(chan)):
                     self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+        self.update_can_send(self.parent.wallet.lnworker)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
     def do_update_rows(self, wallet):
@@ -138,6 +139,7 @@ class ChannelsList(MyTreeView):
         lnworker = self.parent.wallet.lnworker
         if not lnworker:
             return
+        self.update_can_send(lnworker)
         self.model().clear()
         self.update_headers(self.headers)
         for chan in lnworker.channels.values():
@@ -149,8 +151,17 @@ class ChannelsList(MyTreeView):
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             self.model().insertRow(0, items)
 
+    def update_can_send(self, lnworker):
+        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.can_send())\
+              + ' ' + self.parent.base_unit() + '; '\
+              + _('can receive') + ' ' + self.parent.format_amount(lnworker.can_receive())\
+              + ' ' + self.parent.base_unit()
+        self.can_send_label.setText(msg)
+
     def get_toolbar(self):
         h = QHBoxLayout()
+        self.can_send_label = QLabel('')
+        h.addWidget(self.can_send_label)
         h.addStretch()
         h.addWidget(EnterButton(_('Open Channel'), self.new_channel_dialog))
         return h

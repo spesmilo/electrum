@@ -298,6 +298,9 @@ class Channel(Logger):
     def get_state(self):
         return self._state
 
+    def is_open(self):
+        return self.get_state() == channel_states.OPEN
+
     def is_closing(self):
         return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
 

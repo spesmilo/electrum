@@ -52,11 +52,20 @@ Builder.load_string(r'''
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
     title: _('Lightning channels.')
+    can_send: ''
+    can_receive: ''
     id: popup
     BoxLayout:
         id: box
         orientation: 'vertical'
-        spacing: '1dp'
+        spacing: '2dp'
+        padding: '12dp'
+        BoxLabel:
+            text: _('Can send') + ':'
+            value: root.can_send
+        BoxLabel:
+            text: _('Can receive') + ':'
+            value: root.can_receive
         ScrollView:
             GridLayout:
                 cols: 1
@@ -64,12 +73,17 @@ Builder.load_string(r'''
                 size_hint: 1, None
                 height: self.minimum_height
                 spacing: '2dp'
-                padding: '12dp'
-        Button:
+        BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            text: _('New channel...')
-            on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
+            Widget:
+                size_hint: 0.7, None
+                height: '48dp'
+            Button:
+                size_hint: 0.3, None
+                height: '48dp'
+                text: _('New...')
+                on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
 
 <ChannelDetailsList@RecycleView>:
     scroll_type: ['bars', 'content']
@@ -147,6 +161,7 @@ class ChannelDetailsPopup(Popup):
             _('Remote CTN'): chan.get_latest_ctn(REMOTE),
             _('Capacity'): self.app.format_amount_and_units(chan.constraints.capacity),
             _('Can send'): self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000),
+            _('Can receive'): self.app.format_amount_and_units(chan.available_to_spend(REMOTE) // 1000),
             _('Current feerate'): str(chan.get_latest_feerate(LOCAL)),
             _('Node ID'): bh2u(chan.node_id),
             _('Channel ID'): bh2u(chan.channel_id),
@@ -202,6 +217,7 @@ class LightningChannelsDialog(Factory.Popup):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app
+        self.can_send = ''
         self.update()
 
     def show_item(self, obj):
@@ -231,6 +247,7 @@ class LightningChannelsDialog(Factory.Popup):
         l, r = self.format_fields(chan)
         item.local_balance = _('Local') + ':' + l
         item.remote_balance = _('Remote') + ': ' + r
+        self.update_can_send()
 
     def update(self):
         channel_cards = self.ids.lightning_channels_container
@@ -245,3 +262,9 @@ class LightningChannelsDialog(Factory.Popup):
             item._chan = i
             self.update_item(item)
             channel_cards.add_widget(item)
+        self.update_can_send()
+
+    def update_can_send(self):
+        lnworker = self.app.wallet.lnworker
+        self.can_send = self.app.format_amount_and_units(lnworker.can_send())
+        self.can_receive = self.app.format_amount_and_units(lnworker.can_receive())
