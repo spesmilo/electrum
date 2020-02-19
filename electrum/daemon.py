@@ -513,11 +513,13 @@ class Daemon(Logger):
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')
-        gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
-        self.gui_object = gui.ElectrumGui(config, self, plugins)
         try:
+            gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
+            self.gui_object = gui.ElectrumGui(config, self, plugins)
             self.gui_object.main()
         except BaseException as e:
-            self.logger.exception('')
+            self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')
+            raise
+        finally:
             # app will exit now
-        self.on_stop()
+            self.on_stop()

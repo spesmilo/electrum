@@ -370,8 +370,13 @@ if __name__ == '__main__':
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
             d = daemon.Daemon(config, fd)
-            d.run_gui(config, plugins)
-            sys_exit(0)
+            try:
+                d.run_gui(config, plugins)
+            except BaseException as e:
+                _logger.exception('daemon.run_gui errored')
+                sys_exit(1)
+            else:
+                sys_exit(0)
         else:
             result = daemon.request(config, 'gui', (config_options,))
 
