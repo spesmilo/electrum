@@ -1624,7 +1624,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'address':addr,
             'memo':message,
             'id':_id,
-            'outputs': [PartialTxOutput.from_address_and_value(addr, amount)],
         }
 
     def sign_payment_request(self, key, alias, alias_addr, password):
