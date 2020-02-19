@@ -40,6 +40,7 @@ from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, Remote
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
 from .plugin import run_hook, plugin_loaders
+from .paymentrequest import PaymentRequest
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 24     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 25     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -169,6 +170,7 @@ class WalletDB(JsonDB):
         self._convert_version_22()
         self._convert_version_23()
         self._convert_version_24()
+        self._convert_version_25()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -531,6 +533,43 @@ class WalletDB(JsonDB):
         self.data['txo'] = txo
 
         self.data['seed_version'] = 24
+
+    def _convert_version_25(self):
+        if not self._is_upgrade_method_needed(24, 24):
+            return
+        # add 'type' feld to onchain requests
+        requests = self.data['payment_requests']
+        for k, r in list(requests.items()):
+            if r.get('address') == k:
+                requests[k] = {
+                    'address': r['address'],
+                    'amount': r.get('amount'),
+                    'exp': r.get('exp'),
+                    'id': r.get('id'),
+                    'memo': r.get('memo'),
+                    'time': r.get('time'),
+                    'type': PR_TYPE_ONCHAIN,
+                }
+        # convert bip70 invoices
+        invoices = self.data['invoices']
+        for k, r in list(invoices.items()):
+            data = r.get("hex")
+            if data:
+                pr = PaymentRequest(bytes.fromhex(data))
+                if pr.id != k:
+                    continue
+                invoices[k] = {
+                    'type': PR_TYPE_ONCHAIN,
+                    'amount': pr.get_amount(),
+                    'bip70': data,
+                    'exp': pr.get_expiration_date(),
+                    'id': pr.id,
+                    'message': pr.get_memo(),
+                    'outputs': [x.to_legacy_tuple() for x in pr.get_outputs()],
+                    'time': pr.get_time(),
+                    'requestor': pr.get_requestor(),
+                }
+        self.data['seed_version'] = 25
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
