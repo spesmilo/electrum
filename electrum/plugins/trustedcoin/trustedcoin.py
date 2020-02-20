@@ -264,9 +264,9 @@ class Wallet_2fa(Multisig_Wallet):
 
     wallet_type = '2fa'
 
-    def __init__(self, db, *, config):
+    def __init__(self, db, storage, *, config):
         self.m, self.n = 2, 3
-        Deterministic_Wallet.__init__(self, db, config=config)
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
         self.is_billing = False
         self.billing_info = None
         self._load_billing_addresses()
