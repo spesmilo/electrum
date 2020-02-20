@@ -1167,11 +1167,11 @@ class LNWallet(LNWorker):
 
     def can_send(self):
         with self.lock:
-            return Decimal(max(chan.available_to_spend(LOCAL) if chan.is_open() else 0 for chan in self.channels.values()))/1000
+            return Decimal(max(chan.available_to_spend(LOCAL) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 
     def can_receive(self):
         with self.lock:
-            return Decimal(max(chan.available_to_spend(REMOTE) if chan.is_open() else 0 for chan in self.channels.values()))/1000
+            return Decimal(max(chan.available_to_spend(REMOTE) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 
     async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
