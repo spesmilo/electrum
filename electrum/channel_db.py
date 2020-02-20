@@ -410,6 +410,10 @@ class ChannelDB(SqlDB):
             to_delete=to_delete,
         )
 
+    def add_channel_update(self, payload):
+        # called from tests
+        self.add_channel_updates([payload], verify=False)
+
     def create_database(self):
         c = self.conn.cursor()
         c.execute(create_node_info)
