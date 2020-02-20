@@ -31,7 +31,7 @@ Popup:
                         value: app.wallet.wallet_type
                     BoxLabel:
                         text: _("Lightning:")
-                        value: _('Enabled') if app.wallet.has_lightning() else _('Disabled')
+                        value: (_('Enabled') if app.wallet.has_lightning() else _('Disabled')) if app.wallet.can_have_lightning() else _('Not available')
                     BoxLabel:
                         text: _("Balance") + ':'
                         value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
@@ -90,6 +90,7 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                disabled: not app.wallet.can_have_lightning()
                 text: _('Disable LN') if app.wallet.has_lightning() else _('Enable LN')
                 on_release:
                     root.dismiss()

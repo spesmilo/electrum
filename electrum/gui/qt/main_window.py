@@ -2190,20 +2190,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
             grid.addWidget(QLabel(ks_type), 4, 1)
         # lightning
-        if self.wallet.has_lightning():
-            lightning_b = QPushButton(_('Disable'))
-            lightning_b.clicked.connect(dialog.close)
-            lightning_b.clicked.connect(self.disable_lightning)
-            lightning_label = QLabel(_('Enabled'))
-            lightning_b.setDisabled(bool(self.wallet.lnworker.channels))
-        else:
-            lightning_b = QPushButton(_('Enable'))
-            lightning_b.clicked.connect(dialog.close)
-            lightning_b.clicked.connect(self.enable_lightning)
-            lightning_label = QLabel(_('Disabled'))
-        grid.addWidget(QLabel(_('Lightning')), 5, 0)
-        grid.addWidget(lightning_label, 5, 1)
-        grid.addWidget(lightning_b, 5, 2)
+        if self.wallet.can_have_lightning():
+            if self.wallet.has_lightning():
+                lightning_b = QPushButton(_('Disable'))
+                lightning_b.clicked.connect(dialog.close)
+                lightning_b.clicked.connect(self.disable_lightning)
+                lightning_label = QLabel(_('Enabled'))
+                lightning_b.setDisabled(bool(self.wallet.lnworker.channels))
+            else:
+                lightning_b = QPushButton(_('Enable'))
+                lightning_b.clicked.connect(dialog.close)
+                lightning_b.clicked.connect(self.enable_lightning)
+                lightning_label = QLabel(_('Disabled'))
+            grid.addWidget(QLabel(_('Lightning')), 5, 0)
+            grid.addWidget(lightning_label, 5, 1)
+            grid.addWidget(lightning_b, 5, 2)
         vbox.addLayout(grid)
 
         if self.wallet.is_deterministic():

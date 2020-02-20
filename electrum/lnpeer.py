@@ -474,8 +474,10 @@ class Peer(Logger):
             initial_msat = push_msat
 
         if self.is_static_remotekey():
-            addr = self.lnworker.wallet.get_unused_address()
-            static_key = self.lnworker.wallet.get_public_key(addr) # just a pubkey
+            wallet = self.lnworker.wallet
+            assert wallet.txin_type == 'p2wpkh'
+            addr = wallet.get_unused_address()
+            static_key = wallet.get_public_key(addr) # just a pubkey
             payment_basepoint = OnlyPubkeyKeypair(bfh(static_key))
         else:
             payment_basepoint = keypair_generator(LnKeyFamily.PAYMENT_BASE)

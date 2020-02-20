@@ -280,7 +280,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def has_lightning(self):
         return bool(self.lnworker)
 
+    def can_have_lightning(self):
+        # we want static_remotekey to be a wallet address
+        return self.txin_type == 'p2wpkh'
+
     def init_lightning(self):
+        assert self.can_have_lightning()
         if self.db.get('lightning_privkey2'):
             return
         # TODO derive this deterministically from wallet.keystore at keystore generation time
