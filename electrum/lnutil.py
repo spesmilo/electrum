@@ -792,7 +792,7 @@ class LnKeyFamily(IntEnum):
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
-    node2 = node.subkey_at_private_derivation([key_family])
+    node2 = node.subkey_at_private_derivation([key_family, 0, 0])
     k = node2.eckey.get_secret_bytes()
     cK = ecc.ECPrivkey(k).get_public_key_bytes()
     return Keypair(cK, k)
