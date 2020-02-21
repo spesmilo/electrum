@@ -12,6 +12,7 @@ import attr
 from aiorpcx import NetAddress
 
 from .util import bfh, bh2u, inv_dict, UserFacingException
+from .util import list_enabled_bits
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
@@ -654,6 +655,24 @@ class LnGlobalFeatures(IntFlag):
 
 # note that these are powers of two, not the bits themselves
 LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
+
+def ln_compare_features(our_features, their_features):
+    """raises ValueError if incompatible"""
+    our_flags = set(list_enabled_bits(our_features))
+    their_flags = set(list_enabled_bits(their_features))
+    for flag in our_flags:
+        if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
+            # they don't have this feature we wanted :(
+            if flag % 2 == 0:  # even flags are compulsory
+                raise ValueError(LnLocalFeatures(1 << flag))
+            our_features ^= 1 << flag  # disable flag
+        else:
+            # They too have this flag.
+            # For easier feature-bit-testing, if this is an even flag, we also
+            # set the corresponding odd flag now.
+            if flag % 2 == 0 and our_features & (1 << flag):
+                our_features |= 1 << get_ln_flag_pair_of_bit(flag)
+    return our_features
 
 
 class LNPeerAddr:

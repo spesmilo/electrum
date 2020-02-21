@@ -23,7 +23,7 @@ from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
-from .util import bh2u, bfh, log_exceptions, list_enabled_bits, ignore_exceptions, chunks, SilentTaskGroup
+from .util import bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup
 from .transaction import Transaction, TxOutput, PartialTxOutput
 from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
@@ -36,7 +36,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
-                     get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
+                     ln_compare_features, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
@@ -187,21 +187,10 @@ class Peer(Logger):
         # if they required some even flag we don't have, they will close themselves
         # but if we require an even flag they don't have, we close
         their_localfeatures = int.from_bytes(payload['localfeatures'], byteorder="big")
-        our_flags = set(list_enabled_bits(self.localfeatures))
-        their_flags = set(list_enabled_bits(their_localfeatures))
-        for flag in our_flags:
-            if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
-                # they don't have this feature we wanted :(
-                if flag % 2 == 0:  # even flags are compulsory
-                    raise GracefulDisconnect("remote does not support {}"
-                                             .format(str(LnLocalFeatures(1 << flag))))
-                self.localfeatures ^= 1 << flag  # disable flag
-            else:
-                # They too have this flag.
-                # For easier feature-bit-testing, if this is an even flag, we also
-                # set the corresponding odd flag now.
-                if flag % 2 == 0 and self.localfeatures & (1 << flag):
-                    self.localfeatures |= 1 << get_ln_flag_pair_of_bit(flag)
+        try:
+            self.localfeatures = ln_compare_features(self.localfeatures, their_localfeatures)
+        except ValueError as e:
+            raise GracefulDisconnect(f"remote does not support {str(e)}")
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
         self._received_init = True

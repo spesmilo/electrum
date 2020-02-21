@@ -53,7 +53,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnLocalFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails)
-from .lnutil import ln_dummy_address
+from .lnutil import ln_dummy_address, ln_compare_features
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode
 from .lnmsg import decode_msg
@@ -200,6 +200,18 @@ class LNWorker(Logger):
                 self._add_peer(host, int(port), bfh(pubkey)),
                 self.network.asyncio_loop)
 
+    def is_good_peer(self, peer):
+        node_id = peer.pubkey
+        node = self.channel_db._nodes.get(node_id)
+        if not node:
+            return False
+        try:
+            ln_compare_features(self.localfeatures, node.features)
+        except ValueError:
+            return False
+        #self.logger.info(f'is_good {peer.host}')
+        return True
+
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
         await self.channel_db.data_loaded.wait()
@@ -215,6 +227,8 @@ class LNWorker(Logger):
                 continue
             if peer in self._last_tried_peer:
                 continue
+            if not self.is_good_peer(peer):
+                continue
             return [peer]
         # try random peer from graph
         unconnected_nodes = self.channel_db.get_200_randomly_sorted_nodes_not_in(self.peers.keys())
@@ -229,6 +243,8 @@ class LNWorker(Logger):
                 except ValueError:
                     continue
                 if peer in self._last_tried_peer:
+                    continue
+                if not self.is_good_peer(peer):
                     continue
                 #self.logger.info('taking random ln peer from our channel db')
                 return [peer]
