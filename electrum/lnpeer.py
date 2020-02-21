@@ -1393,6 +1393,7 @@ class Peer(Logger):
         while True:
             our_sig, closing_tx = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=our_fee)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+            # FIXME: the remote SHOULD send closing_signed, but some don't.
             cs_payload = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), LN_P2P_NETWORK_TIMEOUT)
             their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
             their_sig = cs_payload['signature']
