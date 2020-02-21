@@ -1,0 +1,7 @@
+{
+    "testnet.gtsa.io": {
+        "pruning": "-",
+        "s": "10005",
+        "version": "2.0"
+    }
+}
