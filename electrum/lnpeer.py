@@ -68,7 +68,7 @@ class Peer(Logger):
     def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
         self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
-        self.initialized = asyncio.Event()
+        self.initialized = asyncio.Future()
         self.querying = asyncio.Event()
         self.transport = transport
         self.pubkey = pubkey  # remote pubkey
@@ -100,7 +100,7 @@ class Peer(Logger):
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
         self.logger.debug(f"Sending {message_name.upper()}")
-        if message_name.upper() != "INIT" and not self.initialized.is_set():
+        if message_name.upper() != "INIT" and not self.is_initialized():
             raise Exception("tried to send message before we are initialized")
         raw_msg = encode_msg(message_name, **kwargs)
         self._store_raw_msg_if_local_update(raw_msg, message_name=message_name, channel_id=kwargs.get("channel_id"))
@@ -117,11 +117,21 @@ class Peer(Logger):
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
             self.lnworker.save_channel(chan)
 
+    def maybe_set_initialized(self):
+        if self.initialized.done():
+            return
+        if self._sent_init and self._received_init:
+            self.initialized.set_result(True)
+
+    def is_initialized(self):
+        return self.initialized.done() and self.initialized.result() == True
+
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
         self.send_message("init", gflen=0, lflen=2, localfeatures=self.localfeatures)
         self._sent_init = True
+        self.maybe_set_initialized()
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
@@ -191,12 +201,12 @@ class Peer(Logger):
         try:
             self.localfeatures = ln_compare_features(self.localfeatures, their_localfeatures)
         except ValueError as e:
+            self.initialized.set_exception(e)
             raise GracefulDisconnect(f"remote does not support {str(e)}")
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
         self._received_init = True
-        if self._sent_init and self._received_init:
-            self.initialized.set()
+        self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
         self.gossip_queue.put_nowait(('node_announcement', payload))
@@ -312,7 +322,7 @@ class Peer(Logger):
 
     async def query_gossip(self):
         try:
-            await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
+            await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except asyncio.TimeoutError as e:
             raise GracefulDisconnect("initialize timed out") from e
         if self.lnworker == self.lnworker.network.lngossip:
@@ -433,8 +443,6 @@ class Peer(Logger):
             await asyncio.wait_for(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
-        if self._sent_init and self._received_init:
-            self.initialized.set()
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
@@ -497,7 +505,7 @@ class Peer(Logger):
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
                                          push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
-        await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
+        await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
@@ -716,7 +724,7 @@ class Peer(Logger):
 
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
-        await self.initialized.wait()
+        await self.initialized
         chan_id = chan.channel_id
         if chan.peer_state != peer_states.DISCONNECTED:
             self.logger.info('reestablish_channel was called but channel {} already in state {}'
@@ -1040,7 +1048,7 @@ class Peer(Logger):
         if chan.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open')
         assert amount_msat > 0, "amount_msat is not greater zero"
-        await asyncio.wait_for(self.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
+        await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)

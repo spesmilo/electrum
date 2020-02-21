@@ -181,7 +181,7 @@ class LNWorker(Logger):
         return peer
 
     def num_peers(self):
-        return sum([p.initialized.is_set() for p in self.peers.values()])
+        return sum([p.is_initialized() for p in self.peers.values()])
 
     def start_network(self, network: 'Network'):
         assert network
@@ -588,7 +588,7 @@ class LNWallet(LNWorker):
     def suggest_peer(self):
         r = []
         for node_id, peer in self.peers.items():
-            if not peer.initialized.is_set():
+            if not peer.is_initialized():
                 continue
             if not all([chan.is_closed() for chan in peer.channels.values()]):
                 continue
@@ -666,7 +666,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == channel_states.FUNDED:
             peer = self.peers.get(chan.node_id)
-            if peer and peer.initialized.is_set():
+            if peer and peer.is_initialized():
                 peer.send_funding_locked(chan)
 
         elif chan.get_state() == channel_states.OPEN:
@@ -741,8 +741,8 @@ class LNWallet(LNWorker):
                                       funding_sat: int, push_sat: int,
                                       password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
         peer = await self.add_peer(connect_str)
-        # peer might just have been connected to
-        await asyncio.wait_for(peer.initialized.wait(), LN_P2P_NETWORK_TIMEOUT)
+        # will raise if init fails
+        await asyncio.wait_for(peer.initialized, LN_P2P_NETWORK_TIMEOUT)
         chan, funding_tx = await peer.channel_establishment_flow(
             password,
             funding_tx=funding_tx,
