@@ -100,7 +100,7 @@ echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/
 info "Preparing for building libsecp256k1"
 brew install autoconf automake libtool
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
+cp "$ROOT_FOLDER"/electrum_grs/libsecp256k1.0.dylib contrib/osx
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader

@@ -23,7 +23,7 @@ rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$PIP_CACHE_DIR"
 
-if [ -f "$PROJECT_ROOT/electrum/libsecp256k1-0.dll" ]; then
+if [ -f "$PROJECT_ROOT/electrum_grs/libsecp256k1-0.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"

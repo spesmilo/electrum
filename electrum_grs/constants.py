@@ -125,8 +125,7 @@ class BitcoinTestnet(AbstractNet):
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
     LN_DNS_SEEDS = [
-        'test.nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
+        'testnet-lseed1.groestlcoin.org.',
     ]
 
 
