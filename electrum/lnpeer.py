@@ -127,7 +127,7 @@ class Peer(Logger):
         return self.lnworker.channels_for_peer(self.pubkey)
 
     def diagnostic_name(self):
-        return self.transport.name()
+        return self.lnworker.__class__.__name__ + ', ' + self.transport.name()
 
     def ping_if_required(self):
         if time.time() - self.ping_time > 120:
@@ -193,7 +193,7 @@ class Peer(Logger):
             if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
                 # they don't have this feature we wanted :(
                 if flag % 2 == 0:  # even flags are compulsory
-                    raise GracefulDisconnect("remote does not have even flag {}"
+                    raise GracefulDisconnect("remote does not support {}"
                                              .format(str(LnLocalFeatures(1 << flag))))
                 self.localfeatures ^= 1 << flag  # disable flag
             else:
