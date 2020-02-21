@@ -201,6 +201,9 @@ class LNWorker(Logger):
                 self.network.asyncio_loop)
 
     def is_good_peer(self, peer):
+        # the purpose of this method is to filter peers that advertise the desired feature bits
+        # it is disabled for now, because feature bits published in node announcements seem to be unreliable
+        return True
         node_id = peer.pubkey
         node = self.channel_db._nodes.get(node_id)
         if not node:
