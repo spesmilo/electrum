@@ -22,7 +22,7 @@ from .bitcoin import push_script, redeem_script_to_address, address_to_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
-from .keystore import BIP32_KeyStore
+from .bip32 import BIP32Node
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -791,8 +791,12 @@ class LnKeyFamily(IntEnum):
     NODE_KEY = 6
 
 
-def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index: int) -> Keypair:
-    return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
+def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
+    node2 = node.subkey_at_private_derivation([key_family])
+    k = node2.eckey.get_secret_bytes()
+    cK = ecc.ECPrivkey(k).get_public_key_bytes()
+    return Keypair(cK, k)
+
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20

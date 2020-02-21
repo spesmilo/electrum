@@ -124,7 +124,7 @@ class LNWorker(Logger):
 
     def __init__(self, xprv):
         Logger.__init__(self)
-        self.node_keypair = generate_keypair(keystore.from_xprv(xprv), LnKeyFamily.NODE_KEY, 0)
+        self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
@@ -358,7 +358,6 @@ class LNWallet(LNWorker):
         self.db = wallet.db
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
-        self.ln_keystore = keystore.from_xprv(xprv)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage

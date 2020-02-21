@@ -20,6 +20,7 @@ import aiorpcx
 
 from .crypto import sha256, sha256d
 from . import bitcoin
+from .bip32 import BIP32Node
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
@@ -455,8 +456,10 @@ class Peer(Logger):
 
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         # key derivation
-        channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
-        keypair_generator = lambda family: generate_keypair(self.lnworker.ln_keystore, family, channel_counter)
+        seed = os.urandom(32)
+        node = BIP32Node.from_rootseed(seed, xtype='standard')
+        keypair_generator = lambda family: generate_keypair(node, family)
+
         if initiator == LOCAL:
             initial_msat = funding_sat * 1000 - push_msat
         else:
