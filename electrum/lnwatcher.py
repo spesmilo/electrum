@@ -349,7 +349,7 @@ class LNWalletWatcher(LNWatcher):
             return
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
-        keep_watching = False
+        keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
         self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
