@@ -178,10 +178,7 @@ class Plugin(SafeTPlugin, QtPlugin):
 
     @classmethod
     def pin_matrix_widget_class(self):
-        # We use a local updated copy of pinmatrix.py until safetlib
-        # releases a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
-        # from safetlib.qt.pinmatrix import PinMatrixWidget
-        from .pinmatrix import PinMatrixWidget
+        from safetlib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
 
 
