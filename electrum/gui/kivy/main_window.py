@@ -953,7 +953,7 @@ class ElectrumWindow(App):
 
     def on_resume(self):
         now = time.time()
-        if self.wallet and self.wallet.has_password() and now - self.pause_time > 60:
+        if self.wallet and self.wallet.has_password() and now - self.pause_time > 5*60:
             self.password_dialog(check_password=self.check_pin_code, on_success=None, on_failure=self.stop, is_password=False)
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
