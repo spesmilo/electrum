@@ -323,8 +323,8 @@ class Peer(Logger):
     async def query_gossip(self):
         try:
             await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
-        except asyncio.TimeoutError as e:
-            raise GracefulDisconnect("initialize timed out") from e
+        except Exception as e:
+            raise GracefulDisconnect(f"Failed to initialize: {e}") from e
         if self.lnworker == self.lnworker.network.lngossip:
             try:
                 ids, complete = await asyncio.wait_for(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
