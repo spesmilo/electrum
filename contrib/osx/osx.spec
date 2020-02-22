@@ -73,6 +73,8 @@ a = Analysis([home+MAIN_SCRIPT,
               home+'plugins/keepkey/qt.py',
               home+'plugins/ledger/qt.py',
               home+'plugins/satochip/qt.py',  # Satochip
+              home+'plugins/fusion/fusion.py', # CashFusion
+              home+'plugins/fusion/qt.py', # CashFusion
               ],
              binaries=binaries,
              datas=datas,
