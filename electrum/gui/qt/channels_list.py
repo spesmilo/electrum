@@ -4,7 +4,7 @@ from enum import IntEnum
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit
+from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
 from PyQt5.QtGui import QFont
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -216,11 +216,17 @@ class ChannelsList(MyTreeView):
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
+        suggest_button = QPushButton(d, text=_('Suggest'))
+        suggest_button.clicked.connect(lambda: remote_nodeid.setText(bh2u(lnworker.suggest_peer() or b'')))
+        clear_button = QPushButton(d, text=_('Clear'))
+        clear_button.clicked.connect(lambda: remote_nodeid.setText(''))
         h = QGridLayout()
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
         h.addWidget(local_nodeid, 0, 1)
         h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
         h.addWidget(remote_nodeid, 1, 1)
+        h.addWidget(suggest_button, 1, 2)
+        h.addWidget(clear_button, 1, 3)
         h.addWidget(QLabel('Amount'), 2, 0)
         hbox = QHBoxLayout()
         hbox.addWidget(amount_e)
@@ -231,9 +237,6 @@ class ChannelsList(MyTreeView):
         ok_button = OkButton(d)
         ok_button.setDefault(True)
         vbox.addLayout(Buttons(CancelButton(d), ok_button))
-        suggestion = lnworker.suggest_peer() or b''
-        remote_nodeid.setText(bh2u(suggestion))
-        remote_nodeid.setCursorPosition(0)
         if not d.exec_():
             return
         if max_button.isChecked() and amount_e.get_amount() < LN_MAX_FUNDING_SAT:
