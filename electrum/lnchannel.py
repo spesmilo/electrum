@@ -311,6 +311,11 @@ class Channel(Logger):
         # the closing txid has been saved
         return self.get_state() >= channel_states.CLOSED
 
+    def get_closing_txid(self):
+        item = self.lnworker.channel_timestamps.get(self.channel_id.hex())
+        funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = item
+        return closing_txid
+
     def is_redeemed(self):
         return self.get_state() == channel_states.REDEEMED
 
