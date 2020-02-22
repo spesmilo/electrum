@@ -235,9 +235,10 @@ class LightningChannelsDialog(Factory.Popup):
             if bal_other != bal_minus_htlcs_other:
                 label += ' (+' + self.app.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
+        closed = chan.is_closed()
         return [
-            labels[LOCAL],
-            labels[REMOTE],
+            'n/a' if closed else labels[LOCAL],
+            'n/a' if closed else labels[REMOTE],
         ]
 
     def update_item(self, item):

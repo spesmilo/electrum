@@ -64,11 +64,12 @@ class ChannelsList(MyTreeView):
                 label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
         status = self.lnworker.get_channel_status(chan)
+        closed = chan.is_closed()
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
-            labels[LOCAL],
-            labels[REMOTE],
+            '' if closed else labels[LOCAL],
+            '' if closed else labels[REMOTE],
             status
         ]
 
