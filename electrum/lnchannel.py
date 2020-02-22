@@ -312,10 +312,20 @@ class Channel(Logger):
         # the closing txid has been saved
         return self.get_state() >= channel_states.CLOSED
 
-    def get_closing_txid(self):
-        item = self.lnworker.channel_timestamps.get(self.channel_id.hex())
-        funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = item
-        return closing_txid
+    def save_funding_height(self, txid, height, timestamp):
+        self.storage['funding_height'] = txid, height, timestamp
+
+    def get_funding_height(self):
+        return self.storage.get('funding_height')
+
+    def delete_funding_height(self):
+        self.storage.pop('funding_height', None)
+
+    def save_closing_height(self, txid, height, timestamp):
+        self.storage['closing_height'] = txid, height, timestamp
+
+    def get_closing_height(self):
+        return self.storage.get('closing_height')
 
     def is_redeemed(self):
         return self.get_state() == channel_states.REDEEMED

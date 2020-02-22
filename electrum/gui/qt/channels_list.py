@@ -120,7 +120,7 @@ class ChannelsList(MyTreeView):
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
         else:
-            txid = chan.get_closing_txid()
+            txid, height, timestamp = chan.get_closing_height()
             closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
             if closing_tx:
                 menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))

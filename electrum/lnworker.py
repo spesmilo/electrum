@@ -376,7 +376,6 @@ class LNWallet(LNWorker):
             self.channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         # timestamps of opening and closing transactions
-        self.channel_timestamps = self.db.get_dict('lightning_channel_timestamps')
         self.pending_payments = defaultdict(asyncio.Future)
 
     @ignore_exceptions
@@ -544,10 +543,10 @@ class LNWallet(LNWorker):
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
-            item = self.channel_timestamps.get(chan.channel_id.hex())
+            item = chan.get_funding_height()
             if item is None:
                 continue
-            funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = item
+            funding_txid, funding_height, funding_timestamp = item
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -559,9 +558,10 @@ class LNWallet(LNWorker):
                 'fee_msat': None,
             }
             out[funding_txid] = item
-            if not chan.is_closed():
+            item = chan.get_closing_height()
+            if item is None:
                 continue
-            assert closing_txid
+            closing_txid, closing_height, closing_timestamp = item
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -655,11 +655,6 @@ class LNWallet(LNWorker):
                 return chan
 
     async def update_open_channel(self, chan, funding_txid, funding_height):
-        # return early to prevent overwriting closing_txid with None
-        if chan.is_closed():
-            return
-        # save timestamp regardless of state, so that funding tx is returned in get_history
-        self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
@@ -699,9 +694,6 @@ class LNWallet(LNWorker):
 
 
     async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-
-        # fixme: this is wasteful
-        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
 
         # remove from channel_db
         if chan.short_channel_id is not None:
@@ -1226,7 +1218,6 @@ class LNWallet(LNWorker):
         assert chan.get_state() == channel_states.REDEEMED
         with self.lock:
             self.channels.pop(chan_id)
-            self.channel_timestamps.pop(chan_id.hex())
             self.db.get('channels').pop(chan_id.hex())
 
         self.network.trigger_callback('channels_updated', self.wallet)

@@ -336,11 +336,13 @@ class LNWalletWatcher(LNWatcher):
         if not chan:
             return
         if funding_height.height == TX_HEIGHT_LOCAL:
-            self.lnworker.channel_timestamps.pop(bh2u(chan.channel_id), None)
+            chan.delete_funding_height()
             return
         elif closing_height.height == TX_HEIGHT_LOCAL:
+            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
             await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
         else:
+            chan.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
             await self.lnworker.update_closed_channel(chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
