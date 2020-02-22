@@ -6,22 +6,16 @@ test -n "$build_dir" -a -d "$build_dir" || (echo "Cannot determine build dir. FI
 . "$build_dir"/../base.sh # functions we use below
 
 OSX_COMPAT=""
-# This mechanism has been disabled for now becasue Qt 5.12.x & Qt 5.13.0 have
-# some bugs still on all macOS (QPushButtons not always sending clicks through).
-# For now we use the requirements-binaries-elcapitan.txt always, which uses
-# PyQt5.11 (which works better on macOS before Mojave and not perfectly but
-# acceptably on Mojave).
-#DARWIN_VER=$(uname -r | cut -f 1 -d .)
-#if ((DARWIN_VER < 15)); then
-#    fail "Minimum OSX El Capitan is required to build"
-#elif ((DARWIN_VER == 15)); then
-#    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
-#    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
-#    OSX_COMPAT="-elcapitan"
-#    info "Building for El Capitan (compatibility version)"
-#fi
-#REQUIREMENTS_BINARIES="requirements-binaries${OSX_COMPAT}.txt"
-REQUIREMENTS_BINARIES="requirements-binaries-elcapitan.txt"  # hard-coded for now, uses PyQt5.11
+DARWIN_VER=$(uname -r | cut -f 1 -d .)
+if ((DARWIN_VER < 15)); then
+    fail "Minimum OSX El Capitan is required to build"
+elif ((DARWIN_VER == 15)); then
+    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
+    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
+    OSX_COMPAT="-elcapitan"
+    info "Building for El Capitan (compatibility version)"
+fi
+REQUIREMENTS_BINARIES="requirements-binaries${OSX_COMPAT}.txt"
 
 function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     infoName="$1"
@@ -38,8 +32,19 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     if [ -z "$infoName" ] || [ -z "$file" ] || [ -z "$identity" ] || [ ! -e "$file" ]; then
         fail "Argument error to internal function DoCodeSignMaybe()"
     fi
-    info "Code signing ${infoName}..."
-    codesign -f -v $deep -s "$identity" --preserve-metadata=requirements,entitlements "$file" || fail "Could not code sign ${infoName}"
+    preserve_arg="--preserve-metadata=requirements,entitlements"
+    hardened_arg=""
+    hardened_info=""
+    if ((DARWIN_VER >= 18)); then
+      # On Mojave or above, we codesign with the "hardened runtime" which
+      # is required for notarization.
+      # See: https://github.com/pyinstaller/pyinstaller/issues/4629
+      preserve_arg=""
+      hardened_arg="--entitlements=${build_dir}/entitlements.plist -o runtime"
+      hardened_info=" (Hardened Runtime)"
+    fi
+    info "Code signing ${infoName}${hardened_info}..."
+    codesign -f -v $deep -s "$identity" $preserve_arg $hardened_arg "$file" || fail "Could not code sign ${infoName}"
 }
 
 cd $build_dir/../..
@@ -128,15 +133,21 @@ verify_hash $BUILDDIR/$PYSCARD_FNAME 336b1cc335049e3ac5fad125c63d4e8fd4d25e85147
 python3 -m pip install $BUILDDIR/$PYSCARD_FNAME --user && pyenv rehash \
     || fail "Could not install pyscard"
 
-# We use a custom PyInstaller that has deep codesigning as well as AppleEvents
-# forwarding.  Note both these patches have been submitted to the PyInstaller
-# project but have yet to be merged in (they are very backlogged).
 info "Installing PyInstaller"
-mkdir -p $BUILDDIR
-curl -L https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip > $BUILDDIR/PyInstaller34_AECS.zip
-verify_hash $BUILDDIR/PyInstaller34_AECS.zip 543b2d98847f99df45d23e344c85acf3bfc5c057c95c09f444fd1b6b2cae749c
-python3 -m pip install $BUILDDIR/PyInstaller34_AECS.zip --user && pyenv rehash \
-    || fail "Could not install PyInstaller"
+USE_CUSTOM_PYINSTALLER=1
+if ((USE_CUSTOM_PYINSTALLER)); then
+    # We use a custom PyInstaller that has deep codesigning as well as AppleEvents
+    # forwarding.  Note both these patches have been submitted to the PyInstaller
+    # project but have yet to be merged in (they are very backlogged).
+    mkdir -p $BUILDDIR
+    curl -L https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip > $BUILDDIR/PyInstaller34_AECS.zip
+    verify_hash $BUILDDIR/PyInstaller34_AECS.zip 543b2d98847f99df45d23e344c85acf3bfc5c057c95c09f444fd1b6b2cae749c
+    python3 -m pip install $BUILDDIR/PyInstaller34_AECS.zip --user --upgrade && pyenv rehash \
+        || fail "Could not install PyInstaller"
+else
+    # Just use regular, latest PyInstaller 3.6+
+    python3 -m pip install pyinstaller --user --upgrade && pyenv rehash || fail "Coule not install PyInstaller"
+fi
 
 info "Using these versions for building $PACKAGE:"  # NB: PACKAGE var comes from ../base.sh
 sw_vers
@@ -179,7 +190,6 @@ git clean -f -x -q
     --disable-static \
     --enable-shared || fail "Could not configure for secp256k1"
 make -j4 || fail "Could not build secp256k1"
-#git checkout master  # Undo the previous explicit checkout to this hash
 popd
 cp -fp contrib/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx || fail "Could not copy secp256k1 binary to its destination"
 
@@ -199,7 +209,8 @@ info "Building $PACKAGE..."
 python3 setup.py install --user > /dev/null || fail "Could not build $PACKAGE"
 
 info "Building binary"
-if [ -n "$APP_SIGN" ]; then
+DEEP_SIGN=1  # Set to 1 if we want to codesign all the embedded binaries (requires our custom pyinstaller)
+if [ -n "$APP_SIGN" ] && ((USE_CUSTOM_PYINSTALLER)) && ((DEEP_SIGN)); then
     pyinstaller --osx-codesign-identity "$APP_SIGN" --clean --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 else
     pyinstaller --clean --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
@@ -225,6 +236,14 @@ plutil -insert 'CFBundleURLTypes' \
 '</array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
+
+FORCE_MOJAVE_DARK=0  # Set to 1 to try and add the Info.plist key to force mojave dark mode supprt. As of PyQt 5.14.1, it doesn't work.
+if ((DARWIN_VER >= 18 && FORCE_MOJAVE_DARK)); then
+    # Add a key to Info.plist key to support Mojave dark mode
+    info "Adding Mojave dark mode support to Info.plist"
+    plutil -insert 'NSRequiresAquaSystemAppearance' -bool NO -- dist/"$PACKAGE".app/Contents/Info.plist \
+      || fail "Could not set Info.plist NSRequiresAquaSystemAppearance"
+fi
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # must force a codesign again because Info.plist modified above
 
