@@ -141,7 +141,6 @@ class HistoryModel(QAbstractItemModel, Logger):
         timestamp = tx_item['timestamp']
         if is_lightning:
             status = 0
-            txpos = tx_item['txpos']
             if timestamp is None:
                 status_str = 'unconfirmed'
             else:
@@ -149,33 +148,25 @@ class HistoryModel(QAbstractItemModel, Logger):
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
-            txpos = tx_item['txpos_in_block'] or 0
-            height = tx_item['height']
             try:
                 status, status_str = self.tx_status_cache[tx_hash]
             except KeyError:
                 tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
                 status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        # we sort by timestamp
-        if timestamp is None:
-            timestamp = float("inf")
-
         if role == Qt.UserRole:
             # for sorting
             d = {
                 HistoryColumns.STATUS:
-                    # height breaks ties for unverified txns
-                    # txpos breaks ties for verified same block txns
-                    (-timestamp, conf, -status, -height, -txpos) if not is_lightning else (-timestamp, 0,0,0,-txpos),
+                    # respect sort order of self.transactions (wallet.get_full_history)
+                    -index.row(),
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
                 HistoryColumns.AMOUNT:
                     (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
                     + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
                 HistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0)\
-                    + (tx_item['balance_msat']//1000 if 'balance_msat'in tx_item else 0),
+                    (tx_item['balance'].value if 'balance' in tx_item else 0),
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 HistoryColumns.FIAT_ACQ_PRICE:
@@ -585,15 +576,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
-            self.show_transaction(tx_item)
+            tx_hash = tx_item['txid']
+            tx = self.wallet.db.get_transaction(tx_hash)
+            if not tx:
+                return
+            self.show_transaction(tx_item, tx)
 
-    def show_transaction(self, tx_item):
-        if tx_item.get('lightning'):
-            return
+    def show_transaction(self, tx_item, tx):
         tx_hash = tx_item['txid']
-        tx = self.wallet.db.get_transaction(tx_hash)
-        if not tx:
-            return
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
         self.parent.show_transaction(tx, tx_desc=label)
 
@@ -616,10 +606,16 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # can happen e.g. before list is populated for the first time
             return
         tx_item = self.hm.transactions.value_from_pos(idx.row())
-        if tx_item.get('lightning'):
+        if tx_item.get('lightning') and tx_item['type'] == 'payment':
+            menu = QMenu()
+            menu.addAction(_("Details"), lambda: self.parent.show_lightning_transaction(tx_item))
+            menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
-        tx = self.wallet.db.get_transaction(tx_hash)
+        if tx_item.get('lightning'):
+            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(tx_hash)
+        else:
+            tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
@@ -638,7 +634,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item, tx))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None

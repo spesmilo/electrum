@@ -11,6 +11,8 @@ from electrum_ltc.lnchannel import htlcsum
 from electrum_ltc.lnaddr import LnAddr, lndecode
 from electrum_ltc.bitcoin import COIN
 
+from .util import Buttons, CloseButton
+
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
@@ -54,8 +56,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-            for pay_hash, item in htlcs.items():
-                chan_id, i, direction, status = item
+            for item in htlcs:
+                pay_hash, chan_id, i, direction, status = item
                 if status != keyname:
                     continue
                 it = self.make_htlc_item(i, direction)
@@ -151,6 +153,6 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         w.setModel(self.make_model(htlc_dict))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
-
+        vbox.addLayout(Buttons(CloseButton(self)))
         # initialize sent/received fields
         self.update_sent_received()

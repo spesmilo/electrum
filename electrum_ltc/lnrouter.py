@@ -129,18 +129,20 @@ class LNPathFinder(Logger):
         self.blacklist.add(short_channel_id)
 
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
-                   payment_amt_msat: int, ignore_costs=False, is_mine=False) -> Tuple[float, int]:
+                   payment_amt_msat: int, ignore_costs=False, is_mine=False, *,
+                   my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Tuple[float, int]:
         """Heuristic cost of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
         """
-        channel_info = self.channel_db.get_channel_info(short_channel_id)
+        channel_info = self.channel_db.get_channel_info(short_channel_id, my_channels=my_channels)
         if channel_info is None:
             return float('inf'), 0
-        channel_policy = self.channel_db.get_policy_for_node(short_channel_id, start_node)
+        channel_policy = self.channel_db.get_policy_for_node(short_channel_id, start_node, my_channels=my_channels)
         if channel_policy is None:
             return float('inf'), 0
         # channels that did not publish both policies often return temporary channel failure
-        if self.channel_db.get_policy_for_node(short_channel_id, end_node) is None and not is_mine:
+        if self.channel_db.get_policy_for_node(short_channel_id, end_node, my_channels=my_channels) is None \
+                and not is_mine:
             return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
@@ -164,8 +166,9 @@ class LNPathFinder(Logger):
 
     @profiler
     def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,
-                              invoice_amount_msat: int,
-                              my_channels: List['Channel']=None) -> Sequence[Tuple[bytes, bytes]]:
+                              invoice_amount_msat: int, *,
+                              my_channels: Dict[ShortChannelID, 'Channel'] = None) \
+            -> Optional[Sequence[Tuple[bytes, bytes]]]:
         """Return a path from nodeA to nodeB.
 
         Returns a list of (node_id, short_channel_id) representing a path.
@@ -175,8 +178,7 @@ class LNPathFinder(Logger):
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
-        if my_channels is None: my_channels = []
-        my_channels = {chan.short_channel_id: chan for chan in my_channels}
+        if my_channels is None: my_channels = {}
 
         # FIXME paths cannot be longer than 20 edges (onion packet)...
 
@@ -204,7 +206,8 @@ class LNPathFinder(Logger):
                 end_node=edge_endnode,
                 payment_amt_msat=amount_msat,
                 ignore_costs=(edge_startnode == nodeA),
-                is_mine=is_mine)
+                is_mine=is_mine,
+                my_channels=my_channels)
             alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
             if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                 distance_from_start[edge_startnode] = alt_dist_to_neighbour
@@ -222,11 +225,11 @@ class LNPathFinder(Logger):
                 # so instead of decreasing priorities, we add items again into the queue.
                 # so there are duplicates in the queue, that we discard now:
                 continue
-            for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode):
+            for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode, my_channels=my_channels):
                 assert isinstance(edge_channel_id, bytes)
                 if edge_channel_id in self.blacklist:
                     continue
-                channel_info = self.channel_db.get_channel_info(edge_channel_id)
+                channel_info = self.channel_db.get_channel_info(edge_channel_id, my_channels=my_channels)
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
                 inspect_edge()
         else:
@@ -241,14 +244,17 @@ class LNPathFinder(Logger):
             edge_startnode = edge_endnode
         return path
 
-    def create_route_from_path(self, path, from_node_id: bytes) -> LNPaymentRoute:
+    def create_route_from_path(self, path, from_node_id: bytes, *,
+                               my_channels: Dict[ShortChannelID, 'Channel'] = None) -> LNPaymentRoute:
         assert isinstance(from_node_id, bytes)
         if path is None:
             raise Exception('cannot create route from None path')
         route = []
         prev_node_id = from_node_id
         for node_id, short_channel_id in path:
-            channel_policy = self.channel_db.get_routing_policy_for_channel(prev_node_id, short_channel_id)
+            channel_policy = self.channel_db.get_policy_for_node(short_channel_id=short_channel_id,
+                                                                 node_id=prev_node_id,
+                                                                 my_channels=my_channels)
             if channel_policy is None:
                 raise NoChannelPolicy(short_channel_id)
             route.append(RouteEdge.from_channel_policy(channel_policy, short_channel_id, node_id))

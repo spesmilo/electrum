@@ -18,7 +18,7 @@ from electrum_ltc.lnpeer import Peer
 from electrum_ltc.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_ltc.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum_ltc.lnutil import PaymentFailure, LnLocalFeatures
-from electrum_ltc.lnchannel import channel_states, peer_states
+from electrum_ltc.lnchannel import channel_states, peer_states, Channel
 from electrum_ltc.lnrouter import LNPathFinder
 from electrum_ltc.channel_db import ChannelDB
 from electrum_ltc.lnworker import LNWallet, NoPathFound
@@ -64,7 +64,7 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
-    async def broadcast_transaction(self, tx):
+    async def try_broadcasting(self, tx, name):
         if self.tx_queue:
             await self.tx_queue.put(tx)
 
@@ -77,7 +77,7 @@ class MockWallet:
         return False
 
 class MockLNWallet:
-    def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
+    def __init__(self, remote_keypair, local_keypair, chan: 'Channel', tx_queue):
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
@@ -88,6 +88,8 @@ class MockLNWallet:
         self.localfeatures = LnLocalFeatures(0)
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
+        chan.lnworker = self
+        chan.node_id = remote_keypair.pubkey
 
     def get_invoice_status(self, key):
         pass
@@ -127,6 +129,7 @@ class MockLNWallet:
     _pay_to_route = LNWallet._pay_to_route
     force_close_channel = LNWallet.force_close_channel
     get_first_timestamp = lambda self: 0
+    payment_completed = LNWallet.payment_completed
 
 class MockTransport:
     def __init__(self, name):
@@ -264,7 +267,7 @@ class TestPeer(ElectrumTestCase):
         pay_req = self.prepare_invoice(w2)
         async def pay():
             result = await LNWallet._pay(w1, pay_req)
-            self.assertEqual(result, True)
+            self.assertTrue(result)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
         async def f():

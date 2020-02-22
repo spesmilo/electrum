@@ -75,11 +75,6 @@ Run install (this should install dependencies)::
     python3 -m pip install --user .
 
 
-Compile the protobuf description file::
-
-    sudo apt-get install protobuf-compiler
-    protoc --proto_path=electrum_ltc --python_out=electrum_ltc electrum_ltc/paymentrequest.proto
-
 Create translations (optional)::
 
     sudo apt-get install python-requests gettext

@@ -12,6 +12,7 @@ import attr
 from aiorpcx import NetAddress
 
 from .util import bfh, bh2u, inv_dict, UserFacingException
+from .util import list_enabled_bits
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
@@ -21,7 +22,7 @@ from .bitcoin import push_script, redeem_script_to_address, address_to_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
-from .keystore import BIP32_KeyStore
+from .bip32 import BIP32Node
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -630,6 +631,8 @@ class LnLocalFeatures(IntFlag):
     OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT = 1 << 5
     GOSSIP_QUERIES_REQ = 1 << 6
     GOSSIP_QUERIES_OPT = 1 << 7
+    OPTION_STATIC_REMOTEKEY_REQ = 1 << 12
+    OPTION_STATIC_REMOTEKEY_OPT = 1 << 13
 
 # note that these are powers of two, not the bits themselves
 LN_LOCAL_FEATURES_KNOWN_SET = set(LnLocalFeatures)
@@ -652,6 +655,24 @@ class LnGlobalFeatures(IntFlag):
 
 # note that these are powers of two, not the bits themselves
 LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
+
+def ln_compare_features(our_features, their_features):
+    """raises ValueError if incompatible"""
+    our_flags = set(list_enabled_bits(our_features))
+    their_flags = set(list_enabled_bits(their_features))
+    for flag in our_flags:
+        if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
+            # they don't have this feature we wanted :(
+            if flag % 2 == 0:  # even flags are compulsory
+                raise ValueError(LnLocalFeatures(1 << flag))
+            our_features ^= 1 << flag  # disable flag
+        else:
+            # They too have this flag.
+            # For easier feature-bit-testing, if this is an even flag, we also
+            # set the corresponding odd flag now.
+            if flag % 2 == 0 and our_features & (1 << flag):
+                our_features |= 1 << get_ln_flag_pair_of_bit(flag)
+    return our_features
 
 
 class LNPeerAddr:
@@ -716,7 +737,7 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
 
 
 def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as string
-    ipv6  = re.compile(r'\[(?P<host>[:0-9]+)\](?P<port>:\d+)?$')
+    ipv6  = re.compile(r'\[(?P<host>[:0-9a-f]+)\](?P<port>:\d+)?$')
     other = re.compile(r'(?P<host>[^:]+)(?P<port>:\d+)?$')
     m = ipv6.match(host_port)
     if not m:
@@ -770,8 +791,12 @@ class LnKeyFamily(IntEnum):
     NODE_KEY = 6
 
 
-def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index: int) -> Keypair:
-    return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
+def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
+    node2 = node.subkey_at_private_derivation([key_family, 0, 0])
+    k = node2.eckey.get_secret_bytes()
+    cK = ecc.ECPrivkey(k).get_public_key_bytes()
+    return Keypair(cK, k)
+
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20

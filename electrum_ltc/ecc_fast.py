@@ -49,16 +49,17 @@ def load_library():
         library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),
                          'libsecp256k1.so.0')
 
+    exceptions = []
     secp256k1 = None
     for libpath in library_paths:
         try:
             secp256k1 = ctypes.cdll.LoadLibrary(libpath)
-        except:
-            pass
+        except BaseException as e:
+            exceptions.append(e)
         else:
             break
     if not secp256k1:
-        _logger.error('libsecp256k1 library failed to load')
+        _logger.error(f'libsecp256k1 library failed to load. exceptions: {repr(exceptions)}')
         return None
 
     try:

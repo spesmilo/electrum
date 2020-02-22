@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT
+from electrum_ltc.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum_ltc.util import get_request_status
 from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_ltc.lnutil import PaymentAttemptLog
@@ -73,10 +73,7 @@ class InvoiceList(MyTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
-    def update_item(self, key, status):
-        req = self.parent.wallet.get_invoice(key)
-        if req is None:
-            return
+    def update_item(self, key, req):
         model = self.model()
         for row in range(0, model.rowCount()):
             item = model.item(row, 0)
@@ -169,6 +166,8 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if invoice['status'] == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
+        if invoice['status'] == PR_FAILED:
+            menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)
             if log:

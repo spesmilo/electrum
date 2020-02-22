@@ -58,6 +58,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         main_box.addWidget(QLabel(BaseCrashReporter.REQUEST_HELP_MESSAGE))
 
         collapse_info = QPushButton(_("Show report contents"))
+        # FIXME if traceback contains special HTML characters, e.g. '<'
+        #       then formatting issues arise (due to rich_text=True)
         collapse_info.clicked.connect(
             lambda: self.msg_box(QMessageBox.NoIcon,
                                  self, _("Report contents"), self.get_report_string(),

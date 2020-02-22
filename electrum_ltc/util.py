@@ -208,13 +208,15 @@ class Satoshis(object):
 
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
+        # note: 'value' sometimes has msat precision
         self.value = value
         return self
 
     def __repr__(self):
-        return 'Satoshis(%d)'%self.value
+        return f'Satoshis({self.value})'
 
     def __str__(self):
+        # note: precision is truncated to satoshis here
         return format_satoshis(self.value)
 
     def __eq__(self, other):
