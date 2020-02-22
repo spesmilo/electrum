@@ -424,7 +424,7 @@ class FusionPlugin(BasePlugin):
         return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
 
 
-    def start_fusion(self, source_wallet, password, coins, target_wallet = None):
+    def create_fusion(self, source_wallet, password, coins, target_wallet = None):
         # Should be called with plugin.lock and wallet.lock
         if target_wallet is None:
             target_wallet = source_wallet # self-fuse
@@ -447,7 +447,6 @@ class FusionPlugin(BasePlugin):
         target_wallet._fusions.add(fusion)
         source_wallet._fusions.add(fusion)
         fusion.add_coins_from_wallet(source_wallet, password, coins)
-        fusion.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
         self.fusions[fusion] = time.time()
         return fusion
 
@@ -506,7 +505,8 @@ class FusionPlugin(BasePlugin):
                             self.print_error("auto-fusion skipped due to lack of coins")
                             continue
                         try:
-                            f = self.start_fusion(wallet, password, coins)
+                            f = self.create_fusion(wallet, password, coins)
+                            f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
                             self.print_error("started auto-fusion")
                         except RuntimeError as e:
                             self.print_error(f"auto-fusion skipped due to error: {e}")
