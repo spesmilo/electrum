@@ -837,6 +837,15 @@ def deserialize_xkey(xkey, prv, *, net=None):
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
+    try:
+        # The below ensures we can actually derive nodes from this key,
+        # by first deriving node 0.  Fixes #1817.
+        if prv:
+            CKD_priv(K_or_k, c, 0)
+        else:
+            CKD_pub(K_or_k, c, 0)
+    except Exception as e:
+        raise InvalidXKey('Cannot derive from key') from e
     return xtype, depth, fingerprint, child_number, c, K_or_k
 
 
