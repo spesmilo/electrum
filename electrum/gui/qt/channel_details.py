@@ -11,6 +11,8 @@ from electrum.lnchannel import htlcsum
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 
+from .util import Buttons, CloseButton
+
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
@@ -151,6 +153,6 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         w.setModel(self.make_model(htlc_dict))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
-
+        vbox.addLayout(Buttons(CloseButton(self)))
         # initialize sent/received fields
         self.update_sent_received()

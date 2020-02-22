@@ -81,6 +81,9 @@ class ChannelsList(MyTreeView):
         self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
 
     def close_channel(self, channel_id):
+        msg = _('Close channel?')
+        if not self.parent.question(msg):
+            return
         def task():
             coro = self.lnworker.close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
