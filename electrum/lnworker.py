@@ -495,8 +495,8 @@ class LNWallet(LNWorker):
             'rhash': lnaddr.paymenthash.hex(),
         }
 
-    def get_history(self):
-        out = []
+    def get_lightning_history(self):
+        out = {}
         for key, plist in self.get_settled_payments().items():
             if len(plist) == 0:
                 continue
@@ -524,7 +524,6 @@ class LNWallet(LNWorker):
 
             payment_hash = bytes.fromhex(key)
             preimage = self.get_preimage(payment_hash).hex()
-
             item = {
                 'type': 'payment',
                 'label': label,
@@ -536,7 +535,11 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
-            out.append(item)
+            out[payment_hash] = item
+        return out
+
+    def get_onchain_history(self):
+        out = {}
         # add funding events
         with self.lock:
             channels = list(self.channels.values())
@@ -555,7 +558,7 @@ class LNWallet(LNWorker):
                 'timestamp': funding_timestamp,
                 'fee_msat': None,
             }
-            out.append(item)
+            out[funding_txid] = item
             if not chan.is_closed():
                 continue
             assert closing_txid
@@ -569,7 +572,11 @@ class LNWallet(LNWorker):
                 'timestamp': closing_timestamp,
                 'fee_msat': None,
             }
-            out.append(item)
+            out[closing_txid] = item
+        return out
+
+    def get_history(self):
+        out = list(self.get_lightning_history().values()) + list(self.get_onchain_history().values())
         # sort by timestamp
         out.sort(key=lambda x: (x.get('timestamp') or float("inf")))
         balance_msat = 0

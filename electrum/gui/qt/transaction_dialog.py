@@ -376,6 +376,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         exp_n = tx_details.mempool_depth_bytes
         amount, fee = tx_details.amount, tx_details.fee
         size = self.tx.estimated_size()
+        txid = self.tx.txid()
+        lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
+        if txid in lnworker_history:
+            item = lnworker_history[txid]
+            ln_amount = item['amount_msat'] / 1000
+            if amount is None:
+                tx_mined_status = self.wallet.lnworker.lnwatcher.get_tx_height(txid)
+        else:
+            ln_amount = None
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
@@ -409,12 +418,18 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         else:
             self.block_hash_label.hide()
             self.block_height_label.hide()
-        if amount is None:
+        if amount is None and ln_amount is None:
             amount_str = _("Transaction unrelated to your wallet")
+        elif amount is None:
+            amount_str = ''
         elif amount > 0:
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+        if amount_str:
+            self.amount_label.setText(amount_str)
+        else:
+            self.amount_label.hide()
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
@@ -427,10 +442,18 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             risk_of_burning_coins = (can_sign and fee is not None
                                      and self.tx.is_there_risk_of_burning_coins_as_fees())
             self.fee_warning_icon.setVisible(risk_of_burning_coins)
-        self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
-
+        if ln_amount is None:
+            ln_amount_str = ''
+        elif ln_amount > 0:
+            ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit
+        elif ln_amount < 0:
+            ln_amount_str = _('Amount withdrawn from channels') + ': ' + format_amount(-ln_amount) + ' ' + base_unit
+        if ln_amount_str:
+            self.ln_amount_label.setText(ln_amount_str)
+        else:
+            self.ln_amount_label.hide()
         show_psbt_only_widgets = self.finalized and isinstance(self.tx, PartialTransaction)
         for widget in self.psbt_only_widgets:
             if isinstance(widget, QMenu):
@@ -521,6 +544,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox_left.addWidget(self.date_label)
         self.amount_label = TxDetailLabel()
         vbox_left.addWidget(self.amount_label)
+        self.ln_amount_label = TxDetailLabel()
+        vbox_left.addWidget(self.ln_amount_label)
 
         fee_hbox = QHBoxLayout()
         self.fee_label = TxDetailLabel()
@@ -561,14 +586,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         self.locktime_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_label)
-        self.block_hash_label = TxDetailLabel(word_wrap=True)
-        vbox_right.addWidget(self.block_hash_label)
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
+
+        self.block_hash_label = TxDetailLabel(word_wrap=True)
+        vbox.addWidget(self.block_hash_label)
 
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
