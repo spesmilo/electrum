@@ -567,7 +567,7 @@ class Plugin(BasePlugin):
         self.print_error("OnNetworkDialog", str(nd))
         if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
             nd.__shuffle_settings__ = st = SettingsTab(parent=nd.nlayout.tabs, config=nd.nlayout.config)
-            nd.nlayout.tabs.addTab(st, _("CashShuffle"))
+            nd.nlayout.tabs.addTab(st, QIcon(':icons/CashShuffleLogos/logo-vertical.svg'), _("CashShuffle"))
             st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
         elif nd.__shuffle_settings__:
             # they may have a fake view if they didn't apply the last settings, refresh the view

@@ -188,8 +188,7 @@ setup(
             'tor/bin/*'
         ],
         'electroncash_plugins.shuffle' : [
-            'servers.json',
-            'protobuf/*.proto'
+            'servers.json'
         ],
         # On Linux and Windows this means adding gui/qt/data/*.ttf
         # On Darwin we don't use that font, so we don't add it to save space.
