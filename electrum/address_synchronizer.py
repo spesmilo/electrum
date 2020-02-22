@@ -587,8 +587,10 @@ class AddressSynchronizer(Logger):
     def add_future_tx(self, tx: Transaction, num_blocks: int) -> None:
         assert num_blocks > 0, num_blocks
         with self.lock:
-            self.add_transaction(tx)
-            self.future_tx[tx.txid()] = num_blocks
+            tx_was_added = self.add_transaction(tx)
+            if tx_was_added:
+                self.future_tx[tx.txid()] = num_blocks
+            return tx_was_added
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         with self.lock:

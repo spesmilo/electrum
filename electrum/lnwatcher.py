@@ -407,8 +407,10 @@ class LNWalletWatcher(LNWatcher):
         else:
             # it's OK to add local transaction, the fee will be recomputed
             try:
-                self.lnworker.wallet.add_future_tx(tx, remaining)
-                self.logger.info(f'adding future tx: {name}. prevout: {prevout}')
-                self.network.trigger_callback('wallet_updated', self.lnworker.wallet)
+                tx_was_added = self.lnworker.wallet.add_future_tx(tx, remaining)
             except Exception as e:
                 self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+                tx_was_added = False
+            if tx_was_added:
+                self.logger.info(f'added future tx: {name}. prevout: {prevout}')
+                self.network.trigger_callback('wallet_updated', self.lnworker.wallet)
