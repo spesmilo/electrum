@@ -852,7 +852,6 @@ class Channel(Logger):
                 self.logger.info(f'they force closed.')
             else:
                 self.sweep_info[txid] = {}
-                self.logger.info(f'not sure who closed {ctx}.')
         return self.sweep_info[txid]
 
     def sweep_htlc(self, ctx:Transaction, htlc_tx: Transaction):
