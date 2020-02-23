@@ -992,10 +992,6 @@ class Commands:
     async def list_invoices(self, wallet: Abstract_Wallet = None):
         return wallet.get_invoices()
 
-    @command('w')
-    async def lightning_history(self, wallet: Abstract_Wallet = None):
-        return wallet.lnworker.get_history()
-
     @command('wn')
     async def close_channel(self, channel_point, force=False, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
