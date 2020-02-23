@@ -134,12 +134,15 @@ class ChannelsList(MyTreeView):
 
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker:
+            return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ID)
             if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
                 for column, v in enumerate(self.format_fields(chan)):
                     self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
-        self.update_can_send(self.parent.wallet.lnworker)
+        self.update_can_send(lnworker)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
     def do_update_rows(self, wallet):
