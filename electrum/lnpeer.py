@@ -611,7 +611,6 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        chan.set_state(channel_states.OPENING)
         return chan, funding_tx
 
     def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints):
@@ -705,6 +704,7 @@ class Peer(Logger):
             signature=sig_64,
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
+        chan.set_state(channel_states.OPENING)
         self.lnworker.add_channel(chan)
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
