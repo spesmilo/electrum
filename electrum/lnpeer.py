@@ -48,6 +48,7 @@ from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
+from .json_db import StoredDict
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker, LNGossip, LNWallet
@@ -620,10 +621,7 @@ class Peer(Logger):
             "revocation_store": {},
             "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
         }
-        channel_id = chan_dict.get('channel_id')
-        channels = self.lnworker.db.get_dict('channels')
-        channels[channel_id] = chan_dict
-        return channels.get(channel_id)
+        return StoredDict(chan_dict, None, [])
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
@@ -695,7 +693,7 @@ class Peer(Logger):
         )
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         chan.set_state(channel_states.OPENING)
-        self.lnworker.add_channel(chan)
+        self.lnworker.add_new_channel(chan)
 
     def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
         remote_reserve_sat = int.from_bytes(payload_field, 'big')
