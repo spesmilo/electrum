@@ -764,6 +764,7 @@ class LNWallet(LNWorker):
         if funding_tx.is_complete():
             # TODO make more robust (timeout low? server returns error?)
             await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
+            chan.set_state(channel_states.OPENING)
         return chan, funding_tx
 
     def add_channel(self, chan):

@@ -62,9 +62,11 @@ if TYPE_CHECKING:
 # Note: these states are persisted by name (for a given channel) in the wallet file,
 #       so consider doing a wallet db upgrade when changing them.
 class channel_states(IntEnum):
-    PREOPENING      = 0 # negotiating
-    OPENING         = 1 # awaiting funding tx
-    FUNDED          = 2 # funded (requires min_depth and tx verification)
+    PREOPENING      = 0 # Initial negotiation. Channel will not be reestablished
+    OPENING         = 1 # Channel will be reestablished. (per BOLT2)
+                        #  - Funding node: has broadcast the funding tx.
+                        #  - Non-funding node: has sent the funding_signed message.
+    FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
     FORCE_CLOSING   = 4 # force-close tx has been broadcast
     CLOSING         = 5 # closing negotiation
@@ -283,7 +285,6 @@ class Channel(Logger):
             self.config[LOCAL].current_commitment_signature=remote_sig
             self.hm.channel_open_finished()
             self.peer_state = peer_states.GOOD
-            self.set_state(channel_states.OPENING)
 
     def set_state(self, state):
         """ set on-chain state """
@@ -344,7 +345,7 @@ class Channel(Logger):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
+        return channel_states.PREOPENING < self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])

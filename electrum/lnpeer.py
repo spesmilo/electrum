@@ -611,6 +611,7 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
+        chan.set_state(channel_states.OPENING)
         return chan, funding_tx
 
     def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints):
@@ -726,6 +727,7 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
+        assert channel_states.PREOPENING < chan.get_state() < channel_states.CLOSED
         if chan.peer_state != peer_states.DISCONNECTED:
             self.logger.info('reestablish_channel was called but channel {} already in state {}'
                              .format(chan_id, chan.get_state()))
