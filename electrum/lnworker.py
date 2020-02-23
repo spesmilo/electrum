@@ -666,6 +666,9 @@ class LNWallet(LNWorker):
             await self.force_close_channel(chan.channel_id)
             return
 
+        if chan.get_state() == channel_states.PREOPENING:
+            chan.set_state(channel_states.OPENING)
+
         if chan.get_state() == channel_states.OPENING:
             if chan.short_channel_id is None:
                 self.save_short_chan_id(chan)
