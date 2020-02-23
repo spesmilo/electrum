@@ -947,7 +947,15 @@ class Commands:
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
-        return await wallet.lnworker._pay(invoice, attempts=attempts)
+        lnworker = wallet.lnworker
+        lnaddr = lnworker._check_invoice(invoice, None)
+        payment_hash = lnaddr.paymenthash
+        success = await lnworker._pay(invoice, attempts=attempts)
+        return {
+            'payment_hash': payment_hash.hex(),
+            'success': success,
+            'preimage': lnworker.get_preimage(payment_hash).hex() if success else None,
+        }
 
     @command('w')
     async def nodeid(self, wallet: Abstract_Wallet = None):
