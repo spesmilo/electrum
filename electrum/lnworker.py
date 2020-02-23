@@ -808,7 +808,7 @@ class LNWallet(LNWorker):
                      funding_sat: int, push_amt_sat: int, password: str = None,
                      timeout: Optional[int] = 20) -> Tuple[Channel, PartialTransaction]:
         if self.wallet.is_lightning_backup():
-            raise BaseException(_('Cannot create channel: this is a backup file'))
+            raise Exception(_('Cannot create channel: this is a backup file'))
         if funding_sat > LN_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over protocol allowed maximum."))
         coro = self._open_channel_coroutine(connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
