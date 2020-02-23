@@ -27,7 +27,7 @@ from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import Qt, QItemSelectionModel
+from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum.i18n import _
 from electrum.util import format_time, get_request_status
@@ -75,7 +75,9 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
-    def item_changed(self, idx):
+    def item_changed(self, idx: QModelIndex):
+        if not idx.isValid():
+            return
         # TODO use siblingAtColumn when min Qt version is >=5.11
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
@@ -90,6 +92,10 @@ class RequestList(MyTreeView):
         else:
             self.parent.receive_payreq_e.setText(req.get('URI'))
             self.parent.receive_address_e.setText(req['address'])
+
+    def clearSelection(self):
+        super().clearSelection()
+        self.selectionModel().clearCurrentIndex()
 
     def refresh_status(self):
         m = self.model()

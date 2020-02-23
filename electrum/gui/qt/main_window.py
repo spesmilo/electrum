@@ -1206,6 +1206,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
         self.expires_combo.show()
+        self.request_list.clearSelection()
 
     def toggle_qr_window(self):
         from . import qrwindow
