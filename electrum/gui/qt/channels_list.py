@@ -256,4 +256,6 @@ class ChannelsList(MyTreeView):
         else:
             funding_sat = amount_e.get_amount()
         connect_str = str(remote_nodeid.text()).strip()
+        if not connect_str or not funding_sat:
+            return
         self.parent.open_channel(connect_str, funding_sat, 0)
