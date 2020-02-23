@@ -153,7 +153,7 @@ class Plugin(BasePlugin):
 
     @hook
     def transaction_dialog_update(self, d: 'TxDialog'):
-        if d.tx.is_complete() or d.wallet.can_sign(d.tx):
+        if not d.finalized or d.tx.is_complete() or d.wallet.can_sign(d.tx):
             d.cosigner_send_button.setVisible(False)
             return
         for window, xpub, K, _hash in self.cosigner_list:
