@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Optional
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu
@@ -75,7 +76,11 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
-    def item_changed(self, idx: QModelIndex):
+    def item_changed(self, idx: Optional[QModelIndex]):
+        if idx is None:
+            self.parent.receive_payreq_e.setText('')
+            self.parent.receive_address_e.setText('')
+            return
         if not idx.isValid():
             return
         # TODO use siblingAtColumn when min Qt version is >=5.11
@@ -152,6 +157,9 @@ class RequestList(MyTreeView):
             b = self.model().rowCount() > 0
             self.setVisible(b)
             self.parent.receive_requests_label.setVisible(b)
+            if not b:
+                # list got hidden, so selected item should also be cleared:
+                self.item_changed(None)
 
     def create_menu(self, position):
         idx = self.indexAt(position)
