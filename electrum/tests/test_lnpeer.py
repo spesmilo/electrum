@@ -243,10 +243,18 @@ class TestPeer(ElectrumTestCase):
         alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
-        async def reestablish():
+        async def pay():
             result = await LNWallet._pay(w1, pay_req)
             self.assertEqual(result, True)
-            w1.channels = {alice_channel_0.channel_id: alice_channel_0}
+            gath.cancel()
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
+        async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
