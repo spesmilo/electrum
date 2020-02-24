@@ -151,6 +151,12 @@ class Channel(Logger):
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
 
+    def get_id_for_log(self) -> str:
+        scid = self.short_channel_id
+        if scid:
+            return str(scid)
+        return self.channel_id.hex()
+
     def set_onion_key(self, key, value):
         self.onion_keys[key] = value
 

@@ -744,7 +744,7 @@ class Peer(Logger):
             next_remote_revocation_number=oldest_unrevoked_remote_ctn,
             your_last_per_commitment_secret=last_rev_secret,
             my_current_per_commitment_point=latest_point)
-        self.logger.info(f'channel_reestablish: sent channel_reestablish with '
+        self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): sent channel_reestablish with '
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
         msg = await self.wait_for_message('channel_reestablish', chan_id)
@@ -752,7 +752,7 @@ class Peer(Logger):
         their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_remote_revocation_number"], 'big')
         their_local_pcp = msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
-        self.logger.info(f'channel_reestablish: received channel_reestablish with '
+        self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
                          f'(their_next_local_ctn={their_next_local_ctn}, '
                          f'their_oldest_unrevoked_remote_ctn={their_oldest_unrevoked_remote_ctn})')
         # sanity checks of received values
@@ -777,7 +777,7 @@ class Peer(Logger):
             for raw_upd_msg in messages:
                 self.transport.send_bytes(raw_upd_msg)
                 n_replayed_msgs += 1
-        self.logger.info(f'channel_reestablish: replayed {n_replayed_msgs} unacked messages')
+        self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replayed {n_replayed_msgs} unacked messages')
 
         we_are_ahead = False
         they_are_ahead = False
@@ -788,7 +788,8 @@ class Peer(Logger):
                 # (due to is_revack_pending being true), and this should have remedied this situation.
                 pass
             else:
-                self.logger.warning(f"channel_reestablish: expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
+                self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): "
+                                    f"expected remote ctn {next_remote_ctn}, got {their_next_local_ctn}")
                 if their_next_local_ctn < next_remote_ctn:
                     we_are_ahead = True
                 else:
@@ -808,7 +809,8 @@ class Peer(Logger):
                     per_commitment_secret=last_secret,
                     next_per_commitment_point=next_point)
             else:
-                self.logger.warning(f"channel_reestablish: expected local ctn {oldest_unrevoked_local_ctn}, got {their_oldest_unrevoked_remote_ctn}")
+                self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): "
+                                    f"expected local ctn {oldest_unrevoked_local_ctn}, got {their_oldest_unrevoked_remote_ctn}")
                 if their_oldest_unrevoked_remote_ctn < oldest_unrevoked_local_ctn:
                     we_are_ahead = True
                 else:
@@ -823,7 +825,8 @@ class Peer(Logger):
                 assert their_oldest_unrevoked_remote_ctn == 0
                 our_pcs = bytes(32)
             if our_pcs != their_claim_of_our_last_per_commitment_secret:
-                self.logger.error(f"channel_reestablish: (DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
+                self.logger.error(f"channel_reestablish ({chan.get_id_for_log()}): "
+                                  f"(DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
                 return False
             if chan.is_static_remotekey_enabled():
                 return True
@@ -833,7 +836,8 @@ class Peer(Logger):
                 pass
             else:
                 if our_remote_pcp != their_local_pcp:
-                    self.logger.error(f"channel_reestablish: (DLP) remote PCP mismatch: {bh2u(our_remote_pcp)} != {bh2u(their_local_pcp)}")
+                    self.logger.error(f"channel_reestablish ({chan.get_id_for_log()}): "
+                                      f"(DLP) remote PCP mismatch: {bh2u(our_remote_pcp)} != {bh2u(their_local_pcp)}")
                     return False
             return True
 
@@ -841,18 +845,19 @@ class Peer(Logger):
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
 
         if they_are_ahead:
-            self.logger.warning(f"channel_reestablish: remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
+            self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): "
+                                f"remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             self.lnworker.save_channel(chan)
             chan.peer_state = peer_states.BAD
             return
         elif we_are_ahead:
-            self.logger.warning(f"channel_reestablish: we are ahead of remote! trying to force-close.")
+            self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             await self.lnworker.force_close_channel(chan_id)
             return
         elif self.lnworker.wallet.is_lightning_backup():
-            self.logger.warning(f"channel_reestablish: force-closing because we are a recent backup")
+            self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): force-closing because we are a recent backup")
             await self.lnworker.force_close_channel(chan_id)
             return
 
@@ -945,13 +950,12 @@ class Peer(Logger):
 
     def mark_open(self, chan: Channel):
         assert chan.short_channel_id is not None
-        scid = chan.short_channel_id
         # only allow state transition from "FUNDED" to "OPEN"
         old_state = chan.get_state()
         if old_state == channel_states.OPEN:
             return
         if old_state != channel_states.FUNDED:
-            self.logger.info(f"cannot mark open, current state: {repr(old_state)}")
+            self.logger.info(f"cannot mark open ({chan.get_id_for_log()}), current state: {repr(old_state)}")
             return
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state(channel_states.OPEN)
@@ -960,12 +964,12 @@ class Peer(Logger):
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
             chan.set_remote_update(pending_channel_update['raw'])
-        self.logger.info(f"CHANNEL OPENING COMPLETED for {scid}")
+        self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if forwarding_enabled:
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to to receive payments
-            self.logger.info(f"sending channel update for outgoing edge of {scid}")
+            self.logger.info(f"sending channel update for outgoing edge ({chan.get_id_for_log()})")
             chan_upd = chan.get_outgoing_gossip_channel_update()
             self.transport.send_bytes(chan_upd)
 
@@ -1322,8 +1326,8 @@ class Peer(Logger):
             return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
         chan_fee = chan.get_next_feerate(REMOTE)
-        self.logger.info(f"current pending feerate {chan_fee}")
-        self.logger.info(f"new feerate {feerate_per_kw}")
+        self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
+                         f"new feerate {feerate_per_kw}")
         if feerate_per_kw < chan_fee / 2:
             self.logger.info("FEES HAVE FALLEN")
         elif feerate_per_kw > chan_fee * 2:
@@ -1344,7 +1348,7 @@ class Peer(Logger):
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
         txid = await self._shutdown(chan, payload, True)
-        self.logger.info(f'Channel closed {txid}')
+        self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         return txid
 
     @log_exceptions
@@ -1359,7 +1363,7 @@ class Peer(Logger):
             chan = self.channels[chan_id]
             self.send_shutdown(chan)
             txid = await self._shutdown(chan, payload, False)
-            self.logger.info(f'Channel closed by remote peer {txid}')
+            self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
     def send_shutdown(self, chan: Channel):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
@@ -1371,7 +1375,7 @@ class Peer(Logger):
         chan.set_state(channel_states.CLOSING)
         # wait until no HTLCs remain in either commitment transaction
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
-            self.logger.info('waiting for htlcs to settle...')
+            self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
             await asyncio.sleep(1)
         our_fee = chan.pending_local_fee()
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))

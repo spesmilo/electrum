@@ -355,7 +355,7 @@ class LNWalletWatcher(LNWatcher):
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
-        self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
+        self.logger.info(f'(chan {chan.get_id_for_log()}) sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name
@@ -369,17 +369,17 @@ class LNWalletWatcher(LNWatcher):
                 if e_htlc_tx:
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:
-                        self.logger.info(f'htlc is already spent {name}: {prevout}')
+                        self.logger.info(f'(chan {chan.get_id_for_log()}) htlc is already spent {name}: {prevout}')
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
-                        self.logger.info(f'trying to redeem htlc {name}: {prevout}')
+                        self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem htlc {name}: {prevout}')
                         await self.try_redeem(spender_txid+':0', e_htlc_tx)
                         keep_watching = True
                 else:
-                    self.logger.info(f'outpoint already spent {name}: {prevout}')
+                    self.logger.info(f'(chan {chan.get_id_for_log()}) outpoint already spent {name}: {prevout}')
                     keep_watching |= not self.is_deeply_mined(spender_txid)
             else:
-                self.logger.info(f'trying to redeem {name}: {prevout}')
+                self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem {name}: {prevout}')
                 await self.try_redeem(prevout, sweep_info)
                 keep_watching = True
         return keep_watching
