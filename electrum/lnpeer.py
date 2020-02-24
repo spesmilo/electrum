@@ -1019,15 +1019,19 @@ class Peer(Logger):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
     async def await_remote(self, chan: Channel, ctn: int):
+        """Wait until remote 'ctn' gets revoked."""
+        # if 'ctn' is too high, we risk waiting "forever", hence assert:
+        assert chan.get_latest_ctn(REMOTE) >= ctn, (chan.get_latest_ctn(REMOTE), ctn)
         self.maybe_send_commitment(chan)
-        # TODO review this. I suspect some callers want updates irrevocably committed,
-        #      so comparision should use chan.get_oldest_unrevoked_ctn(REMOTE)
-        while chan.get_latest_ctn(REMOTE) <= ctn:
+        while chan.get_oldest_unrevoked_ctn(REMOTE) <= ctn:
             await self._remote_changed_events[chan.channel_id].wait()
 
     async def await_local(self, chan: Channel, ctn: int):
+        """Wait until local 'ctn' gets revoked."""
+        # if 'ctn' is too high, we risk waiting "forever", hence assert:
+        assert chan.get_latest_ctn(LOCAL) >= ctn, (chan.get_latest_ctn(LOCAL), ctn)
         self.maybe_send_commitment(chan)
-        while chan.get_latest_ctn(LOCAL) <= ctn:
+        while chan.get_oldest_unrevoked_ctn(LOCAL) <= ctn:
             await self._local_changed_events[chan.channel_id].wait()
 
     async def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
