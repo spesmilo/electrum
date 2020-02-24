@@ -97,6 +97,7 @@ state_transitions = [
     (cs.CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.CLOSED, cs.REDEEMED),
+    (cs.OPENING, cs.REDEEMED), # channel never funded (dropped from mempool)
     (cs.PREOPENING, cs.REDEEMED), # channel never funded
 ]
 del cs  # delete as name is ambiguous without context
