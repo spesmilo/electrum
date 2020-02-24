@@ -668,7 +668,7 @@ class LNWallet(LNWorker):
                     if spender_txid != funding_txid:
                         tx_mined_height = self.wallet.get_tx_height(spender_txid)
                         if tx_mined_height.conf > 6:
-                            self.logger.info(f'channel is double spent {inputs}, {ds}')
+                            self.logger.info(f'channel is double spent {inputs}')
                             # set to REDEEMED so that it can be removed manually
                             chan.set_state(channel_states.REDEEMED)
                             break
