@@ -1983,7 +1983,7 @@ class Imported_Wallet(Simple_Wallet):
         else:
             raise BitcoinException(str(bad_addr[0][1]))
 
-    def delete_address(self, address):
+    def delete_address(self, address: str):
         if not self.db.has_imported_address(address):
             return
         transactions_to_remove = set()  # only referred to by this address
