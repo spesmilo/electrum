@@ -63,7 +63,7 @@ class TestTransaction(SequentialTestCase):
         expected = {
             'inputs': [{
                 'type': 'p2pkh',
-                'address': '14iRdacqJ95JffkUFUTUoZmHCUkq21UMAZ',
+                'address': 'GMZM3hwnGzgbk93mBR7bEL7B7eYg35gpHk',
                 'issuance': None,
                 'num_sig': 1,
                 'prevout_hash': '25554b1cb7c28ca28188066312f66524bf1b241a120dec8bd39e81699aebddf8',
@@ -75,7 +75,7 @@ class TestTransaction(SequentialTestCase):
                 'x_pubkeys': ['ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c00000000']}],
             'lockTime': 3,
             'outputs': [{
-                'address': '1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7',
+                'address': 'GJ2r1hJhT5h6WYTVD28BCUH7zVR9QcewCt',
                 'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
@@ -88,7 +88,7 @@ class TestTransaction(SequentialTestCase):
                 'value': 100000000000000,
                 'value_version': 1},
                 {
-                'address': '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac',
+                'address': 'GYGPeVm3KGjbiQY6kqE4ABVuXFrMLtrxhT',
                 'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
@@ -122,11 +122,11 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.deserialize(), None)
 
         self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7', 100000000000000, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 399999999965500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('SCRIPT ', 34500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4')])
-        self.assertEqual(tx.get_output_addresses(), ['1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7', '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 'SCRIPT '])
+        self.assertEqual(tx.get_outputs(), [('GJ2r1hJhT5h6WYTVD28BCUH7zVR9QcewCt', 100000000000000, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('GYGPeVm3KGjbiQY6kqE4ABVuXFrMLtrxhT', 399999999965500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('SCRIPT ', 34500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4')])
+        self.assertEqual(tx.get_output_addresses(), ['GJ2r1hJhT5h6WYTVD28BCUH7zVR9QcewCt', 'GYGPeVm3KGjbiQY6kqE4ABVuXFrMLtrxhT', 'SCRIPT '])
 
-        self.assertTrue(tx.has_address('1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7'))
-        self.assertTrue(tx.has_address('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac'))
+        self.assertTrue(tx.has_address('GJ2r1hJhT5h6WYTVD28BCUH7zVR9QcewCt'))
+        self.assertTrue(tx.has_address('GYGPeVm3KGjbiQY6kqE4ABVuXFrMLtrxhT'))
         self.assertFalse(tx.has_address('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsab'))
         self.assertEqual(tx.serialize(), unsigned_blob)
 
@@ -154,7 +154,7 @@ class TestTransaction(SequentialTestCase):
             'lockTime': 3,
             'outputs': [
                 {
-                'address': '1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7',
+                'address': 'GJ2r1hJhT5h6WYTVD28BCUH7zVR9QcewCt',
                 'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
@@ -167,7 +167,7 @@ class TestTransaction(SequentialTestCase):
                 'value': 100000000000000,
                 'value_version': 1},
                 {
-                'address': '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac',
+                'address': 'GYGPeVm3KGjbiQY6kqE4ABVuXFrMLtrxhT',
                 'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
@@ -214,7 +214,7 @@ class TestTransaction(SequentialTestCase):
 
     def test_estimated_output_size(self):
         estimated_output_size = transaction.Transaction.estimated_output_size
-        self.assertEqual(estimated_output_size('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), 34)
+        self.assertEqual(estimated_output_size('GMXXqwFmj4QZpffUes4JMhTYnxuVf8avcW'), 34)
         self.assertEqual(estimated_output_size('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 32)
         self.assertEqual(estimated_output_size('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af'), 31)
         self.assertEqual(estimated_output_size('bc1qnvks7gfdu72de8qv6q6rhkkzu70fqz4wpjzuxjf6aydsx7wxfwcqnlxuv3'), 43)
@@ -238,7 +238,7 @@ class TestTransaction(SequentialTestCase):
 
     def test_parse_xpub(self):
         res = xpubkey_to_address('fe4e13b0f311a55b8a5db9a32e959da9f011b131019d4cebe6141b9e2c93edcbfc0954c358b062a9f94111548e50bde5847a3096b8b7872dcffadb0e9579b9017b01000200')
-        self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', '19h943e4diLc68GXW7G75QNe2KWuMu7BaJ'))
+        self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', 'GSY4UAy1cZwuAbZpS3vDWAiXwVJkMmTka6'))
 
     def test_version_field(self):
         tx = transaction.Transaction(v2_blob)
@@ -257,9 +257,9 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual((ADDR, 'bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
 
         # base58 p2pkh
-        self.assertEqual((ADDR, '14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), addr_from_script('76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac'))
-        self.assertEqual((ADDR, '1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), addr_from_script('76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac'))
-        self.assertEqual((ADDR, '18u8VTYhogvwek9rUQRtHKn66Sf6a2RV5w'), addr_from_script('76a91456a4c36cd1fdb71a493fec9941b69b4a7cec90ea88ac'))
+        self.assertEqual((ADDR, 'GMXXqwFmj4QZpffUes4JMhTYnxuVf8avcW'), addr_from_script('76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac'))
+        self.assertEqual((ADDR, 'GU5m6821WucHRHAxCeb7beBV9VHM2T4gFA'), addr_from_script('76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac'))
+        self.assertEqual((ADDR, 'GRk3uasenYYEjDT9QM5zi67z1cSwdunn7V'), addr_from_script('76a91456a4c36cd1fdb71a493fec9941b69b4a7cec90ea88ac'))
 
         # base58 p2sh
         self.assertEqual((ADDR, '35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), addr_from_script('a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487'))
