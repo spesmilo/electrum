@@ -68,6 +68,55 @@ class VersionedValue:
         raise self.NotComparable
 
 
+class OceanMainnet:
+    TESTNET = False
+    FIXEDFEE = 50000
+    SHOWFX = False
+    WALLETPATH = "dgldwallet"
+    WALLETTITLE = "DGLD Wallet"
+    CONTRACTINTX = True
+    BASIC_HEADER_SIZE = 172
+    MIN_HEADER_SIZE = 176
+    WIF_PREFIX = 0xB4
+    ADDRTYPE_P2PKH = 38
+    ADDRTYPE_P2SH = 97
+    SEGWIT_HRP = "bc"
+    GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
+    DEFAULT_PORTS = {'t': '50001', 's': '50002'}
+    DEFAULT_SERVERS = read_json('servers.json', {})
+    MAPPING_URL = 'https://s3.eu-west-1.amazonaws.com/gtsa-mapping/map.json'
+    CHECKPOINTS = []    # no handling for checkpoins
+
+    XPRV_HEADERS = {
+        'standard':    0x0488ade4,  # xprv
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
+        'p2wsh-p2sh':  0x0295b005,  # Yprv
+        'p2wpkh':      0x04b2430c,  # zprv
+        'p2wsh':       0x02aa7a99,  # Zprv
+
+    }
+    XPUB_HEADERS = {
+        'standard':    0x0488b21e,  # xpub
+        'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+        'p2wsh-p2sh':  0x0295b43f,  # Ypub
+        'p2wpkh':      0x04b24746,  # zpub
+        'p2wsh':       0x02aa7ed3,  # Zpub
+
+    }
+    BIP44_COIN_TYPE = 0
+
+    CONTROLER1 = "04103fda45d114931ab5b24b77a383d16c3e510ee83ebf91987436a21e02ad7b6d41dc52d40ac27a3703be934ebd207071ba83b3674ac4fc01bb602fb434eddfee"
+    CONTROLER2 = "04ee4278985ac544f0fec151a1ba21ac97e26fdbf230973e07aeb608ed0a18b535396579ebfbc6a54efa7628f4c7e51cd4ed6c6e6967699d387352efa5971d6548"
+    CONTROLER3 = "04d36a30f4eb8abd75550666e263dde3b302d3fce3847a53ec283b670e9a8387bfa304e4f30e8e4a2392f0c87ce040e11ad9d282c172d0ed8341c046dea9278304"
+    #Address the whitelist tokens are initially paid to (defined in the genesis block)
+    WHITELISTCOINSDESTINATION = "76a91464e33e58fa0a18348d94f064a09fe6ec65448ef588ac"
+    WHITELISTCOINSADDRESS = "GT3NDU8J5NkBeZf6sU2UoHjc1uaiyES5Ld"
+    WHITELISTASSET="d109a2432528b0a9208e7f4258f569e246c25bd0cd90f4d8160f1704be833c23"
+
+    CHALLENGE = VersionedValue({0:"5321024cc60ff6ca8423c8353142fab8b4aa8b42e66eac2ae51a7cde1eaeb54a73a31e21034878127e5f0a5c84e775d754f02bcea9393c17b7fc05a01a2c011f7a419e6f932103b7d99275aba3db614faeeba3920295e8d661a3a0a705d999b8a38aca0f8fc5d321039d1175c43f855f003fd1e980b618b3d504f2099754b8afa3667ead04b9dbb6d921027c2e025fb4d41e7c4b757a722bff6172233fa576b0aac7d5d8e4e32cfbf2a1df55ae"})
+    ENCRYPTED_WHITELIST=False
+
+
 class LocalTestnet:
     TESTNET = False
     FIXEDFEE = 50000
@@ -83,7 +132,7 @@ class LocalTestnet:
     SEGWIT_HRP = "bc"
     GENESIS = "6781e844009f9492a6b2f185d4984addf51343f0e22792e130116499149af051"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-    DEFAULT_SERVERS = read_json('servers.json', {})
+    DEFAULT_SERVERS = read_json('servers_local_testnet.json', {})
     DEFAULT_PROTOCOL = 't' # 't' - tcp; 's' - ssl
     MAPPING_URL = 'https://s3.eu-west-1.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
@@ -174,7 +223,6 @@ class GtsaTestnet:
     ENCRYPTED_WHITELIST=False
 
 
-'''
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):
     TESTNET = True
@@ -212,6 +260,7 @@ class OceanTestnet(OceanMainnet):
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
     ENCRYPTED_WHITELIST=False
     
+
 class OceanRegtest(OceanMainnet):
 
     TESTNET = True
@@ -248,15 +297,14 @@ class OceanRegtest(OceanMainnet):
 
     BIP44_COIN_TYPE = 1
     ENCRYPTED_WHITELIST=False
-'''
  
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = LocalTestnet
 
-'''
 def set_simnet():
-    return
+    global net
+    net = LocalTestnet
 
 def set_mainnet():
     global net
@@ -269,5 +317,5 @@ def set_testnet():
 def set_regtest():
     global net
     net = OceanRegtest
-'''
+
 
