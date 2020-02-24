@@ -1659,9 +1659,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def open_channel(self, connect_str, funding_sat, push_amt):
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
-        # however, the user must not be allowed to broadcast early
         make_tx = self.mktx_for_open_channel(funding_sat)
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, is_sweep=False)
+        # disable preview button because the user must not broadcast tx before establishment_flow
+        d.preview_button.setEnabled(False)
         cancelled, is_send, password, funding_tx = d.run()
         if not is_send:
             return
