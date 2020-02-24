@@ -322,6 +322,9 @@ class WatchTower(LNWatcher):
         pass
 
 
+
+CHANNEL_OPENING_TIMEOUT = 24*60*60
+
 class LNWalletWatcher(LNWatcher):
 
     def __init__(self, lnworker, network):
@@ -337,7 +340,7 @@ class LNWalletWatcher(LNWatcher):
             return
         if funding_height.height == TX_HEIGHT_LOCAL:
             chan.delete_funding_height()
-            return
+            await self.lnworker.update_unfunded_channel(chan, funding_txid)
         elif closing_height.height == TX_HEIGHT_LOCAL:
             chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
             await self.lnworker.update_open_channel(chan, funding_txid, funding_height)

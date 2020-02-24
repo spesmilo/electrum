@@ -97,6 +97,7 @@ state_transitions = [
     (cs.CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.CLOSED, cs.REDEEMED),
+    (cs.PREOPENING, cs.REDEEMED), # channel never funded
 ]
 del cs  # delete as name is ambiguous without context
 

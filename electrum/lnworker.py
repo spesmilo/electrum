@@ -654,6 +654,29 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
+    async def update_unfunded_channel(self, chan, funding_txid):
+        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING]:
+            if chan.constraints.is_initiator:
+                inputs = chan.storage.get('funding_inputs', [])
+                if not inputs:
+                    self.logger.info(f'channel funding inputs are not provided')
+                    chan.set_state(channel_states.REDEEMED)
+                for i in inputs:
+                    spender_txid = self.wallet.db.get_spent_outpoint(*i)
+                    if spender_txid is None:
+                        continue
+                    if spender_txid != funding_txid:
+                        tx_mined_height = self.wallet.get_tx_height(spender_txid)
+                        if tx_mined_height.conf > 6:
+                            self.logger.info(f'channel is double spent {inputs}, {ds}')
+                            # set to REDEEMED so that it can be removed manually
+                            chan.set_state(channel_states.REDEEMED)
+                            break
+            else:
+                now = int(time.time())
+                if now - chan.storage.get('init_timestamp', 0) > CHANNEL_INIT_TIMEOUT:
+                    self.remove_channel(chan.channel_id)
+
     async def update_open_channel(self, chan, funding_txid, funding_height):
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):

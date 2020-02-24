@@ -590,6 +590,7 @@ class Peer(Logger):
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
+        chan.storage['funding_inputs'] = [txin.prevout for txin in funding_tx.inputs()]
         sig_64, _ = chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
         self.send_message("funding_created",
@@ -684,6 +685,7 @@ class Peer(Logger):
                        sweep_address=self.lnworker.sweep_address,
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
+        chan.storage['init_timestamp'] = int(time.time())
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
