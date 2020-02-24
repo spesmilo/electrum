@@ -1,8 +1,7 @@
 {
-    "wallet.mainnet.gtsa.io": {
+    "testnet.gtsa.io": {
         "pruning": "-",
         "s": "10005",
-        "t": "10004",
         "version": "2.0"
     }
 }
