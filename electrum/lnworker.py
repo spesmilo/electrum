@@ -61,7 +61,7 @@ from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnwatcher import LNWalletWatcher
+from .lnwatcher import LNWalletWatcher, CHANNEL_OPENING_TIMEOUT
 
 if TYPE_CHECKING:
     from .network import Network
@@ -674,7 +674,7 @@ class LNWallet(LNWorker):
                             break
             else:
                 now = int(time.time())
-                if now - chan.storage.get('init_timestamp', 0) > CHANNEL_INIT_TIMEOUT:
+                if now - chan.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
                     self.remove_channel(chan.channel_id)
 
     async def update_open_channel(self, chan, funding_txid, funding_height):
