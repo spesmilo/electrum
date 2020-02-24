@@ -213,7 +213,7 @@ class CovertSubmitter(PrintError):
         self.spare_connections = []
 
         # This will be set to the exception that caused a stoppage:
-        # - the first connection error were a spare was not available
+        # - the first connection error where a spare was not available
         # - the first unrecoverable error from server
         self.failure_exception = None
 
