@@ -8,8 +8,8 @@ git:
   depth: false
 before_install:
   - git tag
-  - sudo apt-get -y install libsecp256k1-0
 install:
+  - sudo apt-get -y install libsecp256k1-0
   - pip install -r contrib/requirements/requirements-travis.txt
 cache:
   - pip: true
@@ -25,11 +25,11 @@ jobs:
     - name: "Regtest functional tests"
       language: python
       python: 3.7
-      before_install:
+      install:
         - sudo add-apt-repository -y ppa:bitcoin/bitcoin
         - sudo apt-get -qq update
         - sudo apt-get install -yq bitcoind
-      install:
+        - sudo apt-get -y install libsecp256k1-0
         - pip install -r contrib/requirements/requirements.txt
         - pip install electrumx
       before_script:
