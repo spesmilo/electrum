@@ -810,7 +810,7 @@ class Fusion(threading.Thread, PrintError):
         for i, (comp, sig) in enumerate(zip(mycomponents, blindsigs)):
             messages[mycomponentslots[i]] = pb.CovertComponent(round_pubkey = round_pubkey, signature = sig, component = comp)
         assert all(messages)
-        covert.schedule_submissions(covert_T0 + Protocol.T_START_COMPS, messages, ping_spares = True)
+        covert.schedule_submissions(covert_T0 + Protocol.T_START_COMPS, messages)
 
         # While submitting, we download the (large) full commitment list.
         msg = self.recv('allcommitments', timeout=Protocol.T_START_SIGS)
@@ -888,7 +888,7 @@ class Fusion(threading.Thread, PrintError):
                 sig = schnorr.sign(sec, sighash)
 
                 messages[mycomponentslots[mycompidx]] = pb.CovertTransactionSignature(txsignature = sig, which_input = i)
-            covert.schedule_submissions(covert_T0 + Protocol.T_START_SIGS, messages, ping_Nones = True, ping_spares = True)
+            covert.schedule_submissions(covert_T0 + Protocol.T_START_SIGS, messages)
 
             # wait for result
             msg = self.recv('fusionresult', timeout=Protocol.T_EXPECTING_CONCLUSION - Protocol.TS_EXPECTING_COVERT_COMPONENTS)
