@@ -84,6 +84,7 @@ class OceanMainnet:
     GENESIS = "c66cb6eb7cd585788b294be28c8dcd6be4e37a0a6d238236b11c0beb25833bb9"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
+    DEFAULT_PROTOCOL = 's' # 't' - tcp; 's' - ssl
     MAPPING_URL = 'https://s3.eu-west-1.amazonaws.com/gtsa-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
@@ -300,7 +301,7 @@ class OceanRegtest(OceanMainnet):
  
 
 # don't import net directly, import the module instead (so that net is singleton)
-net = LocalTestnet
+net = OceanMainnet
 
 def set_simnet():
     global net
