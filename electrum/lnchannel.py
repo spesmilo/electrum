@@ -743,6 +743,9 @@ class Channel(Logger):
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())
 
+    def get_latest_fee(self, subject):
+        return self.constraints.capacity - sum(x.value for x in self.get_latest_commitment(subject).outputs())
+
     def update_fee(self, feerate: int, from_us: bool):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:

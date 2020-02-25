@@ -1381,20 +1381,33 @@ class Peer(Logger):
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
             await asyncio.sleep(1)
-        our_fee = chan.pending_local_fee()
-        scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        their_scriptpubkey = payload['scriptpubkey']
+        our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        # estimate fee of closing tx
+        our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
+        fee_rate = self.network.config.fee_per_kb()
+        our_fee = fee_rate * closing_tx.estimated_size() // 1000
+        # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
+        max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
+        our_fee = min(our_fee, max_fee)
         # negotiate fee
         while True:
-            our_sig, closing_tx = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=our_fee)
+            self.logger.info(f'sending closing_signed {our_fee}')
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
             # FIXME: the remote SHOULD send closing_signed, but some don't.
             cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
             their_sig = cs_payload['signature']
-            if our_fee == their_fee:
+            # TODO: verify their sig
+            if their_fee > max_fee:
+                raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
+            # Agree if difference is lower or equal to one (see below)
+            if abs(our_fee - their_fee) < 2:
                 break
-            # TODO: negotiate better
-            our_fee = their_fee
+            # BOLT2: receiver MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
+            our_fee = (our_fee + (1 if our_fee < their_fee else -1) + their_fee) // 2
+
         # add signatures
         closing_tx.add_signature_to_txin(txin_idx=0,
                                          signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
@@ -1403,5 +1416,5 @@ class Peer(Logger):
                                          signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
                                          sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
-        await self.network.broadcast_transaction(closing_tx)
+        await self.network.try_broadcasting(closing_tx, 'closing')
         return closing_tx.txid()

@@ -165,6 +165,9 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice.hm.channel_open_finished()
     bob.hm.channel_open_finished()
 
+    # TODO: sweep_address in lnchannel.py should use static_remotekey
+    alice.sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
+    bob.sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
     return alice, bob
 
 class TestFee(ElectrumTestCase):
