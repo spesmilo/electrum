@@ -162,7 +162,7 @@ class Peer(Logger):
                 asyncio.ensure_future(execution_result)
 
     def on_error(self, payload):
-        self.logger.info(f"on_error: {payload['data'].decode('ascii')}")
+        self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: {payload['data'].decode('ascii')}")
         chan_id = payload.get("channel_id")
         if chan_id in self.temp_id_to_id:
             chan_id = self.temp_id_to_id[chan_id]
@@ -179,7 +179,7 @@ class Peer(Logger):
         q = self.ordered_message_queues[channel_id]
         name, payload = await asyncio.wait_for(q.get(), LN_P2P_NETWORK_TIMEOUT)
         if payload.get('error'):
-            raise Exception('Remote peer reported error: ' + repr(payload.get('error')))
+            raise Exception('Remote peer reported error [DO NOT TRUST THIS MESSAGE]: ' + repr(payload.get('error')))
         if name != expected_name:
             raise Exception(f"Received unexpected '{name}'")
         return payload
