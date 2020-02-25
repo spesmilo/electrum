@@ -272,12 +272,16 @@ class BCDataStream(object):
         self.write(string)
 
     def read_bytes(self, length) -> bytes:
-        try:
-            result = self.input[self.read_cursor:self.read_cursor+length]  # type: bytearray
+        assert length >= 0
+        input_len = len(self.input)
+        read_begin = self.read_cursor
+        read_end = read_begin + length
+        if 0 <= read_begin <= input_len and read_end <= input_len:
+            result = self.input[read_begin:read_end]  # type: bytearray
             self.read_cursor += length
             return bytes(result)
-        except IndexError:
-            raise SerializationError("attempt to read past end of buffer") from None
+        else:
+            raise SerializationError('attempt to read past end of buffer')
 
     def can_read_more(self) -> bool:
         if not self.input:
