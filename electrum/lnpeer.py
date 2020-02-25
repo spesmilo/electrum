@@ -25,7 +25,8 @@ from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup
-from .transaction import Transaction, TxOutput, PartialTxOutput
+from . import transaction
+from .transaction import Transaction, TxOutput, PartialTxOutput, match_script_against_template
 from .logging import Logger
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
@@ -1357,9 +1358,12 @@ class Peer(Logger):
 
     @log_exceptions
     async def on_shutdown(self, payload):
-        # length of scripts allowed in BOLT-02
-        if int.from_bytes(payload['len'], 'big') not in (3+20+2, 2+20+1, 2+20, 2+32):
-            raise Exception('scriptpubkey length in received shutdown message invalid: ' + str(payload['len']))
+        their_scriptpubkey = payload['scriptpubkey']
+        # BOLT-02 restrict the scriptpubkey to some templates:
+        if not (match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0)
+                or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH)
+                or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2PKH)):
+            raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
         chan_id = payload['channel_id']
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
