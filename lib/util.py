@@ -635,7 +635,8 @@ def parse_json(message):
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
-    except:
+    except Exception:
+        # just consume the line and ignore error.
         j = None
     return j, message[n+1:]
 
@@ -678,11 +679,18 @@ class TxHashMismatch(ServerError):
 
 import socket
 import ssl
+import errno
 
-class SocketPipe(PrintError):
-    class MessageSizeExceeded(RuntimeError):
-        ''' Raised by get() if max_message_bytes is set and the message size
-        limit was exceeded. '''
+class JSONSocketPipe(PrintError):
+    """ Non-blocking wrapper for a socket passing one-per-line json messages:
+
+       <json><newline><json><newline><json><newline>...
+
+    Correctly handles SSL sockets and gives useful info for select loops.
+    """
+
+    class Closed(RuntimeError):
+        ''' Raised if socket is closed '''
 
     def __init__(self, socket, *, max_message_bytes=0):
         ''' A max_message_bytes of <= 0 means unlimited, otherwise a positive
@@ -690,67 +698,116 @@ class SocketPipe(PrintError):
         used by get(), which will raise MessageSizeExceeded if the message size
         received is larger than max_message_bytes. '''
         self.socket = socket
-        self.message = b''
-        self.set_timeout(0.1)
+        socket.settimeout(0)
         self.recv_time = time.time()
         self.max_message_bytes = max_message_bytes
-
-    def set_timeout(self, t):
-        self.socket.settimeout(t)
+        self.recv_buf = bytearray()
+        self.send_buf = bytearray()
 
     def idle_time(self):
         return time.time() - self.recv_time
 
-    def clean_up(self):
-        ''' Clears the receive buffer to make sure no garbage data remains '''
-        self.message = b''
+    def get_selectloop_info(self):
+        ''' Returns tuple:
+
+        read_pending - new data is available that may be unknown to select(),
+            so perform a get() regardless of select().
+        write_pending - some send data is still buffered, so make sure to call
+            send_flush if writing becomes available.
+        '''
+        try:
+            # pending() only defined on SSL sockets.
+            has_pending = self.socket.pending() > 0
+        except AttributeError:
+            has_pending = False
+        return has_pending, bool(self.send_buf)
 
     def get(self):
+        ''' Attempt to read out a message, possibly saving additional messages in
+        a receive buffer.
+
+        If no message is currently available, this raises util.timeout and you
+        should retry once data becomes available to read. If connection is bad for
+        some known reason, raises .Closed; other errors will raise other exceptions.
+        '''
         while True:
-            response, self.message = parse_json(self.message)
+            response, self.recv_buf = parse_json(self.recv_buf)
             if response is not None:
                 return response
+
             try:
                 data = self.socket.recv(1024)
-            except socket.timeout:
+            except (socket.timeout, BlockingIOError, ssl.SSLWantReadError):
                 raise timeout
-            except ssl.SSLError:
-                raise timeout
-            except socket.error as err:
-                if err.errno == 60:
+            except OSError as exc:
+                if exc.errno in (11, 35, 60, 10035):
+                    # some OSes might give these ways of indicating a would-block error.
                     raise timeout
-                elif err.errno in [11, 35, 10035]:
-                    self.print_error("socket errno %d (resource temporarily unavailable)"% err.errno)
-                    time.sleep(0.2)
-                    raise timeout
-                else:
-                    self.print_error("socket error:", err)
-                    data = b''
-            except:
-                traceback.print_exc(file=sys.stderr)
-                data = b''
+                if exc.errno == 9:
+                    # EBADF. Someone called close() locally so FD is bad.
+                    raise self.Closed('closed by local')
+                raise self.Closed('closing due to {}: {}'.format(type(exc).__name__, str(exc)))
+            except ssl.SSLError as e:
+                # Note: rarely an SSLWantWriteError can happen if we renegotiate
+                # SSL and buffers are full. This is pretty annoying to handle
+                # right and we don't expect to renegotiate, so just drop
+                # connection.
+                raise self.Closed('closing due to {}: {}'.format(type(exc).__name__, str(exc)))
 
-            if not data:  # Connection closed remotely
-                return None
-            self.message += data
+            if not data:
+                raise self.Closed('closed by remote')
+
+            self.recv_buf.extend(data)
             self.recv_time = time.time()
 
-            if self.max_message_bytes > 0 and len(self.message) > self.max_message_bytes:
-                raise self.MessageSizeExceeded(f"Message limit is: {self.max_message_bytes}; message buffer exceeded this limit!")
+            if self.max_message_bytes > 0 and len(self.recv_buf) > self.max_message_bytes:
+                raise self.Closed(f"Message limit is: {self.max_message_bytes}; receive buffer exceeded this limit!")
 
     def send(self, request):
         out = json.dumps(request) + '\n'
         out = out.encode('utf8')
-        self._send(out)
+        self.send_buf.extend(out)
+        return self.send_flush()
 
     def send_all(self, requests):
         out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
-        self._send(out)
+        self.send_buf.extend(out)
+        return self.send_flush()
 
-    def _send(self, out):
-        while out:
-            sent = self.socket.send(out)
-            out = out[sent:]
+    def send_flush(self):
+        ''' Flush any unsent data from a prior call to send / send_all.
+
+        Raises timeout if more data remains to be sent.
+        Raise .Closed in the event of a socket error that requires abandoning
+        this socket.
+        '''
+        send_buf = self.send_buf
+        while send_buf:
+            try:
+                sent = self.socket.send(send_buf)
+            except (socket.timeout, BlockingIOError, ssl.SSLWantWriteError):
+                raise timeout
+            except OSError as exc:
+                if exc.errno in (11, 35, 60, 10035):
+                    # some OSes might give these ways of indicating a would-block error.
+                    raise timeout
+                if exc.errno == 9:
+                    # EBADF. Someone called close() locally so FD is bad.
+                    raise self.Closed('closed by local')
+                raise self.Closed('closing due to {}: {}'.format(type(exc).__name__, str(exc)))
+            except ssl.SSLError as e:
+                # Note: rarely an SSLWantReadError can happen if we renegotiate
+                # SSL and buffers are full. This is pretty annoying to handle
+                # right and we don't expect to renegotiate, so just drop
+                # connection.
+                raise self.Closed('closing due to {}: {}'.format(type(exc).__name__, str(exc)))
+
+            if sent == 0:
+                # shouldn't happen, but just in case, we don't want to infinite
+                # loop.
+                raise timeout
+            del send_buf[:sent]
+
 
 
 def setup_thread_excepthook():

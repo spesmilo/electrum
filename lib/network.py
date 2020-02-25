@@ -1393,16 +1393,6 @@ class Network(util.DaemonThread):
         # refresh network dialog
         self.notify('interfaces')
 
-    def maintain_requests(self):
-        with self.interface_lock:
-            interfaces = list(self.interfaces.values())
-        for interface in interfaces:
-            if interface.unanswered_requests and time.time() - interface.request_time > 20:
-                # The last request made is still outstanding, and was over 20 seconds ago.
-                interface.print_error("blockchain request timed out")
-                self.connection_down(interface.server)
-                continue
-
     def find_bad_fds_and_kill(self):
         bad = []
         with self.interface_lock:
@@ -1422,19 +1412,33 @@ class Network(util.DaemonThread):
             self.print_error("wait_on_sockets: {} raised by select() call.. trying to recover...".format(err))
             self.find_bad_fds_and_kill()
 
+        rin = []
+        win = []
+        r_immed = []
         with self.interface_lock:
             interfaces = list(self.interfaces.values())
-            rin = [i for i in interfaces if i.fileno() > -1]
-            win = [i for i in interfaces if i.num_requests() and i.fileno() > -1]
+            for interface in interfaces:
+                if interface.fileno() < 0:
+                    continue
+                read_pending, write_pending = interface.pipe.get_selectloop_info()
+                if read_pending:
+                    r_immed.append(interface)
+                else:
+                    rin.append(interface)
+                if write_pending or interface.num_requests():
+                    win.append(interface)
 
-        # Python docs say Windows doesn't like empty selects.
-        # Sleep to prevent busy looping
-        if not win and not rin:
-            time.sleep(0.1)
-            return
+        timeout = 0 if r_immed else 0.1
 
         try:
-            rout, wout, xout = select.select(rin, win, [], 0.1)
+            # Python docs say Windows doesn't like empty selects.
+            if win or rin:
+                rout, wout, xout = select.select(rin, win, [], timeout)
+            else:
+                rout = wout = xout = ()
+                if timeout:
+                    # Sleep to prevent busy looping
+                    time.sleep(timeout)
         except socket.error as e:
             code = None
             if isinstance(e, OSError): # Should always be the case unless ancient python3
@@ -1456,7 +1460,10 @@ class Network(util.DaemonThread):
 
         assert not xout
         for interface in wout:
-            interface.send_requests()
+            if not interface.send_requests():
+                self.connection_down(interface.server)
+        for interface in r_immed:
+            self.process_responses(interface)
         for interface in rout:
             self.process_responses(interface)
 
@@ -1486,7 +1493,6 @@ class Network(util.DaemonThread):
         while self.is_running():
             self.maintain_sockets()
             self.wait_on_sockets()
-            self.maintain_requests()
             if self.verified_checkpoint:
                 self.run_jobs()    # Synchronizer and Verifier and Fx
             self.process_pending_sends()
