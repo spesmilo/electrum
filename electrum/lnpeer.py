@@ -42,7 +42,8 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
-                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID)
+                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
+                     IncompatibleLightningFeatures)
 from .lnutil import FeeUpdate
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -193,9 +194,9 @@ class Peer(Logger):
         their_localfeatures = int.from_bytes(payload['localfeatures'], byteorder="big")
         try:
             self.localfeatures = ln_compare_features(self.localfeatures, their_localfeatures)
-        except ValueError as e:
+        except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
-            raise GracefulDisconnect(f"remote does not support {str(e)}")
+            raise GracefulDisconnect(f"{str(e)}")
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
         self._received_init = True
@@ -231,7 +232,7 @@ class Peer(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.log(e.log_level, f"Disconnecting: {repr(e)}")
-            except LightningPeerConnectionClosed as e:
+            except (LightningPeerConnectionClosed, IncompatibleLightningFeatures) as e:
                 self.logger.info(f"Disconnecting: {repr(e)}")
             finally:
                 self.close_and_cleanup()
@@ -706,7 +707,6 @@ class Peer(Logger):
             raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
         return remote_reserve_sat
 
-    @log_exceptions
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
