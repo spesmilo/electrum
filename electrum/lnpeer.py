@@ -1398,6 +1398,11 @@ class Peer(Logger):
         def send_closing_signed():
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+        def verify_signature(tx, sig):
+            their_pubkey = chan.config[REMOTE].multisig_key.pubkey
+            preimage_hex = tx.serialize_preimage(0)
+            pre_hash = sha256d(bfh(preimage_hex))
+            return ecc.verify_signature(their_pubkey, sig, pre_hash)
         # the funder sends the first 'closing_signed' message
         if chan.constraints.is_initiator:
             send_closing_signed()
@@ -1411,11 +1416,11 @@ class Peer(Logger):
             their_sig = cs_payload['signature']
             # verify their sig: they might have dropped their output
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
-            if closing_tx.verify_signature(0, their_sig):
+            if not verify_signature(closing_tx, their_sig):
                 drop_remote = False
             else:
                 our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
-                if closing_tx.verify_signature(0, their_sig):
+                if not verify_signature(closing_tx, their_sig):
                     drop_remote = True
                 else:
                     raise Exception('failed to verify their signature')

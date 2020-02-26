@@ -1822,37 +1822,30 @@ class PartialTransaction(Transaction):
         if len(self.inputs()) != len(signatures):
             raise Exception('expected {} signatures; got {}'.format(len(self.inputs()), len(signatures)))
         for i, txin in enumerate(self.inputs()):
+            pubkeys = [pk.hex() for pk in txin.pubkeys]
             sig = signatures[i]
             if bfh(sig) in list(txin.part_sigs.values()):
                 continue
-            sig_bytes = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
-            signing_pubkey = self.verify_signature(i, sig_bytes)
-            if signing_pubkey:
-                _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={signing_pubkey.hex()}, sig={sig}")
-                self.add_signature_to_txin(txin_idx=i, signing_pubkey=signing_pubkey.hex(), sig=sig)
+            pre_hash = sha256d(bfh(self.serialize_preimage(i)))
+            sig_string = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
+            for recid in range(4):
+                try:
+                    public_key = ecc.ECPubkey.from_sig_string(sig_string, recid, pre_hash)
+                except ecc.InvalidECPointException:
+                    # the point might not be on the curve for some recid values
+                    continue
+                pubkey_hex = public_key.get_public_key_hex(compressed=True)
+                if pubkey_hex in pubkeys:
+                    try:
+                        public_key.verify_message_hash(sig_string, pre_hash)
+                    except Exception:
+                        _logger.exception('')
+                        continue
+                    _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={pubkey_hex}, sig={sig}")
+                    self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_hex, sig=sig)
+                    break
         # redo raw
         self.invalidate_ser_cache()
-
-    def verify_signature(self, i: int, sig: bytes) -> bytes:
-        # returns the signing pubkey if verification passes
-        txin = self.inputs()[i]
-        pubkeys = [pk for pk in txin.pubkeys]
-        pre_hash = sha256d(bfh(self.serialize_preimage(i)))
-        for recid in range(4):
-            try:
-                public_key = ecc.ECPubkey.from_sig_string(sig, recid, pre_hash)
-            except ecc.InvalidECPointException:
-                # the point might not be on the curve for some recid values
-                continue
-            pubkey = public_key.get_public_key_bytes(compressed=True)
-            if pubkey in pubkeys:
-                try:
-                    public_key.verify_message_hash(sig, pre_hash)
-                except Exception:
-                    _logger.exception('')
-                    continue
-                return pubkey
-        return False
 
     def add_signature_to_txin(self, *, txin_idx: int, signing_pubkey: str, sig: str):
         txin = self._inputs[txin_idx]
