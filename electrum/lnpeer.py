@@ -1416,11 +1416,11 @@ class Peer(Logger):
             their_sig = cs_payload['signature']
             # verify their sig: they might have dropped their output
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
-            if not verify_signature(closing_tx, their_sig):
+            if verify_signature(closing_tx, their_sig):
                 drop_remote = False
             else:
                 our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
-                if not verify_signature(closing_tx, their_sig):
+                if verify_signature(closing_tx, their_sig):
                     drop_remote = True
                 else:
                     raise Exception('failed to verify their signature')
