@@ -151,6 +151,7 @@ class Channel(Logger):
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
+        self._can_send_ctx_updates = True  # type: bool
 
     def get_id_for_log(self) -> str:
         scid = self.short_channel_id
@@ -287,11 +288,11 @@ class Channel(Logger):
                     out[rhash] = (self.channel_id, htlc, direction)
         return out
 
-    def open_with_first_pcp(self, remote_pcp, remote_sig):
+    def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
         with self.db_lock:
-            self.config[REMOTE].current_per_commitment_point=remote_pcp
-            self.config[REMOTE].next_per_commitment_point=None
-            self.config[LOCAL].current_commitment_signature=remote_sig
+            self.config[REMOTE].current_per_commitment_point = remote_pcp
+            self.config[REMOTE].next_per_commitment_point = None
+            self.config[LOCAL].current_commitment_signature = remote_sig
             self.hm.channel_open_finished()
             self.peer_state = peer_states.GOOD
 
@@ -321,6 +322,19 @@ class Channel(Logger):
         # the closing txid has been saved
         return self.get_state() >= channel_states.CLOSED
 
+    def set_can_send_ctx_updates(self, b: bool) -> None:
+        self._can_send_ctx_updates = b
+
+    def can_send_ctx_updates(self) -> bool:
+        """Whether we can send update_fee, update_*_htlc changes to the remote."""
+        if not self.is_open():
+            return False
+        if self.peer_state != peer_states.GOOD:
+            return False
+        if not self._can_send_ctx_updates:
+            return False
+        return True
+
     def save_funding_height(self, txid, height, timestamp):
         self.storage['funding_height'] = txid, height, timestamp
 
@@ -345,6 +359,8 @@ class Channel(Logger):
             raise PaymentFailure('Channel closed')
         if self.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open', self.get_state())
+        if not self.can_send_ctx_updates():
+            raise PaymentFailure('Channel cannot send ctx updates')
         if self.available_to_spend(LOCAL) < amount_msat:
             raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
@@ -377,6 +393,7 @@ class Channel(Logger):
 
         This docstring is from LND.
         """
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
@@ -704,6 +721,7 @@ class Channel(Logger):
         SettleHTLC attempts to settle an existing outstanding received HTLC.
         """
         self.logger.info("settle_htlc")
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         log = self.hm.log[REMOTE]
         htlc = log['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
@@ -733,6 +751,7 @@ class Channel(Logger):
 
     def fail_htlc(self, htlc_id):
         self.logger.info("fail_htlc")
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         with self.db_lock:
             self.hm.send_fail(htlc_id)
 
@@ -753,6 +772,7 @@ class Channel(Logger):
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
         with self.db_lock:
             if from_us:
+                assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
                 self.hm.send_update_fee(feerate)
             else:
                 self.hm.recv_update_fee(feerate)

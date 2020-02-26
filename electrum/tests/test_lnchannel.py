@@ -157,13 +157,12 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
     bob_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
 
-    alice.config[REMOTE].next_per_commitment_point = bob_second
-    alice.config[REMOTE].current_per_commitment_point = bob_first
-    bob.config[REMOTE].next_per_commitment_point = alice_second
-    bob.config[REMOTE].current_per_commitment_point = alice_first
+    alice.open_with_first_pcp(bob_first, sig_from_bob)
+    bob.open_with_first_pcp(alice_first, sig_from_alice)
 
-    alice.hm.channel_open_finished()
-    bob.hm.channel_open_finished()
+    # from funding_locked:
+    alice.config[REMOTE].next_per_commitment_point = bob_second
+    bob.config[REMOTE].next_per_commitment_point = alice_second
 
     # TODO: sweep_address in lnchannel.py should use static_remotekey
     alice.sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())

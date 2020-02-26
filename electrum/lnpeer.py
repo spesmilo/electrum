@@ -712,8 +712,8 @@ class Peer(Logger):
         chan_id = chan.channel_id
         assert channel_states.PREOPENING < chan.get_state() < channel_states.CLOSED
         if chan.peer_state != peer_states.DISCONNECTED:
-            self.logger.info('reestablish_channel was called but channel {} already in state {}'
-                             .format(chan_id, chan.get_state()))
+            self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
+                             f'already in peer_state {chan.peer_state}')
             return
         chan.peer_state = peer_states.REESTABLISHING
         self.network.trigger_callback('channel', chan)
@@ -890,7 +890,6 @@ class Peer(Logger):
         if not chan:
             raise Exception("Got unknown funding_locked", channel_id)
         if not chan.config[LOCAL].funding_locked_received:
-            our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
             chan.config[REMOTE].next_per_commitment_point = their_next_point
             chan.config[LOCAL].funding_locked_received = True
@@ -1041,6 +1040,9 @@ class Peer(Logger):
             raise PaymentFailure('Channel not open')
         assert amount_msat > 0, "amount_msat is not greater zero"
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+        # TODO also wait for channel reestablish to finish. (combine timeout with waiting for init?)
+        if not chan.can_send_ctx_updates():
+            raise PaymentFailure("Channel cannot send updates")
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
@@ -1051,7 +1053,7 @@ class Peer(Logger):
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         remote_ctn = chan.get_latest_ctn(REMOTE)
-        chan.onion_keys[htlc.htlc_id] = secret_key
+        chan.set_onion_key(htlc.htlc_id, secret_key)
         self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. htlc: {htlc}")
         self.send_message("update_add_htlc",
                           channel_id=chan.channel_id,
@@ -1136,6 +1138,9 @@ class Peer(Logger):
                              timestamp=int(time.time()),
                              htlc_id=htlc_id)
         htlc = chan.receive_htlc(htlc)
+        # TODO: fulfilling/failing/forwarding of htlcs should be robust to going offline.
+        #       instead of storing state implicitly in coroutines, we could decouple it from receiving the htlc.
+        #       maybe persist the required details, and have a long-running task that makes these decisions.
         local_ctn = chan.get_latest_ctn(LOCAL)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         if processed_onion.are_we_final:
@@ -1179,8 +1184,9 @@ class Peer(Logger):
             return
         outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
-        if next_chan.get_state() != channel_states.OPEN:
-            self.logger.info(f"cannot forward htlc. next_chan not OPEN: {next_chan_scid} in state {next_chan.get_state()}")
+        if not next_chan.can_send_ctx_updates():
+            self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
+                             f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE,
                                                 data=outgoing_chan_upd_len+outgoing_chan_upd)
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
@@ -1277,6 +1283,10 @@ class Peer(Logger):
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
+        if not chan.can_send_ctx_updates():
+            self.logger.info(f"dropping chan update (fulfill htlc {htlc_id}) for {chan.short_channel_id}. "
+                             f"cannot send updates")
+            return
         chan.settle_htlc(preimage, htlc_id)
         payment_hash = sha256(preimage)
         self.lnworker.payment_received(payment_hash)
@@ -1290,6 +1300,10 @@ class Peer(Logger):
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
+        if not chan.can_send_ctx_updates():
+            self.logger.info(f"dropping chan update (fail htlc {htlc_id}) for {chan.short_channel_id}. "
+                             f"cannot send updates")
+            return
         chan.fail_htlc(htlc_id)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
@@ -1323,6 +1337,8 @@ class Peer(Logger):
         """
         called when our fee estimates change
         """
+        if not chan.can_send_ctx_updates():
+            return
         if not chan.constraints.is_initiator:
             # TODO force close if initiator does not update_fee enough
             return
@@ -1372,7 +1388,7 @@ class Peer(Logger):
     async def send_shutdown(self, chan: Channel):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         # wait until no more pending updates (bolt2)
-        # TODO: stop sending updates during that time
+        chan.set_can_send_ctx_updates(False)
         ctn = chan.get_latest_ctn(REMOTE)
         if chan.has_pending_changes(REMOTE):
             await self.await_remote(chan, ctn)

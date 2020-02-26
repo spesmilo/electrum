@@ -225,6 +225,8 @@ class TestPeer(ElectrumTestCase):
     def test_reestablish(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        for chan in (alice_channel, bob_channel):
+            chan.peer_state = peer_states.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
@@ -254,6 +256,8 @@ class TestPeer(ElectrumTestCase):
             run(f())
 
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
+        for chan in (alice_channel_0, bob_channel):
+            chan.peer_state = peer_states.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
