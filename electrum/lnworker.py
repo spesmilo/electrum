@@ -180,6 +180,9 @@ class LNWorker(Logger):
         self.peers[node_id] = peer
         return peer
 
+    def peer_closed(self, peer: Peer) -> None:
+        self.peers.pop(peer.pubkey)
+
     def num_peers(self):
         return sum([p.is_initialized() for p in self.peers.values()])
 
@@ -349,9 +352,6 @@ class LNGossip(LNWorker):
         self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
         return l[0:N]
 
-    def peer_closed(self, peer):
-        self.peers.pop(peer.pubkey)
-
 
 class LNWallet(LNWorker):
 
@@ -448,7 +448,7 @@ class LNWallet(LNWorker):
         for chan in self.channels_for_peer(peer.pubkey).values():
             chan.peer_state = peer_states.DISCONNECTED
             self.network.trigger_callback('channel', chan)
-        self.peers.pop(peer.pubkey)
+        super().peer_closed(peer)
 
     def get_channel_status(self, chan):
         # status displayed in the GUI
