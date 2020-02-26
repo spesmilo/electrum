@@ -885,3 +885,8 @@ class Channel(Logger):
     def sweep_htlc(self, ctx:Transaction, htlc_tx: Transaction):
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
+
+    def has_pending_changes(self, subject):
+        next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
+        latest_htlcs = self.hm.get_htlcs_in_latest_ctx(subject)
+        return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))

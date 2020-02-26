@@ -1011,16 +1011,12 @@ class Peer(Logger):
     def maybe_send_commitment(self, chan: Channel):
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
-            return False
+            return
         # if there are no changes, we will not (and must not) send a new commitment
-        next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
-        if next_htlcs == latest_htlcs and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE):
-            return False
-        self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}. '
-                         f'old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
+        if not chan.has_pending_changes(REMOTE):
+            return
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
-        return True
 
     async def await_remote(self, chan: Channel, ctn: int):
         """Wait until remote 'ctn' gets revoked."""
@@ -1084,11 +1080,7 @@ class Peer(Logger):
         if chan.peer_state == peer_states.BAD:
             return
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
-        next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(LOCAL), chan.hm.get_htlcs_in_latest_ctx(LOCAL)
-        self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}. '
-                         f'old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
-        if (next_htlcs == latest_htlcs
-                and chan.get_next_feerate(LOCAL) == chan.get_latest_feerate(LOCAL)):
+        if not chan.has_pending_changes(LOCAL):
             # TODO if feerate changed A->B->A; so there were updates but the value is identical,
             #      then it might be legal to send a commitment_signature
             #      see https://github.com/lightningnetwork/lightning-rfc/pull/618
@@ -1380,7 +1372,7 @@ class Peer(Logger):
         # wait until no more pending updates (bolt2)
         # TODO: stop sending updates during that time
         ctn = chan.get_latest_ctn(REMOTE)
-        if self.maybe_send_commitment(chan):
+        if chan.has_pending_changes(REMOTE):
             await self.await_remote(chan, ctn)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(channel_states.CLOSING)
