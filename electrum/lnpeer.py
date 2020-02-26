@@ -1394,11 +1394,14 @@ class Peer(Logger):
         # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
         max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
         our_fee = min(our_fee, max_fee)
-        # negotiate fee
-        while True:
-            self.logger.info(f'sending closing_signed {our_fee}')
+        def send_closing_signed():
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+        # the funder sends the first 'closing_signed' message
+        if chan.constraints.is_initiator:
+            send_closing_signed()
+        # negotiate fee
+        while True:
             # FIXME: the remote SHOULD send closing_signed, but some don't.
             cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
@@ -1408,10 +1411,17 @@ class Peer(Logger):
                 raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
             # Agree if difference is lower or equal to one (see below)
             if abs(our_fee - their_fee) < 2:
+                our_fee = their_fee
                 break
             # BOLT2: receiver MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
             our_fee = (our_fee + (1 if our_fee < their_fee else -1) + their_fee) // 2
+            # another round
+            send_closing_signed()
+        # the non-funder replies
+        if not chan.constraints.is_initiator:
+            send_closing_signed()
 
+        self.logger.info(f'closing loop end')
         # add signatures
         closing_tx.add_signature_to_txin(txin_idx=0,
                                          signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
