@@ -821,7 +821,7 @@ class Channel(Logger):
             htlcs=htlcs)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
-                        fee_sat: int) -> Tuple[bytes, PartialTransaction]:
+                        fee_sat: int, *, drop_remote = False) -> Tuple[bytes, PartialTransaction]:
         """ cooperative close """
         _, outputs = make_commitment_outputs(
                 fees_per_participant={
@@ -829,7 +829,7 @@ class Channel(Logger):
                     REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
                 },
                 local_amount_msat=self.balance(LOCAL),
-                remote_amount_msat=self.balance(REMOTE),
+                remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
                 local_script=bh2u(local_script),
                 remote_script=bh2u(remote_script),
                 htlcs=[],

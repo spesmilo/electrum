@@ -1394,8 +1394,9 @@ class Peer(Logger):
         # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
         max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
         our_fee = min(our_fee, max_fee)
+        drop_remote = False
         def send_closing_signed():
-            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee)
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
         # the funder sends the first 'closing_signed' message
         if chan.constraints.is_initiator:
@@ -1405,10 +1406,19 @@ class Peer(Logger):
             # FIXME: the remote SHOULD send closing_signed, but some don't.
             cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
-            their_sig = cs_payload['signature']
-            # TODO: verify their sig
             if their_fee > max_fee:
                 raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
+            their_sig = cs_payload['signature']
+            # verify their sig: they might have dropped their output
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
+            if closing_tx.verify_signature(0, their_sig):
+                drop_remote = False
+            else:
+                our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
+                if closing_tx.verify_signature(0, their_sig):
+                    drop_remote = True
+                else:
+                    raise Exception('failed to verify their signature')
             # Agree if difference is lower or equal to one (see below)
             if abs(our_fee - their_fee) < 2:
                 our_fee = their_fee
