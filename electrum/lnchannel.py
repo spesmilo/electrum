@@ -69,7 +69,7 @@ class channel_states(IntEnum):
     FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
     FORCE_CLOSING   = 4 # force-close tx has been broadcast
-    CLOSING         = 5 # closing negotiation
+    CLOSING         = 5 # shutdown has been sent.
     CLOSED          = 6 # funding txo has been spent
     REDEEMED        = 7 # we can stop watching
 
@@ -94,6 +94,7 @@ state_transitions = [
     (cs.OPENING, cs.CLOSED),
     (cs.FUNDED, cs.CLOSED),
     (cs.OPEN, cs.CLOSED),
+    (cs.CLOSING, cs.CLOSING), # if we reestablish
     (cs.CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.CLOSED, cs.REDEEMED),

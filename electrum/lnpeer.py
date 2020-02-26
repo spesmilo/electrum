@@ -870,6 +870,8 @@ class Peer(Logger):
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
+        if chan.get_state() == channel_states.CLOSING:
+            await self.send_shutdown(chan)
 
     def send_funding_locked(self, chan: Channel):
         channel_id = chan.channel_id
@@ -1009,15 +1011,16 @@ class Peer(Logger):
     def maybe_send_commitment(self, chan: Channel):
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
-            return
+            return False
         # if there are no changes, we will not (and must not) send a new commitment
         next_htlcs, latest_htlcs = chan.hm.get_htlcs_in_next_ctx(REMOTE), chan.hm.get_htlcs_in_latest_ctx(REMOTE)
         if next_htlcs == latest_htlcs and chan.get_next_feerate(REMOTE) == chan.get_latest_feerate(REMOTE):
-            return
+            return False
         self.logger.info(f'send_commitment. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(REMOTE)}. '
                          f'old number htlcs: {len(latest_htlcs)}, new number htlcs: {len(next_htlcs)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
+        return True
 
     async def await_remote(self, chan: Channel, ctn: int):
         """Wait until remote 'ctn' gets revoked."""
@@ -1349,8 +1352,7 @@ class Peer(Logger):
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
         chan = self.channels[chan_id]
-        self.shutdown_received[chan_id] = asyncio.Future()
-        self.send_shutdown(chan)
+        await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
         txid = await self._shutdown(chan, payload, True)
         self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
@@ -1369,18 +1371,22 @@ class Peer(Logger):
             self.shutdown_received[chan_id].set_result(payload)
         else:
             chan = self.channels[chan_id]
-            self.send_shutdown(chan)
+            await self.send_shutdown(chan)
             txid = await self._shutdown(chan, payload, False)
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
-    def send_shutdown(self, chan: Channel):
+    async def send_shutdown(self, chan: Channel):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        # wait until no more pending updates (bolt2)
+        # TODO: stop sending updates during that time
+        ctn = chan.get_latest_ctn(REMOTE)
+        if self.maybe_send_commitment(chan):
+            await self.await_remote(chan, ctn)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+        chan.set_state(channel_states.CLOSING)
 
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, is_local):
-        # set state so that we stop accepting HTLCs
-        chan.set_state(channel_states.CLOSING)
         # wait until no HTLCs remain in either commitment transaction
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')

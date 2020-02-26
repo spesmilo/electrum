@@ -1276,7 +1276,7 @@ class LNWallet(LNWorker):
             with self.lock:
                 channels = list(self.channels.values())
             for chan in channels:
-                if chan.is_closed() or chan.is_closing():
+                if chan.is_closed():
                     continue
                 if constants.net is not constants.BitcoinRegtest:
                     chan_feerate = chan.get_latest_feerate(LOCAL)
