@@ -1413,15 +1413,13 @@ class Peer(Logger):
             if abs(our_fee - their_fee) < 2:
                 our_fee = their_fee
                 break
-            # BOLT2: receiver MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
-            our_fee = (our_fee + (1 if our_fee < their_fee else -1) + their_fee) // 2
+            # this will be "strictly between" (as in BOLT2) previous values because of the above
+            our_fee = (our_fee + their_fee) // 2
             # another round
             send_closing_signed()
         # the non-funder replies
         if not chan.constraints.is_initiator:
             send_closing_signed()
-
-        self.logger.info(f'closing loop end')
         # add signatures
         closing_tx.add_signature_to_txin(txin_idx=0,
                                          signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
