@@ -1392,7 +1392,7 @@ class Peer(Logger):
             await self.await_remote(chan, ctn)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(channel_states.CLOSING)
-        # can fullfill of fail htlcs. cannot add htlcs, because of CLOSING state
+        # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
         chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
