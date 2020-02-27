@@ -159,6 +159,20 @@ _CHAINWORK_CACHE = {
 }  # type: Dict[str, int]
 
 
+def init_headers_file_for_best_chain():
+    b = get_best_chain()
+    filename = b.path()
+    length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
+    if not os.path.exists(filename) or os.path.getsize(filename) < length:
+        with open(filename, 'wb') as f:
+            if length > 0:
+                f.seek(length - 1)
+                f.write(b'\x00')
+        util.ensure_sparse_file(filename)
+    with b.lock:
+        b.update_size()
+
+
 class Blockchain(Logger):
     """
     Manages blockchain headers and their verification

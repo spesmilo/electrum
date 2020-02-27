@@ -253,6 +253,7 @@ class Network(Logger):
         self.daemon = daemon
 
         blockchain.read_blockchains(self.config)
+        blockchain.init_headers_file_for_best_chain()
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
@@ -776,19 +777,6 @@ class Network(Logger):
                 return False
         return True
 
-    async def _init_headers_file(self):
-        b = blockchain.get_best_chain()
-        filename = b.path()
-        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
-        if not os.path.exists(filename) or os.path.getsize(filename) < length:
-            with open(filename, 'wb') as f:
-                if length > 0:
-                    f.seek(length-1)
-                    f.write(b'\x00')
-            util.ensure_sparse_file(filename)
-        with b.lock:
-            b.update_size()
-
     def best_effort_reliable(func):
         async def make_reliable_wrapper(self: 'Network', *args, **kwargs):
             for i in range(10):
@@ -1133,7 +1121,6 @@ class Network(Logger):
         async def main():
             self.logger.info("starting taskgroup.")
             try:
-                await self._init_headers_file()
                 # note: if a task finishes with CancelledError, that
                 # will NOT raise, and the group will keep the other tasks running
                 async with taskgroup as group:
