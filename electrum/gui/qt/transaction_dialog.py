@@ -151,6 +151,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         export_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
         self.add_export_actions_to_menu(export_submenu, gettx=self._gettx_for_coinjoin)
         self.psbt_only_widgets.append(export_submenu)
+        export_submenu = export_actions_menu.addMenu(_("For hardware device; include xpubs"))
+        self.add_export_actions_to_menu(export_submenu, gettx=self._gettx_for_hardware_device)
+        self.psbt_only_widgets.append(export_submenu)
 
         self.export_actions_button = QToolButton()
         self.export_actions_button.setText(_("Export"))
@@ -256,6 +259,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             raise Exception("Can only export partial transactions for coinjoins.")
         tx = copy.deepcopy(self.tx)
         tx.prepare_for_export_for_coinjoin()
+        return tx
+
+    def _gettx_for_hardware_device(self) -> PartialTransaction:
+        if not isinstance(self.tx, PartialTransaction):
+            raise Exception("Can only export partial transactions for hardware device.")
+        tx = copy.deepcopy(self.tx)
+        tx.add_info_from_wallet(self.wallet, include_xpubs_and_full_paths=True)
         return tx
 
     def copy_to_clipboard(self, *, tx: Transaction = None):
