@@ -88,6 +88,8 @@ class Peer(Logger):
         self.ordered_messages = ['accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'channel_reestablish', 'closing_signed']
         self.ordered_message_queues = defaultdict(asyncio.Queue) # for messsage that are ordered
         self.temp_id_to_id = {}   # to forward error messages
+        self.funding_created_sent = set() # for channels in PREOPENING
+        self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {}
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()
@@ -600,6 +602,7 @@ class Peer(Logger):
             funding_txid=funding_txid_bytes,
             funding_output_index=funding_index,
             signature=sig_64)
+        self.funding_created_sent.add(channel_id)
         payload = await self.wait_for_message('funding_signed', channel_id)
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
@@ -697,6 +700,7 @@ class Peer(Logger):
             channel_id=channel_id,
             signature=sig_64,
         )
+        self.funding_signed_sent.add(chan.channel_id)
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         chan.set_state(channel_states.OPENING)
         self.lnworker.add_new_channel(chan)
@@ -1386,7 +1390,18 @@ class Peer(Logger):
             txid = await self._shutdown(chan, payload, False)
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
+    def can_send_shutdown(self, chan):
+        if chan.get_state() >= channel_states.OPENING:
+            return True
+        if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
+            return True
+        if not chan.constraints.is_initiator and chan.channel_id in self.funding_signed_sent:
+            return True
+        return False
+
     async def send_shutdown(self, chan: Channel):
+        if not self.can_send_shutdown(chan):
+            raise Exception('cannot send shutdown')
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         # wait until no more pending updates (bolt2)
         chan.set_can_send_ctx_updates(False)
