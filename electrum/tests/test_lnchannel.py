@@ -151,14 +151,11 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     assert len(a_htlc_sigs) == 0
     assert len(b_htlc_sigs) == 0
 
-    alice.config[LOCAL].current_commitment_signature = sig_from_bob
-    bob.config[LOCAL].current_commitment_signature = sig_from_alice
+    alice.open_with_first_pcp(bob_first, sig_from_bob)
+    bob.open_with_first_pcp(alice_first, sig_from_alice)
 
     alice_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
     bob_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
-
-    alice.open_with_first_pcp(bob_first, sig_from_bob)
-    bob.open_with_first_pcp(alice_first, sig_from_alice)
 
     # from funding_locked:
     alice.config[REMOTE].next_per_commitment_point = bob_second
