@@ -88,7 +88,7 @@ class Peer(Logger):
         self.ordered_messages = ['accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'channel_reestablish', 'closing_signed']
         self.ordered_message_queues = defaultdict(asyncio.Queue) # for messsage that are ordered
         self.temp_id_to_id = {}   # to forward error messages
-        self.shutdown_received = defaultdict(asyncio.Future)
+        self.shutdown_received = {}
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()
         self._local_changed_events = defaultdict(asyncio.Event)
@@ -1362,6 +1362,7 @@ class Peer(Logger):
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
         chan = self.channels[chan_id]
+        self.shutdown_received[chan_id] = asyncio.Future()
         await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
         txid = await self._shutdown(chan, payload, True)
