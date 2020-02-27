@@ -1294,7 +1294,7 @@ class LNWallet(LNWorker):
                     continue
                 peer = self.peers.get(chan.node_id, None)
                 if peer:
-                    await peer.group.spawn(peer.reestablish_channel(chan))
+                    await peer.taskgroup.spawn(peer.reestablish_channel(chan))
                 else:
                     await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
 

@@ -94,7 +94,7 @@ class Peer(Logger):
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
         Logger.__init__(self)
-        self.group = SilentTaskGroup()
+        self.taskgroup = SilentTaskGroup()
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
@@ -242,7 +242,7 @@ class Peer(Logger):
     @log_exceptions
     @handle_disconnect
     async def main_loop(self):
-        async with self.group as group:
+        async with self.taskgroup as group:
             await group.spawn(self._message_loop())
             await group.spawn(self.query_gossip())
             await group.spawn(self.process_gossip())

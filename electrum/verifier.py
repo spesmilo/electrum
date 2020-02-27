@@ -59,7 +59,7 @@ class SPV(NetworkJobOnDefaultServer):
         self.requested_merkle = set()  # txid set of pending requests
 
     async def _start_tasks(self):
-        async with self.group as group:
+        async with self.taskgroup as group:
             await group.spawn(self.main)
 
     def diagnostic_name(self):
@@ -87,12 +87,12 @@ class SPV(NetworkJobOnDefaultServer):
             header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
-                    await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                    await self.taskgroup.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
                 continue
             # request now
             self.logger.info(f'requested merkle {tx_hash}')
             self.requested_merkle.add(tx_hash)
-            await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+            await self.taskgroup.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
