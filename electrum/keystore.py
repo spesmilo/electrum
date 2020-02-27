@@ -41,7 +41,7 @@ from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
 from .util import (InvalidPassword, WalletFileException,
-                   BitcoinException, bh2u, bfh, inv_dict)
+                   BitcoinException, bh2u, bfh, inv_dict, is_hex_str)
 from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
@@ -463,10 +463,23 @@ class Xpub(MasterPublicKeyMixin):
         self.add_key_origin(derivation_prefix=derivation_prefix,
                             root_fingerprint=root_node.calc_fingerprint_of_this_node().hex().lower())
 
-    def add_key_origin(self, *, derivation_prefix: Optional[str], root_fingerprint: Optional[str]):
+    def add_key_origin(self, *, derivation_prefix: str = None, root_fingerprint: str = None) -> None:
         assert self.xpub
-        self._root_fingerprint = root_fingerprint
-        self._derivation_prefix = normalize_bip32_derivation(derivation_prefix)
+        if not (root_fingerprint is None or (is_hex_str(root_fingerprint) and len(root_fingerprint) == 8)):
+            raise Exception("root fp must be 8 hex characters")
+        derivation_prefix = normalize_bip32_derivation(derivation_prefix)
+        calc_root_fp, calc_der_prefix = bip32.root_fp_and_der_prefix_from_xkey(self.xpub)
+        if (calc_root_fp is not None and root_fingerprint is not None
+                and calc_root_fp != root_fingerprint):
+            raise Exception("provided root fp inconsistent with xpub")
+        if (calc_der_prefix is not None and derivation_prefix is not None
+                and calc_der_prefix != derivation_prefix):
+            raise Exception("provided der prefix inconsistent with xpub")
+        if root_fingerprint is not None:
+            self._root_fingerprint = root_fingerprint
+        if derivation_prefix is not None:
+            self._derivation_prefix = derivation_prefix
+        self.is_requesting_to_be_rewritten_to_wallet_file = True
 
     @lru_cache(maxsize=None)
     def derive_pubkey(self, for_change: int, n: int) -> bytes:
