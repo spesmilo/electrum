@@ -180,6 +180,9 @@ class TxOutpoint(NamedTuple):
     def to_str(self) -> str:
         return f"{self.txid.hex()}:{self.out_idx}"
 
+    def to_json(self) -> str:
+        return [self.txid.hex(), self.out_idx]
+
     def serialize_to_network(self) -> bytes:
         return self.txid[::-1] + bfh(int_to_hex(self.out_idx, 4))
 
