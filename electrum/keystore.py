@@ -36,7 +36,7 @@ from .bitcoin import deserialize_privkey, serialize_privkey
 from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
-                    convert_bip32_intpath_to_strpath)
+                    convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info)
 from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
@@ -468,13 +468,10 @@ class Xpub(MasterPublicKeyMixin):
         if not (root_fingerprint is None or (is_hex_str(root_fingerprint) and len(root_fingerprint) == 8)):
             raise Exception("root fp must be 8 hex characters")
         derivation_prefix = normalize_bip32_derivation(derivation_prefix)
-        calc_root_fp, calc_der_prefix = bip32.root_fp_and_der_prefix_from_xkey(self.xpub)
-        if (calc_root_fp is not None and root_fingerprint is not None
-                and calc_root_fp != root_fingerprint):
-            raise Exception("provided root fp inconsistent with xpub")
-        if (calc_der_prefix is not None and derivation_prefix is not None
-                and calc_der_prefix != derivation_prefix):
-            raise Exception("provided der prefix inconsistent with xpub")
+        if not is_xkey_consistent_with_key_origin_info(self.xpub,
+                                                       derivation_prefix=derivation_prefix,
+                                                       root_fingerprint=root_fingerprint):
+            raise Exception("xpub inconsistent with provided key origin info")
         if root_fingerprint is not None:
             self._root_fingerprint = root_fingerprint
         if derivation_prefix is not None:
