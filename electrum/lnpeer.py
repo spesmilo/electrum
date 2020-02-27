@@ -238,7 +238,7 @@ class Peer(Logger):
                 self.close_and_cleanup()
         return wrapper_func
 
-    @ignore_exceptions  # do not kill main_taskgroup
+    @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
     @handle_disconnect
     async def main_loop(self):
