@@ -992,6 +992,11 @@ class Commands:
         self.network.config.fee_estimates = ast.literal_eval(fees)
         self.network.notify('fee')
 
+    @command('wn')
+    async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):
+        e = wallet.lnworker.enable_htlc_settle
+        e.set() if b else e.clear()
+
     @command('n')
     async def clear_ln_blacklist(self):
         self.network.path_finder.blacklist.clear()

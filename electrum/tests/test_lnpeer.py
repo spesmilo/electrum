@@ -91,6 +91,9 @@ class MockLNWallet:
         self.pending_payments = defaultdict(asyncio.Future)
         chan.lnworker = self
         chan.node_id = remote_keypair.pubkey
+        # used in tests
+        self.enable_htlc_settle = asyncio.Event()
+        self.enable_htlc_settle.set()
 
     def get_invoice_status(self, key):
         pass
@@ -295,7 +298,7 @@ class TestPeer(ElectrumTestCase):
         w2.network.config.set_key('dynamic_fees', False)
         w1.network.config.set_key('fee_per_kb', 5000)
         w2.network.config.set_key('fee_per_kb', 1000)
-        w2.network.config.set_key('lightning_settle_delay', 0.1)
+        w2.enable_htlc_settle.clear()
         pay_req = self.prepare_invoice(w2)
         lnaddr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
         async def pay():
@@ -304,12 +307,13 @@ class TestPeer(ElectrumTestCase):
             # alice sends htlc
             route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
             htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
-            # time to settle
-            #await asyncio.sleep(1)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        async def set_settle():
+            await asyncio.sleep(0.1)
+            w2.enable_htlc_settle.set()
+        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
