@@ -684,9 +684,6 @@ class LNWallet(LNWorker):
             await self.force_close_channel(chan.channel_id)
             return
 
-        if chan.get_state() == channel_states.PREOPENING:
-            chan.set_state(channel_states.OPENING)
-
         if chan.get_state() == channel_states.OPENING:
             if chan.short_channel_id is None:
                 self.save_short_chan_id(chan)
@@ -775,14 +772,11 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        self.add_new_channel(chan)
         self.network.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
-            # TODO make more robust (timeout low? server returns error?)
-            await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
-            chan.set_state(channel_states.OPENING)
+            await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx
 
     def add_channel(self, chan):

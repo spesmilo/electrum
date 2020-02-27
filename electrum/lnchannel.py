@@ -64,7 +64,7 @@ if TYPE_CHECKING:
 class channel_states(IntEnum):
     PREOPENING      = 0 # Initial negotiation. Channel will not be reestablished
     OPENING         = 1 # Channel will be reestablished. (per BOLT2)
-                        #  - Funding node: has broadcast the funding tx.
+                        #  - Funding node: has received funding_signed (can broadcast the funding tx)
                         #  - Non-funding node: has sent the funding_signed message.
     FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
