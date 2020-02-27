@@ -8,6 +8,7 @@ import logging
 import concurrent
 from concurrent import futures
 
+from electrum import constants
 from electrum.network import Network
 from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
@@ -294,9 +295,18 @@ class TestPeer(ElectrumTestCase):
         w2.network.config.set_key('dynamic_fees', False)
         w1.network.config.set_key('fee_per_kb', 5000)
         w2.network.config.set_key('fee_per_kb', 1000)
+        w2.network.config.set_key('lightning_settle_delay', 0.1)
+        pay_req = self.prepare_invoice(w2)
+        lnaddr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
         async def pay():
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
+            # alice sends htlc
+            route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
+            htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            # time to settle
+            #await asyncio.sleep(1)
+            # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
