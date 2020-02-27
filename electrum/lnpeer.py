@@ -1036,13 +1036,11 @@ class Peer(Logger):
 
     async def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
-        if chan.get_state() != channel_states.OPEN:
-            raise PaymentFailure('Channel not open')
         assert amount_msat > 0, "amount_msat is not greater zero"
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # TODO also wait for channel reestablish to finish. (combine timeout with waiting for init?)
-        if not chan.can_send_ctx_updates():
-            raise PaymentFailure("Channel cannot send updates")
+        if not chan.can_send_update_add_htlc():
+            raise PaymentFailure("Channel cannot send update_add_htlc")
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
@@ -1184,7 +1182,7 @@ class Peer(Logger):
             return
         outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
-        if not next_chan.can_send_ctx_updates():
+        if not next_chan.can_send_update_add_htlc():
             self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
                              f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE,
@@ -1394,6 +1392,8 @@ class Peer(Logger):
             await self.await_remote(chan, ctn)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(channel_states.CLOSING)
+        # can fullfill of fail htlcs. cannot add htlcs, because of CLOSING state
+        chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, is_local):
@@ -1401,6 +1401,8 @@ class Peer(Logger):
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
             await asyncio.sleep(1)
+        # if no HTLCs remain, we must not send updates
+        chan.set_can_send_ctx_updates(False)
         their_scriptpubkey = payload['scriptpubkey']
         our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         # estimate fee of closing tx
