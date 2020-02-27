@@ -1131,6 +1131,7 @@ class Network(Logger):
         self._start_interface(self.default_server)
 
         async def main():
+            self.logger.info("starting taskgroup.")
             try:
                 await self._init_headers_file()
                 # note: if a task finishes with CancelledError, that
@@ -1138,9 +1139,12 @@ class Network(Logger):
                 async with taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
-            except BaseException as e:
-                self.logger.exception('taskgroup died.')
-                raise e
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.logger.exception("taskgroup died.")
+            finally:
+                self.logger.info("taskgroup stopped.")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
         self.trigger_callback('network_updated')

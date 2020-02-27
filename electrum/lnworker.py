@@ -161,11 +161,16 @@ class LNWorker(Logger):
 
     @ignore_exceptions  # don't kill outer taskgroup
     async def main_loop(self):
+        self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
                 await group.spawn(self._maintain_connectivity())
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
 
     async def _maintain_connectivity(self):
         while True:

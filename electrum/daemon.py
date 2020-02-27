@@ -312,14 +312,17 @@ class Daemon(Logger):
     async def _run(self, jobs: Iterable = None):
         if jobs is None:
             jobs = []
+        self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
                 [await group.spawn(job) for job in jobs]
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
-        except BaseException as e:
-            self.logger.exception('daemon.taskgroup died.')
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
         finally:
-            self.logger.info("stopping daemon.taskgroup")
+            self.logger.info("taskgroup stopped.")
 
     async def authenticate(self, headers):
         if self.rpc_password == '':
