@@ -45,7 +45,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -89,7 +89,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   TRANSACTION_FILE_EXTENSION_FILTER, MONOSPACE_FONT)
+                   TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT)
 from .util import ButtonsTextEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -780,13 +780,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
-    def getSaveFileName(self, title, filename, filter = ""):
+    def getSaveFileName(self, title, filename, filter="",
+                        *, default_extension: str = None,
+                        default_filter: str = None) -> Optional[str]:
         directory = self.config.get('io_dir', os.path.expanduser('~'))
-        path = os.path.join( directory, filename )
-        fileName, __ = QFileDialog.getSaveFileName(self, title, path, filter)
-        if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
-        return fileName
+        path = os.path.join(directory, filename)
+
+        file_dialog = QFileDialog(self, title, path, filter)
+        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+        if default_extension:
+            # note: on MacOS, the selected filter's first extension seems to have priority over this...
+            file_dialog.setDefaultSuffix(default_extension)
+        if default_filter:
+            assert default_filter in filter, f"default_filter={default_filter!r} does not appear in filter={filter!r}"
+            file_dialog.selectNameFilter(default_filter)
+        if file_dialog.exec() != QDialog.Accepted:
+            return None
+
+        selected_path = file_dialog.selectedFiles()[0]
+        if selected_path and directory != os.path.dirname(selected_path):
+            self.config.set_key('io_dir', os.path.dirname(selected_path), True)
+        return selected_path
 
     def timer_actions(self):
         self.request_list.refresh_status()
@@ -2509,7 +2523,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def read_tx_from_file(self) -> Optional[Transaction]:
         fileName = self.getOpenFileName(_("Select your transaction file"),
-                                        TRANSACTION_FILE_EXTENSION_FILTER)
+                                        TRANSACTION_FILE_EXTENSION_FILTER_ANY)
         if not fileName:
             return
         try:

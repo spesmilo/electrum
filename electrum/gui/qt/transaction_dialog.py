@@ -50,7 +50,9 @@ from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
-                   char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER,
+                   char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+                   TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
+                   TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog)
 
 from .fee_slider import FeeSlider
@@ -323,12 +325,19 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         if isinstance(tx, PartialTransaction):
             tx.finalize_psbt()
         if tx.is_complete():
-            name = 'signed_%s.txn' % (tx.txid()[0:8])
+            name = 'signed_%s' % (tx.txid()[0:8])
+            extension = 'txn'
+            default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX
         else:
-            name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M.psbt')
+            name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M')
+            extension = 'psbt'
+            default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
+        name = f'{name}.{extension}'
         fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
                                                     name,
-                                                    TRANSACTION_FILE_EXTENSION_FILTER)
+                                                    TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+                                                    default_extension=extension,
+                                                    default_filter=default_filter)
         if not fileName:
             return
         if tx.is_complete():  # network tx hex
