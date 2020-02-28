@@ -339,7 +339,8 @@ class ChannelDB(SqlDB):
         self._channels[channel_info.short_channel_id] = channel_info
         self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
         self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
-        self.save_channel(channel_info.short_channel_id, msg['raw'])
+        if 'raw' in msg:
+            self.save_channel(channel_info.short_channel_id, msg['raw'])
 
     def print_change(self, old_policy: Policy, new_policy: Policy):
         # print what changed between policies
@@ -397,7 +398,8 @@ class ChannelDB(SqlDB):
                 self.verify_channel_update(payload)
             policy = Policy.from_msg(payload)
             self._policies[key] = policy
-            self.save_policy(policy.key, payload['raw'])
+            if 'raw' in payload:
+                self.save_policy(policy.key, payload['raw'])
         #
         self.update_counts()
         return CategorizedChannelUpdates(
@@ -491,7 +493,8 @@ class ChannelDB(SqlDB):
                 continue
             # save
             self._nodes[node_id] = node_info
-            self.save_node_info(node_id, msg_payload['raw'])
+            if 'raw' in msg_payload:
+                self.save_node_info(node_id, msg_payload['raw'])
             for addr in node_addresses:
                 self._addresses[node_id].add((addr.host, addr.port, 0))
             self.save_node_addresses(node_id, node_addresses)
