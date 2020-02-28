@@ -765,12 +765,8 @@ class Hardware_KeyStore(Xpub, KeyStore):
         return False
 
     def get_password_for_storage_encryption(self) -> str:
-        from .storage import get_derivation_used_for_hw_device_encryption
         client = self.plugin.get_client(self)
-        derivation = get_derivation_used_for_hw_device_encryption()
-        xpub = client.get_xpub(derivation, "standard")
-        password = self.get_pubkey_from_xpub(xpub, ()).hex()
-        return password
+        return client.get_password_for_storage_encryption()
 
     def has_usable_connection_with_device(self) -> bool:
         if not hasattr(self, 'plugin'):
