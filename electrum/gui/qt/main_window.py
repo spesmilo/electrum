@@ -69,7 +69,7 @@ from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption)
 from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
@@ -2542,11 +2542,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             try:
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(txid, timeout=10))
+            except UntrustedServerReturnedError as e:
+                self.logger.info(f"Error getting transaction from network: {repr(e)}")
+                self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+                return
             except Exception as e:
                 self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
                 return
-            tx = transaction.Transaction(raw_tx)
-            self.show_transaction(tx)
+            else:
+                tx = transaction.Transaction(raw_tx)
+                self.show_transaction(tx)
 
     @protected
     def export_privkeys_dialog(self, password):
