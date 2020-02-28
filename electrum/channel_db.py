@@ -254,7 +254,7 @@ class ChannelDB(SqlDB):
         # initialized in load_data
         self._channels = {}  # type: Dict[bytes, ChannelInfo]
         self._policies = {}  # type: Dict[Tuple[bytes, bytes], Policy]  # (node_id, scid) -> Policy
-        self._nodes = {}
+        self._nodes = {}  # type: Dict[bytes, NodeInfo]  # node_id -> NodeInfo
         # node_id -> (host, port, ts)
         self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]

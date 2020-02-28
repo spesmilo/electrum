@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple
 import threading
 import socket
 import json
@@ -105,8 +105,6 @@ FALLBACK_NODE_LIST_MAINNET = [
     LNPeerAddr(host='3.124.63.44', port=9735, pubkey=bfh('0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3')),
 ]
 
-
-from typing import NamedTuple
 
 class PaymentInfo(NamedTuple):
     payment_hash: bytes

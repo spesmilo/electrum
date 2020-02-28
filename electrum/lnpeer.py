@@ -320,7 +320,7 @@ class Peer(Logger):
         try:
             await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         except Exception as e:
-            raise GracefulDisconnect(f"Failed to initialize: {e}") from e
+            raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
         if self.lnworker == self.lnworker.network.lngossip:
             try:
                 ids, complete = await asyncio.wait_for(self.get_channel_range(), LN_P2P_NETWORK_TIMEOUT)
