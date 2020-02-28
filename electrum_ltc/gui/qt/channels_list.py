@@ -120,10 +120,12 @@ class ChannelsList(MyTreeView):
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
         else:
-            txid = chan.get_closing_txid()
-            closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
-            if closing_tx:
-                menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
+            item = chan.get_closing_height()
+            if item:
+                txid, height, timestamp = item
+                closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
+                if closing_tx:
+                    menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         if chan.is_redeemed():
             menu.addAction(_("Remove"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -134,12 +136,15 @@ class ChannelsList(MyTreeView):
 
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker:
+            return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ID)
             if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
                 for column, v in enumerate(self.format_fields(chan)):
                     self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
-        self.update_can_send(self.parent.wallet.lnworker)
+        self.update_can_send(lnworker)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
     def do_update_rows(self, wallet):
@@ -256,4 +261,6 @@ class ChannelsList(MyTreeView):
         else:
             funding_sat = amount_e.get_amount()
         connect_str = str(remote_nodeid.text()).strip()
+        if not connect_str or not funding_sat:
+            return
         self.parent.open_channel(connect_str, funding_sat, 0)

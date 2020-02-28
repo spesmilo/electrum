@@ -16,7 +16,7 @@ class MockTaskGroup:
     async def spawn(self, x): return
 
 class MockNetwork:
-    main_taskgroup = MockTaskGroup()
+    taskgroup = MockTaskGroup()
     asyncio_loop = asyncio.get_event_loop()
 
 class MockInterface(Interface):

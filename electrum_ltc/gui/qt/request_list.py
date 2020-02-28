@@ -24,10 +24,11 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Optional
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import Qt, QItemSelectionModel
+from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import format_time, get_request_status
@@ -75,7 +76,13 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
-    def item_changed(self, idx):
+    def item_changed(self, idx: Optional[QModelIndex]):
+        if idx is None:
+            self.parent.receive_payreq_e.setText('')
+            self.parent.receive_address_e.setText('')
+            return
+        if not idx.isValid():
+            return
         # TODO use siblingAtColumn when min Qt version is >=5.11
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
@@ -90,6 +97,10 @@ class RequestList(MyTreeView):
         else:
             self.parent.receive_payreq_e.setText(req.get('URI'))
             self.parent.receive_address_e.setText(req['address'])
+
+    def clearSelection(self):
+        super().clearSelection()
+        self.selectionModel().clearCurrentIndex()
 
     def refresh_status(self):
         m = self.model()
@@ -146,6 +157,9 @@ class RequestList(MyTreeView):
             b = self.model().rowCount() > 0
             self.setVisible(b)
             self.parent.receive_requests_label.setVisible(b)
+            if not b:
+                # list got hidden, so selected item should also be cleared:
+                self.item_changed(None)
 
     def create_menu(self, position):
         idx = self.indexAt(position)

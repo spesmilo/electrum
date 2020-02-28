@@ -8,6 +8,7 @@ import logging
 import concurrent
 from concurrent import futures
 
+from electrum_ltc import constants
 from electrum_ltc.network import Network
 from electrum_ltc.ecc import ECPrivkey
 from electrum_ltc import simple_config, lnutil
@@ -90,6 +91,9 @@ class MockLNWallet:
         self.pending_payments = defaultdict(asyncio.Future)
         chan.lnworker = self
         chan.node_id = remote_keypair.pubkey
+        # used in tests
+        self.enable_htlc_settle = asyncio.Event()
+        self.enable_htlc_settle.set()
 
     def get_invoice_status(self, key):
         pass
@@ -225,6 +229,8 @@ class TestPeer(ElectrumTestCase):
     def test_reestablish(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        for chan in (alice_channel, bob_channel):
+            chan.peer_state = peer_states.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
@@ -243,10 +249,20 @@ class TestPeer(ElectrumTestCase):
         alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
-        async def reestablish():
+        async def pay():
             result = await LNWallet._pay(w1, pay_req)
             self.assertEqual(result, True)
-            w1.channels = {alice_channel_0.channel_id: alice_channel_0}
+            gath.cancel()
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
+        for chan in (alice_channel_0, bob_channel):
+            chan.peer_state = peer_states.DISCONNECTED
+        async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
@@ -270,6 +286,34 @@ class TestPeer(ElectrumTestCase):
             self.assertTrue(result)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+    def test_close(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('dynamic_fees', False)
+        w2.network.config.set_key('dynamic_fees', False)
+        w1.network.config.set_key('fee_per_kb', 5000)
+        w2.network.config.set_key('fee_per_kb', 1000)
+        w2.enable_htlc_settle.clear()
+        pay_req = self.prepare_invoice(w2)
+        lnaddr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+        async def pay():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            # alice sends htlc
+            route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
+            htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            # alice closes
+            await p1.close_channel(alice_channel.channel_id)
+            gath.cancel()
+        async def set_settle():
+            await asyncio.sleep(0.1)
+            w2.enable_htlc_settle.set()
+        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):

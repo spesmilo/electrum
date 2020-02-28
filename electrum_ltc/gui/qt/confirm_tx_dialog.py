@@ -175,6 +175,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         password = self.pw.text() or None
         if self.password_required:
             if password is None:
+                self.main_window.show_error(_("Password required"), parent=self)
                 return
             try:
                 self.wallet.check_password(password)

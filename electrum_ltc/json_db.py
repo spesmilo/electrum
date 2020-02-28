@@ -86,9 +86,15 @@ class StoredDict(dict):
         # early return to prevent unnecessary disk writes
         if not is_new and self[key] == v:
             return
+        # recursively set db and path
+        if isinstance(v, StoredDict):
+            v.db = self.db
+            v.path = self.path + [key]
+            for k, vv in v.items():
+                v[k] = vv
         # recursively convert dict to StoredDict.
         # _convert_dict is called breadth-first
-        if isinstance(v, dict):
+        elif isinstance(v, dict):
             if self.db:
                 v = self.db._convert_dict(self.path, key, v)
             v = StoredDict(v, self.db, self.path + [key])

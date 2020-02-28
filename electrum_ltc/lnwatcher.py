@@ -322,6 +322,9 @@ class WatchTower(LNWatcher):
         pass
 
 
+
+CHANNEL_OPENING_TIMEOUT = 24*60*60
+
 class LNWalletWatcher(LNWatcher):
 
     def __init__(self, lnworker, network):
@@ -336,11 +339,13 @@ class LNWalletWatcher(LNWatcher):
         if not chan:
             return
         if funding_height.height == TX_HEIGHT_LOCAL:
-            self.lnworker.channel_timestamps.pop(bh2u(chan.channel_id), None)
-            return
+            chan.delete_funding_height()
+            await self.lnworker.update_unfunded_channel(chan, funding_txid)
         elif closing_height.height == TX_HEIGHT_LOCAL:
+            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
             await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
         else:
+            chan.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
             await self.lnworker.update_closed_channel(chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
@@ -350,7 +355,7 @@ class LNWalletWatcher(LNWatcher):
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
-        self.logger.info(f'sweep_info_dict length: {len(sweep_info_dict)}')
+        self.logger.info(f'(chan {chan.get_id_for_log()}) sweep_info_dict length: {len(sweep_info_dict)}')
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name
@@ -364,17 +369,17 @@ class LNWalletWatcher(LNWatcher):
                 if e_htlc_tx:
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:
-                        self.logger.info(f'htlc is already spent {name}: {prevout}')
+                        self.logger.info(f'(chan {chan.get_id_for_log()}) htlc is already spent {name}: {prevout}')
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
-                        self.logger.info(f'trying to redeem htlc {name}: {prevout}')
+                        self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem htlc {name}: {prevout}')
                         await self.try_redeem(spender_txid+':0', e_htlc_tx)
                         keep_watching = True
                 else:
-                    self.logger.info(f'outpoint already spent {name}: {prevout}')
+                    self.logger.info(f'(chan {chan.get_id_for_log()}) outpoint already spent {name}: {prevout}')
                     keep_watching |= not self.is_deeply_mined(spender_txid)
             else:
-                self.logger.info(f'trying to redeem {name}: {prevout}')
+                self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem {name}: {prevout}')
                 await self.try_redeem(prevout, sweep_info)
                 keep_watching = True
         return keep_watching
@@ -407,8 +412,10 @@ class LNWalletWatcher(LNWatcher):
         else:
             # it's OK to add local transaction, the fee will be recomputed
             try:
-                self.lnworker.wallet.add_future_tx(tx, remaining)
-                self.logger.info(f'adding future tx: {name}. prevout: {prevout}')
-                self.network.trigger_callback('wallet_updated', self.lnworker.wallet)
+                tx_was_added = self.lnworker.wallet.add_future_tx(tx, remaining)
             except Exception as e:
                 self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+                tx_was_added = False
+            if tx_was_added:
+                self.logger.info(f'added future tx: {name}. prevout: {prevout}')
+                self.network.trigger_callback('wallet_updated', self.lnworker.wallet)

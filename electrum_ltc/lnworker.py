@@ -32,7 +32,7 @@ from .transaction import Transaction
 from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .util import ignore_exceptions, make_aiohttp_session
+from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
 from .util import timestamp_to_datetime
 from .util import MyEncoder
 from .logging import Logger
@@ -61,7 +61,7 @@ from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnwatcher import LNWalletWatcher
+from .lnwatcher import LNWalletWatcher, CHANNEL_OPENING_TIMEOUT
 
 if TYPE_CHECKING:
     from .network import Network
@@ -126,6 +126,7 @@ class LNWorker(Logger):
         Logger.__init__(self)
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
+        self.taskgroup = SilentTaskGroup()
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.localfeatures = LnLocalFeatures(0)
@@ -136,6 +137,7 @@ class LNWorker(Logger):
         return {}
 
     async def maybe_listen(self):
+        # FIXME: only one LNWorker can listen at a time (single port)
         listen_addr = self.config.get('lightning_listen')
         if listen_addr:
             addr, port = listen_addr.rsplit(':', 2)
@@ -151,11 +153,26 @@ class LNWorker(Logger):
                     return
                 peer = Peer(self, node_id, transport)
                 self.peers[node_id] = peer
-                await self.network.main_taskgroup.spawn(peer.main_loop())
-            await asyncio.start_server(cb, addr, int(port))
+                await self.taskgroup.spawn(peer.main_loop())
+            try:
+                await asyncio.start_server(cb, addr, int(port))
+            except OSError as e:
+                self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
-    @log_exceptions
+    @ignore_exceptions  # don't kill outer taskgroup
     async def main_loop(self):
+        self.logger.info("starting taskgroup.")
+        try:
+            async with self.taskgroup as group:
+                await group.spawn(self._maintain_connectivity())
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
+        finally:
+            self.logger.info("taskgroup stopped.")
+
+    async def _maintain_connectivity(self):
         while True:
             await asyncio.sleep(1)
             now = time.time()
@@ -176,9 +193,12 @@ class LNWorker(Logger):
         self._last_tried_peer[peer_addr] = time.time()
         self.logger.info(f"adding peer {peer_addr}")
         peer = Peer(self, node_id, transport)
-        await self.network.main_taskgroup.spawn(peer.main_loop())
+        await self.taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
         return peer
+
+    def peer_closed(self, peer: Peer) -> None:
+        self.peers.pop(peer.pubkey)
 
     def num_peers(self):
         return sum([p.is_initialized() for p in self.peers.values()])
@@ -325,7 +345,7 @@ class LNGossip(LNWorker):
     def start_network(self, network: 'Network'):
         assert network
         super().start_network(network)
-        asyncio.run_coroutine_threadsafe(network.daemon.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
 
     async def maintain_db(self):
         await self.channel_db.load_data()
@@ -349,9 +369,6 @@ class LNGossip(LNWorker):
         self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
         return l[0:N]
 
-    def peer_closed(self, peer):
-        self.peers.pop(peer.pubkey)
-
 
 class LNWallet(LNWorker):
 
@@ -368,6 +385,9 @@ class LNWallet(LNWorker):
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH
+        # used in tests
+        self.enable_htlc_settle = asyncio.Event()
+        self.enable_htlc_settle.set()
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self.channels = {}
@@ -376,7 +396,6 @@ class LNWallet(LNWorker):
             self.channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         # timestamps of opening and closing transactions
-        self.channel_timestamps = self.db.get_dict('lightning_channel_timestamps')
         self.pending_payments = defaultdict(asyncio.Future)
 
     @ignore_exceptions
@@ -430,7 +449,6 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
-        daemon = network.daemon
         for chan_id, chan in self.channels.items():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
@@ -442,14 +460,14 @@ class LNWallet(LNWorker):
                 self.sync_with_local_watchtower(),
                 self.sync_with_remote_watchtower(),
         ]:
-            # FIXME: exceptions in those coroutines will cancel daemon.taskgroup
-            asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(coro), self.network.asyncio_loop)
+            tg_coro = self.taskgroup.spawn(coro)
+            asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
 
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
             chan.peer_state = peer_states.DISCONNECTED
             self.network.trigger_callback('channel', chan)
-        self.peers.pop(peer.pubkey)
+        super().peer_closed(peer)
 
     def get_channel_status(self, chan):
         # status displayed in the GUI
@@ -495,8 +513,8 @@ class LNWallet(LNWorker):
             'rhash': lnaddr.paymenthash.hex(),
         }
 
-    def get_history(self):
-        out = []
+    def get_lightning_history(self):
+        out = {}
         for key, plist in self.get_settled_payments().items():
             if len(plist) == 0:
                 continue
@@ -524,7 +542,6 @@ class LNWallet(LNWorker):
 
             payment_hash = bytes.fromhex(key)
             preimage = self.get_preimage(payment_hash).hex()
-
             item = {
                 'type': 'payment',
                 'label': label,
@@ -536,15 +553,19 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
-            out.append(item)
+            out[payment_hash] = item
+        return out
+
+    def get_onchain_history(self):
+        out = {}
         # add funding events
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
-            item = self.channel_timestamps.get(chan.channel_id.hex())
+            item = chan.get_funding_height()
             if item is None:
                 continue
-            funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = item
+            funding_txid, funding_height, funding_timestamp = item
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -555,10 +576,11 @@ class LNWallet(LNWorker):
                 'timestamp': funding_timestamp,
                 'fee_msat': None,
             }
-            out.append(item)
-            if not chan.is_closed():
+            out[funding_txid] = item
+            item = chan.get_closing_height()
+            if item is None:
                 continue
-            assert closing_txid
+            closing_txid, closing_height, closing_timestamp = item
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -569,7 +591,11 @@ class LNWallet(LNWorker):
                 'timestamp': closing_timestamp,
                 'fee_msat': None,
             }
-            out.append(item)
+            out[closing_txid] = item
+        return out
+
+    def get_history(self):
+        out = list(self.get_lightning_history().values()) + list(self.get_onchain_history().values())
         # sort by timestamp
         out.sort(key=lambda x: (x.get('timestamp') or float("inf")))
         balance_msat = 0
@@ -647,12 +673,30 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
+    async def update_unfunded_channel(self, chan, funding_txid):
+        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING]:
+            if chan.constraints.is_initiator:
+                inputs = chan.storage.get('funding_inputs', [])
+                if not inputs:
+                    self.logger.info(f'channel funding inputs are not provided')
+                    chan.set_state(channel_states.REDEEMED)
+                for i in inputs:
+                    spender_txid = self.wallet.db.get_spent_outpoint(*i)
+                    if spender_txid is None:
+                        continue
+                    if spender_txid != funding_txid:
+                        tx_mined_height = self.wallet.get_tx_height(spender_txid)
+                        if tx_mined_height.conf > 6:
+                            self.logger.info(f'channel is double spent {inputs}')
+                            # set to REDEEMED so that it can be removed manually
+                            chan.set_state(channel_states.REDEEMED)
+                            break
+            else:
+                now = int(time.time())
+                if now - chan.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
+                    self.remove_channel(chan.channel_id)
+
     async def update_open_channel(self, chan, funding_txid, funding_height):
-        # return early to prevent overwriting closing_txid with None
-        if chan.is_closed():
-            return
-        # save timestamp regardless of state, so that funding tx is returned in get_history
-        self.channel_timestamps[bh2u(chan.channel_id)] = chan.funding_outpoint.txid, funding_height.height, funding_height.timestamp, None, None, None
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
@@ -689,9 +733,6 @@ class LNWallet(LNWorker):
 
 
     async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-
-        # fixme: this is wasteful
-        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
 
         # remove from channel_db
         if chan.short_channel_id is not None:
@@ -750,19 +791,22 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        self.add_channel(chan)
         self.network.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
-            # TODO make more robust (timeout low? server returns error?)
-            await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), LN_P2P_NETWORK_TIMEOUT)
+            await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx
 
     def add_channel(self, chan):
         with self.lock:
             self.channels[chan.channel_id] = chan
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+
+    def add_new_channel(self, chan):
+        self.add_channel(chan)
+        channels_db = self.db.get_dict('channels')
+        channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.save_backup()
 
     @log_exceptions
@@ -800,7 +844,7 @@ class LNWallet(LNWorker):
                      funding_sat: int, push_amt_sat: int, password: str = None,
                      timeout: Optional[int] = 20) -> Tuple[Channel, PartialTransaction]:
         if self.wallet.is_lightning_backup():
-            raise BaseException(_('Cannot create channel: this is a backup file'))
+            raise Exception(_('Cannot create channel: this is a backup file'))
         if funding_sat > LN_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over protocol allowed maximum."))
         coro = self._open_channel_coroutine(connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
@@ -1210,7 +1254,6 @@ class LNWallet(LNWorker):
         assert chan.get_state() == channel_states.REDEEMED
         with self.lock:
             self.channels.pop(chan_id)
-            self.channel_timestamps.pop(chan_id.hex())
             self.db.get('channels').pop(chan_id.hex())
 
         self.network.trigger_callback('channels_updated', self.wallet)
@@ -1246,7 +1289,7 @@ class LNWallet(LNWorker):
             with self.lock:
                 channels = list(self.channels.values())
             for chan in channels:
-                if chan.is_closed() or chan.is_closing():
+                if chan.is_closed():
                     continue
                 if constants.net is not constants.BitcoinRegtest:
                     chan_feerate = chan.get_latest_feerate(LOCAL)
@@ -1259,10 +1302,9 @@ class LNWallet(LNWorker):
                     continue
                 peer = self.peers.get(chan.node_id, None)
                 if peer:
-                    await peer.group.spawn(peer.reestablish_channel(chan))
+                    await peer.taskgroup.spawn(peer.reestablish_channel(chan))
                 else:
-                    await self.network.main_taskgroup.spawn(
-                        self.reestablish_peer_for_given_channel(chan))
+                    await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
 
     def current_feerate_per_kw(self):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED

@@ -52,11 +52,29 @@ class TestBCDataStream(ElectrumTestCase):
 
     def test_bytes(self):
         s = transaction.BCDataStream()
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(1)
         s.write(b'foobar')
         self.assertEqual(s.read_bytes(3), b'foo')
         self.assertEqual(s.read_bytes(2), b'ba')
-        self.assertEqual(s.read_bytes(4), b'r')
-        self.assertEqual(s.read_bytes(1), b'')
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(4)
+        self.assertEqual(s.read_bytes(0), b'')
+        self.assertEqual(s.read_bytes(1), b'r')
+        self.assertEqual(s.read_bytes(0), b'')
+
+    def test_bool(self):
+        s = transaction.BCDataStream()
+        s.write(b'f\x00\x00b')
+        self.assertTrue(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertTrue(s.read_boolean())
+        s.write_boolean(True)
+        s.write_boolean(False)
+        self.assertEqual(b'\x01\x00', s.read_bytes(2))
+        self.assertFalse(s.can_read_more())
+
 
 class TestTransaction(ElectrumTestCase):
 

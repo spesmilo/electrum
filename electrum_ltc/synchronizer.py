@@ -75,7 +75,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
     async def _start_tasks(self):
         try:
-            async with self.group as group:
+            async with self.taskgroup as group:
                 await group.spawn(self.send_subscriptions())
                 await group.spawn(self.handle_status())
                 await group.spawn(self.main())
@@ -116,13 +116,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
         while True:
             addr = await self.add_queue.get()
-            await self.group.spawn(subscribe_to_address, addr)
+            await self.taskgroup.spawn(subscribe_to_address, addr)
 
     async def handle_status(self):
         while True:
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
-            await self.group.spawn(self._on_address_status, addr, status)
+            await self.taskgroup.spawn(self._on_address_status, addr, status)
             self._processed_some_notifications = True
 
     def num_requests_sent_and_answered(self) -> Tuple[int, int]:

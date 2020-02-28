@@ -656,15 +656,17 @@ class LnGlobalFeatures(IntFlag):
 # note that these are powers of two, not the bits themselves
 LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
 
-def ln_compare_features(our_features, their_features):
-    """raises ValueError if incompatible"""
+class IncompatibleLightningFeatures(ValueError): pass
+
+def ln_compare_features(our_features, their_features) -> int:
+    """raises IncompatibleLightningFeatures if incompatible"""
     our_flags = set(list_enabled_bits(our_features))
     their_flags = set(list_enabled_bits(their_features))
     for flag in our_flags:
         if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
             # they don't have this feature we wanted :(
             if flag % 2 == 0:  # even flags are compulsory
-                raise ValueError(LnLocalFeatures(1 << flag))
+                raise IncompatibleLightningFeatures(f"remote does not support {LnLocalFeatures(1 << flag)!r}")
             our_features ^= 1 << flag  # disable flag
         else:
             # They too have this flag.
