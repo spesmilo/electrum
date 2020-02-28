@@ -818,7 +818,9 @@ class WalletDB(JsonDB):
         return self.transactions.pop(tx_hash, None)
 
     @locked
-    def get_transaction(self, tx_hash: str) -> Optional[Transaction]:
+    def get_transaction(self, tx_hash: Optional[str]) -> Optional[Transaction]:
+        if tx_hash is None:
+            return None
         assert isinstance(tx_hash, str)
         return self.transactions.get(tx_hash)
 
