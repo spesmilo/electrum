@@ -1866,7 +1866,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         pass
 
     @abstractmethod
-    def is_beyond_limit(self, address: str) -> bool:
+    def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
 
 
@@ -1942,8 +1942,8 @@ class Imported_Wallet(Simple_Wallet):
     def is_change(self, address):
         return False
 
-    def is_beyond_limit(self, address):
-        return False
+    def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
+        return set()
 
     def get_fingerprint(self):
         return ''
@@ -2231,21 +2231,23 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.synchronize_sequence(False)
             self.synchronize_sequence(True)
 
-    def is_beyond_limit(self, address):
-        is_change, i = self.get_address_index(address)
-        limit = self.gap_limit_for_change if is_change else self.gap_limit
-        if i < limit:
-            return False
-        slice_start = max(0, i - limit)
-        slice_stop = max(0, i)
-        if is_change:
-            prev_addresses = self.get_change_addresses(slice_start=slice_start, slice_stop=slice_stop)
-        else:
-            prev_addresses = self.get_receiving_addresses(slice_start=slice_start, slice_stop=slice_stop)
-        for addr in prev_addresses:
-            if self.db.get_addr_history(addr):
-                return False
-        return True
+    def get_all_known_addresses_beyond_gap_limit(self):
+        # note that we don't stop at first large gap
+        found = set()
+
+        def process_addresses(addrs, gap_limit):
+            rolling_num_unused = 0
+            for addr in addrs:
+                if self.db.get_addr_history(addr):
+                    rolling_num_unused = 0
+                else:
+                    if rolling_num_unused >= gap_limit:
+                        found.add(addr)
+                    rolling_num_unused += 1
+
+        process_addresses(self.get_receiving_addresses(), self.gap_limit)
+        process_addresses(self.get_change_addresses(), self.gap_limit_for_change)
+        return found
 
     def get_address_index(self, address) -> Optional[Sequence[int]]:
         return self.db.get_address_index(address) or self._ephemeral_addr_to_addr_index.get(address)
