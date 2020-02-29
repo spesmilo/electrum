@@ -1268,10 +1268,7 @@ class Peer(Logger):
 
     async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        if not chan.can_send_ctx_updates():
-            self.logger.info(f"dropping chan update (fulfill htlc {htlc_id}) for {chan.short_channel_id}. "
-                             f"cannot send updates")
-            return
+        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.settle_htlc(preimage, htlc_id)
         payment_hash = sha256(preimage)
         self.lnworker.payment_received(payment_hash)
@@ -1285,10 +1282,7 @@ class Peer(Logger):
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
-        if not chan.can_send_ctx_updates():
-            self.logger.info(f"dropping chan update (fail htlc {htlc_id}) for {chan.short_channel_id}. "
-                             f"cannot send updates")
-            return
+        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.fail_htlc(htlc_id)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)

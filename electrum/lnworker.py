@@ -1332,7 +1332,7 @@ class LNWallet(LNWorker):
         while True:
             await asyncio.sleep(0.1)
             for chan_id, chan in self.channels.items():
-                if chan.peer_state != peer_states.GOOD:
+                if not chan.can_send_ctx_updates():
                     continue
                 peer = self.peers[chan.node_id]
                 done = set()
