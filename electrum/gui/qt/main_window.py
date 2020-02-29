@@ -265,7 +265,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
                          'on_history', 'channel', 'channels_updated',
-                         'invoice_status', 'request_status']
+                         'invoice_status', 'request_status', 'ln_gossip_sync_progress']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -430,6 +430,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             pass
         elif event == 'fee_histogram':
             self.history_model.on_fee_histogram()
+        elif event == 'ln_gossip_sync_progress':
+            self.update_lightning_icon()
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
 
@@ -2084,6 +2086,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.coincontrol_label.setText(msg)
         self.coincontrol_sb.setVisible(True)
+
+    def update_lightning_icon(self):  # TODO rate-limit?
+        self.lightning_button.setMaximumWidth(25 + 4 * char_width_in_lineedit())
+        cur, total = self.network.lngossip.get_sync_progress_estimate()
+        # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
+        if cur is None or total is None:
+            progress_str = "??%"
+        else:
+            if total > 0:
+                progress_percent = 100 * cur // total
+            else:
+                progress_percent = 0
+            progress_str = f"{progress_percent}%"
+        self.lightning_button.setText(progress_str)
 
     def update_lock_icon(self):
         icon = read_QIcon("lock.png") if self.wallet.has_password() else read_QIcon("unlock.png")

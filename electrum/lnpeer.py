@@ -125,7 +125,7 @@ class Peer(Logger):
             self.initialized.set_result(True)
 
     def is_initialized(self):
-        return self.initialized.done() and self.initialized.result() == True
+        return self.initialized.done() and self.initialized.result() is True
 
     async def initialize(self):
         if isinstance(self.transport, LNTransport):

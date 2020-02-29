@@ -271,6 +271,7 @@ class ChannelDB(SqlDB):
         self.num_channels = len(self._channels)
         self.num_policies = len(self._policies)
         self.network.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
+        self.network.trigger_callback('ln_gossip_sync_progress')
 
     def get_channel_ids(self):
         with self.lock:
@@ -590,19 +591,30 @@ class ChannelDB(SqlDB):
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
         self.logger.info(f'load data {len(self._channels)} {len(self._policies)} {len(self._channels_for_node)}')
         self.update_counts()
-        self.logger.info(f'semi-orphaned channels: {self.get_num_incomplete_channels()}')
+        (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
+        self.logger.info(f'num_channels_partitioned_by_policy_count. '
+                         f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
         self.data_loaded.set()
 
-    def get_num_incomplete_channels(self) -> int:
-        found = set()
+    def get_num_channels_partitioned_by_policy_count(self) -> Tuple[int, int, int]:
+        chans_with_zero_policies = set()
+        chans_with_one_policies = set()
+        chans_with_two_policies = set()
         with self.lock:
             _channels = self._channels.copy()
         for short_channel_id, ci in _channels.items():
             p1 = self.get_policy_for_node(short_channel_id, ci.node1_id)
             p2 = self.get_policy_for_node(short_channel_id, ci.node2_id)
-            if p1 is None or p2 is not None:
-                found.add(short_channel_id)
-        return len(found)
+            if p1 is not None and p2 is not None:
+                chans_with_two_policies.add(short_channel_id)
+            elif p1 is None and p2 is None:
+                chans_with_zero_policies.add(short_channel_id)
+            else:
+                chans_with_one_policies.add(short_channel_id)
+        nchans_with_0p = len(chans_with_zero_policies)
+        nchans_with_1p = len(chans_with_one_policies)
+        nchans_with_2p = len(chans_with_two_policies)
+        return nchans_with_0p, nchans_with_1p, nchans_with_2p
 
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes, *,
                             my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional['Policy']:
