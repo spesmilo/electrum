@@ -1348,19 +1348,38 @@ class LNWallet(LNWorker):
                     payment_hash = htlc.payment_hash
                     processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=peer.privkey)
                     if processed_onion.are_we_final:
-                        await peer._maybe_fulfill_htlc(
+                        preimage, reason = peer.maybe_fulfill_htlc(
                             chan=chan,
                             htlc=htlc,
                             onion_packet=onion_packet,
                             processed_onion=processed_onion)
+                        if preimage:
+                            await self.enable_htlc_settle.wait()
+                            await peer._fulfill_htlc(chan, htlc.htlc_id, preimage)
+                        else:
+                            await peer.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
                     else:
                         # todo: if we are forwarding we need to test next peer's state
                         # we should dissociate forwarding and fulfillment
-                        await peer._maybe_forward_htlc(
+                        next_chan, next_htlc, reason = peer.maybe_forward_htlc(
                             chan=chan,
                             htlc=htlc,
                             onion_packet=onion_packet,
                             processed_onion=processed_onion)
+                        if not next_chan:
+                            await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
+                        else:
+                            next_peer = self.peers[next_chan.node_id]
+                            next_remote_ctn = next_chan.get_latest_ctn(REMOTE)
+                            await next_peer.await_remote(next_chan, next_remote_ctn)
+                            success, preimage, reason = await self.await_payment(next_htlc.payment_hash)
+                            if success:
+                                await peer._fulfill_htlc(chan, htlc.htlc_id, preimage)
+                                self.logger.info("htlc forwarded successfully")
+                            else:
+                                # TODO: test this
+                                self.logger.info(f"forwarded htlc has failed, {reason}")
+                                await peer.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
                     done.add(htlc_id)
                 # cleanup
                 for htlc_id in done:
