@@ -93,7 +93,7 @@ class RequestList(MyTreeView):
             return
         if request_type == PR_TYPE_LN:
             self.parent.receive_payreq_e.setText(req.get('invoice'))
-            self.parent.receive_address_e.setText('')
+            self.parent.receive_address_e.setText(req.get('invoice'))
         else:
             self.parent.receive_payreq_e.setText(req.get('URI'))
             self.parent.receive_address_e.setText(req['address'])
