@@ -1131,45 +1131,25 @@ class Peer(Logger):
         self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         cltv_expiry = int.from_bytes(payload["cltv_expiry"], 'big')
         amount_msat_htlc = int.from_bytes(payload["amount_msat"], 'big')
-        onion_packet = OnionPacket.from_bytes(payload["onion_routing_packet"])
-        processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
+        onion_packet = payload["onion_routing_packet"]
         if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
-        htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
-                             payment_hash=payment_hash,
-                             cltv_expiry=cltv_expiry,
-                             timestamp=int(time.time()),
-                             htlc_id=htlc_id)
-        htlc = chan.receive_htlc(htlc)
-        # TODO: fulfilling/failing/forwarding of htlcs should be robust to going offline.
-        #       instead of storing state implicitly in coroutines, we could decouple it from receiving the htlc.
-        #       maybe persist the required details, and have a long-running task that makes these decisions.
-        local_ctn = chan.get_latest_ctn(LOCAL)
-        remote_ctn = chan.get_latest_ctn(REMOTE)
-        if processed_onion.are_we_final:
-            asyncio.ensure_future(self._maybe_fulfill_htlc(chan=chan,
-                                                           htlc=htlc,
-                                                           local_ctn=local_ctn,
-                                                           remote_ctn=remote_ctn,
-                                                           onion_packet=onion_packet,
-                                                           processed_onion=processed_onion))
-        else:
-            asyncio.ensure_future(self._maybe_forward_htlc(chan=chan,
-                                                           htlc=htlc,
-                                                           local_ctn=local_ctn,
-                                                           remote_ctn=remote_ctn,
-                                                           onion_packet=onion_packet,
-                                                           processed_onion=processed_onion))
+        htlc = UpdateAddHtlc(
+            amount_msat=amount_msat_htlc,
+            payment_hash=payment_hash,
+            cltv_expiry=cltv_expiry,
+            timestamp=int(time.time()),
+            htlc_id=htlc_id)
+        chan.receive_htlc(htlc, onion_packet)
+
 
     @log_exceptions
-    async def _maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
+    async def _maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
                                   onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
-        await self.await_local(chan, local_ctn)
-        await self.await_remote(chan, remote_ctn)
         # Forward HTLC
         # FIXME: this is not robust to us going offline before payment is fulfilled
         # FIXME: there are critical safety checks MISSING here
@@ -1250,10 +1230,8 @@ class Peer(Logger):
             await self.fail_htlc(chan, htlc.htlc_id, onion_packet, reason)
 
     @log_exceptions
-    async def _maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *, local_ctn: int, remote_ctn: int,
+    async def _maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
                                   onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
-        await self.await_local(chan, local_ctn)
-        await self.await_remote(chan, remote_ctn)
         try:
             info = self.lnworker.get_payment_info(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)

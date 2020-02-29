@@ -238,7 +238,7 @@ class TestPeer(ElectrumTestCase):
             self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
             self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
             gath.cancel()
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -253,7 +253,7 @@ class TestPeer(ElectrumTestCase):
             result = await LNWallet._pay(w1, pay_req)
             self.assertEqual(result, True)
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -271,7 +271,7 @@ class TestPeer(ElectrumTestCase):
             # wait so that pending messages are processed
             #await asyncio.sleep(1)
             gath.cancel()
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -285,7 +285,7 @@ class TestPeer(ElectrumTestCase):
             result = await LNWallet._pay(w1, pay_req)
             self.assertTrue(result)
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -313,7 +313,7 @@ class TestPeer(ElectrumTestCase):
         async def set_settle():
             await asyncio.sleep(0.1)
             w2.enable_htlc_settle.set()
-        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -338,7 +338,7 @@ class TestPeer(ElectrumTestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop())
+            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop(), LNWallet.htlc_switch(w1), LNWallet.htlc_switch(w2))
         with self.assertRaises(PaymentFailure):
             run(f())
 
