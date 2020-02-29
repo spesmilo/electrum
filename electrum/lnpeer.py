@@ -124,8 +124,11 @@ class Peer(Logger):
         if self._sent_init and self._received_init:
             self.initialized.set_result(True)
 
-    def is_initialized(self):
-        return self.initialized.done() and self.initialized.result() is True
+    def is_initialized(self) -> bool:
+        return (self.initialized.done()
+                and not self.initialized.cancelled()
+                and self.initialized.exception() is None
+                and self.initialized.result() is True)
 
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
