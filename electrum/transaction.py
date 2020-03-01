@@ -577,7 +577,7 @@ class Transaction:
         raw_bytes = bfh(self._cached_network_ser)
         vds = BCDataStream()
         vds.write(raw_bytes)
-        self.version = vds.read_int32()
+        self._version = vds.read_int32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -595,7 +595,7 @@ class Transaction:
         if is_segwit:
             for txin in self._inputs:
                 parse_witness(vds, txin)
-        self.locktime = vds.read_uint32()
+        self._locktime = vds.read_uint32()
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 
