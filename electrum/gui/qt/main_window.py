@@ -390,6 +390,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_network_qt(self, event, args=None):
         # Handle a network message in the GUI thread
+        # note: all windows get events from all wallets!
         if event == 'wallet_updated':
             wallet = args[0]
             if wallet == self.wallet:
@@ -2050,6 +2051,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog ) )
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
+        self.lightning_button = None
         if self.wallet.has_lightning() and self.network:
             self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             sb.addPermanentWidget(self.lightning_button)
@@ -2088,6 +2090,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_sb.setVisible(True)
 
     def update_lightning_icon(self):  # TODO rate-limit?
+        if self.lightning_button is None:
+            return
         self.lightning_button.setMaximumWidth(25 + 4 * char_width_in_lineedit())
         cur, total = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
