@@ -463,7 +463,7 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 class ElectrumItemDelegate(QStyledItemDelegate):
-    def __init__(self, tv):
+    def __init__(self, tv: 'MyTreeView'):
         super().__init__(tv)
         self.tv = tv
         self.opened = None
@@ -529,7 +529,7 @@ class MyTreeView(QTreeView):
         items = self.selectionModel().selectedIndexes()
         return list(x for x in items if x.column() == column)
 
-    def current_item_user_role(self, col) -> Optional[QStandardItem]:
+    def current_item_user_role(self, col) -> Any:
         idx = self.selectionModel().currentIndex()
         idx = idx.sibling(idx.row(), col)
         item = self.model().itemFromIndex(idx)

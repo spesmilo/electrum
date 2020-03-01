@@ -187,6 +187,9 @@ class AddressList(MyTreeView):
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
             address_item[self.Columns.LABEL].setData(address, Qt.UserRole)
+            address_path_str = self.wallet.get_address_path_str(address)
+            if address_path_str is not None:
+                address_item[self.Columns.TYPE].setToolTip(address_path_str)
             # setup column 1
             if self.wallet.is_frozen_address(address):
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))

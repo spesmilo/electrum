@@ -44,7 +44,7 @@ from abc import ABC, abstractmethod
 import itertools
 
 from .i18n import _
-from .bip32 import BIP32Node
+from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
@@ -439,6 +439,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     @abstractmethod
     def get_address_index(self, address: str) -> Optional[AddressIndexGeneric]:
+        pass
+
+    @abstractmethod
+    def get_address_path_str(self, address: str) -> Optional[str]:
+        """Returns derivation path str such as "m/0/5" to address,
+        or None if not applicable.
+        """
         pass
 
     @abstractmethod
@@ -2029,6 +2036,9 @@ class Imported_Wallet(Simple_Wallet):
         # returns None if address is not mine
         return self.get_public_key(address)
 
+    def get_address_path_str(self, address):
+        return None
+
     def get_public_key(self, address) -> Optional[str]:
         x = self.db.get_imported_address(address)
         return x.get('pubkey') if x else None
@@ -2251,6 +2261,12 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def get_address_index(self, address) -> Optional[Sequence[int]]:
         return self.db.get_address_index(address) or self._ephemeral_addr_to_addr_index.get(address)
+
+    def get_address_path_str(self, address):
+        intpath = self.get_address_index(address)
+        if intpath is None:
+            return None
+        return convert_bip32_intpath_to_strpath(intpath)
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout, address):
         for ks in self.get_keystores():
