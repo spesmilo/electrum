@@ -41,7 +41,7 @@ from qrcode import exceptions
 
 from electrum.simple_config import SimpleConfig
 from electrum.util import quantize_feerate
-from electrum.bitcoin import base_encode
+from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
@@ -58,6 +58,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
 from .fee_slider import FeeSlider
 from .confirm_tx_dialog import TxEditor
 from .amountedit import FeerateEdit, BTCAmountEdit
+from .locktimeedit import LockTimeEdit
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -434,7 +435,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
-        self.locktime_label.setText(f"LockTime: {self.tx.locktime}")
+        if self.tx.locktime <= NLOCKTIME_BLOCKHEIGHT_MAX:
+            locktime_final_str = f"LockTime: {self.tx.locktime} (height)"
+        else:
+            locktime_final_str = f"LockTime: {self.tx.locktime} ({datetime.datetime.fromtimestamp(self.tx.locktime)})"
+        self.locktime_final_label.setText(locktime_final_str)
+        if self.locktime_e.get_locktime() is None:
+            self.locktime_e.set_locktime(self.tx.locktime)
         self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
 
         if tx_mined_status.header_hash:
@@ -611,8 +618,22 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
         vbox_right.addWidget(self.rbf_cb)
 
-        self.locktime_label = TxDetailLabel()
-        vbox_right.addWidget(self.locktime_label)
+        self.locktime_final_label = TxDetailLabel()
+        vbox_right.addWidget(self.locktime_final_label)
+
+        locktime_setter_hbox = QHBoxLayout()
+        locktime_setter_hbox.setContentsMargins(0, 0, 0, 0)
+        locktime_setter_hbox.setSpacing(0)
+        locktime_setter_label = TxDetailLabel()
+        locktime_setter_label.setText("LockTime: ")
+        self.locktime_e = LockTimeEdit()
+        locktime_setter_hbox.addWidget(locktime_setter_label)
+        locktime_setter_hbox.addWidget(self.locktime_e)
+        locktime_setter_hbox.addStretch(1)
+        self.locktime_setter_widget = QWidget()
+        self.locktime_setter_widget.setLayout(locktime_setter_hbox)
+        vbox_right.addWidget(self.locktime_setter_widget)
+
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
         vbox_right.addStretch(1)
@@ -620,12 +641,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         vbox.addLayout(hbox_stats)
 
+        # below columns
         self.block_hash_label = TxDetailLabel(word_wrap=True)
         vbox.addWidget(self.block_hash_label)
 
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
         self.rbf_cb.setVisible(not self.finalized)
+        self.locktime_final_label.setVisible(self.finalized)
+        self.locktime_setter_widget.setVisible(not self.finalized)
 
     def set_title(self):
         self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
@@ -838,10 +862,12 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             return
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
-        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb]:
+        self.tx.locktime = self.locktime_e.get_locktime()
+        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb,
+                       self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
             widget.setVisible(False)
-        for widget in [self.rbf_label]:
+        for widget in [self.rbf_label, self.locktime_final_label]:
             widget.setVisible(True)
         self.set_title()
         self.set_buttons_visibility()

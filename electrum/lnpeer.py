@@ -1135,9 +1135,9 @@ class Peer(Logger):
         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
         if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
-        if cltv_expiry >= 500_000_000:
+        if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
-            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry >= 500_000_000. value was {cltv_expiry}")
+            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc,
                              payment_hash=payment_hash,
