@@ -181,7 +181,16 @@ class HistoryModel(QAbstractItemModel, Logger):
                 icon = "lightning" if is_lightning else TX_ICONS[status]
                 return QVariant(read_QIcon(icon))
             elif col == HistoryColumns.STATUS and role == Qt.ToolTipRole:
-                msg = 'lightning transaction' if is_lightning else str(conf) + _(" confirmation" + ("s" if conf != 1 else ""))
+                if is_lightning:
+                    msg = 'lightning transaction'
+                else:  # on-chain
+                    if tx_item['height'] == TX_HEIGHT_LOCAL:
+                        # note: should we also explain double-spends?
+                        msg = _("This transaction is only available on your local machine.\n"
+                                "The currently connected server does not know about it.\n"
+                                "You can either broadcast it now, or simply remove it.")
+                    else:
+                        msg = str(conf) + _(" confirmation" + ("s" if conf != 1 else ""))
                 return QVariant(msg)
             elif col > HistoryColumns.DESCRIPTION and role == Qt.TextAlignmentRole:
                 return QVariant(Qt.AlignRight | Qt.AlignVCenter)
