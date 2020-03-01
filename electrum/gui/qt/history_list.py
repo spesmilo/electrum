@@ -576,6 +576,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
+            if tx_item.get('lightning'):
+                if tx_item['type'] == 'payment':
+                    self.parent.show_lightning_transaction(tx_item)
+                return
             tx_hash = tx_item['txid']
             tx = self.wallet.db.get_transaction(tx_hash)
             if not tx:

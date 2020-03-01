@@ -64,7 +64,7 @@ class AddressDialog(WindowModalDialog):
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        vbox.addWidget(QLabel(_("Address:")))
+        vbox.addWidget(QLabel(_("Address") + ":"))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
         icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
