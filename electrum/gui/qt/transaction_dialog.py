@@ -417,7 +417,12 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
         self.sign_button.setEnabled(can_sign)
-        self.tx_hash_e.setText(tx_details.txid or _('Unknown'))
+        if self.finalized and tx_details.txid:
+            self.tx_hash_e.setText(tx_details.txid)
+        else:
+            # note: when not finalized, RBF and locktime changes do not trigger
+            #       a make_tx, so the txid is unreliable, hence:
+            self.tx_hash_e.setText(_('Unknown'))
         if desc is None:
             self.tx_desc.hide()
         else:
