@@ -89,6 +89,18 @@ class TestTransaction(ElectrumTestCase):
         tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.serialize(), signed_blob)
 
+    def test_tx_setting_locktime_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.locktime = 111222333
+        self.assertEqual("3d33a69c3f7717840b266c24ae1a6d29486820249b47261232e93ee118a6565b", tx.txid())
+
+    def test_tx_setting_version_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.version = 555
+        self.assertEqual("8a9b89a1a7aac1995dd013069d9866197d77c14c22315958d612fc02fd4b596a", tx.txid())
+
     def test_tx_deserialize_for_signed_network_tx(self):
         tx = transaction.Transaction(signed_blob)
         tx.deserialize()

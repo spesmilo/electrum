@@ -526,10 +526,28 @@ class Transaction:
             raise Exception(f"cannot initialize transaction from {raw}")
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
-        self.locktime = 0
-        self.version = 2
+        self._locktime = 0
+        self._version = 2
 
         self._cached_txid = None  # type: Optional[str]
+
+    @property
+    def locktime(self):
+        return self._locktime
+
+    @locktime.setter
+    def locktime(self, value):
+        self._locktime = value
+        self.invalidate_ser_cache()
+
+    @property
+    def version(self):
+        return self._version
+
+    @version.setter
+    def version(self, value):
+        self._version = value
+        self.invalidate_ser_cache()
 
     def to_json(self) -> dict:
         d = {
