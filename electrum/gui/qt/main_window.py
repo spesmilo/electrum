@@ -2054,6 +2054,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.lightning_button = None
         if self.wallet.has_lightning() and self.network:
             self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+            self.update_lightning_icon()
             sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
         if self.network:
@@ -2089,21 +2090,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_label.setText(msg)
         self.coincontrol_sb.setVisible(True)
 
-    def update_lightning_icon(self):  # TODO rate-limit?
+    def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        self.lightning_button.setMaximumWidth(25 + 4 * char_width_in_lineedit())
         cur, total = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
-        if cur is None or total is None:
-            progress_str = "??%"
-        else:
-            if total > 0:
-                progress_percent = 100 * cur // total
-            else:
-                progress_percent = 0
+        progress_percent = 0
+        progress_str = "??%"
+        if cur is not None and total is not None and total > 0:
+            # note: Progress is rescaled such that 95% is considered "done".
+            #       "Real" progress can stay around 98-99% for a long time, which
+            #       might needlessly worry users.
+            progress_percent = (1.0 / 0.95 * cur / total) * 100
+            progress_percent = min(progress_percent, 100)
+            progress_percent = round(progress_percent)
             progress_str = f"{progress_percent}%"
-        self.lightning_button.setText(progress_str)
+        if progress_percent >= 100:
+            self.lightning_button.setMaximumWidth(25)
+            self.lightning_button.setText('')
+            self.lightning_button.setToolTip(_("The Lightning Network graph is fully synced."))
+        else:
+            self.lightning_button.setMaximumWidth(25 + 4 * char_width_in_lineedit())
+            self.lightning_button.setText(progress_str)
+            self.lightning_button.setToolTip(_("The Lightning Network graph is syncing...\n"
+                                               "Payments are more likely to succeed with a more complete graph."))
 
     def update_lock_icon(self):
         icon = read_QIcon("lock.png") if self.wallet.has_password() else read_QIcon("unlock.png")
