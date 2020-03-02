@@ -408,7 +408,7 @@ class Channel(Logger):
         self.logger.info("add_htlc")
         return htlc
 
-    def receive_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
+    def receive_htlc(self, htlc: UpdateAddHtlc, onion_packet:bytes = None) -> UpdateAddHtlc:
         """
         ReceiveHTLC adds an HTLC to the state machine's remote update log. This
         method should be called in response to receiving a new HTLC from the remote
@@ -427,6 +427,11 @@ class Channel(Logger):
                     f' HTLC amount: {htlc.amount_msat}')
         with self.db_lock:
             self.hm.recv_htlc(htlc)
+            local_ctn = self.get_latest_ctn(LOCAL)
+            remote_ctn = self.get_latest_ctn(REMOTE)
+            if onion_packet:
+                self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
+
         self.logger.info("receive_htlc")
         return htlc
 

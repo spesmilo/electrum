@@ -55,7 +55,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails)
 from .lnutil import ln_dummy_address, ln_compare_features
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode
+from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
