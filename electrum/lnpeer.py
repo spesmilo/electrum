@@ -1154,61 +1154,62 @@ class Peer(Logger):
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
-            return False, False, reason
+            return OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
         dph = processed_onion.hop_data.per_hop
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
         next_chan_scid = dph.short_channel_id
         local_height = self.network.get_local_height()
         if next_chan is None:
             self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-            return False, False, reason
+            return OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
         outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         if not next_chan.can_send_update_add_htlc():
             self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
                              f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE,
-                                                data=outgoing_chan_upd_len+outgoing_chan_upd)
-            return False, False, reason
+            data = outgoing_chan_upd_len + outgoing_chan_upd
+            return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
         if htlc.cltv_expiry - next_cltv_expiry < NBLOCK_OUR_CLTV_EXPIRY_DELTA:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY,
-                                                data=(htlc.cltv_expiry.to_bytes(4, byteorder="big")
-                                                      + outgoing_chan_upd_len + outgoing_chan_upd))
-            return False, False, reason
+            data = htlc.cltv_expiry.to_bytes(4, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
+            return OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=data)
         if htlc.cltv_expiry - lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS <= local_height \
                 or next_cltv_expiry <= local_height:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON,
-                                                data=outgoing_chan_upd_len+outgoing_chan_upd)
-            return False, False,reason
+            data = outgoing_chan_upd_len + outgoing_chan_upd
+            return OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON, data=data)
         if max(htlc.cltv_expiry, next_cltv_expiry) > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
-            return False, False, reason
+            return OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
         next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
-        forwarding_fees = fee_for_edge_msat(forwarded_amount_msat=next_amount_msat_htlc,
-                                            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
-                                            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS)
+        forwarding_fees = fee_for_edge_msat(
+            forwarded_amount_msat=next_amount_msat_htlc,
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS)
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.FEE_INSUFFICIENT,
-                                                data=(next_amount_msat_htlc.to_bytes(8, byteorder="big")
-                                                      + outgoing_chan_upd_len + outgoing_chan_upd))
-            return False, False, reason
+            data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
+            return OnionRoutingFailureMessage(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
         self.logger.info(f'forwarding htlc to {next_chan.node_id}')
-        next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
+        next_htlc = UpdateAddHtlc(
+            amount_msat=next_amount_msat_htlc,
+            payment_hash=htlc.payment_hash,
+            cltv_expiry=next_cltv_expiry,
+            timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
         next_peer = self.lnworker.peers[next_chan.node_id]
-        next_peer.send_message(
-            "update_add_htlc",
-            channel_id=next_chan.channel_id,
-            id=next_htlc.htlc_id,
-            cltv_expiry=dph.outgoing_cltv_value,
-            amount_msat=dph.amt_to_forward,
-            payment_hash=next_htlc.payment_hash,
-            onion_routing_packet=processed_onion.next_packet.to_bytes()
-        )
-        return next_chan, next_peer, None
+        try:
+            next_peer.send_message(
+                "update_add_htlc",
+                channel_id=next_chan.channel_id,
+                id=next_htlc.htlc_id,
+                cltv_expiry=dph.outgoing_cltv_value,
+                amount_msat=dph.amt_to_forward,
+                payment_hash=next_htlc.payment_hash,
+                onion_routing_packet=processed_onion.next_packet.to_bytes()
+            )
+        except BaseException as e:
+            self.logger.info(f"failed to forward htlc: error sending message. {e}")
+            data = outgoing_chan_upd_len + outgoing_chan_upd
+            return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
+        return None
 
     def maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
@@ -1455,7 +1456,7 @@ class Peer(Logger):
                             onion_packet=onion_packet,
                             processed_onion=processed_onion)
                     elif not forwarded:
-                        next_chan, next_peer, error = self.maybe_forward_htlc(
+                        error = self.maybe_forward_htlc(
                             chan=chan,
                             htlc=htlc,
                             onion_packet=onion_packet,
