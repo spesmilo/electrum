@@ -1158,7 +1158,6 @@ class Peer(Logger):
         dph = processed_onion.hop_data.per_hop
         next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
         next_chan_scid = dph.short_channel_id
-        next_peer = self.lnworker.peers[next_chan.node_id]
         local_height = self.network.get_local_height()
         if next_chan is None:
             self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
@@ -1198,6 +1197,7 @@ class Peer(Logger):
         self.logger.info(f'forwarding htlc to {next_chan.node_id}')
         next_htlc = UpdateAddHtlc(amount_msat=next_amount_msat_htlc, payment_hash=htlc.payment_hash, cltv_expiry=next_cltv_expiry, timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
+        next_peer = self.lnworker.peers[next_chan.node_id]
         next_peer.send_message(
             "update_add_htlc",
             channel_id=next_chan.channel_id,
@@ -1207,7 +1207,7 @@ class Peer(Logger):
             payment_hash=next_htlc.payment_hash,
             onion_routing_packet=processed_onion.next_packet.to_bytes()
         )
-        return next_chan, next_htlc, None
+        return next_chan, next_peer, None
 
     def maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
