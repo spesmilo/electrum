@@ -148,6 +148,9 @@
     font_size: '6pt'
     name: ''
     data: ''
+    visible: True
+    opacity: 1 if self.visible else 0
+    disabled: not self.visible
     text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'

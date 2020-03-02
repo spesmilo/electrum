@@ -63,12 +63,13 @@ Popup:
                         data: app.wallet.get_master_public_key() or 'None'
                         name: _('Master Public Key')
                     TopLabel:
-                        text: _('This wallet is watching-only') if root.watching_only else _('Seed')
+                        text: _('This wallet is watching-only') if root.watching_only else (_('Seed') if root.has_seed else _('No seed stored for wallet'))
                     RefLabel:
                         id: seed_label
+                        visible: root.has_seed
                         data: ''
                         name: _('Seed')
-                        on_touched: if not self.data and not root.watching_only: app.show_seed(seed_label)
+                        on_touched: if not self.data and root.has_seed: app.show_seed(seed_label)
 
         BoxLayout:
             size_hint: 1, None
