@@ -49,7 +49,7 @@ from .transaction import (Transaction, multisig_script, TxOutput, PartialTransac
                           tx_from_any, PartialTxInput, TxOutpoint)
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
@@ -795,6 +795,30 @@ class Commands:
         return wallet.create_new_address(False)
 
     @command('w')
+    async def changegaplimit(self, new_limit, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
+        """Change the gap limit of the wallet."""
+        if not iknowwhatimdoing:
+            raise Exception("WARNING: Are you SURE you want to change the gap limit?\n"
+                            "It makes recovering your wallet from seed difficult!\n"
+                            "Please do your research and make sure you understand the implications.\n"
+                            "Typically only merchants and power users might want to do this.\n"
+                            "To proceed, try again, with the --iknowwhatimdoing option.")
+        if not isinstance(wallet, Deterministic_Wallet):
+            raise Exception("This wallet is not deterministic.")
+        return wallet.change_gap_limit(new_limit)
+
+    @command('wn')
+    async def getminacceptablegap(self, wallet: Abstract_Wallet = None):
+        """Returns the minimum value for gap limit that would be sufficient to discover all
+        known addresses in the wallet.
+        """
+        if not isinstance(wallet, Deterministic_Wallet):
+            raise Exception("This wallet is not deterministic.")
+        if not wallet.is_up_to_date():
+            raise Exception("Wallet not fully synchronized.")
+        return wallet.min_acceptable_gap()
+
+    @command('w')
     async def getunusedaddress(self, wallet: Abstract_Wallet = None):
         """Returns the first unused address of the wallet, or None if all addresses are used.
         An address is considered as used if it has received a transaction, or if it is used in a payment request."""
@@ -1098,6 +1122,7 @@ command_options = {
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
+    'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
 }
 
 
