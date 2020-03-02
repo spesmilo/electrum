@@ -249,6 +249,7 @@ class Peer(Logger):
     async def main_loop(self):
         async with self.taskgroup as group:
             await group.spawn(self._message_loop())
+            await group.spawn(self.htlc_switch())
             await group.spawn(self.query_gossip())
             await group.spawn(self.process_gossip())
 
@@ -1425,3 +1426,53 @@ class Peer(Logger):
         # broadcast
         await self.network.try_broadcasting(closing_tx, 'closing')
         return closing_tx.txid()
+
+    @log_exceptions
+    async def htlc_switch(self):
+        while True:
+            await asyncio.sleep(0.1)
+            for chan_id, chan in self.channels.items():
+                if not chan.can_send_ctx_updates():
+                    continue
+                self.maybe_send_commitment(chan)
+                done = set()
+                unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
+                for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarded) in unfulfilled.items():
+                    if chan.get_oldest_unrevoked_ctn(LOCAL) <= local_ctn:
+                        continue
+                    if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
+                        continue
+                    chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
+                    onion_packet = OnionPacket.from_bytes(bytes.fromhex(onion_packet_hex))
+                    htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
+                    payment_hash = htlc.payment_hash
+                    processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
+                    preimage, error = None, None
+                    if processed_onion.are_we_final:
+                        preimage, error = self.maybe_fulfill_htlc(
+                            chan=chan,
+                            htlc=htlc,
+                            onion_packet=onion_packet,
+                            processed_onion=processed_onion)
+                    elif not forwarded:
+                        next_chan, next_peer, error = self.maybe_forward_htlc(
+                            chan=chan,
+                            htlc=htlc,
+                            onion_packet=onion_packet,
+                            processed_onion=processed_onion)
+                        if not error:
+                            unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, True
+                    else:
+                        f = self.lnworker.pending_payments[payment_hash]
+                        if f.done():
+                            success, preimage, error = f.result()
+                    if preimage:
+                        await self.lnworker.enable_htlc_settle.wait()
+                        self.fulfill_htlc(chan, htlc.htlc_id, preimage)
+                        done.add(htlc_id)
+                    if error:
+                        self.fail_htlc(chan, htlc.htlc_id, onion_packet, error)
+                        done.add(htlc_id)
+                # cleanup
+                for htlc_id in done:
+                    unfulfilled.pop(htlc_id)

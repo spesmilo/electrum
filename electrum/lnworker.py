@@ -470,7 +470,6 @@ class LNWallet(LNWorker):
                 self.reestablish_peers_and_channels(),
                 self.sync_with_local_watchtower(),
                 self.sync_with_remote_watchtower(),
-                self.htlc_switch(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
@@ -1326,55 +1325,3 @@ class LNWallet(LNWorker):
         if feerate_per_kvbyte is None:
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(253, feerate_per_kvbyte // 4)
-
-    @log_exceptions
-    async def htlc_switch(self):
-        while True:
-            await asyncio.sleep(0.1)
-            for chan_id, chan in self.channels.items():
-                if not chan.can_send_ctx_updates():
-                    continue
-                peer = self.peers[chan.node_id]
-                peer.maybe_send_commitment(chan)
-                done = set()
-                unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
-                for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarded) in unfulfilled.items():
-                    if chan.get_oldest_unrevoked_ctn(LOCAL) <= local_ctn:
-                        continue
-                    if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
-                        continue
-                    chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
-                    onion_packet = OnionPacket.from_bytes(bytes.fromhex(onion_packet_hex))
-                    htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
-                    payment_hash = htlc.payment_hash
-                    processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=peer.privkey)
-                    if processed_onion.are_we_final:
-                        preimage, error = peer.maybe_fulfill_htlc(
-                            chan=chan,
-                            htlc=htlc,
-                            onion_packet=onion_packet,
-                            processed_onion=processed_onion)
-                    else:
-                        preimage, error = None, None
-                        if not forwarded:
-                            next_chan, next_peer, error = peer.maybe_forward_htlc(
-                                chan=chan,
-                                htlc=htlc,
-                                onion_packet=onion_packet,
-                                processed_onion=processed_onion)
-                            if not error:
-                                unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, True
-                        else:
-                            f = self.pending_payments[payment_hash]
-                            if f.done():
-                                success, preimage, error = f.result()
-                    if preimage:
-                        await self.enable_htlc_settle.wait()
-                        peer.fulfill_htlc(chan, htlc.htlc_id, preimage)
-                        done.add(htlc_id)
-                    if error:
-                        peer.fail_htlc(chan, htlc.htlc_id, onion_packet, error)
-                        done.add(htlc_id)
-                # cleanup
-                for htlc_id in done:
-                    unfulfilled.pop(htlc_id)
