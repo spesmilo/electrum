@@ -1428,7 +1428,6 @@ class Peer(Logger):
         await self.network.try_broadcasting(closing_tx, 'closing')
         return closing_tx.txid()
 
-    @log_exceptions
     async def htlc_switch(self):
         while True:
             await asyncio.sleep(0.1)
