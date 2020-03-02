@@ -345,7 +345,7 @@ class AddressSynchronizer(Logger):
                     prevout = TxOutpoint(bfh(tx_hash), idx)
                     self.db.remove_prevout_by_scripthash(scripthash, prevout=prevout, value=txo.value)
 
-    def get_depending_transactions(self, tx_hash):
+    def get_depending_transactions(self, tx_hash: str) -> Set[str]:
         """Returns all (grand-)children of tx_hash in this wallet."""
         with self.transaction_lock:
             children = set()

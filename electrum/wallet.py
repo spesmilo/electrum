@@ -210,6 +210,7 @@ class TxWalletDetails(NamedTuple):
     fee: Optional[int]
     tx_mined_status: TxMinedInfo
     mempool_depth_bytes: Optional[int]
+    can_remove: bool  # whether user should be allowed to delete tx
 
 
 class Abstract_Wallet(AddressSynchronizer, ABC):
@@ -495,6 +496,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
         label = ''
         tx_mined_status = self.get_tx_height(tx_hash)
+        # note: is_relevant check added to 'can_remove' as otherwise 'height' is unreliable (typically LOCAL).
+        #       e.g. user should not be allowed to remove a lightning force-close-tx
+        can_remove = is_relevant and (tx_mined_status.height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL])
         if tx.is_complete():
             if tx_we_already_have_in_db:
                 label = self.get_label(tx_hash)
@@ -545,6 +549,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             fee=fee,
             tx_mined_status=tx_mined_status,
             mempool_depth_bytes=exp_n,
+            can_remove=can_remove,
         )
 
     def get_spendable_coins(self, domain, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
