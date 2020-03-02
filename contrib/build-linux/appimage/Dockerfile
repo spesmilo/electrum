@@ -3,7 +3,7 @@ FROM ubuntu:16.04@sha256:97b54e5692c27072234ff958a7442dde4266af21e7b688e7fca5dc5
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 RUN apt-get update -q && \
-    apt-get install -qy \
+    apt-get --no-install-recommends install -qy \
         git=1:2.7.4-0ubuntu1.7 \
         wget=1.17.1-1ubuntu1.5 \
         make=4.1-6 \
