@@ -930,11 +930,12 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
 
 
 def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
-    lower = data.lower()
-    if lower.startswith('lightning:ln'):
-        lower = lower[10:]
-    if lower.startswith('ln'):
-        return lower
+    data = data.strip()  # whitespaces
+    data = data.lower()
+    if data.startswith('lightning:ln'):
+        data = data[10:]
+    if data.startswith('ln'):
+        return data
     return None
 
 
