@@ -29,13 +29,15 @@ class ChannelsList(MyTreeView):
     class Columns(IntEnum):
         SHORT_CHANID = 0
         NODE_ID = 1
-        LOCAL_BALANCE = 2
-        REMOTE_BALANCE = 3
-        CHANNEL_STATUS = 4
+        NODE_ALIAS = 2
+        LOCAL_BALANCE = 3
+        REMOTE_BALANCE = 4
+        CHANNEL_STATUS = 5
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ID: _('Node ID'),
+        Columns.NODE_ALIAS: _('Node alias'),
         Columns.LOCAL_BALANCE: _('Local'),
         Columns.REMOTE_BALANCE: _('Remote'),
         Columns.CHANNEL_STATUS: _('Status'),
@@ -65,9 +67,12 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = self.lnworker.get_channel_status(chan)
         closed = chan.is_closed()
+        node_info = self.lnworker.channel_db.get_node_info_for_node_id(chan.node_id)
+        node_alias = (node_info.alias if node_info else '') or ''
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
+            node_alias,
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
             status
