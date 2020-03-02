@@ -1239,32 +1239,28 @@ class Peer(Logger):
         # all good
         return preimage, None
 
-    async def _fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
+    def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.settle_htlc(preimage, htlc_id)
         payment_hash = sha256(preimage)
         self.lnworker.payment_received(payment_hash)
-        remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,
                           payment_preimage=preimage)
-        await self.await_remote(chan, remote_ctn)
 
-    async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
-                        reason: OnionRoutingFailureMessage):
+    def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
+                  reason: OnionRoutingFailureMessage):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.fail_htlc(htlc_id)
-        remote_ctn = chan.get_latest_ctn(REMOTE)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
         self.send_message("update_fail_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,
                           len=len(error_packet),
                           reason=error_packet)
-        await self.await_remote(chan, remote_ctn)
 
     def on_revoke_and_ack(self, payload):
         channel_id = payload["channel_id"]

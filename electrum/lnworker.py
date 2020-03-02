@@ -1335,12 +1335,14 @@ class LNWallet(LNWorker):
                 if not chan.can_send_ctx_updates():
                     continue
                 peer = self.peers[chan.node_id]
+                peer.maybe_send_commitment(chan)
                 done = set()
                 unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarded) in unfulfilled.items():
-                    # todo: decouple this from processing.
-                    await peer.await_local(chan, local_ctn)
-                    await peer.await_remote(chan, remote_ctn)
+                    if chan.get_oldest_unrevoked_ctn(LOCAL) <= local_ctn:
+                        continue
+                    if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
+                        continue
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
                     onion_packet = OnionPacket.from_bytes(bytes.fromhex(onion_packet_hex))
                     htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
@@ -1362,18 +1364,16 @@ class LNWallet(LNWorker):
                                 processed_onion=processed_onion)
                             if not error:
                                 unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, True
-                                next_remote_ctn = next_chan.get_latest_ctn(REMOTE)
-                                await next_peer.await_remote(next_chan, next_remote_ctn)
                         else:
                             f = self.pending_payments[payment_hash]
                             if f.done():
                                 success, preimage, error = f.result()
                     if preimage:
                         await self.enable_htlc_settle.wait()
-                        await peer._fulfill_htlc(chan, htlc.htlc_id, preimage)
+                        peer.fulfill_htlc(chan, htlc.htlc_id, preimage)
                         done.add(htlc_id)
                     if error:
-                        await peer.fail_htlc(chan, htlc.htlc_id, onion_packet, error)
+                        peer.fail_htlc(chan, htlc.htlc_id, onion_packet, error)
                         done.add(htlc_id)
                 # cleanup
                 for htlc_id in done:
