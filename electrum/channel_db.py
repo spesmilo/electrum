@@ -138,18 +138,22 @@ class NodeInfo(NamedTuple):
     alias: str
 
     @staticmethod
-    def from_msg(payload):
+    def from_msg(payload) -> Tuple['NodeInfo', Sequence['NodeAddress']]:
         node_id = payload['node_id']
         features = int.from_bytes(payload['features'], "big")
         validate_features(features)
         addresses = NodeInfo.parse_addresses_field(payload['addresses'])
         alias = payload['alias'].rstrip(b'\x00')
+        try:
+            alias = alias.decode('utf8')
+        except:
+            alias = ''
         timestamp = int.from_bytes(payload['timestamp'], "big")
         return NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias), [
-            Address(host=host, port=port, node_id=node_id, last_connected_date=None) for host, port in addresses]
+            NodeAddress(host=host, port=port, node_id=node_id, last_connected_date=None) for host, port in addresses]
 
     @staticmethod
-    def from_raw_msg(raw: bytes) -> 'NodeInfo':
+    def from_raw_msg(raw: bytes) -> Tuple['NodeInfo', Sequence['NodeAddress']]:
         payload_dict = decode_msg(raw)[1]
         return NodeInfo.from_msg(payload_dict)
 
@@ -194,7 +198,7 @@ class NodeInfo(NamedTuple):
         return addresses
 
 
-class Address(NamedTuple):
+class NodeAddress(NamedTuple):
     node_id: bytes
     host: str
     port: int
@@ -678,3 +682,6 @@ class ChannelDB(SqlDB):
             if node_id in (chan.node_id, chan.get_local_pubkey()):
                 relevant_channels.add(chan.short_channel_id)
         return relevant_channels
+
+    def get_node_info_for_node_id(self, node_id: bytes) -> Optional['NodeInfo']:
+        return self._nodes.get(node_id)
