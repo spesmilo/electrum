@@ -496,9 +496,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
         label = ''
         tx_mined_status = self.get_tx_height(tx_hash)
-        # note: is_relevant check added to 'can_remove' as otherwise 'height' is unreliable (typically LOCAL).
-        #       e.g. user should not be allowed to remove a lightning force-close-tx
-        can_remove = is_relevant and (tx_mined_status.height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL])
+        can_remove = ((tx_mined_status.height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL])
+                      # otherwise 'height' is unreliable (typically LOCAL):
+                      and is_relevant
+                      # don't offer during common signing flow, e.g. when watch-only wallet starts creating a tx:
+                      and bool(tx_we_already_have_in_db))
         if tx.is_complete():
             if tx_we_already_have_in_db:
                 label = self.get_label(tx_hash)
