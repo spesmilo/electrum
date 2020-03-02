@@ -372,8 +372,8 @@ class LNGossip(LNWorker):
     def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int]]:
         if self.num_peers() == 0:
             return None, None
-        num_db_channels = self.channel_db.num_channels
         nchans_with_0p, nchans_with_1p, nchans_with_2p = self.channel_db.get_num_channels_partitioned_by_policy_count()
+        num_db_channels = nchans_with_0p + nchans_with_1p + nchans_with_2p
         # some channels will never have two policies (only one is in gossip?...)
         # so if we have at least 1 policy for a channel, we consider that channel "complete" here
         current_est = num_db_channels - nchans_with_0p

@@ -825,8 +825,10 @@ class ShortChannelID(bytes):
         if isinstance(data, ShortChannelID) or data is None:
             return data
         if isinstance(data, str):
+            assert len(data) == 16
             return ShortChannelID.fromhex(data)
-        if isinstance(data, bytes):
+        if isinstance(data, (bytes, bytearray)):
+            assert len(data) == 8
             return ShortChannelID(data)
 
     @property
