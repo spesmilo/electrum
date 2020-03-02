@@ -262,6 +262,7 @@ class ChannelDB(SqlDB):
         # node_id -> (host, port, ts)
         self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]
+        self._recent_peers = []  # type: List[bytes]  # list of node_ids
 
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
@@ -282,6 +283,11 @@ class ChannelDB(SqlDB):
         node_id = peer.pubkey
         with self.lock:
             self._addresses[node_id].add((peer.host, peer.port, now))
+            # list is ordered
+            if node_id in self._recent_peers:
+                self._recent_peers.remove(node_id)
+            self._recent_peers.insert(0, node_id)
+            self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
         self.save_node_address(node_id, peer, now)
 
     def get_200_randomly_sorted_nodes_not_in(self, node_ids):
@@ -302,14 +308,10 @@ class ChannelDB(SqlDB):
 
     def get_recent_peers(self):
         assert self.data_loaded.is_set(), "channelDB load_data did not finish yet!"
-        # FIXME this does not reliably return "recent" peers...
-        #       Also, the list() cast over the whole dict (thousands of elements),
-        #       is really inefficient.
         with self.lock:
-            _addresses_keys = list(self._addresses.keys())
-        r = [self.get_last_good_address(node_id)
-             for node_id in _addresses_keys[-self.NUM_MAX_RECENT_PEERS:]]
-        return list(reversed(r))
+            ret = [self.get_last_good_address(node_id)
+                   for node_id in self._recent_peers]
+            return ret
 
     # note: currently channel announcements are trusted by default (trusted=True);
     #       they are not verified. Verifying them would make the gossip sync
@@ -573,6 +575,13 @@ class ChannelDB(SqlDB):
         for x in c:
             node_id, host, port, timestamp = x
             self._addresses[node_id].add((str(host), int(port), int(timestamp or 0)))
+        def newest_ts_for_node_id(node_id):
+            newest_ts = 0
+            for host, port, ts in self._addresses[node_id]:
+                newest_ts = max(newest_ts, ts)
+            return newest_ts
+        sorted_node_ids = sorted(self._addresses.keys(), key=newest_ts_for_node_id, reverse=True)
+        self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
         c.execute("""SELECT * FROM channel_info""")
         for short_channel_id, msg in c:
             ci = ChannelInfo.from_raw_msg(msg)
