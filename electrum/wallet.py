@@ -1187,7 +1187,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
     def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
-        """Returns whether address has any history that is deeply confirmed."""
+        """Returns whether address has any history that is deeply confirmed.
+        Used for reorg-safe(ish) gap limit roll-forward.
+        """
         max_conf = -1
         h = self.db.get_addr_history(address)
         needs_spv_check = not self.config.get("skipmerklecheck", False)
@@ -2155,6 +2157,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def change_gap_limit(self, value):
         '''This method is not called in the code, it is kept for console use'''
+        value = int(value)
         if value >= self.min_acceptable_gap():
             self.gap_limit = value
             self.db.put('gap_limit', self.gap_limit)
@@ -2171,14 +2174,14 @@ class Deterministic_Wallet(Abstract_Wallet):
             k += 1
         return k
 
-    def min_acceptable_gap(self):
+    def min_acceptable_gap(self) -> int:
         # fixme: this assumes wallet is synchronized
         n = 0
         nmax = 0
         addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for addr in addresses[0:-k]:
-            if self.db.get_addr_history(addr):
+            if self.address_is_old(addr):
                 n = 0
             else:
                 n += 1
