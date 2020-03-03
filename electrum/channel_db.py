@@ -294,7 +294,7 @@ class ChannelDB(SqlDB):
                 self._recent_peers.remove(node_id)
             self._recent_peers.insert(0, node_id)
             self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
-        self.save_node_address(peer, now)
+        self._db_save_node_address(peer, now)
 
     def get_200_randomly_sorted_nodes_not_in(self, node_ids):
         with self.lock:
@@ -361,7 +361,7 @@ class ChannelDB(SqlDB):
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
         self._update_num_policies_for_chan(channel_info.short_channel_id)
         if 'raw' in msg:
-            self.save_channel(channel_info.short_channel_id, msg['raw'])
+            self._db_save_channel(channel_info.short_channel_id, msg['raw'])
 
     def print_change(self, old_policy: Policy, new_policy: Policy):
         # print what changed between policies
@@ -422,7 +422,7 @@ class ChannelDB(SqlDB):
                 self._policies[key] = policy
             self._update_num_policies_for_chan(short_channel_id)
             if 'raw' in payload:
-                self.save_policy(policy.key, payload['raw'])
+                self._db_save_policy(policy.key, payload['raw'])
         #
         self.update_counts()
         return CategorizedChannelUpdates(
@@ -446,38 +446,42 @@ class ChannelDB(SqlDB):
         self.conn.commit()
 
     @sql
-    def save_policy(self, key, msg):
+    def _db_save_policy(self, key: bytes, msg: bytes):
+        # 'msg' is a 'channel_update' message
         c = self.conn.cursor()
         c.execute("""REPLACE INTO policy (key, msg) VALUES (?,?)""", [key, msg])
 
     @sql
-    def delete_policy(self, node_id, short_channel_id):
+    def _db_delete_policy(self, node_id: bytes, short_channel_id: ShortChannelID):
         key = short_channel_id + node_id
         c = self.conn.cursor()
         c.execute("""DELETE FROM policy WHERE key=?""", (key,))
 
     @sql
-    def save_channel(self, short_channel_id, msg):
+    def _db_save_channel(self, short_channel_id: ShortChannelID, msg: bytes):
+        # 'msg' is a 'channel_announcement' message
         c = self.conn.cursor()
         c.execute("REPLACE INTO channel_info (short_channel_id, msg) VALUES (?,?)", [short_channel_id, msg])
 
     @sql
-    def delete_channel(self, short_channel_id):
+    def _db_delete_channel(self, short_channel_id: ShortChannelID):
         c = self.conn.cursor()
         c.execute("""DELETE FROM channel_info WHERE short_channel_id=?""", (short_channel_id,))
 
     @sql
-    def save_node_info(self, node_id, msg):
+    def _db_save_node_info(self, node_id: bytes, msg: bytes):
+        # 'msg' is a 'node_announcement' message
         c = self.conn.cursor()
         c.execute("REPLACE INTO node_info (node_id, msg) VALUES (?,?)", [node_id, msg])
 
     @sql
-    def save_node_address(self, peer: LNPeerAddr, now):
+    def _db_save_node_address(self, peer: LNPeerAddr, timestamp: int):
         c = self.conn.cursor()
-        c.execute("REPLACE INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (peer.pubkey, peer.host, peer.port, now))
+        c.execute("REPLACE INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)",
+                  (peer.pubkey, peer.host, peer.port, timestamp))
 
     @sql
-    def save_node_addresses(self, node_addresses: Sequence[LNPeerAddr]):
+    def _db_save_node_addresses(self, node_addresses: Sequence[LNPeerAddr]):
         c = self.conn.cursor()
         for addr in node_addresses:
             c.execute("SELECT * FROM address WHERE node_id=? AND host=? AND port=?", (addr.pubkey, addr.host, addr.port))
@@ -517,11 +521,11 @@ class ChannelDB(SqlDB):
             with self.lock:
                 self._nodes[node_id] = node_info
             if 'raw' in msg_payload:
-                self.save_node_info(node_id, msg_payload['raw'])
+                self._db_save_node_info(node_id, msg_payload['raw'])
             with self.lock:
                 for addr in node_addresses:
                     self._addresses[node_id].add((addr.host, addr.port, 0))
-            self.save_node_addresses(node_addresses)
+            self._db_save_node_addresses(node_addresses)
 
         self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         self.update_counts()
@@ -539,7 +543,7 @@ class ChannelDB(SqlDB):
                 node_id, scid = key
                 with self.lock:
                     self._policies.pop(key)
-                self.delete_policy(*key)
+                self._db_delete_policy(*key)
                 self._update_num_policies_for_chan(scid)
             self.update_counts()
             self.logger.info(f'Deleting {len(old_policies)} old policies')
@@ -569,7 +573,7 @@ class ChannelDB(SqlDB):
                 self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
         self._update_num_policies_for_chan(short_channel_id)
         # delete from database
-        self.delete_channel(short_channel_id)
+        self._db_delete_channel(short_channel_id)
 
     def get_node_addresses(self, node_id):
         return self._addresses.get(node_id)
