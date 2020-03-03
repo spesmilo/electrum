@@ -205,7 +205,7 @@ class Channel(Logger):
             chain_hash=constants.net.rev_genesis_bytes(),
             timestamp=now.to_bytes(4, byteorder="big"),
         )
-        sighash = sha256d(chan_upd[2 + 64:])
+        sighash = sha256(chan_upd[2 + 64:])
         sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
         message_type, payload = decode_msg(chan_upd)
         payload['signature'] = sig

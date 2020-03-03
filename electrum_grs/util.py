@@ -432,7 +432,7 @@ def android_ext_dir():
     return primary_external_storage_path()
 
 def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
+    d = os.path.join(android_ext_dir(), 'org.groestlcoin.electrumgrs')
     if not os.path.exists(d):
         os.mkdir(d)
     return d
