@@ -1103,8 +1103,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
-    def delete_request(self, key):
-        self.wallet.delete_request(key)
+    def delete_requests(self, keys):
+        for key in keys:
+            self.wallet.delete_request(key)
         self.request_list.update()
         self.clear_receive_tab()
 
@@ -1713,8 +1714,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.setText(_("please wait..."))
         return True
 
-    def delete_invoice(self, key):
-        self.wallet.delete_invoice(key)
+    def delete_invoices(self, keys):
+        for key in keys:
+            self.wallet.delete_invoice(key)
         self.invoice_list.update()
 
     def payment_request_ok(self):
