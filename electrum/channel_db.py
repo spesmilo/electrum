@@ -581,6 +581,9 @@ class ChannelDB(SqlDB):
     @sql
     @profiler
     def load_data(self):
+        # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
+        #       I believe lnmsg (and lightning.json) will need a rewrite anyway, so instead of tweaking
+        #       load_data() here, that should be done. see #6006
         c = self.conn.cursor()
         c.execute("""SELECT * FROM address""")
         for x in c:

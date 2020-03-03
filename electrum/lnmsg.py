@@ -57,14 +57,13 @@ def _make_handler(msg_name: str, v: dict) -> Callable[[bytes], Tuple[str, dict]]
     Returns function taking bytes
     """
     def handler(data: bytes) -> Tuple[str, dict]:
-        nonlocal msg_name, v
         ma = {}  # map of field name -> field data; after parsing msg
         pos = 0
         for fieldname in v["payload"]:
             poslenMap = v["payload"][fieldname]
             if "feature" in poslenMap and pos == len(data):
                 continue
-            assert pos == _eval_exp_with_ctx(poslenMap["position"], ma)
+            #assert pos == _eval_exp_with_ctx(poslenMap["position"], ma)  # this assert is expensive...
             length = poslenMap["length"]
             length = _eval_exp_with_ctx(length, ma)
             ma[fieldname] = data[pos:pos+length]
