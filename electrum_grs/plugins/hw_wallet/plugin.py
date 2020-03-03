@@ -32,10 +32,11 @@ from electrum_grs.bitcoin import is_address, opcodes
 from electrum_grs.util import bfh, versiontuple, UserFacingException
 from electrum_grs.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_grs.bip32 import BIP32Node
+from electrum_grs.storage import get_derivation_used_for_hw_device_encryption
+from electrum_grs.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
     from electrum_grs.wallet import Abstract_Wallet
-    from electrum_grs.keystore import Hardware_KeyStore
 
 
 class HW_PluginBase(BasePlugin):
@@ -69,7 +70,7 @@ class HW_PluginBase(BasePlugin):
         """
         raise NotImplementedError()
 
-    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True):
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
     def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
@@ -181,6 +182,13 @@ class HardwareClientBase:
         child_of_root_xpub = self.get_xpub("m/0'", xtype='standard')
         root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
         return root_fingerprint
+
+    def get_password_for_storage_encryption(self) -> str:
+        # note: using a different password based on hw device type is highly undesirable! see #5993
+        derivation = get_derivation_used_for_hw_device_encryption()
+        xpub = self.get_xpub(derivation, "standard")
+        password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
+        return password
 
 
 def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:

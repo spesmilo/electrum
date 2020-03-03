@@ -145,6 +145,14 @@ class SettingsDialog(WindowModalDialog):
 
         # lightning
         lightning_widgets = []
+
+        backup_help = _("""A backup of your wallet file will be saved to that directory everytime you create a new channel. The backup cannot be used to perform lightning transactions; it may only be used to retrieve the funds in your open channels, using data loss protect (channels will be force closed).""")
+        backup_dir = self.config.get('backup_dir')
+        backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
+        self.backup_dir_e = QPushButton(backup_dir)
+        self.backup_dir_e.clicked.connect(self.select_backup_dir)
+        lightning_widgets.append((backup_dir_label, self.backup_dir_e))
+
         help_persist = _("""If this option is checked, Electrum-GRS will persist as a daemon after
 you close all your wallet windows. Your local watchtower will keep
 running, and it will protect your channels even if your wallet is not
@@ -545,6 +553,13 @@ that is always connected to the internet. Configure a port if you want it to be 
         self.config.set_key('alias', alias, True)
         if alias:
             self.window.fetch_alias()
+
+    def select_backup_dir(self, b):
+        name = self.config.get('backup_dir', '')
+        dirname = QFileDialog.getExistingDirectory(self, "Select your SSL certificate file", name)
+        if dirname:
+            self.config.set_key('backup_dir', dirname)
+            self.backup_dir_e.setText(dirname)
 
     def select_ssl_certfile(self, b):
         name = self.config.get('ssl_certfile', '')

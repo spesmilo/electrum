@@ -176,21 +176,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(_('Wallet') + ':'))
-        self.name_e = QLineEdit()
-        hbox.addWidget(self.name_e)
+        name_e = QLineEdit()
+        hbox.addWidget(name_e)
         button = QPushButton(_('Choose...'))
         hbox.addWidget(button)
         vbox.addLayout(hbox)
 
-        self.msg_label = WWLabel('')
-        vbox.addWidget(self.msg_label)
+        msg_label = WWLabel('')
+        vbox.addWidget(msg_label)
         hbox2 = QHBoxLayout()
-        self.pw_e = QLineEdit('', self)
-        self.pw_e.setFixedWidth(17 * char_width_in_lineedit())
-        self.pw_e.setEchoMode(2)
-        self.pw_label = QLabel(_('Password') + ':')
-        hbox2.addWidget(self.pw_label)
-        hbox2.addWidget(self.pw_e)
+        pw_e = QLineEdit('', self)
+        pw_e.setFixedWidth(17 * char_width_in_lineedit())
+        pw_e.setEchoMode(2)
+        pw_label = QLabel(_('Password') + ':')
+        hbox2.addWidget(pw_label)
+        hbox2.addWidget(pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
 
@@ -213,7 +213,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def on_choose():
             path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
-                self.name_e.setText(path)
+                name_e.setText(path)
 
         def on_filename(filename):
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
@@ -253,23 +253,23 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         + _("Press 'Next' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
-            self.msg_label.setText(msg)
+            msg_label.setText(msg)
             widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
-                self.pw_label.show()
-                self.pw_e.show()
-                self.pw_e.setFocus()
+                pw_label.show()
+                pw_e.show()
+                pw_e.setFocus()
             else:
-                self.pw_label.hide()
-                self.pw_e.hide()
+                pw_label.hide()
+                pw_e.hide()
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
             partial(
-                self.name_e.setText,
+                name_e.setText,
                 get_new_wallet_name(wallet_folder)))
-        self.name_e.textChanged.connect(on_filename)
-        self.name_e.setText(os.path.basename(path))
+        name_e.textChanged.connect(on_filename)
+        name_e.setText(os.path.basename(path))
 
         while True:
             if self.loop.exec_() != 2:  # 2 = next
@@ -284,7 +284,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 raise WalletAlreadyOpenInMemory(wallet_from_memory)
             if temp_storage.file_exists() and temp_storage.is_encrypted():
                 if temp_storage.is_encrypted_with_user_pw():
-                    password = self.pw_e.text()
+                    password = pw_e.text()
                     try:
                         temp_storage.decrypt(password)
                         break

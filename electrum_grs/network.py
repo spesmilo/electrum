@@ -219,11 +219,15 @@ class UntrustedServerReturnedError(NetworkException):
     def __init__(self, *, original_exception):
         self.original_exception = original_exception
 
+    def get_message_for_gui(self) -> str:
+        return str(self)
+
     def __str__(self):
         return _("The server returned an error.")
 
     def __repr__(self):
-        return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
+        return (f"<UntrustedServerReturnedError "
+                f"[DO NOT TRUST THIS MESSAGE] original_exception: {repr(self.original_exception)}>")
 
 
 _INSTANCE = None
@@ -253,6 +257,7 @@ class Network(Logger):
         self.daemon = daemon
 
         blockchain.read_blockchains(self.config)
+        blockchain.init_headers_file_for_best_chain()
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
@@ -268,7 +273,7 @@ class Network(Logger):
         if not self.default_server:
             self.default_server = pick_random_server()
 
-        self.main_taskgroup = None  # type: TaskGroup
+        self.taskgroup = None  # type: TaskGroup
 
         # locks
         self.restart_lock = asyncio.Lock()
@@ -661,7 +666,7 @@ class Network(Logger):
         old_server = old_interface.server if old_interface else None
 
         # Stop any current interface in order to terminate subscriptions,
-        # and to cancel tasks in interface.group.
+        # and to cancel tasks in interface.taskgroup.
         # However, for headers sub, give preference to this interface
         # over unknown ones, i.e. start it again right away.
         if old_server and old_server != server:
@@ -680,7 +685,7 @@ class Network(Logger):
             assert i.ready.done(), "interface we are switching to is not ready yet"
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
-            await i.group.spawn(self._request_server_info(i))
+            await i.taskgroup.spawn(self._request_server_info(i))
             self.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
@@ -776,19 +781,6 @@ class Network(Logger):
                 return False
         return True
 
-    async def _init_headers_file(self):
-        b = blockchain.get_best_chain()
-        filename = b.path()
-        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
-        if not os.path.exists(filename) or os.path.getsize(filename) < length:
-            with open(filename, 'wb') as f:
-                if length > 0:
-                    f.seek(length-1)
-                    f.write(b'\x00')
-            util.ensure_sparse_file(filename)
-        with b.lock:
-            b.update_size()
-
     def best_effort_reliable(func):
         async def make_reliable_wrapper(self: 'Network', *args, **kwargs):
             for i in range(10):
@@ -853,6 +845,14 @@ class Network(Logger):
         if out != tx.txid():
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
+
+    async def try_broadcasting(self, tx, name):
+        try:
+            await self.broadcast_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'error: could not broadcast {name} {tx.txid()}, {str(e)}')
+        else:
+            self.logger.info(f'success: broadcasting {name} {tx.txid()}')
 
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:
@@ -1110,8 +1110,8 @@ class Network(Logger):
             f.write(json.dumps(cp, indent=4))
 
     async def _start(self):
-        assert not self.main_taskgroup
-        self.main_taskgroup = main_taskgroup = SilentTaskGroup()
+        assert not self.taskgroup
+        self.taskgroup = taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self.connecting and not self.server_queue
         self.logger.info('starting network')
@@ -1123,16 +1123,19 @@ class Network(Logger):
         self._start_interface(self.default_server)
 
         async def main():
+            self.logger.info("starting taskgroup.")
             try:
-                await self._init_headers_file()
                 # note: if a task finishes with CancelledError, that
                 # will NOT raise, and the group will keep the other tasks running
-                async with main_taskgroup as group:
+                async with taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
-            except BaseException as e:
-                self.logger.exception('main_taskgroup died.')
-                raise e
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.logger.exception("taskgroup died.")
+            finally:
+                self.logger.info("taskgroup stopped.")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
         self.trigger_callback('network_updated')
@@ -1150,10 +1153,10 @@ class Network(Logger):
     async def _stop(self, full_shutdown=False):
         self.logger.info("stopping network")
         try:
-            await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
+            await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
-        self.main_taskgroup = None  # type: TaskGroup
+        self.taskgroup = None  # type: TaskGroup
         self.interface = None  # type: Interface
         self.interfaces = {}  # type: Dict[str, Interface]
         self.connecting.clear()
@@ -1188,7 +1191,7 @@ class Network(Logger):
         async def launch_already_queued_up_new_interfaces():
             while self.server_queue.qsize() > 0:
                 server = self.server_queue.get()
-                await self.main_taskgroup.spawn(self._run_new_interface(server))
+                await self.taskgroup.spawn(self._run_new_interface(server))
         async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
@@ -1210,7 +1213,7 @@ class Network(Logger):
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
                 if self.config.is_fee_estimates_update_required():
-                    await self.interface.group.spawn(self._request_fee_estimates, self.interface)
+                    await self.interface.taskgroup.spawn(self._request_fee_estimates, self.interface)
 
         while True:
             try:
@@ -1220,7 +1223,7 @@ class Network(Logger):
                 await maintain_main_interface()
             except asyncio.CancelledError:
                 # suppress spurious cancellations
-                group = self.main_taskgroup
+                group = self.taskgroup
                 if not group or group.closed():
                     raise
             await asyncio.sleep(0.1)

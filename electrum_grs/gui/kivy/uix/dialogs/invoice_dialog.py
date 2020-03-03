@@ -8,7 +8,7 @@ from kivy.clock import Clock
 
 from electrum_grs.gui.kivy.i18n import _
 from electrum_grs.util import pr_tooltips, pr_color
-from electrum_grs.util import PR_UNKNOWN, PR_UNPAID
+from electrum_grs.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED
 
 if TYPE_CHECKING:
     from electrum_grs.gui.kivy.main_window import ElectrumWindow
@@ -78,7 +78,7 @@ class InvoiceDialog(Factory.Popup):
         self.status = status
         self.status_str = pr_tooltips[status]
         self.status_color = pr_color[status]
-        self.can_pay = self.status == PR_UNPAID
+        self.can_pay = self.status in[PR_UNPAID, PR_FAILED]
 
     def on_dismiss(self):
         self.app.request_popup = None

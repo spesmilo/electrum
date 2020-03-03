@@ -70,24 +70,6 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
 
-    @hook
-    def transaction_dialog(self, dia: TxDialog):
-        # if not a Coldcard wallet, hide feature
-        if not any(type(ks) == self.keystore_class for ks in dia.wallet.get_keystores()):
-            return
-
-        def gettx_for_coldcard_export() -> PartialTransaction:
-            if not isinstance(dia.tx, PartialTransaction):
-                raise Exception("Can only export partial transactions for {}.".format(self.device))
-            tx = copy.deepcopy(dia.tx)
-            tx.add_info_from_wallet(dia.wallet, include_xpubs_and_full_paths=True)
-            return tx
-
-        # add a new "export" option
-        export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
-        dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
-        dia.psbt_only_widgets.append(export_submenu)
-
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
         # - doesn't matter if device not connected, continue

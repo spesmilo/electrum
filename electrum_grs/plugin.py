@@ -60,7 +60,7 @@ class Plugins(DaemonThread):
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}
-        self.plugins = {}
+        self.plugins = {}  # type: Dict[str, BasePlugin]
         self.gui_name = gui_name
         self.descriptions = {}
         self.device_manager = DeviceMgr(config)
@@ -198,8 +198,8 @@ class Plugins(DaemonThread):
             self.logger.info(f"registering hardware {name}: {details}")
             register_keystore(details[1], dynamic_constructor)
 
-    def get_plugin(self, name):
-        if not name in self.plugins:
+    def get_plugin(self, name: str) -> 'BasePlugin':
+        if name not in self.plugins:
             self.load_plugin(name)
         return self.plugins[name]
 

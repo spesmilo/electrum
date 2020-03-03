@@ -401,3 +401,26 @@ def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional
         derivation_prefix = convert_bip32_intpath_to_strpath([child_number_int])
         root_fingerprint = node.fingerprint.hex()
     return root_fingerprint, derivation_prefix
+
+
+def is_xkey_consistent_with_key_origin_info(xkey: str, *,
+                                            derivation_prefix: str = None,
+                                            root_fingerprint: str = None) -> bool:
+    bip32node = BIP32Node.from_xkey(xkey)
+    int_path = None
+    if derivation_prefix is not None:
+        int_path = convert_bip32_path_to_list_of_uint32(derivation_prefix)
+    if int_path is not None and len(int_path) != bip32node.depth:
+        return False
+    if bip32node.depth == 0:
+        if bfh(root_fingerprint) != bip32node.calc_fingerprint_of_this_node():
+            return False
+        if bip32node.child_number != bytes(4):
+            return False
+    if int_path is not None and bip32node.depth > 0:
+        if int.from_bytes(bip32node.child_number, 'big') != int_path[-1]:
+            return False
+    if bip32node.depth == 1:
+        if bfh(root_fingerprint) != bip32node.fingerprint:
+            return False
+    return True

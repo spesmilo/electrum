@@ -150,6 +150,7 @@ class AddressList(MyTreeView):
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
+        addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             num = self.wallet.get_address_history_len(address)
             label = self.wallet.labels.get(address, '')
@@ -186,10 +187,13 @@ class AddressList(MyTreeView):
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
             address_item[self.Columns.LABEL].setData(address, Qt.UserRole)
+            address_path_str = self.wallet.get_address_path_str(address)
+            if address_path_str is not None:
+                address_item[self.Columns.TYPE].setToolTip(address_path_str)
             # setup column 1
             if self.wallet.is_frozen_address(address):
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address):
+            if address in addresses_beyond_gap_limit:
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
             # add item
             count = self.model().rowCount()

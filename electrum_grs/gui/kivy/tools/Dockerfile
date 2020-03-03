@@ -60,7 +60,7 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends openjdk-8-jdk \
     && apt -y autoremove
-RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null
+RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" --licenses > /dev/null
 
 # download platforms, API, build tools
 RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/null && \

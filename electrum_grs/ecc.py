@@ -115,6 +115,7 @@ def sig_string_from_r_and_s(r: int, s: int) -> bytes:
 
 
 def _x_and_y_from_pubkey_bytes(pubkey: bytes) -> Tuple[int, int]:
+    assert isinstance(pubkey, bytes), f'pubkey must be bytes, not {type(pubkey)}'
     pubkey_ptr = create_string_buffer(64)
     ret = _libsecp256k1.secp256k1_ec_pubkey_parse(
         _libsecp256k1.ctx, pubkey_ptr, pubkey, len(pubkey))
@@ -141,7 +142,9 @@ class ECPubkey(object):
 
     def __init__(self, b: Optional[bytes]):
         if b is not None:
-            assert_bytes(b)
+            assert isinstance(b, (bytes, bytearray)), f'pubkey must be bytes-like, not {type(b)}'
+            if isinstance(b, bytearray):
+                b = bytes(b)
             self._x, self._y = _x_and_y_from_pubkey_bytes(b)
         else:
             self._x, self._y = None, None

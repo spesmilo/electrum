@@ -121,7 +121,7 @@ class Ledger_Client(HardwareClientBase):
         publicKey = compress_public_key(nodeData['publicKey'])
         depth = len(bip32_intpath)
         return BIP32Node(xtype=xtype,
-                         eckey=ecc.ECPubkey(publicKey),
+                         eckey=ecc.ECPubkey(bytes(publicKey)),
                          chaincode=nodeData['chainCode'],
                          depth=depth,
                          fingerprint=fingerprint_bytes,

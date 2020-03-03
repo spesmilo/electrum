@@ -198,7 +198,7 @@ class PayServer(Logger):
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
-        app.add_routes([web.static(root, 'electrum_grs/www')])
+        app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, port=port, host=host, ssl_context=self.config.get_ssl_context())
@@ -312,14 +312,17 @@ class Daemon(Logger):
     async def _run(self, jobs: Iterable = None):
         if jobs is None:
             jobs = []
+        self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
                 [await group.spawn(job) for job in jobs]
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
-        except BaseException as e:
-            self.logger.exception('daemon.taskgroup died.')
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.logger.exception("taskgroup died.")
         finally:
-            self.logger.info("stopping daemon.taskgroup")
+            self.logger.info("taskgroup stopped.")
 
     async def authenticate(self, headers):
         if self.rpc_password == '':
@@ -513,11 +516,13 @@ class Daemon(Logger):
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')
-        gui = __import__('electrum_grs.gui.' + gui_name, fromlist=['electrum_grs'])
-        self.gui_object = gui.ElectrumGui(config, self, plugins)
         try:
+            gui = __import__('electrum_grs.gui.' + gui_name, fromlist=['electrum_grs'])
+            self.gui_object = gui.ElectrumGui(config, self, plugins)
             self.gui_object.main()
         except BaseException as e:
-            self.logger.exception('')
+            self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')
+            raise
+        finally:
             # app will exit now
-        self.on_stop()
+            self.on_stop()

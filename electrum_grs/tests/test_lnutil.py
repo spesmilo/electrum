@@ -693,6 +693,8 @@ class TestLNUtil(ElectrumTestCase):
     def test_split_host_port(self):
         self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
         self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800:9a:dc59:a4ff:fede:24a9]:9735"), ("2601:602:8800:9a:dc59:a4ff:fede:24a9", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800::a4ff:fede:24a9]:9735"), ("2601:602:8800::a4ff:fede:24a9", "9735"))
         self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
         self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
         self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))

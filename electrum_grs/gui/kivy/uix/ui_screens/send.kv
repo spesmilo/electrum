@@ -95,7 +95,6 @@ SendScreen:
                     on_release: Clock.schedule_once(lambda dt: app.show_info(_('Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code.')))
                     #on_release: Clock.schedule_once(lambda dt: app.popup_dialog('contacts'))
             CardSeparator:
-                opacity: int(not root.is_locked)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
@@ -114,7 +113,6 @@ SendScreen:
                     disabled: root.is_bip70 or (root.is_lightning and not s.amount)
                     on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
             CardSeparator:
-                opacity: int(not root.is_locked)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 id: message_selection
@@ -132,7 +130,6 @@ SendScreen:
                     disabled: root.is_locked
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
             CardSeparator:
-                opacity: int(not root.is_locked)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None

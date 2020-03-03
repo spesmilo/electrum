@@ -859,7 +859,7 @@ class RestoreSeedDialog(WizardDialog):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
         self._test = kwargs['test']
         from electrum_grs.mnemonic import Mnemonic
-        from electrum_grs.old_mnemonic import words as old_wordlist
+        from electrum_grs.old_mnemonic import wordlist as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
         self.ids.text_input_seed.text = test_seed if is_test else ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')

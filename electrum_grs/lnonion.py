@@ -26,8 +26,8 @@
 import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING
 from enum import IntEnum, IntFlag
-from Cryptodome.Cipher import ChaCha20
 
+from Cryptodome.Cipher import ChaCha20
 
 from . import ecc
 from .crypto import sha256, hmac_oneshot
@@ -231,9 +231,10 @@ def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
     return cipher.encrypt(bytes(num_bytes))
 
 
-ProcessedOnionPacket = NamedTuple("ProcessedOnionPacket", [("are_we_final", bool),
-                                                           ("hop_data", OnionHopsDataSingle),
-                                                           ("next_packet", OnionPacket)])
+class ProcessedOnionPacket(NamedTuple):
+    are_we_final: bool
+    hop_data: OnionHopsDataSingle
+    next_packet: OnionPacket
 
 
 # TODO replay protection

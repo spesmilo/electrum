@@ -126,7 +126,14 @@ class HistoryScreen(CScreen):
 
     def show_item(self, obj):
         key = obj.key
-        tx = self.app.wallet.db.get_transaction(key)
+        tx_item = self.history.get(key)
+        if tx_item.get('lightning') and tx_item['type'] == 'payment':
+            self.app.lightning_tx_dialog(tx_item)
+            return
+        if tx_item.get('lightning'):
+            tx = self.app.wallet.lnworker.lnwatcher.db.get_transaction(key)
+        else:
+            tx = self.app.wallet.db.get_transaction(key)
         if not tx:
             return
         self.app.tx_dialog(tx)
@@ -137,7 +144,6 @@ class HistoryScreen(CScreen):
         key = tx_item.get('txid') or tx_item['payment_hash']
         if is_lightning:
             status = 0
-            txpos = tx_item['txpos']
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = "atlas://electrum_grs/gui/kivy/theming/light/lightning"
             message = tx_item['label']
@@ -147,8 +153,6 @@ class HistoryScreen(CScreen):
         else:
             tx_hash = tx_item['txid']
             conf = tx_item['confirmations']
-            txpos = tx_item['txpos_in_block'] or 0
-            height = tx_item['height']
             tx_mined_info = TxMinedInfo(height=tx_item['height'],
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
@@ -176,7 +180,8 @@ class HistoryScreen(CScreen):
         wallet = self.app.wallet
         if wallet is None:
             return
-        history = sorted(wallet.get_full_history(self.app.fx).values(), key=lambda x: x.get('timestamp') or float('inf'), reverse=True)
+        self.history = wallet.get_full_history(self.app.fx)
+        history = reversed(self.history.values())
         history_card = self.screen.ids.history_container
         history_card.data = [self.get_card(item) for item in history]
 
@@ -261,7 +266,8 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
-        self.screen.locked = False
+        self.screen.is_lightning = False
+        self.screen.is_bip70 = False
         self.parsed_URI = None
 
     def set_request(self, pr: 'PaymentRequest'):

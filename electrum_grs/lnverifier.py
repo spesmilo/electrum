@@ -75,7 +75,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             return True
 
     async def _start_tasks(self):
-        async with self.group as group:
+        async with self.taskgroup as group:
             await group.spawn(self.main)
 
     async def main(self):
@@ -100,10 +100,10 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             header = blockchain.read_header(block_height)
             if header is None:
                 if block_height < constants.net.max_checkpoint():
-                    await self.group.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
+                    await self.taskgroup.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
                 continue
             self.started_verifying_channel.add(short_channel_id)
-            await self.group.spawn(self.verify_channel(block_height, short_channel_id))
+            await self.taskgroup.spawn(self.verify_channel(block_height, short_channel_id))
             #self.logger.info(f'requested short_channel_id {bh2u(short_channel_id)}')
 
     async def verify_channel(self, block_height: int, short_channel_id: ShortChannelID):

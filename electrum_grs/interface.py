@@ -254,8 +254,8 @@ class Interface(Logger):
         self.debug = False
 
         asyncio.run_coroutine_threadsafe(
-            self.network.main_taskgroup.spawn(self.run()), self.network.asyncio_loop)
-        self.group = SilentTaskGroup()
+            self.network.taskgroup.spawn(self.run()), self.network.asyncio_loop)
+        self.taskgroup = SilentTaskGroup()
 
     def diagnostic_name(self):
         return str(NetAddress(self.host, self.port))
@@ -370,7 +370,7 @@ class Interface(Logger):
                 self.ready.cancel()
         return wrapper_func
 
-    @ignore_exceptions  # do not kill main_taskgroup
+    @ignore_exceptions  # do not kill network.taskgroup
     @log_exceptions
     @handle_disconnect
     async def run(self):
@@ -489,7 +489,7 @@ class Interface(Logger):
             self.logger.info(f"connection established. version: {ver}")
 
             try:
-                async with self.group as group:
+                async with self.taskgroup as group:
                     await group.spawn(self.ping)
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
