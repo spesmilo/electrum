@@ -238,7 +238,7 @@ PRIMARY KEY(node_id, host, port)
 
 create_node_info = """
 CREATE TABLE IF NOT EXISTS node_info (
-node_id BOB(33),
+node_id BLOB(33),
 msg BLOB,
 PRIMARY KEY(node_id)
 )"""
