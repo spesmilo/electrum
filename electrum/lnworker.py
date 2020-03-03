@@ -19,6 +19,7 @@ from concurrent import futures
 
 import dns.resolver
 import dns.exception
+from aiorpcx import run_in_thread
 
 from . import constants
 from . import keystore
@@ -270,17 +271,24 @@ class LNWorker(Logger):
                 #self.logger.info('taking random ln peer from our channel db')
                 return [peer]
 
-        # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
-        # and only return mainnet nodes. so for the time being dns seeding is disabled:
+        # getting desperate... let's try hardcoded fallback list of peers
         if constants.net in (constants.BitcoinTestnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_TESTNET)]
+            fallback_list = FALLBACK_NODE_LIST_TESTNET
         elif constants.net in (constants.BitcoinMainnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_MAINNET)]
+            fallback_list = FALLBACK_NODE_LIST_MAINNET
         else:
-            return []
+            return []  # regtest??
 
-        # try peers from dns seed.
-        # return several peers to reduce the number of dns queries.
+        fallback_list = [peer for peer in fallback_list if peer not in self._last_tried_peer]
+        if fallback_list:
+            return [random.choice(fallback_list)]
+
+        # last resort: try dns seeds (BOLT-10)
+        return await run_in_thread(self._get_peers_from_dns_seeds)
+
+    def _get_peers_from_dns_seeds(self) -> Sequence[LNPeerAddr]:
+        # NOTE: potentially long blocking call, do not run directly on asyncio event loop.
+        # Return several peers to reduce the number of dns queries.
         if not constants.net.LN_DNS_SEEDS:
             return []
         dns_seed = random.choice(constants.net.LN_DNS_SEEDS)
@@ -291,6 +299,7 @@ class LNWorker(Logger):
             srv_answers = resolve_dns_srv('r{}.{}'.format(
                 constants.net.LN_REALM_BYTE, dns_seed))
         except dns.exception.DNSException as e:
+            self.logger.info(f'failed querying (1) dns seed "{dns_seed}" for ln peers: {repr(e)}')
             return []
         random.shuffle(srv_answers)
         num_peers = 2 * NUM_PEERS_TARGET
@@ -301,7 +310,8 @@ class LNWorker(Logger):
             try:
                 # note: this might block for several seconds
                 answers = dns.resolver.query(srv_ans['host'])
-            except dns.exception.DNSException:
+            except dns.exception.DNSException as e:
+                self.logger.info(f'failed querying (2) dns seed "{dns_seed}" for ln peers: {repr(e)}')
                 continue
             try:
                 ln_host = str(answers[0])
@@ -310,9 +320,9 @@ class LNWorker(Logger):
                 pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
                 peers.append(LNPeerAddr(ln_host, port, pubkey))
             except Exception as e:
-                self.logger.info('error with parsing peer from dns seed: {}'.format(e))
+                self.logger.info(f'error with parsing peer from dns seed: {repr(e)}')
                 continue
-        self.logger.info('got {} ln peers from dns seed'.format(len(peers)))
+        self.logger.info(f'got {len(peers)} ln peers from dns seed')
         return peers
 
     @staticmethod
