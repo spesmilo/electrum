@@ -857,8 +857,11 @@ class LNWallet(LNWorker):
                 if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
                 host, port, timestamp = self.choose_preferred_address(addrs)
+            port = int(port)
+            # Try DNS-resolving the host (if needed). This is simply so that
+            # the caller gets a nice exception if it cannot be resolved.
             try:
-                socket.getaddrinfo(host, int(port))
+                await asyncio.get_event_loop().getaddrinfo(host, port)
             except socket.gaierror:
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
             # add peer
