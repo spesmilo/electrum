@@ -28,6 +28,7 @@ from electrum.logging import console_stderr_handler
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
+from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import ElectrumTestCase
 
 def keypair():
@@ -244,6 +245,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_reestablish_with_old_state(self):
         alice_channel, bob_channel = create_test_channels()
         alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
@@ -277,6 +279,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_payment(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
@@ -291,6 +294,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_close(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)

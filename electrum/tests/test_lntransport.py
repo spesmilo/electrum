@@ -5,10 +5,12 @@ from electrum.lnutil import LNPeerAddr
 from electrum.lntransport import LNResponderTransport, LNTransport
 
 from . import ElectrumTestCase
+from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
 class TestLNTransport(ElectrumTestCase):
 
+    @needs_test_with_all_chacha20_implementations
     def test_responder(self):
         # local static
         ls_priv=bytes.fromhex('2121212121212121212121212121212121212121212121212121212121212121')
@@ -37,6 +39,7 @@ class TestLNTransport(ElectrumTestCase):
         transport = LNResponderTransport(ls_priv, Reader(), Writer())
         asyncio.get_event_loop().run_until_complete(transport.handshake(epriv=e_priv))
 
+    @needs_test_with_all_chacha20_implementations
     def test_loop(self):
         loop = asyncio.get_event_loop()
         responder_shaked = asyncio.Event()
