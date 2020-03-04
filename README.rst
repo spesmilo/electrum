@@ -28,8 +28,8 @@ Getting started
 
 Electrum itself is pure Python, and so are most of the required dependencies.
 
-Non-python dependencies
------------------------
+Not pure-python dependencies
+----------------------------
 
 If you want to use the Qt interface, install the Qt dependencies::
 
@@ -44,13 +44,19 @@ libsecp256k1 yourself::
 
     ./contrib/make_libsecp256k1.sh
 
+Due to the need for fast symmetric ciphers, either one of :code:`pycryptodomex`
+or :code:`cryptography` is required. Install from your package manager
+(or from pip)::
+
+    sudo apt-get install python3-cryptography
+
 
 Running from tar.gz
 -------------------
 
 If you downloaded the official package (tar.gz), you can run
 Electrum from its root directory without installing it on your
-system; all the python dependencies are included in the 'packages'
+system; all the pure python dependencies are included in the 'packages'
 directory. To run Electrum from its root directory, just do::
 
     ./run_electrum
