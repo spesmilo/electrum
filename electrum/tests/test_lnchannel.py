@@ -316,7 +316,7 @@ class TestChannel(ElectrumTestCase):
 
         # Bob revokes his prior commitment given to him by Alice, since he now
         # has a valid signature for a newer commitment.
-        bobRevocation, _ = bob_channel.revoke_current_commitment()
+        bobRevocation = bob_channel.revoke_current_commitment()
         self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
         # Bob finally sends a signature for Alice's commitment transaction.
@@ -365,7 +365,7 @@ class TestChannel(ElectrumTestCase):
         self.assertNotEqual(tx0, tx1)
 
         # Alice then generates a revocation for bob.
-        aliceRevocation, _ = alice_channel.revoke_current_commitment()
+        aliceRevocation = alice_channel.revoke_current_commitment()
 
         tx2 = str(alice_channel.force_close_tx())
         # since alice already has the signature for the next one, it doesn't change her force close tx (it was already the newer one)
@@ -441,7 +441,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(alice_channel.balance(LOCAL), 500000000000)
         self.assertEqual(1, alice_channel.get_oldest_unrevoked_ctn(LOCAL))
         self.assertEqual(len(alice_channel.included_htlcs(LOCAL, RECEIVED, ctn=2)), 0)
-        aliceRevocation2, _ = alice_channel.revoke_current_commitment()
+        aliceRevocation2 = alice_channel.revoke_current_commitment()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
         self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
         self.assertEqual(len(bob_channel.get_latest_commitment(LOCAL).outputs()), 3)
@@ -449,7 +449,8 @@ class TestChannel(ElectrumTestCase):
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
 
-        bobRevocation2, (received, sent) = bob_channel.revoke_current_commitment()
+        bobRevocation2 = bob_channel.revoke_current_commitment()
+        received = lnchannel.htlcsum(bob_channel.hm.received_in_ctn(bob_channel.get_latest_ctn(LOCAL)))
         self.assertEqual(one_bitcoin_in_msat, received)
         alice_channel.receive_revocation(bobRevocation2)
 
@@ -525,7 +526,7 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
-        rev, _ = bob_channel.revoke_current_commitment()
+        rev = bob_channel.revoke_current_commitment()
         self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         alice_channel.receive_revocation(rev)
@@ -536,7 +537,7 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
-        rev, _ = alice_channel.revoke_current_commitment()
+        rev = alice_channel.revoke_current_commitment()
         self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(rev)
@@ -552,14 +553,14 @@ class TestChannel(ElectrumTestCase):
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        alice_revocation, _ = alice_channel.revoke_current_commitment()
+        alice_revocation = alice_channel.revoke_current_commitment()
         bob_channel.receive_revocation(alice_revocation)
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
         self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
-        bob_revocation, _ = bob_channel.revoke_current_commitment()
+        bob_revocation = bob_channel.revoke_current_commitment()
         self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
@@ -568,7 +569,7 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
-        alice_revocation, _ = alice_channel.revoke_current_commitment()
+        alice_revocation = alice_channel.revoke_current_commitment()
         self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(alice_revocation)
@@ -805,11 +806,11 @@ class TestDust(ElectrumTestCase):
 
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
-    rev, _ = chanB.revoke_current_commitment()
+    rev = chanB.revoke_current_commitment()
     bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
     chanA.receive_revocation(rev)
     chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
-    chanB.receive_revocation(chanA.revoke_current_commitment()[0])
+    chanB.receive_revocation(chanA.revoke_current_commitment())
 
 # calcStaticFee calculates appropriate fees for commitment transactions.  This
 # function provides a simple way to allow test balance assertions to take fee

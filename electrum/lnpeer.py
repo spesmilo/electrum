@@ -1047,7 +1047,7 @@ class Peer(Logger):
 
     def send_revoke_and_ack(self, chan: Channel):
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
-        rev, _ = chan.revoke_current_commitment()
+        rev = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
         self.send_message("revoke_and_ack",
             channel_id=chan.channel_id,
@@ -1209,8 +1209,6 @@ class Peer(Logger):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.settle_htlc(preimage, htlc_id)
-        payment_hash = sha256(preimage)
-        self.lnworker.payment_received(payment_hash)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
                           id=htlc_id,

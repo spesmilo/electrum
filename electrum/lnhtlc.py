@@ -289,19 +289,31 @@ class HTLCManager:
         return sent + received
 
     def received_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+        """
+        received htlcs that became fulfilled when we send a revocation.
+        we check only local, because they are commited in the remote ctx first.
+        """
         return [self.log[REMOTE]['adds'][htlc_id]
                 for htlc_id, ctns in self.log[REMOTE]['settles'].items()
                 if ctns[LOCAL] == ctn]
 
     def sent_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+        """
+        sent htlcs that became fulfilled when we received a revocation
+        we check only remote, because they are commited in the local ctx first.
+        """
         return [self.log[LOCAL]['adds'][htlc_id]
                 for htlc_id, ctns in self.log[LOCAL]['settles'].items()
-                if ctns[LOCAL] == ctn]
+                if ctns[REMOTE] == ctn]
 
     def failed_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+        """
+        sent htlcs that became failed when we received a revocation
+        we check only remote, because they are commited in the local ctx first.
+        """
         return [self.log[LOCAL]['adds'][htlc_id]
                 for htlc_id, ctns in self.log[LOCAL]['fails'].items()
-                if ctns[LOCAL] == ctn]
+                if ctns[REMOTE] == ctn]
 
     ##### Queries re Fees:
 

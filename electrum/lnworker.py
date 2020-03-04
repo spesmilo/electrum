@@ -517,15 +517,6 @@ class LNWallet(LNWorker):
             return ps.name
         return cs.name
 
-    def payment_completed(self, chan: Channel, direction: Direction,
-                          htlc: UpdateAddHtlc):
-        chan_id = chan.channel_id
-        preimage = self.get_preimage(htlc.payment_hash)
-        timestamp = int(time.time())
-        self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
-        if direction == SENT:
-            self.payment_sent(htlc.payment_hash)
-
     def get_settled_payments(self):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
@@ -1208,22 +1199,24 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, payment_hash: bytes, reason):
+    def payment_failed(self, chan, payment_hash: bytes, reason):
         self.set_payment_status(payment_hash, PR_UNPAID)
         f = self.pending_payments[payment_hash]
         if not f.cancelled():
             f.set_result((False, None, reason))
 
-    def payment_sent(self, payment_hash: bytes):
+    def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
         f = self.pending_payments[payment_hash]
         if not f.cancelled():
             f.set_result((True, preimage, None))
+        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
-    def payment_received(self, payment_hash: bytes):
+    def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

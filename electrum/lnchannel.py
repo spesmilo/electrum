@@ -561,25 +561,17 @@ class Channel(Logger):
             raise Exception("refusing to revoke as remote sig does not fit")
         with self.db_lock:
             self.hm.send_rev()
-        received = self.hm.received_in_ctn(new_ctn)
-        sent = self.hm.sent_in_ctn(new_ctn)
-        failed = self.hm.failed_in_ctn(new_ctn)
         if self.lnworker:
+            received = self.hm.received_in_ctn(new_ctn)
             for htlc in received:
-                self.lnworker.payment_completed(self, RECEIVED, htlc)
-            for htlc in sent:
-                self.lnworker.payment_completed(self, SENT, htlc)
-            for htlc in failed:
-                reason = self._receive_fail_reasons.get(htlc.htlc_id)
-                self.lnworker.payment_failed(htlc.payment_hash, reason)
-        received_this_batch = htlcsum(received)
-        sent_this_batch = htlcsum(sent)
+                self.lnworker.payment_received(self, htlc.payment_hash)
         last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
         next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
-        return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
+        return RevokeAndAck(last_secret, next_point)
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
+        new_ctn = self.get_latest_ctn(REMOTE)
         cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
         if cur_point != derived_point:
@@ -590,6 +582,15 @@ class Channel(Logger):
             self.hm.recv_rev()
             self.config[REMOTE].current_per_commitment_point=self.config[REMOTE].next_per_commitment_point
             self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
+        # lnworker callbacks
+        if self.lnworker:
+            sent = self.hm.sent_in_ctn(new_ctn)
+            for htlc in sent:
+                self.lnworker.payment_sent(self, htlc.payment_hash)
+            failed = self.hm.failed_in_ctn(new_ctn)
+            for htlc in failed:
+                reason = self._receive_fail_reasons.get(htlc.htlc_id)
+                self.lnworker.payment_failed(self, htlc.payment_hash, reason)
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """

@@ -126,6 +126,7 @@ class MockLNWallet:
     await_payment = LNWallet.await_payment
     payment_received = LNWallet.payment_received
     payment_sent = LNWallet.payment_sent
+    payment_failed = LNWallet.payment_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice
@@ -134,7 +135,7 @@ class MockLNWallet:
     _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
     get_first_timestamp = lambda self: 0
-    payment_completed = LNWallet.payment_completed
+
 
 class MockTransport:
     def __init__(self, name):
