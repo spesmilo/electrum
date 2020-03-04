@@ -1112,7 +1112,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def _add_request_coro(self, amount_sat, message, expiry):
+    async def _add_request_coro(self, amount_sat, message, expiry: int):
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_sat)
         if not routing_hints:
@@ -1122,6 +1122,12 @@ class LNWallet(LNWorker):
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
+        if expiry == 0:
+            # hack: BOLT-11 is not really clear on what an expiry of 0 means.
+            # It probably interprets it as 0 seconds, so already expired...
+            # Our higher level invoices code however uses 0 for "never".
+            # Hence set some high expiration here
+            expiry = 100 * 365 * 24 * 60 * 60  # 100 years
         lnaddr = LnAddr(payment_hash, amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),

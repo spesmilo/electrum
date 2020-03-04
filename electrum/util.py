@@ -104,17 +104,22 @@ pr_tooltips = {
     PR_FAILED:_('Failed'),
 }
 
+PR_DEFAULT_EXPIRATION_WHEN_CREATING = 24*60*60  # 1 day
 pr_expiration_values = {
     0: _('Never'),
     10*60: _('10 minutes'),
     60*60: _('1 hour'),
     24*60*60: _('1 day'),
-    7*24*60*60: _('1 week')
+    7*24*60*60: _('1 week'),
 }
+assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
+
 
 def get_request_status(req):
     status = req['status']
     exp = req.get('exp', 0) or 0
+    if req.get('type') == PR_TYPE_LN and exp == 0:
+        status = PR_EXPIRED  # for BOLT-11 invoices, exp==0 means 0 seconds
     if req['status'] == PR_UNPAID and exp > 0 and req['time'] + req['exp'] < time.time():
         status = PR_EXPIRED
     status_str = pr_tooltips[status]

@@ -62,7 +62,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
@@ -1007,7 +1007,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         evl = sorted(pr_expiration_values.items())
         evl_keys = [i[0] for i in evl]
         evl_values = [i[1] for i in evl]
-        default_expiry = self.config.get('request_expiry', 3600)
+        default_expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
             i = evl_keys.index(default_expiry)
         except ValueError:
@@ -1139,7 +1139,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_invoice(self, is_lightning):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
-        expiry = self.config.get('request_expiry', 3600)
+        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         if is_lightning:
             key = self.wallet.lnworker.add_request(amount, message, expiry)
         else:

@@ -24,7 +24,7 @@ from kivy.utils import platform
 from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
@@ -419,7 +419,7 @@ class ReceiveScreen(CScreen):
         Clock.schedule_interval(lambda dt: self.update(), 5)
 
     def expiry(self):
-        return self.app.electrum_config.get('request_expiry', 3600) # 1 hour
+        return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
 
     def clear(self):
         self.screen.address = ''
