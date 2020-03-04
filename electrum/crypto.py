@@ -40,6 +40,8 @@ try:
 except:
     AES = None
 
+from Cryptodome.Cipher import ChaCha20_Poly1305, ChaCha20
+
 
 class InvalidPadding(Exception):
     pass
@@ -216,3 +218,22 @@ def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
         return hmac.digest(key, msg, digest)
     else:
         return hmac.new(key, msg, digest).digest()
+
+
+def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
+    cipher.update(associated_data)
+    ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
+    return ciphertext + mac
+
+
+def chacha20_poly1305_decrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
+    cipher.update(associated_data)
+    # raises ValueError if not valid (e.g. incorrect MAC)
+    return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
+
+
+def chacha20_encrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
+    cipher = ChaCha20.new(key=key, nonce=nonce)
+    return cipher.encrypt(data)
