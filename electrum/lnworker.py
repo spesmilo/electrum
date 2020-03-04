@@ -169,7 +169,8 @@ class LNWorker(Logger):
                 self.peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
-                await asyncio.start_server(cb, addr, int(port))
+                # FIXME: server.close(), server.wait_closed(), etc... ?
+                server = await asyncio.start_server(cb, addr, int(port))
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 

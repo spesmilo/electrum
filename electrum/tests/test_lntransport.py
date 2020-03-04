@@ -51,6 +51,7 @@ class TestLNTransport(ElectrumTestCase):
             responder_shaked.set()
         server_future = asyncio.ensure_future(asyncio.start_server(cb, '127.0.0.1', 42898))
         loop.run_until_complete(server_future)
+        server = server_future.result()  # type: asyncio.Server
         async def connect():
             peer_addr = LNPeerAddr('127.0.0.1', 42898, responder_key.get_public_key_bytes())
             t = LNTransport(initiator_key.get_secret_bytes(), peer_addr)
@@ -59,6 +60,10 @@ class TestLNTransport(ElectrumTestCase):
             self.assertEqual(await t.read_messages().__anext__(), b'hello from server')
             server_shaked.set()
 
-        connect_future = asyncio.ensure_future(connect())
-        loop.run_until_complete(responder_shaked.wait())
-        loop.run_until_complete(server_shaked.wait())
+        try:
+            connect_future = asyncio.ensure_future(connect())
+            loop.run_until_complete(responder_shaked.wait())
+            loop.run_until_complete(server_shaked.wait())
+        finally:
+            server.close()
+            loop.run_until_complete(server.wait_closed())
