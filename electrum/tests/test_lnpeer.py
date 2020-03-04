@@ -131,6 +131,7 @@ class MockLNWallet:
     _create_route_from_invoice = LNWallet._create_route_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
     _pay_to_route = LNWallet._pay_to_route
+    _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
     get_first_timestamp = lambda self: 0
     payment_completed = LNWallet.payment_completed
@@ -250,7 +251,7 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertEqual(result, True)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -282,7 +283,7 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertTrue(result)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -306,7 +307,7 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()

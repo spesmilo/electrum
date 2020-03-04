@@ -152,6 +152,7 @@ class Channel(Logger):
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
+        self._receive_fail_reasons = {}
 
     def get_id_for_log(self) -> str:
         scid = self.short_channel_id
@@ -562,11 +563,15 @@ class Channel(Logger):
             self.hm.send_rev()
         received = self.hm.received_in_ctn(new_ctn)
         sent = self.hm.sent_in_ctn(new_ctn)
+        failed = self.hm.failed_in_ctn(new_ctn)
         if self.lnworker:
             for htlc in received:
                 self.lnworker.payment_completed(self, RECEIVED, htlc)
             for htlc in sent:
                 self.lnworker.payment_completed(self, SENT, htlc)
+            for htlc in failed:
+                reason = self._receive_fail_reasons.get(htlc.htlc_id)
+                self.lnworker.payment_failed(htlc.payment_hash, reason)
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
         last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
@@ -575,12 +580,10 @@ class Channel(Logger):
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
-
         cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
         if cur_point != derived_point:
             raise Exception('revoked secret not for current point')
-
         with self.db_lock:
             self.revocation_store.add_next_entry(revocation.per_commitment_secret)
             ##### start applying fee/htlc changes
@@ -763,10 +766,11 @@ class Channel(Logger):
         with self.db_lock:
             self.hm.send_fail(htlc_id)
 
-    def receive_fail_htlc(self, htlc_id):
+    def receive_fail_htlc(self, htlc_id, reason):
         self.logger.info("receive_fail_htlc")
         with self.db_lock:
             self.hm.recv_fail(htlc_id)
+        self._receive_fail_reasons[htlc_id] = reason
 
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())

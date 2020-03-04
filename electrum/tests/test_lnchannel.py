@@ -618,7 +618,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
         force_state_transition(alice_channel, bob_channel)
         bob_channel.fail_htlc(bob_idx)
-        alice_channel.receive_fail_htlc(alice_idx)
+        alice_channel.receive_fail_htlc(alice_idx, None)
         # Alice now has gotten all her original balance (5 BTC) back, however,
         # adding a new HTLC at this point SHOULD fail, since if she adds the
         # HTLC and signs the next state, Bob cannot assume she received the

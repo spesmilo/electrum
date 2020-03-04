@@ -298,6 +298,11 @@ class HTLCManager:
                 for htlc_id, ctns in self.log[LOCAL]['settles'].items()
                 if ctns[LOCAL] == ctn]
 
+    def failed_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+        return [self.log[LOCAL]['adds'][htlc_id]
+                for htlc_id, ctns in self.log[LOCAL]['fails'].items()
+                if ctns[LOCAL] == ctn]
+
     ##### Queries re Fees:
 
     def get_feerate(self, subject: HTLCOwner, ctn: int) -> int:

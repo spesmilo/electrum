@@ -523,6 +523,8 @@ class LNWallet(LNWorker):
         preimage = self.get_preimage(htlc.payment_hash)
         timestamp = int(time.time())
         self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
+        if direction == SENT:
+            self.payment_sent(htlc.payment_hash)
 
     def get_settled_payments(self):
         # return one item per payment_hash
@@ -952,7 +954,8 @@ class LNWallet(LNWorker):
         peer = self.peers.get(route[0].node_id)
         if not peer:
             raise Exception('Dropped peer')
-        htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+        await peer.initialized
+        htlc = peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
         if success:
@@ -1207,12 +1210,16 @@ class LNWallet(LNWorker):
 
     def payment_failed(self, payment_hash: bytes, reason):
         self.set_payment_status(payment_hash, PR_UNPAID)
-        self.pending_payments[payment_hash].set_result((False, None, reason))
+        f = self.pending_payments[payment_hash]
+        if not f.cancelled():
+            f.set_result((False, None, reason))
 
     def payment_sent(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
-        self.pending_payments[payment_hash].set_result((True, preimage, None))
+        f = self.pending_payments[payment_hash]
+        if not f.cancelled():
+            f.set_result((True, preimage, None))
 
     def payment_received(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)

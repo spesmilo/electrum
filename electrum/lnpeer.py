@@ -93,8 +93,6 @@ class Peer(Logger):
         self.shutdown_received = {}
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()
-        self._local_changed_events = defaultdict(asyncio.Event)
-        self._remote_changed_events = defaultdict(asyncio.Event)
         Logger.__init__(self)
         self.taskgroup = SilentTaskGroup()
 
@@ -1006,16 +1004,8 @@ class Peer(Logger):
         reason = payload["reason"]
         chan = self.channels[channel_id]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        chan.receive_fail_htlc(htlc_id)
-        local_ctn = chan.get_latest_ctn(LOCAL)
-        asyncio.ensure_future(self._on_update_fail_htlc(channel_id, htlc_id, local_ctn, reason))
-
-    @log_exceptions
-    async def _on_update_fail_htlc(self, channel_id, htlc_id, local_ctn, reason):
-        chan = self.channels[channel_id]
-        await self.await_local(chan, local_ctn)
-        payment_hash = chan.get_payment_hash(htlc_id)
-        self.lnworker.payment_failed(payment_hash, reason)
+        chan.receive_fail_htlc(htlc_id, reason)
+        self.maybe_send_commitment(chan)
 
     def maybe_send_commitment(self, chan: Channel):
         # REMOTE should revoke first before we can sign a new ctx
@@ -1028,27 +1018,9 @@ class Peer(Logger):
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
-    async def await_remote(self, chan: Channel, ctn: int):
-        """Wait until remote 'ctn' gets revoked."""
-        # if 'ctn' is too high, we risk waiting "forever", hence assert:
-        assert chan.get_latest_ctn(REMOTE) >= ctn, (chan.get_latest_ctn(REMOTE), ctn)
-        self.maybe_send_commitment(chan)
-        while chan.get_oldest_unrevoked_ctn(REMOTE) <= ctn:
-            await self._remote_changed_events[chan.channel_id].wait()
-
-    async def await_local(self, chan: Channel, ctn: int):
-        """Wait until local 'ctn' gets revoked."""
-        # if 'ctn' is too high, we risk waiting "forever", hence assert:
-        assert chan.get_latest_ctn(LOCAL) >= ctn, (chan.get_latest_ctn(LOCAL), ctn)
-        self.maybe_send_commitment(chan)
-        while chan.get_oldest_unrevoked_ctn(LOCAL) <= ctn:
-            await self._local_changed_events[chan.channel_id].wait()
-
-    async def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
-                  payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
+    def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
+            payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
         assert amount_msat > 0, "amount_msat is not greater zero"
-        await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
-        # TODO also wait for channel reestablish to finish. (combine timeout with waiting for init?)
         if not chan.can_send_update_add_htlc():
             raise PaymentFailure("Channel cannot send update_add_htlc")
         # create onion packet
@@ -1060,25 +1032,23 @@ class Peer(Logger):
         # create htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
-        remote_ctn = chan.get_latest_ctn(REMOTE)
         chan.set_onion_key(htlc.htlc_id, secret_key)
         self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. htlc: {htlc}")
-        self.send_message("update_add_htlc",
-                          channel_id=chan.channel_id,
-                          id=htlc.htlc_id,
-                          cltv_expiry=htlc.cltv_expiry,
-                          amount_msat=htlc.amount_msat,
-                          payment_hash=htlc.payment_hash,
-                          onion_routing_packet=onion.to_bytes())
-        await self.await_remote(chan, remote_ctn)
+        self.send_message(
+            "update_add_htlc",
+            channel_id=chan.channel_id,
+            id=htlc.htlc_id,
+            cltv_expiry=htlc.cltv_expiry,
+            amount_msat=htlc.amount_msat,
+            payment_hash=htlc.payment_hash,
+            onion_routing_packet=onion.to_bytes())
+        self.maybe_send_commitment(chan)
         return htlc
 
     def send_revoke_and_ack(self, chan: Channel):
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev, _ = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
-        self._local_changed_events[chan.channel_id].set()
-        self._local_changed_events[chan.channel_id].clear()
         self.send_message("revoke_and_ack",
             channel_id=chan.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
@@ -1113,13 +1083,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
-        local_ctn = chan.get_latest_ctn(LOCAL)
-        asyncio.ensure_future(self._on_update_fulfill_htlc(chan, local_ctn, payment_hash))
-
-    @log_exceptions
-    async def _on_update_fulfill_htlc(self, chan, local_ctn, payment_hash):
-        await self.await_local(chan, local_ctn)
-        self.lnworker.payment_sent(payment_hash)
+        self.maybe_send_commitment(chan)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
@@ -1272,8 +1236,6 @@ class Peer(Logger):
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)
-        self._remote_changed_events[chan.channel_id].set()
-        self._remote_changed_events[chan.channel_id].clear()
         self.lnworker.save_channel(chan)
         self.maybe_send_commitment(chan)
 
@@ -1303,11 +1265,11 @@ class Peer(Logger):
         self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
                          f"new feerate {feerate_per_kw}")
         chan.update_fee(feerate_per_kw, True)
-        remote_ctn = chan.get_latest_ctn(REMOTE)
-        self.send_message("update_fee",
-                          channel_id=chan.channel_id,
-                          feerate_per_kw=feerate_per_kw)
-        await self.await_remote(chan, remote_ctn)
+        self.send_message(
+            "update_fee",
+            channel_id=chan.channel_id,
+            feerate_per_kw=feerate_per_kw)
+        self.maybe_send_commitment(chan)
 
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
@@ -1351,9 +1313,8 @@ class Peer(Logger):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         # wait until no more pending updates (bolt2)
         chan.set_can_send_ctx_updates(False)
-        ctn = chan.get_latest_ctn(REMOTE)
-        if chan.has_pending_changes(REMOTE):
-            await self.await_remote(chan, ctn)
+        while chan.has_pending_changes(REMOTE):
+            await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(channel_states.CLOSING)
         # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
