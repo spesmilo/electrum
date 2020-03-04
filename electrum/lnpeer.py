@@ -1294,14 +1294,14 @@ class Peer(Logger):
             return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
         chan_fee = chan.get_next_feerate(REMOTE)
-        self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
-                         f"new feerate {feerate_per_kw}")
         if feerate_per_kw < chan_fee / 2:
             self.logger.info("FEES HAVE FALLEN")
         elif feerate_per_kw > chan_fee * 2:
             self.logger.info("FEES HAVE RISEN")
         else:
             return
+        self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "
+                         f"new feerate {feerate_per_kw}")
         chan.update_fee(feerate_per_kw, True)
         remote_ctn = chan.get_latest_ctn(REMOTE)
         self.send_message("update_fee",
