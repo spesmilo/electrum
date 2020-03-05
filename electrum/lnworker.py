@@ -1201,16 +1201,22 @@ class LNWallet(LNWorker):
 
     def payment_failed(self, chan, payment_hash: bytes, reason):
         self.set_payment_status(payment_hash, PR_UNPAID)
-        f = self.pending_payments[payment_hash]
-        if not f.cancelled():
+        f = self.pending_payments.get(payment_hash)
+        if f and not f.cancelled():
             f.set_result((False, None, reason))
+        else:
+            self.logger.info('received unexpected payment_failed, probably from previous session')
+            self.network.trigger_callback('invoice_status', payment_hash.hex())
 
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
-        f = self.pending_payments[payment_hash]
-        if not f.cancelled():
+        f = self.pending_payments.get(payment_hash)
+        if f and not f.cancelled():
             f.set_result((True, preimage, None))
+        else:
+            self.logger.info('received unexpected payment_sent, probably from previous session')
+            self.network.trigger_callback('invoice_status', payment_hash.hex())
         self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
