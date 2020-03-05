@@ -25,6 +25,8 @@ class HTLCManager:
             log[LOCAL] = deepcopy(initial)
             log[REMOTE] = deepcopy(initial)
             log['unacked_local_updates2'] = {}
+
+        if 'unfulfilled_htlcs' not in log:
             log['unfulfilled_htlcs'] = {}  # htlc_id -> onion_packet
 
         # maybe bootstrap fee_updates if initial_feerate was provided
