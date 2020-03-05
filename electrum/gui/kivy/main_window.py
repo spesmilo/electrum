@@ -221,7 +221,7 @@ class ElectrumWindow(App):
             return
         self.update_tab('receive')
         if self.request_popup and self.request_popup.key == key:
-            self.request_popup.set_status(status)
+            self.request_popup.update_status()
         if status == PR_PAID:
             self.show_info(_('Payment Received') + '\n' + key)
             self._trigger_update_history()
@@ -234,7 +234,7 @@ class ElectrumWindow(App):
         # todo: update single item
         self.update_tab('send')
         if self.invoice_popup and self.invoice_popup.key == key:
-            self.invoice_popup.set_status(status)
+            self.invoice_popup.update_status()
         if status == PR_PAID:
             self.show_info(_('Payment was sent'))
             self._trigger_update_history()
@@ -445,7 +445,6 @@ class ElectrumWindow(App):
         request = self.wallet.get_request(key)
         data = request['invoice'] if is_lightning else request['URI']
         self.request_popup = RequestDialog('Request', data, key, is_lightning=is_lightning)
-        self.request_popup.set_status(request['status'])
         self.request_popup.open()
 
     def show_invoice(self, is_lightning, key):
@@ -453,10 +452,8 @@ class ElectrumWindow(App):
         invoice = self.wallet.get_invoice(key)
         if not invoice:
             return
-        status = invoice['status']
         data = invoice['invoice'] if is_lightning else key
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
-        self.invoice_popup.set_status(status)
         self.invoice_popup.open()
 
     def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
