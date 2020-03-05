@@ -695,7 +695,7 @@ class ButtonsWidget(QWidget):
 
     def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth
+        x = self.rect().right() - frameWidth - 10
         y = self.rect().bottom() - frameWidth
         for button in self.buttons:
             sz = button.sizeHint()
