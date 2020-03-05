@@ -41,6 +41,26 @@ Builder.load_string('''
             shorten: True
         Widget
 
+<AddressButton@Button>:
+    background_color: 1, .585, .878, 0
+    halign: 'center'
+    text_size: (self.width, None)
+    shorten: True
+    size_hint: 0.5, None
+    default_text: ''
+    text: self.default_text
+    padding: '5dp', '5dp'
+    height: '40dp'
+    text_color: self.foreground_color
+    disabled_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
+    canvas.before:
+        Color:
+            rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
 <AddressesDialog@Popup>
     id: popup
     title: _('Addresses')
@@ -52,12 +72,12 @@ Builder.load_string('''
         self.update()
     BoxLayout:
         id:box
-        padding: '12dp', '70dp', '12dp', '12dp'
+        padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
         orientation: 'vertical'
-        size_hint: 1, 1.1
         BoxLayout:
             spacing: '6dp'
+            height: self.minimum_height
             size_hint: 1, None
             orientation: 'horizontal'
             AddressFilter:
