@@ -149,7 +149,7 @@ if [[ $1 == "breach" ]]; then
     echo "alice pays"
     $alice lnpay $request
     sleep 2
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     request=$($bob add_lightning_request 0.01 -m "blah2")
     echo "alice pays again"
     $alice lnpay $request
@@ -219,7 +219,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
         echo "enable_htlc_settle did not work, $settled != 0"
         exit 1
     fi
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     $bob enable_htlc_settle true
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "1" ]]; then
@@ -243,7 +243,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo "alice pays bob"
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
     if [[ "$settled" != "0" ]]; then
         echo "enable_htlc_settle did not work, $settled != 0"
@@ -307,7 +307,7 @@ if [[ $1 == "watchtower" ]]; then
     echo "alice pays bob"
     invoice1=$($bob add_lightning_request 0.01 -m "invoice1")
     $alice lnpay $invoice1
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     echo "alice pays bob again"
     invoice2=$($bob add_lightning_request 0.01 -m "invoice2")
     $alice lnpay $invoice2

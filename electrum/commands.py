@@ -1037,8 +1037,11 @@ class Commands:
         return await coro
 
     @command('wn')
-    async def get_channel_ctx(self, channel_point, wallet: Abstract_Wallet = None):
+    async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """ return the current commitment transaction of a channel """
+        if not iknowwhatimdoing:
+            raise Exception("WARNING: this command is potentially unsafe.\n"
+                            "To proceed, try again, with the --iknowwhatimdoing option.")
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         chan = wallet.lnworker.channels[chan_id]
