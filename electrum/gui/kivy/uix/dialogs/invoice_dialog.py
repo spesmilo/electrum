@@ -41,7 +41,7 @@ Builder.load_string('''
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
             TopLabel:
-                warning: root.warning
+                text: root.warning
                 color: (0.9, 0.6, 0.3, 1)
             Widget:
                 size_hint: 1, 0.2
