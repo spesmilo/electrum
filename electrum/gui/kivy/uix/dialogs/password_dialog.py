@@ -115,7 +115,7 @@ class PasswordDialog(Factory.Popup):
              check_password = None,
              on_success: Callable = None, on_failure: Callable = None,
              is_change: bool = False,
-             is_password: bool = True,
+             is_password: bool = True,  # whether this is for a generic password or for a numeric PIN
              has_password: bool = False,
              message: str = ''):
         self.app = app
@@ -179,11 +179,13 @@ class PasswordDialog(Factory.Popup):
 
 
     def on_password(self, pw: str):
-        if self.is_generic:
+        # if setting new generic password, enforce min length
+        if self.is_generic and self.level > 0:
             if len(pw) < 6:
                 self.app.show_error(_('Password is too short (min {} characters)').format(6))
                 return
-        if len(pw) >= 6:
+        # PIN codes are exactly 6 chars; generic pw can be any (don't enforce minimum on existing)
+        if len(pw) >= 6 or self.is_generic:
             if self.check_password(pw):
                 if self.is_change is False:
                     self.success = True
