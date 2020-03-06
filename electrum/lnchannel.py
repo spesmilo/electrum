@@ -27,9 +27,11 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import IntEnum
-from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING
+from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING, Iterator
 import time
 import threading
+
+from aiorpcx import NetAddress
 
 from . import ecc
 from . import constants
@@ -47,7 +49,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
-                    ShortChannelID, map_htlcs_to_ctx_output_idxs)
+                    ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -182,6 +184,20 @@ class Channel(Logger):
 
     def get_remote_update(self) -> Optional[bytes]:
         return bfh(self.storage.get('remote_update')) if self.storage.get('remote_update') else None
+
+    def add_or_update_peer_addr(self, peer: LNPeerAddr) -> None:
+        if 'peer_network_addresses' not in self.storage:
+            self.storage['peer_network_addresses'] = {}
+        now = int(time.time())
+        self.storage['peer_network_addresses'][peer.net_addr_str()] = now
+
+    def get_peer_addresses(self) -> Iterator[LNPeerAddr]:
+        # sort by timestamp: most recent first
+        addrs = sorted(self.storage.get('peer_network_addresses', {}).items(),
+                       key=lambda x: x[1], reverse=True)
+        for net_addr_str, ts in addrs:
+            net_addr = NetAddress.from_string(net_addr_str)
+            yield LNPeerAddr(host=str(net_addr.host), port=net_addr.port, pubkey=self.node_id)
 
     def get_outgoing_gossip_channel_update(self) -> bytes:
         if self._outgoing_channel_update is not None:
