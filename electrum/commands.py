@@ -1004,8 +1004,8 @@ class Commands:
                 'remote_balance': chan.balance(REMOTE)//1000,
                 'local_reserve': chan.config[LOCAL].reserve_sat,
                 'remote_reserve': chan.config[REMOTE].reserve_sat,
-                'local_unsettled_sent': chan.unsettled_sent_balance(LOCAL),
-                'remote_unsettled_sent': chan.unsettled_sent_balance(REMOTE),
+                'local_unsettled_sent': chan.unsettled_sent_balance(LOCAL)//1000,
+                'remote_unsettled_sent': chan.unsettled_sent_balance(REMOTE)//1000,
             } for channel_id, chan in l
         ]
 
