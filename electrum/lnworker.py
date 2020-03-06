@@ -124,7 +124,7 @@ FALLBACK_NODE_LIST_MAINNET = [
 
 class PaymentInfo(NamedTuple):
     payment_hash: bytes
-    amount: int
+    amount: int  # in satoshis
     direction: int
     status: int
 
@@ -934,6 +934,7 @@ class LNWallet(LNWorker):
             success = payment_attempt_log.success
             if success:
                 break
+        self.logger.debug(f'payment attempts log for RHASH {key}: {repr(log)}')
         self.network.trigger_callback('invoice_status', key)
         return success
 

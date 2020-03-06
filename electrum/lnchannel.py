@@ -624,6 +624,7 @@ class Channel(Logger):
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
 
+        # TODO slow. -- and 'balance' is called from a decent number of places (e.g. 'make_commitment')
         for direction, htlc in self.hm.all_settled_htlcs_ever(ctx_owner, ctn):
             # note: could "simplify" to (whose * ctx_owner == direction * SENT)
             if whose == ctx_owner:
