@@ -107,7 +107,7 @@ class ChannelsList(MyTreeView):
                   + _(f'Funds retrieved from this channel will not be available before {to_self_delay} blocks after forced closure.') + ' '\
                   + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
                   + _('In the meantime, channel funds will not be recoverable from your seed, and will be lost if you lose your wallet.') + ' '\
-                  + _('To avoid that, you should backup your wallet after you force close the channel.')
+                  + _('To prevent that, you should backup your wallet if you have not already done so.')
         if self.parent.question(msg):
             def task():
                 coro = self.lnworker.force_close_channel(channel_id)
