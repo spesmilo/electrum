@@ -1336,7 +1336,15 @@ class LNWallet(LNWorker):
             peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
         # will try addresses stored in channel storage
         peer_addresses += list(chan.get_peer_addresses())
-        # now select first one that has not failed recently
+        # Now select first one that has not failed recently.
+        # Use long retry interval to check. This ensures each address we gathered gets a chance.
+        for peer in peer_addresses:
+            last_tried = self._last_tried_peer.get(peer, 0)
+            if last_tried + PEER_RETRY_INTERVAL < now:
+                await self._add_peer(peer.host, peer.port, peer.pubkey)
+                return
+        # Still here? That means all addresses failed ~recently.
+        # Use short retry interval now.
         for peer in peer_addresses:
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
