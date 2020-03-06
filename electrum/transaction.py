@@ -165,15 +165,6 @@ class BIP143SharedTxDigestFields(NamedTuple):
     hashSequence: str
     hashOutputs: str
 
-class BIP143SharedTxDigestFields(NamedTuple):
-    hashPrevouts: str
-    hashSequence: str
-    hashOutputs: str
-
-class TxOutpoint(NamedTuple):
-    txid: bytes  # endianness same as hex string displayed; reverse of tx serialization order
-    out_idx: int
-
 class TxOutpoint(NamedTuple):
     txid: bytes  # endianness same as hex string displayed; reverse of tx serialization order
     out_idx: int
@@ -634,7 +625,7 @@ class Transaction:
 
     @classmethod
     def get_siglist(self, txin: 'PartialTxInput', *, estimate_size=False):
-        if txin.prevout.is_coinbase():
+        if txin.is_coinbase_input():
             return [], []
 
         if estimate_size:
@@ -1734,10 +1725,14 @@ class PartialTransaction(Transaction):
         self.remove_signatures()
         self.invalidate_ser_cache()
 
-    def inputs(self) -> Sequence[PartialTxInput]:
+    def inputs(self) -> Sequence[TxInput]:
+        if self._inputs is None:
+            self.deserialize()
         return self._inputs
 
-    def outputs(self) -> Sequence[PartialTxOutput]:
+    def outputs(self) -> Sequence[TxOutput]:
+        if self._outputs is None:
+            self.deserialize()
         return self._outputs
 
     def add_inputs(self, inputs: List[PartialTxInput]) -> None:
