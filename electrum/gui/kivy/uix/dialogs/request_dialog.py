@@ -5,15 +5,17 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
-from electrum.util import pr_tooltips, pr_color
-from electrum.util import PR_UNKNOWN
+from electrum.util import pr_tooltips, pr_color, get_request_status
+from electrum.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
 
 
 Builder.load_string('''
 <RequestDialog@Popup>
     id: popup
+    amount: 0
     title: ''
     data: ''
+    warning: ''
     status_str: ''
     status_color: 1,1,1,1
     shaded: False
@@ -35,8 +37,13 @@ Builder.load_string('''
             TopLabel:
                 text: root.data
             TopLabel:
+                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+            TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
+            TopLabel:
+                text: root.warning
+                color: (0.9, 0.6, 0.3, 1)
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -66,21 +73,33 @@ Builder.load_string('''
 
 class RequestDialog(Factory.Popup):
 
-    def __init__(self, title, data, key):
+    def __init__(self, title, data, key, *, is_lightning=False):
         self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
         self.data = data
         self.key = key
+        r = self.app.wallet.get_request(key)
+        self.amount = r.get('amount')
+        self.is_lightning = r.get('type') == PR_TYPE_LN
+        self.update_status()
 
     def on_open(self):
-        self.ids.qr.set_data(self.data)
+        data = self.data
+        if self.is_lightning:
+            # encode lightning invoices as uppercase so QR encoding can use
+            # alphanumeric mode; resulting in smaller QR codes
+            data = data.upper()
+        self.ids.qr.set_data(data)
 
-    def set_status(self, status):
-        self.status = status
-        self.status_str = pr_tooltips[status]
-        self.status_color = pr_color[status]
+    def update_status(self):
+        req = self.app.wallet.get_request(self.key)
+        self.status, self.status_str = get_request_status(req)
+        self.status_color = pr_color[self.status]
+        if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
+            if self.amount and self.amount > self.app.wallet.lnworker.can_receive():
+                self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
 
     def on_dismiss(self):
         self.app.request_popup = None

@@ -25,6 +25,7 @@
 
 import base64
 import os
+import sys
 import hashlib
 import hmac
 from typing import Union
@@ -35,10 +36,33 @@ from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFile
 from .i18n import _
 
 
+HAS_CRYPTODOME = False
 try:
-    from Cryptodome.Cipher import AES
+    from Cryptodome.Cipher import ChaCha20_Poly1305 as CD_ChaCha20_Poly1305
+    from Cryptodome.Cipher import ChaCha20 as CD_ChaCha20
+    from Cryptodome.Cipher import AES as CD_AES
 except:
-    AES = None
+    pass
+else:
+    HAS_CRYPTODOME = True
+
+HAS_CRYPTOGRAPHY = False
+try:
+    import cryptography
+    from cryptography import exceptions
+    from cryptography.hazmat.primitives.ciphers import Cipher as CG_Cipher
+    from cryptography.hazmat.primitives.ciphers import algorithms as CG_algorithms
+    from cryptography.hazmat.primitives.ciphers import modes as CG_modes
+    from cryptography.hazmat.backends import default_backend as CG_default_backend
+    import cryptography.hazmat.primitives.ciphers.aead as CG_aead
+except:
+    pass
+else:
+    HAS_CRYPTOGRAPHY = True
+
+
+if not (HAS_CRYPTODOME or HAS_CRYPTOGRAPHY):
+    sys.exit(f"Error: at least one of ('pycryptodomex', 'cryptography') needs to be installed.")
 
 
 class InvalidPadding(Exception):
@@ -67,8 +91,12 @@ def strip_PKCS7_padding(data: bytes) -> bytes:
 def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
     data = append_PKCS7_padding(data)
-    if AES:
-        e = AES.new(key, AES.MODE_CBC, iv).encrypt(data)
+    if HAS_CRYPTODOME:
+        e = CD_AES.new(key, CD_AES.MODE_CBC, iv).encrypt(data)
+    elif HAS_CRYPTOGRAPHY:
+        cipher = CG_Cipher(CG_algorithms.AES(key), CG_modes.CBC(iv), backend=CG_default_backend())
+        encryptor = cipher.encryptor()
+        e = encryptor.update(data) + encryptor.finalize()
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
         aes = pyaes.Encrypter(aes_cbc, padding=pyaes.PADDING_NONE)
@@ -78,9 +106,13 @@ def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
 
 def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
-    if AES:
-        cipher = AES.new(key, AES.MODE_CBC, iv)
+    if HAS_CRYPTODOME:
+        cipher = CD_AES.new(key, CD_AES.MODE_CBC, iv)
         data = cipher.decrypt(data)
+    elif HAS_CRYPTOGRAPHY:
+        cipher = CG_Cipher(CG_algorithms.AES(key), CG_modes.CBC(iv), backend=CG_default_backend())
+        decryptor = cipher.decryptor()
+        data = decryptor.update(data) + decryptor.finalize()
     else:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
         aes = pyaes.Decrypter(aes_cbc, padding=pyaes.PADDING_NONE)
@@ -216,3 +248,55 @@ def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
         return hmac.digest(key, msg, digest)
     else:
         return hmac.new(key, msg, digest).digest()
+
+
+def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+    assert isinstance(key, (bytes, bytearray))
+    assert isinstance(nonce, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(data, (bytes, bytearray))
+    if HAS_CRYPTODOME:
+        cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
+        cipher.update(associated_data)
+        ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
+        return ciphertext + mac
+    if HAS_CRYPTOGRAPHY:
+        a = CG_aead.ChaCha20Poly1305(key)
+        return a.encrypt(nonce, data, associated_data)
+    raise Exception("no chacha20 backed found")
+
+
+def chacha20_poly1305_decrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+    assert isinstance(key, (bytes, bytearray))
+    assert isinstance(nonce, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(data, (bytes, bytearray))
+    if HAS_CRYPTODOME:
+        cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
+        cipher.update(associated_data)
+        # raises ValueError if not valid (e.g. incorrect MAC)
+        return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
+    if HAS_CRYPTOGRAPHY:
+        a = CG_aead.ChaCha20Poly1305(key)
+        try:
+            return a.decrypt(nonce, data, associated_data)
+        except cryptography.exceptions.InvalidTag as e:
+            raise ValueError("invalid tag") from e
+    raise Exception("no chacha20 backed found")
+
+
+def chacha20_encrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
+    assert isinstance(key, (bytes, bytearray))
+    assert isinstance(nonce, (bytes, bytearray))
+    assert isinstance(data, (bytes, bytearray))
+    assert len(nonce) == 8, f"unexpected nonce size: {len(nonce)} (expected: 8)"
+    if HAS_CRYPTODOME:
+        cipher = CD_ChaCha20.new(key=key, nonce=nonce)
+        return cipher.encrypt(data)
+    if HAS_CRYPTOGRAPHY:
+        nonce = bytes(8) + nonce  # cryptography wants 16 byte nonces
+        algo = CG_algorithms.ChaCha20(key=key, nonce=nonce)
+        cipher = CG_Cipher(algo, mode=None, backend=CG_default_backend())
+        encryptor = cipher.encryptor()
+        return encryptor.update(data)
+    raise Exception("no chacha20 backed found")

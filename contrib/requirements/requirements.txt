@@ -1,14 +1,14 @@
 pyaes>=0.1a1
-ecdsa>=0.13
+ecdsa>=0.14
 qrcode
 protobuf
 dnspython
 qdarkstyle<2.7
 aiorpcx>=0.18,<0.19
-aiohttp>=3.3.0
+aiohttp>=3.3.0,<4.0.0
 aiohttp_socks
 certifi
 bitstring
-pycryptodomex>=3.7
 jsonrpcserver
 jsonrpcclient
+attrs

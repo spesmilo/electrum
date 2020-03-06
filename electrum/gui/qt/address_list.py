@@ -78,8 +78,9 @@ class AddressList(MyTreeView):
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.LABEL)
+        self.wallet = self.parent.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
@@ -136,7 +137,8 @@ class AddressList(MyTreeView):
 
     @profiler
     def update(self):
-        self.wallet = self.parent.wallet
+        if self.maybe_defer_update():
+            return
         current_address = self.current_item_user_role(col=self.Columns.LABEL)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()
@@ -148,6 +150,7 @@ class AddressList(MyTreeView):
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
+        addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             num = self.wallet.get_address_history_len(address)
             label = self.wallet.labels.get(address, '')
@@ -184,10 +187,13 @@ class AddressList(MyTreeView):
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
             address_item[self.Columns.LABEL].setData(address, Qt.UserRole)
+            address_path_str = self.wallet.get_address_path_str(address)
+            if address_path_str is not None:
+                address_item[self.Columns.TYPE].setToolTip(address_path_str)
             # setup column 1
             if self.wallet.is_frozen_address(address):
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address):
+            if address in addresses_beyond_gap_limit:
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
             # add item
             count = self.model().rowCount()
@@ -227,7 +233,7 @@ class AddressList(MyTreeView):
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
-            menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            #menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():

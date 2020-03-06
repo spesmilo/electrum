@@ -9,10 +9,10 @@ import os
 import webbrowser
 
 from functools import partial, lru_cache
-from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
+from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any
 
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
-                         QPalette, QIcon, QFontMetrics)
+                         QPalette, QIcon, QFontMetrics, QShowEvent)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
                           QSortFilterProxyModel, QSize, QLocale)
@@ -51,7 +51,12 @@ pr_icons = {
 
 
 # filter tx files in QFileDialog:
-TRANSACTION_FILE_EXTENSION_FILTER = "Transaction (*.txn *.psbt);;All files (*)"
+TRANSACTION_FILE_EXTENSION_FILTER_ANY = "Transaction (*.txn *.psbt);;All files (*)"
+TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX = "Partial Transaction (*.psbt)"
+TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX = "Complete Transaction (*.txn)"
+TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE = (f"{TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX};;"
+                                              f"{TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX};;"
+                                              f"All files (*)")
 
 
 class EnterButton(QPushButton):
@@ -280,7 +285,7 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
 class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst running a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_success=None, on_error=None):
+    def __init__(self, parent: QWidget, message: str, task, on_success=None, on_error=None):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
@@ -303,6 +308,26 @@ class WaitingDialog(WindowModalDialog):
     def update(self, msg):
         print(msg)
         self.message_label.setText(msg)
+
+
+class BlockingWaitingDialog(WindowModalDialog):
+    """Shows a waiting dialog whilst running a task.
+    Should be called from the GUI thread. The GUI thread will be blocked while
+    the task is running; the point of the dialog is to provide feedback
+    to the user regarding what is going on.
+    """
+    def __init__(self, parent: QWidget, message: str, task: Callable[[], Any]):
+        assert parent
+        if isinstance(parent, MessageBoxMixin):
+            parent = parent.top_level_window()
+        WindowModalDialog.__init__(self, parent, _("Please wait"))
+        self.message_label = QLabel(message)
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(self.message_label)
+        self.show()
+        QCoreApplication.processEvents()
+        task()
+        self.accept()
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
@@ -438,7 +463,7 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 class ElectrumItemDelegate(QStyledItemDelegate):
-    def __init__(self, tv):
+    def __init__(self, tv: 'MyTreeView'):
         super().__init__(tv)
         self.tv = tv
         self.opened = None
@@ -460,6 +485,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         return super().createEditor(parent, option, idx)
 
 class MyTreeView(QTreeView):
+    ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
 
     def __init__(self, parent: 'ElectrumWindow', create_menu, *,
                  stretch_column=None, editable_columns=None):
@@ -492,6 +518,9 @@ class MyTreeView(QTreeView):
         # only look at as many rows as currently visible.
         self.header().setResizeContentsPrecision(0)
 
+        self._pending_update = False
+        self._forced_update = False
+
     def set_editability(self, items):
         for idx, i in enumerate(items):
             i.setEditable(idx in self.editable_columns)
@@ -500,7 +529,7 @@ class MyTreeView(QTreeView):
         items = self.selectionModel().selectedIndexes()
         return list(x for x in items if x.column() == column)
 
-    def current_item_user_role(self, col) -> Optional[QStandardItem]:
+    def current_item_user_role(self, col) -> Any:
         idx = self.selectionModel().currentIndex()
         idx = idx.sibling(idx.row(), col)
         item = self.model().itemFromIndex(idx)
@@ -633,13 +662,29 @@ class MyTreeView(QTreeView):
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
             item_col = self.model().itemFromIndex(idx.sibling(idx.row(), column))
-            column_data = item_col.text().strip()
+            clipboard_data = item_col.data(self.ROLE_CLIPBOARD_DATA)
+            if clipboard_data is None:
+                clipboard_data = item_col.text().strip()
             cc.addAction(column_title,
-                         lambda text=column_data, title=column_title:
+                         lambda text=clipboard_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         self.parent.do_copy(text, title=title)
+
+    def showEvent(self, e: 'QShowEvent'):
+        super().showEvent(e)
+        if e.isAccepted() and self._pending_update:
+            self._forced_update = True
+            self.update()
+            self._forced_update = False
+
+    def maybe_defer_update(self) -> bool:
+        """Returns whether we should defer an update/refresh."""
+        defer = not self.isVisible() and not self._forced_update
+        # side-effect: if we decide to defer update, the state will become stale:
+        self._pending_update = defer
+        return defer
 
 
 class ButtonsWidget(QWidget):
@@ -650,7 +695,7 @@ class ButtonsWidget(QWidget):
 
     def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth
+        x = self.rect().right() - frameWidth - 10
         y = self.rect().bottom() - frameWidth
         for button in self.buttons:
             sz = button.sizeHint()

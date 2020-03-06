@@ -199,6 +199,8 @@ def lnencode(addr, privkey):
             # Get minimal length by trimming leading 5 bits at a time.
             expirybits = bitstring.pack('intbe:64', v)[4:64]
             while expirybits.startswith('0b00000'):
+                if len(expirybits) == 5:
+                    break  # v == 0
                 expirybits = expirybits[5:]
             data += tagged('x', expirybits)
         elif k == 'h':
@@ -237,11 +239,11 @@ def lnencode(addr, privkey):
     return bech32_encode(hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
-    def __init__(self, paymenthash=None, amount=None, currency=None, tags=None, date=None):
+    def __init__(self, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
-        self.paymenthash=paymenthash
+        self.paymenthash = paymenthash
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
@@ -259,21 +261,24 @@ class LnAddr(object):
         return self._min_final_cltv_expiry
 
     def get_tag(self, tag):
-        description = ''
-        for k,v in self.tags:
+        for k, v in self.tags:
             if k == tag:
-                description = v
-                break
-        return description
+                return v
+        return None
 
-    def get_description(self):
-        return self.get_tag('d')
+    def get_description(self) -> str:
+        return self.get_tag('d') or ''
 
-    def get_expiry(self):
-        return int(self.get_tag('x') or '3600')
+    def get_expiry(self) -> int:
+        exp = self.get_tag('x')
+        if exp is None:
+            exp = 3600
+        return int(exp)
 
-    def is_expired(self):
+    def is_expired(self) -> bool:
         now = time.time()
+        # BOLT-11 does not specify what expiration of '0' means.
+        # we treat it as 0 seconds here (instead of never)
         return now > self.get_expiry() + self.date
 
 

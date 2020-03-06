@@ -102,6 +102,8 @@ class ContactList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
+        if self.maybe_defer_update():
+            return
         current_key = self.current_item_user_role(col=self.Columns.NAME)
         self.model().clear()
         self.update_headers(self.__class__.headers)

@@ -1,6 +1,16 @@
-trezor[hidapi]>=0.11.0
-safet[hidapi]>=0.1.0
-keepkey>=6.0.3
+# Note: hidapi requires Cython as a build-time dependency (it is not needed at runtime).
+# For reproducible builds, the version of Cython must be pinned down.
+# Further, the pinned Cython must be installed before hidapi is built;
+# otherwise hidapi just downloads the latest Cython. To enforce order,
+# Cython must be listed before hidapi. Notably this also applies to
+# deterministic-build/requirements-hw.txt where items are lexicographically sorted.
+# Hence, we rely on "Cython" preceding "hidapi" lexicographically... :/
+# see https://github.com/spesmilo/electrum/issues/5859
+Cython>=0.27
+
+trezor[hidapi]>=0.11.5
+safet>=0.1.5
+keepkey>=6.3.1
 btchip-python>=0.1.26
 ckcc-protocol>=0.7.7
 hidapi

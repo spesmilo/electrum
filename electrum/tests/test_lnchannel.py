@@ -35,6 +35,10 @@ from electrum.lnutil import FeeUpdate
 from electrum.ecc import sig_string_from_der_sig
 from electrum.logging import console_stderr_handler
 from electrum.lnchannel import channel_states
+<<<<<<< HEAD
+=======
+from electrum.json_db import StoredDict
+>>>>>>> pr/1
 
 from . import ElectrumTestCase
 
@@ -45,10 +49,15 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
     assert local_amount > 0
     assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
+<<<<<<< HEAD
     their_revocation_store = lnpeer.RevocationStore()
 
     return {
             "channel_id":channel_id,
+=======
+    state = {
+            "channel_id":channel_id.hex(),
+>>>>>>> pr/1
             "short_channel_id":channel_id[:8],
             "funding_outpoint":lnpeer.Outpoint(funding_txid, funding_index),
             "remote_config":lnpeer.RemoteConfig(
@@ -64,10 +73,15 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 initial_msat=remote_amount,
                 reserve_sat=0,
                 htlc_minimum_msat=1,
+<<<<<<< HEAD
 
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
                 revocation_store=their_revocation_store,
+=======
+                next_per_commitment_point=nex,
+                current_per_commitment_point=cur,
+>>>>>>> pr/1
             ),
             "local_config":lnpeer.LocalConfig(
                 payment_basepoint=privkeys[0],
@@ -81,7 +95,10 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 max_accepted_htlcs=5,
                 initial_msat=local_amount,
                 reserve_sat=0,
+<<<<<<< HEAD
 
+=======
+>>>>>>> pr/1
                 per_commitment_secret_seed=seed,
                 funding_locked_received=True,
                 was_announced=False,
@@ -93,10 +110,21 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,
             ),
+<<<<<<< HEAD
             "node_id":other_node_id,
             'onion_keys': {},
             'state': 'PREOPENING',
     }
+=======
+            "node_id":other_node_id.hex(),
+            'onion_keys': {},
+            'data_loss_protect_remote_pcp': {},
+            'state': 'PREOPENING',
+            'log': {},
+            'revocation_store': {},
+    }
+    return StoredDict(state, None, [])
+>>>>>>> pr/1
 
 def bip32(sequence):
     node = bip32_utils.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
@@ -151,18 +179,33 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     assert len(a_htlc_sigs) == 0
     assert len(b_htlc_sigs) == 0
 
+<<<<<<< HEAD
     alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
     bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
+=======
+    alice.open_with_first_pcp(bob_first, sig_from_bob)
+    bob.open_with_first_pcp(alice_first, sig_from_alice)
+>>>>>>> pr/1
 
     alice_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
     bob_second = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
 
+<<<<<<< HEAD
     alice.config[REMOTE] = alice.config[REMOTE]._replace(next_per_commitment_point=bob_second, current_per_commitment_point=bob_first)
     bob.config[REMOTE] = bob.config[REMOTE]._replace(next_per_commitment_point=alice_second, current_per_commitment_point=alice_first)
 
     alice.hm.channel_open_finished()
     bob.hm.channel_open_finished()
 
+=======
+    # from funding_locked:
+    alice.config[REMOTE].next_per_commitment_point = bob_second
+    bob.config[REMOTE].next_per_commitment_point = alice_second
+
+    # TODO: sweep_address in lnchannel.py should use static_remotekey
+    alice.sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
+    bob.sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
+>>>>>>> pr/1
     return alice, bob
 
 class TestFee(ElectrumTestCase):
@@ -315,8 +358,12 @@ class TestChannel(ElectrumTestCase):
 
         # Bob revokes his prior commitment given to him by Alice, since he now
         # has a valid signature for a newer commitment.
+<<<<<<< HEAD
         bobRevocation, _ = bob_channel.revoke_current_commitment()
         bob_channel.serialize()
+=======
+        bobRevocation = bob_channel.revoke_current_commitment()
+>>>>>>> pr/1
         self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
 
         # Bob finally sends a signature for Alice's commitment transaction.
@@ -340,18 +387,26 @@ class TestChannel(ElectrumTestCase):
         # her prior commitment transaction. Alice shouldn't have any HTLCs to
         # forward since she's sending an outgoing HTLC.
         alice_channel.receive_revocation(bobRevocation)
+<<<<<<< HEAD
         alice_channel.serialize()
 
         self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
         alice_channel.serialize()
+=======
+
+        self.assertTrue(alice_channel.signature_fits(alice_channel.get_latest_commitment(LOCAL)))
+>>>>>>> pr/1
 
         self.assertEqual(len(alice_channel.get_latest_commitment(LOCAL).outputs()), 2)
         self.assertEqual(len(alice_channel.get_latest_commitment(REMOTE).outputs()), 3)
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 2)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
+<<<<<<< HEAD
         alice_channel.serialize()
 
+=======
+>>>>>>> pr/1
         self.assertEqual(alice_channel.get_next_commitment(LOCAL).outputs(),
                          bob_channel.get_latest_commitment(REMOTE).outputs())
 
@@ -364,14 +419,21 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(len(alice_channel.force_close_tx().outputs()), 3)
 
         self.assertEqual(len(alice_channel.hm.log[LOCAL]['adds']), 1)
+<<<<<<< HEAD
         alice_channel.serialize()
+=======
+>>>>>>> pr/1
 
         tx1 = str(alice_channel.force_close_tx())
         self.assertNotEqual(tx0, tx1)
 
         # Alice then generates a revocation for bob.
+<<<<<<< HEAD
         aliceRevocation, _ = alice_channel.revoke_current_commitment()
         alice_channel.serialize()
+=======
+        aliceRevocation = alice_channel.revoke_current_commitment()
+>>>>>>> pr/1
 
         tx2 = str(alice_channel.force_close_tx())
         # since alice already has the signature for the next one, it doesn't change her force close tx (it was already the newer one)
@@ -383,7 +445,10 @@ class TestChannel(ElectrumTestCase):
         # into both commitment transactions.
         self.assertTrue(bob_channel.signature_fits(bob_channel.get_latest_commitment(LOCAL)))
         bob_channel.receive_revocation(aliceRevocation)
+<<<<<<< HEAD
         bob_channel.serialize()
+=======
+>>>>>>> pr/1
 
         # At this point, both sides should have the proper number of satoshis
         # sent, and commitment height updated within their local channel
@@ -448,12 +513,17 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(alice_channel.balance(LOCAL), 500000000000)
         self.assertEqual(1, alice_channel.get_oldest_unrevoked_ctn(LOCAL))
         self.assertEqual(len(alice_channel.included_htlcs(LOCAL, RECEIVED, ctn=2)), 0)
+<<<<<<< HEAD
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
         alice_channel.serialize()
+=======
+        aliceRevocation2 = alice_channel.revoke_current_commitment()
+>>>>>>> pr/1
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
         self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
         self.assertEqual(len(bob_channel.get_latest_commitment(LOCAL).outputs()), 3)
         bob_channel.receive_revocation(aliceRevocation2)
+<<<<<<< HEAD
         bob_channel.serialize()
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
@@ -463,6 +533,15 @@ class TestChannel(ElectrumTestCase):
         bob_channel.serialize()
         alice_channel.receive_revocation(bobRevocation2)
         alice_channel.serialize()
+=======
+
+        bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
+
+        bobRevocation2 = bob_channel.revoke_current_commitment()
+        received = lnchannel.htlcsum(bob_channel.hm.received_in_ctn(bob_channel.get_latest_ctn(LOCAL)))
+        self.assertEqual(one_bitcoin_in_msat, received)
+        alice_channel.receive_revocation(bobRevocation2)
+>>>>>>> pr/1
 
         # At this point, Bob should have 6 BTC settled, with Alice still having
         # 4 BTC. Alice's channel should show 1 BTC sent and Bob's channel
@@ -508,8 +587,11 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.total_msat(RECEIVED), one_bitcoin_in_msat, "bob satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
 
+<<<<<<< HEAD
         alice_channel.serialize()
 
+=======
+>>>>>>> pr/1
 
     def alice_to_bob_fee_update(self, fee=111):
         aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
@@ -538,7 +620,11 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
+<<<<<<< HEAD
         rev, _ = bob_channel.revoke_current_commitment()
+=======
+        rev = bob_channel.revoke_current_commitment()
+>>>>>>> pr/1
         self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         alice_channel.receive_revocation(rev)
@@ -549,7 +635,11 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
+<<<<<<< HEAD
         rev, _ = alice_channel.revoke_current_commitment()
+=======
+        rev = alice_channel.revoke_current_commitment()
+>>>>>>> pr/1
         self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(rev)
@@ -565,14 +655,22 @@ class TestChannel(ElectrumTestCase):
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
+<<<<<<< HEAD
         alice_revocation, _ = alice_channel.revoke_current_commitment()
+=======
+        alice_revocation = alice_channel.revoke_current_commitment()
+>>>>>>> pr/1
         bob_channel.receive_revocation(alice_revocation)
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
         self.assertNotEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, bob_channel.get_latest_feerate(LOCAL))
+<<<<<<< HEAD
         bob_revocation, _ = bob_channel.revoke_current_commitment()
+=======
+        bob_revocation = bob_channel.revoke_current_commitment()
+>>>>>>> pr/1
         self.assertEqual(fee, bob_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
@@ -581,7 +679,11 @@ class TestChannel(ElectrumTestCase):
 
         self.assertNotEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
         self.assertEqual(fee, alice_channel.get_latest_feerate(LOCAL))
+<<<<<<< HEAD
         alice_revocation, _ = alice_channel.revoke_current_commitment()
+=======
+        alice_revocation = alice_channel.revoke_current_commitment()
+>>>>>>> pr/1
         self.assertEqual(fee, alice_channel.get_oldest_unrevoked_feerate(LOCAL))
 
         bob_channel.receive_revocation(alice_revocation)
@@ -631,7 +733,11 @@ class TestAvailableToSpend(ElectrumTestCase):
         bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
         force_state_transition(alice_channel, bob_channel)
         bob_channel.fail_htlc(bob_idx)
+<<<<<<< HEAD
         alice_channel.receive_fail_htlc(alice_idx)
+=======
+        alice_channel.receive_fail_htlc(alice_idx, None)
+>>>>>>> pr/1
         # Alice now has gotten all her original balance (5 BTC) back, however,
         # adding a new HTLC at this point SHOULD fail, since if she adds the
         # HTLC and signs the next state, Bob cannot assume she received the
@@ -663,6 +769,7 @@ class TestChanReserve(ElectrumTestCase):
         bob_min_reserve = 6 * one_bitcoin_in_msat // 1000
         # bob min reserve was decided by alice, but applies to bob
 
+<<<<<<< HEAD
         alice_channel.config[LOCAL] =\
             alice_channel.config[LOCAL]._replace(reserve_sat=bob_min_reserve)
         alice_channel.config[REMOTE] =\
@@ -672,6 +779,13 @@ class TestChanReserve(ElectrumTestCase):
             bob_channel.config[LOCAL]._replace(reserve_sat=alice_min_reserve)
         bob_channel.config[REMOTE] =\
             bob_channel.config[REMOTE]._replace(reserve_sat=bob_min_reserve)
+=======
+        alice_channel.config[LOCAL].reserve_sat = bob_min_reserve
+        alice_channel.config[REMOTE].reserve_sat = alice_min_reserve
+
+        bob_channel.config[LOCAL].reserve_sat = alice_min_reserve
+        bob_channel.config[REMOTE].reserve_sat = bob_min_reserve
+>>>>>>> pr/1
 
         self.alice_channel = alice_channel
         self.bob_channel = bob_channel
@@ -822,11 +936,19 @@ class TestDust(ElectrumTestCase):
 
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
+<<<<<<< HEAD
     rev, _ = chanB.revoke_current_commitment()
     bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
     chanA.receive_revocation(rev)
     chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
     chanB.receive_revocation(chanA.revoke_current_commitment()[0])
+=======
+    rev = chanB.revoke_current_commitment()
+    bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
+    chanA.receive_revocation(rev)
+    chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
+    chanB.receive_revocation(chanA.revoke_current_commitment())
+>>>>>>> pr/1
 
 # calcStaticFee calculates appropriate fees for commitment transactions.  This
 # function provides a simple way to allow test balance assertions to take fee

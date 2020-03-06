@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.6.4
+PYTHON_VERSION=3.7.6
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
+
+export GCC_STRIP_BINARIES="1"
 
 . $(dirname "$0")/base.sh
 
@@ -16,7 +18,6 @@ ROOT_FOLDER="$CONTRIB/.."
 src_dir=$(dirname "$0")
 cd $src_dir/../..
 
-export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty --always`
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
@@ -41,7 +42,7 @@ else
 fi
 
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
+export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.7/bin:$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
@@ -54,12 +55,12 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 info "install dependencies specific to binaries"
 # note that this also installs pinned versions of both pip and setuptools
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
     || fail "Could not install pyinstaller"
 
 
 info "Installing pyinstaller"
-python3 -m pip install -I --user pyinstaller==3.5 || fail "Could not install pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.6 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -96,17 +97,10 @@ cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
 echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/osx/libusb-1.0.dylib" | \
     shasum -a 256 -c || fail "libusb checksum mismatched"
 
-info "Building libsecp256k1"
+info "Preparing for building libsecp256k1"
 brew install autoconf automake libtool
-git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
-pushd $BUILDDIR/secp256k1
-git reset --hard $LIBSECP_VERSION
-git clean -f -x -q
-./autogen.sh
-./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
-make -j4
-popd
-cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
+"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
@@ -119,15 +113,15 @@ DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$A
 
 
 info "Installing requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements.txt --user || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
 info "Building $PACKAGE..."
-python3 -m pip install --user . > /dev/null || fail "Could not build $PACKAGE"
+python3 -m pip install --no-dependencies --user . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
 for d in ~/Library/Python/ ~/.pyenv .; do

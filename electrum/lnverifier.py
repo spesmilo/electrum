@@ -53,28 +53,29 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
     # spread it over multiple servers.
 
     def __init__(self, network: 'Network', channel_db: 'ChannelDB'):
-        NetworkJobOnDefaultServer.__init__(self, network)
         self.channel_db = channel_db
         self.lock = threading.Lock()
-        self.unverified_channel_info = {}  # type: Dict[ShortChannelID, dict]  # scid -> msg_payload
+        self.unverified_channel_info = {}  # type: Dict[ShortChannelID, dict]  # scid -> msg_dict
         # channel announcements that seem to be invalid:
         self.blacklist = set()  # type: Set[ShortChannelID]
+        NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
         super()._reset()
         self.started_verifying_channel = set()  # type: Set[ShortChannelID]
 
     # TODO make async; and rm self.lock completely
-    def add_new_channel_info(self, short_channel_id: ShortChannelID, msg_payload):
+    def add_new_channel_info(self, short_channel_id: ShortChannelID, msg: dict) -> bool:
         if short_channel_id in self.unverified_channel_info:
-            return
+            return False
         if short_channel_id in self.blacklist:
-            return
+            return False
         with self.lock:
-            self.unverified_channel_info[short_channel_id] = msg_payload
+            self.unverified_channel_info[short_channel_id] = msg
+            return True
 
     async def _start_tasks(self):
-        async with self.group as group:
+        async with self.taskgroup as group:
             await group.spawn(self.main)
 
     async def main(self):
@@ -99,10 +100,10 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             header = blockchain.read_header(block_height)
             if header is None:
                 if block_height < constants.net.max_checkpoint():
-                    await self.group.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
+                    await self.taskgroup.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
                 continue
             self.started_verifying_channel.add(short_channel_id)
-            await self.group.spawn(self.verify_channel(block_height, short_channel_id))
+            await self.taskgroup.spawn(self.verify_channel(block_height, short_channel_id))
             #self.logger.info(f'requested short_channel_id {bh2u(short_channel_id)}')
 
     async def verify_channel(self, block_height: int, short_channel_id: ShortChannelID):
@@ -146,10 +147,8 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self.logger.info(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
             return
         # check funding output
-        msg_payload = self.unverified_channel_info[short_channel_id]
-        msg_type, chan_ann = decode_msg(msg_payload)
-        assert msg_type == 'channel_announcement'
-        redeem_script = funding_output_script_from_keys(chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2'])
+        chan_ann_msg = self.unverified_channel_info[short_channel_id]
+        redeem_script = funding_output_script_from_keys(chan_ann_msg['bitcoin_key_1'], chan_ann_msg['bitcoin_key_2'])
         expected_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         try:
             actual_output = tx.outputs()[short_channel_id.output_index]
@@ -162,14 +161,13 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self._remove_channel_from_unverified_db(short_channel_id)
             return
         # put channel into channel DB
-        self.channel_db.add_verified_channel_info(short_channel_id, actual_output.value)
+        self.channel_db.add_verified_channel_info(chan_ann_msg, capacity_sat=actual_output.value)
         self._remove_channel_from_unverified_db(short_channel_id)
 
     def _remove_channel_from_unverified_db(self, short_channel_id: ShortChannelID):
         with self.lock:
             self.unverified_channel_info.pop(short_channel_id, None)
-        try: self.started_verifying_channel.remove(short_channel_id)
-        except KeyError: pass
+        self.started_verifying_channel.discard(short_channel_id)
 
     def _blacklist_short_channel_id(self, short_channel_id: ShortChannelID) -> None:
         self.blacklist.add(short_channel_id)

@@ -25,6 +25,7 @@
 
 from typing import Optional, List, Dict, Sequence, Set
 from enum import IntEnum
+import copy
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -37,6 +38,8 @@ from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
 
 
 class UTXOList(MyTreeView):
+    _spend_set: Optional[Set[str]]  # coins selected by the user to spend from
+    _utxo_dict: Dict[str, PartialTxInput]  # coin name -> coin
 
     class Columns(IntEnum):
         OUTPOINT = 0
@@ -54,21 +57,24 @@ class UTXOList(MyTreeView):
     }
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.LABEL,
                          editable_columns=[])
-        self._spend_set = None  # type: Optional[Set[str]]  # coins selected by the user to spend from
+        self._spend_set = None
+        self._utxo_dict = {}
+        self.wallet = self.parent.wallet
+
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.update()
 
     def update(self):
-        self.wallet = self.parent.wallet
+        # not calling maybe_defer_update() as it interferes with coincontrol status bar
         utxos = self.wallet.get_utxos()
         self._maybe_reset_spend_list(utxos)
-        self.utxo_dict = {}  # type: Dict[str, PartialTxInput]
+        self._utxo_dict = {}
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for idx, utxo in enumerate(utxos):
@@ -76,7 +82,7 @@ class UTXOList(MyTreeView):
         self.filter()
         # update coincontrol status bar
         if self._spend_set is not None:
-            coins = [self.utxo_dict[x] for x in self._spend_set]
+            coins = [self._utxo_dict[x] for x in self._spend_set]
             coins = self._filter_frozen_coins(coins)
             amount = sum(x.value_sats() for x in coins)
             amount_str = self.parent.format_amount_and_units(amount)
@@ -90,12 +96,13 @@ class UTXOList(MyTreeView):
         height = utxo.block_height
         name = utxo.prevout.to_str()
         name_short = utxo.prevout.txid.hex()[:16] + '...' + ":%d" % utxo.prevout.out_idx
-        self.utxo_dict[name] = utxo
+        self._utxo_dict[name] = utxo
         label = self.wallet.get_label(utxo.prevout.txid.hex())
         amount = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
         labels = [name_short, address, label, amount, '%d'%height]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
+        utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
         utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
@@ -140,7 +147,8 @@ class UTXOList(MyTreeView):
     def get_spend_list(self) -> Optional[Sequence[PartialTxInput]]:
         if self._spend_set is None:
             return None
-        return [self.utxo_dict[x] for x in self._spend_set]
+        utxos = [self._utxo_dict[x] for x in self._spend_set]
+        return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
 
     def _maybe_reset_spend_list(self, current_wallet_utxos: Sequence[PartialTxInput]) -> None:
         if self._spend_set is None:
@@ -156,7 +164,7 @@ class UTXOList(MyTreeView):
             return
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
-        coins = [self.utxo_dict[name] for name in selected]
+        coins = [self._utxo_dict[name] for name in selected]
         if len(coins) == 0:
             menu.addAction(_("Spend (select none)"), lambda: self.set_spend_list(coins))
         else:

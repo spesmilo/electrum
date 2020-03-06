@@ -31,13 +31,12 @@ import threading
 import socket
 import json
 import sys
-import ipaddress
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable
 import traceback
+import concurrent
+from concurrent import futures
 
-import dns
-import dns.resolver
 import aiorpcx
 from aiorpcx import TaskGroup
 from aiohttp import ClientResponse
@@ -51,10 +50,12 @@ from .bitcoin import COIN
 from . import constants
 from . import blockchain
 from . import bitcoin
+from . import dns_hacks
+from .transaction import Transaction
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import (Interface, serialize_server, deserialize_server,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-                        NetworkException)
+                        NetworkException, RequestCorrupted)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
@@ -64,7 +65,7 @@ if TYPE_CHECKING:
     from .channel_db import ChannelDB
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
-    from .transaction import Transaction
+    from .daemon import Daemon
 
 
 _logger = get_logger(__name__)
@@ -218,11 +219,15 @@ class UntrustedServerReturnedError(NetworkException):
     def __init__(self, *, original_exception):
         self.original_exception = original_exception
 
+    def get_message_for_gui(self) -> str:
+        return str(self)
+
     def __str__(self):
         return _("The server returned an error.")
 
     def __repr__(self):
-        return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
+        return (f"<UntrustedServerReturnedError "
+                f"[DO NOT TRUST THIS MESSAGE] original_exception: {repr(self.original_exception)}>")
 
 
 _INSTANCE = None
@@ -235,7 +240,7 @@ class Network(Logger):
 
     LOGGING_SHORTCUT = 'n'
 
-    def __init__(self, config: SimpleConfig):
+    def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
         global _INSTANCE
         assert _INSTANCE is None, "Network is a singleton!"
         _INSTANCE = self
@@ -248,7 +253,11 @@ class Network(Logger):
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
+
+        self.daemon = daemon
+
         blockchain.read_blockchains(self.config)
+        blockchain.init_headers_file_for_best_chain()
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
@@ -264,7 +273,7 @@ class Network(Logger):
         if not self.default_server:
             self.default_server = pick_random_server()
 
-        self.main_taskgroup = None  # type: TaskGroup
+        self.taskgroup = None  # type: TaskGroup
 
         # locks
         self.restart_lock = asyncio.Lock()
@@ -290,6 +299,7 @@ class Network(Logger):
         self.nodes_retry_time = time.time()
         # the main server we are currently communicating with
         self.interface = None  # type: Interface
+        self.default_server_changed_event = asyncio.Event()
         # set of servers we have an ongoing connection with
         self.interfaces = {}  # type: Dict[str, Interface]
         self.auto_connect = self.config.get('auto_connect', True)
@@ -306,21 +316,21 @@ class Network(Logger):
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]
+        if self.config.get('run_watchtower', False):
+            from . import lnwatcher
+            self.local_watchtower = lnwatcher.WatchTower(self)
+            self.local_watchtower.start_network(self)
+            asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def maybe_init_lightning(self):
         if self.channel_db is None:
-            from . import lnwatcher
             from . import lnworker
             from . import lnrouter
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip(self)
-            self.local_watchtower = lnwatcher.WatchTower(self) if self.config.get('local_watchtower', False) else None
             self.lngossip.start_network(self)
-            if self.local_watchtower:
-                self.local_watchtower.start_network(self)
-                asyncio.ensure_future(self.local_watchtower.start_watching)
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -548,67 +558,9 @@ class Network(Logger):
 
     def _set_proxy(self, proxy: Optional[dict]):
         self.proxy = proxy
-        # Store these somewhere so we can un-monkey-patch
-        if not hasattr(socket, "_getaddrinfo"):
-            socket._getaddrinfo = socket.getaddrinfo
-        if proxy:
-            self.logger.info(f'setting proxy {proxy}')
-            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-        else:
-            if sys.platform == 'win32':
-                # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
-                # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
-                # see #4421
-                socket.getaddrinfo = self._fast_getaddrinfo
-            else:
-                socket.getaddrinfo = socket._getaddrinfo
+        dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
+        self.logger.info(f'setting proxy {proxy}')
         self.trigger_callback('proxy_set', self.proxy)
-
-    @staticmethod
-    def _fast_getaddrinfo(host, *args, **kwargs):
-        def needs_dns_resolving(host):
-            try:
-                ipaddress.ip_address(host)
-                return False  # already valid IP
-            except ValueError:
-                pass  # not an IP
-            if str(host) in ('localhost', 'localhost.',):
-                return False
-            return True
-        def resolve_with_dnspython(host):
-            addrs = []
-            expected_dnspython_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer)
-            # try IPv6
-            try:
-                answers = dns.resolver.query(host, dns.rdatatype.AAAA)
-                addrs += [str(answer) for answer in answers]
-            except expected_dnspython_errors as e:
-                pass
-            except BaseException as e:
-                _logger.info(f'dnspython failed to resolve dns (AAAA) for {repr(host)} with error: {repr(e)}')
-            # try IPv4
-            try:
-                answers = dns.resolver.query(host, dns.rdatatype.A)
-                addrs += [str(answer) for answer in answers]
-            except expected_dnspython_errors as e:
-                # dns failed for some reason, e.g. dns.resolver.NXDOMAIN this is normal.
-                # Simply report back failure; except if we already have some results.
-                if not addrs:
-                    raise socket.gaierror(11001, 'getaddrinfo failed') from e
-            except BaseException as e:
-                # Possibly internal error in dnspython :( see #4483 and #5638
-                _logger.info(f'dnspython failed to resolve dns (A) for {repr(host)} with error: {repr(e)}')
-            if addrs:
-                return addrs
-            # Fall back to original socket.getaddrinfo to resolve dns.
-            return [host]
-        addrs = [host]
-        if needs_dns_resolving(host):
-            addrs = resolve_with_dnspython(host)
-        list_of_list_of_socketinfos = [socket._getaddrinfo(addr, *args, **kwargs) for addr in addrs]
-        list_of_socketinfos = [item for lst in list_of_list_of_socketinfos for item in lst]
-        return list_of_socketinfos
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -714,7 +666,7 @@ class Network(Logger):
         old_server = old_interface.server if old_interface else None
 
         # Stop any current interface in order to terminate subscriptions,
-        # and to cancel tasks in interface.group.
+        # and to cancel tasks in interface.taskgroup.
         # However, for headers sub, give preference to this interface
         # over unknown ones, i.e. start it again right away.
         if old_server and old_server != server:
@@ -730,15 +682,18 @@ class Network(Logger):
         i = self.interfaces[server]
         if old_interface != i:
             self.logger.info(f"switching to {server}")
+            assert i.ready.done(), "interface we are switching to is not ready yet"
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
-            await i.group.spawn(self._request_server_info(i))
+            await i.taskgroup.spawn(self._request_server_info(i))
             self.trigger_callback('default_server_changed')
+            self.default_server_changed_event.set()
+            self.default_server_changed_event.clear()
             self._set_status('connected')
             self.trigger_callback('network_updated')
             if blockchain_updated: self.trigger_callback('blockchain_updated')
 
-    async def _close_interface(self, interface):
+    async def _close_interface(self, interface: Interface):
         if interface:
             with self.interfaces_lock:
                 if self.interfaces.get(interface.server) == interface:
@@ -826,44 +781,28 @@ class Network(Logger):
                 return False
         return True
 
-    async def _init_headers_file(self):
-        b = blockchain.get_best_chain()
-        filename = b.path()
-        length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
-        if not os.path.exists(filename) or os.path.getsize(filename) < length:
-            with open(filename, 'wb') as f:
-                if length > 0:
-                    f.seek(length-1)
-                    f.write(b'\x00')
-            util.ensure_sparse_file(filename)
-        with b.lock:
-            b.update_size()
-
     def best_effort_reliable(func):
-        async def make_reliable_wrapper(self, *args, **kwargs):
+        async def make_reliable_wrapper(self: 'Network', *args, **kwargs):
             for i in range(10):
                 iface = self.interface
                 # retry until there is a main interface
                 if not iface:
-                    await asyncio.sleep(0.1)
+                    try:
+                        await asyncio.wait_for(self.default_server_changed_event.wait(), 1)
+                    except asyncio.TimeoutError:
+                        pass
                     continue  # try again
-                # wait for it to be usable
-                iface_ready = iface.ready
-                iface_disconnected = iface.got_disconnected
-                await asyncio.wait([iface_ready, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
-                if not iface_ready.done() or iface_ready.cancelled():
-                    await asyncio.sleep(0.1)
-                    continue  # try again
+                assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
-                await asyncio.wait([success_fut, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait([success_fut, iface.got_disconnected], return_when=asyncio.FIRST_COMPLETED)
                 if success_fut.done() and not success_fut.cancelled():
                     if success_fut.exception():
                         try:
                             raise success_fut.exception()
-                        except RequestTimedOut:
+                        except (RequestTimedOut, RequestCorrupted):
                             await iface.close()
-                            await iface_disconnected
+                            await iface.got_disconnected
                             continue  # try again
                     return success_fut.result()
                 # otherwise; try again
@@ -906,6 +845,14 @@ class Network(Logger):
         if out != tx.txid():
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
+
+    async def try_broadcasting(self, tx, name):
+        try:
+            await self.broadcast_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'error: could not broadcast {name} {tx.txid()}, {str(e)}')
+        else:
+            self.logger.info(f'success: broadcasting {name} {tx.txid()}')
 
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:
@@ -1058,8 +1005,19 @@ class Network(Logger):
     async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
         if not is_hash256_str(tx_hash):
             raise Exception(f"{repr(tx_hash)} is not a txid")
-        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash],
-                                                         timeout=timeout)
+        iface = self.interface
+        raw = await iface.session.send_request('blockchain.transaction.get', [tx_hash], timeout=timeout)
+        # validate response
+        tx = Transaction(raw)
+        try:
+            tx.deserialize()  # see if raises
+        except Exception as e:
+            self.logger.warning(f"cannot deserialize received transaction (txid {tx_hash}). from {str(iface)}")
+            raise RequestCorrupted() from e  # TODO ban server?
+        if tx.txid() != tx_hash:
+            self.logger.warning(f"received tx does not match expected txid {tx_hash} (got {tx.txid()}). from {str(iface)}")
+            raise RequestCorrupted()  # TODO ban server?
+        return raw
 
     @best_effort_reliable
     @catch_server_exceptions
@@ -1152,8 +1110,8 @@ class Network(Logger):
             f.write(json.dumps(cp, indent=4))
 
     async def _start(self):
-        assert not self.main_taskgroup
-        self.main_taskgroup = main_taskgroup = SilentTaskGroup()
+        assert not self.taskgroup
+        self.taskgroup = taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self.connecting and not self.server_queue
         self.logger.info('starting network')
@@ -1165,21 +1123,29 @@ class Network(Logger):
         self._start_interface(self.default_server)
 
         async def main():
+            self.logger.info("starting taskgroup.")
             try:
-                await self._init_headers_file()
                 # note: if a task finishes with CancelledError, that
                 # will NOT raise, and the group will keep the other tasks running
-                async with main_taskgroup as group:
+                async with taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
-            except BaseException as e:
-                self.logger.exception('main_taskgroup died.')
-                raise e
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.logger.exception("taskgroup died.")
+            finally:
+                self.logger.info("taskgroup stopped.")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
         self.trigger_callback('network_updated')
 
-    def start(self, jobs: List=None):
+    def start(self, jobs: Iterable = None):
+        """Schedule starting the network, along with the given job co-routines.
+
+        Note: the jobs will *restart* every time the network restarts, e.g. on proxy
+        setting changes.
+        """
         self._jobs = jobs or []
         asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
 
@@ -1187,10 +1153,10 @@ class Network(Logger):
     async def _stop(self, full_shutdown=False):
         self.logger.info("stopping network")
         try:
-            await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
+            await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
-        self.main_taskgroup = None  # type: TaskGroup
+        self.taskgroup = None  # type: TaskGroup
         self.interface = None  # type: Interface
         self.interfaces = {}  # type: Dict[str, Interface]
         self.connecting.clear()
@@ -1203,7 +1169,7 @@ class Network(Logger):
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
         try:
             fut.result(timeout=2)
-        except (asyncio.TimeoutError, asyncio.CancelledError): pass
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError): pass
 
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():
@@ -1225,7 +1191,7 @@ class Network(Logger):
         async def launch_already_queued_up_new_interfaces():
             while self.server_queue.qsize() > 0:
                 server = self.server_queue.get()
-                await self.main_taskgroup.spawn(self._run_new_interface(server))
+                await self.taskgroup.spawn(self._run_new_interface(server))
         async def maybe_queue_new_interfaces_to_be_launched_later():
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
@@ -1247,7 +1213,7 @@ class Network(Logger):
             await self._ensure_there_is_a_main_interface()
             if self.is_connected():
                 if self.config.is_fee_estimates_update_required():
-                    await self.interface.group.spawn(self._request_fee_estimates, self.interface)
+                    await self.interface.taskgroup.spawn(self._request_fee_estimates, self.interface)
 
         while True:
             try:
@@ -1257,8 +1223,8 @@ class Network(Logger):
                 await maintain_main_interface()
             except asyncio.CancelledError:
                 # suppress spurious cancellations
-                group = self.main_taskgroup
-                if not group or group._closed:
+                group = self.taskgroup
+                if not group or group.closed():
                     raise
             await asyncio.sleep(0.1)
 

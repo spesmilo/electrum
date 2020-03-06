@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Sequence
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -31,10 +32,10 @@ from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem
 
 from electrum.i18n import _
-from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT
+from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum.util import get_request_status
 from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import format_short_channel_id
+from electrum.lnutil import PaymentAttemptLog
 
 from .util import (MyTreeView, read_QIcon,
                    import_meta_gui, export_meta_gui, pr_icons)
@@ -72,10 +73,7 @@ class InvoiceList(MyTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
-    def update_item(self, key, status):
-        req = self.parent.wallet.get_invoice(key)
-        if req is None:
-            return
+    def update_item(self, key, req):
         model = self.model()
         for row in range(0, model.rowCount()):
             item = model.item(row, 0)
@@ -93,13 +91,10 @@ class InvoiceList(MyTreeView):
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
-        _list = self.parent.wallet.get_invoices()
-        # filter out paid invoices unless we have the log
-        lnworker_logs = self.parent.wallet.lnworker.logs if self.parent.wallet.lnworker else {}
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs]
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.model().clear()
         self.update_headers(self.__class__.headers)
-        for idx, item in enumerate(_list):
+        for idx, item in enumerate(self.parent.wallet.get_invoices()):
             invoice_type = item['type']
             if invoice_type == PR_TYPE_LN:
                 key = item['rhash']
@@ -128,7 +123,7 @@ class InvoiceList(MyTreeView):
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0
@@ -148,10 +143,11 @@ class InvoiceList(MyTreeView):
             keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
             invoices = [ self.parent.wallet.get_invoice(key) for key in keys]
             invoices = [ invoice for invoice in invoices if invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN]
+            menu = QMenu(self)
             if len(invoices) > 1:
-                menu = QMenu(self)
                 menu.addAction(_("Pay multiple invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
-                menu.exec_(self.viewport().mapToGlobal(position))
+            menu.addAction(_("Delete"), lambda: self.parent.delete_invoices(keys))
+            menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
@@ -166,31 +162,43 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
         if invoice['status'] == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
+        if invoice['status'] == PR_FAILED:
+            menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)
             if log:
                 menu.addAction(_("View log"), lambda: self.show_log(key, log))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
+        menu.addAction(_("Delete invoices"), lambda: self.parent.delete_invoices([key]))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def show_log(self, key, log):
+    def show_log(self, key, log: Sequence[PaymentAttemptLog]):
         d = WindowModalDialog(self, _("Payment log"))
+        d.setMinimumWidth(800)
         vbox = QVBoxLayout(d)
         log_w = QTreeWidget()
         log_w.setHeaderLabels([_('Route'), _('Channel ID'), _('Message'), _('Blacklist')])
-        for i, (route, success, failure_log) in enumerate(log):
-            route_str = '%d'%len(route)
-            if not success:
-                sender_idx, failure_msg, blacklist = failure_log
-                short_channel_id = route[sender_idx+1].short_channel_id
-                data = failure_msg.data
-                message = repr(failure_msg.code)
+        for payment_attempt_log in log:
+            if not payment_attempt_log.exception:
+                route = payment_attempt_log.route
+                route_str = '%d'%len(route)
+                if not payment_attempt_log.success:
+                    sender_idx = payment_attempt_log.failure_details.sender_idx
+                    failure_msg = payment_attempt_log.failure_details.failure_msg
+                    blacklist_msg = str(payment_attempt_log.failure_details.is_blacklisted)
+                    short_channel_id = route[sender_idx+1].short_channel_id
+                    data = failure_msg.data
+                    message = repr(failure_msg.code)
+                else:
+                    short_channel_id = route[-1].short_channel_id
+                    message = _('Success')
+                    blacklist_msg = str(False)
+                chan_str = str(short_channel_id)
             else:
-                short_channel_id = route[-1].short_channel_id
-                message = _('Success')
-                blacklist = False
-            chan_str = format_short_channel_id(short_channel_id)
-            x = QTreeWidgetItem([route_str, chan_str, message, repr(blacklist)])
+                route_str = 'None'
+                chan_str = 'N/A'
+                message = str(payment_attempt_log.exception)
+                blacklist_msg = 'N/A'
+            x = QTreeWidgetItem([route_str, chan_str, message, blacklist_msg])
             log_w.addTopLevelItem(x)
         vbox.addWidget(log_w)
         vbox.addLayout(Buttons(CloseButton(d)))

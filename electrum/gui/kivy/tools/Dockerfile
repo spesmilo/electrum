@@ -18,7 +18,7 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="17c"
+ENV ANDROID_NDK_VERSION="19b"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
@@ -60,7 +60,7 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends openjdk-8-jdk \
     && apt -y autoremove
-RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null
+RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" --licenses > /dev/null
 
 # download platforms, API, build tools
 RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/null && \
@@ -154,11 +154,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    && git checkout 182d13f1027d4c16e04e1096c94ed3e488226330 \
-       # put target arch in apk name:
-    && git cherry-pick 2233dd70ce559205bcb183272519b0c31bd24079 \
-       # "Separate build per android.arch" https://github.com/kivy/buildozer/pull/957 :
-    && git cherry-pick 229a98442897db172cc905e2412710f5924c5366 \
+    && git checkout 7578fea609d4445b3fed1f441813ab4c86ef0086 \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -167,15 +163,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout dd69749f79dee0fdbe25ca7b04238b7cdada7925 \
-       # allowBackup="false":
-    && git cherry-pick 003e675625b86319716c8c86c751f509f5d22204 \
-       # fix gradle "versionCode" overflow:
-    && git cherry-pick 38df23528f471ca5f493f72a2f0dfeb40f5275da \
-       # add recipe for pycryptodomex:
-    && git cherry-pick 5545a81c6c47436a41d2cf74194ab6f711e54ad6 \
-       # gradle: persist debug keystore:
-    && git cherry-pick af93820bcd7fb85710f8ba469be3a6e5acb68b08 \
+    && git checkout 9162ec6b4af464672960f6f9bb7c481af2d01802 \
     && python3 -m pip install --user -e .
 
 # build env vars

@@ -30,7 +30,7 @@ import logging
 
 from aiorpcx import TaskGroup, run_in_thread, RPCError
 
-from .transaction import Transaction
+from .transaction import Transaction, PartialTransaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash, is_address
 from .network import UntrustedServerReturnedError
@@ -60,6 +60,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     """
     def __init__(self, network: 'Network'):
         self.asyncio_loop = network.asyncio_loop
+        self._reset_request_counters()
         NetworkJobOnDefaultServer.__init__(self, network)
         self._reset_request_counters()
 
@@ -75,7 +76,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
     async def _start_tasks(self):
         try:
-            async with self.group as group:
+            async with self.taskgroup as group:
                 await group.spawn(self.send_subscriptions())
                 await group.spawn(self.handle_status())
                 await group.spawn(self.main())
@@ -116,13 +117,13 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
         while True:
             addr = await self.add_queue.get()
-            await self.group.spawn(subscribe_to_address, addr)
+            await self.taskgroup.spawn(subscribe_to_address, addr)
 
     async def handle_status(self):
         while True:
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
-            await self.group.spawn(self._on_address_status, addr, status)
+            await self.taskgroup.spawn(self._on_address_status, addr, status)
             self._processed_some_notifications = True
 
     def num_requests_sent_and_answered(self) -> Tuple[int, int]:
@@ -196,8 +197,9 @@ class Synchronizer(SynchronizerBase):
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
-            if self.wallet.db.get_transaction(tx_hash):
-                continue
+            tx = self.wallet.db.get_transaction(tx_hash)
+            if tx and not isinstance(tx, PartialTransaction):
+                continue  # already have complete tx
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
 
@@ -220,15 +222,6 @@ class Synchronizer(SynchronizerBase):
         finally:
             self._requests_answered += 1
         tx = Transaction(raw_tx)
-        try:
-            tx.deserialize()  # see if raises
-        except Exception as e:
-            # possible scenarios:
-            # 1: server is sending garbage
-            # 2: there is a bug in the deserialization code
-            # 3: there was a segwit-like upgrade that changed the tx structure
-            #    that we don't know about
-            raise SynchronizerFailure(f"cannot deserialize transaction {tx_hash}") from e
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)

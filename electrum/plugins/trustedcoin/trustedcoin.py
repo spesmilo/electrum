@@ -264,17 +264,17 @@ class Wallet_2fa(Multisig_Wallet):
 
     wallet_type = '2fa'
 
-    def __init__(self, storage, *, config):
+    def __init__(self, db, storage, *, config):
         self.m, self.n = 2, 3
-        Deterministic_Wallet.__init__(self, storage, config=config)
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
         self.is_billing = False
         self.billing_info = None
         self._load_billing_addresses()
 
     def _load_billing_addresses(self):
         billing_addresses = {
-            'legacy': self.storage.get('trustedcoin_billing_addresses', {}),
-            'segwit': self.storage.get('trustedcoin_billing_addresses_segwit', {})
+            'legacy': self.db.get('trustedcoin_billing_addresses', {}),
+            'segwit': self.db.get('trustedcoin_billing_addresses_segwit', {})
         }
         self._billing_addresses = {}  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
         self._billing_addresses_set = set()  # set of addrs
@@ -289,7 +289,7 @@ class Wallet_2fa(Multisig_Wallet):
         return not self.keystores['x2/'].is_watching_only()
 
     def get_user_id(self):
-        return get_user_id(self.storage)
+        return get_user_id(self.db)
 
     def min_prepay(self):
         return min(self.price_per_tx.keys())
@@ -383,10 +383,10 @@ class Wallet_2fa(Multisig_Wallet):
         billing_addresses_of_this_type[billing_index] = address
         self._billing_addresses_set.add(address)
         self._billing_addresses[addr_type] = billing_addresses_of_this_type
-        self.storage.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
-        self.storage.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
+        self.db.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
+        self.db.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
         # FIXME this often runs in a daemon thread, where storage.write will fail
-        self.storage.write()
+        self.db.write(self.storage)
 
     def is_billing_address(self, addr: str) -> bool:
         return addr in self._billing_addresses_set
@@ -394,11 +394,11 @@ class Wallet_2fa(Multisig_Wallet):
 
 # Utility functions
 
-def get_user_id(storage):
+def get_user_id(db):
     def make_long_id(xpub_hot, xpub_cold):
         return sha256(''.join(sorted([xpub_hot, xpub_cold])))
-    xpub1 = storage.get('x1/')['xpub']
-    xpub2 = storage.get('x2/')['xpub']
+    xpub1 = db.get('x1/')['xpub']
+    xpub2 = db.get('x2/')['xpub']
     long_id = make_long_id(xpub1, xpub2)
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
@@ -458,7 +458,7 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):
@@ -753,12 +753,12 @@ class TrustedCoinPlugin(BasePlugin):
         self.request_otp_dialog(wizard, short_id, new_secret, xpub3)
 
     @hook
-    def get_action(self, storage):
-        if storage.get('wallet_type') != '2fa':
+    def get_action(self, db):
+        if db.get('wallet_type') != '2fa':
             return
-        if not storage.get('x1/'):
+        if not db.get('x1/'):
             return self, 'show_disclaimer'
-        if not storage.get('x2/'):
+        if not db.get('x2/'):
             return self, 'show_disclaimer'
-        if not storage.get('x3/'):
+        if not db.get('x3/'):
             return self, 'accept_terms_of_use'

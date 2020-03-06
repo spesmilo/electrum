@@ -24,18 +24,14 @@ hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
-# safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
-# release a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
-hiddenimports.remove('safetlib.qt.pinmatrix')
 
-
-# Add libusb binary
-binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
+binaries = []
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
-binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
+binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 
 datas = [
     (home+'electrum/*.json', 'electrum'),

@@ -3,10 +3,12 @@ Popup:
     confirmed: 0
     unconfirmed: 0
     unmatured: 0
+    lightning: 0
     watching_only: app.wallet.is_watching_only()
     has_seed: app.wallet.has_seed()
     on_parent:
         self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
+        self.lightning = int(app.wallet.lnworker.get_balance()) if app.wallet.lnworker else 0
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -31,24 +33,19 @@ Popup:
                         value: app.wallet.wallet_type
                     BoxLabel:
                         text: _("Lightning:")
-                        value: _('Enabled') if app.wallet.has_lightning() else _('Disabled')
+                        value: (_('Enabled') if app.wallet.has_lightning() else _('Disabled')) if app.wallet.can_have_lightning() else _('Not available')
                     BoxLabel:
                         text: _("Balance") + ':'
+                        value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured + root.lightning)
+                    BoxLabel:
+                        text: _("Onchain") + ':'
                         value: app.format_amount_and_units(root.confirmed + root.unconfirmed + root.unmatured)
+                        opacity: 1 if root.lightning else 0
                     BoxLabel:
-                        text: _("Confirmed") + ':'
-                        opacity: 1 if root.confirmed else 0
-                        value: app.format_amount_and_units(root.confirmed)
-                        opacity: 1 if root.confirmed else 0
-                    BoxLabel:
-                        text: _("Unconfirmed") + ':'
-                        opacity: 1 if root.unconfirmed else 0
-                        value: app.format_amount_and_units(root.unconfirmed)
-                    BoxLabel:
-                        text: _("Unmatured") + ':'
-                        opacity: 1 if root.unmatured else 0
-                        value: app.format_amount_and_units(root.unmatured)
-                        opacity: 1 if root.unmatured else 0
+                        text: _("Lightning") + ':'
+                        opacity: 1 if root.lightning else 0
+                        value: app.format_amount_and_units(root.lightning)
+
 
                 GridLayout:
                     cols: 1
@@ -63,12 +60,13 @@ Popup:
                         data: app.wallet.get_master_public_key() or 'None'
                         name: _('Master Public Key')
                     TopLabel:
-                        text: _('This wallet is watching-only') if root.watching_only else _('Seed')
+                        text: _('This wallet is watching-only') if root.watching_only else (_('Seed') if root.has_seed else _('No seed stored for wallet'))
                     RefLabel:
                         id: seed_label
+                        visible: root.has_seed
                         data: ''
                         name: _('Seed')
-                        on_touched: if not self.data and not root.watching_only: app.show_seed(seed_label)
+                        on_touched: if not self.data and root.has_seed: app.show_seed(seed_label)
 
         BoxLayout:
             size_hint: 1, None
@@ -83,13 +81,15 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Save Backup')
+                on_release:
+                    root.dismiss()
+                    app.save_backup()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                disabled: not app.wallet.can_have_lightning()
                 text: _('Disable LN') if app.wallet.has_lightning() else _('Enable LN')
                 on_release:
                     root.dismiss()
                     app.toggle_lightning()
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Close')
-                on_release:
-                    root.dismiss()

@@ -56,7 +56,6 @@ class SimpleConfig(Logger):
             options = {}
 
         Logger.__init__(self)
-        self.lightning_settle_delay = int(os.environ.get('ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY', 0))
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
@@ -226,6 +225,8 @@ class SimpleConfig(Logger):
         return key not in self.cmdline_options
 
     def save_user_config(self):
+        if self.get('forget_config'):
+            return
         if not self.path:
             return
         path = os.path.join(self.path, "config")

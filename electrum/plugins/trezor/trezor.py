@@ -28,19 +28,29 @@ try:
     from .clientbase import TrezorClientBase
 
     from trezorlib.messages import (
-        RecoveryDeviceType, HDNodeType, HDNodePathType,
+        Capability, BackupType, RecoveryDeviceType, HDNodeType, HDNodePathType,
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, SignTx)
-
-    RECOVERY_TYPE_SCRAMBLED_WORDS = RecoveryDeviceType.ScrambledWords
-    RECOVERY_TYPE_MATRIX = RecoveryDeviceType.Matrix
 
     TREZORLIB = True
 except Exception as e:
     _logger.exception('error importing trezorlib')
     TREZORLIB = False
 
-    RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(2)
+    class _EnumMissing:
+        def __init__(self):
+            self.counter = 0
+            self.values = {}
+
+        def __getattr__(self, key):
+            if key not in self.values:
+                self.values[key] = self.counter
+                self.counter += 1
+            return self.values[key]
+
+    Capability = _EnumMissing()
+    BackupType = _EnumMissing()
+    RecoveryDeviceType = _EnumMissing()
 
 
 # Trezor initialization methods
@@ -87,6 +97,7 @@ class TrezorInitSettings(NamedTuple):
     pin_enabled: bool
     passphrase_enabled: bool
     recovery_type: Any = None
+    backup_type: int = BackupType.Bip39
     no_backup: bool = False
 
 
@@ -101,7 +112,7 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://github.com/trezor/python-trezor'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 11, 0)
+    minimum_library = (0, 11, 5)
     maximum_library = (0, 12)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
@@ -177,14 +188,7 @@ class TrezorPlugin(HW_PluginBase):
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
-        msg = _("Choose how you want to initialize your {}.\n\n"
-                "The first two methods are secure as no secret information "
-                "is entered into your computer.\n\n"
-                "For the last two methods you input secrets on your keyboard "
-                "and upload them to your {}, and so you should "
-                "only do those on a computer you know to be trustworthy "
-                "and free of malware."
-        ).format(self.device, self.device)
+        msg = _("Choose how you want to initialize your {}.").format(self.device, self.device)
         choices = [
             # Must be short as QT doesn't word-wrap radio button text
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
@@ -218,7 +222,7 @@ class TrezorPlugin(HW_PluginBase):
             wizard.loop.exit(exit_code)
 
     def _initialize_device(self, settings: TrezorInitSettings, method, device_id, wizard, handler):
-        if method == TIM_RECOVER and settings.recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+        if method == TIM_RECOVER and settings.recovery_type == RecoveryDeviceType.ScrambledWords:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -233,12 +237,13 @@ class TrezorPlugin(HW_PluginBase):
             raise Exception(_("The device was disconnected."))
 
         if method == TIM_NEW:
-            strength_from_word_count = {12: 128, 18: 192, 24: 256}
+            strength_from_word_count = {12: 128, 18: 192, 20: 128, 24: 256, 33: 256}
             client.reset_device(
                 strength=strength_from_word_count[settings.word_count],
                 passphrase_protection=settings.passphrase_enabled,
                 pin_protection=settings.pin_enabled,
                 label=settings.label,
+                backup_type=settings.backup_type,
                 no_backup=settings.no_backup)
         elif method == TIM_RECOVER:
             client.recover_device(
@@ -247,7 +252,7 @@ class TrezorPlugin(HW_PluginBase):
                 passphrase_protection=settings.passphrase_enabled,
                 pin_protection=settings.pin_enabled,
                 label=settings.label)
-            if settings.recovery_type == RECOVERY_TYPE_MATRIX:
+            if settings.recovery_type == RecoveryDeviceType.Matrix:
                 handler.close_matrix_dialog()
         else:
             raise RuntimeError("Unsupported recovery method")
@@ -356,7 +361,7 @@ class TrezorPlugin(HW_PluginBase):
         inputs = []
         for txin in tx.inputs():
             txinputtype = TxInputType()
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:

@@ -27,7 +27,7 @@ import re
 from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
-from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
 from electrum.util import bfh, maybe_extract_bolt11_invoice
@@ -39,6 +39,11 @@ from electrum.lnaddr import LnDecodeException
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
+from .util import MONOSPACE_FONT
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -64,6 +69,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
+        self.setFont(QFont(MONOSPACE_FONT))
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
@@ -182,10 +188,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.payto_scriptpubkey = None
 
         if self.win.max_button.isChecked():
-            self.win.do_update_fee()
+            self.win.spend_max()
         else:
             self.amount_edit.setAmount(total if outputs else None)
-            self.win.lock_amount(total or len(lines)>1)
+        self.win.lock_amount(self.win.max_button.isChecked() or bool(outputs))
 
     def get_errors(self) -> Sequence[PayToLineError]:
         return self.errors
@@ -216,7 +222,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def update_size(self):
         lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
-        h = docHeight * lineHeight + 11
+        h = round(docHeight * lineHeight + 11)
         h = min(max(h, self.heightMin), self.heightMax)
         self.setMinimumHeight(h)
         self.setMaximumHeight(h)

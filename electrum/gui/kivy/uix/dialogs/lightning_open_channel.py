@@ -42,19 +42,6 @@ Builder.load_string('''
                 BlueButton:
                     text: s.pubkey if s.pubkey else _('Node ID')
                     shorten: True
-            #CardSeparator:
-            #    color: blue_bottom.foreground_color
-            #BoxLayout:
-            #    size_hint: 1, None
-            #    height: blue_bottom.item_height
-            #    Image:
-            #        source: 'atlas://electrum/gui/kivy/theming/light/network'
-            #        size_hint: None, None
-            #        size: '22dp', '22dp'
-            #        pos_hint: {'center_y': .5}
-            #    BlueButton:
-            #        text: s.ipport if s.ipport else _('host:port')
-            #        on_release: s.ipport_dialog()
             CardSeparator:
                 color: blue_bottom.foreground_color
             BoxLayout:
@@ -68,8 +55,11 @@ Builder.load_string('''
                 BlueButton:
                     text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
+        TopLabel:
+            text: _('Paste or scan a node ID, a connection string or a lightning invoice.')
         BoxLayout:
             size_hint: 1, None
+            height: '48dp'
             IconButton:
                 icon: 'atlas://electrum/gui/kivy/theming/light/copy'
                 size_hint: 0.5, None
@@ -86,12 +76,22 @@ Builder.load_string('''
                 height: '48dp'
                 on_release: s.choose_node()
             Button:
+                text: _('Clear')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.do_clear()
+        Widget:
+            size_hint: 1, 1
+        BoxLayout:
+            size_hint: 1, None
+            Widget:
+                size_hint: 2, None
+            Button:
                 text: _('Open')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.open_channel()
-        Widget:
-            size_hint: 1, 1
+                disabled: not root.pubkey or not root.amount
 ''')
 
 class LightningOpenChannelDialog(Factory.Popup):
@@ -122,6 +122,10 @@ class LightningOpenChannelDialog(Factory.Popup):
             self.pubkey = bh2u(self.lnaddr.pubkey.serialize())
         if self.msg:
             self.app.show_info(self.msg)
+
+    def do_clear(self):
+        self.pubkey = ''
+        self.amount = ''
 
     def do_paste(self):
         contents = self.app._clipboard.paste()

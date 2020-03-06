@@ -6,7 +6,6 @@ NAME_ROOT=electrum
 export WINEPREFIX=/opt/wine64
 export WINEDEBUG=-all
 export PYTHONDONTWRITEBYTECODE=1
-export PYTHONHASHSEED=22
 
 PYHOME=c:/python3
 PYTHON="wine $PYHOME/python.exe -OO -B"
@@ -43,15 +42,19 @@ popd
 
 
 # Install frozen dependencies
-$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements.txt
+$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements.txt
 
-$PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-hw.txt
+$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location .
 popd
+
+
+# these are deleted as they were not deterministic; and are not needed anyway
+rm "$WINEPREFIX"/drive_c/python3/Lib/site-packages/jsonschema-*.dist-info/RECORD
 
 
 rm -rf dist/

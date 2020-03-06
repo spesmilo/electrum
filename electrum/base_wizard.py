@@ -34,11 +34,11 @@ from . import bitcoin
 from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
-from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
-from .storage import (WalletStorage, StorageEncryptionVersion,
-                      get_derivation_used_for_hw_device_encryption)
+from .storage import WalletStorage, StorageEncryptionVersion
+from .wallet_db import WalletDB
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
@@ -64,7 +64,7 @@ class WizardStackItem(NamedTuple):
     action: Any
     args: Any
     kwargs: Dict[str, Any]
-    storage_data: dict
+    db_data: dict
 
 
 class WizardWalletPasswordSetting(NamedTuple):
@@ -85,7 +85,7 @@ class BaseWizard(Logger):
         self.pw_args = None  # type: Optional[WizardWalletPasswordSetting]
         self._stack = []  # type: List[WizardStackItem]
         self.plugin = None  # type: Optional[BasePlugin]
-        self.keystores = []
+        self.keystores = []  # type: List[KeyStore]
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 
@@ -95,8 +95,8 @@ class BaseWizard(Logger):
     def run(self, *args, **kwargs):
         action = args[0]
         args = args[1:]
-        storage_data = copy.deepcopy(self.data)
-        self._stack.append(WizardStackItem(action, args, kwargs, storage_data))
+        db_data = copy.deepcopy(self.data)
+        self._stack.append(WizardStackItem(action, args, kwargs, db_data))
         if not action:
             return
         if type(action) is tuple:
@@ -122,7 +122,7 @@ class BaseWizard(Logger):
         stack_item = self._stack.pop()
         # try to undo side effects since we last entered 'previous' frame
         # FIXME only self.storage is properly restored
-        self.data = copy.deepcopy(stack_item.storage_data)
+        self.data = copy.deepcopy(stack_item.db_data)
         # rerun 'previous' frame
         self.run(stack_item.action, *stack_item.args, **stack_item.kwargs)
 
@@ -143,17 +143,17 @@ class BaseWizard(Logger):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
-    def upgrade_storage(self, storage):
+    def upgrade_db(self, storage, db):
         exc = None
         def on_finished():
             if exc is None:
-                self.terminate(storage=storage)
+                self.terminate(storage=storage, db=db)
             else:
                 raise exc
         def do_upgrade():
             nonlocal exc
             try:
-                storage.upgrade()
+                db.upgrade()
             except Exception as e:
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
@@ -333,7 +333,9 @@ class BaseWizard(Logger):
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
     def on_device(self, name, device_info, *, purpose, storage=None):
-        self.plugin = self.plugins.get_plugin(name)  # type: HW_PluginBase
+        self.plugin = self.plugins.get_plugin(name)
+        assert isinstance(self.plugin, HW_PluginBase)
+        devmgr = self.plugins.device_manager
         try:
             self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
@@ -341,7 +343,6 @@ class BaseWizard(Logger):
                             + '\n' + str(e) + '\n'
                             + _('To try to fix this, we will now re-pair with your device.') + '\n'
                             + _('Please try again.'))
-            devmgr = self.plugins.device_manager
             devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose, storage=storage)
             return
@@ -349,7 +350,6 @@ class BaseWizard(Logger):
             if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
                 self.plugin.set_ignore_outdated_fw()
                 # will need to re-pair
-                devmgr = self.plugins.device_manager
                 devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose, storage=storage)
             return
@@ -367,14 +367,12 @@ class BaseWizard(Logger):
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
-            derivation = get_derivation_used_for_hw_device_encryption()
-            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
-            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            client = devmgr.client_by_id(device_info.device.id_)
+            password = client.get_password_for_storage_encryption()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
                 # try to clear session so that user can type another passphrase
-                devmgr = self.plugins.device_manager
                 client = devmgr.client_by_id(device_info.device.id_)
                 if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
                     client.clear_session()
@@ -418,9 +416,12 @@ class BaseWizard(Logger):
 
     def on_hw_derivation(self, name, device_info, derivation, xtype):
         from .keystore import hardware_keystore
+        devmgr = self.plugins.device_manager
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-            root_xpub = self.plugin.get_xpub(device_info.device.id_, 'm', 'standard', self)
+            client = devmgr.client_by_id(device_info.device.id_)
+            if not client: raise Exception("failed to find client for device id")
+            root_fingerprint = client.request_root_fingerprint_from_device()
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
@@ -432,7 +433,7 @@ class BaseWizard(Logger):
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
-            'root_fingerprint': xfp,
+            'root_fingerprint': root_fingerprint,
             'xpub': xpub,
             'label': device_info.label,
         }
@@ -590,6 +591,7 @@ class BaseWizard(Logger):
                                                    encrypt_keystore=encrypt_keystore)
         self.terminate()
 
+
     def create_storage(self, path):
         if os.path.exists(path):
             raise Exception('file already exists at path')
@@ -598,16 +600,17 @@ class BaseWizard(Logger):
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
-        storage.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         if pw_args.encrypt_storage:
             storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
+        db = WalletDB('', manual_upgrades=False)
+        db.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         for key, value in self.data.items():
-            storage.put(key, value)
-        storage.write()
-        storage.load_plugins()
-        return storage
+            db.put(key, value)
+        db.load_plugins()
+        db.write(storage)
+        return storage, db
 
-    def terminate(self, *, storage: Optional[WalletStorage] = None):
+    def terminate(self, *, storage: Optional[WalletStorage], db: Optional[WalletDB] = None):
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):

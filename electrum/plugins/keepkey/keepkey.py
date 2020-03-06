@@ -9,11 +9,16 @@ from electrum import constants
 from electrum.i18n import _
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.keystore import Hardware_KeyStore
+from electrum.plugin import Device
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
                                 get_xpubs_and_der_suffixes_from_txinout)
+
+if TYPE_CHECKING:
+    import usb1
+    from .client import KeepKeyClient
 
 if TYPE_CHECKING:
     from .client import KeepKeyClient
@@ -84,10 +89,30 @@ class KeepKeyPlugin(HW_PluginBase):
             self.types = keepkeylib.client.types
             self.DEVICE_IDS = (keepkeylib.transport_hid.DEVICE_IDS +
                                keepkeylib.transport_webusb.DEVICE_IDS)
-            self.device_manager().register_devices(self.DEVICE_IDS)
+            # only "register" hid device id:
+            self.device_manager().register_devices(keepkeylib.transport_hid.DEVICE_IDS)
+            # for webusb transport, use custom enumerate function:
+            self.device_manager().register_enumerate_func(self.enumerate)
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
+
+    def enumerate(self):
+        from keepkeylib.transport_webusb import WebUsbTransport
+        results = []
+        for dev in WebUsbTransport.enumerate():
+            path = self._dev_to_str(dev)
+            results.append(Device(path=path,
+                                  interface_number=-1,
+                                  id_=path,
+                                  product_key=(dev.getVendorID(), dev.getProductID()),
+                                  usage_page=0,
+                                  transport_ui_string=f"webusb:{path}"))
+        return results
+
+    @staticmethod
+    def _dev_to_str(dev: "usb1.USBDevice") -> str:
+        return ":".join(str(x) for x in ["%03i" % (dev.getBusNumber(),)] + dev.getPortNumberList())
 
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport
@@ -95,10 +120,9 @@ class KeepKeyPlugin(HW_PluginBase):
 
     def webusb_transport(self, device):
         from keepkeylib.transport_webusb import WebUsbTransport
-        for d in WebUsbTransport.enumerate():
-            if device.id_.startswith(d.getSerialNumber()):
-                return WebUsbTransport(d)
-        return WebUsbTransport(device)
+        for dev in WebUsbTransport.enumerate():
+            if device.path == self._dev_to_str(dev):
+                return WebUsbTransport(dev)
 
     def _try_hid(self, device):
         self.logger.info("Trying to connect over USB...")
@@ -342,7 +366,7 @@ class KeepKeyPlugin(HW_PluginBase):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:

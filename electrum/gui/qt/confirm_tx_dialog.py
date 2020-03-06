@@ -34,7 +34,7 @@ from electrum.transaction import Transaction, PartialTransaction
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
-from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton
+from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, BlockingWaitingDialog
 
 from .fee_slider import FeeSlider
 
@@ -99,11 +99,6 @@ class TxEditor:
             self.tx = None
             self.main_window.show_error(str(e))
             raise
-        except BaseException as e:
-            self.tx = None
-            self.main_window.logger.exception('')
-            self.show_message(str(e))
-            return
         use_rbf = bool(self.config.get('use_rbf', True))
         if use_rbf:
             self.tx.set_rbf(True)
@@ -161,7 +156,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.send_button.clicked.connect(self.on_send)
         self.send_button.setDefault(True)
         vbox.addLayout(Buttons(CancelButton(self), self.send_button))
-        self.update_tx()
+        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update_tx)
         self.update()
         self.is_send = False
 
@@ -180,6 +175,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         password = self.pw.text() or None
         if self.password_required:
             if password is None:
+                self.main_window.show_error(_("Password required"), parent=self)
                 return
             try:
                 self.wallet.check_password(password)

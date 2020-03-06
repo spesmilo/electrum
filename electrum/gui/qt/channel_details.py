@@ -11,6 +11,8 @@ from electrum.lnchannel import htlcsum
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 
+from .util import Buttons, CloseButton
+
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
@@ -54,8 +56,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-            for pay_hash, item in htlcs.items():
-                chan_id, i, direction, status = item
+            for item in htlcs:
+                pay_hash, chan_id, i, direction, status = item
                 if status != keyname:
                     continue
                 it = self.make_htlc_item(i, direction)
@@ -73,7 +75,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    ln_payment_completed = QtCore.pyqtSignal(str, float, Direction, UpdateAddHtlc, bytes, bytes)
+    ln_payment_completed = QtCore.pyqtSignal(str, bytes, bytes)
     htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, Direction)
 
     @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
@@ -82,11 +84,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
-    @QtCore.pyqtSlot(str, float, Direction, UpdateAddHtlc, bytes, bytes)
-    def do_ln_payment_completed(self, evtname, date, direction, htlc, preimage, chan_id):
+    @QtCore.pyqtSlot(str, bytes, bytes)
+    def do_ln_payment_completed(self, evtname, payment_hash, chan_id):
         if chan_id != self.chan.channel_id:
             return
-        self.move('inflight', 'settled', htlc.payment_hash)
+        self.move('inflight', 'settled', payment_hash)
         self.update_sent_received()
 
     def update_sent_received(self):
@@ -151,6 +153,6 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         w.setModel(self.make_model(htlc_dict))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
-
+        vbox.addLayout(Buttons(CloseButton(self)))
         # initialize sent/received fields
         self.update_sent_received()

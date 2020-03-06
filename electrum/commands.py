@@ -49,7 +49,7 @@ from .transaction import (Transaction, multisig_script, TxOutput, PartialTransac
                           tx_from_any, PartialTxInput, TxOutpoint)
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
@@ -71,6 +71,14 @@ known_commands = {}  # type: Dict[str, Command]
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
     return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
+
+
+def json_normalize(x):
+    # note: The return value of commands, when going through the JSON-RPC interface,
+    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
+    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
+    # see #5868
+    return json_decode(json_encode(x))
 
 
 class Command:
@@ -106,7 +114,8 @@ def command(s):
             daemon = cmd_runner.daemon
             if daemon:
                 if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
-                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                    # using JSON-RPC, sometimes the "wallet" kwarg needs to be used to specify a wallet
+                    kwargs['wallet_path'] = kwargs.pop('wallet', None) or daemon.config.get_wallet_path()
                 if cmd.requires_wallet:
                     wallet_path = kwargs.pop('wallet_path')
                     wallet = daemon.get_wallet(wallet_path)
@@ -252,14 +261,14 @@ class Commands:
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
             raise Exception("Can't change the password of a wallet encrypted with a hw device.")
         b = wallet.storage.is_encrypted()
-        wallet.update_password(password, new_password, b)
-        wallet.storage.write()
+        wallet.update_password(password, new_password, encrypt_storage=b)
+        wallet.save_db()
         return {'password':wallet.has_password()}
 
     @command('w')
     async def get(self, key, wallet: Abstract_Wallet = None):
         """Return item from wallet storage"""
-        return wallet.storage.get(key)
+        return wallet.db.get(key)
 
     @command('')
     async def getconfig(self, key):
@@ -637,7 +646,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return json_encode(wallet.get_detailed_history(**kwargs))
+        return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('w')
     async def init_lightning(self, wallet: Abstract_Wallet = None):
@@ -654,7 +663,7 @@ class Commands:
     async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
         """ lightning history """
         lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
-        return json_encode(lightning_history)
+        return json_normalize(lightning_history)
 
     @command('w')
     async def setlabel(self, key, label, wallet: Abstract_Wallet = None):
@@ -786,6 +795,30 @@ class Commands:
         return wallet.create_new_address(False)
 
     @command('w')
+    async def changegaplimit(self, new_limit, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
+        """Change the gap limit of the wallet."""
+        if not iknowwhatimdoing:
+            raise Exception("WARNING: Are you SURE you want to change the gap limit?\n"
+                            "It makes recovering your wallet from seed difficult!\n"
+                            "Please do your research and make sure you understand the implications.\n"
+                            "Typically only merchants and power users might want to do this.\n"
+                            "To proceed, try again, with the --iknowwhatimdoing option.")
+        if not isinstance(wallet, Deterministic_Wallet):
+            raise Exception("This wallet is not deterministic.")
+        return wallet.change_gap_limit(new_limit)
+
+    @command('wn')
+    async def getminacceptablegap(self, wallet: Abstract_Wallet = None):
+        """Returns the minimum value for gap limit that would be sufficient to discover all
+        known addresses in the wallet.
+        """
+        if not isinstance(wallet, Deterministic_Wallet):
+            raise Exception("This wallet is not deterministic.")
+        if not wallet.is_up_to_date():
+            raise Exception("Wallet not fully synchronized.")
+        return wallet.min_acceptable_gap()
+
+    @command('w')
     async def getunusedaddress(self, wallet: Abstract_Wallet = None):
         """Returns the first unused address of the wallet, or None if all addresses are used.
         An address is considered as used if it has received a transaction, or if it is used in a payment request."""
@@ -821,7 +854,7 @@ class Commands:
         tx = Transaction(tx)
         if not wallet.add_transaction(tx):
             return False
-        wallet.storage.write()
+        wallet.save_db()
         return tx.txid()
 
     @command('wp')
@@ -897,7 +930,7 @@ class Commands:
         to_delete |= wallet.get_depending_transactions(txid)
         for tx_hash in to_delete:
             wallet.remove_transaction(tx_hash)
-        wallet.storage.write()
+        wallet.save_db()
 
     @command('wn')
     async def get_tx_status(self, txid, wallet: Abstract_Wallet = None):
@@ -938,7 +971,15 @@ class Commands:
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
-        return await wallet.lnworker._pay(invoice, attempts=attempts)
+        lnworker = wallet.lnworker
+        lnaddr = lnworker._check_invoice(invoice, None)
+        payment_hash = lnaddr.paymenthash
+        success = await lnworker._pay(invoice, attempts=attempts)
+        return {
+            'payment_hash': payment_hash.hex(),
+            'success': success,
+            'preimage': lnworker.get_preimage(payment_hash).hex() if success else None,
+        }
 
     @command('w')
     async def nodeid(self, wallet: Abstract_Wallet = None):
@@ -947,7 +988,23 @@ class Commands:
 
     @command('w')
     async def list_channels(self, wallet: Abstract_Wallet = None):
-        return list(wallet.lnworker.list_channels())
+        # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
+        from .lnutil import LOCAL, REMOTE, format_short_channel_id
+        encoder = util.MyEncoder()
+        l = list(wallet.lnworker.channels.items())
+        return [
+            {
+                'local_htlcs': json.loads(encoder.encode(chan.hm.log[LOCAL])),
+                'remote_htlcs': json.loads(encoder.encode(chan.hm.log[REMOTE])),
+                'channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
+                'full_channel_id': bh2u(chan.channel_id),
+                'channel_point': chan.funding_outpoint.to_str(),
+                'state': chan.get_state().name,
+                'remote_pubkey': bh2u(chan.node_id),
+                'local_balance': chan.balance(LOCAL)//1000,
+                'remote_balance': chan.balance(REMOTE)//1000,
+            } for channel_id, chan in l
+        ]
 
     @command('wn')
     async def dumpgraph(self, wallet: Abstract_Wallet = None):
@@ -959,6 +1016,11 @@ class Commands:
         self.network.config.fee_estimates = ast.literal_eval(fees)
         self.network.notify('fee')
 
+    @command('wn')
+    async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):
+        e = wallet.lnworker.enable_htlc_settle
+        e.set() if b else e.clear()
+
     @command('n')
     async def clear_ln_blacklist(self):
         self.network.path_finder.blacklist.clear()
@@ -966,10 +1028,6 @@ class Commands:
     @command('w')
     async def list_invoices(self, wallet: Abstract_Wallet = None):
         return wallet.get_invoices()
-
-    @command('w')
-    async def lightning_history(self, wallet: Abstract_Wallet = None):
-        return wallet.lnworker.get_history()
 
     @command('wn')
     async def close_channel(self, channel_point, force=False, wallet: Abstract_Wallet = None):
@@ -979,13 +1037,22 @@ class Commands:
         return await coro
 
     @command('wn')
-    async def get_channel_ctx(self, channel_point, wallet: Abstract_Wallet = None):
+    async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """ return the current commitment transaction of a channel """
+        if not iknowwhatimdoing:
+            raise Exception("WARNING: this command is potentially unsafe.\n"
+                            "To proceed, try again, with the --iknowwhatimdoing option.")
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         chan = wallet.lnworker.channels[chan_id]
         tx = chan.force_close_tx()
         return tx.serialize()
+
+    @command('wn')
+    async def get_watchtower_ctn(self, channel_point, wallet: Abstract_Wallet = None):
+        """ return the local watchtower's ctn of channel. used in regtests """
+        return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1058,6 +1125,7 @@ command_options = {
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
+    'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
 }
 
 
@@ -1170,6 +1238,7 @@ def add_global_options(parser):
 
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    parser.add_argument("--forgetconfig", action="store_true", dest="forget_config", default=False, help="Forget config on exit")
 
 def get_parser():
     # create main parser

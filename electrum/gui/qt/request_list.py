@@ -24,10 +24,12 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Optional
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import Qt, QItemSelectionModel
+from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
+from PyQt5.QtWidgets import QAbstractItemView
 
 from electrum.i18n import _
 from electrum.util import format_time, get_request_status
@@ -61,10 +63,12 @@ class RequestList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
+        self.wallet = self.parent.wallet
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
-        self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.update()
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):
@@ -74,7 +78,13 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
-    def item_changed(self, idx):
+    def item_changed(self, idx: Optional[QModelIndex]):
+        if idx is None:
+            self.parent.receive_payreq_e.setText('')
+            self.parent.receive_address_e.setText('')
+            return
+        if not idx.isValid():
+            return
         # TODO use siblingAtColumn when min Qt version is >=5.11
         item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
@@ -83,9 +93,16 @@ class RequestList(MyTreeView):
         if req is None:
             self.update()
             return
-        is_lightning = request_type == PR_TYPE_LN
-        text = req.get('invoice') if is_lightning else req.get('URI')
-        self.parent.receive_address_e.setText(text)
+        if request_type == PR_TYPE_LN:
+            self.parent.receive_payreq_e.setText(req.get('invoice'))
+            self.parent.receive_address_e.setText(req.get('invoice'))
+        else:
+            self.parent.receive_payreq_e.setText(req.get('URI'))
+            self.parent.receive_address_e.setText(req['address'])
+
+    def clearSelection(self):
+        super().clearSelection()
+        self.selectionModel().clearCurrentIndex()
 
     def refresh_status(self):
         m = self.model()
@@ -103,18 +120,14 @@ class RequestList(MyTreeView):
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
-        self.wallet = self.parent.wallet
-        domain = self.wallet.get_receiving_addresses()
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.parent.update_receive_address_styling()
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests():
             status, status_str = get_request_status(req)
-            if status == PR_PAID:
-                continue
             request_type = req['type']
             timestamp = req.get('time', 0)
-            expiration = req.get('exp', None)
             amount = req.get('amount')
             message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
@@ -138,14 +151,24 @@ class RequestList(MyTreeView):
             self.model().insertRow(self.model().rowCount(), items)
         self.filter()
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0
             self.setVisible(b)
             self.parent.receive_requests_label.setVisible(b)
+            if not b:
+                # list got hidden, so selected item should also be cleared:
+                self.item_changed(None)
 
     def create_menu(self, position):
+        items = self.selected_in_column(0)
+        if len(items)>1:
+            keys = [ item.data(ROLE_KEY)  for item in items]
+            menu = QMenu(self)
+            menu.addAction(_("Delete requests"), lambda: self.parent.delete_requests(keys))
+            menu.exec_(self.viewport().mapToGlobal(position))
+            return
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
@@ -167,6 +190,6 @@ class RequestList(MyTreeView):
             menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req['address'], title='Bitcoin Address'))
         if 'view_url' in req:
             menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))
         run_hook('receive_list_menu', menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))

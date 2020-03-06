@@ -3,10 +3,12 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
+import json
 import sys
 import threading
 import traceback
 from typing import Tuple, List, Callable, NamedTuple, Optional, TYPE_CHECKING
+from functools import partial
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
@@ -16,7 +18,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
 
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.util import UserCancelled, InvalidPassword, WalletFileException
+from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
@@ -174,23 +176,35 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(_('Wallet') + ':'))
-        self.name_e = QLineEdit()
-        hbox.addWidget(self.name_e)
+        name_e = QLineEdit()
+        hbox.addWidget(name_e)
         button = QPushButton(_('Choose...'))
         hbox.addWidget(button)
         vbox.addLayout(hbox)
 
-        self.msg_label = WWLabel('')
-        vbox.addWidget(self.msg_label)
+        msg_label = WWLabel('')
+        vbox.addWidget(msg_label)
         hbox2 = QHBoxLayout()
-        self.pw_e = QLineEdit('', self)
-        self.pw_e.setFixedWidth(17 * char_width_in_lineedit())
-        self.pw_e.setEchoMode(2)
-        self.pw_label = QLabel(_('Password') + ':')
-        hbox2.addWidget(self.pw_label)
-        hbox2.addWidget(self.pw_e)
+        pw_e = QLineEdit('', self)
+        pw_e.setFixedWidth(17 * char_width_in_lineedit())
+        pw_e.setEchoMode(2)
+        pw_label = QLabel(_('Password') + ':')
+        hbox2.addWidget(pw_label)
+        hbox2.addWidget(pw_e)
         hbox2.addStretch()
         vbox.addLayout(hbox2)
+
+        vbox.addSpacing(50)
+        vbox_create_new = QVBoxLayout()
+        vbox_create_new.addWidget(QLabel(_('Alternatively') + ':'), alignment=Qt.AlignLeft)
+        button_create_new = QPushButton(_('Create New Wallet'))
+        button_create_new.setMinimumWidth(120)
+        vbox_create_new.addWidget(button_create_new, alignment=Qt.AlignLeft)
+        widget_create_new = QWidget()
+        widget_create_new.setLayout(vbox_create_new)
+        vbox_create_new.setContentsMargins(0, 0, 0, 0)
+        vbox.addWidget(widget_create_new)
+
         self.set_layout(vbox, title=_('Electrum wallet'))
 
         temp_storage = None  # type: Optional[WalletStorage]
@@ -199,7 +213,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def on_choose():
             path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
             if path:
-                self.name_e.setText(path)
+                name_e.setText(path)
 
         def on_filename(filename):
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
@@ -212,7 +226,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 if wallet_from_memory:
                     temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
                 else:
-                    temp_storage = WalletStorage(path, manual_upgrades=True)
+                    temp_storage = WalletStorage(path)
             except (StorageReadWriteError, WalletFileException) as e:
                 msg = _('Cannot read file') + f'\n{repr(e)}'
             except Exception as e:
@@ -239,18 +253,23 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         + _("Press 'Next' to create/focus window.")
             if msg is None:
                 msg = _('Cannot read file')
-            self.msg_label.setText(msg)
+            msg_label.setText(msg)
+            widget_create_new.setVisible(bool(temp_storage and temp_storage.file_exists()))
             if user_needs_to_enter_password:
-                self.pw_label.show()
-                self.pw_e.show()
-                self.pw_e.setFocus()
+                pw_label.show()
+                pw_e.show()
+                pw_e.setFocus()
             else:
-                self.pw_label.hide()
-                self.pw_e.hide()
+                pw_label.hide()
+                pw_e.hide()
 
         button.clicked.connect(on_choose)
-        self.name_e.textChanged.connect(on_filename)
-        self.name_e.setText(os.path.basename(path))
+        button_create_new.clicked.connect(
+            partial(
+                name_e.setText,
+                get_new_wallet_name(wallet_folder)))
+        name_e.textChanged.connect(on_filename)
+        name_e.setText(os.path.basename(path))
 
         while True:
             if self.loop.exec_() != 2:  # 2 = next
@@ -265,7 +284,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 raise WalletAlreadyOpenInMemory(wallet_from_memory)
             if temp_storage.file_exists() and temp_storage.is_encrypted():
                 if temp_storage.is_encrypted_with_user_pw():
-                    password = self.pw_e.text()
+                    password = pw_e.text()
                     try:
                         temp_storage.decrypt(password)
                         break
@@ -298,24 +317,24 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
-    def run_upgrades(self, storage):
+    def run_upgrades(self, storage, db):
         path = storage.path
-        if storage.requires_split():
+        if db.requires_split():
             self.hide()
             msg = _("The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
                     "Do you want to split your wallet into multiple files?").format(path)
             if not self.question(msg):
                 return
-            file_list = '\n'.join(storage.split_accounts())
-            msg = _('Your accounts have been moved to') + ':\n' + file_list + '\n\n'+ _('Do you want to delete the old file') + ':\n' + path
+            file_list = db.split_accounts(path)
+            msg = _('Your accounts have been moved to') + ':\n' + '\n'.join(file_list) + '\n\n'+ _('Do you want to delete the old file') + ':\n' + path
             if self.question(msg):
                 os.remove(path)
                 self.show_warning(_('The file was removed'))
             # raise now, to avoid having the old storage opened
             raise UserCancelled()
 
-        action = storage.get_action()
-        if action and storage.requires_upgrade():
+        action = db.get_action()
+        if action and db.requires_upgrade():
             raise WalletFileException('Incomplete wallet files cannot be upgraded.')
         if action:
             self.hide()
@@ -327,15 +346,17 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     self.show_warning(_('The file was removed'))
                 return
             self.show()
-            self.data = storage.db.data # FIXME
+            self.data = json.loads(storage.read())
             self.run(action)
             for k, v in self.data.items():
-                storage.put(k, v)
-            storage.write()
+                db.put(k, v)
+            db.write(storage)
             return
 
-        if storage.requires_upgrade():
-            self.upgrade_storage(storage)
+        if db.requires_upgrade():
+            self.upgrade_db(storage, db)
+
+        return db
 
     def finished(self):
         """Called in hardware client wrapper, in order to close popups."""

@@ -29,14 +29,14 @@ import sys
 import traceback
 import asyncio
 import socket
-from typing import Tuple, Union, List, TYPE_CHECKING, Optional
+from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
 import itertools
 import logging
 
 import aiorpcx
-from aiorpcx import RPCSession, Notification, NetAddress
+from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
@@ -61,6 +61,8 @@ if TYPE_CHECKING:
 ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
+
+MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
 
 class NetworkTimeout:
@@ -170,6 +172,7 @@ class NotificationSession(RPCSession):
 
 class NetworkException(Exception): pass
 
+class NetworkException(Exception): pass
 
 class GracefulDisconnect(NetworkException):
     log_level = logging.INFO
@@ -184,6 +187,8 @@ class RequestTimedOut(GracefulDisconnect):
     def __str__(self):
         return _("Network request timed out.")
 
+
+class RequestCorrupted(GracefulDisconnect): pass
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
@@ -243,7 +248,7 @@ class Interface(Logger):
         assert network.config.path
         self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
         self.blockchain = None  # type: Optional[Blockchain]
-        self._requested_chunks = set()
+        self._requested_chunks = set()  # type: Set[int]
         self.network = network
         self._set_proxy(proxy)
         self.session = None  # type: Optional[NotificationSession]
@@ -256,11 +261,14 @@ class Interface(Logger):
         self.debug = False
 
         asyncio.run_coroutine_threadsafe(
-            self.network.main_taskgroup.spawn(self.run()), self.network.asyncio_loop)
-        self.group = SilentTaskGroup()
+            self.network.taskgroup.spawn(self.run()), self.network.asyncio_loop)
+        self.taskgroup = SilentTaskGroup()
 
     def diagnostic_name(self):
         return str(NetAddress(self.host, self.port))
+
+    def __str__(self):
+        return f"<Interface {self.diagnostic_name()}>"
 
     def _set_proxy(self, proxy: dict):
         if proxy:
@@ -369,7 +377,7 @@ class Interface(Logger):
                 self.ready.cancel()
         return wrapper_func
 
-    @ignore_exceptions  # do not kill main_taskgroup
+    @ignore_exceptions  # do not kill network.taskgroup
     @log_exceptions
     @handle_disconnect
     async def run(self):
@@ -381,10 +389,16 @@ class Interface(Logger):
         try:
             await self.open_session(ssl_context)
         except (asyncio.CancelledError, ConnectError, aiorpcx.socks.SOCKSError) as e:
-            self.logger.info(f'disconnecting due to: {repr(e)}')
+            # make SSL errors for main interface more visible (to help servers ops debug cert pinning issues)
+            if (isinstance(e, ConnectError) and isinstance(e.__cause__, ssl.SSLError)
+                    and self.is_main_server() and not self.network.auto_connect):
+                self.logger.warning(f'Cannot connect to main server due to SSL error '
+                                    f'(maybe cert changed compared to "{self.cert_path}"). Exc: {repr(e)}')
+            else:
+                self.logger.info(f'disconnecting due to: {repr(e)}')
             return
 
-    def mark_ready(self):
+    def _mark_ready(self) -> None:
         if self.ready.cancelled():
             raise GracefulDisconnect('conn establishment was too slow; *ready* future was cancelled')
         if self.ready.done():
@@ -446,7 +460,7 @@ class Interface(Logger):
             res = res["header"]
         return blockchain.deserialize_full_header(bytes.fromhex(res), height)
 
-    async def request_chunk(self, height, tip=None, *, can_return_early=False):
+    async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
         index = height // 2016
         if can_return_early and index in self._requested_chunks:
             return
@@ -462,8 +476,7 @@ class Interface(Logger):
             self._requested_chunks.add(index)
             res = await self.session.send_request('blockchain.block.headers', [index * 2016, size, cp_height])
         finally:
-            try: self._requested_chunks.remove(index)
-            except KeyError: pass
+            self._requested_chunks.discard(index)
         conn = self.blockchain.connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0
@@ -491,7 +504,7 @@ class Interface(Logger):
             self.logger.info(f"connection established. version: {ver}")
 
             try:
-                async with self.group as group:
+                async with self.taskgroup as group:
                     await group.spawn(self.ping)
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
@@ -530,7 +543,7 @@ class Interface(Logger):
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
-            self.mark_ready()
+            self._mark_ready()
             await self._process_header_at_tip()
             self.network.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()

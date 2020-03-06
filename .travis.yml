@@ -1,19 +1,15 @@
-dist: xenial
+dist: bionic
 language: python
 python:
     - 3.6
     - 3.7
+    - 3.8
 git:
   depth: false
-addons:
-  apt:
-    sources:
-      - sourceline: 'ppa:tah83/secp256k1'
-    packages:
-      - libsecp256k1-0
 before_install:
   - git tag
 install:
+  - sudo apt-get -y install libsecp256k1-0
   - pip install -r contrib/requirements/requirements-travis.txt
 cache:
   - pip: true
@@ -27,12 +23,14 @@ after_success:
 jobs:
   include:
     - name: "Regtest functional tests"
-      before_install:
+      language: python
+      python: 3.7
+      install:
         - sudo add-apt-repository -y ppa:bitcoin/bitcoin
         - sudo apt-get -qq update
         - sudo apt-get install -yq bitcoind
-      install:
-        - pip install -r contrib/requirements/requirements.txt
+        - sudo apt-get -y install libsecp256k1-0
+        - pip install .[tests]
         - pip install electrumx
       before_script:
           - electrum/tests/regtest/start_bitcoind.sh

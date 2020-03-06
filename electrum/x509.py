@@ -27,8 +27,6 @@ import hashlib
 import time
 from datetime import datetime
 
-import ecdsa
-
 from . import util
 from .util import profiler, bh2u
 from .logging import get_logger
@@ -250,8 +248,8 @@ class X509(object):
             exponent = spk.next_node(modulus)
             rsa_n = spk.get_value_of_type(modulus, 'INTEGER')
             rsa_e = spk.get_value_of_type(exponent, 'INTEGER')
-            self.modulus = ecdsa.util.string_to_number(rsa_n)
-            self.exponent = ecdsa.util.string_to_number(rsa_e)
+            self.modulus = int.from_bytes(rsa_n, byteorder='big', signed=False)
+            self.exponent = int.from_bytes(rsa_e, byteorder='big', signed=False)
         else:
             subject_public_key = der.next_node(public_key_algo)
             spk = der.get_value_of_type(subject_public_key, 'BIT STRING')

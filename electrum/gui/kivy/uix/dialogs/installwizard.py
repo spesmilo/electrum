@@ -633,7 +633,7 @@ class WizardDialog(EventsDialog):
         self._on_release = True
         self.close()
         if not button:
-            self.parent.dispatch('on_wizard_complete', None)
+            self.parent.dispatch('on_wizard_complete', None, None)
             return
         if button is self.ids.back:
             self.wizard.go_back()
@@ -859,7 +859,7 @@ class RestoreSeedDialog(WizardDialog):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
         self._test = kwargs['test']
         from electrum.mnemonic import Mnemonic
-        from electrum.old_mnemonic import words as old_wordlist
+        from electrum.old_mnemonic import wordlist as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
         self.ids.text_input_seed.text = test_seed if is_test else ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')
@@ -1055,7 +1055,7 @@ class InstallWizard(BaseWizard, Widget):
 
     __events__ = ('on_wizard_complete', )
 
-    def on_wizard_complete(self, wallet):
+    def on_wizard_complete(self, storage, db):
         """overriden by main_window"""
         pass
 
@@ -1086,10 +1086,10 @@ class InstallWizard(BaseWizard, Widget):
         t = threading.Thread(target = target)
         t.start()
 
-    def terminate(self, *, storage=None, aborted=False):
+    def terminate(self, *, storage=None, db=None, aborted=False):
         if storage is None and not aborted:
-            storage = self.create_storage(self.path)
-        self.dispatch('on_wizard_complete', storage)
+            storage, db = self.create_storage(self.path)
+        self.dispatch('on_wizard_complete', storage, db)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
@@ -1151,13 +1151,14 @@ class InstallWizard(BaseWizard, Widget):
             return
         def on_success(old_pin, pin):
             assert old_pin is None
-            run_next(pin, False)
+            run_next(pin, True)
         def on_failure():
             self.show_error(_('PIN mismatch'))
             self.run('request_password', run_next)
         popup = PasswordDialog()
         app = App.get_running_app()
-        popup.init(app, None, _('Choose PIN code'), on_success, on_failure, is_change=2)
+        popup.init(app, wallet=None, msg=_('Choose PIN code'),
+                   on_success=on_success, on_failure=on_failure, is_change=2)
         popup.open()
 
     def action_dialog(self, action, run_next):

@@ -148,9 +148,13 @@
     font_size: '6pt'
     name: ''
     data: ''
+    visible: True
+    opacity: 1 if self.visible else 0
+    disabled: not self.visible
     text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
+    background_color: .3, .3, .3, 1
     on_touch_down:
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))
@@ -158,7 +162,7 @@
         if touched: self.touched = True
     canvas.before:
         Color:
-            rgb: .3, .3, .3
+            rgba: root.background_color
         Rectangle:
             size: self.size
             pos: self.pos
@@ -281,25 +285,6 @@
             size: self.size
             pos: self.pos
 
-<AddressButton@Button>:
-	background_color: 1, .585, .878, 0
-	halign: 'center'
-	text_size: (self.width, None)
-	shorten: True
-	size_hint: 0.5, None
-	default_text: ''
-	text: self.default_text
-	padding: '5dp', '5dp'
-	height: '40dp'
-	text_color: self.foreground_color
-	disabled_color: 1, 1, 1, 1
-	foreground_color: 1, 1, 1, 1
-	canvas.before:
-		Color:
-			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
-		Rectangle:
-			size: self.size
-			pos: self.pos
 
 <KButton@Button>:
     size_hint: 1, None
@@ -448,7 +433,7 @@ BoxLayout:
                 color: 0.7, 0.7, 0.7, 1
                 font_size: '22dp'
                 on_release:
-                    Clock.schedule_once(lambda dt: app.popup_dialog('wallets'), 0.05)
+                    Clock.schedule_once(lambda dt: app.popup_dialog('status'), 0.05)
                     self.state = 'normal'
 
             ActionButton:
@@ -468,9 +453,6 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'lightning'
                     text: _('Lightning')
-                ActionOvrButton:
-                    name: 'status'
-                    text: _('Wallet Info')
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')

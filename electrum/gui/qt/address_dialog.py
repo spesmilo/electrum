@@ -64,7 +64,7 @@ class AddressDialog(WindowModalDialog):
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        vbox.addWidget(QLabel(_("Address:")))
+        vbox.addWidget(QLabel(_("Address") + ":"))
         self.addr_e = ButtonsLineEdit(self.address)
         self.addr_e.addCopyButton(self.app)
         icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
@@ -97,6 +97,14 @@ class AddressDialog(WindowModalDialog):
             witness_e = ShowQRTextEdit(text=witness_script)
             witness_e.addCopyButton(self.app)
             vbox.addWidget(witness_e)
+
+        address_path_str = self.wallet.get_address_path_str(address)
+        if address_path_str:
+            vbox.addWidget(QLabel(_("Derivation path") + ':'))
+            der_path_e = ButtonsLineEdit(address_path_str)
+            der_path_e.addCopyButton(self.app)
+            der_path_e.setReadOnly(True)
+            vbox.addWidget(der_path_e)
 
         vbox.addWidget(QLabel(_("History")))
         addr_hist_model = AddressHistoryModel(self.parent, self.address)

@@ -29,15 +29,17 @@ import json
 from enum import IntEnum
 from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING
 import time
+import threading
 
 from . import ecc
+from . import constants
 from .util import bfh, bh2u
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction
 from .logging import Logger
-
 from .lnonion import decode_onion_error
+from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
                     sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
@@ -46,23 +48,28 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
                     ShortChannelID, map_htlcs_to_ctx_output_idxs)
-from .lnutil import FeeUpdate
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
+from .lnmsg import encode_msg, decode_msg
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
+    from .json_db import StoredDict
 
 
 # lightning channel states
+# Note: these states are persisted by name (for a given channel) in the wallet file,
+#       so consider doing a wallet db upgrade when changing them.
 class channel_states(IntEnum):
-    PREOPENING      = 0 # negociating
-    OPENING         = 1 # awaiting funding tx
-    FUNDED          = 2 # funded (requires min_depth and tx verification)
+    PREOPENING      = 0 # Initial negotiation. Channel will not be reestablished
+    OPENING         = 1 # Channel will be reestablished. (per BOLT2)
+                        #  - Funding node: has received funding_signed (can broadcast the funding tx)
+                        #  - Non-funding node: has sent the funding_signed message.
+    FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
     FORCE_CLOSING   = 4 # force-close tx has been broadcast
-    CLOSING         = 5 # closing negociation
+    CLOSING         = 5 # shutdown has been sent.
     CLOSED          = 6 # funding txo has been spent
     REDEEMED        = 7 # we can stop watching
 
@@ -70,6 +77,7 @@ class peer_states(IntEnum):
     DISCONNECTED   = 0
     REESTABLISHING = 1
     GOOD           = 2
+    BAD            = 3
 
 cs = channel_states
 state_transitions = [
@@ -86,20 +94,15 @@ state_transitions = [
     (cs.OPENING, cs.CLOSED),
     (cs.FUNDED, cs.CLOSED),
     (cs.OPEN, cs.CLOSED),
+    (cs.CLOSING, cs.CLOSING), # if we reestablish
     (cs.CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.CLOSED, cs.REDEEMED),
+    (cs.OPENING, cs.REDEEMED), # channel never funded (dropped from mempool)
+    (cs.PREOPENING, cs.REDEEMED), # channel never funded
 ]
+del cs  # delete as name is ambiguous without context
 
-class ChannelJsonEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, bytes):
-            return binascii.hexlify(o).decode("ascii")
-        if isinstance(o, RevocationStore):
-            return o.serialize()
-        if isinstance(o, set):
-            return list(o)
-        return super().default(o)
 
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
@@ -107,30 +110,8 @@ RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_co
 class RemoteCtnTooFarInFuture(Exception): pass
 
 
-def decodeAll(d, local):
-    for k, v in d.items():
-        if k == 'revocation_store':
-            yield (k, RevocationStore.from_json_obj(v))
-        elif k.endswith("_basepoint") or k.endswith("_key"):
-            if local:
-                yield (k, Keypair(**dict(decodeAll(v, local))))
-            else:
-                yield (k, OnlyPubkeyKeypair(**dict(decodeAll(v, local))))
-        elif k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature", "current_htlc_signatures"] and v is not None:
-            yield (k, binascii.unhexlify(v))
-        else:
-            yield (k, v)
-
 def htlcsum(htlcs):
     return sum([x.amount_msat for x in htlcs])
-
-# following two functions are used because json
-# doesn't store int keys and byte string values
-def str_bytes_dict_from_save(x) -> Dict[int, bytes]:
-    return {int(k): bfh(v) for k,v in x.items()}
-
-def str_bytes_dict_to_save(x) -> Dict[str, str]:
-    return {str(k): bh2u(v) for k, v in x.items()}
 
 
 class Channel(Logger):
@@ -146,41 +127,128 @@ class Channel(Logger):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
+    def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         Logger.__init__(self)
         self.lnworker = lnworker  # type: Optional[LNWallet]
         self.sweep_address = sweep_address
-        assert 'local_state' not in state
+        self.storage = state
+        self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
         self.config = {}
         self.config[LOCAL] = state["local_config"]
-        if type(self.config[LOCAL]) is not LocalConfig:
-            conf = dict(decodeAll(self.config[LOCAL], True))
-            self.config[LOCAL] = LocalConfig(**conf)
-        assert type(self.config[LOCAL].htlc_basepoint.privkey) is bytes
-
         self.config[REMOTE] = state["remote_config"]
-        if type(self.config[REMOTE]) is not RemoteConfig:
-            conf = dict(decodeAll(self.config[REMOTE], False))
-            self.config[REMOTE] = RemoteConfig(**conf)
-        assert type(self.config[REMOTE].htlc_basepoint.pubkey) is bytes
-
-        self.channel_id = bfh(state["channel_id"]) if type(state["channel_id"]) not in (bytes, type(None)) else state["channel_id"]
-        self.constraints = ChannelConstraints(**state["constraints"]) if type(state["constraints"]) is not ChannelConstraints else state["constraints"]
-        self.funding_outpoint = Outpoint(**dict(decodeAll(state["funding_outpoint"], False))) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
-        self.node_id = bfh(state["node_id"]) if type(state["node_id"]) not in (bytes, type(None)) else state["node_id"]  # type: bytes
+        self.channel_id = bfh(state["channel_id"])
+        self.constraints = state["constraints"]
+        self.funding_outpoint = state["funding_outpoint"]
+        self.node_id = bfh(state["node_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
-        self.short_channel_id_predicted = self.short_channel_id
-        self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
-        self.data_loss_protect_remote_pcp = str_bytes_dict_from_save(state.get('data_loss_protect_remote_pcp', {}))
-        self.remote_update = bfh(state.get('remote_update')) if state.get('remote_update') else None
-
-        log = state.get('log')
-        self.hm = HTLCManager(log=log, initial_feerate=initial_feerate)
+        self.onion_keys = state['onion_keys']
+        self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
+        self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
         self._state = channel_states[state['state']]
         self.peer_state = peer_states.DISCONNECTED
         self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
         self._outgoing_channel_update = None  # type: Optional[bytes]
+        self._chan_ann_without_sigs = None  # type: Optional[bytes]
+        self.revocation_store = RevocationStore(state["revocation_store"])
+        self._can_send_ctx_updates = True  # type: bool
+        self._receive_fail_reasons = {}
+
+    def get_id_for_log(self) -> str:
+        scid = self.short_channel_id
+        if scid:
+            return str(scid)
+        return self.channel_id.hex()
+
+    def set_onion_key(self, key, value):
+        self.onion_keys[key] = value
+
+    def get_onion_key(self, key):
+        return self.onion_keys.get(key)
+
+    def set_data_loss_protect_remote_pcp(self, key, value):
+        self.data_loss_protect_remote_pcp[key] = value
+
+    def get_data_loss_protect_remote_pcp(self, key):
+        return self.data_loss_protect_remote_pcp.get(key)
+
+    def get_local_pubkey(self) -> bytes:
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+        return self.lnworker.node_keypair.pubkey
+
+    def set_remote_update(self, raw: bytes) -> None:
+        self.storage['remote_update'] = raw.hex()
+
+    def get_remote_update(self) -> Optional[bytes]:
+        return bfh(self.storage.get('remote_update')) if self.storage.get('remote_update') else None
+
+    def get_outgoing_gossip_channel_update(self) -> bytes:
+        if self._outgoing_channel_update is not None:
+            return self._outgoing_channel_update
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+        sorted_node_ids = list(sorted([self.node_id, self.get_local_pubkey()]))
+        channel_flags = b'\x00' if sorted_node_ids[0] == self.get_local_pubkey() else b'\x01'
+        now = int(time.time())
+        htlc_maximum_msat = min(self.config[REMOTE].max_htlc_value_in_flight_msat, 1000 * self.constraints.capacity)
+
+        chan_upd = encode_msg(
+            "channel_update",
+            short_channel_id=self.short_channel_id,
+            channel_flags=channel_flags,
+            message_flags=b'\x01',
+            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
+            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
+            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
+            chain_hash=constants.net.rev_genesis_bytes(),
+            timestamp=now.to_bytes(4, byteorder="big"),
+        )
+        sighash = sha256d(chan_upd[2 + 64:])
+        sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
+        message_type, payload = decode_msg(chan_upd)
+        payload['signature'] = sig
+        chan_upd = encode_msg(message_type, **payload)
+
+        self._outgoing_channel_update = chan_upd
+        return chan_upd
+
+    def construct_channel_announcement_without_sigs(self) -> bytes:
+        if self._chan_ann_without_sigs is not None:
+            return self._chan_ann_without_sigs
+        if not self.lnworker:
+            raise Exception('lnworker not set for channel!')
+
+        bitcoin_keys = [self.config[REMOTE].multisig_key.pubkey,
+                        self.config[LOCAL].multisig_key.pubkey]
+        node_ids = [self.node_id, self.get_local_pubkey()]
+        sorted_node_ids = list(sorted(node_ids))
+        if sorted_node_ids != node_ids:
+            node_ids = sorted_node_ids
+            bitcoin_keys.reverse()
+
+        chan_ann = encode_msg("channel_announcement",
+            len=0,
+            features=b'',
+            chain_hash=constants.net.rev_genesis_bytes(),
+            short_channel_id=self.short_channel_id,
+            node_id_1=node_ids[0],
+            node_id_2=node_ids[1],
+            bitcoin_key_1=bitcoin_keys[0],
+            bitcoin_key_2=bitcoin_keys[1]
+        )
+
+        self._chan_ann_without_sigs = chan_ann
+        return chan_ann
+
+    def is_static_remotekey_enabled(self):
+        return self.storage.get('static_remotekey_enabled')
+
+    def set_short_channel_id(self, short_id):
+        self.short_channel_id = short_id
+        self.storage["short_channel_id"] = short_id
 
     def get_feerate(self, subject, ctn):
         return self.hm.get_feerate(subject, ctn)
@@ -195,7 +263,7 @@ class Channel(Logger):
         return self.hm.get_feerate_in_next_ctx(subject)
 
     def get_payments(self):
-        out = {}
+        out = []
         for subject in LOCAL, REMOTE:
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
@@ -207,24 +275,37 @@ class Channel(Logger):
                     status = 'inflight'
                 direction = SENT if subject is LOCAL else RECEIVED
                 rhash = bh2u(htlc.payment_hash)
-                out[rhash] = (self.channel_id, htlc, direction, status)
+                out.append((rhash, self.channel_id, htlc, direction, status))
         return out
 
-    def open_with_first_pcp(self, remote_pcp, remote_sig):
-        self.config[REMOTE] = self.config[REMOTE]._replace(current_per_commitment_point=remote_pcp,
-                                                           next_per_commitment_point=None)
-        self.config[LOCAL] = self.config[LOCAL]._replace(current_commitment_signature=remote_sig)
-        self.hm.channel_open_finished()
-        self.peer_state = peer_states.GOOD
-        self.set_state(channel_states.OPENING)
+    def get_settled_payments(self):
+        out = {}
+        for subject in LOCAL, REMOTE:
+            log = self.hm.log[subject]
+            for htlc_id, htlc in log.get('adds', {}).items():
+                if htlc_id in log.get('settles',{}):
+                    direction = SENT if subject is LOCAL else RECEIVED
+                    rhash = bh2u(htlc.payment_hash)
+                    out[rhash] = (self.channel_id, htlc, direction)
+        return out
+
+    def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
+        with self.db_lock:
+            self.config[REMOTE].current_per_commitment_point = remote_pcp
+            self.config[REMOTE].next_per_commitment_point = None
+            self.config[LOCAL].current_commitment_signature = remote_sig
+            self.hm.channel_open_finished()
+            self.peer_state = peer_states.GOOD
 
     def set_state(self, state):
         """ set on-chain state """
         old_state = self._state
         if (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self._state = state
         self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
+        self._state = state
+        self.storage['state'] = self._state.name
+
         if self.lnworker:
             self.lnworker.save_channel(self)
             self.lnworker.network.trigger_callback('channel', self)
@@ -232,8 +313,49 @@ class Channel(Logger):
     def get_state(self):
         return self._state
 
+    def is_open(self):
+        return self.get_state() == channel_states.OPEN
+
+    def is_closing(self):
+        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
+
     def is_closed(self):
-        return self.get_state() > channel_states.OPEN
+        # the closing txid has been saved
+        return self.get_state() >= channel_states.CLOSED
+
+    def set_can_send_ctx_updates(self, b: bool) -> None:
+        self._can_send_ctx_updates = b
+
+    def can_send_ctx_updates(self) -> bool:
+        """Whether we can send update_fee, update_*_htlc changes to the remote."""
+        if not (self.is_open() or self.is_closing()):
+            return False
+        if self.peer_state != peer_states.GOOD:
+            return False
+        if not self._can_send_ctx_updates:
+            return False
+        return True
+
+    def can_send_update_add_htlc(self) -> bool:
+        return self.can_send_ctx_updates() and not self.is_closing()
+
+    def save_funding_height(self, txid, height, timestamp):
+        self.storage['funding_height'] = txid, height, timestamp
+
+    def get_funding_height(self):
+        return self.storage.get('funding_height')
+
+    def delete_funding_height(self):
+        self.storage.pop('funding_height', None)
+
+    def save_closing_height(self, txid, height, timestamp):
+        self.storage['closing_height'] = txid, height, timestamp
+
+    def get_closing_height(self):
+        return self.storage.get('closing_height')
+
+    def is_redeemed(self):
+        return self.get_state() == channel_states.REDEEMED
 
     def _check_can_pay(self, amount_msat: int) -> None:
         # TODO check if this method uses correct ctns (should use "latest" + 1)
@@ -241,6 +363,8 @@ class Channel(Logger):
             raise PaymentFailure('Channel closed')
         if self.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open', self.get_state())
+        if not self.can_send_ctx_updates():
+            raise PaymentFailure('Channel cannot send ctx updates')
         if self.available_to_spend(LOCAL) < amount_msat:
             raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
@@ -260,7 +384,7 @@ class Channel(Logger):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
+        return channel_states.PREOPENING < self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
@@ -273,17 +397,19 @@ class Channel(Logger):
 
         This docstring is from LND.
         """
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         self._check_can_pay(htlc.amount_msat)
         if htlc.htlc_id is None:
             htlc = htlc._replace(htlc_id=self.hm.get_next_htlc_id(LOCAL))
-        self.hm.send_htlc(htlc)
+        with self.db_lock:
+            self.hm.send_htlc(htlc)
         self.logger.info("add_htlc")
         return htlc
 
-    def receive_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
+    def receive_htlc(self, htlc: UpdateAddHtlc, onion_packet:bytes = None) -> UpdateAddHtlc:
         """
         ReceiveHTLC adds an HTLC to the state machine's remote update log. This
         method should be called in response to receiving a new HTLC from the remote
@@ -300,7 +426,13 @@ class Channel(Logger):
             raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
                     f' HTLC amount: {htlc.amount_msat}')
-        self.hm.recv_htlc(htlc)
+        with self.db_lock:
+            self.hm.recv_htlc(htlc)
+            local_ctn = self.get_latest_ctn(LOCAL)
+            remote_ctn = self.get_latest_ctn(REMOTE)
+            if onion_packet:
+                self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
+
         self.logger.info("receive_htlc")
         return htlc
 
@@ -346,9 +478,8 @@ class Channel(Logger):
             htlcsigs.append((ctx_output_idx, htlc_sig))
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
-
-        self.hm.send_ctx()
-
+        with self.db_lock:
+            self.hm.send_ctx()
         return sig_64, htlcsigs
 
     def receive_new_commitment(self, sig, htlc_sigs):
@@ -395,11 +526,10 @@ class Channel(Logger):
                              pcp=pcp,
                              ctx=pending_local_commitment,
                              ctx_output_idx=ctx_output_idx)
-
-        self.hm.recv_ctx()
-        self.config[LOCAL]=self.config[LOCAL]._replace(
-            current_commitment_signature=sig,
-            current_htlc_signatures=htlc_sigs_string)
+        with self.db_lock:
+            self.hm.recv_ctx()
+            self.config[LOCAL].current_commitment_signature=sig
+            self.config[LOCAL].current_htlc_signatures=htlc_sigs_string
 
     def verify_htlc(self, *, htlc: UpdateAddHtlc, htlc_sig: bytes, htlc_direction: Direction,
                     pcp: bytes, ctx: Transaction, ctx_output_idx: int) -> None:
@@ -429,35 +559,38 @@ class Channel(Logger):
         if not self.signature_fits(new_ctx):
             # this should never fail; as receive_new_commitment already did this test
             raise Exception("refusing to revoke as remote sig does not fit")
-        self.hm.send_rev()
-        received = self.hm.received_in_ctn(new_ctn)
-        sent = self.hm.sent_in_ctn(new_ctn)
+        with self.db_lock:
+            self.hm.send_rev()
         if self.lnworker:
+            received = self.hm.received_in_ctn(new_ctn)
             for htlc in received:
-                self.lnworker.payment_completed(self, RECEIVED, htlc)
-            for htlc in sent:
-                self.lnworker.payment_completed(self, SENT, htlc)
-        received_this_batch = htlcsum(received)
-        sent_this_batch = htlcsum(sent)
+                self.lnworker.payment_received(self, htlc.payment_hash)
         last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
         next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
-        return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
+        return RevokeAndAck(last_secret, next_point)
 
     def receive_revocation(self, revocation: RevokeAndAck):
         self.logger.info("receive_revocation")
-
+        new_ctn = self.get_latest_ctn(REMOTE)
         cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
         if cur_point != derived_point:
             raise Exception('revoked secret not for current point')
-
-        self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
-        ##### start applying fee/htlc changes
-        self.hm.recv_rev()
-        self.config[REMOTE]=self.config[REMOTE]._replace(
-            current_per_commitment_point=self.config[REMOTE].next_per_commitment_point,
-            next_per_commitment_point=revocation.next_per_commitment_point,
-        )
+        with self.db_lock:
+            self.revocation_store.add_next_entry(revocation.per_commitment_secret)
+            ##### start applying fee/htlc changes
+            self.hm.recv_rev()
+            self.config[REMOTE].current_per_commitment_point=self.config[REMOTE].next_per_commitment_point
+            self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
+        # lnworker callbacks
+        if self.lnworker:
+            sent = self.hm.sent_in_ctn(new_ctn)
+            for htlc in sent:
+                self.lnworker.payment_sent(self, htlc.payment_hash)
+            failed = self.hm.failed_in_ctn(new_ctn)
+            for htlc in failed:
+                reason = self._receive_fail_reasons.get(htlc.htlc_id)
+                self.lnworker.payment_failed(self, htlc.payment_hash, reason)
 
     def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
         """
@@ -548,7 +681,7 @@ class Channel(Logger):
                 secret = None
                 point = conf.current_per_commitment_point
             else:
-                secret = conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
+                secret = self.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
                 point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         else:
             secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
@@ -600,6 +733,7 @@ class Channel(Logger):
         SettleHTLC attempts to settle an existing outstanding received HTLC.
         """
         self.logger.info("settle_htlc")
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         log = self.hm.log[REMOTE]
         htlc = log['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
@@ -624,71 +758,37 @@ class Channel(Logger):
         htlc = log['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
-        self.hm.recv_settle(htlc_id)
+        with self.db_lock:
+            self.hm.recv_settle(htlc_id)
 
     def fail_htlc(self, htlc_id):
         self.logger.info("fail_htlc")
-        self.hm.send_fail(htlc_id)
+        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
+        with self.db_lock:
+            self.hm.send_fail(htlc_id)
 
-    def receive_fail_htlc(self, htlc_id):
+    def receive_fail_htlc(self, htlc_id, reason):
         self.logger.info("receive_fail_htlc")
-        self.hm.recv_fail(htlc_id)
+        with self.db_lock:
+            self.hm.recv_fail(htlc_id)
+        self._receive_fail_reasons[htlc_id] = reason
 
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())
+
+    def get_latest_fee(self, subject):
+        return self.constraints.capacity - sum(x.value for x in self.get_latest_commitment(subject).outputs())
 
     def update_fee(self, feerate: int, from_us: bool):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
-        if from_us:
-            self.hm.send_update_fee(feerate)
-        else:
-            self.hm.recv_update_fee(feerate)
-
-    def to_save(self):
-        to_save = {
-                "local_config": self.config[LOCAL],
-                "remote_config": self.config[REMOTE],
-                "channel_id": self.channel_id,
-                "short_channel_id": self.short_channel_id,
-                "constraints": self.constraints,
-                "funding_outpoint": self.funding_outpoint,
-                "node_id": self.node_id,
-                "log": self.hm.to_save(),
-                "onion_keys": str_bytes_dict_to_save(self.onion_keys),
-                "state": self._state.name,
-                "data_loss_protect_remote_pcp": str_bytes_dict_to_save(self.data_loss_protect_remote_pcp),
-                "remote_update": self.remote_update.hex() if self.remote_update else None
-        }
-        return to_save
-
-    def serialize(self):
-        namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
-        serialized_channel = {}
-        to_save_ref = self.to_save()
-        for k, v in to_save_ref.items():
-            if isinstance(v, tuple):
-                serialized_channel[k] = namedtuples_to_dict(v)
+        with self.db_lock:
+            if from_us:
+                assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
+                self.hm.send_update_fee(feerate)
             else:
-                serialized_channel[k] = v
-        dumped = ChannelJsonEncoder().encode(serialized_channel)
-        roundtripped = json.loads(dumped)
-        reconstructed = Channel(roundtripped)
-        to_save_new = reconstructed.to_save()
-        if to_save_new != to_save_ref:
-            from pprint import PrettyPrinter
-            pp = PrettyPrinter(indent=168)
-            try:
-                from deepdiff import DeepDiff
-            except ImportError:
-                raise Exception("Channels did not roundtrip serialization without changes:\n" + pp.pformat(to_save_ref) + "\n" + pp.pformat(to_save_new))
-            else:
-                raise Exception("Channels did not roundtrip serialization without changes:\n" + pp.pformat(DeepDiff(to_save_ref, to_save_new)))
-        return roundtripped
-
-    def __str__(self):
-        return str(self.serialize())
+                self.hm.recv_update_fee(feerate)
 
     def make_commitment(self, subject, this_point, ctn) -> PartialTransaction:
         assert type(subject) is HTLCOwner
@@ -730,7 +830,11 @@ class Channel(Logger):
             feerate,
             self.constraints.is_initiator == (subject == LOCAL),
         )
-        payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
+        if self.is_static_remotekey_enabled():
+            payment_pubkey = other_config.payment_basepoint.pubkey
+        else:
+            payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
+
         return make_commitment(
             ctn,
             this_config.multisig_key.pubkey,
@@ -741,7 +845,8 @@ class Channel(Logger):
             other_revocation_pubkey,
             derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
             other_config.to_self_delay,
-            *self.funding_outpoint,
+            self.funding_outpoint.txid,
+            self.funding_outpoint.output_index,
             self.constraints.capacity,
             local_msat,
             remote_msat,
@@ -750,7 +855,7 @@ class Channel(Logger):
             htlcs=htlcs)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
-                        fee_sat: int) -> Tuple[bytes, PartialTransaction]:
+                        fee_sat: int, *, drop_remote = False) -> Tuple[bytes, PartialTransaction]:
         """ cooperative close """
         _, outputs = make_commitment_outputs(
                 fees_per_participant={
@@ -758,7 +863,7 @@ class Channel(Logger):
                     REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
                 },
                 local_amount_msat=self.balance(LOCAL),
-                remote_amount_msat=self.balance(REMOTE),
+                remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
                 local_script=bh2u(local_script),
                 remote_script=bh2u(remote_script),
                 htlcs=[],
@@ -808,9 +913,13 @@ class Channel(Logger):
                 self.logger.info(f'they force closed.')
             else:
                 self.sweep_info[txid] = {}
-                self.logger.info(f'not sure who closed {ctx}.')
         return self.sweep_info[txid]
 
     def sweep_htlc(self, ctx:Transaction, htlc_tx: Transaction):
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
+
+    def has_pending_changes(self, subject):
+        next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
+        latest_htlcs = self.hm.get_htlcs_in_latest_ctx(subject)
+        return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))

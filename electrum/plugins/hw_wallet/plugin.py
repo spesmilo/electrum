@@ -32,10 +32,11 @@ from electrum.bitcoin import is_address, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.bip32 import BIP32Node
+from electrum.storage import get_derivation_used_for_hw_device_encryption
+from electrum.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
-    from electrum.keystore import Hardware_KeyStore
 
 
 class HW_PluginBase(BasePlugin):
@@ -69,7 +70,7 @@ class HW_PluginBase(BasePlugin):
         """
         raise NotImplementedError()
 
-    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True):
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
     def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
@@ -175,19 +176,62 @@ class HardwareClientBase:
     def get_xpub(self, bip32_path: str, xtype) -> str:
         raise NotImplementedError()
 
+    def request_root_fingerprint_from_device(self) -> str:
+        # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
+        # so ask for a direct child, and read out fingerprint from that:
+        child_of_root_xpub = self.get_xpub("m/0'", xtype='standard')
+        root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
+        return root_fingerprint
+
+    def get_password_for_storage_encryption(self) -> str:
+        # note: using a different password based on hw device type is highly undesirable! see #5993
+        derivation = get_derivation_used_for_hw_device_encryption()
+        xpub = self.get_xpub(derivation, "standard")
+        password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
+        return password
+
 
 def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
     return any([txout.is_change for txout in tx.outputs()])
 
 
 def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
+    validate_op_return_output(output)
     script = output.scriptpubkey
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
         raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
+    return script[2:]
+
+
+def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+    script = output.scriptpubkey
+    if script[0] != opcodes.OP_RETURN:
+        raise UserFacingException(_("Only OP_RETURN scripts are supported."))
+    if max_size is not None and len(script) > max_size:
+        raise UserFacingException(_("OP_RETURN payload too large." + "\n"
+                                  + f"(scriptpubkey size {len(script)} > {max_size})"))
     if output.value != 0:
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
-    return script[2:]
+
+
+def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
+                                            txinout: Union[PartialTxInput, PartialTxOutput]) \
+        -> List[Tuple[str, List[int]]]:
+    xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
+                       in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
+    xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
+    try:
+        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    except KeyError as e:
+        raise Exception(f"Partial transaction is missing global xpub for "
+                        f"fingerprint ({str(e)}) in input/output") from e
+    xpubs_and_deriv_suffixes = []
+    for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
+        xfp, path = txinout.bip32_paths[pubkey]
+        der_suffix = list(path)[bip32node.depth:]
+        xpubs_and_deriv_suffixes.append((bip32node.to_xpub(), der_suffix))
+    return xpubs_and_deriv_suffixes
 
 
 def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
