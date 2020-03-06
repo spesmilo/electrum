@@ -1040,8 +1040,12 @@ class ElectrumWindow(App):
 
     def show_transaction(self, txid):
         tx = self.wallet.db.get_transaction(txid)
+        if not tx and self.wallet.lnworker:
+            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(txid)
         if tx:
             self.tx_dialog(tx)
+        else:
+            self.show_error(f'Transaction not found {txid}')
 
     def lightning_tx_dialog(self, tx):
         from .uix.dialogs.lightning_tx_dialog import LightningTxDialog
