@@ -13,10 +13,6 @@ from electrum.plugins.trustedcoin import trustedcoin
 from electrum.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
 
 from . import ElectrumTestCase, TestCaseForTestnet
-<<<<<<< HEAD
-from .test_bitcoin import needs_test_with_all_ecc_implementations
-=======
->>>>>>> pr/1
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -64,14 +60,6 @@ class TestBCDataStream(ElectrumTestCase):
         s.write(b'foobar')
         self.assertEqual(s.read_bytes(3), b'foo')
         self.assertEqual(s.read_bytes(2), b'ba')
-<<<<<<< HEAD
-        self.assertEqual(s.read_bytes(4), b'r')
-        self.assertEqual(s.read_bytes(1), b'')
-
-class TestTransaction(ElectrumTestCase):
-
-    @needs_test_with_all_ecc_implementations
-=======
         with self.assertRaises(transaction.SerializationError):
             s.read_bytes(4)
         self.assertEqual(s.read_bytes(0), b'')
@@ -93,7 +81,6 @@ class TestTransaction(ElectrumTestCase):
 
 class TestTransaction(ElectrumTestCase):
 
->>>>>>> pr/1
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
         tx.inputs()[0].script_type = 'p2pkh'
@@ -102,9 +89,6 @@ class TestTransaction(ElectrumTestCase):
         tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.serialize(), signed_blob)
 
-<<<<<<< HEAD
-    @needs_test_with_all_ecc_implementations
-=======
     def test_tx_setting_locktime_invalidates_ser_cache(self):
         tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
         self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
@@ -117,7 +101,6 @@ class TestTransaction(ElectrumTestCase):
         tx.version = 555
         self.assertEqual("8a9b89a1a7aac1995dd013069d9866197d77c14c22315958d612fc02fd4b596a", tx.txid())
 
->>>>>>> pr/1
     def test_tx_deserialize_for_signed_network_tx(self):
         tx = transaction.Transaction(signed_blob)
         tx.deserialize()
@@ -175,7 +158,7 @@ class TestTransaction(ElectrumTestCase):
                          convert_raw_tx_to_hex('64XF-8+PM6*4IYN-QWW$B2QLNW+:C8-$I$-+T:L.6DKXTSWSFFONDP1J/MOS3SPK0-SYVW38U9.3+A1/*2HTHQTJGP79LVEK-IITQJ1H.C/X$NSOV$8DWR6JAFWXD*LX4-EN0.BDOF+PPYPH16$NM1H.-MAA$V1SCP0Q.6Y5FR822S6K-.5K5F.Z4Q:0SDRG-4GEBLAO4W9Z*H-$1-KDYAFOGF675W0:CK5M1LT92IG:3X60P3GKPM:X2$SP5A7*LT9$-TTEG0/DRZYV$7B4ADL9CVS5O7YG.J64HLZ24MVKO/-GV:V.T/L$D3VQ:MR8--44HK8W'))
 
     def test_get_address_from_output_script(self):
-        # the inverse of this test is in test_bitcoin: test_address_to_script
+        # the inverse of this test is in test_syscoin: test_address_to_script
         addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
 
         # bech32 native segwit

@@ -176,7 +176,7 @@ def calculate_merkle_root(leaf, merkle_branch, index):
 
 # Copied from Electrum-DOGE
 # TODO: Audit this function carefully.
-# https://github.com/kR105/i0coin/compare/bitcoin:master...master#diff-610df86e65fce009eb271c2a4f7394ccR262
+# https://github.com/kR105/i0coin/compare/syscoin:master...master#diff-610df86e65fce009eb271c2a4f7394ccR262
 def calc_merkle_index(chain_id, nonce, merkle_size):
     rand = nonce
     rand = (rand * 1103515245 + 12345) & 0xffffffff

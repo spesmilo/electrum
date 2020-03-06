@@ -4,7 +4,7 @@
 PYTHON_VERSION=3.7.6
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
-GIT_REPO=https://github.com/spesmilo/electrum
+GIT_REPO=https://github.com/syscoin/electrum
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 export GCC_STRIP_BINARIES="1"
@@ -133,9 +133,9 @@ done
 info "Building binary"
 APP_SIGN="$APP_SIGN" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
-info "Adding bitcoin URI types to Info.plist"
+info "Adding syscoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string></array> </dict></array>' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>syscoin</string> <key>CFBundleURLSchemes</key> <array><string>syscoin</string></array> </dict></array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 

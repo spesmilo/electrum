@@ -333,7 +333,7 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('bitcoin:'):
+        if not uri.startswith('syscoin:'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 

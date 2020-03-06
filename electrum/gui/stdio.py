@@ -171,7 +171,7 @@ class ElectrumGui:
 
     def do_send(self):
         if not is_address(self.str_recipient):
-            print(_('Invalid Bitcoin address'))
+            print(_('invalid syscoin address'))
             return
         try:
             amount = int(Decimal(self.str_amount) * COIN)

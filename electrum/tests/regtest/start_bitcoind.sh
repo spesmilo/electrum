@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 export HOME=~
 set -eux pipefail
-mkdir -p ~/.bitcoin
-cat > ~/.bitcoin/bitcoin.conf <<EOF
+mkdir -p ~/.syscoin
+cat > ~/.syscoin/syscoin.conf <<EOF
 regtest=1
 txindex=1
 printtoconsole=1
@@ -15,9 +15,9 @@ zmqpubrawtx=tcp://127.0.0.1:28333
 rpcbind=0.0.0.0
 rpcport=18554
 EOF
-rm -rf ~/.bitcoin/regtest
-screen -S bitcoind -X quit || true
-screen -S bitcoind -m -d bitcoind -regtest
+rm -rf ~/.syscoin/regtest
+screen -S syscoind -X quit || true
+screen -S syscoind -m -d syscoind -regtest
 sleep 6
-addr=$(bitcoin-cli getnewaddress)
-bitcoin-cli generatetoaddress 150 $addr > /dev/null
+addr=$(syscoin-cli getnewaddress)
+syscoin-cli generatetoaddress 150 $addr > /dev/null

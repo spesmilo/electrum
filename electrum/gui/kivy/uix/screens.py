@@ -303,7 +303,7 @@ class SendScreen(CScreen):
     def read_invoice(self):
         address = str(self.screen.address)
         if not address:
-            self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
+            self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Syscoin address or a payment request'))
             return
         if not self.screen.amount:
             self.app.show_error(_('Please enter an amount'))
@@ -321,7 +321,7 @@ class SendScreen(CScreen):
                 outputs = self.payment_request.get_outputs()
             else:
                 if not bitcoin.is_address(address):
-                    self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                    self.app.show_error(_('invalid syscoin address') + ':\n' + address)
                     return
                 outputs = [PartialTxOutput.from_address_and_value(address, amount)]
             return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)

@@ -15,7 +15,7 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDI
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT)
-from .amountedit import BTCAmountEdit, FreezableLineEdit
+from .amountedit import SYSAmountEdit, FreezableLineEdit
 from .channel_details import ChannelDetailsDialog
 
 
@@ -215,7 +215,7 @@ class ChannelsList(MyTreeView):
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
-        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
+        amount_e = SYSAmountEdit(self.parent.get_decimal_point)
         # max button
         def spend_max():
             amount_e.setFrozen(max_button.isChecked())

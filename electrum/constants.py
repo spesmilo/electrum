@@ -40,8 +40,8 @@ def read_json(filename, default):
     return r
 
 
-GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+GIT_REPO_URL = "https://github.com/syscoin/electrum"
+GIT_REPO_ISSUES_URL = "https://github.com/syscoin/electrum/issues"
 
 
 class AbstractNet:
@@ -50,7 +50,7 @@ class AbstractNet:
 
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, len(cls.CHECKPOINTS) * 2016 - 1)
+        return max(0, len(cls.CHECKPOINTS) * net.POW_BLOCK_ADJUST - 1)
 
     @classmethod
     def rev_genesis_bytes(cls) -> bytes:
@@ -61,12 +61,18 @@ class BitcoinMainnet(AbstractNet):
 
     TESTNET = False
     WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-    DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-    DEFAULT_SERVERS = read_json('servers.json', {})
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x05
+    SEGWIT_HRP = "sys"
+    GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
+    DEFAULT_PORTS = {'t': '58882', 's': '58882'}
+    DEFAULT_SERVERS = read_json('servers.json', {
+        "127.0.0.1": {
+            "pruning": "-",
+            "t": "58882",
+            "s": "58882"
+        }
+    })
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
@@ -86,27 +92,38 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 0
+    BIP44_COIN_TYPE = 57
     LN_REALM_BYTE = 0
     LN_DNS_SEEDS = [
         'nodes.lightning.directory.',
         'lseed.bitcoinstats.com.',
     ]
 
-    AUXPOW_CHAIN_ID = 0x0001
-    AUXPOW_START_HEIGHT = 19200
+    AUXPOW_CHAIN_ID = 0x1000
+    AUXPOW_START_HEIGHT = 1973
+    nBridgeStartBlock = 225000
+    POW_TARGET_TIMESPAN = 21600  # 60 * 60 * 6 seconds / 6 hours
+    POW_TARGET_SPACING = 60  # 60 seconds
+    POW_BLOCK_ADJUST = int(POW_TARGET_TIMESPAN / POW_TARGET_SPACING)
 
 
 class BitcoinTestnet(AbstractNet):
 
     TESTNET = True
     WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "tb"
-    GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-    DEFAULT_PORTS = {'t': '51001', 's': '51002'}
-    DEFAULT_SERVERS = read_json('servers_testnet.json', {})
+    ADDRTYPE_P2PKH = 0x41
+    ADDRTYPE_P2SH = 0xc4
+    SEGWIT_HRP = "tsys"
+    GENESIS = "0000064430008f1fe74ba0bf54080f1cf6e73da3372df7617e33648529940fc3"
+    DEFAULT_PORTS = {'t': '59991', 's': '59992'}
+    DEFAULT_SERVERS = read_json('servers_testnet.json', {
+        "104.248.3.80": {
+            "pruning": "-",
+            "t": "59991",
+            "s": "59992",
+            "version": "1.4"
+        }
+    })
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 
     XPRV_HEADERS = {
@@ -127,7 +144,7 @@ class BitcoinTestnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
-    AUXPOW_CHAIN_ID = 0x0001
+    AUXPOW_CHAIN_ID = 0x1000
     AUXPOW_START_HEIGHT = 0
     LN_DNS_SEEDS = [  # TODO investigate this again
         #'test.nodes.lightning.directory.',  # times out.
@@ -137,8 +154,8 @@ class BitcoinTestnet(AbstractNet):
 
 class BitcoinRegtest(BitcoinTestnet):
 
-    SEGWIT_HRP = "bcrt"
-    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    SEGWIT_HRP = "scrt"
+    GENESIS = "28a2c2d251f46fac05ade79085cbcb2ae4ec67ea24f1f1c7b40a348c00521194"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []

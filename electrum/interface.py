@@ -461,20 +461,20 @@ class Interface(Logger):
         return blockchain.deserialize_full_header(bytes.fromhex(res), height)
 
     async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
-        index = height // 2016
+        index = height // constants.net.POW_BLOCK_ADJUST
         if can_return_early and index in self._requested_chunks:
             return
         self.logger.info(f"requesting chunk from height {height}")
-        size = 2016
+        size = constants.net.POW_BLOCK_ADJUST
         if tip is not None:
-            size = min(size, tip - index * 2016 + 1)
+            size = min(size, tip - index * constants.net.POW_BLOCK_ADJUST + 1)
             size = max(size, 0)
         try:
             cp_height = constants.net.max_checkpoint()
-            if index * 2016 + size - 1 > cp_height:
+            if index * constants.net.POW_BLOCK_ADJUST + size - 1 > cp_height:
                 cp_height = 0
             self._requested_chunks.add(index)
-            res = await self.session.send_request('blockchain.block.headers', [index * 2016, size, cp_height])
+            res = await self.session.send_request('blockchain.block.headers', [index * constants.net.POW_BLOCK_ADJUST, size, cp_height])
         finally:
             self._requested_chunks.discard(index)
         conn = self.blockchain.connect_chunk(index, res['hex'])
@@ -576,7 +576,7 @@ class Interface(Logger):
                     last, height = await self.step(height)
                     continue
                 self.network.trigger_callback('network_updated')
-                height = (height // 2016 * 2016) + num_headers
+                height = (height // constants.net.POW_BLOCK_ADJUST * constants.net.POW_BLOCK_ADJUST) + num_headers
                 assert height <= next_height+1, (height, self.tip)
                 last = 'catchup'
             else:

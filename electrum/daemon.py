@@ -226,7 +226,7 @@ class PayServer(Logger):
         if not request:
             return web.HTTPNotFound()
         pr = make_request(self.config, request)
-        return web.Response(body=pr.SerializeToString(), content_type='application/bitcoin-paymentrequest')
+        return web.Response(body=pr.SerializeToString(), content_type='application/syscoin-paymentrequest')
 
     async def get_status(self, request):
         ws = web.WebSocketResponse()

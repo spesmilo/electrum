@@ -3,10 +3,6 @@ import dns
 from electrum import dnssec
 
 from . import ElectrumTestCase
-<<<<<<< HEAD
-from .test_bitcoin import needs_test_with_all_ecc_implementations
-=======
->>>>>>> pr/1
 
 
 class TestDnsSec(ElectrumTestCase):

@@ -8,11 +8,11 @@ alice="./run_electrum --regtest -D /tmp/alice"
 bob="./run_electrum --regtest -D /tmp/bob"
 carol="./run_electrum --regtest -D /tmp/carol"
 
-bitcoin_cli="bitcoin-cli -rpcuser=doggman -rpcpassword=donkey -rpcport=18554 -regtest"
+syscoin_cli="bitcoin-cli -rpcuser=doggman -rpcpassword=donkey -rpcport=18554 -regtest"
 
 function new_blocks()
 {
-    $bitcoin_cli generatetoaddress $1 $($bitcoin_cli getnewaddress) > /dev/null
+    $syscoin_cli generatetoaddress $1 $($syscoin_cli getnewaddress) > /dev/null
 }
 
 function wait_for_balance()
@@ -54,7 +54,7 @@ function wait_until_channel_closed()
 function wait_until_spent()
 {
     msg="wait until $1:$2 is spent"
-    while [[ $($bitcoin_cli gettxout $1 $2) ]]; do
+    while [[ $($syscoin_cli gettxout $1 $2) ]]; do
         sleep 1
 	msg="$msg."
 	printf "$msg\r"
@@ -84,7 +84,7 @@ if [[ $1 == "init" ]]; then
 	$bob setconfig --offline lightning_listen localhost:9735
     else
         echo "funding $2"
-        $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
+        $syscoin_cli sendtoaddress $($agent getunusedaddress -o) 1
     fi
 fi
 
@@ -154,7 +154,7 @@ if [[ $1 == "breach" ]]; then
     echo "alice pays again"
     $alice lnpay $request
     echo "alice broadcasts old ctx"
-    $bitcoin_cli sendrawtransaction $ctx
+    $syscoin_cli sendrawtransaction $ctx
     wait_until_channel_closed bob
     new_blocks 1
     wait_for_balance bob 0.14
@@ -227,7 +227,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
         exit 1
     fi
     echo "alice breaches with old ctx"
-    $bitcoin_cli sendrawtransaction $ctx
+    $syscoin_cli sendrawtransaction $ctx
     wait_for_balance bob 0.14
 fi
 
@@ -259,10 +259,10 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     echo $($bob getbalance)
     echo "bob goes offline"
     $bob stop
-    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
+    ctx_id=$($syscoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     new_blocks 1
-    if [[ $($bitcoin_cli gettxout $ctx_id 0 | jq '.confirmations') != "1" ]]; then
+    if [[ $($syscoin_cli gettxout $ctx_id 0 | jq '.confirmations') != "1" ]]; then
         echo "breach tx not confirmed"
         exit 1
     fi

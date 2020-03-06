@@ -1,10 +1,7 @@
 import shutil
 import tempfile
 import os
-<<<<<<< HEAD
-=======
 import json
->>>>>>> pr/1
 
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
@@ -297,49 +294,6 @@ class TestStorageUpgrade(WalletTestCase):
     def _upgrade_storage(self, wallet_json, accounts=1):
         if accounts == 1:
             # test manual upgrades
-<<<<<<< HEAD
-            storage = self._load_storage_from_json_string(wallet_json=wallet_json,
-                                                          path=self.wallet_path,
-                                                          manual_upgrades=True)
-            self.assertFalse(storage.requires_split())
-            if storage.requires_upgrade():
-                storage.upgrade()
-                self._sanity_check_upgraded_storage(storage)
-            # test automatic upgrades
-            path2 = os.path.join(self.user_dir, "somewallet2")
-            storage2 = self._load_storage_from_json_string(wallet_json=wallet_json,
-                                                           path=path2,
-                                                           manual_upgrades=False)
-            storage2.write()
-            self._sanity_check_upgraded_storage(storage2)
-            # test opening upgraded storages again
-            s1 = WalletStorage(path2, manual_upgrades=False)
-            self._sanity_check_upgraded_storage(s1)
-            s2 = WalletStorage(path2, manual_upgrades=True)
-            self._sanity_check_upgraded_storage(s2)
-        else:
-            storage = self._load_storage_from_json_string(wallet_json=wallet_json,
-                                                          path=self.wallet_path,
-                                                          manual_upgrades=True)
-            self.assertTrue(storage.requires_split())
-            new_paths = storage.split_accounts()
-            self.assertEqual(accounts, len(new_paths))
-            for new_path in new_paths:
-                new_storage = WalletStorage(new_path, manual_upgrades=False)
-                self._sanity_check_upgraded_storage(new_storage)
-
-    def _sanity_check_upgraded_storage(self, storage):
-        self.assertFalse(storage.requires_split())
-        self.assertFalse(storage.requires_upgrade())
-        w = Wallet(storage, config=self.config)
-
-    @staticmethod
-    def _load_storage_from_json_string(*, wallet_json, path, manual_upgrades):
-        with open(path, "w") as f:
-            f.write(wallet_json)
-        storage = WalletStorage(path, manual_upgrades=manual_upgrades)
-        return storage
-=======
             db = self._load_db_from_json_string(wallet_json=wallet_json,
                                                 manual_upgrades=True)
             self.assertFalse(db.requires_split())
@@ -370,4 +324,3 @@ class TestStorageUpgrade(WalletTestCase):
     def _load_db_from_json_string(*, wallet_json, manual_upgrades):
         db = WalletDB(wallet_json, manual_upgrades=manual_upgrades)
         return db
->>>>>>> pr/1

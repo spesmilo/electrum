@@ -39,7 +39,7 @@ _logger = get_logger(__name__)
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
 
 class MissingHeader(Exception):
@@ -188,7 +188,7 @@ _CHAINWORK_CACHE = {
 def init_headers_file_for_best_chain():
     b = get_best_chain()
     filename = b.path()
-    length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
+    length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * constants.net.POW_BLOCK_ADJUST
     if not os.path.exists(filename) or os.path.getsize(filename) < length:
         with open(filename, 'wb') as f:
             if length > 0:
@@ -345,7 +345,7 @@ class Blockchain(Logger):
     def verify_chunk(self, index: int, data: bytes) -> bytes:
         stripped = bytearray()
         start_position = 0
-        start_height = index * 2016
+        start_height = index * constants.net.POW_BLOCK_ADJUST
         prev_hash = self.get_hash(start_height - 1)
         target = self.get_target(index-1)
         i = 0
@@ -359,7 +359,7 @@ class Blockchain(Logger):
             # Strip auxpow header for disk
             stripped.extend(data[start_position:start_position+HEADER_SIZE])
 
-            header, start_position = deserialize_full_header(data, index*2016 + i, expect_trailing_data=True, start_position=start_position)
+            header, start_position = deserialize_full_header(data, index*constants.net.POW_BLOCK_ADJUST + i, expect_trailing_data=True, start_position=start_position)
             self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
@@ -390,7 +390,7 @@ class Blockchain(Logger):
             main_chain.save_chunk(index, chunk)
             return
 
-        delta_height = (index * 2016 - self.forkpoint)
+        delta_height = (index * constants.net.POW_BLOCK_ADJUST - self.forkpoint)
         delta_bytes = delta_height * HEADER_SIZE
         # if this chunk contains our forkpoint, only save the part after forkpoint
         # (the part before is the responsibility of the parent)
@@ -527,7 +527,7 @@ class Blockchain(Logger):
     def get_hash(self, height: int) -> str:
         def is_height_checkpoint():
             within_cp_range = height <= constants.net.max_checkpoint()
-            at_chunk_boundary = (height+1) % 2016 == 0
+            at_chunk_boundary = (height+1) % constants.net.POW_BLOCK_ADJUST == 0
             return within_cp_range and at_chunk_boundary
 
         if height == -1:
@@ -535,7 +535,7 @@ class Blockchain(Logger):
         elif height == 0:
             return constants.net.GENESIS
         elif is_height_checkpoint():
-            index = height // 2016
+            index = height // constants.net.POW_BLOCK_ADJUST
             h, t = self.checkpoints[index]
             return h
         else:
@@ -554,17 +554,23 @@ class Blockchain(Logger):
             h, t = self.checkpoints[index]
             return t
         # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
+        first = self.read_header(index * constants.net.POW_BLOCK_ADJUST)
+        last = self.read_header(index * constants.net.POW_BLOCK_ADJUST + (constants.net.POW_BLOCK_ADJUST-1))
         if not first or not last:
             raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+        if last.get('block_height') >= constants.net.nBridgeStartBlock:
+            if nActualTimespan < 17280: # POW_TARGET_TIMESPAN * (8/10)
+                nActualTimespan = 17280;
+            if nActualTimespan > 27000: # POW_TARGET_TIMESPAN * (10/8)
+                nActualTimespan = 27000;
+        else:
+            nActualTimespan = max(nActualTimespan, constants.net.POW_TARGET_TIMESPAN // 4)
+            nActualTimespan = min(nActualTimespan, constants.net.POW_TARGET_TIMESPAN * 4)
+
+        new_target = min(MAX_TARGET, (target * nActualTimespan) // constants.net.POW_TARGET_TIMESPAN)
         # not any target can be represented in 32 bits:
         new_target = self.bits_to_target(self.target_to_bits(new_target))
         return new_target
@@ -572,8 +578,8 @@ class Blockchain(Logger):
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (0x03 <= bitsN <= 0x1d):
-            raise Exception("First part of bits should be in [0x03, 0x1d]")
+        if not (0x03 <= bitsN <= 0x1e):
+            raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
@@ -592,7 +598,7 @@ class Blockchain(Logger):
 
     def chainwork_of_header_at_height(self, height: int) -> int:
         """work done by single header at given height"""
-        chunk_idx = height // 2016 - 1
+        chunk_idx = height // constants.net.POW_BLOCK_ADJUST - 1
         target = self.get_target(chunk_idx)
         work = ((2 ** 256 - target - 1) // (target + 1)) + 1
         return work
@@ -605,23 +611,23 @@ class Blockchain(Logger):
             # On testnet/regtest, difficulty works somewhat different.
             # It's out of scope to properly implement that.
             return height
-        last_retarget = height // 2016 * 2016 - 1
+        last_retarget = height // constants.net.POW_BLOCK_ADJUST * constants.net.POW_BLOCK_ADJUST - 1
         cached_height = last_retarget
         while _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
             if cached_height <= -1:
                 break
-            cached_height -= 2016
+            cached_height -= constants.net.POW_BLOCK_ADJUST
         assert cached_height >= -1, cached_height
         running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
         while cached_height < last_retarget:
-            cached_height += 2016
+            cached_height += constants.net.POW_BLOCK_ADJUST
             work_in_single_header = self.chainwork_of_header_at_height(cached_height)
-            work_in_chunk = 2016 * work_in_single_header
+            work_in_chunk = constants.net.POW_BLOCK_ADJUST * work_in_single_header
             running_total += work_in_chunk
             _CHAINWORK_CACHE[self.get_hash(cached_height)] = running_total
-        cached_height += 2016
+        cached_height += constants.net.POW_BLOCK_ADJUST
         work_in_single_header = self.chainwork_of_header_at_height(cached_height)
-        work_in_last_partial_chunk = (height % 2016 + 1) * work_in_single_header
+        work_in_last_partial_chunk = (height % constants.net.POW_BLOCK_ADJUST + 1) * work_in_single_header
         return running_total + work_in_last_partial_chunk
 
     def can_connect(self, header: dict, check_height: bool=True, skip_auxpow: bool=False) -> bool:
@@ -639,7 +645,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
+            target = self.get_target(height // constants.net.POW_BLOCK_ADJUST - 1)
         except MissingHeader:
             return False
         try:
@@ -663,9 +669,9 @@ class Blockchain(Logger):
     def get_checkpoints(self):
         # for each chunk, store the hash of the last block and the target after the chunk
         cp = []
-        n = self.height() // 2016
+        n = self.height() // constants.net.POW_BLOCK_ADJUST
         for index in range(n):
-            h = self.get_hash((index+1) * 2016 -1)
+            h = self.get_hash((index+1) * constants.net.POW_BLOCK_ADJUST -1)
             target = self.get_target(index)
             cp.append((h, target))
         return cp

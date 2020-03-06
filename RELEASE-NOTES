@@ -115,7 +115,7 @@
 
  * Do not expose users to server error messages (#4968)
  * Notify users of new releases. Release announcements must be signed,
-   and they are verified byElectrum using a hardcoded Bitcoin address.
+   and they are verified byElectrum using a hardcoded Syscoin address.
  * Hardware wallet fixes (#4991, #4993, #5006)
  * Display only QR code in QRcode Window
  * Fixed code signing on MacOS
@@ -182,7 +182,7 @@
  * fix Linux distributables: 'typing' was not bundled, needed for python 3.4
  * fix #4626: fix spending from segwit multisig wallets involving a Trezor
    cosigner when using a custom derivation path
- * fix #4491: on Android, if user had set "uBTC" as base unit, app crashed
+ * fix #4491: on Android, if user had set "uSYS" as base unit, app crashed
  * fix #4497: on Android, paying bip70 invoices from cold start did not work
  * Several other minor bugfixes and usability improvements.
 
@@ -436,7 +436,7 @@ issue #3374. Users should upgrade to 3.0.5.
       following BIP173. Please note that BIP173 is still in draft
       status, and that other wallets/websites may not support
       it. Thus, you should keep a non-segwit wallet in order to be
-      able to receive bitcoins during the transition period. If BIP173
+      able to receive syscoins during the transition period. If BIP173
       ends up being rejected or substantially modified, your wallet
       may have to be restored from seed. This will not affect funds
       sent to bech32 addresses, and it will not affect the capacity of
@@ -807,17 +807,17 @@ issue #3374. Users should upgrade to 3.0.5.
  * Various GUI improvements
 
 # Release 2.4
- * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
+ * Payment to DNS names storing a Syscoin addresses (OpenAlias) is
    supported directly, without activating a plugin. The verification
    uses DNSSEC.
  * The DNSSEC verification code was rewritten. The previous code,
    which was part of the OpenAlias plugin, is vulnerable and should
    not be trusted (Electrum 2.0 to 2.3).
- * Payment requests can be signed using Bitcoin addresses stored
+ * Payment requests can be signed using Syscoin addresses stored
    in DNS (OpenAlias). The identity of the requestor is verified using
    DNSSEC.
  * Payment requests signed with OpenAlias keys can be shared as
-   bitcoin: URIs, if they are simple (a single address-type
+   syscoin: URIs, if they are simple (a single address-type
    output). The BIP21 URI scheme is extended with 'name', 'sig',
    'time', 'exp'.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
@@ -891,7 +891,7 @@ issue #3374. Users should upgrade to 3.0.5.
  * A Search Box is available in the GUI (Ctrl-S)
  * Payment requests have an expiration date and can be exported to
    BIP70 files.
- * file: scheme support in BIP72 URIs: "bitcoin:?r=file:///..."
+ * file: scheme support in BIP72 URIs: "syscoin:?r=file:///..."
  * Own addresses are shown in green in the Transaction dialog.
  * Address History dialog.
  * The OpenAlias plugin was improved.
@@ -1044,7 +1044,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
 # Release 1.9.6
 * During wallet creation, do not write seed to disk until it is encrypted.
-* Confirmation dialog if the transaction fee is higher than 1mBTC.
+* Confirmation dialog if the transaction fee is higher than 1mSYS.
 * bugfixes
 
 # Release 1.9.5
@@ -1106,7 +1106,7 @@ bugfixes: connection problems, transactions staying unverified
 
 # Release 1.7.3:
 
-* Classic GUI can display amounts in mBTC
+* Classic GUI can display amounts in mSYS
 * Account selector in the classic GUI
 * Changed the way the portable flag uses without supplying a -w argument
 * Classic GUI asks users to enter their seed on wallet creation
@@ -1116,7 +1116,7 @@ bugfixes: connection problems, transactions staying unverified
 
 * Transactions that are in the same block are displayed in chronological order in the history.
 * The client computes transaction priority and rejects zero-fee transactions that need a fee.
-* The default fee was lowered to 200 uBTC per kb.
+* The default fee was lowered to 200 uSYS per kb.
 * Due to an internal format change, your history may be pruned when
   you open your wallet for the first time after upgrading to 1.7.2. If
   this is the case, please visit a full server to restore your full

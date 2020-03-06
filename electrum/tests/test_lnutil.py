@@ -2,21 +2,14 @@ import unittest
 import json
 
 from electrum import bitcoin
-<<<<<<< HEAD
-=======
 from electrum.json_db import StoredDict
->>>>>>> pr/1
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_onchain_fees, UpdateAddHtlc)
-<<<<<<< HEAD
-from electrum.util import bh2u, bfh
-=======
 from electrum.util import bh2u, bfh, MyEncoder
->>>>>>> pr/1
 from electrum.transaction import Transaction, PartialTransaction
 
 from . import ElectrumTestCase
@@ -430,11 +423,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-<<<<<<< HEAD
-            receiver = RevocationStore()
-=======
             receiver = RevocationStore(StoredDict({}, None, []))
->>>>>>> pr/1
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
 
@@ -457,27 +446,19 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-<<<<<<< HEAD
-        consumer = RevocationStore()
-=======
         consumer = RevocationStore(StoredDict({}, None, []))
->>>>>>> pr/1
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
                 raise Exception("iteration " + str(i) + ": " + str(e))
-<<<<<<< HEAD
-            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore.from_json_obj(json.loads(json.dumps(consumer.serialize()))).serialize())
-=======
             if i % 1000 == 0:
                 c1 = consumer
                 s1 = json.dumps(c1.storage, cls=MyEncoder)
                 c2 = RevocationStore(StoredDict(json.loads(s1), None, []))
                 s2 = json.dumps(c2.storage, cls=MyEncoder)
                 self.assertEqual(s1, s2)
->>>>>>> pr/1
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000
@@ -551,15 +532,9 @@ class TestLNUtil(ElectrumTestCase):
         TIMEOUT = False
         output_htlc_tx[0] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219700000000000000000001e8030000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402206a6e59f18764a5bf8d4fa45eebc591566689441229c918b480fb2af8cc6a4aeb02205248f273be447684b33e3c8d1d85a8e0ca9fa0bae9ae33f0527ada9c162919a60147304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5012000000000000000000000000000000000000000000000000000000000000000008a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac686800000000")
 
-<<<<<<< HEAD
-        output_htlc_tx[2] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b01483045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be501008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000")
-
-        output_htlc_tx[1] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219702000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402201b63ec807771baf4fdff523c644080de17f1da478989308ad13a58b51db91d360220568939d38c9ce295adba15665fa68f51d967e8ed14a007b751540a80b325f20201483045022100def389deab09cee69eaa1ec14d9428770e45bcbe9feb46468ecf481371165c2f022015d2e3c46600b2ebba8dcc899768874cc6851fd1ecb3fffd15db1cc3de7e10da012001010101010101010101010101010101010101010101010101010101010101018a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac686800000000")
-=======
         output_htlc_tx[2] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b0147304402205735e9f335dfd123f730ac5bf184fd7d5b672e4d84c51a3f0478cc229bb44936022018b1cec3e3b29e5cc335d7e326bc29d75a7e063216427d081cb83ebdbd828b4d01008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000")
 
         output_htlc_tx[1] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219702000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402201b63ec807771baf4fdff523c644080de17f1da478989308ad13a58b51db91d360220568939d38c9ce295adba15665fa68f51d967e8ed14a007b751540a80b325f202014730440220481a48f83c358ae0f220e37f88e56b3d434cefaded82065b8e7a9fd78fee7a26022022674ab37a4c39e6efba302f760ca05931d8add8d65231c5bf34a6c2a76b15bf012001010101010101010101010101010101010101010101010101010101010101018a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac686800000000")
->>>>>>> pr/1
 
         output_htlc_tx[3] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219703000000000000000001b80b0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100daee1808f9861b6c3ecd14f7b707eca02dd6bdfc714ba2f33bc8cdba507bb182022026654bf8863af77d74f51f4e0b62d461a019561bb12acb120d3f7195d148a554014730440220643aacb19bbb72bd2b635bc3f7375481f5981bace78cdd8319b2988ffcc6704202203d27784ec8ad51ed3bd517a05525a5139bb0b755dd719e0054332d186ac0872701008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868f7010000")
 
@@ -718,11 +693,8 @@ class TestLNUtil(ElectrumTestCase):
     def test_split_host_port(self):
         self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
         self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
-<<<<<<< HEAD
-=======
         self.assertEqual(split_host_port("[2601:602:8800:9a:dc59:a4ff:fede:24a9]:9735"), ("2601:602:8800:9a:dc59:a4ff:fede:24a9", "9735"))
         self.assertEqual(split_host_port("[2601:602:8800::a4ff:fede:24a9]:9735"), ("2601:602:8800::a4ff:fede:24a9", "9735"))
->>>>>>> pr/1
         self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
         self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
         self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))
@@ -730,13 +702,13 @@ class TestLNUtil(ElectrumTestCase):
         # accepted by getaddrinfo but not ipaddress.ip_address
         self.assertEqual(split_host_port("127.0.0:8000"), ("127.0.0", "8000"))
         self.assertEqual(split_host_port("127.0.0"), ("127.0.0", "9735"))
-        self.assertEqual(split_host_port("electrum.org:8000"), ("electrum.org", "8000"))
-        self.assertEqual(split_host_port("electrum.org"), ("electrum.org", "9735"))
+        self.assertEqual(split_host_port("electrumsys.org:8000"), ("electrumsys.org", "8000"))
+        self.assertEqual(split_host_port("electrumsys.org"), ("electrumsys.org", "9735"))
 
         with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.org:8000:")
+            split_host_port("electrumsys.org:8000:")
         with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.org:")
+            split_host_port("electrumsys.org:")
 
     def test_extract_nodeid(self):
         with self.assertRaises(ConnStringFormatError):

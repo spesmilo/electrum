@@ -189,7 +189,7 @@ class ElectrumWindow(App):
 
     def on_new_intent(self, intent):
         data = intent.getDataString()
-        if intent.getScheme() == 'bitcoin':
+        if intent.getScheme() == 'syscoin':
             self.set_URI(data)
         elif intent.getScheme() == 'lightning':
             self.set_ln_invoice(data)
@@ -402,7 +402,7 @@ class ElectrumWindow(App):
         if is_address(data):
             self.set_URI(data)
             return
-        if data.startswith('bitcoin:'):
+        if data.startswith('syscoin:'):
             self.set_URI(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
@@ -550,7 +550,7 @@ class ElectrumWindow(App):
         self.fiat_unit = self.fx.ccy if self.fx.is_enabled() else ''
         # default tab
         self.switch_to('history')
-        # bind intent for bitcoin: URI scheme
+        # bind intent for syscoin: URI scheme
         if platform == 'android':
             from android import activity
             from jnius import autoclass

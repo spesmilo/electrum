@@ -14,11 +14,7 @@ from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo
 from electrum.bitcoin import COIN
-<<<<<<< HEAD
-from electrum.json_db import JsonDB
-=======
 from electrum.wallet_db import WalletDB
->>>>>>> pr/1
 from electrum.simple_config import SimpleConfig
 
 from . import ElectrumTestCase
