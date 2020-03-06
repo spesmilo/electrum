@@ -1300,9 +1300,9 @@ class LNWallet(LNWorker):
         # returns txid or raises
         chan = self.channels[chan_id]
         tx = chan.force_close_tx()
-        txid = await self.network.broadcast_transaction(tx)
+        await self.network.broadcast_transaction(tx)
         chan.set_state(channel_states.FORCE_CLOSING)
-        return txid
+        return tx.txid()
 
     async def try_force_closing(self, chan_id):
         # fails silently but sets the state, so that we will retry later
