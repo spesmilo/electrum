@@ -16,7 +16,6 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDI
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
-from .channel_details import ChannelDetailsDialog
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -118,8 +117,11 @@ class ChannelsList(MyTreeView):
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
-        menu.addAction(_("Details..."), lambda: self.details(channel_id))
+        menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
         self.add_copy_menu(menu, idx)
+        funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
+        if funding_tx:
+            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
         if not chan.is_closed():
             if chan.peer_state == peer_states.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
@@ -132,12 +134,8 @@ class ChannelsList(MyTreeView):
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         if chan.is_redeemed():
-            menu.addAction(_("Remove"), lambda: self.remove_channel(channel_id))
+            menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
-
-    def details(self, channel_id):
-        assert self.parent.wallet
-        ChannelDetailsDialog(self.parent, channel_id).show()
 
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):

@@ -274,9 +274,10 @@ class HistoryModel(QAbstractItemModel, Logger):
         if fx: fx.history_used_spot = False
         wallet = self.parent.wallet
         self.set_visibility_of_columns()
-        transactions = wallet.get_full_history(self.parent.fx,
-                                               onchain_domain=self.get_domain(),
-                                               include_lightning=self.should_include_lightning_payments())
+        transactions = wallet.get_full_history(
+            self.parent.fx,
+            onchain_domain=self.get_domain(),
+            include_lightning=self.should_include_lightning_payments())
         if transactions == list(self.transactions.values()):
             return
         old_length = len(self.transactions)
@@ -621,7 +622,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_item = self.hm.transactions.value_from_pos(idx.row())
         if tx_item.get('lightning') and tx_item['type'] == 'payment':
             menu = QMenu()
-            menu.addAction(_("Details"), lambda: self.parent.show_lightning_transaction(tx_item))
+            menu.addAction(_("View payment"), lambda: self.parent.show_lightning_transaction(tx_item))
+            self.add_copy_menu(menu, idx)
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
@@ -646,7 +648,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("Details"), lambda: self.show_transaction(tx_item, tx))
+        menu.addAction(_("View transaction"), lambda: self.show_transaction(tx_item, tx))
+        channel_id = tx_item.get('channel_id')
+        if channel_id:
+            menu.addAction(_("View channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             if tx_details.can_bump and tx_details.fee is not None:

@@ -969,6 +969,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
+    def show_channel(self, channel_id):
+        from . import channel_details
+        channel_details.ChannelDetailsDialog(self, channel_id).show()
+
     def show_transaction(self, tx, *, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, parent=self, desc=tx_desc)
