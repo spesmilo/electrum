@@ -322,6 +322,9 @@ class Network(Logger):
             self.local_watchtower.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
 
+    def is_lightning_running(self):
+        return self.channel_db is not None
+
     def maybe_init_lightning(self):
         if self.channel_db is None:
             from . import lnworker
