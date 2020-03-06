@@ -98,6 +98,7 @@ state_transitions = [
     (cs.OPEN, cs.CLOSED),
     (cs.CLOSING, cs.CLOSING), # if we reestablish
     (cs.CLOSING, cs.CLOSED),
+    (cs.FORCE_CLOSING, cs.FORCE_CLOSING), # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.REDEEMED),
     (cs.CLOSED, cs.REDEEMED),

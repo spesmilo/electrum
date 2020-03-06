@@ -732,7 +732,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.force_close_channel(chan.channel_id)
+            await self.try_force_closing(chan.channel_id)
             return
 
         if chan.get_state() == channel_states.OPENING:
@@ -1297,11 +1297,19 @@ class LNWallet(LNWorker):
         return await peer.close_channel(chan_id)
 
     async def force_close_channel(self, chan_id):
+        # returns txid or raises
+        chan = self.channels[chan_id]
+        tx = chan.force_close_tx()
+        txid = await self.network.broadcast_transaction(tx)
+        chan.set_state(channel_states.FORCE_CLOSING)
+        return txid
+
+    async def try_force_closing(self, chan_id):
+        # fails silently but sets the state, so that we will retry later
         chan = self.channels[chan_id]
         tx = chan.force_close_tx()
         chan.set_state(channel_states.FORCE_CLOSING)
         await self.network.try_broadcasting(tx, 'force-close')
-        return tx.txid()
 
     def remove_channel(self, chan_id):
         chan = self.channels[chan_id]
