@@ -724,7 +724,7 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
-        assert channel_states.PREOPENING < chan.get_state() < channel_states.CLOSED
+        assert channel_states.PREOPENING < chan.get_state() < channel_states.FORCE_CLOSING
         if chan.peer_state != peer_states.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
                              f'already in peer_state {chan.peer_state}')
