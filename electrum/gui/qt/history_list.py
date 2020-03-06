@@ -609,9 +609,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
             column_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
-            cc.addAction(column_title,
-                         lambda text=column_data, title=column_title:
-                         self.place_text_on_clipboard(text, title=title))
+            cc.addAction(
+                column_title,
+                lambda text=column_data, title=column_title:
+                self.place_text_on_clipboard(text, title=title))
+        return cc
 
     def create_menu(self, position: QPoint):
         org_idx: QModelIndex = self.indexAt(position)
@@ -622,8 +624,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_item = self.hm.transactions.value_from_pos(idx.row())
         if tx_item.get('lightning') and tx_item['type'] == 'payment':
             menu = QMenu()
-            menu.addAction(_("View payment"), lambda: self.parent.show_lightning_transaction(tx_item))
-            self.add_copy_menu(menu, idx)
+            menu.addAction(_("View Payment"), lambda: self.parent.show_lightning_transaction(tx_item))
+            cc = self.add_copy_menu(menu, idx)
+            cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
+            cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
@@ -640,18 +644,18 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu = QMenu()
         if tx_details.can_remove:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
-        menu.addAction(_("Copy Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
-        self.add_copy_menu(menu, idx)
+        cc = self.add_copy_menu(menu, idx)
+        cc.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("View transaction"), lambda: self.show_transaction(tx_item, tx))
+        menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
         channel_id = tx_item.get('channel_id')
         if channel_id:
-            menu.addAction(_("View channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
+            menu.addAction(_("View Channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             if tx_details.can_bump and tx_details.fee is not None:
