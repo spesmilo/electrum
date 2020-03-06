@@ -25,8 +25,7 @@
 # SOFTWARE.
 import os
 import sys
-import warnings
-import asyncio
+
 
 MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -34,6 +33,11 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 if sys.version_info[:3] < _min_python_version_tuple:
     sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
+
+
+import warnings
+import asyncio
+from typing import TYPE_CHECKING
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -83,13 +87,16 @@ from electrum_ltc import constants
 from electrum_ltc import SimpleConfig
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet
-from electrum_ltc.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
+from electrum_ltc.storage import WalletStorage
 from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
 from electrum_ltc.util import InvalidPassword
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc import daemon
 from electrum_ltc import keystore
 from electrum_ltc.util import create_and_start_event_loop
+
+if TYPE_CHECKING:
+    from electrum_ltc.plugin import Plugins
 
 _logger = get_logger(__name__)
 
@@ -166,7 +173,7 @@ def init_cmdline(config_options, wallet_path, server):
         config_options['new_password'] = new_password
 
 
-def get_connected_hw_devices(plugins):
+def get_connected_hw_devices(plugins: 'Plugins'):
     supported_plugins = plugins.get_hardware_support()
     # scan devices
     devices = []
@@ -186,7 +193,7 @@ def get_connected_hw_devices(plugins):
     return devices
 
 
-def get_password_for_hw_device_encrypted_storage(plugins) -> str:
+def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
         print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
@@ -196,17 +203,15 @@ def get_password_for_hw_device_encrypted_storage(plugins) -> str:
                   "The first one will be used to decrypt the wallet.")
     # FIXME we use the "first" device, in case of multiple ones
     name, device_info = devices[0]
-    plugin = plugins.get_plugin(name)
-    derivation = get_derivation_used_for_hw_device_encryption()
+    devmgr = plugins.device_manager
     try:
-        xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
+        client = devmgr.client_by_id(device_info.device.id_)
+        return client.get_password_for_storage_encryption()
     except UserCancelled:
         sys.exit(0)
-    password = keystore.Xpub.get_pubkey_from_xpub(xpub, ()).hex()
-    return password
 
 
-async def run_offline_command(config, config_options, plugins):
+async def run_offline_command(config, config_options, plugins: 'Plugins'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')

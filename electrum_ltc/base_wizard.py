@@ -37,8 +37,7 @@ from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, B
 from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
-from .storage import (WalletStorage, StorageEncryptionVersion,
-                      get_derivation_used_for_hw_device_encryption)
+from .storage import WalletStorage, StorageEncryptionVersion
 from .wallet_db import WalletDB
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
@@ -334,7 +333,9 @@ class BaseWizard(Logger):
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
     def on_device(self, name, device_info, *, purpose, storage=None):
-        self.plugin = self.plugins.get_plugin(name)  # type: HW_PluginBase
+        self.plugin = self.plugins.get_plugin(name)
+        assert isinstance(self.plugin, HW_PluginBase)
+        devmgr = self.plugins.device_manager
         try:
             self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
@@ -342,7 +343,6 @@ class BaseWizard(Logger):
                             + '\n' + str(e) + '\n'
                             + _('To try to fix this, we will now re-pair with your device.') + '\n'
                             + _('Please try again.'))
-            devmgr = self.plugins.device_manager
             devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose, storage=storage)
             return
@@ -350,7 +350,6 @@ class BaseWizard(Logger):
             if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
                 self.plugin.set_ignore_outdated_fw()
                 # will need to re-pair
-                devmgr = self.plugins.device_manager
                 devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose, storage=storage)
             return
@@ -368,14 +367,12 @@ class BaseWizard(Logger):
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
-            derivation = get_derivation_used_for_hw_device_encryption()
-            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
-            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ()).hex()
+            client = devmgr.client_by_id(device_info.device.id_)
+            password = client.get_password_for_storage_encryption()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
                 # try to clear session so that user can type another passphrase
-                devmgr = self.plugins.device_manager
                 client = devmgr.client_by_id(device_info.device.id_)
                 if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
                     client.clear_session()

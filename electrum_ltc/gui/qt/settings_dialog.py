@@ -146,7 +146,7 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        backup_help = _("""A backup of your wallet file will be saved to that directory everytime you create a new channel. The backup cannot be used to perform lightning transactions; it may only be used to retrieve the funds in your open channels, using data loss protect (channels will be force closed).""")
+        backup_help = _("""If you configure a backup directory, a backup of your wallet file will be saved everytime you create a new channel.\n\nA backup file cannot be used as a wallet; it can only be used to retrieve the funds locked in your channels, by requesting your channels to be force closed (using data loss protection).\n\nIf the remote node is online, they will force-close your channels when you open the backup file. Note that a backup is not strictly necessary for that; if the remote party is online but they cannot reach you because you lost your wallet file, they should eventually close your channels, and your funds should be sent to an address recoverable from your seed (using static_remotekey).\n\nIf the remote node is not online, you can use the backup file to force close your channels, but only at the risk of losing all your funds in the channel, because you will be broadcasting an old state.""")
         backup_dir = self.config.get('backup_dir')
         backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
         self.backup_dir_e = QPushButton(backup_dir)

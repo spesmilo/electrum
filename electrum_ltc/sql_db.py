@@ -56,3 +56,6 @@ class SqlDB(Logger):
         self.conn.commit()
         self.conn.close()
         self.logger.info("SQL thread terminated")
+
+    def create_database(self):
+        raise NotImplementedError()

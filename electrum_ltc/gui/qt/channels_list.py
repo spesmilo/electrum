@@ -29,13 +29,15 @@ class ChannelsList(MyTreeView):
     class Columns(IntEnum):
         SHORT_CHANID = 0
         NODE_ID = 1
-        LOCAL_BALANCE = 2
-        REMOTE_BALANCE = 3
-        CHANNEL_STATUS = 4
+        NODE_ALIAS = 2
+        LOCAL_BALANCE = 3
+        REMOTE_BALANCE = 4
+        CHANNEL_STATUS = 5
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ID: _('Node ID'),
+        Columns.NODE_ALIAS: _('Node alias'),
         Columns.LOCAL_BALANCE: _('Local'),
         Columns.REMOTE_BALANCE: _('Remote'),
         Columns.CHANNEL_STATUS: _('Status'),
@@ -65,9 +67,12 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = self.lnworker.get_channel_status(chan)
         closed = chan.is_closed()
+        node_info = self.lnworker.channel_db.get_node_info_for_node_id(chan.node_id)
+        node_alias = (node_info.alias if node_info else '') or ''
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
+            node_alias,
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
             status
@@ -233,20 +238,21 @@ class ChannelsList(MyTreeView):
         suggest_button = QPushButton(d, text=_('Suggest'))
         suggest_button.clicked.connect(lambda: remote_nodeid.setText(bh2u(lnworker.suggest_peer() or b'')))
         clear_button = QPushButton(d, text=_('Clear'))
-        clear_button.clicked.connect(lambda: remote_nodeid.setText(''))
+        def on_clear():
+            amount_e.setText('')
+            remote_nodeid.setText('')
+            max_button.setChecked(False)
+        clear_button.clicked.connect(on_clear)
         h = QGridLayout()
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
-        h.addWidget(local_nodeid, 0, 1)
+        h.addWidget(local_nodeid, 0, 1, 1, 3)
         h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
-        h.addWidget(remote_nodeid, 1, 1)
-        h.addWidget(suggest_button, 1, 2)
-        h.addWidget(clear_button, 1, 3)
-        h.addWidget(QLabel('Amount'), 2, 0)
-        hbox = QHBoxLayout()
-        hbox.addWidget(amount_e)
-        hbox.addWidget(max_button)
-        hbox.addStretch(1)
-        h.addLayout(hbox, 2, 1)
+        h.addWidget(remote_nodeid, 1, 1, 1, 3)
+        h.addWidget(suggest_button, 2, 1)
+        h.addWidget(clear_button, 2, 2)
+        h.addWidget(QLabel('Amount'), 3, 0)
+        h.addWidget(amount_e, 3, 1)
+        h.addWidget(max_button, 3, 2)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)

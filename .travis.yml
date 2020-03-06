@@ -30,7 +30,7 @@ jobs:
         - sudo apt-get -qq update
         - sudo apt-get install -yq litecoind
         - sudo apt-get -y install libsecp256k1-0
-        - pip install -r contrib/requirements/requirements.txt
+        - pip install .[tests]
         - pip install electrumx
       before_script:
           - electrum_ltc/tests/regtest/start_bitcoind.sh

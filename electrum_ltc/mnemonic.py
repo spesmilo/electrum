@@ -27,6 +27,8 @@ import math
 import hashlib
 import unicodedata
 import string
+from typing import Sequence, Dict
+from types import MappingProxyType
 
 from .util import resource_path, bfh, bh2u, randrange
 from .crypto import hmac_oneshot
@@ -88,28 +90,48 @@ def normalize_text(seed: str) -> str:
     return seed
 
 
-_WORDLIST_CACHE = {}
+_WORDLIST_CACHE = {}  # type: Dict[str, Wordlist]
 
 
-def load_wordlist(filename) -> tuple:
-    path = resource_path('wordlist', filename)
-    if path not in _WORDLIST_CACHE:
-        with open(path, 'r', encoding='utf-8') as f:
-            s = f.read().strip()
-        s = unicodedata.normalize('NFKD', s)
-        lines = s.split('\n')
-        wordlist = []
-        for line in lines:
-            line = line.split('#')[0]
-            line = line.strip(' \r')
-            assert ' ' not in line
-            if line:
-                wordlist.append(line)
+class Wordlist(tuple):
 
-        # wordlists shouldn't be mutated, but just in case,
-        # convert it to a tuple
-        _WORDLIST_CACHE[path] = tuple(wordlist)
-    return _WORDLIST_CACHE[path]
+    def __init__(self, words: Sequence[str]):
+        super().__init__()
+        index_from_word = {w: i for i, w in enumerate(words)}
+        self._index_from_word = MappingProxyType(index_from_word)  # no mutation
+
+    def index(self, word, start=None, stop=None) -> int:
+        try:
+            return self._index_from_word[word]
+        except KeyError as e:
+            raise ValueError from e
+
+    def __contains__(self, word) -> bool:
+        try:
+            self.index(word)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def from_file(cls, filename) -> 'Wordlist':
+        path = resource_path('wordlist', filename)
+        if path not in _WORDLIST_CACHE:
+            with open(path, 'r', encoding='utf-8') as f:
+                s = f.read().strip()
+            s = unicodedata.normalize('NFKD', s)
+            lines = s.split('\n')
+            words = []
+            for line in lines:
+                line = line.split('#')[0]
+                line = line.strip(' \r')
+                assert ' ' not in line
+                if line:
+                    words.append(line)
+
+            _WORDLIST_CACHE[path] = Wordlist(words)
+        return _WORDLIST_CACHE[path]
 
 
 filenames = {
@@ -130,8 +152,7 @@ class Mnemonic(Logger):
         lang = lang or 'en'
         self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
-        self.wordlist = load_wordlist(filename)
-        self.wordlist_indexes = {w: i for i, w in enumerate(self.wordlist)}
+        self.wordlist = Wordlist.from_file(filename)
         self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
@@ -162,11 +183,11 @@ class Mnemonic(Logger):
         i = 0
         while words:
             w = words.pop()
-            k = self.wordlist_indexes[w]
+            k = self.wordlist.index(w)
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type=None, *, num_bits=132):
+    def make_seed(self, seed_type=None, *, num_bits=132) -> str:
         if seed_type is None:
             seed_type = 'segwit'
         prefix = version.seed_prefix(seed_type)

@@ -180,7 +180,7 @@ class TxOutpoint(NamedTuple):
     def to_str(self) -> str:
         return f"{self.txid.hex()}:{self.out_idx}"
 
-    def to_json(self) -> str:
+    def to_json(self):
         return [self.txid.hex(), self.out_idx]
 
     def serialize_to_network(self) -> bytes:
@@ -526,10 +526,28 @@ class Transaction:
             raise Exception(f"cannot initialize transaction from {raw}")
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
-        self.locktime = 0
-        self.version = 2
+        self._locktime = 0
+        self._version = 2
 
         self._cached_txid = None  # type: Optional[str]
+
+    @property
+    def locktime(self):
+        return self._locktime
+
+    @locktime.setter
+    def locktime(self, value):
+        self._locktime = value
+        self.invalidate_ser_cache()
+
+    @property
+    def version(self):
+        return self._version
+
+    @version.setter
+    def version(self, value):
+        self._version = value
+        self.invalidate_ser_cache()
 
     def to_json(self) -> dict:
         d = {
@@ -559,7 +577,7 @@ class Transaction:
         raw_bytes = bfh(self._cached_network_ser)
         vds = BCDataStream()
         vds.write(raw_bytes)
-        self.version = vds.read_int32()
+        self._version = vds.read_int32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -577,7 +595,7 @@ class Transaction:
         if is_segwit:
             for txin in self._inputs:
                 parse_witness(vds, txin)
-        self.locktime = vds.read_uint32()
+        self._locktime = vds.read_uint32()
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 

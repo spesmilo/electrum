@@ -28,6 +28,7 @@ from electrum_ltc.logging import console_stderr_handler
 from electrum_ltc.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
+from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import ElectrumTestCase
 
 def keypair():
@@ -126,14 +127,16 @@ class MockLNWallet:
     await_payment = LNWallet.await_payment
     payment_received = LNWallet.payment_received
     payment_sent = LNWallet.payment_sent
+    payment_failed = LNWallet.payment_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
     _pay_to_route = LNWallet._pay_to_route
+    _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
     get_first_timestamp = lambda self: 0
-    payment_completed = LNWallet.payment_completed
+
 
 class MockTransport:
     def __init__(self, name):
@@ -238,22 +241,23 @@ class TestPeer(ElectrumTestCase):
             self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
             self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
             gath.cancel()
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_reestablish_with_old_state(self):
         alice_channel, bob_channel = create_test_channels()
         alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertEqual(result, True)
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -271,26 +275,28 @@ class TestPeer(ElectrumTestCase):
             # wait so that pending messages are processed
             #await asyncio.sleep(1)
             gath.cancel()
-        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_payment(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertTrue(result)
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_close(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
@@ -306,14 +312,14 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()
         async def set_settle():
             await asyncio.sleep(0.1)
             w2.enable_htlc_settle.set()
-        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop())
+        gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
@@ -338,7 +344,7 @@ class TestPeer(ElectrumTestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop())
+            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
 

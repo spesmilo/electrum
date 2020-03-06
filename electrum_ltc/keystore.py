@@ -42,7 +42,7 @@ from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATE
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bh2u, bfh, inv_dict, is_hex_str)
-from .mnemonic import Mnemonic, load_wordlist, seed_type, is_seed
+from .mnemonic import Mnemonic, Wordlist, seed_type, is_seed
 from .plugin import run_hook
 from .logging import Logger
 
@@ -765,12 +765,8 @@ class Hardware_KeyStore(Xpub, KeyStore):
         return False
 
     def get_password_for_storage_encryption(self) -> str:
-        from .storage import get_derivation_used_for_hw_device_encryption
         client = self.plugin.get_client(self)
-        derivation = get_derivation_used_for_hw_device_encryption()
-        xpub = client.get_xpub(derivation, "standard")
-        password = self.get_pubkey_from_xpub(xpub, ()).hex()
-        return password
+        return client.get_password_for_storage_encryption()
 
     def has_usable_connection_with_device(self) -> bool:
         if not hasattr(self, 'plugin'):
@@ -815,7 +811,7 @@ def bip39_is_checksum_valid(mnemonic: str) -> Tuple[bool, bool]:
     """
     words = [ normalize('NFKD', word) for word in mnemonic.split() ]
     words_len = len(words)
-    wordlist = load_wordlist("english.txt")
+    wordlist = Wordlist.from_file("english.txt")
     n = len(wordlist)
     i = 0
     words.reverse()

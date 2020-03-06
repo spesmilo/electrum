@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple
 import threading
 import socket
 import json
@@ -19,6 +19,7 @@ from concurrent import futures
 
 import dns.resolver
 import dns.exception
+from aiorpcx import run_in_thread
 
 from . import constants
 from . import keystore
@@ -55,7 +56,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails)
 from .lnutil import ln_dummy_address, ln_compare_features
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode
+from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
@@ -75,15 +76,20 @@ GRAPH_DOWNLOAD_SECONDS = 600
 
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr(host='203.132.95.10', port=9735, pubkey=bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')),
+    LNPeerAddr(host='2401:d002:4402:0:bf1d:986a:7598:6d49', port=9735, pubkey=bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')),
     LNPeerAddr(host='50.116.3.223', port=9734, pubkey=bfh('03236a685d30096b26692dce0cf0fa7c8528bdf61dbf5363a3ef6d5c92733a3016')),
     LNPeerAddr(host='3.16.119.191', port=9735, pubkey=bfh('03d5e17a3c213fe490e1b0c389f8cfcfcea08a29717d50a9f453735e0ab2a7c003')),
     LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bfh('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
     LNPeerAddr(host='88.99.209.230', port=9735, pubkey=bfh('0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7')),
     LNPeerAddr(host='160.16.233.215', port=9735, pubkey=bfh('023ea0a53af875580899da0ab0a21455d9c19160c4ea1b7774c9d4be6810b02d2c')),
     LNPeerAddr(host='197.155.6.173', port=9735, pubkey=bfh('0269a94e8b32c005e4336bfb743c08a6e9beb13d940d57c479d95c8e687ccbdb9f')),
+    LNPeerAddr(host='2c0f:fb18:406::4', port=9735, pubkey=bfh('0269a94e8b32c005e4336bfb743c08a6e9beb13d940d57c479d95c8e687ccbdb9f')),
     LNPeerAddr(host='163.172.94.64', port=9735, pubkey=bfh('030f0bf260acdbd3edcad84d7588ec7c5df4711e87e6a23016f989b8d3a4147230')),
     LNPeerAddr(host='23.237.77.12', port=9735, pubkey=bfh('02312627fdf07fbdd7e5ddb136611bdde9b00d26821d14d94891395452f67af248')),
-    LNPeerAddr(host='197.155.6.173', port=9735, pubkey=bfh('0269a94e8b32c005e4336bfb743c08a6e9beb13d940d57c479d95c8e687ccbdb9f')),
+    LNPeerAddr(host='197.155.6.172', port=9735, pubkey=bfh('02ae2f22b02375e3e9b4b4a2db4f12e1b50752b4062dbefd6e01332acdaf680379')),
+    LNPeerAddr(host='2c0f:fb18:406::3', port=9735, pubkey=bfh('02ae2f22b02375e3e9b4b4a2db4f12e1b50752b4062dbefd6e01332acdaf680379')),
+    LNPeerAddr(host='23.239.23.44', port=9740, pubkey=bfh('034fe52e98a0e9d3c21b767e1b371881265d8c7578c21f5afd6d6438da10348b36')),
+    LNPeerAddr(host='2600:3c01::f03c:91ff:fe05:349c', port=9740, pubkey=bfh('034fe52e98a0e9d3c21b767e1b371881265d8c7578c21f5afd6d6438da10348b36')),
 )
 
 FALLBACK_NODE_LIST_MAINNET = [
@@ -103,10 +109,18 @@ FALLBACK_NODE_LIST_MAINNET = [
     LNPeerAddr(host='167.172.44.148', port=9735, pubkey=bfh('0395033b252c6f40e3756984162d68174e2bd8060a129c0d3462a9370471c6d28f')),
     LNPeerAddr(host='138.68.14.104', port=9735, pubkey=bfh('03bb88ccc444534da7b5b64b4f7b15e1eccb18e102db0e400d4b9cfe93763aa26d')),
     LNPeerAddr(host='3.124.63.44', port=9735, pubkey=bfh('0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3')),
+    LNPeerAddr(host='2001:470:8:2e1::43', port=9735, pubkey=bfh('03baa70886d9200af0ffbd3f9e18d96008331c858456b16e3a9b41e735c6208fef')),
+    LNPeerAddr(host='2601:186:c100:6bcd:219:d1ff:fe75:dc2f', port=9735, pubkey=bfh('0298f6074a454a1f5345cb2a7c6f9fce206cd0bf675d177cdbf0ca7508dd28852f')),
+    LNPeerAddr(host='2001:41d0:e:734::1', port=9735, pubkey=bfh('03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019')),
+    LNPeerAddr(host='2a01:4f9:2b:2254::2', port=9735, pubkey=bfh('02f3069a342ae2883a6f29e275f06f28a56a6ea2e2d96f5888a3266444dcf542b6')),
+    LNPeerAddr(host='2a02:8070:24c1:100:528c:2997:6dbc:a054', port=9735, pubkey=bfh('02a45def9ae014fdd2603dd7033d157faa3a55a72b06a63ae22ef46d9fafdc6e8d')),
+    LNPeerAddr(host='2600:3c01::f03c:91ff:fe05:349c', port=9736, pubkey=bfh('02731b798b39a09f9f14e90ee601afb6ebb796d6e5797de14582a978770b33700f')),
+    LNPeerAddr(host='2a00:8a60:e012:a00::21', port=9735, pubkey=bfh('027ce055380348d7812d2ae7745701c9f93e70c1adeb2657f053f91df4f2843c71')),
+    LNPeerAddr(host='2604:a880:400:d1::8bd:1001', port=9735, pubkey=bfh('03649c72a4816f0cd546f84aafbd657e92a30ab474de7ab795e8b5650a427611f7')),
+    LNPeerAddr(host='2a01:4f8:c0c:7b31::1', port=9735, pubkey=bfh('02c16cca44562b590dd279c942200bdccfd4f990c3a69fad620c10ef2f8228eaff')),
+    LNPeerAddr(host='2001:41d0:1:b40d::1', port=9735, pubkey=bfh('026726a4b043d413b45b334876d17b8a98848129604429ec65532ba286a42efeac')),
 ]
 
-
-from typing import NamedTuple
 
 class PaymentInfo(NamedTuple):
     payment_hash: bytes
@@ -155,7 +169,8 @@ class LNWorker(Logger):
                 self.peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
-                await asyncio.start_server(cb, addr, int(port))
+                # FIXME: server.close(), server.wait_closed(), etc... ?
+                server = await asyncio.start_server(cb, addr, int(port))
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
@@ -200,7 +215,7 @@ class LNWorker(Logger):
     def peer_closed(self, peer: Peer) -> None:
         self.peers.pop(peer.pubkey)
 
-    def num_peers(self):
+    def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
 
     def start_network(self, network: 'Network'):
@@ -272,17 +287,24 @@ class LNWorker(Logger):
                 #self.logger.info('taking random ln peer from our channel db')
                 return [peer]
 
-        # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
-        # and only return mainnet nodes. so for the time being dns seeding is disabled:
+        # getting desperate... let's try hardcoded fallback list of peers
         if constants.net in (constants.BitcoinTestnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_TESTNET)]
+            fallback_list = FALLBACK_NODE_LIST_TESTNET
         elif constants.net in (constants.BitcoinMainnet, ):
-            return [random.choice(FALLBACK_NODE_LIST_MAINNET)]
+            fallback_list = FALLBACK_NODE_LIST_MAINNET
         else:
-            return []
+            return []  # regtest??
 
-        # try peers from dns seed.
-        # return several peers to reduce the number of dns queries.
+        fallback_list = [peer for peer in fallback_list if peer not in self._last_tried_peer]
+        if fallback_list:
+            return [random.choice(fallback_list)]
+
+        # last resort: try dns seeds (BOLT-10)
+        return await run_in_thread(self._get_peers_from_dns_seeds)
+
+    def _get_peers_from_dns_seeds(self) -> Sequence[LNPeerAddr]:
+        # NOTE: potentially long blocking call, do not run directly on asyncio event loop.
+        # Return several peers to reduce the number of dns queries.
         if not constants.net.LN_DNS_SEEDS:
             return []
         dns_seed = random.choice(constants.net.LN_DNS_SEEDS)
@@ -293,6 +315,7 @@ class LNWorker(Logger):
             srv_answers = resolve_dns_srv('r{}.{}'.format(
                 constants.net.LN_REALM_BYTE, dns_seed))
         except dns.exception.DNSException as e:
+            self.logger.info(f'failed querying (1) dns seed "{dns_seed}" for ln peers: {repr(e)}')
             return []
         random.shuffle(srv_answers)
         num_peers = 2 * NUM_PEERS_TARGET
@@ -303,7 +326,8 @@ class LNWorker(Logger):
             try:
                 # note: this might block for several seconds
                 answers = dns.resolver.query(srv_ans['host'])
-            except dns.exception.DNSException:
+            except dns.exception.DNSException as e:
+                self.logger.info(f'failed querying (2) dns seed "{dns_seed}" for ln peers: {repr(e)}')
                 continue
             try:
                 ln_host = str(answers[0])
@@ -312,9 +336,9 @@ class LNWorker(Logger):
                 pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
                 peers.append(LNPeerAddr(ln_host, port, pubkey))
             except Exception as e:
-                self.logger.info('error with parsing peer from dns seed: {}'.format(e))
+                self.logger.info(f'error with parsing peer from dns seed: {repr(e)}')
                 continue
-        self.logger.info('got {} ln peers from dns seed'.format(len(peers)))
+        self.logger.info(f'got {len(peers)} ln peers from dns seed')
         return peers
 
     @staticmethod
@@ -361,13 +385,26 @@ class LNGossip(LNWorker):
         self.unknown_ids.update(new)
         self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
         self.network.trigger_callback('gossip_peers', self.num_peers())
+        self.network.trigger_callback('ln_gossip_sync_progress')
 
     def get_ids_to_query(self):
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
         self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
+        self.network.trigger_callback('ln_gossip_sync_progress')
         return l[0:N]
+
+    def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int]]:
+        if self.num_peers() == 0:
+            return None, None
+        nchans_with_0p, nchans_with_1p, nchans_with_2p = self.channel_db.get_num_channels_partitioned_by_policy_count()
+        num_db_channels = nchans_with_0p + nchans_with_1p + nchans_with_2p
+        # some channels will never have two policies (only one is in gossip?...)
+        # so if we have at least 1 policy for a channel, we consider that channel "complete" here
+        current_est = num_db_channels - nchans_with_0p
+        total_est = len(self.unknown_ids) + num_db_channels
+        return current_est, total_est
 
 
 class LNWallet(LNWorker):
@@ -480,13 +517,6 @@ class LNWallet(LNWorker):
             return ps.name
         return cs.name
 
-    def payment_completed(self, chan: Channel, direction: Direction,
-                          htlc: UpdateAddHtlc):
-        chan_id = chan.channel_id
-        preimage = self.get_preimage(htlc.payment_hash)
-        timestamp = int(time.time())
-        self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
-
     def get_settled_payments(self):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
@@ -569,7 +599,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': _('Open channel'),
+                'label': self.wallet.get_label(funding_txid) or _('Open channel'),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
@@ -584,7 +614,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
-                'label': _('Close channel'),
+                'label': self.wallet.get_label(closing_txid) or _('Close channel'),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
@@ -821,8 +851,11 @@ class LNWallet(LNWorker):
                 if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
                 host, port, timestamp = self.choose_preferred_address(addrs)
+            port = int(port)
+            # Try DNS-resolving the host (if needed). This is simply so that
+            # the caller gets a nice exception if it cannot be resolved.
             try:
-                socket.getaddrinfo(host, int(port))
+                await asyncio.get_event_loop().getaddrinfo(host, port)
             except socket.gaierror:
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
             # add peer
@@ -912,7 +945,8 @@ class LNWallet(LNWorker):
         peer = self.peers.get(route[0].node_id)
         if not peer:
             raise Exception('Dropped peer')
-        htlc = await peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+        await peer.initialized
+        htlc = peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         success, preimage, reason = await self.await_payment(lnaddr.paymenthash)
         if success:
@@ -1073,7 +1107,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def _add_request_coro(self, amount_sat, message, expiry):
+    async def _add_request_coro(self, amount_sat, message, expiry: int):
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_sat)
         if not routing_hints:
@@ -1083,6 +1117,12 @@ class LNWallet(LNWorker):
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
+        if expiry == 0:
+            # hack: BOLT-11 is not really clear on what an expiry of 0 means.
+            # It probably interprets it as 0 seconds, so already expired...
+            # Our higher level invoices code however uses 0 for "never".
+            # Hence set some high expiration here
+            expiry = 100 * 365 * 24 * 60 * 60  # 100 years
         lnaddr = LnAddr(payment_hash, amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
@@ -1159,18 +1199,30 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, payment_hash: bytes, reason):
+    def payment_failed(self, chan, payment_hash: bytes, reason):
         self.set_payment_status(payment_hash, PR_UNPAID)
-        self.pending_payments[payment_hash].set_result((False, None, reason))
+        f = self.pending_payments.get(payment_hash)
+        if f and not f.cancelled():
+            f.set_result((False, None, reason))
+        else:
+            chan.logger.info('received unexpected payment_failed, probably from previous session')
+            self.network.trigger_callback('invoice_status', payment_hash.hex())
 
-    def payment_sent(self, payment_hash: bytes):
+    def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
-        self.pending_payments[payment_hash].set_result((True, preimage, None))
+        f = self.pending_payments.get(payment_hash)
+        if f and not f.cancelled():
+            f.set_result((True, preimage, None))
+        else:
+            chan.logger.info('received unexpected payment_sent, probably from previous session')
+            self.network.trigger_callback('invoice_status', payment_hash.hex())
+        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
-    def payment_received(self, payment_hash: bytes):
+    def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""

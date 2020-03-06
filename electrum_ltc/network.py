@@ -219,11 +219,15 @@ class UntrustedServerReturnedError(NetworkException):
     def __init__(self, *, original_exception):
         self.original_exception = original_exception
 
+    def get_message_for_gui(self) -> str:
+        return str(self)
+
     def __str__(self):
         return _("The server returned an error.")
 
     def __repr__(self):
-        return f"<UntrustedServerReturnedError original_exception: {repr(self.original_exception)}>"
+        return (f"<UntrustedServerReturnedError "
+                f"[DO NOT TRUST THIS MESSAGE] original_exception: {repr(self.original_exception)}>")
 
 
 _INSTANCE = None

@@ -23,10 +23,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from .mnemonic import Wordlist
+
 
 # list of words from http://en.wiktionary.org/wiki/Wiktionary:Frequency_lists/Contemporary_poetry
 
-words = (
+_words = (
 "like",
 "just",
 "love",
@@ -1654,9 +1656,10 @@ words = (
 "weapon",
 "weary",
 )
-_words_indexes = {w: i for i, w in enumerate(words)}
 
-n = len(words)
+wordlist = Wordlist(_words)
+
+n = len(wordlist)
 assert n == 1626
 
 
@@ -1672,7 +1675,7 @@ def mn_encode( message ):
         w1 = (x%n)
         w2 = ((x//n) + w1)%n
         w3 = ((x//n//n) + w2)%n
-        out += [ words[w1], words[w2], words[w3] ]
+        out += [ wordlist[w1], wordlist[w2], wordlist[w3] ]
     return out
 
 
@@ -1680,9 +1683,9 @@ def mn_decode( wlist ):
     out = ''
     for i in range(len(wlist)//3):
         word1, word2, word3 = wlist[3*i:3*i+3]
-        w1 =  _words_indexes[word1]
-        w2 = (_words_indexes[word2]) % n
-        w3 = (_words_indexes[word3]) % n
+        w1 =  wordlist.index(word1)
+        w2 = (wordlist.index(word2)) % n
+        w3 = (wordlist.index(word3)) % n
         x = w1 +n*((w2-w1)%n) +n*n*((w3-w2)%n)
         out += '%08x'%x
     return out

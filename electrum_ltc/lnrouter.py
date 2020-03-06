@@ -74,16 +74,11 @@ class RouteEdge(NamedTuple):
     def is_sane_to_use(self, amount_msat: int) -> bool:
         # TODO revise ad-hoc heuristics
         # cltv cannot be more than 2 weeks
-        if self.cltv_expiry_delta > 14 * 144: return False
+        if self.cltv_expiry_delta > 14 * 144:
+            return False
         total_fee = self.fee_for_edge(amount_msat)
-        # fees below 50 sat are fine
-        if total_fee > 50_000:
-            # fee cannot be higher than amt
-            if total_fee > amount_msat: return False
-            # fee cannot be higher than 5000 sat
-            if total_fee > 5_000_000: return False
-            # unless amt is tiny, fee cannot be more than 10%
-            if amount_msat > 1_000_000 and total_fee > amount_msat/10: return False
+        if not is_fee_sane(total_fee, payment_amount_msat=amount_msat):
+            return False
         return True
 
 
@@ -105,16 +100,21 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
     total_fee = amt - invoice_amount_msat
     # TODO revise ad-hoc heuristics
     # cltv cannot be more than 2 months
-    if cltv > 60 * 144: return False
-    # fees below 50 sat are fine
-    if total_fee > 50_000:
-        # fee cannot be higher than amt
-        if total_fee > invoice_amount_msat: return False
-        # fee cannot be higher than 5000 sat
-        if total_fee > 5_000_000: return False
-        # unless amt is tiny, fee cannot be more than 10%
-        if invoice_amount_msat > 1_000_000 and total_fee > invoice_amount_msat/10: return False
+    if cltv > 60 * 144:
+        return False
+    if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
+        return False
     return True
+
+
+def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
+    # fees <= 2 sat are fine
+    if fee_msat <= 2_000:
+        return True
+    # fees <= 1 % of payment are fine
+    if 100 * fee_msat <= payment_amount_msat:
+        return True
+    return False
 
 
 class LNPathFinder(Logger):
@@ -131,7 +131,7 @@ class LNPathFinder(Logger):
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
                    payment_amt_msat: int, ignore_costs=False, is_mine=False, *,
                    my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Tuple[float, int]:
-        """Heuristic cost of going through a channel.
+        """Heuristic cost (distance metric) of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
         """
         channel_info = self.channel_db.get_channel_info(short_channel_id, my_channels=my_channels)
@@ -157,12 +157,20 @@ class LNPathFinder(Logger):
             return float('inf'), 0  # payment amount too large
         if not route_edge.is_sane_to_use(payment_amt_msat):
             return float('inf'), 0  # thanks but no thanks
-        fee_msat = route_edge.fee_for_edge(payment_amt_msat) if not ignore_costs else 0
-        # TODO revise
-        # paying 10 more satoshis ~ waiting one more block
-        fee_cost = fee_msat / 1000 / 10
-        cltv_cost = route_edge.cltv_expiry_delta if not ignore_costs else 0
-        return cltv_cost + fee_cost + 1, fee_msat
+
+        # Distance metric notes:  # TODO constants are ad-hoc
+        # ( somewhat based on https://github.com/lightningnetwork/lnd/pull/1358 )
+        # - Edges have a base cost. (more edges -> less likely none will fail)
+        # - The larger the payment amount, and the longer the CLTV,
+        #   the more irritating it is if the HTLC gets stuck.
+        # - Paying lower fees is better. :)
+        base_cost = 500  # one more edge ~ paying 500 msat more fees
+        if ignore_costs:
+            return base_cost, 0
+        fee_msat = route_edge.fee_for_edge(payment_amt_msat)
+        cltv_cost = route_edge.cltv_expiry_delta * payment_amt_msat * 15 / 1_000_000_000
+        overall_cost = base_cost + fee_msat + cltv_cost
+        return overall_cost, fee_msat
 
     @profiler
     def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,

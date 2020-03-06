@@ -31,6 +31,7 @@ from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECK
 import binascii
 import base64
 import asyncio
+import threading
 
 
 from .sql_db import SqlDB, sql
@@ -137,18 +138,28 @@ class NodeInfo(NamedTuple):
     alias: str
 
     @staticmethod
-    def from_msg(payload):
+    def from_msg(payload) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         node_id = payload['node_id']
         features = int.from_bytes(payload['features'], "big")
         validate_features(features)
         addresses = NodeInfo.parse_addresses_field(payload['addresses'])
+        peer_addrs = []
+        for host, port in addresses:
+            try:
+                peer_addrs.append(LNPeerAddr(host=host, port=port, pubkey=node_id))
+            except ValueError:
+                pass
         alias = payload['alias'].rstrip(b'\x00')
+        try:
+            alias = alias.decode('utf8')
+        except:
+            alias = ''
         timestamp = int.from_bytes(payload['timestamp'], "big")
-        return NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias), [
-            Address(host=host, port=port, node_id=node_id, last_connected_date=None) for host, port in addresses]
+        node_info = NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias)
+        return node_info, peer_addrs
 
     @staticmethod
-    def from_raw_msg(raw: bytes) -> 'NodeInfo':
+    def from_raw_msg(raw: bytes) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         payload_dict = decode_msg(raw)[1]
         return NodeInfo.from_msg(payload_dict)
 
@@ -193,13 +204,6 @@ class NodeInfo(NamedTuple):
         return addresses
 
 
-class Address(NamedTuple):
-    node_id: bytes
-    host: str
-    port: int
-    last_connected_date: Optional[int]
-
-
 class CategorizedChannelUpdates(NamedTuple):
     orphaned: List    # no channel announcement for channel update
     expired: List     # update older than two weeks
@@ -234,7 +238,7 @@ PRIMARY KEY(node_id, host, port)
 
 create_node_info = """
 CREATE TABLE IF NOT EXISTS node_info (
-node_id BOB(33),
+node_id BLOB(33),
 msg BLOB,
 PRIMARY KEY(node_id)
 )"""
@@ -247,17 +251,25 @@ class ChannelDB(SqlDB):
     def __init__(self, network: 'Network'):
         path = os.path.join(get_headers_dir(network.config), 'gossip_db')
         super().__init__(network, path, commit_interval=100)
+        self.lock = threading.RLock()
         self.num_nodes = 0
         self.num_channels = 0
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], dict]
         self.ca_verifier = LNChannelVerifier(network, self)
+
         # initialized in load_data
-        self._channels = {}  # type: Dict[bytes, ChannelInfo]
-        self._policies = {}  # type: Dict[Tuple[bytes, bytes], Policy]  # (node_id, scid) -> Policy
-        self._nodes = {}
+        # note: modify/iterate needs self.lock
+        self._channels = {}  # type: Dict[ShortChannelID, ChannelInfo]
+        self._policies = {}  # type: Dict[Tuple[bytes, ShortChannelID], Policy]  # (node_id, scid) -> Policy
+        self._nodes = {}  # type: Dict[bytes, NodeInfo]  # node_id -> NodeInfo
         # node_id -> (host, port, ts)
         self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]
+        self._recent_peers = []  # type: List[bytes]  # list of node_ids
+        self._chans_with_0_policies = set()  # type: Set[ShortChannelID]
+        self._chans_with_1_policies = set()  # type: Set[ShortChannelID]
+        self._chans_with_2_policies = set()  # type: Set[ShortChannelID]
+
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
 
@@ -266,18 +278,27 @@ class ChannelDB(SqlDB):
         self.num_channels = len(self._channels)
         self.num_policies = len(self._policies)
         self.network.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
+        self.network.trigger_callback('ln_gossip_sync_progress')
 
     def get_channel_ids(self):
-        return set(self._channels.keys())
+        with self.lock:
+            return set(self._channels.keys())
 
     def add_recent_peer(self, peer: LNPeerAddr):
         now = int(time.time())
         node_id = peer.pubkey
-        self._addresses[node_id].add((peer.host, peer.port, now))
-        self.save_node_address(node_id, peer, now)
+        with self.lock:
+            self._addresses[node_id].add((peer.host, peer.port, now))
+            # list is ordered
+            if node_id in self._recent_peers:
+                self._recent_peers.remove(node_id)
+            self._recent_peers.insert(0, node_id)
+            self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
+        self._db_save_node_address(peer, now)
 
     def get_200_randomly_sorted_nodes_not_in(self, node_ids):
-        unshuffled = set(self._nodes.keys()) - node_ids
+        with self.lock:
+            unshuffled = set(self._nodes.keys()) - node_ids
         return random.sample(unshuffled, min(200, len(unshuffled)))
 
     def get_last_good_address(self, node_id) -> Optional[LNPeerAddr]:
@@ -293,12 +314,10 @@ class ChannelDB(SqlDB):
 
     def get_recent_peers(self):
         assert self.data_loaded.is_set(), "channelDB load_data did not finish yet!"
-        # FIXME this does not reliably return "recent" peers...
-        #       Also, the list() cast over the whole dict (thousands of elements),
-        #       is really inefficient.
-        r = [self.get_last_good_address(node_id)
-             for node_id in list(self._addresses.keys())[-self.NUM_MAX_RECENT_PEERS:]]
-        return list(reversed(r))
+        with self.lock:
+            ret = [self.get_last_good_address(node_id)
+                   for node_id in self._recent_peers]
+            return ret
 
     # note: currently channel announcements are trusted by default (trusted=True);
     #       they are not verified. Verifying them would make the gossip sync
@@ -336,11 +355,13 @@ class ChannelDB(SqlDB):
         except UnknownEvenFeatureBits:
             return
         channel_info = channel_info._replace(capacity_sat=capacity_sat)
-        self._channels[channel_info.short_channel_id] = channel_info
-        self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
-        self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
+        with self.lock:
+            self._channels[channel_info.short_channel_id] = channel_info
+            self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
+            self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
+        self._update_num_policies_for_chan(channel_info.short_channel_id)
         if 'raw' in msg:
-            self.save_channel(channel_info.short_channel_id, msg['raw'])
+            self._db_save_channel(channel_info.short_channel_id, msg['raw'])
 
     def print_change(self, old_policy: Policy, new_policy: Policy):
         # print what changed between policies
@@ -397,9 +418,11 @@ class ChannelDB(SqlDB):
             if verify:
                 self.verify_channel_update(payload)
             policy = Policy.from_msg(payload)
-            self._policies[key] = policy
+            with self.lock:
+                self._policies[key] = policy
+            self._update_num_policies_for_chan(short_channel_id)
             if 'raw' in payload:
-                self.save_policy(policy.key, payload['raw'])
+                self._db_save_policy(policy.key, payload['raw'])
         #
         self.update_counts()
         return CategorizedChannelUpdates(
@@ -423,44 +446,48 @@ class ChannelDB(SqlDB):
         self.conn.commit()
 
     @sql
-    def save_policy(self, key, msg):
+    def _db_save_policy(self, key: bytes, msg: bytes):
+        # 'msg' is a 'channel_update' message
         c = self.conn.cursor()
         c.execute("""REPLACE INTO policy (key, msg) VALUES (?,?)""", [key, msg])
 
     @sql
-    def delete_policy(self, node_id, short_channel_id):
+    def _db_delete_policy(self, node_id: bytes, short_channel_id: ShortChannelID):
         key = short_channel_id + node_id
         c = self.conn.cursor()
         c.execute("""DELETE FROM policy WHERE key=?""", (key,))
 
     @sql
-    def save_channel(self, short_channel_id, msg):
+    def _db_save_channel(self, short_channel_id: ShortChannelID, msg: bytes):
+        # 'msg' is a 'channel_announcement' message
         c = self.conn.cursor()
         c.execute("REPLACE INTO channel_info (short_channel_id, msg) VALUES (?,?)", [short_channel_id, msg])
 
     @sql
-    def delete_channel(self, short_channel_id):
+    def _db_delete_channel(self, short_channel_id: ShortChannelID):
         c = self.conn.cursor()
         c.execute("""DELETE FROM channel_info WHERE short_channel_id=?""", (short_channel_id,))
 
     @sql
-    def save_node_info(self, node_id, msg):
+    def _db_save_node_info(self, node_id: bytes, msg: bytes):
+        # 'msg' is a 'node_announcement' message
         c = self.conn.cursor()
         c.execute("REPLACE INTO node_info (node_id, msg) VALUES (?,?)", [node_id, msg])
 
     @sql
-    def save_node_address(self, node_id, peer, now):
+    def _db_save_node_address(self, peer: LNPeerAddr, timestamp: int):
         c = self.conn.cursor()
-        c.execute("REPLACE INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (node_id, peer.host, peer.port, now))
+        c.execute("REPLACE INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)",
+                  (peer.pubkey, peer.host, peer.port, timestamp))
 
     @sql
-    def save_node_addresses(self, node_id, node_addresses):
+    def _db_save_node_addresses(self, node_addresses: Sequence[LNPeerAddr]):
         c = self.conn.cursor()
         for addr in node_addresses:
-            c.execute("SELECT * FROM address WHERE node_id=? AND host=? AND port=?", (addr.node_id, addr.host, addr.port))
+            c.execute("SELECT * FROM address WHERE node_id=? AND host=? AND port=?", (addr.pubkey, addr.host, addr.port))
             r = c.fetchall()
             if r == []:
-                c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.node_id, addr.host, addr.port, 0))
+                c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.pubkey, addr.host, addr.port, 0))
 
     def verify_channel_update(self, payload):
         short_channel_id = payload['short_channel_id']
@@ -473,7 +500,6 @@ class ChannelDB(SqlDB):
     def add_node_announcement(self, msg_payloads):
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
-        old_addr = None
         new_nodes = {}
         for msg_payload in msg_payloads:
             try:
@@ -492,40 +518,44 @@ class ChannelDB(SqlDB):
             if node and node.timestamp >= node_info.timestamp:
                 continue
             # save
-            self._nodes[node_id] = node_info
+            with self.lock:
+                self._nodes[node_id] = node_info
             if 'raw' in msg_payload:
-                self.save_node_info(node_id, msg_payload['raw'])
-            for addr in node_addresses:
-                self._addresses[node_id].add((addr.host, addr.port, 0))
-            self.save_node_addresses(node_id, node_addresses)
+                self._db_save_node_info(node_id, msg_payload['raw'])
+            with self.lock:
+                for addr in node_addresses:
+                    self._addresses[node_id].add((addr.host, addr.port, 0))
+            self._db_save_node_addresses(node_addresses)
 
         self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
         self.update_counts()
 
-    def get_old_policies(self, delta):
+    def get_old_policies(self, delta) -> Sequence[Tuple[bytes, ShortChannelID]]:
+        with self.lock:
+            _policies = self._policies.copy()
         now = int(time.time())
-        return list(k for k, v in list(self._policies.items()) if v.timestamp <= now - delta)
+        return list(k for k, v in _policies.items() if v.timestamp <= now - delta)
 
     def prune_old_policies(self, delta):
-        l = self.get_old_policies(delta)
-        if l:
-            for k in l:
-                self._policies.pop(k)
-                self.delete_policy(*k)
+        old_policies = self.get_old_policies(delta)
+        if old_policies:
+            for key in old_policies:
+                node_id, scid = key
+                with self.lock:
+                    self._policies.pop(key)
+                self._db_delete_policy(*key)
+                self._update_num_policies_for_chan(scid)
             self.update_counts()
-            self.logger.info(f'Deleting {len(l)} old policies')
-
-    def get_orphaned_channels(self):
-        ids = set(x[1] for x in self._policies.keys())
-        return list(x for x in self._channels.keys() if x not in ids)
+            self.logger.info(f'Deleting {len(old_policies)} old policies')
 
     def prune_orphaned_channels(self):
-        l = self.get_orphaned_channels()
-        if l:
-            for short_channel_id in l:
+        with self.lock:
+            orphaned_chans = self._chans_with_0_policies.copy()
+        if orphaned_chans:
+            for short_channel_id in orphaned_chans:
                 self.remove_channel(short_channel_id)
             self.update_counts()
-            self.logger.info(f'Deleting {len(l)} orphaned channels')
+            self.logger.info(f'Deleting {len(orphaned_chans)} orphaned channels')
 
     def add_channel_update_for_private_channel(self, msg_payload: dict, start_node_id: bytes):
         if not verify_sig_for_channel_update(msg_payload, start_node_id):
@@ -535,12 +565,15 @@ class ChannelDB(SqlDB):
         self._channel_updates_for_private_channels[(start_node_id, short_channel_id)] = msg_payload
 
     def remove_channel(self, short_channel_id: ShortChannelID):
-        channel_info = self._channels.pop(short_channel_id, None)
-        if channel_info:
-            self._channels_for_node[channel_info.node1_id].remove(channel_info.short_channel_id)
-            self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
+        # FIXME what about rm-ing policies?
+        with self.lock:
+            channel_info = self._channels.pop(short_channel_id, None)
+            if channel_info:
+                self._channels_for_node[channel_info.node1_id].remove(channel_info.short_channel_id)
+                self._channels_for_node[channel_info.node2_id].remove(channel_info.short_channel_id)
+        self._update_num_policies_for_chan(short_channel_id)
         # delete from database
-        self.delete_channel(short_channel_id)
+        self._db_delete_channel(short_channel_id)
 
     def get_node_addresses(self, node_id):
         return self._addresses.get(node_id)
@@ -548,15 +581,25 @@ class ChannelDB(SqlDB):
     @sql
     @profiler
     def load_data(self):
+        # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
+        #       I believe lnmsg (and lightning.json) will need a rewrite anyway, so instead of tweaking
+        #       load_data() here, that should be done. see #6006
         c = self.conn.cursor()
         c.execute("""SELECT * FROM address""")
         for x in c:
             node_id, host, port, timestamp = x
             self._addresses[node_id].add((str(host), int(port), int(timestamp or 0)))
+        def newest_ts_for_node_id(node_id):
+            newest_ts = 0
+            for host, port, ts in self._addresses[node_id]:
+                newest_ts = max(newest_ts, ts)
+            return newest_ts
+        sorted_node_ids = sorted(self._addresses.keys(), key=newest_ts_for_node_id, reverse=True)
+        self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
         c.execute("""SELECT * FROM channel_info""")
         for short_channel_id, msg in c:
             ci = ChannelInfo.from_raw_msg(msg)
-            self._channels[short_channel_id] = ci
+            self._channels[ShortChannelID.normalize(short_channel_id)] = ci
         c.execute("""SELECT * FROM node_info""")
         for node_id, msg in c:
             node_info, node_addresses = NodeInfo.from_raw_msg(msg)
@@ -569,19 +612,40 @@ class ChannelDB(SqlDB):
         for channel_info in self._channels.values():
             self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
             self._channels_for_node[channel_info.node2_id].add(channel_info.short_channel_id)
+            self._update_num_policies_for_chan(channel_info.short_channel_id)
         self.logger.info(f'load data {len(self._channels)} {len(self._policies)} {len(self._channels_for_node)}')
         self.update_counts()
-        self.count_incomplete_channels()
+        (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
+        self.logger.info(f'num_channels_partitioned_by_policy_count. '
+                         f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
         self.data_loaded.set()
 
-    def count_incomplete_channels(self):
-        out = set()
-        for short_channel_id, ci in self._channels.items():
-            p1 = self.get_policy_for_node(short_channel_id, ci.node1_id)
-            p2 = self.get_policy_for_node(short_channel_id, ci.node2_id)
-            if p1 is None or p2 is not None:
-                out.add(short_channel_id)
-        self.logger.info(f'semi-orphaned: {len(out)}')
+    def _update_num_policies_for_chan(self, short_channel_id: ShortChannelID) -> None:
+        channel_info = self.get_channel_info(short_channel_id)
+        if channel_info is None:
+            with self.lock:
+                self._chans_with_0_policies.discard(short_channel_id)
+                self._chans_with_1_policies.discard(short_channel_id)
+                self._chans_with_2_policies.discard(short_channel_id)
+            return
+        p1 = self.get_policy_for_node(short_channel_id, channel_info.node1_id)
+        p2 = self.get_policy_for_node(short_channel_id, channel_info.node2_id)
+        with self.lock:
+            self._chans_with_0_policies.discard(short_channel_id)
+            self._chans_with_1_policies.discard(short_channel_id)
+            self._chans_with_2_policies.discard(short_channel_id)
+            if p1 is not None and p2 is not None:
+                self._chans_with_2_policies.add(short_channel_id)
+            elif p1 is None and p2 is None:
+                self._chans_with_0_policies.add(short_channel_id)
+            else:
+                self._chans_with_1_policies.add(short_channel_id)
+
+    def get_num_channels_partitioned_by_policy_count(self) -> Tuple[int, int, int]:
+        nchans_with_0p = len(self._chans_with_0_policies)
+        nchans_with_1p = len(self._chans_with_1_policies)
+        nchans_with_2p = len(self._chans_with_2_policies)
+        return nchans_with_0p, nchans_with_1p, nchans_with_2p
 
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes, *,
                             my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional['Policy']:
@@ -614,7 +678,7 @@ class ChannelDB(SqlDB):
             local_update_decoded['start_node'] = node_id
             return Policy.from_msg(local_update_decoded)
 
-    def get_channel_info(self, short_channel_id: bytes, *,
+    def get_channel_info(self, short_channel_id: ShortChannelID, *,
                          my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional[ChannelInfo]:
         ret = self._channels.get(short_channel_id)
         if ret:
@@ -636,3 +700,6 @@ class ChannelDB(SqlDB):
             if node_id in (chan.node_id, chan.get_local_pubkey()):
                 relevant_channels.add(chan.short_channel_id)
         return relevant_channels
+
+    def get_node_info_for_node_id(self, node_id: bytes) -> Optional['NodeInfo']:
+        return self._nodes.get(node_id)
