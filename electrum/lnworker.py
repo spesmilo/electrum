@@ -1360,10 +1360,10 @@ class LNWallet(LNWorker):
                     await self.taskgroup.spawn(self.reestablish_peer_for_given_channel(chan))
 
     def current_feerate_per_kw(self):
-        from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
+        #from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
         if constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_HARDCODED // 4
-        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            return constants.net.FEERATE_REGTEST_HARDCODED // 4
+        feerate_per_kvbyte = self.network.config.eta_target_to_fee(constants.net.FEE_LN_ETA_TARGET)
         if feerate_per_kvbyte is None:
-            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
+            feerate_per_kvbyte = constants.net.FEERATE_FALLBACK_STATIC_FEE
         return max(253, feerate_per_kvbyte // 4)

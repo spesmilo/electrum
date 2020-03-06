@@ -299,12 +299,12 @@ def add_number_to_script(i: int) -> bytes:
 
 
 def relayfee(network: 'Network' = None) -> int:
-    from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    #from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
-        fee = FEERATE_DEFAULT_RELAY
-    fee = min(fee, FEERATE_MAX_RELAY)
+        fee = constants.net.FEERATE_DEFAULT_RELAY
+    fee = min(fee, constants.net.FEERATE_MAX_RELAY)
     fee = max(fee, 0)
     return fee
 

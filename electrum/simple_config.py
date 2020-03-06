@@ -18,19 +18,6 @@ from .i18n import _
 from .logging import get_logger, Logger
 
 
-FEE_ETA_TARGETS = [25, 10, 5, 2]
-FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
-FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
-
-# satoshi per kbyte
-FEERATE_MAX_DYNAMIC = 15000000
-FEERATE_WARNING_HIGH_FEE = 6000000
-FEERATE_FALLBACK_STATIC_FEE = 1500000
-FEERATE_DEFAULT_RELAY = 10000
-FEERATE_MAX_RELAY = 500000
-FEERATE_STATIC_VALUES = [10000, 20000, 50000, 100000, 200000, 300000,
-                         500000, 700000, 1000000, 1500000, 2000000, 3000000]
-FEERATE_REGTEST_HARDCODED = 1800000  # for eclair compat
 
 
 _logger = get_logger(__name__)
@@ -289,17 +276,17 @@ class SimpleConfig(Logger):
             fee = func(self, *args, **kwargs)
             if fee is None:
                 return fee
-            fee = min(FEERATE_MAX_DYNAMIC, fee)
-            fee = max(FEERATE_DEFAULT_RELAY, fee)
+            fee = min(constants.net.FEERATE_MAX_DYNAMIC, fee)
+            fee = max(constants.net.FEERATE_DEFAULT_RELAY, fee)
             return fee
         return get_fee_within_limits
 
     def eta_to_fee(self, slider_pos) -> Optional[int]:
         """Returns fee in sat/kbyte."""
         slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
-        if slider_pos < len(FEE_ETA_TARGETS):
-            num_blocks = FEE_ETA_TARGETS[slider_pos]
+        slider_pos = min(slider_pos, len(constants.net.FEE_ETA_TARGETS))
+        if slider_pos < len(constants.net.FEE_ETA_TARGETS):
+            num_blocks = constants.net.FEE_ETA_TARGETS[slider_pos]
             fee = self.eta_target_to_fee(num_blocks)
         else:
             fee = self.eta_target_to_fee(1)
@@ -354,13 +341,13 @@ class SimpleConfig(Logger):
 
     def depth_target(self, slider_pos):
         slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_DEPTH_TARGETS)-1)
-        return FEE_DEPTH_TARGETS[slider_pos]
+        slider_pos = min(slider_pos, len(constants.net.FEE_DEPTH_TARGETS)-1)
+        return constants.net.FEE_DEPTH_TARGETS[slider_pos]
 
     def eta_target(self, i):
-        if i == len(FEE_ETA_TARGETS):
+        if i == len(constants.net.FEE_ETA_TARGETS):
             return 1
-        return FEE_ETA_TARGETS[i]
+        return constants.net.FEE_ETA_TARGETS[i]
 
     def fee_to_eta(self, fee_per_kb):
         import operator
@@ -424,36 +411,36 @@ class SimpleConfig(Logger):
         return text, tooltip
 
     def get_depth_level(self):
-        maxp = len(FEE_DEPTH_TARGETS) - 1
+        maxp = len(constants.net.FEE_DEPTH_TARGETS) - 1
         return min(maxp, self.get('depth_level', 2))
 
     def get_fee_level(self):
-        maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
+        maxp = len(constants.net.FEE_ETA_TARGETS)  # not (-1) to have "next block"
         return min(maxp, self.get('fee_level', 2))
 
     def get_fee_slider(self, dyn, mempool):
         if dyn:
             if mempool:
                 pos = self.get_depth_level()
-                maxp = len(FEE_DEPTH_TARGETS) - 1
+                maxp = len(constants.net.FEE_DEPTH_TARGETS) - 1
                 fee_rate = self.depth_to_fee(pos)
             else:
                 pos = self.get_fee_level()
-                maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
+                maxp = len(constants.net.FEE_ETA_TARGETS)  # not (-1) to have "next block"
                 fee_rate = self.eta_to_fee(pos)
         else:
             fee_rate = self.fee_per_kb(dyn=False)
             pos = self.static_fee_index(fee_rate)
-            maxp = len(FEERATE_STATIC_VALUES) - 1
+            maxp = len(constants.net.FEERATE_STATIC_VALUES) - 1
         return maxp, pos, fee_rate
 
     def static_fee(self, i):
-        return FEERATE_STATIC_VALUES[i]
+        return constants.net.FEERATE_STATIC_VALUES[i]
 
     def static_fee_index(self, value):
         if value is None:
             raise TypeError('static fee cannot be None')
-        dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
+        dist = list(map(lambda x: abs(x - value), constants.net.FEERATE_STATIC_VALUES))
         return min(range(len(dist)), key=dist.__getitem__)
 
     def has_fee_etas(self):
@@ -479,13 +466,13 @@ class SimpleConfig(Logger):
         fee_level = max(fee_level, 0)
         fee_level = min(fee_level, 1)
         if dyn:
-            max_pos = (len(FEE_DEPTH_TARGETS) - 1) if mempool else len(FEE_ETA_TARGETS)
+            max_pos = (len(constants.net.FEE_DEPTH_TARGETS) - 1) if mempool else len(constants.net.FEE_ETA_TARGETS)
             slider_pos = round(fee_level * max_pos)
             fee_rate = self.depth_to_fee(slider_pos) if mempool else self.eta_to_fee(slider_pos)
         else:
-            max_pos = len(FEERATE_STATIC_VALUES) - 1
+            max_pos = len(constants.net.FEERATE_STATIC_VALUES) - 1
             slider_pos = round(fee_level * max_pos)
-            fee_rate = FEERATE_STATIC_VALUES[slider_pos]
+            fee_rate = constants.net.FEERATE_STATIC_VALUES[slider_pos]
         return fee_rate
 
     def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Union[int, None]:
@@ -495,7 +482,7 @@ class SimpleConfig(Logger):
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
         if constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_HARDCODED
+            return constants.net.FEERATE_REGTEST_HARDCODED
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
@@ -511,7 +498,7 @@ class SimpleConfig(Logger):
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
-            fee_rate = self.get('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
+            fee_rate = self.get('fee_per_kb', constants.net.FEERATE_FALLBACK_STATIC_FEE)
         return fee_rate
 
     def fee_per_byte(self):
@@ -526,7 +513,7 @@ class SimpleConfig(Logger):
         fee_per_kb = self.fee_per_kb()
         if fee_per_kb is None:
             if allow_fallback_to_static_rates:
-                fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+                fee_per_kb = constants.net.FEERATE_FALLBACK_STATIC_FEE
             else:
                 raise NoDynamicFeeEstimates()
         return self.estimate_fee_for_feerate(fee_per_kb, size)

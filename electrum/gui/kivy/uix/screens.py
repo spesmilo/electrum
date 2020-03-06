@@ -387,7 +387,7 @@ class SendScreen(CScreen):
             x_fee_address, x_fee_amount = x_fee
             msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
 
-        feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
+        feerate_warning = constants.net.FEERATE_WARNING_HIGH_FEE
         if fee > feerate_warning * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))

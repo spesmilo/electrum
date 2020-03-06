@@ -455,12 +455,12 @@ class Network(Logger):
 
     async def _request_fee_estimates(self, interface):
         session = interface.session
-        from .simple_config import FEE_ETA_TARGETS
+        #from .simple_config import FEE_ETA_TARGETS
         self.config.requested_fee_estimates()
         async with TaskGroup() as group:
             histogram_task = await group.spawn(session.send_request('mempool.get_fee_histogram'))
             fee_tasks = []
-            for i in FEE_ETA_TARGETS:
+            for i in constants.net.FEE_ETA_TARGETS:
                 fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
         self.config.mempool_fees = histogram = histogram_task.result()
         self.logger.info(f'fee_histogram {histogram}')

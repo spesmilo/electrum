@@ -31,7 +31,7 @@ from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
-from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
+#from electrum.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrum.wallet import InternalAddressCorruption
 
 from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, BlockingWaitingDialog
@@ -224,7 +224,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             self.extra_fee_value.setVisible(True)
             self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
 
-        feerate_warning = FEERATE_WARNING_HIGH_FEE
+        feerate_warning = constants.net.FEERATE_WARNING_HIGH_FEE
         low_fee = fee < self.wallet.relayfee() * tx.estimated_size() / 1000
         high_fee = fee > feerate_warning * tx.estimated_size() / 1000
         if low_fee:

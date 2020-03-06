@@ -183,7 +183,7 @@ class Mnemonic(Logger):
         i = 0
         while words:
             w = words.pop()
-            k = self.wordlist_indexes[w]
+            k = self.wordlist.index(w)
             i = i*n + k
         return i
 

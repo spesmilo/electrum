@@ -249,14 +249,14 @@ class TestChannel(ElectrumTestCase):
         htlc = self.htlc
 
         alice_out = alice_channel.get_latest_commitment(LOCAL).outputs()
-        short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 43]
-        long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 63]
+        short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 42]
+        long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 62]
         self.assertLess(alice_out[long_idx].value, 5 * 10**8, alice_out)
         self.assertEqual(alice_out[short_idx].value, 5 * 10**8, alice_out)
 
         alice_out = alice_channel.get_latest_commitment(REMOTE).outputs()
-        short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 43]
-        long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 63]
+        short_idx, = [idx for idx, x in enumerate(alice_out) if len(x.address) == 42]
+        long_idx,  = [idx for idx, x in enumerate(alice_out) if len(x.address) == 62]
         self.assertLess(alice_out[short_idx].value, 5 * 10**8)
         self.assertEqual(alice_out[long_idx].value, 5 * 10**8)
 

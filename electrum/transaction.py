@@ -545,6 +545,24 @@ class Transaction:
 
         self._cached_txid = None  # type: Optional[str]
 
+    @property
+    def locktime(self):
+        return self._locktime
+
+    @locktime.setter
+    def locktime(self, value):
+        self._locktime = value
+        self.invalidate_ser_cache()
+
+    @property
+    def version(self):
+        return self._version
+
+    @version.setter
+    def version(self, value):
+        self._version = value
+        self.invalidate_ser_cache()
+        
     def to_json(self) -> dict:
         d = {
             'version': self.version,
