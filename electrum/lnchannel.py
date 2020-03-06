@@ -70,8 +70,8 @@ class channel_states(IntEnum):
                         #  - Non-funding node: has sent the funding_signed message.
     FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
-    FORCE_CLOSING   = 4 # force-close tx has been broadcast
-    CLOSING         = 5 # shutdown has been sent.
+    CLOSING         = 4 # shutdown has been sent.
+    FORCE_CLOSING   = 5 # force-close tx has been broadcast
     CLOSED          = 6 # funding txo has been spent
     REDEEMED        = 7 # we can stop watching
 
@@ -400,7 +400,7 @@ class Channel(Logger):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return channel_states.PREOPENING < self._state < channel_states.CLOSED and self.peer_state == peer_states.DISCONNECTED
+        return channel_states.PREOPENING < self._state < channel_states.FORCE_CLOSING and self.peer_state == peer_states.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
