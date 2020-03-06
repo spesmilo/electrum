@@ -704,8 +704,11 @@ class LNWallet(LNWorker):
                 return chan
 
     async def update_unfunded_channel(self, chan, funding_txid):
-        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING]:
+        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING]:
             if chan.constraints.is_initiator:
+                # set channel state to REDEEMED so that it can be removed manually
+                # to protect ourselves against a server lying by omission,
+                # we check that funding_inputs have been double spent and deeply mined
                 inputs = chan.storage.get('funding_inputs', [])
                 if not inputs:
                     self.logger.info(f'channel funding inputs are not provided')
@@ -716,9 +719,8 @@ class LNWallet(LNWorker):
                         continue
                     if spender_txid != funding_txid:
                         tx_mined_height = self.wallet.get_tx_height(spender_txid)
-                        if tx_mined_height.conf > 6:
+                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                             self.logger.info(f'channel is double spent {inputs}')
-                            # set to REDEEMED so that it can be removed manually
                             chan.set_state(channel_states.REDEEMED)
                             break
             else:
