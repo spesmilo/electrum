@@ -869,11 +869,11 @@ class Peer(Logger):
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            await self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.try_force_closing(chan_id)
             return
         elif self.lnworker.wallet.is_lightning_backup():
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): force-closing because we are a recent backup")
-            await self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.try_force_closing(chan_id)
             return
 
         chan.peer_state = peer_states.GOOD
@@ -1106,7 +1106,7 @@ class Peer(Logger):
         if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
+            asyncio.ensure_future(self.lnworker.try_force_closing(channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(
