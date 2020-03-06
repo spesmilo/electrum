@@ -528,8 +528,8 @@ class Transaction:
             raise Exception(f"cannot initialize transaction from {raw}")
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
-        self.locktime = 0
-        self.version = 2
+        self._locktime = 0
+        self._version = 2
         self.expect_trailing_data = expect_trailing_data
         self.copy_input = copy_input
         self.start_position = start_position
@@ -593,7 +593,7 @@ class Transaction:
         else:
             vds.input = raw_bytes
         vds.read_cursor = self.start_position
-        self.version = vds.read_int32()
+        self._version = vds.read_int32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -611,7 +611,7 @@ class Transaction:
         if is_segwit:
             for txin in self._inputs:
                 parse_witness(vds, txin)
-        self.locktime = vds.read_uint32()
+        self._locktime = vds.read_uint32()
         if vds.can_read_more() and not self.expect_trailing_data:
             raise SerializationError('extra junk at the end')
         if self.expect_trailing_data:
