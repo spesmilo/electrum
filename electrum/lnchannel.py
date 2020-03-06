@@ -99,6 +99,7 @@ state_transitions = [
     (cs.CLOSING, cs.CLOSING), # if we reestablish
     (cs.CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.CLOSED),
+    (cs.FORCE_CLOSING, cs.REDEEMED),
     (cs.CLOSED, cs.REDEEMED),
     (cs.OPENING, cs.REDEEMED), # channel never funded (dropped from mempool)
     (cs.PREOPENING, cs.REDEEMED), # channel never funded
