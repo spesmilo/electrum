@@ -644,8 +644,12 @@ class Channel(Logger):
         """
         assert type(whose) is HTLCOwner
         ctn = self.get_next_ctn(ctx_owner)
-        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)\
-                - htlcsum(self.hm.htlcs_by_direction(ctx_owner, SENT, ctn).values())
+        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)
+                - self.unsettled_sent_balance(ctx_owner)
+
+    def unsettled_sent_balance(self, subject: HTLCOwner = LOCAL):
+        ctn = self.get_next_ctn(subject)
+        return htlcsum(self.hm.htlcs_by_direction(subject, SENT, ctn).values())
 
     def available_to_spend(self, subject):
         """

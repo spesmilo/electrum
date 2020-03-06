@@ -994,15 +994,18 @@ class Commands:
         l = list(wallet.lnworker.channels.items())
         return [
             {
-                'local_htlcs': json.loads(encoder.encode(chan.hm.log[LOCAL])),
-                'remote_htlcs': json.loads(encoder.encode(chan.hm.log[REMOTE])),
-                'channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
-                'full_channel_id': bh2u(chan.channel_id),
+                'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
+                'channel_id': bh2u(chan.channel_id),
                 'channel_point': chan.funding_outpoint.to_str(),
                 'state': chan.get_state().name,
+                'peer_state': chan.peer_state.name,
                 'remote_pubkey': bh2u(chan.node_id),
                 'local_balance': chan.balance(LOCAL)//1000,
                 'remote_balance': chan.balance(REMOTE)//1000,
+                'local_reserve': chan.config[LOCAL].reserve_sat,
+                'remote_reserve': chan.config[REMOTE].reserve_sat,
+                'local_unsettled_sent': chan.unsettled_sent_balance(LOCAL),
+                'remote_unsettled_sent': chan.unsettled_sent_balance(REMOTE),
             } for channel_id, chan in l
         ]
 
