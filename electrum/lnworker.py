@@ -751,7 +751,7 @@ class LNWallet(LNWorker):
             if peer is None:
                 self.logger.info("peer not found for {}".format(bh2u(chan.node_id)))
                 return
-            await peer.bitcoin_fee_update(chan)
+            await peer.maybe_update_fee(chan)
             conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
             peer.on_network_update(chan, conf)
 
@@ -1362,12 +1362,6 @@ class LNWallet(LNWorker):
             for chan in channels:
                 if chan.is_closed():
                     continue
-                if constants.net is not constants.BitcoinRegtest:
-                    chan_feerate = chan.get_latest_feerate(LOCAL)
-                    ratio = chan_feerate / self.current_feerate_per_kw()
-                    if ratio < 0.5:
-                        self.logger.warning(f"fee level for channel {bh2u(chan.channel_id)} is {chan_feerate} sat/kiloweight, "
-                                            f"current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
                 # reestablish
                 if not chan.should_try_to_reestablish_peer():
                     continue
