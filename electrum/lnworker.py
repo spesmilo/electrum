@@ -1313,24 +1313,25 @@ class LNWallet(LNWorker):
 
     @ignore_exceptions
     @log_exceptions
-    async def reestablish_peer_for_given_channel(self, chan):
+    async def reestablish_peer_for_given_channel(self, chan: Channel) -> None:
         now = time.time()
-        # try last good address first
-        peer = self.channel_db.get_last_good_address(chan.node_id)
-        if peer:
+        peer_addresses = []
+        # will try last good address first, from gossip
+        last_good_addr = self.channel_db.get_last_good_address(chan.node_id)
+        if last_good_addr:
+            peer_addresses.append(last_good_addr)
+        # will try addresses for node_id from gossip
+        addrs_from_gossip = self.channel_db.get_node_addresses(chan.node_id) or []
+        for host, port, ts in addrs_from_gossip:
+            peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
+        # will try addresses stored in channel storage
+        peer_addresses += list(chan.get_peer_addresses())
+        # now select first one that has not failed recently
+        for peer in peer_addresses:
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
                 await self._add_peer(peer.host, peer.port, peer.pubkey)
                 return
-        # try random address for node_id
-        addresses = self.channel_db.get_node_addresses(chan.node_id)
-        if not addresses:
-            return
-        host, port, t = random.choice(list(addresses))
-        peer = LNPeerAddr(host, port, chan.node_id)
-        last_tried = self._last_tried_peer.get(peer, 0)
-        if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-            await self._add_peer(host, port, chan.node_id)
 
     async def reestablish_peers_and_channels(self):
         while True:

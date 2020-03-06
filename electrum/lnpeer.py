@@ -202,6 +202,8 @@ class Peer(Logger):
             raise GracefulDisconnect(f"{str(e)}")
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
+            for chan in self.channels.values():
+                chan.add_or_update_peer_addr(self.transport.peer_addr)
         self._received_init = True
         self.maybe_set_initialized()
 
@@ -597,6 +599,8 @@ class Peer(Logger):
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        if isinstance(self.transport, LNTransport):
+            chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
         self.send_message("funding_created",
@@ -695,6 +699,8 @@ class Peer(Logger):
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
         chan.storage['init_timestamp'] = int(time.time())
+        if isinstance(self.transport, LNTransport):
+            chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
