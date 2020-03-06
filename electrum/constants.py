@@ -307,7 +307,7 @@ class SyscoinSimnet(SyscoinTestnet):
 
 
 # don't import net directly, import the module instead (so that net is singleton)
-net = BitcoinMainnet
+net = SyscoinMainnet
 
 def set_simnet():
     global net

@@ -764,6 +764,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if txid and txid in transactions_tmp:
                 item = transactions_tmp[txid]
                 item['label'] = tx_item['label']
+                item['type'] = tx_item['type']
+                item['channel_id'] = tx_item['channel_id']
                 item['ln_value'] = Satoshis(ln_value)
             else:
                 tx_item['lightning'] = True
