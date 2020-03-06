@@ -1249,16 +1249,25 @@ class Peer(Logger):
         chan = self.channels[channel_id]
         chan.update_fee(feerate, False)
 
-    async def bitcoin_fee_update(self, chan: Channel):
+    async def maybe_update_fee(self, chan: Channel):
         """
         called when our fee estimates change
         """
         if not chan.can_send_ctx_updates():
             return
-        if not chan.constraints.is_initiator:
-            # TODO force close if initiator does not update_fee enough
-            return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
+        if not chan.constraints.is_initiator:
+            if constants.net is not constants.BitcoinRegtest:
+                chan_feerate = chan.get_latest_feerate(LOCAL)
+                ratio = chan_feerate / feerate_per_kw
+                if ratio < 0.5:
+                    # Note that we trust the Electrum server about fee rates
+                    # Thus, automated force-closing might not be a good idea
+                    # Maybe we should display something in the GUI instead
+                    self.logger.warning(
+                        f"({chan.get_id_for_log()}) feerate is {chan_feerate} sat/kw, "
+                        f"current recommended feerate is {feerate_per_kw} sat/kw, consider force closing!")
+            return
         chan_fee = chan.get_next_feerate(REMOTE)
         if feerate_per_kw < chan_fee / 2:
             self.logger.info("FEES HAVE FALLEN")
