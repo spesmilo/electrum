@@ -1725,14 +1725,10 @@ class PartialTransaction(Transaction):
         self.remove_signatures()
         self.invalidate_ser_cache()
 
-    def inputs(self) -> Sequence[TxInput]:
-        if self._inputs is None:
-            self.deserialize()
+    def inputs(self) -> Sequence[PartialTxInput]:
         return self._inputs
 
-    def outputs(self) -> Sequence[TxOutput]:
-        if self._outputs is None:
-            self.deserialize()
+    def outputs(self) -> Sequence[PartialTxOutput]:
         return self._outputs
 
     def add_inputs(self, inputs: List[PartialTxInput]) -> None:
