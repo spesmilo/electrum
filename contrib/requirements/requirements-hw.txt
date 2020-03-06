@@ -1,8 +1,6 @@
-Cython>=0.27
 trezor[hidapi]>=0.11.0
 safet[hidapi]>=0.1.0
 keepkey>=6.0.3
 btchip-python>=0.1.26
-ckcc-protocol>=0.7.2
-websocket-client
+ckcc-protocol>=0.7.7
 hidapi

@@ -3,11 +3,11 @@ from struct import pack
 
 from electrum import ecc
 from electrum.i18n import _
-from electrum.util import PrintError, UserCancelled, UserFacingException
+from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum.logging import Logger
-from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
@@ -28,7 +28,7 @@ MESSAGES = {
 }
 
 
-class TrezorClientBase(PrintError):
+class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
@@ -36,6 +36,7 @@ class TrezorClientBase(PrintError):
         self.plugin = plugin
         self.device = plugin.device
         self.handler = handler
+        Logger.__init__(self)
 
         self.msg = None
         self.creating_wallet = False
@@ -85,11 +86,9 @@ class TrezorClientBase(PrintError):
         return "%s/%s" % (self.label(), self.features.device_id)
 
     def label(self):
-        '''The name given by the user to the device.'''
         return self.features.label
 
     def is_initialized(self):
-        '''True if initialized, False if wiped.'''
         return self.features.initialized
 
     def is_pairable(self):
@@ -115,7 +114,7 @@ class TrezorClientBase(PrintError):
     def timeout(self, cutoff):
         '''Time out the client if the last operation was before cutoff.'''
         if self.last_operation < cutoff:
-            self.print_error("timed out")
+            self.logger.info("timed out")
             self.clear_session()
 
     def i4b(self, x):
@@ -162,17 +161,17 @@ class TrezorClientBase(PrintError):
     def clear_session(self):
         '''Clear the session to force pin (and passphrase if enabled)
         re-entry.  Does not leak exceptions.'''
-        self.print_error("clear session:", self)
+        self.logger.info(f"clear session: {self}")
         self.prevent_timeouts()
         try:
             self.client.clear_session()
         except BaseException as e:
             # If the device was removed it has the same effect...
-            self.print_error("clear_session: ignoring error", str(e))
+            self.logger.info(f"clear_session: ignoring error {e}")
 
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
-        self.print_error("closing client")
+        self.logger.info("closing client")
         self.clear_session()
 
     def is_uptodate(self):

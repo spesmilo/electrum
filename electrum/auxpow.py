@@ -49,34 +49,59 @@ import binascii
 # absolute prior to Python 3.5.
 import electrum.blockchain
 from .bitcoin import hash_encode, hash_decode
+from . import constants
 from .crypto import sha256d
 from . import transaction
-from .transaction import BCDataStream, Transaction, TYPE_SCRIPT
+from .transaction import BCDataStream, Transaction, TxOutput, TYPE_SCRIPT
 from .util import bfh, bh2u
-from . import constants
+
+# Maximum index of the merkle root hash in the coinbase transaction script,
+# where no merged mining header is present.
+MAX_INDEX_PC_BACKWARDS_COMPATIBILITY = 20
+
+# Header for merge-mining data in the coinbase.
+COINBASE_MERGED_MINING_HEADER = bfh('fabe') + b'mm'
 
 BLOCK_VERSION_AUXPOW_BIT = 0x100
-MIN_AUXPOW_HEIGHT = 1
 
-# TODO: move this to network constants
-CHAIN_ID = 0x1000
+class AuxPowVerifyError(Exception):
+    pass
 
+class AuxPoWNotGenerateError(AuxPowVerifyError):
+    pass
+
+class AuxPoWOwnChainIDError(AuxPowVerifyError):
+    pass
+
+class AuxPoWChainMerkleTooLongError(AuxPowVerifyError):
+    pass
+
+class AuxPoWBadCoinbaseMerkleBranchError(AuxPowVerifyError):
+    pass
+
+class AuxPoWCoinbaseNoInputsError(AuxPowVerifyError):
+    pass
+
+class AuxPoWCoinbaseRootTooLate(AuxPowVerifyError):
+    pass
+
+class AuxPoWCoinbaseRootMissingError(AuxPowVerifyError):
+    pass
 
 def auxpow_active(base_header):
-    height_allows_auxpow = base_header['block_height'] >= MIN_AUXPOW_HEIGHT
+    height_allows_auxpow = base_header['block_height'] >= constants.net.AUXPOW_START_HEIGHT
     version_allows_auxpow = base_header['version'] & BLOCK_VERSION_AUXPOW_BIT
 
     return height_allows_auxpow and version_allows_auxpow
 
-
 def get_chain_id(base_header):
     return base_header['version'] >> 16
 
+def deserialize_auxpow_header(base_header, s, start_position=0) -> (dict, int):
+    """Deserialises an AuxPoW instance.
 
-# If expect_trailing_data, returns start position of trailing data
-def deserialize_auxpow_header(base_header, s, expect_trailing_data=False, start_position=0):
-    if len(s) - start_position == 0 and not expect_trailing_data:
-        return None
+    Returns the deserialised AuxPoW dict and the end position in the byte
+    array as a pair."""
 
     auxpow_header = {}
 
@@ -85,13 +110,8 @@ def deserialize_auxpow_header(base_header, s, expect_trailing_data=False, start_
 
     # The parent coinbase transaction is first.
     # Deserialize it and save the trailing data.
-    parent_coinbase_tx = Transaction(None,
-                                     expect_trailing_data=True,
-                                     raw_bytes=s,
-                                     expect_trailing_bytes=True,
-                                     copy_input=False,
-                                     start_position=start_position)
-    parent_coinbase_tx_dict, start_position = fast_tx_deserialize(parent_coinbase_tx)
+    parent_coinbase_tx = Transaction(s, expect_trailing_data=True, copy_input=False, start_position=start_position)
+    start_position = fast_tx_deserialize(parent_coinbase_tx)
     auxpow_header['parent_coinbase_tx'] = parent_coinbase_tx
 
     # Next is the parent block hash.  According to the Bitcoin.it wiki,
@@ -100,32 +120,18 @@ def deserialize_auxpow_header(base_header, s, expect_trailing_data=False, start_
 
     # The coinbase and chain merkle branches/indices are next.
     # Deserialize them and save the trailing data.
-    auxpow_header['coinbase_merkle_branch'], \
-        auxpow_header['coinbase_merkle_index'], \
-        start_position = deserialize_merkle_branch(s, start_position=start_position)
-
-    auxpow_header['chain_merkle_branch'], \
-        auxpow_header['chain_merkle_index'], \
-        start_position = deserialize_merkle_branch(s, start_position=start_position)
-
-    # Finally there's the parent header.  Deserialize it, along with any
-    # trailing data if requested.
-    if expect_trailing_data:
-        auxpow_header['parent_header'], \
-            start_position = electrum.blockchain.deserialize_header(s, 1, expect_trailing_data=expect_trailing_data,
-                                                                    start_position=start_position)
-    else:
-        auxpow_header['parent_header'] = electrum.blockchain.deserialize_header(s, 1,
-                                                                                expect_trailing_data=expect_trailing_data,
-                                                                                start_position=start_position)
+    auxpow_header['coinbase_merkle_branch'], auxpow_header['coinbase_merkle_index'], start_position = deserialize_merkle_branch(s, start_position=start_position)
+    auxpow_header['chain_merkle_branch'], auxpow_header['chain_merkle_index'], start_position = deserialize_merkle_branch(s, start_position=start_position)
+    
+    # Finally there's the parent header.  Deserialize it.
+    parent_header_bytes = s[start_position : start_position + electrum.blockchain.HEADER_SIZE]
+    auxpow_header['parent_header'] = electrum.blockchain.deserialize_pure_header(parent_header_bytes, None)
+    start_position += electrum.blockchain.HEADER_SIZE
     # The parent block header doesn't have any block height,
-    # so delete that field.  (We used 1 as a dummy value above.)
+    # so delete that field.  (We used None as a dummy value above.)
     del auxpow_header['parent_header']['block_height']
 
-    if expect_trailing_data:
-        return auxpow_header, start_position
-
-    return auxpow_header
+    return auxpow_header, start_position
 
 # Copied from merkle_branch_from_string in https://github.com/electrumalt/electrum-doge/blob/f74312822a14f59aa8d50186baff74cade449ccd/lib/blockchain.py#L622
 # Returns list of hashes, merkle index, and position of trailing data in s
@@ -141,25 +147,6 @@ def deserialize_merkle_branch(s, start_position=0):
         hashes.append(hash_encode(_hash))
     index = vds.read_int32()
     return hashes, index, vds.read_cursor
-
-
-# TODO: This is dead code that will probably be removed.
-def strip_auxpow_headers(index, chunk):
-    result = bytearray()
-    trailing_data = chunk
-
-    i = 0
-    while len(trailing_data) > 0:
-        header, trailing_data = electrum.blockchain.deserialize_header(
-            trailing_data,
-            index * constants.net.POW_BLOCK_ADJUST + i,
-            expect_trailing_data=True
-        )
-        result.extend(bfh(electrum.blockchain.serialize_header(header)))
-        i = i + 1
-
-    return bytes(result)
-
 
 def hash_parent_header(header):
     if not auxpow_active(header):
@@ -213,11 +200,23 @@ def verify_auxpow(header):
     coinbase_merkle_branch = auxpow['coinbase_merkle_branch']
     coinbase_index = auxpow['coinbase_merkle_index']
 
+    #if (coinbaseTx.nIndex != 0)
+    #    return error("AuxPow is not a generate");
+
+    if (coinbase_index != 0):
+        raise AuxPoWNotGenerateError()
+
     #if (get_chain_id(parent_block) == chain_id)
     #  return error("Aux POW parent has our chain ID");
 
-    if (get_chain_id(parent_block) == CHAIN_ID):
-        raise Exception('Aux POW parent has our chain ID')
+    if (get_chain_id(parent_block) == constants.net.AUXPOW_CHAIN_ID):
+        raise AuxPoWOwnChainIDError()
+
+    #if (vChainMerkleBranch.size() > 30)
+    #    return error("Aux POW chain merkle branch too long");
+
+    if (len(chain_merkle_branch) > 30):
+        raise AuxPoWChainMerkleTooLongError()
 
     #// Check that the chain merkle root is in the coinbase
     #uint256 nRootHash = CBlock::CheckMerkleBranch(hashAuxBlock, vChainMerkleBranch, nChainIndex);
@@ -225,50 +224,83 @@ def verify_auxpow(header):
     #std::reverse(vchRootHash.begin(), vchRootHash.end()); // correct endian
 
     # Check that the chain merkle root is in the coinbase
-    root_hash = calculate_merkle_root(auxhash, chain_merkle_branch, chain_index)
+    root_hash_bytes = bfh(calculate_merkle_root(auxhash, chain_merkle_branch, chain_index))
 
     # Check that we are in the parent block merkle tree
     # if (CBlock::CheckMerkleBranch(GetHash(), vMerkleBranch, nIndex) != parentBlock.hashMerkleRoot)
     #    return error("Aux POW merkle root incorrect");
     if (calculate_merkle_root(coinbase_hash, coinbase_merkle_branch, coinbase_index) != parent_block['merkle_root']):
-        raise Exception('Aux POW merkle root incorrect')
+        raise AuxPoWBadCoinbaseMerkleBranchError()
+
+    #// Check that there is at least one input.
+    #if (coinbaseTx->vin.empty())
+    #    return error("Aux POW coinbase has no inputs");
+
+    # Check that there is at least one input.
+    if (len(coinbase.inputs()) == 0):
+        raise AuxPoWCoinbaseNoInputsError()
+
+    # const CScript script = coinbaseTx->vin[0].scriptSig;
+
+    script_bytes = coinbase.inputs()[0].script_sig
 
     #// Check that the same work is not submitted twice to our chain.
     #//
 
-    #CScript::const_iterator pcHead =
-    #std::search(script.begin(), script.end(), UBEGIN(pchMergedMiningHeader), UEND(pchMergedMiningHeader));
+    # const unsigned char* const mmHeaderBegin = pchMergedMiningHeader;
+    # const unsigned char* const mmHeaderEnd
+    #    = mmHeaderBegin + sizeof (pchMergedMiningHeader);
+    # CScript::const_iterator pcHead =
+    #    std::search(script.begin(), script.end(), mmHeaderBegin, mmHeaderEnd);
+
+    pos_header = script_bytes.find(COINBASE_MERGED_MINING_HEADER)
 
     #CScript::const_iterator pc =
-    #std::search(script.begin(), script.end(), vchRootHash.begin(), vchRootHash.end());
+    #    std::search(script.begin(), script.end(), vchRootHash.begin(), vchRootHash.end());
+
+    pos = script_bytes.find(root_hash_bytes)
 
     #if (pc == script.end())
-    #return error("Aux POW missing chain merkle root in parent coinbase");
 
-    script = coinbase.inputs()[0]['scriptSig']
-    pos = script.find(root_hash)
-
-    # todo: if pos == -1 ??
     if pos == -1:
-        raise Exception('Aux POW missing chain merkle root in parent coinbase')
 
-    #todo: make sure only submitted once
+        #return error("Aux POW missing chain merkle root in parent coinbase");
+
+        raise AuxPoWCoinbaseRootMissingError('Aux POW missing chain merkle root in parent coinbase')
+
     #if (pcHead != script.end())
     #{
-    #// Enforce only one chain merkle root by checking that a single instance of the merged
-    #// mining header exists just before.
-    #if (script.end() != std::search(pcHead + 1, script.end(), UBEGIN(pchMergedMiningHeader), UEND(pchMergedMiningHeader)))
-    #return error("Multiple merged mining headers in coinbase");
-    #if (pcHead + sizeof(pchMergedMiningHeader) != pc)
-    #return error("Merged mining header is not just before chain merkle root");
+
+    if pos_header != -1:
+
+        #// Enforce only one chain merkle root by checking that a single instance of the merged
+        #// mining header exists just before.
+        #if (script.end() != std::search(pcHead + 1, script.end(), UBEGIN(pchMergedMiningHeader), UEND(pchMergedMiningHeader)))
+            #return error("Multiple merged mining headers in coinbase");
+        #if (pcHead + sizeof(pchMergedMiningHeader) != pc)
+            #return error("Merged mining header is not just before chain merkle root");
+
+        # TODO
+        pass
+
     #}
     #else
     #{
-    #// For backward compatibility.
-    #// Enforce only one chain merkle root by checking that it starts early in the coinbase.
-    #// 8-12 bytes are enough to encode extraNonce and nBits.
-    #if (pc - script.begin() > 20)
-    #return error("Aux POW chain merkle root must start in the first 20 bytes of the parent coinbase");
+
+    else:
+
+        #// For backward compatibility.
+        #// Enforce only one chain merkle root by checking that it starts early in the coinbase.
+        #// 8-12 bytes are enough to encode extraNonce and nBits.
+        #if (pc - script.begin() > 20)
+            #return error("Aux POW chain merkle root must start in the first 20 bytes of the parent coinbase");
+
+        # For backward compatibility.
+        # Enforce only one chain merkle root by checking that it starts early in the coinbase.
+        # 8-12 bytes are enough to encode extraNonce and nBits.
+        if pos > 20:
+            raise AuxPoWCoinbaseRootTooLate()
+
     #}
 
 
@@ -276,25 +308,22 @@ def verify_auxpow(header):
     #// a nonce and our chain ID and comparing to the index.
     #pc += vchRootHash.size();
     #if (script.end() - pc < 8)
-    #return error("Aux POW missing chain merkle tree size and nonce in parent coinbase");
+        #return error("Aux POW missing chain merkle tree size and nonce in parent coinbase");
 
-    pos = pos + len(root_hash)
-    if (len(script) - pos < 8):
+    pos = pos + len(root_hash_bytes)
+    if (len(script_bytes) - pos < 8):
         raise Exception('Aux POW missing chain merkle tree size and nonce in parent coinbase')
 
-    #int nSize;
+     #int nSize;
     #memcpy(&nSize, &pc[0], 4);
     #if (nSize != (1 << vChainMerkleBranch.size()))
-    #return error("Aux POW merkle branch size does not match parent coinbase");
+        #return error("Aux POW merkle branch size does not match parent coinbase");
 
-    def hex_to_int(s):
-        b = bytes.fromhex(s)
-        b_reversed = b[::-1]
-        h = binascii.hexlify(b_reversed).decode('ascii')
-        return int(h, 16)
+    def bytes_to_int(b):
+        return int.from_bytes(b, byteorder='little')
 
-    size = hex_to_int(script[pos:pos+8])
-    nonce = hex_to_int(script[pos+8:pos+16])
+    size = bytes_to_int(script_bytes[pos:pos+4])
+    nonce = bytes_to_int(script_bytes[pos+4:pos+8])
 
     #print 'size',size
     #print 'nonce',nonce
@@ -319,29 +348,26 @@ def verify_auxpow(header):
     #rand = rand * 1103515245 + 12345;
 
     #if (nChainIndex != (rand % nSize))
-    #return error("Aux POW wrong index");
+        #return error("Aux POW wrong index");
 
-    index = calc_merkle_index(CHAIN_ID, nonce, size)
+    index = calc_merkle_index(constants.net.AUXPOW_CHAIN_ID, nonce, size)
     #print 'index', index
 
     if (chain_index != index):
         raise Exception('Aux POW wrong index')
 
-
 # This is calculated the same as the Transaction.txid() method, but doesn't
 # reserialize it.
 def fast_txid(tx):
-    return bh2u(sha256d(tx.raw_bytes)[::-1])
-
+    return bh2u(sha256d(tx._cached_network_ser_bytes)[::-1])
 
 # Used by fast_tx_deserialize
-def stub_parse_output(vds, i):
-    vds.read_int64() # d['value']
-    vds.read_bytes(vds.read_compact_size()) # scriptPubKey
-    return {'type': TYPE_SCRIPT, 'address': None, 'value': 0}
+def stub_parse_output(vds: BCDataStream) -> TxOutput:
+    vds.read_int64() # value
+    vds.read_bytes(vds.read_compact_size()) # scriptpubkey
+    return TxOutput(value=0, scriptpubkey=b'')
 
-
-# This is equivalent to tx.deserialize(), but doesn't parse outputs.
+# This is equivalent to (tx.deserialize(), ), but doesn't parse outputs.
 def fast_tx_deserialize(tx):
     # Monkeypatch output address parsing with a stub, since we only care about
     # inputs.

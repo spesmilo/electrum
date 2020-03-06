@@ -42,9 +42,10 @@ if TYPE_CHECKING:
 
 COINBASE_MATURITY = 100
 COIN = 100000000
-TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 888000000
+TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 21000000
 
 # supported types of transaction outputs
+# TODO kill these with fire
 TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
@@ -237,6 +238,9 @@ def script_num_to_hex(i: int) -> str:
 
 def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
+    # https://github.com/bitcoin/bitcoin/blob/efe1ee0d8d7f82150789f1f6840f139289628a2b/src/serialize.h#L247
+    # "CompactSize"
+    assert i >= 0, i
     if i<0xfd:
         return int_to_hex(i)
     elif i<=0xffff:
@@ -290,11 +294,15 @@ def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 
 
-def relayfee(network: 'Network'=None) -> int:
-    from .simple_config import FEERATE_DEFAULT_RELAY
-    MAX_RELAY_FEE = 50000
-    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
-    return min(f, MAX_RELAY_FEE)
+def relayfee(network: 'Network' = None) -> int:
+    from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
+    if network and network.relay_fee is not None:
+        fee = network.relay_fee
+    else:
+        fee = FEERATE_DEFAULT_RELAY
+    fee = min(fee, FEERATE_MAX_RELAY)
+    fee = max(fee, 0)
+    return fee
 
 
 def dust_threshold(network: 'Network'=None) -> int:
@@ -368,24 +376,28 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
     else:
         raise NotImplementedError(txin_type)
 
-def redeem_script_to_address(txin_type: str, redeem_script: str, *, net=None) -> str:
+
+# TODO this method is confusingly named
+def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
     if net is None: net = constants.net
     if txin_type == 'p2sh':
-        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
+        # given scriptcode is a redeem_script
+        return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
     elif txin_type == 'p2wsh':
-        return script_to_p2wsh(redeem_script, net=net)
+        # given scriptcode is a witness_script
+        return script_to_p2wsh(scriptcode, net=net)
     elif txin_type == 'p2wsh-p2sh':
-        scriptSig = p2wsh_nested_script(redeem_script)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
+        # given scriptcode is a witness_script
+        redeem_script = p2wsh_nested_script(scriptcode)
+        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
     else:
         raise NotImplementedError(txin_type)
 
 
 def script_to_address(script: str, *, net=None) -> str:
     from .transaction import get_address_from_output_script
-    t, addr = get_address_from_output_script(bfh(script), net=net)
-    assert t == TYPE_ADDRESS
-    return addr
+    return get_address_from_output_script(bfh(script), net=net)
+
 
 def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -400,9 +412,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         return script
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-        script += push_script(bh2u(hash_160_))
-        script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
+        script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
     elif addrtype == net.ADDRTYPE_P2SH:
         script = opcodes.OP_HASH160.hex()
         script += push_script(bh2u(hash_160_))
@@ -421,6 +431,13 @@ def script_to_scripthash(script: str) -> str:
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
     return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
+
+def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
+    script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
+    script += push_script(pubkey_hash160)
+    script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
+    return script
+
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58

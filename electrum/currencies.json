@@ -308,7 +308,6 @@
         "STD",
         "SVC",
         "SYP",
-        "SYS",
         "SZL",
         "THB",
         "TJS",
@@ -353,10 +352,7 @@
     ],
     "Bitcointoyou": [
         "BRL"
-    ],
-    "Bitmarket": [
-        "PLN"
-    ],
+    ],    
     "Bitso": [
         "MXN"
     ],
@@ -528,7 +524,6 @@
         "SRD",
         "STD",
         "SVC",
-        "SYS",
         "SYP",
         "SZL",
         "THB",

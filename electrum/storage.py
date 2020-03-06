@@ -28,12 +28,14 @@ import stat
 import hashlib
 import base64
 import zlib
+from enum import IntEnum
 
 from . import ecc
-from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path
+from .util import profiler, InvalidPassword, WalletFileException, bfh, standardize_path
 from .plugin import run_hook, plugin_loaders
 
 from .json_db import JsonDB
+from .logging import Logger
 
 
 def get_derivation_used_for_hw_device_encryption():
@@ -41,22 +43,28 @@ def get_derivation_used_for_hw_device_encryption():
             "/4541509'"      # ascii 'ELE'  as decimal ("BIP43 purpose")
             "/1112098098'")  # ascii 'BIE2' as decimal
 
-# storage encryption version
-STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
+
+class StorageEncryptionVersion(IntEnum):
+    PLAINTEXT = 0
+    USER_PASSWORD = 1
+    XPUB_PASSWORD = 2
 
 
+class StorageReadWriteError(Exception): pass
 
-class WalletStorage(PrintError):
+
+class WalletStorage(Logger):
 
     def __init__(self, path, *, manual_upgrades=False):
+        Logger.__init__(self)
         self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = self.path and os.path.exists(self.path)
 
         DB_Class = JsonDB
-        self.print_error("wallet path", self.path)
+        self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
-        # TODO we should test r/w permissions here (whether file exists or not)
+        self._test_read_write_permissions(self.path)
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
@@ -65,10 +73,31 @@ class WalletStorage(PrintError):
                 self.db = DB_Class(self.raw, manual_upgrades=manual_upgrades)
                 self.load_plugins()
         else:
-            self._encryption_version = STO_EV_PLAINTEXT
+            self._encryption_version = StorageEncryptionVersion.PLAINTEXT
             # avoid new wallets getting 'upgraded'
             self.db = DB_Class('', manual_upgrades=False)
 
+    @classmethod
+    def _test_read_write_permissions(cls, path):
+        # note: There might already be a file at 'path'.
+        #       Make sure we do NOT overwrite/corrupt that!
+        temp_path = "%s.tmptest.%s" % (path, os.getpid())
+        echo = "fs r/w test"
+        try:
+            # test READ permissions for actual path
+            if os.path.exists(path):
+                with open(path, "r", encoding='utf-8') as f:
+                    f.read(1)  # read 1 byte
+            # test R/W sanity for "similar" path
+            with open(temp_path, "w", encoding='utf-8') as f:
+                f.write(echo)
+            with open(temp_path, "r", encoding='utf-8') as f:
+                echo2 = f.read()
+            os.remove(temp_path)
+        except Exception as e:
+            raise StorageReadWriteError(e) from e
+        if echo != echo2:
+            raise StorageReadWriteError('echo sanity-check failed')
 
     def load_plugins(self):
         wallet_type = self.db.get('wallet_type')
@@ -88,7 +117,7 @@ class WalletStorage(PrintError):
 
     def _write(self):
         if threading.currentThread().isDaemon():
-            self.print_error('warning: daemon thread cannot write db')
+            self.logger.warning('daemon thread cannot write db')
             return
         if not self.db.modified():
             return
@@ -101,12 +130,13 @@ class WalletStorage(PrintError):
             os.fsync(f.fileno())
 
         mode = os.stat(self.path).st_mode if self.file_exists() else stat.S_IREAD | stat.S_IWRITE
+        # assert that wallet file does not exist, to prevent wallet corruption (see issue #5082)
         if not self.file_exists():
             assert not os.path.exists(self.path)
         os.replace(temp_path, self.path)
         os.chmod(self.path, mode)
         self._file_exists = True
-        self.print_error("saved", self.path)
+        self.logger.info(f"saved {self.path}")
         self.db.set_modified(False)
 
     def file_exists(self):
@@ -126,13 +156,13 @@ class WalletStorage(PrintError):
 
     def is_encrypted(self):
         """Return if storage encryption is currently enabled."""
-        return self.get_encryption_version() != STO_EV_PLAINTEXT
+        return self.get_encryption_version() != StorageEncryptionVersion.PLAINTEXT
 
     def is_encrypted_with_user_pw(self):
-        return self.get_encryption_version() == STO_EV_USER_PW
+        return self.get_encryption_version() == StorageEncryptionVersion.USER_PASSWORD
 
     def is_encrypted_with_hw_device(self):
-        return self.get_encryption_version() == STO_EV_XPUB_PW
+        return self.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
 
     def get_encryption_version(self):
         """Return the version of encryption used for this storage.
@@ -149,13 +179,13 @@ class WalletStorage(PrintError):
         try:
             magic = base64.b64decode(self.raw)[0:4]
             if magic == b'BIE1':
-                return STO_EV_USER_PW
+                return StorageEncryptionVersion.USER_PASSWORD
             elif magic == b'BIE2':
-                return STO_EV_XPUB_PW
+                return StorageEncryptionVersion.XPUB_PASSWORD
             else:
-                return STO_EV_PLAINTEXT
+                return StorageEncryptionVersion.PLAINTEXT
         except:
-            return STO_EV_PLAINTEXT
+            return StorageEncryptionVersion.PLAINTEXT
 
     @staticmethod
     def get_eckey_from_password(password):
@@ -165,9 +195,9 @@ class WalletStorage(PrintError):
 
     def _get_encryption_magic(self):
         v = self._encryption_version
-        if v == STO_EV_USER_PW:
+        if v == StorageEncryptionVersion.USER_PASSWORD:
             return b'BIE1'
-        elif v == STO_EV_XPUB_PW:
+        elif v == StorageEncryptionVersion.XPUB_PASSWORD:
             return b'BIE2'
         else:
             raise WalletFileException('no encryption magic for version: %s' % v)
@@ -209,13 +239,13 @@ class WalletStorage(PrintError):
         """Set a password to be used for encrypting this storage."""
         if enc_version is None:
             enc_version = self._encryption_version
-        if password and enc_version != STO_EV_PLAINTEXT:
+        if password and enc_version != StorageEncryptionVersion.PLAINTEXT:
             ec_key = self.get_eckey_from_password(password)
             self.pubkey = ec_key.get_public_key_hex()
             self._encryption_version = enc_version
         else:
             self.pubkey = None
-            self._encryption_version = STO_EV_PLAINTEXT
+            self._encryption_version = StorageEncryptionVersion.PLAINTEXT
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
 

@@ -52,7 +52,6 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 
 extras_require = {
     'hardware': requirements_hw,
-    'fast': ['pycryptodomex'],
     'gui': ['pyqt5'],
 }
 extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
@@ -85,10 +84,10 @@ setup(
     },
     scripts=['electrum/electrum'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
-    author="Thomas Voegtlin",
-    author_email="thomasv@electrum.org",
-    license="MIT Licence",
-    url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet""",
+    description="Lightweight Bitcoin Wallet (AuxPoW fork)",
+    author="The Namecoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors",
+    author_email="jeremy@namecoin.org",
+    license="GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components",
+    url="https://www.namecoin.org/",
+    long_description="""Lightweight Bitcoin Wallet (AuxPoW fork)""",
 )

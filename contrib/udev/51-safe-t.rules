@@ -1,0 +1,10 @@
+# Put this file into /usr/lib/udev/rules.d or /etc/udev/rules.d
+
+# Archos Safe-T mini
+SUBSYSTEM=="usb", ATTR{idVendor}=="0e79", ATTR{idProduct}=="6000", MODE="0660", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="safe-tr%n"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0e79", ATTRS{idProduct}=="6000",  MODE="0660", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"
+
+# Archos Safe-T mini Bootloader
+SUBSYSTEM=="usb", ATTR{idVendor}=="0e79", ATTR{idProduct}=="6001", MODE="0660", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="safe-t%n"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0e79", ATTRS{idProduct}=="6001",  MODE="0660", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"
+

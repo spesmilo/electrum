@@ -8,17 +8,17 @@ import time
 import csv
 import decimal
 from decimal import Decimal
-import traceback
 from typing import Sequence, Optional
 
 from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import (PrintError, ThreadJob, make_dir, log_exceptions,
+from .util import (ThreadJob, make_dir, log_exceptions,
                    make_aiohttp_session, resource_path)
 from .network import Network
 from .simple_config import SimpleConfig
+from .logging import Logger
 
 
 DEFAULT_ENABLED = False
@@ -35,9 +35,10 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
 
 
-class ExchangeBase(PrintError):
+class ExchangeBase(Logger):
 
     def __init__(self, on_quotes, on_history):
+        Logger.__init__(self)
         self.history = {}
         self.quotes = {}
         self.on_quotes = on_quotes
@@ -74,12 +75,14 @@ class ExchangeBase(PrintError):
 
     async def update_safe(self, ccy):
         try:
-            self.print_error("getting fx quotes for", ccy)
+            self.logger.info(f"getting fx quotes for {ccy}")
             self.quotes = await self.get_rates(ccy)
-            self.print_error("received fx quotes")
+            self.logger.info("received fx quotes")
+        except asyncio.CancelledError:
+            # CancelledError must be passed-through for cancellation to work
+            raise
         except BaseException as e:
-            self.print_error("failed fx quotes:", repr(e))
-            # traceback.print_exc()
+            self.logger.info(f"failed fx quotes: {repr(e)}")
             self.quotes = {}
         self.on_quotes()
 
@@ -103,12 +106,11 @@ class ExchangeBase(PrintError):
     @log_exceptions
     async def get_historical_rates_safe(self, ccy, cache_dir):
         try:
-            self.print_error(f"requesting fx history for {ccy}")
+            self.logger.info(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
-            self.print_error(f"received fx history for {ccy}")
+            self.logger.info(f"received fx history for {ccy}")
         except BaseException as e:
-            self.print_error(f"failed fx history: {repr(e)}")
-            #traceback.print_exc()
+            self.logger.info(f"failed fx history: {repr(e)}")
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
         with open(filename, 'w', encoding='utf-8') as f:
@@ -189,13 +191,6 @@ class BitFlyer(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('bitflyer.jp', '/api/echo/price')
         return {'JPY': Decimal(json['mid'])}
-
-
-class Bitmarket(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
-        return {'PLN': Decimal(json['last'])}
 
 
 class BitPay(ExchangeBase):
@@ -458,6 +453,7 @@ def get_exchanges_by_ccy(history=True):
 class FxThread(ThreadJob):
 
     def __init__(self, config: SimpleConfig, network: Network):
+        ThreadJob.__init__(self)
         self.config = config
         self.network = network
         if self.network:
@@ -560,10 +556,11 @@ class FxThread(ThreadJob):
 
     def set_exchange(self, name):
         class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
-        self.print_error("using exchange", name)
+        self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
-        self.exchange = class_(self.on_quotes, self.on_history)
+        assert issubclass(class_, ExchangeBase), f"unexpected type {class_} for {name}"
+        self.exchange = class_(self.on_quotes, self.on_history)  # type: ExchangeBase
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.trigger_update()
@@ -614,9 +611,11 @@ class FxThread(ThreadJob):
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate == 'NaN' and (datetime.today().date() - d_t.date()).days <= 2:
+        if rate in ('NaN', None) and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy, 'NaN')
             self.history_used_spot = True
+        if rate is None:
+            rate = 'NaN'
         return Decimal(rate)
 
     def historical_value_str(self, satoshis, d_t):

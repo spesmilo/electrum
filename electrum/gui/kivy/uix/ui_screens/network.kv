@@ -14,7 +14,6 @@ Popup:
                     value: _("{} connections.").format(app.num_nodes) if app.num_nodes else _("Not connected")
                     title: _("Status") + ': ' + self.value
                     description: _("Connections with Electrum servers")
-                    action: lambda x: None
 
                 CardSeparator
                 SettingsItem:
@@ -46,7 +45,6 @@ Popup:
                     value: "%d blocks" % app.num_blocks
                     title: _("Blockchain") + ': ' + self.value
                     description: _('Verified block headers')
-                    action: lambda x: x
 
                 CardSeparator
                 SettingsItem:

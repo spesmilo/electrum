@@ -3,6 +3,9 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from decimal import Decimal
+from kivy.uix.popup import Popup
+
+from electrum.gui.kivy.i18n import _
 
 Builder.load_string('''
 <AddressLabel@Label>
@@ -95,21 +98,93 @@ Builder.load_string('''
                 default_size_hint: 1, None
                 size_hint_y: None
                 height: self.minimum_height
+
+<AddressPopup@Popup>:
+    address: ''
+    balance: ''
+    status: ''
+    script_type: ''
+    pk: ''
+    BoxLayout:
+        orientation: 'vertical'
+        ScrollView:
+            GridLayout:
+                cols: 1
+                height: self.minimum_height
+                size_hint_y: None
+                padding: '10dp'
+                spacing: '10dp'
+                TopLabel:
+                    text: _('Address')
+                RefLabel:
+                    data: root.address
+                    name: _('Address')
+                GridLayout:
+                    cols: 1
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: '10dp'
+                    BoxLabel:
+                        text: _('Balance')
+                        value: root.balance
+                    BoxLabel:
+                        text: _('Script type')
+                        value: root.script_type
+                    BoxLabel:
+                        text: _('Status')
+                        value: root.status
+                TopLabel:
+                    text: _('Private Key')
+                RefLabel:
+                    data: root.pk
+                    name: _('Private key')
+                    on_touched: if not self.data: root.do_export(self)
+        Widget:
+            size_hint: 1, 0.1
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Receive')
+                on_release: root.receive_at()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: root.dismiss()
 ''')
 
 
-from electrum.gui.kivy.i18n import _
-from electrum.gui.kivy.uix.context_menu import ContextMenu
+
+class AddressPopup(Popup):
+
+    def __init__(self, parent, address, balance, status, **kwargs):
+        super(AddressPopup, self).__init__(**kwargs)
+        self.title = _('Address Details')
+        self.parent_dialog = parent
+        self.app = parent.app
+        self.address = address
+        self.status = status
+        self.script_type = self.app.wallet.get_txin_type(self.address)
+        self.balance = self.app.format_amount_and_units(balance)
+
+    def receive_at(self):
+        self.dismiss()
+        self.parent_dialog.dismiss()
+        self.app.switch_to('receive')
+        self.app.receive_screen.set_address(self.address)
+
+    def do_export(self, pk_label):
+        self.app.export_private_keys(pk_label, self.address)
 
 
 class AddressesDialog(Factory.Popup):
 
-    def __init__(self, app, screen, callback):
+    def __init__(self, app):
         Factory.Popup.__init__(self)
         self.app = app
-        self.screen = screen
-        self.callback = callback
-        self.context_menu = None
 
     def get_card(self, addr, balance, is_used, label):
         ci = {}
@@ -121,7 +196,6 @@ class AddressesDialog(Factory.Popup):
         return ci
 
     def update(self):
-        self.menu_actions = [(_('Use'), self.do_use), (_('Details'), self.do_view)]
         wallet = self.app.wallet
         if self.show_change == 0:
             _list = wallet.get_receiving_addresses()
@@ -152,29 +226,12 @@ class AddressesDialog(Factory.Popup):
         if not n:
             self.app.show_error('No address matching your search')
 
-    def do_use(self, obj):
-        self.hide_menu()
-        self.dismiss()
-        self.app.show_request(obj.address)
-
-    def do_view(self, obj):
-        req = { 'address': obj.address, 'status' : obj.status }
-        status = obj.status
-        c, u, x = self.app.wallet.get_addr_balance(obj.address)
+    def show_item(self, obj):
+        address = obj.address
+        c, u, x = self.app.wallet.get_addr_balance(address)
         balance = c + u + x
-        if balance > 0:
-            req['fund'] = balance
-        self.app.show_addr_details(req, status)
+        d = AddressPopup(self, address, balance, obj.status)
+        d.open()
 
     def ext_search(self, card, search):
         return card['memo'].find(search) >= 0 or card['amount'].find(search) >= 0
-
-    def show_menu(self, obj):
-        self.hide_menu()
-        self.context_menu = ContextMenu(obj, self.menu_actions)
-        self.ids.box.add_widget(self.context_menu)
-
-    def hide_menu(self):
-        if self.context_menu is not None:
-            self.ids.box.remove_widget(self.context_menu)
-            self.context_menu = None

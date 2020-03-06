@@ -1,5 +1,6 @@
+import copy
 from datetime import datetime
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, TYPE_CHECKING
 
 from kivy.app import App
 from kivy.factory import Factory
@@ -9,12 +10,18 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
+from kivy.utils import get_color_from_hex
 
 from .question import Question
 from electrum.gui.kivy.i18n import _
 
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum.wallet import CannotBumpFee
+from electrum.transaction import Transaction, PartialTransaction
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
 
 
 Builder.load_string('''
@@ -27,6 +34,7 @@ Builder.load_string('''
     can_broadcast: False
     can_rbf: False
     fee_str: ''
+    feerate_str: ''
     date_str: ''
     date_label:''
     amount_str: ''
@@ -65,6 +73,9 @@ Builder.load_string('''
                     BoxLabel:
                         text: _('Transaction fee') if root.fee_str else ''
                         value: root.fee_str
+                    BoxLabel:
+                        text: _('Transaction fee rate') if root.feerate_str else ''
+                        value: root.feerate_str
                 TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
@@ -96,6 +107,11 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Label')
+                on_release: root.label_dialog()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.dismiss()
 ''')
@@ -111,10 +127,15 @@ class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
         Factory.Popup.__init__(self)
-        self.app = app
+        self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
-        self.tx = tx
+        self.tx = tx  # type: Transaction
         self._action_button_fn = lambda btn: None
+
+        # if the wallet can populate the inputs with more info, do it now.
+        # as a result, e.g. we might learn an imported address tx is segwit,
+        # or that a beyond-gap-limit address is is_mine
+        tx.add_info_from_wallet(self.wallet)
 
     def on_open(self):
         self.update()
@@ -140,6 +161,7 @@ class TxDialog(Factory.Popup):
             self.date_label = ''
             self.date_str = ''
 
+        self.can_sign = self.wallet.can_sign(self.tx)
         if amount is None:
             self.amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -148,9 +170,43 @@ class TxDialog(Factory.Popup):
         else:
             self.is_mine = True
             self.amount_str = format_amount(-amount)
-        self.fee_str = format_amount(fee) if fee is not None else _('unknown')
-        self.can_sign = self.wallet.can_sign(self.tx)
-        self.ids.output_list.update(self.tx.get_outputs_for_UI())
+        risk_of_burning_coins = (isinstance(self.tx, PartialTransaction)
+                                 and self.can_sign
+                                 and fee is not None
+                                 and self.tx.is_there_risk_of_burning_coins_as_fees())
+        if fee is not None and not risk_of_burning_coins:
+            self.fee_str = format_amount(fee)
+            fee_per_kb = fee / self.tx.estimated_size() * 1000
+            self.feerate_str = self.app.format_fee_rate(fee_per_kb)
+        else:
+            self.fee_str = _('unknown')
+            self.feerate_str = _('unknown')
+        self.ids.output_list.update(self.tx.outputs())
+
+        def text_format(addr):
+            """
+            Chooses the appropriate text color and background color to 
+            mark receiving, change and billing addresses.
+
+            Returns: color, background_color
+            """
+            
+            # modified colors (textcolor, background_color) from electrum/gui/qt/util.py
+            GREEN = ("#000000", "#8af296")
+            YELLOW = ("#000000", "#ffff00")
+            BLUE = ("#000000", "#8cb3f2")
+            DEFAULT = ('#ffffff', '#4c4c4c')
+
+            colors = DEFAULT
+            if self.wallet.is_mine(addr):
+                colors = YELLOW if self.wallet.is_change(addr) else GREEN
+            elif self.wallet.is_billing_address(addr):
+                colors = BLUE
+            return (get_color_from_hex(color) for color in colors)
+
+        for dict_entry in self.ids.output_list.data:
+            dict_entry['color'], dict_entry['background_color'] = text_format(dict_entry['address'])
+
         self.is_local_tx = tx_mined_status.height == TX_HEIGHT_LOCAL
         self.update_action_button()
 
@@ -202,16 +258,13 @@ class TxDialog(Factory.Popup):
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
 
-    def _do_rbf(self, old_fee, new_fee, is_final):
-        if new_fee is None:
-            return
-        delta = new_fee - old_fee
-        if delta < 0:
-            self.app.show_error("fee too low")
+    def _do_rbf(self, new_fee_rate, is_final):
+        if new_fee_rate is None:
             return
         try:
-            new_tx = self.wallet.bump_fee(self.tx, delta)
-        except BaseException as e:
+            new_tx = self.wallet.bump_fee(tx=self.tx,
+                                          new_fee_rate=new_fee_rate)
+        except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
         if is_final:
@@ -239,10 +292,15 @@ class TxDialog(Factory.Popup):
 
     def show_qr(self):
         from electrum.bitcoin import base_encode, bfh
-        raw_tx = str(self.tx)
-        text = bfh(raw_tx)
+        original_raw_tx = str(self.tx)
+        tx = copy.deepcopy(self.tx)  # make copy as we mutate tx
+        if isinstance(tx, PartialTransaction):
+            # this makes QR codes a lot smaller (or just possible in the first place!)
+            tx.convert_all_utxos_to_witness_utxos()
+
+        text = tx.serialize_as_bytes()
         text = base_encode(text, base=43)
-        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=raw_tx)
+        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):
         txid = self.tx.txid()
@@ -261,4 +319,15 @@ class TxDialog(Factory.Popup):
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()
         d = Question(question, on_prompt)
+        d.open()
+
+    def label_dialog(self):
+        from .label_dialog import LabelDialog
+        key = self.tx.txid()
+        text = self.app.wallet.get_label(key)
+        def callback(text):
+            self.app.wallet.set_label(key, text)
+            self.update()
+            self.app.history_screen.update()
+        d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()

@@ -1,4 +1,3 @@
-sudo: true
 dist: xenial
 language: python
 python:
@@ -23,13 +22,31 @@ cache:
 script:
     - tox
 after_success:
-    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/make_locale; fi
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
     - coveralls
 jobs:
   include:
+    - name: "Regtest functional tests"
+      before_install:
+        - sudo add-apt-repository -y ppa:bitcoin/bitcoin
+        - sudo apt-get -qq update
+        - sudo apt-get install -yq bitcoind
+      install:
+        - pip install -r contrib/requirements/requirements.txt
+        - pip install electrumx
+      before_script:
+          - electrum/tests/regtest/start_bitcoind.sh
+          - electrum/tests/regtest/start_electrumx.sh
+      script:
+        - python -m unittest electrum/tests/regtest.py
+      after_success: True
+    - name: "Flake8 linter tests"
+      language: python
+      install: pip install flake8
+      script: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     - stage: binary builds
+      if: branch = master
       name: "Windows build"
-      sudo: true
       language: c
       python: false
       env:
@@ -41,29 +58,28 @@ jobs:
       script:
         - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       after_success: true
-    - name: "Android build"
+    - if: branch = master
+      name: "Android build"
       language: python
       python: 3.7
-      env:
-        # reset API key to not have make_locale upload stuff here
-        - crowdin_api_key=
       services:
         - docker
       install:
-        - pip install requests && ./contrib/make_locale
+        - pip install requests && ./contrib/pull_locale
         - ./contrib/make_packages
         - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
         - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
-    - name: "MacOS build"
+    - if: branch = master
+      name: "MacOS build"
       os: osx
       language: c
       env:
@@ -74,8 +90,8 @@ jobs:
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
-    - name: "AppImage build"
-      sudo: true
+    - if: branch = master
+      name: "AppImage build"
       language: c
       python: false
       services:

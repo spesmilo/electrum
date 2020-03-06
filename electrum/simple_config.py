@@ -3,6 +3,7 @@ import threading
 import time
 import os
 import stat
+import ssl
 from decimal import Decimal
 from typing import Union, Optional
 from numbers import Real
@@ -10,6 +11,7 @@ from numbers import Real
 from copy import deepcopy
 
 from . import util
+from . import constants
 from .util import (user_dir, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
@@ -18,28 +20,20 @@ from .logging import get_logger, Logger
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
+FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
 
 # satoshi per kbyte
 FEERATE_MAX_DYNAMIC = 1500000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 150000
 FEERATE_DEFAULT_RELAY = 1000
+FEERATE_MAX_RELAY = 50000
 FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
                          50000, 70000, 100000, 150000, 200000, 300000]
+FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 
-config = None
 _logger = get_logger(__name__)
-
-
-def get_config():
-    global config
-    return config
-
-
-def set_config(c):
-    global config
-    config = c
 
 
 FINAL_CONFIG_VERSION = 3
@@ -58,11 +52,11 @@ class SimpleConfig(Logger):
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
-
         if options is None:
             options = {}
 
         Logger.__init__(self)
+        self.lightning_settle_delay = int(os.environ.get('ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY', 0))
 
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
@@ -102,9 +96,6 @@ class SimpleConfig(Logger):
         # config upgrade - user config
         if self.requires_upgrade():
             self.upgrade()
-
-        # Make a singleton instance of 'self'
-        set_config(self)
 
     def electrum_path(self):
         # Read electrum_path from command line
@@ -207,7 +198,7 @@ class SimpleConfig(Logger):
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'sys':8, 'msys':5, 'usys':2, 'bits':2, 'sat':0}
+            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
 
@@ -248,17 +239,17 @@ class SimpleConfig(Logger):
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
-    def get_wallet_path(self):
+    def get_wallet_path(self, *, use_gui_last_wallet=False):
         """Set the path of the wallet."""
 
         # command line -w option
         if self.get('wallet_path'):
             return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
 
-        # path in config file
-        path = self.get('default_wallet_path')
-        if path and os.path.exists(path):
-            return path
+        if use_gui_last_wallet:
+            path = self.get('gui_last_wallet')
+            if path and os.path.exists(path):
+                return path
 
         # default path
         util.assert_datadir_available(self.path)
@@ -286,12 +277,6 @@ class SimpleConfig(Logger):
 
     def get_session_timeout(self):
         return self.get('session_timeout', 300)
-
-    def open_last_wallet(self):
-        if self.get('wallet_path') is None:
-            last_wallet = self.get('gui_last_wallet')
-            if last_wallet is not None and os.path.exists(last_wallet):
-                self.cmdline_options['default_wallet_path'] = last_wallet
 
     def save_last_wallet(self, wallet):
         if self.get('wallet_path') is None:
@@ -508,6 +493,8 @@ class SimpleConfig(Logger):
 
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
+        if constants.net is constants.BitcoinRegtest:
+            return FEERATE_REGTEST_HARDCODED
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
@@ -533,14 +520,20 @@ class SimpleConfig(Logger):
         fee_per_kb = self.fee_per_kb()
         return fee_per_kb / 1000 if fee_per_kb is not None else None
 
-    def estimate_fee(self, size):
+    def estimate_fee(self, size: Union[int, float, Decimal], *,
+                     allow_fallback_to_static_rates: bool = False) -> int:
         fee_per_kb = self.fee_per_kb()
         if fee_per_kb is None:
-            raise NoDynamicFeeEstimates()
+            if allow_fallback_to_static_rates:
+                fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+            else:
+                raise NoDynamicFeeEstimates()
         return self.estimate_fee_for_feerate(fee_per_kb, size)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb, size):
+    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
+                                 size: Union[int, float, Decimal]) -> int:
+        size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
         # to be consistent with what is displayed in the GUI,
@@ -567,6 +560,14 @@ class SimpleConfig(Logger):
         if device == 'default':
             device = ''
         return device
+
+    def get_ssl_context(self):
+        ssl_keyfile = self.get('ssl_keyfile')
+        ssl_certfile = self.get('ssl_certfile')
+        if ssl_keyfile and ssl_certfile:
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
+            return ssl_context
 
 
 def read_user_config(path):

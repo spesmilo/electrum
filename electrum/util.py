@@ -23,7 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
-from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any
+from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -40,11 +40,13 @@ import json
 import time
 from typing import NamedTuple, Optional
 import ssl
+import ipaddress
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
 import certifi
+import dns.resolver
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -65,14 +67,61 @@ def inv_dict(d):
 ca_path = certifi.where()
 
 
-base_units = {'SYS':8, 'mSYS':5, 'bits':2, 'sat':0}
+base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['SYS', 'mSYS', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
 
-base_asset_units = {'-': 8, 'millis': 5, 'bits': 2, 'toshi': 0}
-base_asset_units_inverse = inv_dict(base_asset_units)
+DECIMAL_POINT_DEFAULT = 5  # mBTC
 
-DECIMAL_POINT_DEFAULT = 8  # mBTC
+# types of payment requests
+PR_TYPE_ONCHAIN = 0
+PR_TYPE_LN = 2
+
+# status of payment requests
+PR_UNPAID   = 0
+PR_EXPIRED  = 1
+PR_UNKNOWN  = 2     # sent but not propagated
+PR_PAID     = 3     # send and propagated
+PR_INFLIGHT = 4     # unconfirmed
+PR_FAILED   = 5
+
+pr_color = {
+    PR_UNPAID:   (.7, .7, .7, 1),
+    PR_PAID:     (.2, .9, .2, 1),
+    PR_UNKNOWN:  (.7, .7, .7, 1),
+    PR_EXPIRED:  (.9, .2, .2, 1),
+    PR_INFLIGHT: (.9, .6, .3, 1),
+    PR_FAILED:   (.9, .2, .2, 1),
+}
+
+pr_tooltips = {
+    PR_UNPAID:_('Pending'),
+    PR_PAID:_('Paid'),
+    PR_UNKNOWN:_('Unknown'),
+    PR_EXPIRED:_('Expired'),
+    PR_INFLIGHT:_('In progress'),
+    PR_FAILED:_('Failed'),
+}
+
+pr_expiration_values = {
+    10*60: _('10 minutes'),
+    60*60: _('1 hour'),
+    24*60*60: _('1 day'),
+    7*24*60*60: _('1 week')
+}
+
+def get_request_status(req):
+    status = req['status']
+    if req['status'] == PR_UNPAID and 'exp' in req and req['time'] + req['exp'] < time.time():
+        status = PR_EXPIRED
+    status_str = pr_tooltips[status]
+    if status == PR_UNPAID:
+        if req.get('exp'):
+            expiration = req['exp'] + req['time']
+            status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
+        else:
+            status_str = _('Pending')
+    return status, status_str
 
 
 class UnknownBaseUnit(Exception): pass
@@ -94,35 +143,9 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
         raise UnknownBaseUnit(unit_name) from None
 
 
-def decimal_point_to_base_asset_unit_name(au: str, dp: int) -> str:
-    # e.g. 8 -> "BTC"
-    try:
-        bau = base_asset_units_inverse[dp]
-        bau = "" if bau == "-" else bau
-        return "{}{}".format(au, bau)
-    except KeyError:
-        raise UnknownBaseUnit(dp) from None
-
-
-def base_asset_unit_name_to_decimal_point(au: str, unit_name: str) -> int:
-    # e.g. "BTC" -> 8
-    try:
-        unit_name = unit_name.replace(au, "")
-        unit_name = "-" if unit_name == "" else unit_name
-        return base_units[unit_name]
-    except KeyError:
-        raise UnknownBaseUnit(unit_name) from None
-
-
 class NotEnoughFunds(Exception):
     def __str__(self):
         return _("Insufficient funds")
-
-
-class NotEnoughAssetBalanceOnAddress(Exception):
-    def __str__(self):
-        return _("You don't have enough balance of the asset you're trying to send on the serding address. Please"
-                 " fund your sending address and then try again.")
 
 
 class NoDynamicFeeEstimates(Exception):
@@ -160,6 +183,7 @@ class BitcoinException(Exception): pass
 class UserFacingException(Exception):
     """Exception that contains information intended to be shown to the user."""
 
+class InvoiceError(Exception): pass
 
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
@@ -232,9 +256,11 @@ class Fiat(object):
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
-        from .transaction import Transaction
+        from .transaction import Transaction, TxOutput
         if isinstance(obj, Transaction):
-            return obj.as_dict()
+            return obj.serialize()
+        if isinstance(obj, TxOutput):
+            return obj.to_legacy_tuple()
         if isinstance(obj, Satoshis):
             return str(obj)
         if isinstance(obj, Fiat):
@@ -245,7 +271,9 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
-        return super().default(obj)
+        if hasattr(obj, 'to_json') and callable(obj.to_json):
+            return obj.to_json()
+        return super(MyEncoder, self).default(obj)
 
 
 class ThreadJob(Logger):
@@ -497,6 +525,12 @@ def bh2u(x: bytes) -> str:
     return x.hex()
 
 
+def xor_bytes(a: bytes, b: bytes) -> bytes:
+    size = min(len(a), len(b))
+    return ((int.from_bytes(a[:size], "big") ^ int.from_bytes(b[:size], "big"))
+            .to_bytes(size, "big"))
+
+
 def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_data_dir()
@@ -557,19 +591,23 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, decimal_point = 8):
+def format_satoshis_plain(x, decimal_point = 8) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
+    if x == '!':
+        return 'max'
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
-DECIMAL_POINT = localeconv()['decimal_point']
+DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
-def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
+def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False) -> str:
     if x is None:
         return 'unknown'
+    if x == '!':
+        return 'max'
     if precision is None:
         precision = decimal_point
     # format string
@@ -606,7 +644,7 @@ def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
     return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
-def quantize_feerate(fee):
+def quantize_feerate(fee) -> Union[None, Decimal, int]:
     """Strip sat/byte fee rate of excess precision."""
     if fee is None:
         return None
@@ -641,22 +679,11 @@ def time_difference(distance_in_time, include_seconds):
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
     distance_in_minutes = int(round(distance_in_seconds/60))
 
-    if distance_in_minutes <= 1:
+    if distance_in_minutes == 0:
         if include_seconds:
-            for remainder in [5, 10, 20]:
-                if distance_in_seconds < remainder:
-                    return "less than %s seconds" % remainder
-            if distance_in_seconds < 40:
-                return "half a minute"
-            elif distance_in_seconds < 60:
-                return "less than a minute"
-            else:
-                return "1 minute"
+            return "%s seconds" % distance_in_seconds
         else:
-            if distance_in_minutes == 0:
-                return "less than a minute"
-            else:
-                return "1 minute"
+            return "less than a minute"
     elif distance_in_minutes < 45:
         return "%s minutes" % distance_in_minutes
     elif distance_in_minutes < 90:
@@ -689,8 +716,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Bitaps.com': ('https://btc.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://chain.btc.com/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://btc.com/',
+                        {'tx': '', 'addr': ''}),
     'Chain.so': ('https://www.chain.so/',
                         {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
     'Insight.is': ('https://insight.bitpay.com/',
@@ -720,8 +747,6 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'BTC.com': ('https://tchain.btc.com/',
-                       {'tx': '', 'addr': ''}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
@@ -730,7 +755,7 @@ testnet_block_explorers = {
 
 def block_explorer_info():
     from . import constants
-    return mainnet_block_explorers if not constants.net.TESTNET and not constants.net.REGTEST else testnet_block_explorers
+    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
 def block_explorer(config: 'SimpleConfig') -> str:
     from . import constants
@@ -866,6 +891,15 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
+def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+    lower = data.lower()
+    if lower.startswith('lightning:ln'):
+        lower = lower[10:]
+    if lower.startswith('ln'):
+        return lower
+    return None
+
+
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3
@@ -981,14 +1015,16 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except BaseException as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
             pass
     return wrapper
 
 
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
@@ -1178,3 +1214,34 @@ def multisig_type(wallet_type):
     if match:
         match = [int(x) for x in match.group(1, 2)]
     return match
+
+
+def is_ip_address(x: Union[str, bytes]) -> bool:
+    if isinstance(x, bytes):
+        x = x.decode("utf-8")
+    try:
+        ipaddress.ip_address(x)
+        return True
+    except ValueError:
+        return False
+
+
+def list_enabled_bits(x: int) -> Sequence[int]:
+    """e.g. 77 (0b1001101) --> (0, 2, 3, 6)"""
+    binary = bin(x)[2:]
+    rev_bin = reversed(binary)
+    return tuple(i for i, b in enumerate(rev_bin) if b == '1')
+
+
+def resolve_dns_srv(host: str):
+    srv_records = dns.resolver.query(host, 'SRV')
+    # priority: prefer lower
+    # weight: tie breaker; prefer higher
+    srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))
+
+    def dict_from_srv_record(srv):
+        return {
+            'host': str(srv.target),
+            'port': srv.port,
+        }
+    return [dict_from_srv_record(srv) for srv in srv_records]

@@ -23,25 +23,35 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum.i18n import _
+from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
+
+from electrum.i18n import _
 
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
+
 class AddressHistoryModel(HistoryModel):
-    def __init__(self, parent, address):
+    def __init__(self, parent: 'ElectrumWindow', address):
         super().__init__(parent)
         self.address = address
 
     def get_domain(self):
         return [self.address]
 
+    def should_include_lightning_payments(self) -> bool:
+        return False
+
+
 class AddressDialog(WindowModalDialog):
 
-    def __init__(self, parent, address):
+    def __init__(self, parent: 'ElectrumWindow', address: str):
         WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent
@@ -74,15 +84,19 @@ class AddressDialog(WindowModalDialog):
                 pubkey_e.setReadOnly(True)
                 vbox.addWidget(pubkey_e)
 
-        try:
-            redeem_script = self.wallet.pubkeys_to_redeem_script(pubkeys)
-        except BaseException as e:
-            redeem_script = None
+        redeem_script = self.wallet.get_redeem_script(address)
         if redeem_script:
             vbox.addWidget(QLabel(_("Redeem Script") + ':'))
             redeem_e = ShowQRTextEdit(text=redeem_script)
             redeem_e.addCopyButton(self.app)
             vbox.addWidget(redeem_e)
+
+        witness_script = self.wallet.get_witness_script(address)
+        if witness_script:
+            vbox.addWidget(QLabel(_("Witness Script") + ':'))
+            witness_e = ShowQRTextEdit(text=witness_script)
+            witness_e.addCopyButton(self.app)
+            vbox.addWidget(witness_e)
 
         vbox.addWidget(QLabel(_("History")))
         addr_hist_model = AddressHistoryModel(self.parent, self.address)
@@ -99,4 +113,4 @@ class AddressDialog(WindowModalDialog):
         try:
             self.parent.show_qrcode(text, 'Address', parent=self)
         except Exception as e:
-            self.show_message(str(e))
+            self.show_message(repr(e))

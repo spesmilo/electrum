@@ -69,6 +69,20 @@ RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/nul
     "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
 
+# download ANT
+ENV APACHE_ANT_VERSION="1.9.4"
+ENV APACHE_ANT_ARCHIVE="apache-ant-${APACHE_ANT_VERSION}-bin.tar.gz"
+ENV APACHE_ANT_DL_URL="http://archive.apache.org/dist/ant/binaries/${APACHE_ANT_ARCHIVE}"
+ENV APACHE_ANT_HOME="${ANDROID_HOME}/apache-ant"
+ENV APACHE_ANT_HOME_V="${APACHE_ANT_HOME}-${APACHE_ANT_VERSION}"
+
+RUN curl --location --progress-bar \
+        "${APACHE_ANT_DL_URL}" \
+        --output "${APACHE_ANT_ARCHIVE}" \
+    && tar -xf "${APACHE_ANT_ARCHIVE}" -C "${ANDROID_HOME}" \
+    && ln -sfn "${APACHE_ANT_HOME_V}" "${APACHE_ANT_HOME}" \
+    && rm -rf "${APACHE_ANT_ARCHIVE}"
+
 
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
@@ -138,7 +152,13 @@ RUN git config --global user.name "John Doe" \
 RUN cd /opt \
     && git clone https://github.com/kivy/buildozer \
     && cd buildozer \
-    && git checkout 678b1bf52cf63daa51b06e86a43ea4e2ea8a0b24 \
+    && git remote add sombernight https://github.com/SomberNight/buildozer \
+    && git fetch --all \
+    && git checkout 182d13f1027d4c16e04e1096c94ed3e488226330 \
+       # put target arch in apk name:
+    && git cherry-pick 2233dd70ce559205bcb183272519b0c31bd24079 \
+       # "Separate build per android.arch" https://github.com/kivy/buildozer/pull/957 :
+    && git cherry-pick 229a98442897db172cc905e2412710f5924c5366 \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -147,11 +167,15 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout ccb0f8e1bab36f1b7d1508216b4b4afb076e614f \
+    && git checkout dd69749f79dee0fdbe25ca7b04238b7cdada7925 \
        # allowBackup="false":
-    && git cherry-pick d7f722e4e5d4b3e6f5b1733c95e6a433f78ee570 \
+    && git cherry-pick 003e675625b86319716c8c86c751f509f5d22204 \
        # fix gradle "versionCode" overflow:
-    && git cherry-pick ed20e196fbcdce718a180f88f23bb2d165c4c5d8 \
+    && git cherry-pick 38df23528f471ca5f493f72a2f0dfeb40f5275da \
+       # add recipe for pycryptodomex:
+    && git cherry-pick 5545a81c6c47436a41d2cf74194ab6f711e54ad6 \
+       # gradle: persist debug keystore:
+    && git cherry-pick af93820bcd7fb85710f8ba469be3a6e5acb68b08 \
     && python3 -m pip install --user -e .
 
 # build env vars

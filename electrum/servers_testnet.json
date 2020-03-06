@@ -1,8 +1,38 @@
 {
-    "104.248.3.80": {
+    "hsmithsxurybd7uh.onion": {
         "pruning": "-",
-        "t": "59991",
-        "s": "59992",
+        "s": "53012",
+        "t": "53011",
+        "version": "1.4"
+    },
+    "testnet.hsmiths.com": {
+        "pruning": "-",
+        "s": "53012",
+        "t": "53011",
+        "version": "1.4"
+    },
+    "testnet.qtornado.com": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4"
+    },
+    "testnet1.bauerj.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "tn.not.fyi": {
+        "pruning": "-",
+        "s": "55002",
+        "t": "55001",
+        "version": "1.4"
+    },
+    "bitcoin.cluelessperson.com": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
         "version": "1.4"
     }
 }

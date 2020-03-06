@@ -19,21 +19,21 @@ class SafeTTransport:
         except ImportError:
             # old safetlib. compat for safetlib < 0.9.2
             transports = []
-            try:
-               from safetlib.transport_bridge import BridgeTransport
-               transports.append(BridgeTransport)
-            except BaseException:
-                pass
+            #try:
+            #    from safetlib.transport_bridge import BridgeTransport
+            #    transports.append(BridgeTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport_hid import HidTransport
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            try:
-               from safetlib.transport_udp import UdpTransport
-               transports.append(UdpTransport)
-            except BaseException:
-               pass
+            #try:
+            #    from safetlib.transport_udp import UdpTransport
+            #    transports.append(UdpTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport_webusb import WebUsbTransport
                 transports.append(WebUsbTransport)
@@ -42,21 +42,21 @@ class SafeTTransport:
         else:
             # new safetlib.
             transports = []
-            try:
-               from safetlib.transport.bridge import BridgeTransport
-               transports.append(BridgeTransport)
-            except BaseException:
-               pass
+            #try:
+            #    from safetlib.transport.bridge import BridgeTransport
+            #    transports.append(BridgeTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport.hid import HidTransport
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            try:
-               from safetlib.transport.udp import UdpTransport
-               transports.append(UdpTransport)
-            except BaseException:
-               pass
+            #try:
+            #    from safetlib.transport.udp import UdpTransport
+            #    transports.append(UdpTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport.webusb import WebUsbTransport
                 transports.append(WebUsbTransport)

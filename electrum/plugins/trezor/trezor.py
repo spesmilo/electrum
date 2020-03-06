@@ -1,21 +1,21 @@
 import traceback
 import sys
-from typing import NamedTuple, Any
+from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
 from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device
-from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
+                                LibraryFoundButUnusable, OutdatedHwFirmwareException,
+                                get_xpubs_and_der_suffixes_from_txinout)
 
 _logger = get_logger(__name__)
 
@@ -23,6 +23,7 @@ _logger = get_logger(__name__)
 try:
     import trezorlib
     import trezorlib.transport
+    from trezorlib.transport.bridge import BridgeTransport, call_bridge
 
     from .clientbase import TrezorClientBase
 
@@ -52,8 +53,7 @@ class TrezorKeyStore(Hardware_KeyStore):
     hw_type = 'trezor'
     device = TREZOR_PRODUCT_KEY
 
-    def get_derivation(self):
-        return self.derivation
+    plugin: 'TrezorPlugin'
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
@@ -63,7 +63,7 @@ class TrezorKeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
-        address_path = self.get_derivation() + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
         msg_sig = client.sign_message(address_path, message)
         return msg_sig.signature
 
@@ -72,22 +72,13 @@ class TrezorKeyStore(Hardware_KeyStore):
             return
         # previous transactions used as inputs
         prev_tx = {}
-        # path of the xpubs that are involved
-        xpub_path = {}
         for txin in tx.inputs():
-            pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
-            tx_hash = txin['prevout_hash']
-            if txin.get('prev_tx') is None and not Transaction.is_segwit_input(txin):
-                raise UserFacingException(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
-            prev_tx[tx_hash] = txin['prev_tx']
-            for x_pubkey in x_pubkeys:
-                if not is_xpubkey(x_pubkey):
-                    continue
-                xpub, s = parse_xpubkey(x_pubkey)
-                if xpub == self.get_master_public_key():
-                    xpub_path[xpub] = self.get_derivation()
+            tx_hash = txin.prevout.txid.hex()
+            if txin.utxo is None and not Transaction.is_segwit_input(txin):
+                raise UserFacingException(_('Missing previous tx for legacy input.'))
+            prev_tx[tx_hash] = txin.utxo
 
-        self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
+        self.plugin.sign_transaction(self, tx, prev_tx)
 
 
 class TrezorInitSettings(NamedTuple):
@@ -137,7 +128,16 @@ class TrezorPlugin(HW_PluginBase):
             raise LibraryFoundButUnusable(library_version=version)
 
     def enumerate(self):
-        devices = trezorlib.transport.enumerate_devices()
+        # If there is a bridge, prefer that.
+        # On Windows, the bridge runs as Admin (and Electrum usually does not),
+        # so the bridge has better chances of finding devices. see #5420
+        # This also avoids duplicate entries.
+        try:
+            call_bridge("enumerate")
+        except Exception:
+            devices = trezorlib.transport.enumerate_devices()
+        else:
+            devices = BridgeTransport.enumerate()
         return [Device(path=d.get_path(),
                        interface_number=-1,
                        id_=d.get_path(),
@@ -162,7 +162,7 @@ class TrezorPlugin(HW_PluginBase):
         # note that this call can still raise!
         return TrezorClientBase(transport, handler, self)
 
-    def get_client(self, keystore, force_pair=True):
+    def get_client(self, keystore, force_pair=True) -> Optional['TrezorClientBase']:
         devmgr = self.device_manager()
         handler = keystore.handler
         with devmgr.hid_lock:
@@ -173,7 +173,7 @@ class TrezorPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if constants.net.TESTNET else "Regtest" if constants.net.REGTEST else "Syscoin"
+        return "Testnet" if constants.net.TESTNET else "Bitcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
@@ -212,7 +212,7 @@ class TrezorPlugin(HW_PluginBase):
             exit_code = 1
         except BaseException as e:
             self.logger.exception('')
-            handler.show_error(str(e))
+            handler.show_error(repr(e))
             exit_code = 1
         finally:
             wizard.loop.exit(exit_code)
@@ -317,11 +317,11 @@ class TrezorPlugin(HW_PluginBase):
             return OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
-    def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
-        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx, xpub_path) for txhash, tx in prev_tx.items() }
+    def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
+        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items() }
         client = self.get_client(keystore)
-        inputs = self.tx_inputs(tx, xpub_path, True)
-        outputs = self.tx_outputs(keystore.get_derivation(), tx)
+        inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
+        outputs = self.tx_outputs(tx, keystore=keystore)
         details = SignTx(lock_time=tx.locktime, version=tx.version)
         signatures, _ = client.sign_tx(self.get_coin_name(), inputs, outputs, details=details, prev_txes=prev_tx)
         signatures = [(bh2u(x) + '01') for x in signatures]
@@ -333,7 +333,7 @@ class TrezorPlugin(HW_PluginBase):
         if not self.show_address_helper(wallet, address, keystore):
             return
         deriv_suffix = wallet.get_address_index(address)
-        derivation = keystore.derivation
+        derivation = keystore.get_derivation_prefix()
         address_path = "%s/%d/%d"%(derivation, *deriv_suffix)
         script_type = self.get_trezor_input_script_type(wallet.txin_type)
 
@@ -345,112 +345,107 @@ class TrezorPlugin(HW_PluginBase):
             sorted_pairs = sorted(zip(pubkeys, xpubs))
             multisig = self._make_multisig(
                 wallet.m,
-                [(xpub, deriv_suffix) for _, xpub in sorted_pairs])
+                [(xpub, deriv_suffix) for pubkey, xpub in sorted_pairs])
         else:
             multisig = None
 
         client = self.get_client(keystore)
         client.show_address(address_path, script_type, multisig)
 
-    def tx_inputs(self, tx, xpub_path, for_sig=False):
+    def tx_inputs(self, tx: Transaction, *, for_sig=False, keystore: 'TrezorKeyStore' = None):
         inputs = []
         for txin in tx.inputs():
             txinputtype = TxInputType()
-            if txin['type'] == 'coinbase':
+            if txin.is_coinbase():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:
                 if for_sig:
-                    x_pubkeys = txin['x_pubkeys']
-                    xpubs = [parse_xpubkey(x) for x in x_pubkeys]
-                    multisig = self._make_multisig(txin.get('num_sig'), xpubs, txin.get('signatures'))
-                    script_type = self.get_trezor_input_script_type(txin['type'])
+                    assert isinstance(tx, PartialTransaction)
+                    assert isinstance(txin, PartialTxInput)
+                    assert keystore
+                    if len(txin.pubkeys) > 1:
+                        xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
+                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                    else:
+                        multisig = None
+                    script_type = self.get_trezor_input_script_type(txin.script_type)
                     txinputtype = TxInputType(
                         script_type=script_type,
                         multisig=multisig)
-                    # find which key is mine
-                    for xpub, deriv in xpubs:
-                        if xpub in xpub_path:
-                            xpub_n = parse_path(xpub_path[xpub])
-                            txinputtype.address_n = xpub_n + deriv
-                            break
+                    my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
+                    if full_path:
+                        txinputtype.address_n = full_path
 
-                prev_hash = bfh(txin['prevout_hash'])
-                prev_index = txin['prevout_n']
+                prev_hash = txin.prevout.txid
+                prev_index = txin.prevout.out_idx
 
-            if 'value' in txin:
-                txinputtype.amount = txin['value']
+            if txin.value_sats() is not None:
+                txinputtype.amount = txin.value_sats()
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
-            if txin.get('scriptSig') is not None:
-                script_sig = bfh(txin['scriptSig'])
-                txinputtype.script_sig = script_sig
+            if txin.script_sig is not None:
+                txinputtype.script_sig = txin.script_sig
 
-            txinputtype.sequence = txin.get('sequence', 0xffffffff - 1)
+            txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
 
         return inputs
 
-    def _make_multisig(self, m, xpubs, signatures=None):
+    def _make_multisig(self, m, xpubs):
         if len(xpubs) == 1:
             return None
-
         pubkeys = [self._make_node_path(xpub, deriv) for xpub, deriv in xpubs]
-        if signatures is None:
-            signatures = [b''] * len(pubkeys)
-        elif len(signatures) != len(pubkeys):
-            raise RuntimeError('Mismatched number of signatures')
-        else:
-            signatures = [bfh(x)[:-1] if x else b'' for x in signatures]
-
         return MultisigRedeemScriptType(
             pubkeys=pubkeys,
-            signatures=signatures,
+            signatures=[b''] * len(pubkeys),
             m=m)
 
-    def tx_outputs(self, derivation, tx):
+    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore'):
 
         def create_output_by_derivation():
-            script_type = self.get_trezor_output_script_type(info.script_type)
-            deriv = parse_path("/%d/%d" % index)
-            multisig = self._make_multisig(m, [(xpub, deriv) for xpub in xpubs])
+            script_type = self.get_trezor_output_script_type(txout.script_type)
+            if len(txout.pubkeys) > 1:
+                xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
+                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+            else:
+                multisig = None
+            my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)
+            assert full_path
             txoutputtype = TxOutputType(
                 multisig=multisig,
-                amount=amount,
-                address_n=parse_path(derivation + "/%d/%d" % index),
+                amount=txout.value,
+                address_n=full_path,
                 script_type=script_type)
             return txoutputtype
 
         def create_output_by_address():
             txoutputtype = TxOutputType()
-            txoutputtype.amount = amount
-            if _type == TYPE_SCRIPT:
-                txoutputtype.script_type = OutputScriptType.PAYTOOPRETURN
-                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(o)
-            elif _type == TYPE_ADDRESS:
+            txoutputtype.amount = txout.value
+            if address:
                 txoutputtype.script_type = OutputScriptType.PAYTOADDRESS
                 txoutputtype.address = address
+            else:
+                txoutputtype.script_type = OutputScriptType.PAYTOOPRETURN
+                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(txout)
             return txoutputtype
 
         outputs = []
         has_change = False
         any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
 
-        for o in tx.outputs():
-            _type, address, amount = o.type, o.address, o.value
+        for txout in tx.outputs():
+            address = txout.address
             use_create_by_derivation = False
 
-            info = tx.output_info.get(address)
-            if info is not None and not has_change:
-                index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
-                on_change_branch = index[0] == 1
+            if txout.is_mine and not has_change:
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
                 # note: ^ restriction can be removed once we require fw
                 # that has https://github.com/trezor/trezor-mcu/pull/306
-                if on_change_branch == any_output_on_change_branch:
+                if txout.is_change == any_output_on_change_branch:
                     use_create_by_derivation = True
                     has_change = True
 
@@ -462,17 +457,17 @@ class TrezorPlugin(HW_PluginBase):
 
         return outputs
 
-    def electrum_tx_to_txtype(self, tx, xpub_path):
+    def electrum_tx_to_txtype(self, tx: Optional[Transaction]):
         t = TransactionType()
         if tx is None:
             # probably for segwit input and we don't need this prev txn
             return t
-        d = deserialize(tx.raw)
-        t.version = d['version']
-        t.lock_time = d['lockTime']
-        t.inputs = self.tx_inputs(tx, xpub_path)
+        tx.deserialize()
+        t.version = tx.version
+        t.lock_time = tx.locktime
+        t.inputs = self.tx_inputs(tx)
         t.bin_outputs = [
-            TxOutputBinType(amount=vout['value'], script_pubkey=bfh(vout['scriptPubKey']))
-            for vout in d['outputs']
+            TxOutputBinType(amount=o.value, script_pubkey=o.scriptpubkey)
+            for o in tx.outputs()
         ]
         return t

@@ -1,8 +1,411 @@
 {
-    "104.248.3.80": {
+    "3smoooajg7qqac2y.onion": {
         "pruning": "-",
-        "t": "58881",
-        "s": "58882",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "81-7-10-251.blue.kundencontroller.de": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "E-X.not.fyi": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "VPS.hsmiths.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "b.ooze.cc": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bauerjda5hnedjam.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bauerjhejlv6di7s.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoin.corgi.party": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoin3nqy3db7c.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoins.sk": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "btc.cihar.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "btc.xskyx.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "currentlane.lovebitco.in": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "daedalus.bauerj.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.jochen-hoenicke.de": {
+        "pruning": "-",
+        "s": "50005",
+        "t": "50003",
+        "version": "1.4"
+    },
+    "dragon085.startdedicated.de": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "e-1.claudioboxx.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "e.keff.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum-server.ninja": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum-unlimited.criptolayer.net": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum.eff.ro": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.festivaldelhumor.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.hsmiths.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.leblancnet.us": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.mindspot.org": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum.qtornado.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.taborsky.cz": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum.villocq.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum2.eff.ro": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum2.villocq.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrumx.bot.nu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrumx.ddns.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrumx.ftp.sh": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrumx.soon.it": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrumxhqdsmlu.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "elx01.knas.systems": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "enode.duckdns.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "fedaykin.goip.de": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "fn.48.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50003",
+        "version": "1.4"
+    },
+    "helicarrier.bauerj.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "hsmiths4fyqlw5xw.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "hsmiths5mjk6uijs.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "icarus.tetradrachm.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.emzy.de": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "ndnd.selfhost.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "ndndword5lpb7eex.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "orannis.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "ozahtqwp25chjdjd.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "qtornadoklbgdyww.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "rbx.curalle.ovh": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "s7clinmo4cazmhul.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "tardis.bauerj.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "technetium.network": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "tomscryptos.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "ulrichard.ch": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "vmd27610.contaboserver.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "vmd30612.contaboserver.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "wsw6tua3xl24gsmi264zaep6seppjyrkyucpsmuxnjzyt3f3j6swshad.onion": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "xray587.startdedicated.de": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "yuio.top": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoin.dragon.zone": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.4"
+    },
+    "ecdsa.net" : {
+        "pruning": "-",
+        "s": "110",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "btc.usebsv.com": {
+        "pruning": "-",
+        "s": "50006",
+        "version": "1.4"
+    },
+    "e2.keff.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum3.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrum5.hodlister.co": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "electrumx.electricnewyear.net": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4"
+    },
+    "fortress.qtornado.com": {
+        "pruning": "-",
+        "s": "443",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "green-gold.westeurope.cloudapp.azure.com": {
+        "pruning": "-",
+        "s": "56002",
+        "t": "56001",
+        "version": "1.4"
+    },
+    "electrumx.erbium.eu": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
         "version": "1.4"
     }
 }

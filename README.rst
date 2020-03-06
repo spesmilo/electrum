@@ -1,12 +1,12 @@
-Electrum - Lightweight Bitcoin client
-=====================================
+Electrum - Lightweight Bitcoin client (AuxPoW fork)
+===================================================
 
 ::
 
-  Licence: MIT Licence
-  Author: Thomas Voegtlin
+  Licence: GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components
+  Author: The Namecoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors
   Language: Python (>= 3.6)
-  Homepage: https://electrum.org/
+  Homepage: https://www.namecoin.org/ ; original Electrum Homepage at https://electrum.org/
 
 
 .. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
@@ -61,6 +61,7 @@ Check out the code from GitHub::
 
     git clone git://github.com/spesmilo/electrum.git
     cd electrum
+    git submodule update --init
 
 Run install (this should install dependencies)::
 
@@ -75,7 +76,7 @@ Compile the protobuf description file::
 Create translations (optional)::
 
     sudo apt-get install python-requests gettext
-    ./contrib/make_locale
+    ./contrib/pull_locale
 
 
 
