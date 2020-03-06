@@ -1038,6 +1038,11 @@ class ElectrumWindow(App):
         d = TxDialog(self, tx)
         d.open()
 
+    def show_transaction(self, txid):
+        tx = self.wallet.db.get_transaction(txid)
+        if tx:
+            self.tx_dialog(tx)
+
     def lightning_tx_dialog(self, tx):
         from .uix.dialogs.lightning_tx_dialog import LightningTxDialog
         d = LightningTxDialog(self, tx)

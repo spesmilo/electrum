@@ -155,10 +155,11 @@
     touched: False
     padding: '10dp', '10dp'
     background_color: .3, .3, .3, 1
+    touch_callback: lambda: app.on_ref_label(self)
     on_touch_down:
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))
-        if touched: app.on_ref_label(self)
+        if touched: self.touch_callback()
         if touched: self.touched = True
     canvas.before:
         Color:
