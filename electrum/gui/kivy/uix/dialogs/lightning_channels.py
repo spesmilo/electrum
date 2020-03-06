@@ -96,6 +96,7 @@ Builder.load_string(r'''
     initiator:''
     capacity:''
     funding_txid:''
+    closing_txid:''
     state:''
     local_ctn:0
     remote_ctn:0
@@ -104,6 +105,7 @@ Builder.load_string(r'''
     feerate:0
     can_send:''
     can_receive:''
+    is_open:False
     BoxLayout:
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -130,10 +132,10 @@ Builder.load_string(r'''
                     value: root.capacity
                 BoxLabel:
                     text: _('Can send')
-                    value: root.can_send
+                    value: root.can_send if root.is_open else 'n/a'
                 BoxLabel:
                     text: _('Can receive')
-                    value: root.can_receive
+                    value: root.can_receive if root.is_open else 'n/a'
                 BoxLabel:
                     text: _('CSV delay')
                     value: 'Local: %d\nRemote: %d' % (root.local_csv, root.remote_csv)
@@ -156,6 +158,14 @@ Builder.load_string(r'''
                     data: root.funding_txid
                     name: _('Funding Transaction')
                     touch_callback: lambda: app.show_transaction(root.funding_txid)
+                TopLabel:
+                    text: _('Closing Transaction')
+                    opacity: int(bool(root.closing_txid))
+                TxHashLabel:
+                    opacity: int(bool(root.closing_txid))
+                    data: root.closing_txid
+                    name: _('Closing Transaction')
+                    touch_callback: lambda: app.show_transaction(root.closing_txid)
                 Widget:
                     size_hint: 1, 0.1
         Widget:
@@ -207,6 +217,10 @@ class ChannelDetailsPopup(Popup):
         self.feerate = chan.get_latest_feerate(LOCAL)
         self.can_send = self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000)
         self.can_receive = self.app.format_amount_and_units(chan.available_to_spend(REMOTE) // 1000)
+        self.is_open = chan.is_open()
+        closed = chan.get_closing_height()
+        if closed:
+            self.closing_txid, closing_height, closing_timestamp = closed
 
     def close(self):
         Question(_('Close channel?'), self._close).open()
