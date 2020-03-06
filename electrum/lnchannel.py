@@ -644,8 +644,7 @@ class Channel(Logger):
         """
         assert type(whose) is HTLCOwner
         ctn = self.get_next_ctn(ctx_owner)
-        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)
-                - self.unsettled_sent_balance(ctx_owner)
+        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn) - self.unsettled_sent_balance(ctx_owner)
 
     def unsettled_sent_balance(self, subject: HTLCOwner = LOCAL):
         ctn = self.get_next_ctn(subject)
