@@ -66,8 +66,11 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = self.lnworker.get_channel_status(chan)
         closed = chan.is_closed()
-        node_info = self.lnworker.channel_db.get_node_info_for_node_id(chan.node_id)
-        node_alias = (node_info.alias if node_info else '') or ''
+        if self.parent.network.is_lightning_running():
+            node_info = self.lnworker.channel_db.get_node_info_for_node_id(chan.node_id)
+            node_alias = (node_info.alias if node_info else '') or ''
+        else:
+            node_alias = ''
         return [
             format_short_channel_id(chan.short_channel_id),
             bh2u(chan.node_id),
