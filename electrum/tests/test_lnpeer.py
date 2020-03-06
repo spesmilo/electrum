@@ -66,9 +66,12 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
-    async def try_broadcasting(self, tx, name):
+    async def broadcast_transaction(self, tx):
         if self.tx_queue:
             await self.tx_queue.put(tx)
+
+    async def try_broadcasting(self, tx, name):
+        self.broadcast_transaction(tx)
 
 class MockWallet:
     def set_label(self, x, y):
