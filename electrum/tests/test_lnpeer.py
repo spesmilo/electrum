@@ -135,6 +135,7 @@ class MockLNWallet:
     _pay_to_route = LNWallet._pay_to_route
     _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
+    try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
 
 
