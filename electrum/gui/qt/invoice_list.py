@@ -142,11 +142,11 @@ class InvoiceList(MyTreeView):
         if len(items)>1:
             keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
             invoices = [ self.parent.wallet.get_invoice(key) for key in keys]
-            invoices = [ invoice for invoice in invoices if invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN]
+            can_batch_pay = all([ invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN for invoice in invoices])
             menu = QMenu(self)
-            if len(invoices) > 1:
-                menu.addAction(_("Pay multiple invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
-            menu.addAction(_("Delete"), lambda: self.parent.delete_invoices(keys))
+            if can_batch_pay:
+                menu.addAction(_("Batch pay invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
+            menu.addAction(_("Delete invoices"), lambda: self.parent.delete_invoices(keys))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
@@ -168,7 +168,7 @@ class InvoiceList(MyTreeView):
             log = self.parent.wallet.lnworker.logs.get(key)
             if log:
                 menu.addAction(_("View log"), lambda: self.show_log(key, log))
-        menu.addAction(_("Delete invoices"), lambda: self.parent.delete_invoices([key]))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_invoices([key]))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def show_log(self, key, log: Sequence[PaymentAttemptLog]):
