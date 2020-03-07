@@ -202,12 +202,13 @@ class SyscoinMainnet(AbstractSyscoinNet):
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
-    DEFAULT_PORTS = {'t': '58882', 's': '58882'}
+    DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
         "127.0.0.1": {
             "pruning": "-",
-            "t": "58882",
-            "s": "58882"
+            "t": "58881",
+            "s": "58882",
+            "version": "1.4"
         }
     })
     CHECKPOINTS = read_json('checkpoints.json', [])
@@ -238,7 +239,7 @@ class SyscoinMainnet(AbstractSyscoinNet):
 
     AUXPOW_CHAIN_ID = 0x1000
     AUXPOW_START_HEIGHT = 1973
-    nBridgeStartBlock = 225000
+    nBridgeStartBlock = 348000
 
 
 class SyscoinTestnet(AbstractSyscoinNet):
