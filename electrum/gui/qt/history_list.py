@@ -194,7 +194,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 return QVariant(msg)
             elif col > HistoryColumns.DESCRIPTION and role == Qt.TextAlignmentRole:
                 return QVariant(Qt.AlignRight | Qt.AlignVCenter)
-            elif col != HistoryColumns.STATUS and role == Qt.FontRole:
+            elif col > HistoryColumns.DESCRIPTION and role == Qt.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
             #elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
