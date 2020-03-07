@@ -173,10 +173,12 @@ class HTLCManager:
         self.log['unacked_local_updates2'].pop(self.log[REMOTE]['ctn'], None)
 
     def _update_maybe_active_htlc_ids(self) -> None:
-        # Loosely, we want a set that contains the htlcs that are
-        # not "removed and revoked from all ctxs of both parties".
-        # It is guaranteed that those htlcs are in the set, but older htlcs might be there too:
-        # there is a sanity margin of 1 ctn -- this relaxes the care needed re order of method calls.
+        # - Loosely, we want a set that contains the htlcs that are
+        #   not "removed and revoked from all ctxs of both parties". (self._maybe_active_htlc_ids)
+        #   It is guaranteed that those htlcs are in the set, but older htlcs might be there too:
+        #   there is a sanity margin of 1 ctn -- this relaxes the care needed re order of method calls.
+        # - balance_delta is in sync with maybe_active_htlc_ids. When htlcs are removed from the latter,
+        #   balance_delta is updated to reflect that htlc.
         sanity_margin = 1
         for htlc_proposer in (LOCAL, REMOTE):
             for log_action in ('settles', 'fails'):
@@ -188,10 +190,14 @@ class HTLCManager:
                             and ctns[REMOTE] is not None
                             and ctns[REMOTE] <= self.ctn_oldest_unrevoked(REMOTE) - sanity_margin):
                         self._maybe_active_htlc_ids[htlc_proposer].remove(htlc_id)
+                        if log_action == 'settles':
+                            htlc = self.log[htlc_proposer]['adds'][htlc_id]  # type: UpdateAddHtlc
+                            self._balance_delta -= htlc.amount_msat * htlc_proposer
 
     def _init_maybe_active_htlc_ids(self):
         self._maybe_active_htlc_ids = {LOCAL: set(), REMOTE: set()}  # first idx is "side who offered htlc"
         # add all htlcs
+        self._balance_delta = 0  # the balance delta of LOCAL since channel open
         for htlc_proposer in (LOCAL, REMOTE):
             for htlc_id in self.log[htlc_proposer]['adds']:
                 self._maybe_active_htlc_ids[htlc_proposer].add(htlc_id)
@@ -332,6 +338,37 @@ class HTLCManager:
         sent = [(SENT, x) for x in self.all_settled_htlcs_ever_by_direction(subject, SENT, ctn)]
         received = [(RECEIVED, x) for x in self.all_settled_htlcs_ever_by_direction(subject, RECEIVED, ctn)]
         return sent + received
+
+    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None,
+                         initial_balance_msat: int) -> int:
+        """Returns the balance of 'whose' in 'ctx' at 'ctn'.
+        Only HTLCs that have been settled by that ctn are counted.
+        """
+        if ctn is None:
+            ctn = self.ctn_oldest_unrevoked(ctx_owner)
+        balance = initial_balance_msat
+        if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
+            balance += self._balance_delta * whose
+            considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]
+            considered_recv_htlc_ids = self._maybe_active_htlc_ids[-whose]
+        else:  # ctn is too old; need to consider full log (slow...)
+            considered_sent_htlc_ids = self.log[whose]['settles']
+            considered_recv_htlc_ids = self.log[-whose]['settles']
+        # sent htlcs
+        for htlc_id in considered_sent_htlc_ids:
+            ctns = self.log[whose]['settles'].get(htlc_id, None)
+            if ctns is None: continue
+            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+                htlc = self.log[whose]['adds'][htlc_id]
+                balance -= htlc.amount_msat
+        # recv htlcs
+        for htlc_id in considered_recv_htlc_ids:
+            ctns = self.log[-whose]['settles'].get(htlc_id, None)
+            if ctns is None: continue
+            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+                htlc = self.log[-whose]['adds'][htlc_id]
+                balance += htlc.amount_msat
+        return balance
 
     def _get_htlcs_that_got_removed_exactly_at_ctn(
             self, ctn: int, *, ctx_owner: HTLCOwner, htlc_proposer: HTLCOwner, log_action: str,
