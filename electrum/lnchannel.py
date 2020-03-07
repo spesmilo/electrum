@@ -610,7 +610,7 @@ class Channel(Logger):
                 reason = self._receive_fail_reasons.get(htlc.htlc_id)
                 self.lnworker.payment_failed(self, htlc.payment_hash, reason)
 
-    def balance(self, whose, *, ctx_owner=HTLCOwner.LOCAL, ctn=None):
+    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         """
         This balance in mSAT is not including reserve and fees.
         So a node cannot actually use its whole balance.
@@ -623,22 +623,10 @@ class Channel(Logger):
         """
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
-
-        # TODO slow. -- and 'balance' is called from a decent number of places (e.g. 'make_commitment')
-        for direction, htlc in self.hm.all_settled_htlcs_ever(ctx_owner, ctn):
-            # note: could "simplify" to (whose * ctx_owner == direction * SENT)
-            if whose == ctx_owner:
-                if direction == SENT:
-                    initial -= htlc.amount_msat
-                else:
-                    initial += htlc.amount_msat
-            else:
-                if direction == SENT:
-                    initial += htlc.amount_msat
-                else:
-                    initial -= htlc.amount_msat
-
-        return initial
+        return self.hm.get_balance_msat(whose=whose,
+                                        ctx_owner=ctx_owner,
+                                        ctn=ctn,
+                                        initial_balance_msat=initial)
 
     def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL):
         """

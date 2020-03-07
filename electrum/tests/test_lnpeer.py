@@ -306,14 +306,14 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
-    @unittest.skip("too expensive")
+    #@unittest.skip("too expensive")
     #@needs_test_with_all_chacha20_implementations
     def test_payments_stresstest(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
-        num_payments = 1000
+        num_payments = 50
         #pay_reqs1 = [self.prepare_invoice(w1, amount_sat=1) for i in range(num_payments)]
         pay_reqs2 = [self.prepare_invoice(w2, amount_sat=1) for i in range(num_payments)]
         max_htlcs_in_flight = asyncio.Semaphore(5)
