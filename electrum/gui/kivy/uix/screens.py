@@ -220,7 +220,9 @@ class SendScreen(CScreen):
         self.is_lightning = True
 
     def update(self):
-        if self.app.wallet and self.payment_request_queued:
+        if self.app.wallet is None:
+            return
+        if self.payment_request_queued:
             self.set_URI(self.payment_request_queued)
             self.payment_request_queued = None
         _list = self.app.wallet.get_invoices()
@@ -491,6 +493,8 @@ class ReceiveScreen(CScreen):
         return ci
 
     def update(self):
+        if self.app.wallet is None:
+            return
         _list = self.app.wallet.get_sorted_requests()
         _list.reverse()
         requests_container = self.ids.requests_container
