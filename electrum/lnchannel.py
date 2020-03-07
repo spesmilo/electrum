@@ -331,6 +331,16 @@ class Channel(Logger):
     def get_state(self):
         return self._state
 
+    def get_state_for_GUI(self):
+        # status displayed in the GUI
+        cs = self.get_state()
+        if self.is_closed():
+            return cs.name
+        ps = self.peer_state
+        if ps != peer_states.GOOD:
+            return ps.name
+        return cs.name
+
     def is_open(self):
         return self.get_state() == channel_states.OPEN
 

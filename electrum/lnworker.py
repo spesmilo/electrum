@@ -510,17 +510,6 @@ class LNWallet(LNWorker):
             self.network.trigger_callback('channel', chan)
         super().peer_closed(peer)
 
-    def get_channel_status(self, chan):
-        # status displayed in the GUI
-        cs = chan.get_state()
-        if chan.is_closed():
-            return cs.name
-        peer = self.peers.get(chan.node_id)
-        ps = chan.peer_state
-        if ps != peer_states.GOOD:
-            return ps.name
-        return cs.name
-
     def get_settled_payments(self):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
@@ -1237,6 +1226,7 @@ class LNWallet(LNWorker):
             chan.logger.info('received unexpected payment_failed, probably from previous session')
             self.network.trigger_callback('invoice_status', key)
             self.network.trigger_callback('payment_failed', key, '')
+        self.network.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
