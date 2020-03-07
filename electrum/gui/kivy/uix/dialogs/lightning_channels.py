@@ -208,7 +208,7 @@ class ChannelDetailsPopup(Popup):
         self.funding_txid = chan.funding_outpoint.txid
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.capacity = self.app.format_amount_and_units(chan.constraints.capacity)
-        self.state = self.app.wallet.lnworker.get_channel_status(chan)
+        self.state = chan.get_state_for_GUI()
         self.local_ctn = chan.get_latest_ctn(LOCAL)
         self.remote_ctn = chan.get_latest_ctn(REMOTE)
         self.local_csv = chan.config[LOCAL].to_self_delay
@@ -297,7 +297,7 @@ class LightningChannelsDialog(Factory.Popup):
 
     def update_item(self, item):
         chan = item._chan
-        item.status = self.app.wallet.lnworker.get_channel_status(chan)
+        item.status = chan.get_state_for_GUI()
         item.short_channel_id = format_short_channel_id(chan.short_channel_id)
         l, r = self.format_fields(chan)
         item.local_balance = _('Local') + ':' + l
