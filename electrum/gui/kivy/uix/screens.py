@@ -483,7 +483,7 @@ class ReceiveScreen(CScreen):
             key = req['rhash']
             address = req['invoice']
         amount = req.get('amount')
-        description = req.get('memo', '')
+        description = req.get('message') or req.get('memo', '')  # TODO: a db upgrade would be needed to simplify that.
         status, status_str = get_request_status(req)
         ci = {}
         ci['screen'] = self
