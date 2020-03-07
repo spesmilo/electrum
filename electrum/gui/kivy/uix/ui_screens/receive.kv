@@ -135,12 +135,12 @@ ReceiveScreen:
                 icon: 'atlas://electrum/gui/kivy/theming/light/list'
                 size_hint: 0.5, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.clear_requests_dialog())
+                on_release: Clock.schedule_once(lambda dt: s.parent.clear_requests_dialog())
             IconButton:
                 icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
                 size_hint: 0.5, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
+                on_release: Clock.schedule_once(lambda dt: s.parent.expiration_dialog(s))
             Button:
                 text: _('Clear')
                 size_hint: 1, None
