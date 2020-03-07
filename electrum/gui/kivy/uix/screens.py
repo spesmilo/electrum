@@ -516,16 +516,15 @@ class ReceiveScreen(CScreen):
 
     def clear_requests_dialog(self):
         requests = self.app.wallet.get_sorted_requests()
-        expired = [req for req in requests if get_request_status(req)[0] == PR_EXPIRED]
-        if len(expired) == 0:
+        if not requests:
             return
         def callback(c):
             if c:
-                for req in expired:
+                for req in requests:
                     key = req.get('rhash') or req['address']
                     self.app.wallet.delete_request(key)
                 self.update()
-        d = Question(_('Delete expired requests?'), callback)
+        d = Question(_('Delete all requests?'), callback)
         d.open()
 
 
