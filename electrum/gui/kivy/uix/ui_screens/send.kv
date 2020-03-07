@@ -62,7 +62,7 @@
         height: self.minimum_height
         orientation: 'vertical'
 
-SendScreen:
+<SendScreen>:
     id: s
     name: 'send'
     address: ''
@@ -150,12 +150,12 @@ SendScreen:
             height: '48dp'
             IconButton:
                 size_hint: 0.5, 1
-                on_release: s.parent.do_save()
+                on_release: s.do_save()
                 icon: 'atlas://electrum/gui/kivy/theming/light/save'
             IconButton:
                 size_hint: 0.5, 1
                 icon: 'atlas://electrum/gui/kivy/theming/light/copy'
-                on_release: s.parent.do_paste()
+                on_release: s.do_paste()
             IconButton:
                 id: qr
                 size_hint: 1, 1
@@ -164,11 +164,11 @@ SendScreen:
             Button:
                 text: _('Clear')
                 size_hint: 1, 1
-                on_release: s.parent.do_clear()
+                on_release: s.do_clear()
             Button:
                 text: _('Pay')
                 size_hint: 1, 1
-                on_release: s.parent.do_pay()
+                on_release: s.do_pay()
         Widget:
             size_hint: 1, 0.1
         PaymentRecycleView:
