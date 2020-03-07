@@ -372,6 +372,9 @@ class Channel(Logger):
     def get_closing_height(self):
         return self.storage.get('closing_height')
 
+    def delete_closing_height(self):
+        self.storage.pop('closing_height', None)
+
     def is_redeemed(self):
         return self.get_state() == channel_states.REDEEMED
 
