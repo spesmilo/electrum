@@ -59,7 +59,7 @@ from .fee_slider import FeeSlider
 from .confirm_tx_dialog import TxEditor
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
-
+from electrum import constants
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 

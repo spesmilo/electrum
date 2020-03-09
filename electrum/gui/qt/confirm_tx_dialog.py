@@ -37,7 +37,7 @@ from electrum.wallet import InternalAddressCorruption
 from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, BlockingWaitingDialog
 
 from .fee_slider import FeeSlider
-
+from electrum import constants
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
