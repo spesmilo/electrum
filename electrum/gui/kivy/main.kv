@@ -428,7 +428,7 @@ BoxLayout:
                 size: 0, 0
 
             ActionButton:
-                size_hint_x: 0.5
+                size_hint_x: None
                 text: app.wallet_name
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
@@ -438,13 +438,13 @@ BoxLayout:
                     self.state = 'normal'
 
             ActionButton:
-                size_hint_x: 0.4
+                size_hint_x: 0.8
                 text: ''
                 opacity:0
 
             ActionOverflow:
                 id: ao
-                size_hint_x: 0.15
+                size_hint_x: 0.2
                 ActionOvrButton:
                     name: 'about'
                     text: _('About')

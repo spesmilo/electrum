@@ -31,7 +31,7 @@ from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.metrics import inch
 from kivy.lang import Builder
-from .uix.dialogs.password_dialog import PasswordDialog
+from .uix.dialogs.password_dialog import PasswordDialog, PincodeDialog
 
 ## lazy imports for factory so that widgets can be used in kv
 #Factory.register('InstallWizard', module='electrum.gui.kivy.uix.dialogs.installwizard')
@@ -370,6 +370,7 @@ class ElectrumWindow(App):
 
         # cached dialogs
         self._settings_dialog = None
+        self._pincode_dialog = None
         self._password_dialog = None
         self._channels_dialog = None
         self._addresses_dialog = None
@@ -626,10 +627,11 @@ class ElectrumWindow(App):
         if wallet:
             if wallet.has_password():
                 def on_success(x):
-                    # save pin_code so that we can create backups
+                    # save password in memory
                     self.password = x
                     self.load_wallet(wallet)
                 self.password_dialog(
+                    basename = wallet.basename(),
                     check_password=wallet.check_password,
                     on_success=on_success,
                     on_failure=self.stop)
@@ -652,6 +654,7 @@ class ElectrumWindow(App):
                             storage.decrypt(pw)
                             self._on_decrypted_storage(storage)
                         self.password_dialog(
+                            basename = storage.basename(),
                             check_password=storage.check_password,
                             on_success=on_password,
                             on_failure=self.stop)
@@ -735,13 +738,17 @@ class ElectrumWindow(App):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
+    def wallets_dialog(self):
+        from .uix.dialogs.wallets import WalletDialog
+        d = WalletDialog()
+        d.path = os.path.dirname(self.electrum_config.get_wallet_path())
+        d.open()
+
     def popup_dialog(self, name):
         if name == 'settings':
             self.settings_dialog()
         elif name == 'wallets':
-            from .uix.dialogs.wallets import WalletDialog
-            d = WalletDialog()
-            d.open()
+            self.wallets_dialog()
         elif name == 'status':
             popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/'+name+'.kv')
             master_public_keys_layout = popup.ids.master_public_keys
@@ -949,7 +956,7 @@ class ElectrumWindow(App):
     def on_resume(self):
         now = time.time()
         if self.wallet and self.wallet.has_password() and now - self.pause_time > 5*60:
-            self.password_dialog(check_password=self.check_pin_code, on_success=None, on_failure=self.stop, is_password=False)
+            self.pincode_dialog(check_password=self.check_pin_code, on_success=None, on_failure=self.stop)
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
 
@@ -1128,12 +1135,11 @@ class ElectrumWindow(App):
     def protected(self, msg, f, args):
         if self.electrum_config.get('pin_code'):
             on_success = lambda pw: f(*(args + (self.password,)))
-            self.password_dialog(
+            self.pincode_dialog(
                 message = msg,
                 check_password=self.check_pin_code,
                 on_success=on_success,
-                on_failure=lambda: None,
-                is_password=False)
+                on_failure=lambda: None)
         else:
             f(*(args + (self.password,)))
 
@@ -1220,6 +1226,12 @@ class ElectrumWindow(App):
         self._password_dialog.init(self, **kwargs)
         self._password_dialog.open()
 
+    def pincode_dialog(self, **kwargs):
+        if self._pincode_dialog is None:
+            self._pincode_dialog = PincodeDialog()
+        self._pincode_dialog.init(self, **kwargs)
+        self._pincode_dialog.open()
+
     def change_password(self, cb):
         def on_success(old_password, new_password):
             self.wallet.update_password(old_password, new_password)
@@ -1227,25 +1239,26 @@ class ElectrumWindow(App):
             self.show_info(_("Your password was updated"))
         on_failure = lambda: self.show_error(_("Password not updated"))
         self.password_dialog(
+            basename = self.wallet.basename(),
             check_password = self.wallet.check_password,
             on_success=on_success, on_failure=on_failure,
-            is_change=True, is_password=True,
+            is_change=True,
             has_password=self.wallet.has_password())
 
     def change_pin_code(self, cb):
-        if self._password_dialog is None:
-            self._password_dialog = PasswordDialog()
+        if self._pincode_dialog is None:
+            self._pincode_dialog = PincodeDialog()
         def on_success(old_password, new_password):
             self.electrum_config.set_key('pin_code', new_password)
             cb()
             self.show_info(_("PIN updated") if new_password else _('PIN disabled'))
         on_failure = lambda: self.show_error(_("PIN not updated"))
-        self._password_dialog.init(
+        self._pincode_dialog.init(
             self, check_password=self.check_pin_code,
             on_success=on_success, on_failure=on_failure,
-            is_change=True, is_password=False,
+            is_change=True,
             has_password = self.has_pin_code())
-        self._password_dialog.open()
+        self._pincode_dialog.open()
 
     def save_backup(self):
         if platform != 'android':
