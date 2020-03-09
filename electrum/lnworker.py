@@ -922,7 +922,10 @@ class LNWallet(LNWorker):
         success = False
         for i in range(attempts):
             try:
-                route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
+                # note: this call does path-finding which takes ~1 second
+                #       -> we will BLOCK the asyncio loop... (could just run in a thread and await,
+                #       but then the graph could change while the path-finding runs on it)
+                route = self._create_route_from_invoice(decoded_invoice=lnaddr)
                 self.set_payment_status(payment_hash, PR_INFLIGHT)
                 self.network.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -1035,7 +1038,7 @@ class LNWallet(LNWorker):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         return addr
 
-    async def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice

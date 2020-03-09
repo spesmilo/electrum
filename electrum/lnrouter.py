@@ -146,7 +146,6 @@ class LNPathFinder(Logger):
             return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
-        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
         if payment_amt_msat < channel_policy.htlc_minimum_msat:
             return float('inf'), 0  # payment amount too little
         if channel_info.capacity_sat is not None and \
@@ -155,6 +154,7 @@ class LNPathFinder(Logger):
         if channel_policy.htlc_maximum_msat is not None and \
                 payment_amt_msat > channel_policy.htlc_maximum_msat:
             return float('inf'), 0  # payment amount too large
+        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
         if not route_edge.is_sane_to_use(payment_amt_msat):
             return float('inf'), 0  # thanks but no thanks
 
@@ -187,6 +187,11 @@ class LNPathFinder(Logger):
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
         if my_channels is None: my_channels = {}
+        # note: we don't lock self.channel_db, so while the path finding runs,
+        #       the underlying graph could potentially change... (not good but maybe ~OK?)
+        #       (but at the time of writing, we are called on the asyncio event loop,
+        #        and the graph is also only updated from the event loop, so it will
+        #        not change)
 
         # FIXME paths cannot be longer than 20 edges (onion packet)...
 
