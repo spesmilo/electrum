@@ -806,7 +806,7 @@ class Channel(Logger):
     def make_commitment(self, subject, this_point, ctn) -> PartialTransaction:
         assert type(subject) is HTLCOwner
         feerate = self.get_feerate(subject, ctn)
-        other = REMOTE if LOCAL == subject else LOCAL
+        other = subject.inverted()
         local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
         remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
         received_htlcs = self.hm.htlcs_by_direction(subject, SENT if subject == LOCAL else RECEIVED, ctn).values()
