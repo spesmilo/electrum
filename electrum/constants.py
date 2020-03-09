@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+<<# -*- coding: utf-8 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2018 The Electrum developers
@@ -204,7 +204,7 @@ class SyscoinMainnet(AbstractSyscoinNet):
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
     DEFAULT_PORTS = {'t': '58881', 's': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {
-        "127.0.0.1": {
+        "18.204.96.195": {
             "pruning": "-",
             "t": "58881",
             "s": "58882",

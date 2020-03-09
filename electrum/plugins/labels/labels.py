@@ -30,7 +30,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'labels.electrumsys.org'
+        self.target_host = 'labels.electrum.syscoin.org'
         self.wallets = {}
 
     def encode(self, wallet, msg):

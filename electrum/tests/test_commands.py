@@ -36,18 +36,18 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(True, Commands._setconfig_normalize_value('show_console_tab', "True"))
 
     def test_setconfig_non_auth_list(self):
-        self.assertEqual(['file:///var/www/', 'https://electrumsys.org'],
-            Commands._setconfig_normalize_value('url_rewrite', "['file:///var/www/','https://electrumsys.org']"))
-        self.assertEqual(['file:///var/www/', 'https://electrumsys.org'],
-            Commands._setconfig_normalize_value('url_rewrite', '["file:///var/www/","https://electrumsys.org"]'))
+        self.assertEqual(['file:///var/www/', 'https://electrum.syscoin.org'],
+            Commands._setconfig_normalize_value('url_rewrite', "['file:///var/www/','https://electrum.syscoin.org']"))
+        self.assertEqual(['file:///var/www/', 'https://electrum.syscoin.org'],
+            Commands._setconfig_normalize_value('url_rewrite', '["file:///var/www/","https://electrum.syscoin.org"]'))
 
     def test_setconfig_auth(self):
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', "7777"))
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', '7777'))
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcpassword', '7777'))
         self.assertEqual("2asd", Commands._setconfig_normalize_value('rpcpassword', '2asd'))
-        self.assertEqual("['file:///var/www/','https://electrumsys.org']",
-            Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrumsys.org']"))
+        self.assertEqual("['file:///var/www/','https://electrum.syscoin.org']",
+            Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.syscoin.org']"))
 
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))

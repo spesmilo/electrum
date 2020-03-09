@@ -6,7 +6,7 @@ Electrum - Lightweight Bitcoin client (AuxPoW fork)
   Licence: GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components
   Author: The Namecoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors
   Language: Python (>= 3.6)
-  Homepage: https://www.namecoin.org/ ; original Electrum Homepage at https://electrumsys.org/
+  Homepage: https://www.namecoin.org/ ; original Electrum Homepage at https://electrum.syscoin.org/
 
 
 .. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
@@ -28,7 +28,7 @@ Getting started
 
 (*If you've come here looking to simply run Electrum,* `you may download it here`_.)
 
-.. _you may download it here: https://electrumsys.org/#download
+.. _you may download it here: https://electrum.syscoin.org/#download
 
 Electrum itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here

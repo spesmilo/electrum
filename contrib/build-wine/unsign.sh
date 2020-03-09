@@ -21,8 +21,8 @@ echo "Found $(ls dist/*.exe | wc -w) files to verify."
 for mine in $(ls dist/*.exe); do
     echo "---------------"
     f=$(basename $mine)
-    echo "Downloading https://download.electrumsys.org/$version/$f"
-    wget -q https://download.electrumsys.org/$version/$f -O signed/$f
+    echo "Downloading https://download-electrum.syscoin.org/$version/$f"
+    wget -q https://download-electrum.syscoin.org/$version/$f -O signed/$f
     out="signed/stripped/$f"
     # Remove PE signature from signed binary
     osslsigncode remove-signature -in signed/$f -out $out > /dev/null 2>&1
