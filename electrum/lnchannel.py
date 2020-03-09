@@ -70,9 +70,9 @@ class channel_states(IntEnum):
                         #  - Non-funding node: has sent the funding_signed message.
     FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3 # both parties have sent funding_locked
-    CLOSING         = 4 # shutdown has been sent.
-    FORCE_CLOSING   = 5 # force-close tx has been broadcast
-    CLOSED          = 6 # funding txo has been spent
+    CLOSING         = 4 # shutdown has been sent, and closing tx is unconfirmed.
+    FORCE_CLOSING   = 5 # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
+    CLOSED          = 6 # closing tx has been mined
     REDEEMED        = 7 # we can stop watching
 
 class peer_states(IntEnum):
