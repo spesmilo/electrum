@@ -61,16 +61,6 @@ class CScreen(Factory.Screen):
     kvname = None
     app = App.get_running_app()  # type: ElectrumWindow
 
-    def _change_action_view(self):
-        app = App.get_running_app()
-        action_bar = app.root.manager.current_screen.ids.action_bar
-        _action_view = self.action_view
-
-        if (not _action_view) or _action_view.parent:
-            return
-        action_bar.clear_widgets()
-        action_bar.add_widget(_action_view)
-
     def on_enter(self):
         # FIXME: use a proper event don't use animation time of screen
         Clock.schedule_once(lambda dt: self.dispatch('on_activate'), .25)
@@ -81,7 +71,7 @@ class CScreen(Factory.Screen):
 
     def on_activate(self):
         setattr(self.app, self.kvname + '_screen', self)
-        #Clock.schedule_once(lambda dt: self._change_action_view())
+        self.update()
 
     def on_leave(self):
         self.dispatch('on_deactivate')
