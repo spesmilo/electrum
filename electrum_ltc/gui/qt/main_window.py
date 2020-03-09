@@ -969,6 +969,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
+    def show_channel(self, channel_id):
+        from . import channel_details
+        channel_details.ChannelDetailsDialog(self, channel_id).show()
+
     def show_transaction(self, tx, *, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, parent=self, desc=tx_desc)
@@ -2071,6 +2075,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_lightning_icon(self):
         if self.lightning_button is None:
+            return
+        if not self.network.is_lightning_running():
             return
         cur, total = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")

@@ -124,7 +124,7 @@ FALLBACK_NODE_LIST_MAINNET = [
 
 class PaymentInfo(NamedTuple):
     payment_hash: bytes
-    amount: int
+    amount: int  # in satoshis
     direction: int
     status: int
 
@@ -599,7 +599,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': self.wallet.get_label(funding_txid) or _('Open channel'),
+                'label': self.wallet.get_label(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
@@ -614,7 +614,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
-                'label': self.wallet.get_label(closing_txid) or _('Close channel'),
+                'label': self.wallet.get_label(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
@@ -704,8 +704,11 @@ class LNWallet(LNWorker):
                 return chan
 
     async def update_unfunded_channel(self, chan, funding_txid):
-        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING]:
+        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING]:
             if chan.constraints.is_initiator:
+                # set channel state to REDEEMED so that it can be removed manually
+                # to protect ourselves against a server lying by omission,
+                # we check that funding_inputs have been double spent and deeply mined
                 inputs = chan.storage.get('funding_inputs', [])
                 if not inputs:
                     self.logger.info(f'channel funding inputs are not provided')
@@ -716,9 +719,8 @@ class LNWallet(LNWorker):
                         continue
                     if spender_txid != funding_txid:
                         tx_mined_height = self.wallet.get_tx_height(spender_txid)
-                        if tx_mined_height.conf > 6:
+                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                             self.logger.info(f'channel is double spent {inputs}')
-                            # set to REDEEMED so that it can be removed manually
                             chan.set_state(channel_states.REDEEMED)
                             break
             else:
@@ -730,7 +732,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == channel_states.OPEN and self.should_channel_be_closed_due_to_expiring_htlcs(chan):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.force_close_channel(chan.channel_id)
+            await self.try_force_closing(chan.channel_id)
             return
 
         if chan.get_state() == channel_states.OPENING:
@@ -749,7 +751,7 @@ class LNWallet(LNWorker):
             if peer is None:
                 self.logger.info("peer not found for {}".format(bh2u(chan.node_id)))
                 return
-            await peer.bitcoin_fee_update(chan)
+            await peer.maybe_update_fee(chan)
             conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
             peer.on_network_update(chan, conf)
 
@@ -920,7 +922,10 @@ class LNWallet(LNWorker):
         success = False
         for i in range(attempts):
             try:
-                route = await self._create_route_from_invoice(decoded_invoice=lnaddr)
+                # note: this call does path-finding which takes ~1 second
+                #       -> we will BLOCK the asyncio loop... (could just run in a thread and await,
+                #       but then the graph could change while the path-finding runs on it)
+                route = self._create_route_from_invoice(decoded_invoice=lnaddr)
                 self.set_payment_status(payment_hash, PR_INFLIGHT)
                 self.network.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -932,6 +937,7 @@ class LNWallet(LNWorker):
             success = payment_attempt_log.success
             if success:
                 break
+        self.logger.debug(f'payment attempts log for RHASH {key}: {repr(log)}')
         self.network.trigger_callback('invoice_status', key)
         return success
 
@@ -1032,7 +1038,7 @@ class LNWallet(LNWorker):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         return addr
 
-    async def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -1295,11 +1301,19 @@ class LNWallet(LNWorker):
         return await peer.close_channel(chan_id)
 
     async def force_close_channel(self, chan_id):
+        # returns txid or raises
+        chan = self.channels[chan_id]
+        tx = chan.force_close_tx()
+        await self.network.broadcast_transaction(tx)
+        chan.set_state(channel_states.FORCE_CLOSING)
+        return tx.txid()
+
+    async def try_force_closing(self, chan_id):
+        # fails silently but sets the state, so that we will retry later
         chan = self.channels[chan_id]
         tx = chan.force_close_tx()
         chan.set_state(channel_states.FORCE_CLOSING)
         await self.network.try_broadcasting(tx, 'force-close')
-        return tx.txid()
 
     def remove_channel(self, chan_id):
         chan = self.channels[chan_id]
@@ -1313,24 +1327,33 @@ class LNWallet(LNWorker):
 
     @ignore_exceptions
     @log_exceptions
-    async def reestablish_peer_for_given_channel(self, chan):
+    async def reestablish_peer_for_given_channel(self, chan: Channel) -> None:
         now = time.time()
-        # try last good address first
-        peer = self.channel_db.get_last_good_address(chan.node_id)
-        if peer:
+        peer_addresses = []
+        # will try last good address first, from gossip
+        last_good_addr = self.channel_db.get_last_good_address(chan.node_id)
+        if last_good_addr:
+            peer_addresses.append(last_good_addr)
+        # will try addresses for node_id from gossip
+        addrs_from_gossip = self.channel_db.get_node_addresses(chan.node_id) or []
+        for host, port, ts in addrs_from_gossip:
+            peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
+        # will try addresses stored in channel storage
+        peer_addresses += list(chan.get_peer_addresses())
+        # Now select first one that has not failed recently.
+        # Use long retry interval to check. This ensures each address we gathered gets a chance.
+        for peer in peer_addresses:
+            last_tried = self._last_tried_peer.get(peer, 0)
+            if last_tried + PEER_RETRY_INTERVAL < now:
+                await self._add_peer(peer.host, peer.port, peer.pubkey)
+                return
+        # Still here? That means all addresses failed ~recently.
+        # Use short retry interval now.
+        for peer in peer_addresses:
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
                 await self._add_peer(peer.host, peer.port, peer.pubkey)
                 return
-        # try random address for node_id
-        addresses = self.channel_db.get_node_addresses(chan.node_id)
-        if not addresses:
-            return
-        host, port, t = random.choice(list(addresses))
-        peer = LNPeerAddr(host, port, chan.node_id)
-        last_tried = self._last_tried_peer.get(peer, 0)
-        if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
-            await self._add_peer(host, port, chan.node_id)
 
     async def reestablish_peers_and_channels(self):
         while True:
@@ -1343,12 +1366,6 @@ class LNWallet(LNWorker):
             for chan in channels:
                 if chan.is_closed():
                     continue
-                if constants.net is not constants.BitcoinRegtest:
-                    chan_feerate = chan.get_latest_feerate(LOCAL)
-                    ratio = chan_feerate / self.current_feerate_per_kw()
-                    if ratio < 0.5:
-                        self.logger.warning(f"fee level for channel {bh2u(chan.channel_id)} is {chan_feerate} sat/kiloweight, "
-                                            f"current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
                 # reestablish
                 if not chan.should_try_to_reestablish_peer():
                     continue

@@ -135,6 +135,7 @@ class PaymentFailure(UserFacingException): pass
 # TODO make some of these values configurable?
 DEFAULT_TO_SELF_DELAY = 144
 
+REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
 ##### CLTV-expiry-delta-related values
 # see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection

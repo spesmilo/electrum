@@ -13,10 +13,10 @@ class HTLCManager:
 
         if len(log) == 0:
             initial = {
-                'adds': {},
-                'locked_in': {},
-                'settles': {},
-                'fails': {},
+                'adds': {},              # "side who offered htlc" -> htlc_id -> htlc
+                'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
+                'settles': {},           # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
+                'fails': {},             # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 'fee_updates': {},       # "side who initiated fee update" -> action -> list of FeeUpdates
                 'revack_pending': False,
                 'next_htlc_id': 0,
@@ -36,6 +36,7 @@ class HTLCManager:
                 if not log[sub]['fee_updates']:
                     log[sub]['fee_updates'][0] = FeeUpdate(rate=initial_feerate, ctn_local=0, ctn_remote=0)
         self.log = log
+        self._init_maybe_active_htlc_ids()
 
     def ctn_latest(self, sub: HTLCOwner) -> int:
         """Return the ctn for the latest (newest that has a valid sig) ctx of sub"""
@@ -73,6 +74,7 @@ class HTLCManager:
         self.log[LOCAL]['adds'][htlc_id] = htlc
         self.log[LOCAL]['locked_in'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE)+1}
         self.log[LOCAL]['next_htlc_id'] += 1
+        self._maybe_active_htlc_ids[LOCAL].add(htlc_id)
         return htlc
 
     def recv_htlc(self, htlc: UpdateAddHtlc) -> None:
@@ -83,6 +85,7 @@ class HTLCManager:
         self.log[REMOTE]['adds'][htlc_id] = htlc
         self.log[REMOTE]['locked_in'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL)+1, REMOTE: None}
         self.log[REMOTE]['next_htlc_id'] += 1
+        self._maybe_active_htlc_ids[REMOTE].add(htlc_id)
 
     def send_settle(self, htlc_id: int) -> None:
         self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}
@@ -130,13 +133,17 @@ class HTLCManager:
         self.log[LOCAL]['ctn'] += 1
         self._set_revack_pending(LOCAL, False)
         # htlcs
-        for ctns in self.log[REMOTE]['locked_in'].values():
+        for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
+            ctns = self.log[REMOTE]['locked_in'][htlc_id]
             if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                 ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
         for log_action in ('settles', 'fails'):
-            for ctns in self.log[LOCAL][log_action].values():
+            for htlc_id in self._maybe_active_htlc_ids[LOCAL]:
+                ctns = self.log[LOCAL][log_action].get(htlc_id, None)
+                if ctns is None: continue
                 if ctns[REMOTE] is None and ctns[LOCAL] <= self.ctn_latest(LOCAL):
                     ctns[REMOTE] = self.ctn_latest(REMOTE) + 1
+        self._update_maybe_active_htlc_ids()
         # fee updates
         for k, fee_update in list(self.log[REMOTE]['fee_updates'].items()):
             if fee_update.ctn_remote is None and fee_update.ctn_local <= self.ctn_latest(LOCAL):
@@ -146,13 +153,17 @@ class HTLCManager:
         self.log[REMOTE]['ctn'] += 1
         self._set_revack_pending(REMOTE, False)
         # htlcs
-        for ctns in self.log[LOCAL]['locked_in'].values():
+        for htlc_id in self._maybe_active_htlc_ids[LOCAL]:
+            ctns = self.log[LOCAL]['locked_in'][htlc_id]
             if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                 ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
         for log_action in ('settles', 'fails'):
-            for ctns in self.log[REMOTE][log_action].values():
+            for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
+                ctns = self.log[REMOTE][log_action].get(htlc_id, None)
+                if ctns is None: continue
                 if ctns[LOCAL] is None and ctns[REMOTE] <= self.ctn_latest(REMOTE):
                     ctns[LOCAL] = self.ctn_latest(LOCAL) + 1
+        self._update_maybe_active_htlc_ids()
         # fee updates
         for k, fee_update in list(self.log[LOCAL]['fee_updates'].items()):
             if fee_update.ctn_local is None and fee_update.ctn_remote <= self.ctn_latest(REMOTE):
@@ -160,6 +171,38 @@ class HTLCManager:
 
         # no need to keep local update raw msgs anymore, they have just been ACKed.
         self.log['unacked_local_updates2'].pop(self.log[REMOTE]['ctn'], None)
+
+    def _update_maybe_active_htlc_ids(self) -> None:
+        # - Loosely, we want a set that contains the htlcs that are
+        #   not "removed and revoked from all ctxs of both parties". (self._maybe_active_htlc_ids)
+        #   It is guaranteed that those htlcs are in the set, but older htlcs might be there too:
+        #   there is a sanity margin of 1 ctn -- this relaxes the care needed re order of method calls.
+        # - balance_delta is in sync with maybe_active_htlc_ids. When htlcs are removed from the latter,
+        #   balance_delta is updated to reflect that htlc.
+        sanity_margin = 1
+        for htlc_proposer in (LOCAL, REMOTE):
+            for log_action in ('settles', 'fails'):
+                for htlc_id in list(self._maybe_active_htlc_ids[htlc_proposer]):
+                    ctns = self.log[htlc_proposer][log_action].get(htlc_id, None)
+                    if ctns is None: continue
+                    if (ctns[LOCAL] is not None
+                            and ctns[LOCAL] <= self.ctn_oldest_unrevoked(LOCAL) - sanity_margin
+                            and ctns[REMOTE] is not None
+                            and ctns[REMOTE] <= self.ctn_oldest_unrevoked(REMOTE) - sanity_margin):
+                        self._maybe_active_htlc_ids[htlc_proposer].remove(htlc_id)
+                        if log_action == 'settles':
+                            htlc = self.log[htlc_proposer]['adds'][htlc_id]  # type: UpdateAddHtlc
+                            self._balance_delta -= htlc.amount_msat * htlc_proposer
+
+    def _init_maybe_active_htlc_ids(self):
+        self._maybe_active_htlc_ids = {LOCAL: set(), REMOTE: set()}  # first idx is "side who offered htlc"
+        # add all htlcs
+        self._balance_delta = 0  # the balance delta of LOCAL since channel open
+        for htlc_proposer in (LOCAL, REMOTE):
+            for htlc_id in self.log[htlc_proposer]['adds']:
+                self._maybe_active_htlc_ids[htlc_proposer].add(htlc_id)
+        # remove old htlcs
+        self._update_maybe_active_htlc_ids()
 
     def discard_unsigned_remote_updates(self):
         """Discard updates sent by the remote, that the remote itself
@@ -170,6 +213,7 @@ class HTLCManager:
             if ctns[LOCAL] > self.ctn_latest(LOCAL):
                 del self.log[REMOTE]['locked_in'][htlc_id]
                 del self.log[REMOTE]['adds'][htlc_id]
+                self._maybe_active_htlc_ids[REMOTE].discard(htlc_id)
         if self.log[REMOTE]['locked_in']:
             self.log[REMOTE]['next_htlc_id'] = max([int(x) for x in self.log[REMOTE]['locked_in'].keys()]) + 1
         else:
@@ -222,7 +266,12 @@ class HTLCManager:
         party = subject if direction == SENT else subject.inverted()
         settles = self.log[party]['settles']
         fails = self.log[party]['fails']
-        for htlc_id, ctns in self.log[party]['locked_in'].items():
+        if ctn >= self.ctn_oldest_unrevoked(subject):
+            considered_htlc_ids = self._maybe_active_htlc_ids[party]
+        else:  # ctn is too old; need to consider full log (slow...)
+            considered_htlc_ids = self.log[party]['locked_in']
+        for htlc_id in considered_htlc_ids:
+            ctns = self.log[party]['locked_in'][htlc_id]
             if ctns[subject] is not None and ctns[subject] <= ctn:
                 not_settled = htlc_id not in settles or settles[htlc_id][subject] is None or settles[htlc_id][subject] > ctn
                 not_failed = htlc_id not in fails or fails[htlc_id][subject] is None or fails[htlc_id][subject] > ctn
@@ -290,32 +339,81 @@ class HTLCManager:
         received = [(RECEIVED, x) for x in self.all_settled_htlcs_ever_by_direction(subject, RECEIVED, ctn)]
         return sent + received
 
-    def received_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+    def get_balance_msat(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None,
+                         initial_balance_msat: int) -> int:
+        """Returns the balance of 'whose' in 'ctx' at 'ctn'.
+        Only HTLCs that have been settled by that ctn are counted.
+        """
+        if ctn is None:
+            ctn = self.ctn_oldest_unrevoked(ctx_owner)
+        balance = initial_balance_msat
+        if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
+            balance += self._balance_delta * whose
+            considered_sent_htlc_ids = self._maybe_active_htlc_ids[whose]
+            considered_recv_htlc_ids = self._maybe_active_htlc_ids[-whose]
+        else:  # ctn is too old; need to consider full log (slow...)
+            considered_sent_htlc_ids = self.log[whose]['settles']
+            considered_recv_htlc_ids = self.log[-whose]['settles']
+        # sent htlcs
+        for htlc_id in considered_sent_htlc_ids:
+            ctns = self.log[whose]['settles'].get(htlc_id, None)
+            if ctns is None: continue
+            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+                htlc = self.log[whose]['adds'][htlc_id]
+                balance -= htlc.amount_msat
+        # recv htlcs
+        for htlc_id in considered_recv_htlc_ids:
+            ctns = self.log[-whose]['settles'].get(htlc_id, None)
+            if ctns is None: continue
+            if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+                htlc = self.log[-whose]['adds'][htlc_id]
+                balance += htlc.amount_msat
+        return balance
+
+    def _get_htlcs_that_got_removed_exactly_at_ctn(
+            self, ctn: int, *, ctx_owner: HTLCOwner, htlc_proposer: HTLCOwner, log_action: str,
+    ) -> Sequence[UpdateAddHtlc]:
+        if ctn >= self.ctn_oldest_unrevoked(ctx_owner):
+            considered_htlc_ids = self._maybe_active_htlc_ids[htlc_proposer]
+        else:  # ctn is too old; need to consider full log (slow...)
+            considered_htlc_ids = self.log[htlc_proposer][log_action]
+        htlcs = []
+        for htlc_id in considered_htlc_ids:
+            ctns = self.log[htlc_proposer][log_action].get(htlc_id, None)
+            if ctns is None: continue
+            if ctns[ctx_owner] == ctn:
+                htlcs.append(self.log[htlc_proposer]['adds'][htlc_id])
+        return htlcs
+
+    def received_in_ctn(self, local_ctn: int) -> Sequence[UpdateAddHtlc]:
         """
         received htlcs that became fulfilled when we send a revocation.
-        we check only local, because they are commited in the remote ctx first.
+        we check only local, because they are committed in the remote ctx first.
         """
-        return [self.log[REMOTE]['adds'][htlc_id]
-                for htlc_id, ctns in self.log[REMOTE]['settles'].items()
-                if ctns[LOCAL] == ctn]
+        return self._get_htlcs_that_got_removed_exactly_at_ctn(local_ctn,
+                                                               ctx_owner=LOCAL,
+                                                               htlc_proposer=REMOTE,
+                                                               log_action='settles')
 
-    def sent_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+    def sent_in_ctn(self, remote_ctn: int) -> Sequence[UpdateAddHtlc]:
         """
         sent htlcs that became fulfilled when we received a revocation
-        we check only remote, because they are commited in the local ctx first.
+        we check only remote, because they are committed in the local ctx first.
         """
-        return [self.log[LOCAL]['adds'][htlc_id]
-                for htlc_id, ctns in self.log[LOCAL]['settles'].items()
-                if ctns[REMOTE] == ctn]
+        return self._get_htlcs_that_got_removed_exactly_at_ctn(remote_ctn,
+                                                               ctx_owner=REMOTE,
+                                                               htlc_proposer=LOCAL,
+                                                               log_action='settles')
 
-    def failed_in_ctn(self, ctn: int) -> Sequence[UpdateAddHtlc]:
+    def failed_in_ctn(self, remote_ctn: int) -> Sequence[UpdateAddHtlc]:
         """
         sent htlcs that became failed when we received a revocation
-        we check only remote, because they are commited in the local ctx first.
+        we check only remote, because they are committed in the local ctx first.
         """
-        return [self.log[LOCAL]['adds'][htlc_id]
-                for htlc_id, ctns in self.log[LOCAL]['fails'].items()
-                if ctns[REMOTE] == ctn]
+        return self._get_htlcs_that_got_removed_exactly_at_ctn(remote_ctn,
+                                                               ctx_owner=REMOTE,
+                                                               htlc_proposer=LOCAL,
+                                                               log_action='fails')
 
     ##### Queries re Fees:
 

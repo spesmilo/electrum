@@ -172,8 +172,8 @@ if [[ $1 == "redeem_htlcs" ]]; then
     # alice pays bob
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
         echo 'enable_htlc_settle did not work'
         exit 1
     fi
@@ -214,16 +214,16 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     echo "alice pays bob"
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 0"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     $bob enable_htlc_settle true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 1"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo "alice breaches with old ctx"
@@ -244,16 +244,16 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     invoice=$($bob add_lightning_request 0.05 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 0"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
     $bob enable_htlc_settle true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 1"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo $($bob getbalance)

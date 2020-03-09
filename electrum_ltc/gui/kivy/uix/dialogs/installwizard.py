@@ -1149,16 +1149,22 @@ class InstallWizard(BaseWizard, Widget):
             # do not request PIN for watching-only wallets
             run_next(None, False)
             return
-        def on_success(old_pin, pin):
-            assert old_pin is None
-            run_next(pin, True)
+        def on_success(old_pw, pw):
+            assert old_pw is None
+            run_next(pw, True)
         def on_failure():
-            self.show_error(_('PIN mismatch'))
+            self.show_error(_('Password mismatch'))
             self.run('request_password', run_next)
         popup = PasswordDialog()
         app = App.get_running_app()
-        popup.init(app, wallet=None, msg=_('Choose PIN code'),
-                   on_success=on_success, on_failure=on_failure, is_change=2)
+        popup.init(
+            app,
+            check_password=lambda x:True,
+            on_success=on_success,
+            on_failure=on_failure,
+            is_change=True,
+            is_password=True,
+            message=_('Choose a password'))
         popup.open()
 
     def action_dialog(self, action, run_next):

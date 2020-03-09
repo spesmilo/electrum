@@ -85,31 +85,91 @@ Builder.load_string(r'''
                 text: _('New...')
                 on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
 
-<ChannelDetailsList@RecycleView>:
-    scroll_type: ['bars', 'content']
-    scroll_wheel_distance: dp(114)
-    bar_width: dp(10)
-    viewclass: 'BoxLabel'
-    RecycleBoxLayout:
-        default_size: None, dp(56)
-        default_size_hint: 1, None
-        size_hint_y: None
-        height: self.minimum_height
-        orientation: 'vertical'
-        spacing: dp(2)
 
 <ChannelDetailsPopup@Popup>:
     id: popuproot
     data: []
     is_closed: False
     is_redeemed: False
+    node_id:''
+    short_id:''
+    initiator:''
+    capacity:''
+    funding_txid:''
+    closing_txid:''
+    state:''
+    local_ctn:0
+    remote_ctn:0
+    local_csv:0
+    remote_csv:0
+    feerate:0
+    can_send:''
+    can_receive:''
+    is_open:False
     BoxLayout:
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
         orientation: 'vertical'
         ScrollView:
-            ChannelDetailsList:
-                data: popuproot.data
+            scroll_type: ['bars', 'content']
+            scroll_wheel_distance: dp(114)
+            BoxLayout:
+                orientation: 'vertical'
+                height: self.minimum_height
+                size_hint_y: None
+                spacing: '5dp'
+                BoxLabel:
+                    text: _('Channel ID')
+                    value: root.short_id
+                BoxLabel:
+                    text: _('State')
+                    value: root.state
+                BoxLabel:
+                    text: _('Initiator')
+                    value: root.initiator
+                BoxLabel:
+                    text: _('Capacity')
+                    value: root.capacity
+                BoxLabel:
+                    text: _('Can send')
+                    value: root.can_send if root.is_open else 'n/a'
+                BoxLabel:
+                    text: _('Can receive')
+                    value: root.can_receive if root.is_open else 'n/a'
+                BoxLabel:
+                    text: _('CSV delay')
+                    value: 'Local: %d\nRemote: %d' % (root.local_csv, root.remote_csv)
+                BoxLabel:
+                    text: _('CTN')
+                    value: 'Local: %d\nRemote: %d' % (root.local_ctn, root.remote_ctn)
+                BoxLabel:
+                    text: _('Fee rate')
+                    value: '%d sat/kilobyte' % (root.feerate)
+                Widget:
+                    size_hint: 1, 0.1
+                TopLabel:
+                    text: _('Remote Node ID')
+                TxHashLabel:
+                    data: root.node_id
+                    name: _('Remote Node ID')
+                TopLabel:
+                    text: _('Funding Transaction')
+                TxHashLabel:
+                    data: root.funding_txid
+                    name: _('Funding Transaction')
+                    touch_callback: lambda: app.show_transaction(root.funding_txid)
+                TopLabel:
+                    text: _('Closing Transaction')
+                    opacity: int(bool(root.closing_txid))
+                TxHashLabel:
+                    opacity: int(bool(root.closing_txid))
+                    data: root.closing_txid
+                    name: _('Closing Transaction')
+                    touch_callback: lambda: app.show_transaction(root.closing_txid)
+                Widget:
+                    size_hint: 1, 0.1
         Widget:
-            size_hint: 1, 0.1
+            size_hint: 1, 0.05
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -131,11 +191,6 @@ Builder.load_string(r'''
                 text: _('Delete')
                 on_release: root.remove_channel()
                 disabled: not root.is_redeemed
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Dismiss')
-                on_release: root.dismiss()
 ''')
 
 
@@ -148,25 +203,24 @@ class ChannelDetailsPopup(Popup):
         self.app = app
         self.chan = chan
         self.title = _('Channel details')
-        self.data = [{'text': key, 'value': str(value)} for key, value in self.details().items()]
-
-    def details(self):
-        chan = self.chan
-        status = self.app.wallet.lnworker.get_channel_status(chan)
-        return {
-            _('Short Chan ID'): format_short_channel_id(chan.short_channel_id),
-            _('Initiator'): 'Local' if chan.constraints.is_initiator else 'Remote',
-            _('State'): status,
-            _('Local CTN'): chan.get_latest_ctn(LOCAL),
-            _('Remote CTN'): chan.get_latest_ctn(REMOTE),
-            _('Capacity'): self.app.format_amount_and_units(chan.constraints.capacity),
-            _('Can send'): self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000),
-            _('Can receive'): self.app.format_amount_and_units(chan.available_to_spend(REMOTE) // 1000),
-            _('Current feerate'): str(chan.get_latest_feerate(LOCAL)),
-            _('Node ID'): bh2u(chan.node_id),
-            _('Channel ID'): bh2u(chan.channel_id),
-            _('Funding TXID'): chan.funding_outpoint.txid,
-        }
+        self.node_id = bh2u(chan.node_id)
+        self.channel_id = bh2u(chan.channel_id)
+        self.funding_txid = chan.funding_outpoint.txid
+        self.short_id = format_short_channel_id(chan.short_channel_id)
+        self.capacity = self.app.format_amount_and_units(chan.constraints.capacity)
+        self.state = self.app.wallet.lnworker.get_channel_status(chan)
+        self.local_ctn = chan.get_latest_ctn(LOCAL)
+        self.remote_ctn = chan.get_latest_ctn(REMOTE)
+        self.local_csv = chan.config[LOCAL].to_self_delay
+        self.remote_csv = chan.config[REMOTE].to_self_delay
+        self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
+        self.feerate = chan.get_latest_feerate(LOCAL)
+        self.can_send = self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000)
+        self.can_receive = self.app.format_amount_and_units(chan.available_to_spend(REMOTE) // 1000)
+        self.is_open = chan.is_open()
+        closed = chan.get_closing_height()
+        if closed:
+            self.closing_txid, closing_height, closing_timestamp = closed
 
     def close(self):
         Question(_('Close channel?'), self._close).open()

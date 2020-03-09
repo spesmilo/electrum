@@ -16,11 +16,11 @@ Builder.load_string('''
 <WalletDialog@Popup>:
     title: _('Wallets')
     id: popup
-    path: os.path.dirname(app.get_wallet_path())
+    path: ''
     BoxLayout:
         orientation: 'vertical'
         padding: '10dp'
-        FileChooserListView:
+        FileChooserIconView:
             id: wallet_selector
             dirselect: False
             filter_dirs: True

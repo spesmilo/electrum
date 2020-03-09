@@ -202,6 +202,8 @@ class Peer(Logger):
             raise GracefulDisconnect(f"{str(e)}")
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
+            for chan in self.channels.values():
+                chan.add_or_update_peer_addr(self.transport.peer_addr)
         self._received_init = True
         self.maybe_set_initialized()
 
@@ -597,6 +599,8 @@ class Peer(Logger):
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        if isinstance(self.transport, LNTransport):
+            chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
         self.send_message("funding_created",
@@ -695,6 +699,8 @@ class Peer(Logger):
                        lnworker=self.lnworker,
                        initial_feerate=feerate)
         chan.storage['init_timestamp'] = int(time.time())
+        if isinstance(self.transport, LNTransport):
+            chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
@@ -718,7 +724,7 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
-        assert channel_states.PREOPENING < chan.get_state() < channel_states.CLOSED
+        assert channel_states.PREOPENING < chan.get_state() < channel_states.FORCE_CLOSING
         if chan.peer_state != peer_states.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
                              f'already in peer_state {chan.peer_state}')
@@ -863,11 +869,11 @@ class Peer(Logger):
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            await self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.try_force_closing(chan_id)
             return
         elif self.lnworker.wallet.is_lightning_backup():
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): force-closing because we are a recent backup")
-            await self.lnworker.force_close_channel(chan_id)
+            await self.lnworker.try_force_closing(chan_id)
             return
 
         chan.peer_state = peer_states.GOOD
@@ -1100,7 +1106,7 @@ class Peer(Logger):
         if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            asyncio.ensure_future(self.lnworker.force_close_channel(channel_id))
+            asyncio.ensure_future(self.lnworker.try_force_closing(channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         htlc = UpdateAddHtlc(
@@ -1243,16 +1249,25 @@ class Peer(Logger):
         chan = self.channels[channel_id]
         chan.update_fee(feerate, False)
 
-    async def bitcoin_fee_update(self, chan: Channel):
+    async def maybe_update_fee(self, chan: Channel):
         """
         called when our fee estimates change
         """
         if not chan.can_send_ctx_updates():
             return
-        if not chan.constraints.is_initiator:
-            # TODO force close if initiator does not update_fee enough
-            return
         feerate_per_kw = self.lnworker.current_feerate_per_kw()
+        if not chan.constraints.is_initiator:
+            if constants.net is not constants.BitcoinRegtest:
+                chan_feerate = chan.get_latest_feerate(LOCAL)
+                ratio = chan_feerate / feerate_per_kw
+                if ratio < 0.5:
+                    # Note that we trust the Electrum server about fee rates
+                    # Thus, automated force-closing might not be a good idea
+                    # Maybe we should display something in the GUI instead
+                    self.logger.warning(
+                        f"({chan.get_id_for_log()}) feerate is {chan_feerate} sat/kw, "
+                        f"current recommended feerate is {feerate_per_kw} sat/kw, consider force closing!")
+            return
         chan_fee = chan.get_next_feerate(REMOTE)
         if feerate_per_kw < chan_fee / 2:
             self.logger.info("FEES HAVE FALLEN")
