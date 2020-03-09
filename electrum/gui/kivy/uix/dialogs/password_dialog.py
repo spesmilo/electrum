@@ -58,24 +58,23 @@ Builder.load_string('''
             orientation: 'horizontal'
             id: box_generic_password
             size_hint_y: 0.05
-            WizardTextInput:
+            height: '40dp'
+            TextInput:
+                height: '40dp'
                 id: textinput_generic_password
                 valign: 'center'
                 multiline: False
                 on_text_validate:
                     popup.on_password(self.text)
                 password: True
-                size_hint: 0.9, None
+                size_hint: 0.85, None
                 unfocus_on_touch: False
                 focus: True
-            Button:
-                size_hint: 0.1, None
-                valign: 'center'
-                background_normal: 'atlas://electrum/gui/kivy/theming/light/eye1'
-                background_down: self.background_normal
-                height: '50dp'
-                width: '50dp'
-                padding: '5dp', '5dp'
+            IconButton:
+                height: '40dp'
+                size_hint: 0.15, None
+                icon: 'atlas://electrum/gui/kivy/theming/light/eye1'
+                icon_size: '40dp'
                 on_release:
                     textinput_generic_password.password = False if textinput_generic_password.password else True
         Widget:

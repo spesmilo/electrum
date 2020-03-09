@@ -58,6 +58,7 @@
 
 <IconButton@Button>:
     icon: ''
+    icon_size: '30dp'
     AnchorLayout:
         pos: self.parent.pos
         size: self.parent.size
@@ -65,7 +66,7 @@
         Image:
             source: self.parent.parent.icon
             size_hint_x: None
-            size: '30dp', '30dp'
+            size: root.icon_size, root.icon_size
 
             
 <BackgroundColor@Widget>
