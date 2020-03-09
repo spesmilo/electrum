@@ -26,6 +26,7 @@
 import queue
 from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
+import time
 
 from .util import bh2u, profiler
 from .logging import Logger
@@ -123,13 +124,32 @@ class LNPathFinder(Logger):
         Logger.__init__(self)
         self.channel_db = channel_db
         self.blacklist = set()
+        self._edge_cost_cache = {}
 
     def add_to_blacklist(self, short_channel_id: ShortChannelID):
         self.logger.info(f'blacklisting channel {short_channel_id}')
         self.blacklist.add(short_channel_id)
 
-    def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
-                   payment_amt_msat: int, ignore_costs=False, is_mine=False, *,
+    def _edge_cost_with_cache(self, *, short_channel_id: bytes, start_node: bytes, end_node: bytes,
+                              payment_amt_msat: int, ignore_costs=False, is_mine=False,
+                              my_channels: Dict[ShortChannelID, 'Channel'] = None,
+                              now: int) -> Tuple[float, int]:
+        payment_amt_msat_log2 = payment_amt_msat.bit_length()  # fast log2 ceiling
+        key = (short_channel_id, start_node < end_node, payment_amt_msat_log2, ignore_costs, is_mine)
+        cache_contents = self._edge_cost_cache.get(key, None)
+        if cache_contents is None or cache_contents[1] < now - 900:  # if data older than 15 mins, recalc
+            res = self._edge_cost(short_channel_id=short_channel_id,
+                                  start_node=start_node,
+                                  end_node=end_node,
+                                  payment_amt_msat=payment_amt_msat,  # TODO pass upper bound?
+                                  ignore_costs=ignore_costs,
+                                  is_mine=is_mine,
+                                  my_channels=my_channels)
+            self._edge_cost_cache[key] = (res, now)
+        return self._edge_cost_cache[key][0]
+
+    def _edge_cost(self, *, short_channel_id: bytes, start_node: bytes, end_node: bytes,
+                   payment_amt_msat: int, ignore_costs=False, is_mine=False,
                    my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Tuple[float, int]:
         """Heuristic cost (distance metric) of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
@@ -189,9 +209,6 @@ class LNPathFinder(Logger):
         if my_channels is None: my_channels = {}
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
-        #       (but at the time of writing, we are called on the asyncio event loop,
-        #        and the graph is also only updated from the event loop, so it will
-        #        not change)
 
         # FIXME paths cannot be longer than 20 edges (onion packet)...
 
@@ -203,6 +220,7 @@ class LNPathFinder(Logger):
         prev_node = {}
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
+        now = int(time.time())
 
         def inspect_edge():
             is_mine = edge_channel_id in my_channels
@@ -213,14 +231,15 @@ class LNPathFinder(Logger):
                 else:  # payment incoming, on our channel. (funny business, cycle weirdness)
                     assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
                     pass  # TODO?
-            edge_cost, fee_for_edge_msat = self._edge_cost(
-                edge_channel_id,
+            edge_cost, fee_for_edge_msat = self._edge_cost_with_cache(
+                short_channel_id=edge_channel_id,
                 start_node=edge_startnode,
                 end_node=edge_endnode,
                 payment_amt_msat=amount_msat,
                 ignore_costs=(edge_startnode == nodeA),
                 is_mine=is_mine,
-                my_channels=my_channels)
+                my_channels=my_channels,
+                now=now)
             alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
             if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                 distance_from_start[edge_startnode] = alt_dist_to_neighbour
