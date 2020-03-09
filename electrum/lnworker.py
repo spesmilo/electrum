@@ -771,7 +771,13 @@ class LNWallet(LNWorker):
     async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
 
         if chan.get_state() < channel_states.CLOSED:
-            chan.set_state(channel_states.CLOSED)
+            conf = closing_height.conf
+            if conf > 0:
+                chan.set_state(channel_states.CLOSED)
+            else:
+                # we must not trust the server with unconfirmed transactions
+                # if the remote force closed, we remain OPEN until the closing tx is confirmed
+                pass
 
         if chan.get_state() == channel_states.CLOSED and not keep_watching:
             chan.set_state(channel_states.REDEEMED)
