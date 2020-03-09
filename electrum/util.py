@@ -746,16 +746,16 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'Syscoin Explorer': ('https://sys1.bcfn.ca/en/',
+    'Syscoin Explorer': ('https://sys1.bcfn.ca/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('https://sys1.bcfn.ca/en/',
+    'system default': ('https://sys1.bcfn.ca/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
-    'Syscoin Testnet Explorer': ('https://tsys1.bcfn.ca/en/',
+    'Syscoin Testnet Explorer': ('https://tsys1.bcfn.ca/',
                         {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('https://tsys1.bcfn.ca/en/',
+    'system default': ('https://tsys1.bcfn.ca/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
 
