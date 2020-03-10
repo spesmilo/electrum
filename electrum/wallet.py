@@ -682,6 +682,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             item['status'] = self.lnworker.get_invoice_status(key)
         else:
             return
+        # unique handle
+        item['key'] = key
         return item
 
     def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
