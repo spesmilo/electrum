@@ -158,17 +158,17 @@
                 icon: 'atlas://electrum/gui/kivy/theming/light/save'
             IconButton:
                 size_hint: 0.5, 1
+                on_release: s.do_clear()
+                icon: 'atlas://electrum/gui/kivy/theming/light/closebutton'
+            IconButton:
+                size_hint: 0.5, 1
                 icon: 'atlas://electrum/gui/kivy/theming/light/copy'
                 on_release: s.do_paste()
-            IconButton:
-                id: qr
-                size_hint: 0.5, 1
-                on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
-                icon: 'atlas://electrum/gui/kivy/theming/light/camera'
             Button:
-                text: _('Clear')
+                id: qr
+                text:_('Scan')
                 size_hint: 1, 1
-                on_release: s.do_clear()
+                on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
             Button:
                 text: _('Pay')
                 size_hint: 1, 1
