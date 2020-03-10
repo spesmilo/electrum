@@ -40,6 +40,10 @@ Builder.load_string('''
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
+                on_touch_down:
+                    touch = args[1]
+                    touched = bool(self.collide_point(*touch.pos))
+                    if touched: root.show_log()
             TopLabel:
                 text: root.warning
                 color: (0.9, 0.6, 0.3, 1)
@@ -84,6 +88,7 @@ class InvoiceDialog(Factory.Popup):
         self.amount = r.get('amount')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()
+        self.log = self.app.wallet.lnworker.logs[self.key] if self.is_lightning else []
 
     def update_status(self):
         req = self.app.wallet.get_invoice(self.key)
@@ -120,3 +125,8 @@ class InvoiceDialog(Factory.Popup):
                 self.app.send_screen.update()
         d = Question(_('Delete invoice?'), cb)
         d.open()
+
+    def show_log(self):
+        if self.log:
+            log_str = _('Payment log:') + '\n\n' + '\n'.join([str(x.exception) for x in self.log])
+            self.app.show_info(log_str)
