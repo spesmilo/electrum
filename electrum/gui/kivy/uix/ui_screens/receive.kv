@@ -1,4 +1,6 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import pr_color electrum.util.pr_color
+#:import PR_UNKNOWN electrum.util.PR_UNKNOWN
 #:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
@@ -13,11 +15,11 @@
     valign: 'top'
 
 <RequestItem@CardItem>
-    is_expired: False
     address: ''
     memo: ''
     amount: ''
-    status: ''
+    status_str: ''
+    status: PR_UNKNOWN
     BoxLayout:
         spacing: '8dp'
         height: '32dp'
@@ -44,10 +46,10 @@
             font_size: '15sp'
         Widget
         RequestLabel:
-            text: root.status
+            text: root.status_str
             halign: 'right'
             font_size: '13sp'
-            color: (1., .2, .2, 1) if root.is_expired else (.7, .7, .7, 1)
+            color: pr_color[root.status]
         Widget
 
 <RequestRecycleView>:
