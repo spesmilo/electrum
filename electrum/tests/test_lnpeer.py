@@ -126,9 +126,11 @@ class MockLNWallet(Logger):
     def save_channel(self, chan):
         print("Ignoring channel save")
 
+    is_routing = set()
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
+    set_invoice_status = LNWallet.set_invoice_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
     await_payment = LNWallet.await_payment
