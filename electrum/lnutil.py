@@ -119,6 +119,26 @@ class PaymentAttemptLog(NamedTuple):
     failure_details: Optional[PaymentAttemptFailureDetails] = None
     exception: Optional[Exception] = None
 
+    def formatted_tuple(self):
+        if not self.exception:
+            route = self.route
+            route_str = '%d'%len(route)
+            if not self.success:
+                sender_idx = self.failure_details.sender_idx
+                failure_msg = self.failure_details.failure_msg
+                short_channel_id = route[sender_idx+1].short_channel_id
+                data = failure_msg.data
+                message = str(failure_msg.code.name)
+            else:
+                short_channel_id = route[-1].short_channel_id
+                message = _('Success')
+            chan_str = str(short_channel_id)
+        else:
+            route_str = 'None'
+            chan_str = 'N/A'
+            message = str(self.exception)
+        return route_str, chan_str, message
+
 
 class LightningError(Exception): pass
 class LightningPeerConnectionClosed(LightningError): pass
