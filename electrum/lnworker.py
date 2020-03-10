@@ -1214,14 +1214,14 @@ class LNWallet(LNWorker):
         elif key in self.is_routing:
             self.is_routing.remove(key)
         if status in SAVED_PR_STATUS:
-            self.save_payment_status(bfh(key), status)
+            self.set_payment_status(bfh(key), status)
 
     async def await_payment(self, payment_hash):
         success, preimage, reason = await self.pending_payments[payment_hash]
         self.pending_payments.pop(payment_hash)
         return success, preimage, reason
 
-    def save_payment_status(self, payment_hash: bytes, status):
+    def set_payment_status(self, payment_hash: bytes, status):
         try:
             info = self.get_payment_info(payment_hash)
         except UnknownPaymentHash:
@@ -1231,29 +1231,31 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
 
     def payment_failed(self, chan, payment_hash: bytes, reason):
-        self.save_payment_status(payment_hash, PR_UNPAID)
+        self.set_payment_status(payment_hash, PR_UNPAID)
+        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
             f.set_result((False, None, reason))
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
             self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_failed', payment_hash.hex())
+            self.network.trigger_callback('payment_failed', key, '')
 
     def payment_sent(self, chan, payment_hash: bytes):
-        self.save_payment_status(payment_hash, PR_PAID)
+        self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
+        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
             f.set_result((True, preimage, None))
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
             self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_succeeded', payment_hash.hex())
+            self.network.trigger_callback('payment_succeeded', key)
         self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
-        self.save_payment_status(payment_hash, PR_PAID)
+        self.set_payment_status(payment_hash, PR_PAID)
         self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
         self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
