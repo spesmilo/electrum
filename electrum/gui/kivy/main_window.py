@@ -235,11 +235,13 @@ class ElectrumWindow(App):
         self.update_tab('send')
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
-        if status == PR_PAID:
-            self.show_info(_('Payment was sent'))
-            self._trigger_update_history()
-        elif status == PR_FAILED:
-            self.show_info(_('Payment failed'))
+
+    def on_payment_succeeded(self, event, key):
+        self.show_info(_('Payment was sent'))
+        self._trigger_update_history()
+
+    def on_payment_failed(self, event, key, reason):
+        self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
@@ -569,6 +571,8 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_invoice_status, ['invoice_status'])
             self.network.register_callback(self.on_request_status, ['request_status'])
+            self.network.register_callback(self.on_payment_failed, ['payment_failed'])
+            self.network.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
             self.network.register_callback(self.on_channel_db, ['channel_db'])
             self.network.register_callback(self.set_num_peers, ['gossip_peers'])
             self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
