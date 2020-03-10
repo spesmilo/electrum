@@ -137,5 +137,8 @@ class InvoiceDialog(Factory.Popup):
 
     def show_log(self):
         if self.log:
-            log_str = _('Payment log:') + '\n\n' + '\n'.join([str(x.exception) for x in self.log])
+            log_str = _('Payment log:') + '\n\n'
+            for payment_attempt_log in self.log:
+                route_str, chan_str, message = payment_attempt_log.formatted_tuple()
+                log_str += chan_str + '  ---  ' + message + '\n'
             self.app.show_info(log_str)
