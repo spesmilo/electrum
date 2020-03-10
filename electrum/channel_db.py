@@ -313,7 +313,8 @@ class ChannelDB(SqlDB):
             return None
 
     def get_recent_peers(self):
-        assert self.data_loaded.is_set(), "channelDB load_data did not finish yet!"
+        if not self.data_loaded.is_set():
+            raise Exception("channelDB data not loaded yet!")
         with self.lock:
             ret = [self.get_last_good_address(node_id)
                    for node_id in self._recent_peers]
@@ -693,6 +694,8 @@ class ChannelDB(SqlDB):
     def get_channels_for_node(self, node_id: bytes, *,
                               my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Set[bytes]:
         """Returns the set of short channel IDs where node_id is one of the channel participants."""
+        if not self.data_loaded.is_set():
+            raise Exception("channelDB data not loaded yet!")
         relevant_channels = self._channels_for_node.get(node_id) or set()
         relevant_channels = set(relevant_channels)  # copy
         # add our own channels  # TODO maybe slow?
