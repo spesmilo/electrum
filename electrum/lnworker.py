@@ -927,12 +927,11 @@ class LNWallet(LNWorker):
         reason = ''
         for i in range(attempts):
             try:
-                # note: this call does path-finding which takes ~1 second
-                #       -> we will BLOCK the asyncio loop... (could just run in a thread and await,
-                #       but then the graph could change while the path-finding runs on it)
+                # note: path-finding runs in a separate thread so that we don't block the asyncio loop
+                # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
                 self.network.trigger_callback('invoice_status', key)
-                route = self._create_route_from_invoice(decoded_invoice=lnaddr)
+                route = await run_in_thread(self._create_route_from_invoice, lnaddr)
                 self.set_invoice_status(key, PR_INFLIGHT)
                 self.network.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
