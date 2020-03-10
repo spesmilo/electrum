@@ -20,6 +20,7 @@ Builder.load_string('''
     amount: 0
     title: ''
     data: ''
+    description:''
     status_color: 1,1,1,1
     status_str:''
     warning: ''
@@ -34,7 +35,14 @@ Builder.load_string('''
             padding: '10dp'
             spacing: '10dp'
             TopLabel:
-                text: root.data
+                text: _('Invoice data')+ ':'
+            RefLabel:
+                data: root.data
+                name: _('Data')
+            TopLabel:
+                text: _('Description') + ':'
+            RefLabel:
+                data: root.description or _('No description')
             TopLabel:
                 text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
             TopLabel:
@@ -86,6 +94,7 @@ class InvoiceDialog(Factory.Popup):
         self.key = key
         r = self.app.wallet.get_invoice(key)
         self.amount = r.get('amount')
+        self.description = r.get('message') or r.get('memo','')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()
         self.log = self.app.wallet.lnworker.logs[self.key] if self.is_lightning else []
