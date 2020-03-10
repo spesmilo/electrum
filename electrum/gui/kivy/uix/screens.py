@@ -393,6 +393,19 @@ class SendScreen(CScreen):
         else:
             self.app.tx_dialog(tx)
 
+    def clear_invoices_dialog(self):
+        invoices = self.app.wallet.get_invoices()
+        if not invoices:
+            return
+        def callback(c):
+            if c:
+                for req in invoices:
+                    key = req['key']
+                    self.app.wallet.delete_invoice(key)
+                self.update()
+        n = len(invoices)
+        d = Question(_(f'Delete {n} invoices?'), callback)
+        d.open()
 
 
 class ReceiveScreen(CScreen):
@@ -508,7 +521,8 @@ class ReceiveScreen(CScreen):
                     key = req.get('rhash') or req['address']
                     self.app.wallet.delete_request(key)
                 self.update()
-        d = Question(_('Delete all requests?'), callback)
+        n = len(requests)
+        d = Question(_(f'Delete {n} requests?'), callback)
         d.open()
 
 
