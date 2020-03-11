@@ -770,10 +770,6 @@ class LNWallet(LNWorker):
 
     async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
 
-        # remove from channel_db
-        if chan.short_channel_id is not None:
-            self.channel_db.remove_channel(chan.short_channel_id)
-
         if chan.get_state() < channel_states.CLOSED:
             chan.set_state(channel_states.CLOSED)
 
@@ -957,10 +953,6 @@ class LNWallet(LNWorker):
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
-        if not chan:
-            self.channel_db.remove_channel(short_channel_id)
-            raise Exception(f"PathFinder returned path with short_channel_id "
-                            f"{short_channel_id} that is not in channel list")
         peer = self.peers.get(route[0].node_id)
         if not peer:
             raise Exception('Dropped peer')
