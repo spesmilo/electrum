@@ -207,7 +207,7 @@ class SyscoinMainnet(AbstractSyscoinNet):
         "18.204.96.195": {
             "pruning": "-",
             "s": "58881",
-            "version": "1.4"
+            "version": "1.4.1"
         }
     })
     CHECKPOINTS = read_json('checkpoints.json', [])
@@ -255,7 +255,7 @@ class SyscoinTestnet(AbstractSyscoinNet):
             "pruning": "-",
             "t": "59991",
             "s": "59992",
-            "version": "1.4.2"
+            "version": "1.4.1"
         }
     })
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
