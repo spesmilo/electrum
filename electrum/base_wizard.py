@@ -428,7 +428,6 @@ class BaseWizard(Logger):
             self.logger.exception('')
             self.show_error(e)
             return
-        xfp = BIP32Node.from_xkey(root_xpub).calc_fingerprint_of_this_node().hex().lower()
         d = {
             'type': 'hardware',
             'hw_type': name,
