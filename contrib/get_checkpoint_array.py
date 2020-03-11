@@ -54,16 +54,19 @@ while True:
     h = rpc('getblockhash', [i])['result']
     block = rpc('getblock', [h])['result']
 
+    ph = rpc('getblockhash', [i+359])['result']
+    pblock = rpc('getblock', [ph])['result']
+
     checkpoints.append([
         block['hash'],
-        bits_to_target(int(block['bits'], 16))
+        bits_to_target(int(pblock['bits'], 16))
     ])
 
     i += INTERVAL
-    if i > block_count:
+    if i+359 > block_count:
         print('Done.')
         break
 
-with open('checkpoints_output.json', 'w+') as f:
+with open('checkpoints.json', 'w+') as f:
     f.write(dumps(checkpoints, indent=4, separators=(',', ':')))
     
