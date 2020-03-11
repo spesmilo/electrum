@@ -60,13 +60,6 @@ if TYPE_CHECKING:
 
 LN_P2P_NETWORK_TIMEOUT = 20
 
-def channel_update(func):
-    def wrapper(peer, payload):
-        channel_id = payload["channel_id"]
-        chan = peer.channels[channel_id]
-        return func(peer, chan, payload)
-    return wrapper
-
 def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
     i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
@@ -159,6 +152,13 @@ class Peer(Logger):
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
         else:
+            if message_type != 'error' and 'channel_id' in payload:
+                chan = self.channels.get(payload['channel_id'])
+                if chan is None:
+                    raise Exception('Got unknown '+ message_type)
+                args = (chan, payload)
+            else:
+                args = (payload,)
             try:
                 f = getattr(self, 'on_' + message_type)
             except AttributeError:
@@ -167,7 +167,7 @@ class Peer(Logger):
             # raw message is needed to check signature
             if message_type in ['node_announcement', 'channel_announcement', 'channel_update']:
                 payload['raw'] = message
-            execution_result = f(payload)
+            execution_result = f(*args)
             if asyncio.iscoroutinefunction(f):
                 asyncio.ensure_future(execution_result)
 
@@ -229,13 +229,11 @@ class Peer(Logger):
                 chan.set_remote_update(payload['raw'])
                 self.logger.info("saved remote_update")
 
-    def on_announcement_signatures(self, payload):
-        channel_id = payload['channel_id']
-        chan = self.channels[payload['channel_id']]
+    def on_announcement_signatures(self, chan, payload):
         if chan.config[LOCAL].was_announced:
             h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
         else:
-            self.announcement_signatures[channel_id].put_nowait(payload)
+            self.announcement_signatures[chan.channel_id].put_nowait(payload)
 
     def handle_disconnect(func):
         async def wrapper_func(self, *args, **kwargs):
@@ -650,7 +648,6 @@ class Peer(Logger):
         funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
         push_msat = int.from_bytes(payload['push_msat'], 'big')
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
-
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
         # for the first commitment transaction
@@ -903,12 +900,8 @@ class Peer(Logger):
         if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
 
-    def on_funding_locked(self, payload):
-        channel_id = payload['channel_id']
-        self.logger.info(f"on_funding_locked. channel: {bh2u(channel_id)}")
-        chan = self.channels.get(channel_id)
-        if not chan:
-            raise Exception("Got unknown funding_locked", channel_id)
+    def on_funding_locked(self, chan, payload):
+        self.logger.info(f"on_funding_locked. channel: {bh2u(chan.channel_id)}")
         if not chan.config[LOCAL].funding_locked_received:
             their_next_point = payload["next_per_commitment_point"]
             chan.config[REMOTE].next_per_commitment_point = their_next_point
@@ -1007,10 +1000,8 @@ class Peer(Logger):
             node_signature=node_signature,
             bitcoin_signature=bitcoin_signature
         )
-
         return msg_hash, node_signature, bitcoin_signature
 
-    @channel_update
     def on_update_fail_htlc(self, chan, payload):
         htlc_id = int.from_bytes(payload["id"], "big")
         reason = payload["reason"]
@@ -1066,9 +1057,7 @@ class Peer(Logger):
             next_per_commitment_point=rev.next_per_commitment_point)
         self.maybe_send_commitment(chan)
 
-    def on_commitment_signed(self, payload):
-        channel_id = payload['channel_id']
-        chan = self.channels[channel_id]
+    def on_commitment_signed(self, chan, payload):
         if chan.peer_state == peer_states.BAD:
             return
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}.')
@@ -1086,7 +1075,6 @@ class Peer(Logger):
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
         self.send_revoke_and_ack(chan)
 
-    @channel_update
     def on_update_fulfill_htlc(self, chan, payload):
         preimage = payload["payment_preimage"]
         payment_hash = sha256(preimage)
@@ -1096,11 +1084,9 @@ class Peer(Logger):
         self.lnworker.save_preimage(payment_hash, preimage)
         self.maybe_send_commitment(chan)
 
-    @channel_update
     def on_update_fail_malformed_htlc(self, chan, payload):
         self.logger.info(f"on_update_fail_malformed_htlc. error {payload['data'].decode('ascii')}")
 
-    @channel_update
     def on_update_add_htlc(self, chan, payload):
         payment_hash = payload["payment_hash"]
         htlc_id = int.from_bytes(payload["id"], 'big')
@@ -1237,9 +1223,7 @@ class Peer(Logger):
                           len=len(error_packet),
                           reason=error_packet)
 
-    def on_revoke_and_ack(self, payload):
-        channel_id = payload["channel_id"]
-        chan = self.channels[channel_id]
+    def on_revoke_and_ack(self, chan, payload):
         if chan.peer_state == peer_states.BAD:
             return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
@@ -1248,7 +1232,6 @@ class Peer(Logger):
         self.lnworker.save_channel(chan)
         self.maybe_send_commitment(chan)
 
-    @channel_update
     def on_update_fee(self, chan, payload):
         feerate = int.from_bytes(payload["feerate_per_kw"], "big")
         chan.update_fee(feerate, False)
@@ -1299,14 +1282,14 @@ class Peer(Logger):
         return txid
 
     @log_exceptions
-    async def on_shutdown(self, payload):
+    async def on_shutdown(self, chan, payload):
         their_scriptpubkey = payload['scriptpubkey']
         # BOLT-02 restrict the scriptpubkey to some templates:
         if not (match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0)
                 or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH)
                 or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2PKH)):
             raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
-        chan_id = payload['channel_id']
+        chan_id = chan.channel_id
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
         else:
