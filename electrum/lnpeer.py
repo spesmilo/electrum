@@ -180,7 +180,7 @@ class Peer(Logger):
         self.ordered_message_queues[chan_id].put_nowait((None, {'error':payload['data']}))
 
     def on_ping(self, payload):
-        l = int.from_bytes(payload['num_pong_bytes'], 'big')
+        l = payload['num_pong_bytes']
         self.send_message('pong', byteslen=l)
 
     def on_pong(self, payload):
@@ -417,8 +417,8 @@ class Peer(Logger):
         return ids
 
     def on_reply_channel_range(self, payload):
-        first = int.from_bytes(payload['first_blocknum'], 'big')
-        num = int.from_bytes(payload['number_of_blocks'], 'big')
+        first = payload['first_blocknum']
+        num = payload['number_of_blocks']
         complete = bool(int.from_bytes(payload['complete'], 'big'))
         encoded = payload['encoded_short_ids']
         ids = self.decode_short_ids(encoded)
@@ -541,27 +541,27 @@ class Peer(Logger):
         )
         payload = await self.wait_for_message('accept_channel', temp_channel_id)
         remote_per_commitment_point = payload['first_per_commitment_point']
-        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
+        funding_txn_minimum_depth = payload['minimum_depth']
         if funding_txn_minimum_depth <= 0:
             raise Exception(f"minimum depth too low, {funding_txn_minimum_depth}")
         if funding_txn_minimum_depth > 30:
             raise Exception(f"minimum depth too high, {funding_txn_minimum_depth}")
-        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big')
+        remote_dust_limit_sat = payload['dust_limit_satoshis']
         remote_reserve_sat = self.validate_remote_reserve(payload["channel_reserve_satoshis"], remote_dust_limit_sat, funding_sat)
         if remote_dust_limit_sat > remote_reserve_sat:
             raise Exception(f"Remote Lightning peer reports dust_limit_sat > reserve_sat which is a BOLT-02 protocol violation.")
-        htlc_min = int.from_bytes(payload['htlc_minimum_msat'], 'big')
+        htlc_min = payload['htlc_minimum_msat']
         if htlc_min > MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED:
             raise Exception(f"Remote Lightning peer reports htlc_minimum_msat={htlc_min} mSAT," +
                     f" which is above Electrums required maximum limit of that parameter ({MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED} mSAT).")
-        remote_max = int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big')
+        remote_max = payload['max_htlc_value_in_flight_msat']
         if remote_max < MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED:
             raise Exception(f"Remote Lightning peer reports max_htlc_value_in_flight_msat at only {remote_max} mSAT" +
                     f" which is below Electrums required minimum ({MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED} mSAT).")
-        max_accepted_htlcs = int.from_bytes(payload["max_accepted_htlcs"], 'big')
+        max_accepted_htlcs = payload["max_accepted_htlcs"]
         if max_accepted_htlcs > 483:
             raise Exception("Remote Lightning peer reports max_accepted_htlcs > 483, which is a BOLT-02 protocol violation.")
-        remote_to_self_delay = int.from_bytes(payload['to_self_delay'], byteorder='big')
+        remote_to_self_delay = payload['to_self_delay']
         if remote_to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
             raise Exception(f"Remote Lightning peer reports to_self_delay={remote_to_self_delay}," +
                     f" which is above Electrums required maximum ({MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED})")
@@ -647,9 +647,9 @@ class Peer(Logger):
         # payload['channel_flags']
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
-        funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
-        push_msat = int.from_bytes(payload['push_msat'], 'big')
-        feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
+        funding_sat = payload['funding_satoshis']
+        push_msat = payload['push_msat']
+        feerate = payload['feerate_per_kw']
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
         # for the first commitment transaction
@@ -674,11 +674,11 @@ class Peer(Logger):
             first_per_commitment_point=per_commitment_point_first,
         )
         funding_created = await self.wait_for_message('funding_created', temp_chan_id)
-        funding_idx = int.from_bytes(funding_created['funding_output_index'], 'big')
+        funding_idx = funding_created['funding_output_index']
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
         remote_balance_sat = funding_sat * 1000 - push_msat
-        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
+        remote_dust_limit_sat = payload['dust_limit_satoshis']  # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
@@ -686,13 +686,13 @@ class Peer(Logger):
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
             delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
             revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
+            to_self_delay=payload['to_self_delay'],
             dust_limit_sat=remote_dust_limit_sat,
-            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
-            max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
+            max_htlc_value_in_flight_msat=payload['max_htlc_value_in_flight_msat'],  # TODO validate
+            max_accepted_htlcs=payload['max_accepted_htlcs'],  # TODO validate
             initial_msat=remote_balance_sat,
             reserve_sat = remote_reserve_sat,
-            htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
+            htlc_minimum_msat=payload['htlc_minimum_msat'], # TODO validate
             next_per_commitment_point=payload['first_per_commitment_point'],
             current_per_commitment_point=None,
         )
@@ -718,8 +718,7 @@ class Peer(Logger):
         chan.set_state(channel_states.OPENING)
         self.lnworker.add_new_channel(chan)
 
-    def validate_remote_reserve(self, payload_field: bytes, dust_limit: int, funding_sat: int) -> int:
-        remote_reserve_sat = int.from_bytes(payload_field, 'big')
+    def validate_remote_reserve(self, remote_reserve_sat: int, dust_limit: int, funding_sat: int) -> int:
         if remote_reserve_sat < dust_limit:
             raise Exception('protocol violation: reserve < dust_limit')
         if remote_reserve_sat > funding_sat/100:
@@ -768,8 +767,8 @@ class Peer(Logger):
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
         msg = await self.wait_for_message('channel_reestablish', chan_id)
-        their_next_local_ctn = int.from_bytes(msg["next_commitment_number"], 'big')
-        their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_revocation_number"], 'big')
+        their_next_local_ctn = msg["next_commitment_number"]
+        their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
@@ -1005,7 +1004,7 @@ class Peer(Logger):
         return msg_hash, node_signature, bitcoin_signature
 
     def on_update_fail_htlc(self, chan: Channel, payload):
-        htlc_id = int.from_bytes(payload["id"], "big")
+        htlc_id = payload["id"]
         reason = payload["reason"]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id, error_bytes=reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
@@ -1083,7 +1082,7 @@ class Peer(Logger):
     def on_update_fulfill_htlc(self, chan: Channel, payload):
         preimage = payload["payment_preimage"]
         payment_hash = sha256(preimage)
-        htlc_id = int.from_bytes(payload["id"], "big")
+        htlc_id = payload["id"]
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
@@ -1103,10 +1102,10 @@ class Peer(Logger):
 
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
-        htlc_id = int.from_bytes(payload["id"], 'big')
+        htlc_id = payload["id"]
         self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        cltv_expiry = int.from_bytes(payload["cltv_expiry"], 'big')
-        amount_msat_htlc = int.from_bytes(payload["amount_msat"], 'big')
+        cltv_expiry = payload["cltv_expiry"]
+        amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
         if chan.get_state() != channel_states.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
@@ -1258,7 +1257,7 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
 
     def on_update_fee(self, chan: Channel, payload):
-        feerate = int.from_bytes(payload["feerate_per_kw"], "big")
+        feerate = payload["feerate_per_kw"]
         chan.update_fee(feerate, False)
 
     async def maybe_update_fee(self, chan: Channel):
@@ -1378,7 +1377,7 @@ class Peer(Logger):
         while True:
             # FIXME: the remote SHOULD send closing_signed, but some don't.
             cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
-            their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
+            their_fee = cs_payload['fee_satoshis']
             if their_fee > max_fee:
                 raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
             their_sig = cs_payload['signature']

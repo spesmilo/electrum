@@ -102,14 +102,14 @@ class Policy(NamedTuple):
     def from_msg(payload: dict) -> 'Policy':
         return Policy(
             key                         = payload['short_channel_id'] + payload['start_node'],
-            cltv_expiry_delta           = int.from_bytes(payload['cltv_expiry_delta'], "big"),
-            htlc_minimum_msat           = int.from_bytes(payload['htlc_minimum_msat'], "big"),
-            htlc_maximum_msat           = int.from_bytes(payload['htlc_maximum_msat'], "big") if 'htlc_maximum_msat' in payload else None,
-            fee_base_msat               = int.from_bytes(payload['fee_base_msat'], "big"),
-            fee_proportional_millionths = int.from_bytes(payload['fee_proportional_millionths'], "big"),
+            cltv_expiry_delta           = payload['cltv_expiry_delta'],
+            htlc_minimum_msat           = payload['htlc_minimum_msat'],
+            htlc_maximum_msat           = payload.get('htlc_maximum_msat', None),
+            fee_base_msat               = payload['fee_base_msat'],
+            fee_proportional_millionths = payload['fee_proportional_millionths'],
             message_flags               = int.from_bytes(payload['message_flags'], "big"),
             channel_flags               = int.from_bytes(payload['channel_flags'], "big"),
-            timestamp                   = int.from_bytes(payload['timestamp'], "big")
+            timestamp                   = payload['timestamp'],
         )
 
     @staticmethod
@@ -154,7 +154,7 @@ class NodeInfo(NamedTuple):
             alias = alias.decode('utf8')
         except:
             alias = ''
-        timestamp = int.from_bytes(payload['timestamp'], "big")
+        timestamp = payload['timestamp']
         node_info = NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias)
         return node_info, peer_addrs
 
@@ -393,7 +393,7 @@ class ChannelDB(SqlDB):
         now = int(time.time())
         for payload in payloads:
             short_channel_id = ShortChannelID(payload['short_channel_id'])
-            timestamp = int.from_bytes(payload['timestamp'], "big")
+            timestamp = payload['timestamp']
             if max_age and now - timestamp > max_age:
                 expired.append(payload)
                 continue
@@ -408,7 +408,7 @@ class ChannelDB(SqlDB):
             known.append(payload)
         # compare updates to existing database entries
         for payload in known:
-            timestamp = int.from_bytes(payload['timestamp'], "big")
+            timestamp = payload['timestamp']
             start_node = payload['start_node']
             short_channel_id = ShortChannelID(payload['short_channel_id'])
             key = (start_node, short_channel_id)
@@ -673,7 +673,7 @@ class ChannelDB(SqlDB):
                 return
             now = int(time.time())
             remote_update_decoded = decode_msg(remote_update_raw)[1]
-            remote_update_decoded['timestamp'] = now.to_bytes(4, byteorder="big")
+            remote_update_decoded['timestamp'] = now
             remote_update_decoded['start_node'] = node_id
             return Policy.from_msg(remote_update_decoded)
         elif node_id == chan.get_local_pubkey():  # outgoing direction (from us)

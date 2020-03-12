@@ -1,7 +1,7 @@
 import os
 import csv
 import io
-from typing import Callable, Tuple, Any, Dict, List, Sequence, Union
+from typing import Callable, Tuple, Any, Dict, List, Sequence, Union, Optional
 
 
 class MalformedMsg(Exception):
@@ -24,8 +24,7 @@ def _assert_can_read_at_least_n_bytes(fd: io.BytesIO, n: int) -> None:
         raise UnexpectedEndOfStream(f"cur_pos={cur_pos}. end_pos={end_pos}. wants to read: {n}")
 
 
-# TODO return int when it makes sense
-def _read_field(*, fd: io.BytesIO, field_type: str, count: int) -> bytes:
+def _read_field(*, fd: io.BytesIO, field_type: str, count: int) -> Union[bytes, int]:
     if not fd: raise Exception()
     assert isinstance(count, int) and count >= 0, f"{count!r} must be non-neg int"
     if count == 0:
@@ -35,10 +34,19 @@ def _read_field(*, fd: io.BytesIO, field_type: str, count: int) -> bytes:
         type_len = 1
     elif field_type == 'u16':
         type_len = 2
+        assert count == 1, count
+        _assert_can_read_at_least_n_bytes(fd, type_len)
+        return int.from_bytes(fd.read(type_len), byteorder="big", signed=False)
     elif field_type == 'u32':
         type_len = 4
+        assert count == 1, count
+        _assert_can_read_at_least_n_bytes(fd, type_len)
+        return int.from_bytes(fd.read(type_len), byteorder="big", signed=False)
     elif field_type == 'u64':
         type_len = 8
+        assert count == 1, count
+        _assert_can_read_at_least_n_bytes(fd, type_len)
+        return int.from_bytes(fd.read(type_len), byteorder="big", signed=False)
     # TODO tu16/tu32/tu64
     elif field_type == 'chain_hash':
         type_len = 32
@@ -203,7 +211,8 @@ class LNSerializer:
                         try:
                             field_count = int(field_count_str)
                         except ValueError:
-                            field_count = int.from_bytes(parsed[field_count_str], byteorder="big")
+                            field_count = parsed[field_count_str]
+                    assert isinstance(field_count, int)
                     #print(f">> count={field_count}. parsed={parsed}")
                     try:
                         parsed[field_name] = _read_field(fd=fd,
