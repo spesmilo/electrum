@@ -131,7 +131,7 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        self.send_message("init", gflen=0, lflen=2, localfeatures=self.localfeatures)
+        self.send_message("init", gflen=0, flen=2, features=self.localfeatures)
         self._sent_init = True
         self.maybe_set_initialized()
 
@@ -201,7 +201,7 @@ class Peer(Logger):
             return
         # if they required some even flag we don't have, they will close themselves
         # but if we require an even flag they don't have, we close
-        their_localfeatures = int.from_bytes(payload['localfeatures'], byteorder="big")
+        their_localfeatures = int.from_bytes(payload['features'], byteorder="big")  # TODO feature bit unification
         try:
             self.localfeatures = ln_compare_features(self.localfeatures, their_localfeatures)
         except IncompatibleLightningFeatures as e:
@@ -760,16 +760,16 @@ class Peer(Logger):
         self.send_message(
             "channel_reestablish",
             channel_id=chan_id,
-            next_local_commitment_number=next_local_ctn,
-            next_remote_revocation_number=oldest_unrevoked_remote_ctn,
+            next_commitment_number=next_local_ctn,
+            next_revocation_number=oldest_unrevoked_remote_ctn,
             your_last_per_commitment_secret=last_rev_secret,
             my_current_per_commitment_point=latest_point)
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): sent channel_reestablish with '
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
         msg = await self.wait_for_message('channel_reestablish', chan_id)
-        their_next_local_ctn = int.from_bytes(msg["next_local_commitment_number"], 'big')
-        their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_remote_revocation_number"], 'big')
+        their_next_local_ctn = int.from_bytes(msg["next_commitment_number"], 'big')
+        their_oldest_unrevoked_remote_ctn = int.from_bytes(msg["next_revocation_number"], 'big')
         their_local_pcp = msg.get("my_current_per_commitment_point")
         their_claim_of_our_last_per_commitment_secret = msg.get("your_last_per_commitment_secret")
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): received channel_reestablish with '
@@ -818,7 +818,7 @@ class Peer(Logger):
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
                 # A node:
-                #    if next_remote_revocation_number is equal to the commitment number of the last revoke_and_ack
+                #    if next_revocation_number is equal to the commitment number of the last revoke_and_ack
                 #    the receiving node sent, AND the receiving node hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
                 last_secret, last_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn - 1)
