@@ -36,6 +36,7 @@ import itertools
 import logging
 
 import aiorpcx
+from aiorpcx import TaskGroup
 from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
@@ -256,6 +257,7 @@ class Interface(Logger):
 
         self.tip_header = None
         self.tip = 0
+        self.fee_estimates_eta = {}
 
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
@@ -506,6 +508,7 @@ class Interface(Logger):
             try:
                 async with self.taskgroup as group:
                     await group.spawn(self.ping)
+                    await group.spawn(self.request_fee_estimates)
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
             except aiorpcx.jsonrpc.RPCError as e:
@@ -525,6 +528,21 @@ class Interface(Logger):
         while True:
             await asyncio.sleep(300)
             await self.session.send_request('server.ping')
+
+    async def request_fee_estimates(self):
+        from .simple_config import FEE_ETA_TARGETS
+        from .bitcoin import COIN
+        while True:
+            async with TaskGroup() as group:
+                fee_tasks = []
+                for i in FEE_ETA_TARGETS:
+                    fee_tasks.append((i, await group.spawn(self.session.send_request('blockchain.estimatefee', [i]))))
+            for nblock_target, task in fee_tasks:
+                fee = int(task.result() * COIN)
+                if fee < 0: continue
+                self.fee_estimates_eta[nblock_target] = fee
+            self.network.update_fee_estimates()
+            await asyncio.sleep(60)
 
     async def close(self):
         if self.session:

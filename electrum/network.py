@@ -458,24 +458,11 @@ class Network(Logger):
 
     async def _request_fee_estimates(self, interface):
         session = interface.session
-        #from .simple_config import FEE_ETA_TARGETS
         self.config.requested_fee_estimates()
-        async with TaskGroup() as group:
-            histogram_task = await group.spawn(session.send_request('mempool.get_fee_histogram'))
-            fee_tasks = []
-            for i in constants.net.FEE_ETA_TARGETS:
-                fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
-        self.config.mempool_fees = histogram = histogram_task.result()
+        histogram = await session.send_request('mempool.get_fee_histogram')
+        self.config.mempool_fees = histogram
         self.logger.info(f'fee_histogram {histogram}')
         self.notify('fee_histogram')
-        fee_estimates_eta = {}
-        for nblock_target, task in fee_tasks:
-            fee = int(task.result() * COIN)
-            fee_estimates_eta[nblock_target] = fee
-            if fee < 0: continue
-            self.config.update_fee_estimates(nblock_target, fee)
-        self.logger.info(f'fee_estimates {fee_estimates_eta}')
-        self.notify('fee')
 
     def get_status_value(self, key):
         if key == 'status':
@@ -515,6 +502,28 @@ class Network(Logger):
         """The list of servers for the connected interfaces."""
         with self.interfaces_lock:
             return list(self.interfaces)
+
+    def get_fee_estimates(self):
+        from statistics import median
+        #from .simple_config import FEE_ETA_TARGETS
+        if self.auto_connect:
+            with self.interfaces_lock:
+                out = {}
+                for n in constants.net.FEE_ETA_TARGETS:
+                    try:
+                        out[n] = int(median(filter(None, [i.fee_estimates_eta.get(n) for i in self.interfaces.values()])))
+                    except:
+                        continue
+                return out
+        else:
+            return self.interface.fee_estimates_eta
+
+    def update_fee_estimates(self):
+        e = self.get_fee_estimates()
+        for nblock_target, fee in e.items():
+            self.config.update_fee_estimates(nblock_target, fee)
+        self.logger.info(f'fee_estimates {e}')
+        self.notify('fee')
 
     @with_recent_servers_lock
     def get_servers(self):
