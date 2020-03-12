@@ -249,7 +249,8 @@ class Channel(Logger):
             node_ids = sorted_node_ids
             bitcoin_keys.reverse()
 
-        chan_ann = encode_msg("channel_announcement",
+        chan_ann = encode_msg(
+            "channel_announcement",
             len=0,
             features=b'',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -257,7 +258,7 @@ class Channel(Logger):
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
             bitcoin_key_1=bitcoin_keys[0],
-            bitcoin_key_2=bitcoin_keys[1]
+            bitcoin_key_2=bitcoin_keys[1],
         )
 
         self._chan_ann_without_sigs = chan_ann

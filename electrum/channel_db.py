@@ -321,11 +321,12 @@ class ChannelDB(SqlDB):
             return ret
 
     # note: currently channel announcements are trusted by default (trusted=True);
-    #       they are not verified. Verifying them would make the gossip sync
+    #       they are not SPV-verified. Verifying them would make the gossip sync
     #       even slower; especially as servers will start throttling us.
     #       It would probably put significant strain on servers if all clients
     #       verified the complete gossip.
     def add_channel_announcement(self, msg_payloads, *, trusted=True):
+        # note: signatures have already been verified.
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
         added = 0
@@ -499,6 +500,7 @@ class ChannelDB(SqlDB):
             raise Exception(f'failed verifying channel update for {short_channel_id}')
 
     def add_node_announcement(self, msg_payloads):
+        # note: signatures have already been verified.
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
         new_nodes = {}
