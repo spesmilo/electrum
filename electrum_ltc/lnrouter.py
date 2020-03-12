@@ -189,9 +189,6 @@ class LNPathFinder(Logger):
         if my_channels is None: my_channels = {}
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
-        #       (but at the time of writing, we are called on the asyncio event loop,
-        #        and the graph is also only updated from the event loop, so it will
-        #        not change)
 
         # FIXME paths cannot be longer than 20 edges (onion packet)...
 

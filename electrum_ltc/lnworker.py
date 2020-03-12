@@ -24,7 +24,7 @@ from aiorpcx import run_in_thread
 from . import constants
 from . import keystore
 from .util import profiler
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING
 from .util import PR_TYPE_LN
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
@@ -67,6 +67,9 @@ from .lnwatcher import LNWalletWatcher, CHANNEL_OPENING_TIMEOUT
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+
+
+SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
@@ -421,7 +424,8 @@ class LNWallet(LNWorker):
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
-        self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH
+        self.logs = defaultdict(list)  # (not persisted) type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH
+        self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
@@ -766,12 +770,14 @@ class LNWallet(LNWorker):
 
     async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
 
-        # remove from channel_db
-        if chan.short_channel_id is not None:
-            self.channel_db.remove_channel(chan.short_channel_id)
-
         if chan.get_state() < channel_states.CLOSED:
-            chan.set_state(channel_states.CLOSED)
+            conf = closing_height.conf
+            if conf > 0:
+                chan.set_state(channel_states.CLOSED)
+            else:
+                # we must not trust the server with unconfirmed transactions
+                # if the remote force closed, we remain OPEN until the closing tx is confirmed
+                pass
 
         if chan.get_state() == channel_states.CLOSED and not keep_watching:
             chan.set_state(channel_states.REDEEMED)
@@ -920,34 +926,39 @@ class LNWallet(LNWorker):
         self.wallet.set_label(key, lnaddr.get_description())
         log = self.logs[key]
         success = False
+        reason = ''
         for i in range(attempts):
             try:
-                # note: this call does path-finding which takes ~1 second
-                #       -> we will BLOCK the asyncio loop... (could just run in a thread and await,
-                #       but then the graph could change while the path-finding runs on it)
-                route = self._create_route_from_invoice(decoded_invoice=lnaddr)
-                self.set_payment_status(payment_hash, PR_INFLIGHT)
+                # note: path-finding runs in a separate thread so that we don't block the asyncio loop
+                # graph updates might occur during the computation
+                self.set_invoice_status(key, PR_ROUTING)
+                self.network.trigger_callback('invoice_status', key)
+                route = await run_in_thread(self._create_route_from_invoice, lnaddr)
+                self.set_invoice_status(key, PR_INFLIGHT)
                 self.network.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
-                self.set_payment_status(payment_hash, PR_UNPAID)
+                self.set_invoice_status(key, PR_UNPAID)
+                reason = str(e)
                 break
             log.append(payment_attempt_log)
             success = payment_attempt_log.success
             if success:
                 break
-        self.logger.debug(f'payment attempts log for RHASH {key}: {repr(log)}')
+        else:
+            reason = _(f'Failed after {attempts} attempts')
         self.network.trigger_callback('invoice_status', key)
+        if success:
+            self.network.trigger_callback('payment_succeeded', key)
+        else:
+            self.network.trigger_callback('payment_failed', key, reason)
+        self.logger.debug(f'payment attempts log for RHASH {key}: {repr(log)}')
         return success
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
-        if not chan:
-            self.channel_db.remove_channel(short_channel_id)
-            raise Exception(f"PathFinder returned path with short_channel_id "
-                            f"{short_channel_id} that is not in channel list")
         peer = self.peers.get(route[0].node_id)
         if not peer:
             raise Exception('Dropped peer')
@@ -1038,6 +1049,7 @@ class LNWallet(LNWorker):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         return addr
 
+    @profiler
     def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
@@ -1170,7 +1182,7 @@ class LNWallet(LNWorker):
 
     def save_payment_info(self, info: PaymentInfo) -> None:
         key = info.payment_hash.hex()
-        assert info.status in [PR_PAID, PR_UNPAID, PR_INFLIGHT]
+        assert info.status in SAVED_PR_STATUS
         with self.lock:
             self.payments[key] = info.amount, info.direction, info.status
         self.wallet.save_db()
@@ -1184,12 +1196,22 @@ class LNWallet(LNWorker):
         return status
 
     def get_invoice_status(self, key):
+        log = self.logs[key]
+        if key in self.is_routing:
+            return PR_ROUTING
         # status may be PR_FAILED
         status = self.get_payment_status(bfh(key))
-        log = self.logs[key]
         if status == PR_UNPAID and log:
             status = PR_FAILED
         return status
+
+    def set_invoice_status(self, key, status):
+        if status == PR_ROUTING:
+            self.is_routing.add(key)
+        elif key in self.is_routing:
+            self.is_routing.remove(key)
+        if status in SAVED_PR_STATUS:
+            self.set_payment_status(bfh(key), status)
 
     async def await_payment(self, payment_hash):
         success, preimage, reason = await self.pending_payments[payment_hash]
@@ -1207,22 +1229,26 @@ class LNWallet(LNWorker):
 
     def payment_failed(self, chan, payment_hash: bytes, reason):
         self.set_payment_status(payment_hash, PR_UNPAID)
+        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
             f.set_result((False, None, reason))
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
-            self.network.trigger_callback('invoice_status', payment_hash.hex())
+            self.network.trigger_callback('invoice_status', key)
+            self.network.trigger_callback('payment_failed', key, '')
 
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
+        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
             f.set_result((True, preimage, None))
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
-            self.network.trigger_callback('invoice_status', payment_hash.hex())
+            self.network.trigger_callback('invoice_status', key)
+            self.network.trigger_callback('payment_succeeded', key)
         self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):

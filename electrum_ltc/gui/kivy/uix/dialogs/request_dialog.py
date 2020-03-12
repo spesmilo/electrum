@@ -14,6 +14,7 @@ Builder.load_string('''
     id: popup
     amount: 0
     title: ''
+    description:''
     data: ''
     warning: ''
     status_str: ''
@@ -35,7 +36,14 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
-                text: root.data
+                text: _('Data')+ ':'
+            RefLabel:
+                data: root.data
+                name: _('Request data')
+            TopLabel:
+                text: _('Description') + ':'
+            RefLabel:
+                data: root.description or _('No description')
             TopLabel:
                 text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
             TopLabel:
@@ -82,6 +90,7 @@ class RequestDialog(Factory.Popup):
         self.key = key
         r = self.app.wallet.get_request(key)
         self.amount = r.get('amount')
+        self.description = r.get('message', '')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()
 

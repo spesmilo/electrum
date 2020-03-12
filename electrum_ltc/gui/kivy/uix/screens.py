@@ -217,8 +217,6 @@ class SendScreen(CScreen):
             self.payment_request_queued = None
         _list = self.app.wallet.get_invoices()
         _list.reverse()
-        lnworker_logs = self.app.wallet.lnworker.logs if self.app.wallet.lnworker else {}
-        _list = [x for x in _list if x and x.get('status') != PR_PAID or x.get('rhash') in lnworker_logs]
         payments_container = self.ids.payments_container
         payments_container.data = [self.get_card(item) for item in _list]
 
@@ -395,6 +393,19 @@ class SendScreen(CScreen):
         else:
             self.app.tx_dialog(tx)
 
+    def clear_invoices_dialog(self):
+        invoices = self.app.wallet.get_invoices()
+        if not invoices:
+            return
+        def callback(c):
+            if c:
+                for req in invoices:
+                    key = req['key']
+                    self.app.wallet.delete_invoice(key)
+                self.update()
+        n = len(invoices)
+        d = Question(_(f'Delete {n} invoices?'), callback)
+        d.open()
 
 
 class ReceiveScreen(CScreen):
@@ -478,8 +489,8 @@ class ReceiveScreen(CScreen):
         ci['key'] = key
         ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
         ci['memo'] = description
-        ci['status'] = status_str
-        ci['is_expired'] = status == PR_EXPIRED
+        ci['status'] = status
+        ci['status_str'] = status_str
         return ci
 
     def update(self):
@@ -488,7 +499,7 @@ class ReceiveScreen(CScreen):
         _list = self.app.wallet.get_sorted_requests()
         _list.reverse()
         requests_container = self.ids.requests_container
-        requests_container.data = [self.get_card(item) for item in _list if item.get('status') != PR_PAID]
+        requests_container.data = [self.get_card(item) for item in _list]
 
     def show_item(self, obj):
         self.app.show_request(obj.is_lightning, obj.key)
@@ -510,7 +521,8 @@ class ReceiveScreen(CScreen):
                     key = req.get('rhash') or req['address']
                     self.app.wallet.delete_request(key)
                 self.update()
-        d = Question(_('Delete all requests?'), callback)
+        n = len(requests)
+        d = Question(_(f'Delete {n} requests?'), callback)
         d.open()
 
 

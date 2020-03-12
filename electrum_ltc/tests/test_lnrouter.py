@@ -49,6 +49,7 @@ class Test_LNRouter(TestCaseForTestnet):
             register_callback = lambda *args: None
             interface = None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
+        fake_network.channel_db.data_loaded.set()
         cdb = fake_network.channel_db
         path_finder = lnrouter.LNPathFinder(cdb)
         self.assertEqual(cdb.num_channels, 0)

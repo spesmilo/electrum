@@ -155,6 +155,7 @@ if [[ $1 == "breach" ]]; then
     $alice lnpay $request
     echo "alice broadcasts old ctx"
     $bitcoin_cli sendrawtransaction $ctx
+    new_blocks 1
     wait_until_channel_closed bob
     new_blocks 1
     wait_for_balance bob 0.14

@@ -55,6 +55,7 @@ class MockNetwork:
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
         self.asyncio_loop = asyncio.get_event_loop()
         self.channel_db = ChannelDB(self)
+        self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
 
@@ -126,9 +127,11 @@ class MockLNWallet(Logger):
     def save_channel(self, chan):
         print("Ignoring channel save")
 
+    is_routing = set()
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
+    set_invoice_status = LNWallet.set_invoice_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
     await_payment = LNWallet.await_payment
