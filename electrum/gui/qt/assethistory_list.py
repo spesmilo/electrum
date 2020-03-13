@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
                              QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
@@ -508,7 +508,7 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
         self.hide_rows()
 
     def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_history', state)
+        config.set_key('show_toolbar_assethistory', state)
 
     def select_start_date(self):
         self.start_timestamp = self.select_date(self.start_button)

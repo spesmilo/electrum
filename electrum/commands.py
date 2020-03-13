@@ -465,7 +465,6 @@ class Commands:
         uses this to verify transactions (Simple Payment Verification)."""
         return await self.network.get_merkle_for_transaction(txid, int(height))
 
-    
     @command('n')
     async def getservers(self):
         """Return the list of available servers"""
