@@ -352,7 +352,7 @@ class CoinGecko(ExchangeBase):
         return dict([(ccy.upper(), Decimal(d['value']))
                      for ccy, d in json['rates'].items()])
         """
-        json = await self.get_json('api.coingecko.com', '/api/v3/coins/{}'.format(bccy))
+        json = await self.get_json('api.coingecko.com', '/api/v3/coins/{}'.format(bccy.lower()))
         return dict([(ccy.upper(), Decimal(d))
                      for ccy, d in json['market_data']['current_price'].items()])
 

@@ -326,7 +326,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 amount_e.setAmount(0)
 
         asset_e.setCurrentIndex(asset_e.selected_asset_idx)
-        if self.fx.is_enabled() and self.fx.get_base_currency() is not amount_e.getTokenSymbol():
+        if self.fx.is_enabled() and self.fx.get_base_currency() is not amount_e.getTokenSymbol() and amount_e.getTokenSymbol() is not None:
             self.fx.set_base_currency(amount_e.getTokenSymbol())
 
     def on_assets_updated(self, asset, notify_flag=True):
