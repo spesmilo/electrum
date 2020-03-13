@@ -57,6 +57,7 @@ class ChannelsList(MyTreeView):
         self.update_single_row.connect(self.do_update_single_row)
         self.network = self.parent.network
         self.lnworker = self.parent.wallet.lnworker
+        self.lnbackups = self.parent.wallet.lnbackups
         self.setSortingEnabled(True)
 
     def format_fields(self, chan):
@@ -78,7 +79,7 @@ class ChannelsList(MyTreeView):
         else:
             node_alias = ''
         return [
-            format_short_channel_id(chan.short_channel_id),
+            chan.short_id_for_GUI(),
             bh2u(chan.node_id),
             node_alias,
             '' if closed else labels[LOCAL],
@@ -106,14 +107,11 @@ class ChannelsList(MyTreeView):
     def force_close(self, channel_id):
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
-        if self.lnworker.wallet.is_lightning_backup():
-            msg = _('WARNING: force-closing from an old state might result in fund loss.\nAre you sure?')
-        else:
-            msg = _('Force-close channel?') + '\n\n'\
-                  + _(f'Funds retrieved from this channel will not be available before {to_self_delay} blocks after forced closure.') + ' '\
-                  + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
-                  + _('In the meantime, channel funds will not be recoverable from your seed, and will be lost if you lose your wallet.') + ' '\
-                  + _('To prevent that, you should backup your wallet if you have not already done so.')
+        msg = _('Force-close channel?') + '\n\n'\
+              + _(f'Funds retrieved from this channel will not be available before {to_self_delay} blocks after forced closure.') + ' '\
+              + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
+              + _('In the meantime, channel funds will not be recoverable from your seed, and might be lost if you lose your wallet.') + ' '\
+              + _('To prevent that, you should have a backup of this channel on another device.')
         if self.parent.question(msg):
             def task():
                 coro = self.lnworker.force_close_channel(channel_id)
@@ -123,6 +121,22 @@ class ChannelsList(MyTreeView):
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
             self.lnworker.remove_channel(channel_id)
+
+    def remove_channel_backup(self, channel_id):
+        if self.main_window.question(_('Remove channel backup?')):
+            self.lnbackups.remove_channel_backup(channel_id)
+
+    def export_channel_backup(self, channel_id):
+        data = self.lnworker.export_channel_backup(channel_id)
+        self.main_window.show_qrcode('channel_backup:' + data, 'channel backup')
+
+    def request_force_close(self, channel_id):
+        def task():
+            coro = self.lnbackups.request_force_close(channel_id)
+            return self.network.run_from_another_thread(coro)
+        def on_success(b):
+            self.main_window.show_message('success')
+        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
 
     def create_menu(self, position):
         menu = QMenu()
@@ -140,6 +154,11 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
+        if channel_id in self.lnbackups.channel_backups:
+            menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
+            menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
+            menu.exec_(self.viewport().mapToGlobal(position))
+            return
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
         cc = self.add_copy_menu(menu, idx)
@@ -163,7 +182,6 @@ class ChannelsList(MyTreeView):
             if chan.peer_state == peer_states.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
-            menu.addSeparator()
         else:
             item = chan.get_closing_height()
             if item:
@@ -171,6 +189,8 @@ class ChannelsList(MyTreeView):
                 closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
+        menu.addSeparator()
+        menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
         if chan.is_redeemed():
             menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
@@ -195,13 +215,13 @@ class ChannelsList(MyTreeView):
     def do_update_rows(self, wallet):
         if wallet != self.parent.wallet:
             return
-        lnworker = self.parent.wallet.lnworker
-        if not lnworker:
-            return
-        self.update_can_send(lnworker)
+        channels = list(wallet.lnworker.channels.values()) if wallet.lnworker else []
+        backups = list(wallet.lnbackups.channel_backups.values())
+        if wallet.lnworker:
+            self.update_can_send(wallet.lnworker)
         self.model().clear()
         self.update_headers(self.headers)
-        for chan in lnworker.channels.values():
+        for chan in channels + backups:
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
             if self._default_item_bg_brush is None:
@@ -212,6 +232,7 @@ class ChannelsList(MyTreeView):
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
+
         self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
 
     def _update_chan_frozen_bg(self, *, chan: Channel, items: Sequence[QStandardItem]):

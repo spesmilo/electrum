@@ -15,6 +15,7 @@ from typing import NamedTuple, Dict
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions
+from .lnutil import Outpoint
 from . import wallet
 from .storage import WalletStorage
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED

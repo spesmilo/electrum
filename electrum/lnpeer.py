@@ -44,7 +44,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage)
-from .lnutil import FeeUpdate
+from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
@@ -60,10 +60,6 @@ if TYPE_CHECKING:
 
 LN_P2P_NETWORK_TIMEOUT = 20
 
-def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
-    funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
-    i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
-    return i.to_bytes(32, 'big'), funding_txid_bytes
 
 class Peer(Logger):
 
@@ -222,7 +218,7 @@ class Peer(Logger):
             if constants.net.rev_genesis_bytes() not in their_chains:
                 raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
         # all checks passed
-        if isinstance(self.transport, LNTransport):
+        if self.channel_db and isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
             for chan in self.channels.values():
                 chan.add_or_update_peer_addr(self.transport.peer_addr)
@@ -728,6 +724,17 @@ class Peer(Logger):
             raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
         return remote_reserve_sat
 
+    async def trigger_force_close(self, channel_id):
+        await self.initialized
+        latest_point = 0
+        self.send_message(
+            "channel_reestablish",
+            channel_id=channel_id,
+            next_local_commitment_number=0,
+            next_remote_revocation_number=0,
+            your_last_per_commitment_secret=0,
+            my_current_per_commitment_point=latest_point)
+
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
@@ -749,8 +756,7 @@ class Peer(Logger):
         next_remote_ctn = chan.get_next_ctn(REMOTE)
         assert self.features & LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         # send message
-        srk_enabled = chan.is_static_remotekey_enabled()
-        if srk_enabled:
+        if chan.is_static_remotekey_enabled():
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
         else:
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
@@ -876,10 +882,6 @@ class Peer(Logger):
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            await self.lnworker.try_force_closing(chan_id)
-            return
-        elif self.lnworker.wallet.is_lightning_backup():
-            self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): force-closing because we are a recent backup")
             await self.lnworker.try_force_closing(chan_id)
             return
 

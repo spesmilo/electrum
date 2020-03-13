@@ -18,7 +18,7 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
 from .transaction import (Transaction, TxOutput, construct_witness, PartialTransaction, PartialTxInput,
                           PartialTxOutput, TxOutpoint)
 from .simple_config import SimpleConfig
-from .logging import get_logger
+from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
