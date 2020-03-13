@@ -221,7 +221,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tab.tab_description = description
             tab.tab_pos = len(tabs)
             tab.tab_name = name
-            if self.config.get('show_{}_tab'.format(name), True if name is "assethistory" else False):
+            if self.config.get('show_{}_tab'.format(name), False):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
@@ -263,7 +263,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.assets_updated_signal.connect(self.update_assets)
         self.history_list.setFocus(True)
-        self.assethistory_list.update()
+        self.assethistory_model.refresh('startup')
 
         # network callbacks
         if self.network:
@@ -342,7 +342,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.update()
-        self.assethistory_list.update()
+        self.assethistory_model.refresh('fx_history')
 
     def on_fx_quotes(self):
         self.update_status()
@@ -354,8 +354,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # History tab needs updating if it used spot
         if self.fx.history_used_spot:
             self.history_model.refresh('fx_quotes')
+            self.assethistory_model.refresh('fx_quotes')
         self.address_list.update()
-        self.assethistory_list.update()
 
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
@@ -997,9 +997,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if wallet != self.wallet:
             return
         self.history_model.refresh('update_tabs')
+        self.assethistory_model.refresh('update_tabs')
         self.request_list.update()
         self.address_list.update()
-        self.assethistory_list.update()
         self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
@@ -1978,7 +1978,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)
         self.address_list.update()
-        self.assethistory_list.update()
         self.utxo_list.update()
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
