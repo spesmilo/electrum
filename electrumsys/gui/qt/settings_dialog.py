@@ -147,13 +147,6 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        backup_help = _("""If you configure a backup directory, a backup of your wallet file will be saved everytime you create a new channel.\n\nA backup file cannot be used as a wallet; it can only be used to retrieve the funds locked in your channels, by requesting your channels to be force closed (using data loss protection).\n\nIf the remote node is online, they will force-close your channels when you open the backup file. Note that a backup is not strictly necessary for that; if the remote party is online but they cannot reach you because you lost your wallet file, they should eventually close your channels, and your funds should be sent to an address recoverable from your seed (using static_remotekey).\n\nIf the remote node is not online, you can use the backup file to force close your channels, but only at the risk of losing all your funds in the channel, because you will be broadcasting an old state.""")
-        backup_dir = self.config.get('backup_dir')
-        backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
-        self.backup_dir_e = QPushButton(backup_dir)
-        self.backup_dir_e.clicked.connect(self.select_backup_dir)
-        lightning_widgets.append((backup_dir_label, self.backup_dir_e))
-
         help_persist = _("""If this option is checked, ElectrumSys will persist as a daemon after
 you close all your wallet windows. Your local watchtower will keep
 running, and it will protect your channels even if your wallet is not
@@ -555,13 +548,6 @@ that is always connected to the internet. Configure a port if you want it to be 
         self.config.set_key('alias', alias, True)
         if alias:
             self.window.fetch_alias()
-
-    def select_backup_dir(self, b):
-        name = self.config.get('backup_dir', '')
-        dirname = QFileDialog.getExistingDirectory(self, "Select your SSL certificate file", name)
-        if dirname:
-            self.config.set_key('backup_dir', dirname)
-            self.backup_dir_e.setText(dirname)
 
     def select_ssl_certfile(self, b):
         name = self.config.get('ssl_certfile', '')

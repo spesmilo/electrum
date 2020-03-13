@@ -24,6 +24,7 @@ from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
 from .bip32 import BIP32Node, BIP32_PRIME
+from .transaction import BCDataStream
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -46,6 +47,11 @@ def ln_dummy_address():
 
 from .json_db import StoredObject
 
+
+def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
+    funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
+    i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
+    return i.to_bytes(32, 'big'), funding_txid_bytes
 
 hex_to_bytes = lambda v: v if isinstance(v, bytes) else bytes.fromhex(v) if v is not None else None
 json_to_keypair = lambda v: v if isinstance(v, OnlyPubkeyKeypair) else Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
@@ -115,6 +121,66 @@ class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
+
+@attr.s
+class ChannelBackupStorage(StoredObject):
+    node_id = attr.ib(type=bytes, converter=hex_to_bytes)
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    funding_txid = attr.ib(type=str)
+    funding_index = attr.ib(type=int, converter=int)
+    funding_address = attr.ib(type=str)
+    host = attr.ib(type=str)
+    port = attr.ib(type=int, converter=int)
+    is_initiator = attr.ib(type=bool)
+    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    local_delay = attr.ib(type=int, converter=int)
+    remote_delay = attr.ib(type=int, converter=int)
+    remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
+
+    def funding_outpoint(self):
+        return Outpoint(self.funding_txid, self.funding_index)
+
+    def channel_id(self):
+        chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
+        return chan_id
+
+    def to_bytes(self):
+        vds = BCDataStream()
+        vds.write_boolean(self.is_initiator)
+        vds.write_bytes(self.privkey, 32)
+        vds.write_bytes(self.channel_seed, 32)
+        vds.write_bytes(self.node_id, 33)
+        vds.write_bytes(bfh(self.funding_txid), 32)
+        vds.write_int16(self.funding_index)
+        vds.write_string(self.funding_address)
+        vds.write_bytes(self.remote_payment_pubkey, 33)
+        vds.write_bytes(self.remote_revocation_pubkey, 33)
+        vds.write_int16(self.local_delay)
+        vds.write_int16(self.remote_delay)
+        vds.write_string(self.host)
+        vds.write_int16(self.port)
+        return vds.input
+
+    @staticmethod
+    def from_bytes(s):
+        vds = BCDataStream()
+        vds.write(s)
+        return ChannelBackupStorage(
+            is_initiator = bool(vds.read_bytes(1)),
+            privkey = vds.read_bytes(32).hex(),
+            channel_seed = vds.read_bytes(32).hex(),
+            node_id = vds.read_bytes(33).hex(),
+            funding_txid = vds.read_bytes(32).hex(),
+            funding_index = vds.read_int16(),
+            funding_address = vds.read_string(),
+            remote_payment_pubkey = vds.read_bytes(33).hex(),
+            remote_revocation_pubkey = vds.read_bytes(33).hex(),
+            local_delay = vds.read_int16(),
+            remote_delay = vds.read_int16(),
+            host = vds.read_string(),
+            port = vds.read_int16())
+
 
 
 class ScriptHtlc(NamedTuple):
@@ -716,8 +782,8 @@ def extract_ctn_from_tx(tx: Transaction, txin_index: int, funder_payment_basepoi
     return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
 def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'Channel') -> int:
-    funder_conf = chan.config[LOCAL] if     chan.constraints.is_initiator else chan.config[REMOTE]
-    fundee_conf = chan.config[LOCAL] if not chan.constraints.is_initiator else chan.config[REMOTE]
+    funder_conf = chan.config[LOCAL] if     chan.is_initiator() else chan.config[REMOTE]
+    fundee_conf = chan.config[LOCAL] if not chan.is_initiator() else chan.config[REMOTE]
     return extract_ctn_from_tx(tx, txin_index=0,
                                funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
                                fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)

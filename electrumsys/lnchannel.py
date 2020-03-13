@@ -56,6 +56,8 @@ from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
+from .lnutil import ChannelBackupStorage
+from .lnutil import format_short_channel_id
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -121,18 +123,255 @@ def htlcsum(htlcs):
     return sum([x.amount_msat for x in htlcs])
 
 
-class Channel(Logger):
+class AbstractChannel(Logger):
+
+    def set_short_channel_id(self, short_id: ShortChannelID) -> None:
+        self.short_channel_id = short_id
+        self.storage["short_channel_id"] = short_id
+
+    def get_id_for_log(self) -> str:
+        scid = self.short_channel_id
+        if scid:
+            return str(scid)
+        return self.channel_id.hex()
+
+    def set_state(self, state: channel_states) -> None:
+        """ set on-chain state """
+        old_state = self._state
+        if (old_state, state) not in state_transitions:
+            raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
+        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
+        self._state = state
+        self.storage['state'] = self._state.name
+
+    def get_state(self) -> channel_states:
+        return self._state
+
+    def is_open(self):
+        return self.get_state() == channel_states.OPEN
+
+    def is_closing(self):
+        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
+
+    def is_closed(self):
+        # the closing txid has been saved
+        return self.get_state() >= channel_states.CLOSED
+
+    def is_redeemed(self):
+        return self.get_state() == channel_states.REDEEMED
+
+    def save_funding_height(self, txid, height, timestamp):
+        self.storage['funding_height'] = txid, height, timestamp
+
+    def get_funding_height(self):
+        return self.storage.get('funding_height')
+
+    def delete_funding_height(self):
+        self.storage.pop('funding_height', None)
+
+    def save_closing_height(self, txid, height, timestamp):
+        self.storage['closing_height'] = txid, height, timestamp
+
+    def get_closing_height(self):
+        return self.storage.get('closing_height')
+
+    def delete_closing_height(self):
+        self.storage.pop('closing_height', None)
+
+    def create_sweeptxs_for_our_ctx(self, ctx):
+        return create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+
+    def create_sweeptxs_for_their_ctx(self, ctx):
+        return create_sweeptxs_for_their_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+
+    def is_backup(self):
+        return False
+
+    def sweep_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
+        txid = ctx.txid()
+        if self.sweep_info.get(txid) is None:
+            our_sweep_info = self.create_sweeptxs_for_our_ctx(ctx)
+            their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
+            if our_sweep_info is not None:
+                self.sweep_info[txid] = our_sweep_info
+                self.logger.info(f'we force closed')
+            elif their_sweep_info is not None:
+                self.sweep_info[txid] = their_sweep_info
+                self.logger.info(f'they force closed.')
+            else:
+                self.sweep_info[txid] = {}
+                self.logger.info(f'not sure who closed.')
+        return self.sweep_info[txid]
+
+    # ancestor for Channel and ChannelBackup
+    def update_onchain_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
+        # note: state transitions are irreversible, but
+        # save_funding_height, save_closing_height are reversible
+        if funding_height.height == TX_HEIGHT_LOCAL:
+            self.update_unfunded_state()
+        elif closing_height.height == TX_HEIGHT_LOCAL:
+            self.update_funded_state(funding_txid, funding_height)
+        else:
+            self.update_closed_state(funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+
+    def update_unfunded_state(self):
+        self.delete_funding_height()
+        self.delete_closing_height()
+        if self.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING] and self.lnworker:
+            if self.is_initiator():
+                # set channel state to REDEEMED so that it can be removed manually
+                # to protect ourselves against a server lying by omission,
+                # we check that funding_inputs have been double spent and deeply mined
+                inputs = self.storage.get('funding_inputs', [])
+                if not inputs:
+                    self.logger.info(f'channel funding inputs are not provided')
+                    self.set_state(channel_states.REDEEMED)
+                for i in inputs:
+                    spender_txid = self.lnworker.wallet.db.get_spent_outpoint(*i)
+                    if spender_txid is None:
+                        continue
+                    if spender_txid != self.funding_outpoint.txid:
+                        tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
+                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                            self.logger.info(f'channel is double spent {inputs}')
+                            self.set_state(channel_states.REDEEMED)
+                            break
+            else:
+                now = int(time.time())
+                if now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
+                    self.lnworker.remove_channel(self.channel_id)
+
+    def update_funded_state(self, funding_txid, funding_height):
+        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
+        self.delete_closing_height()
+        if self.get_state() == channel_states.OPENING:
+            if self.is_funding_tx_mined(funding_height):
+                self.set_state(channel_states.FUNDED)
+                self.set_short_channel_id(ShortChannelID.from_components(
+                    funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+                self.logger.info(f"save_short_channel_id: {self.short_channel_id}")
+
+    def update_closed_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
+        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
+        self.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
+        if self.get_state() < channel_states.CLOSED:
+            conf = closing_height.conf
+            if conf > 0:
+                self.set_state(channel_states.CLOSED)
+            else:
+                # we must not trust the server with unconfirmed transactions
+                # if the remote force closed, we remain OPEN until the closing tx is confirmed
+                pass
+        if self.get_state() == channel_states.CLOSED and not keep_watching:
+            self.set_state(channel_states.REDEEMED)
+
+
+class ChannelBackup(AbstractChannel):
+    """
+    current capabilities:
+      - detect force close
+      - request force close
+      - sweep my ctx to_local
+    future:
+      - will need to sweep their ctx to_remote
+    """
+
+    def __init__(self, cb: ChannelBackupStorage, *, sweep_address=None, lnworker=None):
+        self.name = None
+        Logger.__init__(self)
+        self.cb = cb
+        self.sweep_info = {}  # type: Dict[str, Dict[str, SweepInfo]]
+        self.sweep_address = sweep_address
+        self.storage = {} # dummy storage
+        self._state = channel_states.OPENING
+        self.config = {}
+        self.config[LOCAL] = LocalConfig.from_seed(
+            channel_seed=cb.channel_seed,
+            to_self_delay=cb.local_delay,
+            # dummy values
+            static_remotekey=None,
+            dust_limit_sat=None,
+            max_htlc_value_in_flight_msat=None,
+            max_accepted_htlcs=None,
+            initial_msat=None,
+            reserve_sat=None,
+            funding_locked_received=False,
+            was_announced=False,
+            current_commitment_signature=None,
+            current_htlc_signatures=b'',
+            htlc_minimum_msat=1,
+        )
+        self.config[REMOTE] = RemoteConfig(
+            payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
+            revocation_basepoint=OnlyPubkeyKeypair(cb.remote_revocation_pubkey),
+            to_self_delay=cb.remote_delay,
+            # dummy values
+            multisig_key=OnlyPubkeyKeypair(None),
+            htlc_basepoint=OnlyPubkeyKeypair(None),
+            delayed_basepoint=OnlyPubkeyKeypair(None),
+            dust_limit_sat=None,
+            max_htlc_value_in_flight_msat=None,
+            max_accepted_htlcs=None,
+            initial_msat = None,
+            reserve_sat = None,
+            htlc_minimum_msat=None,
+            next_per_commitment_point=None,
+            current_per_commitment_point=None)
+
+        self.node_id = cb.node_id
+        self.channel_id = cb.channel_id()
+        self.funding_outpoint = cb.funding_outpoint()
+        self.lnworker = lnworker
+        self.short_channel_id = None
+
+    def is_backup(self):
+        return True
+
+    def create_sweeptxs_for_their_ctx(self, ctx):
+        return {}
+
+    def get_funding_address(self):
+        return self.cb.funding_address
+
+    def short_id_for_GUI(self) -> str:
+        return 'BACKUP'
+
+    def is_initiator(self):
+        return self.cb.is_initiator
+
+    def get_state_for_GUI(self):
+        cs = self.get_state()
+        return cs.name
+
+    def get_oldest_unrevoked_ctn(self, who):
+        return -1
+
+    def included_htlcs(self, subject, direction, ctn):
+        return []
+
+    def funding_txn_minimum_depth(self):
+        return 1
+
+    def is_funding_tx_mined(self, funding_height):
+        return funding_height.conf > 1
+
+    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL, ctn: int = None):
+        return 0
+
+    def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
+        return 0
+
+    def is_frozen_for_sending(self) -> bool:
+        return False
+
+    def is_frozen_for_receiving(self) -> bool:
+        return False
+
+
+class Channel(AbstractChannel):
     # note: try to avoid naming ctns/ctxs/etc as "current" and "pending".
     #       they are ambiguous. Use "oldest_unrevoked" or "latest" or "next".
     #       TODO enforce this ^
-
-    def diagnostic_name(self):
-        if self.name:
-            return str(self.name)
-        try:
-            return f"lnchannel_{bh2u(self.channel_id[-4:])}"
-        except:
-            return super().diagnostic_name()
 
     def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
@@ -162,11 +401,22 @@ class Channel(Logger):
         self._receive_fail_reasons = {}  # type: Dict[int, BarePaymentAttemptLog]
         self._ignore_max_htlc_value = False  # used in tests
 
-    def get_id_for_log(self) -> str:
-        scid = self.short_channel_id
-        if scid:
-            return str(scid)
-        return self.channel_id.hex()
+    def short_id_for_GUI(self) -> str:
+        return format_short_channel_id(self.short_channel_id)
+
+    def is_initiator(self):
+        return self.constraints.is_initiator
+
+    def funding_txn_minimum_depth(self):
+        return self.constraints.funding_txn_minimum_depth
+
+    def diagnostic_name(self):
+        if self.name:
+            return str(self.name)
+        try:
+            return f"lnchannel_{bh2u(self.channel_id[-4:])}"
+        except:
+            return super().diagnostic_name()
 
     def set_onion_key(self, key: int, value: bytes):
         self.onion_keys[key] = value
@@ -269,10 +519,6 @@ class Channel(Logger):
     def is_static_remotekey_enabled(self) -> bool:
         return bool(self.storage.get('static_remotekey_enabled'))
 
-    def set_short_channel_id(self, short_id: ShortChannelID) -> None:
-        self.short_channel_id = short_id
-        self.storage["short_channel_id"] = short_id
-
     def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
         # returns feerate in sat/kw
         return self.hm.get_feerate(subject, ctn)
@@ -322,20 +568,10 @@ class Channel(Logger):
             self.peer_state = peer_states.GOOD
 
     def set_state(self, state: channel_states) -> None:
-        """ set on-chain state """
-        old_state = self._state
-        if (old_state, state) not in state_transitions:
-            raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
-        self._state = state
-        self.storage['state'] = self._state.name
-
+        super().set_state(state)
         if self.lnworker:
             self.lnworker.save_channel(self)
             self.lnworker.network.trigger_callback('channel', self)
-
-    def get_state(self) -> channel_states:
-        return self._state
 
     def get_state_for_GUI(self):
         # status displayed in the GUI
@@ -346,16 +582,6 @@ class Channel(Logger):
         if ps != peer_states.GOOD:
             return ps.name
         return cs.name
-
-    def is_open(self):
-        return self.get_state() == channel_states.OPEN
-
-    def is_closing(self):
-        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
-
-    def is_closed(self):
-        # the closing txid has been saved
-        return self.get_state() >= channel_states.CLOSED
 
     def set_can_send_ctx_updates(self, b: bool) -> None:
         self._can_send_ctx_updates = b
@@ -372,27 +598,6 @@ class Channel(Logger):
 
     def can_send_update_add_htlc(self) -> bool:
         return self.can_send_ctx_updates() and not self.is_closing()
-
-    def save_funding_height(self, txid, height, timestamp):
-        self.storage['funding_height'] = txid, height, timestamp
-
-    def get_funding_height(self):
-        return self.storage.get('funding_height')
-
-    def delete_funding_height(self):
-        self.storage.pop('funding_height', None)
-
-    def save_closing_height(self, txid, height, timestamp):
-        self.storage['closing_height'] = txid, height, timestamp
-
-    def get_closing_height(self):
-        return self.storage.get('closing_height')
-
-    def delete_closing_height(self):
-        self.storage.pop('closing_height', None)
-
-    def is_redeemed(self):
-        return self.get_state() == channel_states.REDEEMED
 
     def is_frozen_for_sending(self) -> bool:
         """Whether the user has marked this channel as frozen for sending.
@@ -1039,21 +1244,6 @@ class Channel(Logger):
         assert tx.is_complete()
         return tx
 
-    def sweep_ctx(self, ctx: Transaction) -> Dict[str, SweepInfo]:
-        txid = ctx.txid()
-        if self.sweep_info.get(txid) is None:
-            our_sweep_info = create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
-            their_sweep_info = create_sweeptxs_for_their_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
-            if our_sweep_info is not None:
-                self.sweep_info[txid] = our_sweep_info
-                self.logger.info(f'we force closed.')
-            elif their_sweep_info is not None:
-                self.sweep_info[txid] = their_sweep_info
-                self.logger.info(f'they force closed.')
-            else:
-                self.sweep_info[txid] = {}
-        return self.sweep_info[txid]
-
     def sweep_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
@@ -1095,16 +1285,6 @@ class Channel(Logger):
                                                        500_000)
         return total_value_sat > min_value_worth_closing_channel_over_sat
 
-    def update_onchain_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-        # note: state transitions are irreversible, but
-        # save_funding_height, save_closing_height are reversible
-        if funding_height.height == TX_HEIGHT_LOCAL:
-            self.update_unfunded_state()
-        elif closing_height.height == TX_HEIGHT_LOCAL:
-            self.update_funded_state(funding_txid, funding_height)
-        else:
-            self.update_closed_state(funding_txid, funding_height, closing_txid, closing_height, keep_watching)
-
     def is_funding_tx_mined(self, funding_height):
         """
         Checks if Funding TX has been mined. If it has, save the short channel ID in chan;
@@ -1114,7 +1294,7 @@ class Channel(Logger):
         funding_txid = self.funding_outpoint.txid
         funding_idx = self.funding_outpoint.output_index
         conf = funding_height.conf
-        if conf < self.constraints.funding_txn_minimum_depth:
+        if conf < self.funding_txn_minimum_depth():
             self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return False
         assert conf > 0
@@ -1132,53 +1312,3 @@ class Channel(Logger):
             return False
         return True
 
-    def update_unfunded_state(self):
-        self.delete_funding_height()
-        self.delete_closing_height()
-        if self.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING] and self.lnworker:
-            if self.constraints.is_initiator:
-                # set channel state to REDEEMED so that it can be removed manually
-                # to protect ourselves against a server lying by omission,
-                # we check that funding_inputs have been double spent and deeply mined
-                inputs = self.storage.get('funding_inputs', [])
-                if not inputs:
-                    self.logger.info(f'channel funding inputs are not provided')
-                    self.set_state(channel_states.REDEEMED)
-                for i in inputs:
-                    spender_txid = self.lnworker.wallet.db.get_spent_outpoint(*i)
-                    if spender_txid is None:
-                        continue
-                    if spender_txid != self.funding_outpoint.txid:
-                        tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
-                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                            self.logger.info(f'channel is double spent {inputs}')
-                            self.set_state(channel_states.REDEEMED)
-                            break
-            else:
-                now = int(time.time())
-                if now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
-                    self.lnworker.remove_channel(self.channel_id)
-
-    def update_funded_state(self, funding_txid, funding_height):
-        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-        self.delete_closing_height()
-        if self.get_state() == channel_states.OPENING:
-            if self.is_funding_tx_mined(funding_height):
-                self.set_state(channel_states.FUNDED)
-                self.set_short_channel_id(ShortChannelID.from_components(
-                    funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
-                self.logger.info(f"save_short_channel_id: {self.short_channel_id}")
-
-    def update_closed_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-        self.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
-        if self.get_state() < channel_states.CLOSED:
-            conf = closing_height.conf
-            if conf > 0:
-                self.set_state(channel_states.CLOSED)
-            else:
-                # we must not trust the server with unconfirmed transactions
-                # if the remote force closed, we remain OPEN until the closing tx is confirmed
-                pass
-        if self.get_state() == channel_states.CLOSED and not keep_watching:
-            self.set_state(channel_states.REDEEMED)

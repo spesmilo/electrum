@@ -235,7 +235,6 @@ class ElectrumSysGui(Logger):
         run_hook('on_new_window', w)
         w.warn_if_testnet()
         w.warn_if_watching_only()
-        w.warn_if_lightning_backup()
         return w
 
     def count_wizards_in_progress(func):
