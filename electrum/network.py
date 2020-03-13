@@ -298,7 +298,7 @@ class Network(Logger):
         self.server_retry_time = time.time()
         self.nodes_retry_time = time.time()
         # the main server we are currently communicating with
-        self.interface = None  # type: Interface
+        self.interface = None  # type: Optional[Interface]
         self.default_server_changed_event = asyncio.Event()
         # set of servers we have an ongoing connection with
         self.interfaces = {}  # type: Dict[str, Interface]
@@ -516,6 +516,8 @@ class Network(Logger):
                         continue
                 return out
         else:
+            if not self.interface:
+                return {}
             return self.interface.fee_estimates_eta
 
     def update_fee_estimates(self):
