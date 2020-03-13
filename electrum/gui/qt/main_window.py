@@ -263,6 +263,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.assets_updated_signal.connect(self.update_assets)
         self.history_list.setFocus(True)
+        self.assethistory_list.update()
 
         # network callbacks
         if self.network:
@@ -688,6 +689,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         history_menu.addAction(_("&Summary"), self.history_list.show_summary)
         history_menu.addAction(_("&Plot"), self.history_list.plot_history_dialog)
         history_menu.addAction(_("&Export"), self.history_list.export_history_dialog)
+        assethistory_menu = wallet_menu.addMenu(_("Asset History"))
+        assethistory_menu.addAction(_("&Filter"), lambda: self.assethistory_list.toggle_toolbar(self.config))
+        assethistory_menu.addAction(_("&Export"), self.assethistory_list.export_history_dialog)
         contacts_menu = wallet_menu.addMenu(_("Contacts"))
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
@@ -1775,7 +1779,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                       broadcast_thread, broadcast_done, self.on_error)
 
     def update_assets(self, notify_flag=True):
-        self.logger.info("ASSET_UPDATE")
         self.network.run_from_another_thread(
             self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated, notify_flag=notify_flag)
         )

@@ -216,7 +216,6 @@ class AssetSynchronizer(Logger):
             except RuntimeError as e:
                 self.logger.info("synchronize_assets: asyncio error {}".format(e))
                 return
-            self.logger.info("asset info synchronized: {}".format(result_))
             new_asset_list = []
             changed_asset = None
             for asset in result_:
@@ -242,7 +241,6 @@ class AssetSynchronizer(Logger):
             return None
         explorer_url, explorer_dict = be_tuple
         url = ''.join([explorer_url, cmd])
-        self.logger.info("send_request: {}".format(url))
         proxy = self.network.proxy if self.network else None
         async with make_aiohttp_session(proxy) as session:
             async with session.get(url) as response:

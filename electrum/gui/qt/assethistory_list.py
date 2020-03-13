@@ -538,44 +538,6 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
             button.setText(self.format_date(date))
             return datetime.datetime(date.year, date.month, date.day)
 
-    def show_summary(self):
-        h = self.parent.wallet.get_detailed_history()['summary']
-        if not h:
-            self.parent.show_message(_("Nothing to summarize."))
-            return
-        start_date = h.get('start_date')
-        end_date = h.get('end_date')
-        format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
-        d = WindowModalDialog(self, _("Summary"))
-        d.setMinimumSize(600, 150)
-        vbox = QVBoxLayout()
-        grid = QGridLayout()
-        grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(self.format_date(start_date)), 0, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_start_value')) + '/SYS'), 0, 2)
-        grid.addWidget(QLabel(_("Initial balance")), 1, 0)
-        grid.addWidget(QLabel(format_amount(h['start_balance'])), 1, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_start_balance'))), 1, 2)
-        grid.addWidget(QLabel(_("End")), 2, 0)
-        grid.addWidget(QLabel(self.format_date(end_date)), 2, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_end_value')) + '/SYS'), 2, 2)
-        grid.addWidget(QLabel(_("Final balance")), 4, 0)
-        grid.addWidget(QLabel(format_amount(h['end_balance'])), 4, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_end_balance'))), 4, 2)
-        grid.addWidget(QLabel(_("Income")), 5, 0)
-        grid.addWidget(QLabel(format_amount(h.get('incoming'))), 5, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_incoming'))), 5, 2)
-        grid.addWidget(QLabel(_("Expenditures")), 6, 0)
-        grid.addWidget(QLabel(format_amount(h.get('outgoing'))), 6, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_outgoing'))), 6, 2)
-        grid.addWidget(QLabel(_("Capital gains")), 7, 0)
-        grid.addWidget(QLabel(str(h.get('fiat_capital_gains'))), 7, 2)
-        grid.addWidget(QLabel(_("Unrealized gains")), 8, 0)
-        grid.addWidget(QLabel(str(h.get('fiat_unrealized_gains', ''))), 8, 2)
-        vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CloseButton(d)))
-        d.setLayout(vbox)
-        d.exec_()
 
     def plot_history_dialog(self):
         if plot_history is None:
@@ -732,6 +694,10 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
     def do_export_history(self, file_name, is_csv):
         hist = self.wallet.get_detailed_assethistory(fx=self.parent.fx)
         txns = hist['transactions']
+        for item in txns:
+            bc_value = item['bc_value'].value if 'bc_value' in item else 0
+            precision = item['precision'] if 'precision' in item else 8
+            item['bc_value'] = self.parent.format_amount(bc_value, is_diff=True, decimal=precision)
         lines = []
         if is_csv:
             for item in txns:

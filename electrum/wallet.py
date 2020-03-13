@@ -867,7 +867,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         fiat_income = Decimal(0)
         fiat_expenditures = Decimal(0)
         now = time.time()
-        for item in self.get_onchain_assethistory():
+        for item in self.asset_synchronizer.get_onchain_assethistory():
             timestamp = item['timestamp']
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
