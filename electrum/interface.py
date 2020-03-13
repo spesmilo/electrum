@@ -530,12 +530,12 @@ class Interface(Logger):
             await self.session.send_request('server.ping')
 
     async def request_fee_estimates(self):
-        from .simple_config import FEE_ETA_TARGETS
+        #from .simple_config import FEE_ETA_TARGETS
         from .bitcoin import COIN
         while True:
             async with TaskGroup() as group:
                 fee_tasks = []
-                for i in FEE_ETA_TARGETS:
+                for i in constants.net.FEE_ETA_TARGETS:
                     fee_tasks.append((i, await group.spawn(self.session.send_request('blockchain.estimatefee', [i]))))
             for nblock_target, task in fee_tasks:
                 fee = int(task.result() * COIN)
