@@ -222,7 +222,7 @@ class ChannelsList(MyTreeView):
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
-        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
+        amount_e = BTCAmountEdit(self.parent.get_decimal_point())
         # max button
         def spend_max():
             amount_e.setFrozen(max_button.isChecked())

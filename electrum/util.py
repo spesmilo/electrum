@@ -750,16 +750,16 @@ def time_difference(distance_in_time, include_seconds):
 
 mainnet_block_explorers = {
     'Syscoin Explorer': ('https://sys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
     'system default': ('https://sys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
     'Syscoin Testnet Explorer': ('https://tsys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
     'system default': ('https://tsys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
@@ -879,7 +879,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     return out
 
 
-def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
+def create_bip21_uri(asset_guid, addr, amount_sat: Optional[int], message: Optional[str],
                      *, extra_query_params: Optional[dict] = None) -> str:
     from . import bitcoin
     if not bitcoin.is_address(addr):
@@ -891,6 +891,8 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
         query.append('amount=%s'%format_satoshis_plain(amount_sat))
     if message:
         query.append('message=%s'%urllib.parse.quote(message))
+    if asset_guid:
+        query.append('asset_guid=%s'%urllib.parse.quote(asset_guid))         
     for k, v in extra_query_params.items():
         if not isinstance(k, str) or k != urllib.parse.quote(k):
             raise Exception(f"illegal key for URI: {repr(k)}")

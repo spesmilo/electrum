@@ -192,6 +192,7 @@ class SendScreen(CScreen):
         amount = uri.get('amount')
         self.address = uri.get('address', '')
         self.message = uri.get('message', '')
+        self.asset_guid = uri.get('asset', None)
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.payment_request = None
         self.is_lightning = False
@@ -332,7 +333,7 @@ class SendScreen(CScreen):
             self._do_pay_lightning(invoice)
             return
         elif invoice['type'] == PR_TYPE_ONCHAIN:
-            do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
+            do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf, asset_guid=self.asset_guid)
             if self.app.electrum_config.get('use_rbf'):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)
                 d.open()
@@ -345,13 +346,13 @@ class SendScreen(CScreen):
         attempts = 10
         threading.Thread(target=self.app.wallet.lnworker.pay, args=(invoice['invoice'], invoice['amount'], attempts)).start()
 
-    def _do_pay_onchain(self, invoice, rbf):
+    def _do_pay_onchain(self, invoice, rbf, asset_guid=None):
         # make unsigned transaction
         outputs = invoice['outputs']  # type: List[PartialTxOutput]
         amount = sum(map(lambda x: x.value, outputs))
         coins = self.app.wallet.get_spendable_coins(None)
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
+            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, asset_guid=asset_guid)
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return
@@ -362,8 +363,18 @@ class SendScreen(CScreen):
         if rbf:
             tx.set_rbf(True)
         fee = tx.get_fee()
+        asset_symbol = None
+        asset_amount = None
+        asset_precision = None
+        if asset_guid is not None:
+            asset = self.wallet.get_asset(asset_guid)
+            if asset is not None:
+                asset_symbol = asset.symbol
+                asset_precision = asset.precision
+                asset_amount = asset_amount
+                amount = tx.output_value()
         msg = [
-            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
+            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount, asset_amount, asset_symbol, asset_precision),
             _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
         ]
         x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
@@ -445,7 +456,7 @@ class ReceiveScreen(CScreen):
             a, u = self.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_bip21_uri(self.address, amount, self.message)
+        return create_bip21_uri(None, self.address, amount, self.message)
 
     def do_copy(self):
         uri = self.get_URI()

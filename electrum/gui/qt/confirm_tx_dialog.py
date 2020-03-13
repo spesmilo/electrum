@@ -111,10 +111,12 @@ class TxEditor:
 class ConfirmTxDialog(TxEditor, WindowModalDialog):
     # set fee and return password (after pw check)
 
-    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], is_sweep: bool):
+    def __init__(self, *, window: 'ElectrumWindow', make_tx, output_value: Union[int, str], is_sweep: bool, asset_amount=None, asset_symbol=None, asset_precision = None):
 
         TxEditor.__init__(self, window=window, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         WindowModalDialog.__init__(self, window, _("Confirm Transaction"))
+        self.asset_symbol= asset_symbol
+        self.asset_precision = asset_precision
         vbox = QVBoxLayout()
         self.setLayout(vbox)
         grid = QGridLayout()
@@ -200,7 +202,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
     def update(self):
         tx = self.tx
         amount = tx.output_value() if self.output_value == '!' else self.output_value
-        self.amount_label.setText(self.main_window.format_amount_and_units(amount))
+        self.amount_label.setText(self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision))
 
         if self.not_enough_funds:
             text = _("Not enough funds")

@@ -465,6 +465,7 @@ class Commands:
         uses this to verify transactions (Simple Payment Verification)."""
         return await self.network.get_merkle_for_transaction(txid, int(height))
 
+    
     @command('n')
     async def getservers(self):
         """Return the list of available servers"""
@@ -730,6 +731,11 @@ class Commands:
         if tx.txid() != txid:
             raise Exception("Mismatching txid")
         return tx.serialize()
+
+    @command('n')
+    async def export_checkpoints(self, path):
+        """Run manually to generate blockchain checkpoints. """
+        return await self.network.export_checkpoints(path)
 
     @command('')
     async def encrypt(self, pubkey, message) -> str:
