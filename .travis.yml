@@ -26,7 +26,7 @@ jobs:
       language: python
       python: 3.7
       install:
-        - sudo add-apt-repository -y ppa:bitcoin/bitcoin
+        - sudo add-apt-repository -y ppa:luke-jr/bitcoincore
         - sudo apt-get -qq update
         - sudo apt-get install -yq bitcoind
         - sudo apt-get -y install libsecp256k1-0
