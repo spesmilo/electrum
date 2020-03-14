@@ -115,8 +115,9 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
 
         TxEditor.__init__(self, window=window, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         WindowModalDialog.__init__(self, window, _("Confirm Transaction"))
-        self.asset_symbol= asset_symbol
+        self.asset_symbol = asset_symbol
         self.asset_precision = asset_precision
+        self.asset_amount = asset_amount
         vbox = QVBoxLayout()
         self.setLayout(vbox)
         grid = QGridLayout()

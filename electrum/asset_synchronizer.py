@@ -92,7 +92,7 @@ class AssetSynchronizer(Logger):
         url = 'api/v2/xpub/' + self.xpub
         res = await self.send_request(url)
         alist = []
-        if res is not None:
+        if res is not None and 'tokens' in res:
             self.total_pages = res['totalPages']
             alist = self.get_assets_from_json(res['tokens'])
         return alist
@@ -109,32 +109,33 @@ class AssetSynchronizer(Logger):
             for token in res['tokens']:
                 xpubTokens[token['name']] = True
             self.asset_list = self.get_assets_from_json(res['tokens'])
-        transactions = res['transactions']
-        for tx in transactions:
-            if 'tokenTransfers' in tx:
-                delta = 0
-                fee = 0
-                for tokenTransfer in tx['tokenTransfers']:
-                    if tokenTransfer['fee']:
-                        fee = int(tokenTransfer['fee'])
-                    # find delta, if its sent from this xpub it should be negative based on tt total amount
-                    # otherwise look in recipients to find the delta based on matching recipient to xpub token
-                    if tokenTransfer['from'] in xpubTokens:
-                        delta = -1*int(tokenTransfer['totalAmount'])
-                    elif 'recipients' in tokenTransfer:
-                        for recipient in tokenTransfer['recipients']:   
-                            if recipient['to'] in xpubTokens:
-                                delta = int(recipient['value'])
-                                break
-                    self.asset_history.append(AssetHistoryItem(txid=tx['txid'],
-                        transfer_type=tokenTransfer['type'],
-                        asset=tokenTransfer['token'],
-                        symbol=tokenTransfer['symbol'],
-                        fee=fee,
-                        precision=tokenTransfer['decimals'],
-                        balance=self.get_asset_balance(tokenTransfer['token']),
-                        tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
-                        delta=delta))
+        if 'transactions' in res:
+            transactions = res['transactions']
+            for tx in transactions:
+                if 'tokenTransfers' in tx:
+                    delta = 0
+                    fee = 0
+                    for tokenTransfer in tx['tokenTransfers']:
+                        if tokenTransfer['fee']:
+                            fee = int(tokenTransfer['fee'])
+                        # find delta, if its sent from this xpub it should be negative based on tt total amount
+                        # otherwise look in recipients to find the delta based on matching recipient to xpub token
+                        if tokenTransfer['from'] in xpubTokens:
+                            delta = -1*int(tokenTransfer['totalAmount'])
+                        elif 'recipients' in tokenTransfer:
+                            for recipient in tokenTransfer['recipients']:   
+                                if recipient['to'] in xpubTokens:
+                                    delta = int(recipient['value'])
+                                    break
+                        self.asset_history.append(AssetHistoryItem(txid=tx['txid'],
+                            transfer_type=tokenTransfer['type'],
+                            asset=tokenTransfer['token'],
+                            symbol=tokenTransfer['symbol'],
+                            fee=fee,
+                            precision=tokenTransfer['decimals'],
+                            balance=self.get_asset_balance(tokenTransfer['token']),
+                            tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
+                            delta=delta))
 
 
     def get_onchain_assethistory(self):

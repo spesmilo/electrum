@@ -324,6 +324,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.save_db()
 
     def start_network(self, network):
+        AddressSynchronizer.start_network(self, network)
         if self.lnworker and network and not self.is_lightning_backup():
             network.maybe_init_lightning()
             self.lnworker.start_network(network)
