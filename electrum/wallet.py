@@ -875,10 +875,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if to_timestamp and (timestamp or now) >= to_timestamp:
                 continue
             tx_hash = item['txid']
-            tx = self.db.get_transaction(tx_hash)
             tx_fee = item['fee_sat']
             item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
             if show_addresses:
+                tx = self.db.get_transaction(tx_hash)
                 item['inputs'] = list(map(lambda x: x.to_json(), tx.inputs()))
                 item['outputs'] = list(map(lambda x: {'address': x.get_ui_address_str(), 'value': Satoshis(x.value)},
                                            tx.outputs()))
@@ -955,10 +955,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if to_timestamp and (timestamp or now) >= to_timestamp:
                 continue
             tx_hash = item['txid']
-            tx = self.db.get_transaction(tx_hash)
             tx_fee = item['fee_sat']
             item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
             if show_addresses:
+                tx = self.db.get_transaction(tx_hash)
                 item['inputs'] = list(map(lambda x: x.to_json(), tx.inputs()))
                 item['outputs'] = list(map(lambda x: {'address': x.get_ui_address_str(), 'value': Satoshis(x.value)},
                                            tx.outputs()))
