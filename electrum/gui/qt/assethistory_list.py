@@ -284,7 +284,6 @@ class AssetHistoryModel(QAbstractItemModel, Logger):
     @profiler
     def refresh(self, reason: str):
         self.logger.info(f"refreshing... reason: {reason}")
-        assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         assert self.view, 'view not set'
         if self.view.maybe_defer_update():
             return
@@ -451,11 +450,11 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_timestamp = None
         self.end_timestamp = None
         self.years = []
-        self.create_toolbar_buttons()
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
         self.sortByColumn(AssetHistoryColumns.STATUS, Qt.AscendingOrder)
         self.editable_columns |= {AssetHistoryColumns.FIAT_VALUE}
-
+        self.create_toolbar_buttons()
+        self.create_paging()
         self.header().setStretchLastSection(False)
         for col in AssetHistoryColumns:
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
@@ -463,6 +462,8 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
 
     def update(self):
         self.hm.refresh('AssetHistoryList.update()')
+        self.current_page_label.setText(str(self.parent.wallet.asset_synchronizer.current_page))
+        self.total_pages_label.setText(str(self.parent.wallet.asset_synchronizer.total_pages))
 
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
@@ -488,6 +489,11 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
             self.end_button.setText(_('To') + ' ' + self.format_date(end_date))
         self.hide_rows()
 
+    def on_page_size_combo(self, x):
+        s = self.page_size_combo.itemText(x)
+        self.wallet.network.run_from_another_thread(self.wallet.asset_synchronizer.change_results_per_page(int(s), self.update))
+        self.hide_rows()
+
     def create_toolbar_buttons(self):
         self.period_combo = QComboBox()
         self.start_button = QPushButton('-')
@@ -501,6 +507,29 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
+
+    def create_paging(self):
+        self.page_size_combo = QComboBox()
+        self.page_size_combo.setFixedWidth(100)
+        self.prev_button = QPushButton('<')
+        self.prev_button.setFixedWidth(75)
+        self.prev_button.pressed.connect(self.select_prev_page)
+        self.prev_button.setEnabled(True)
+        self.next_button = QPushButton('>')
+        self.next_button.setFixedWidth(75)
+        self.next_button.pressed.connect(self.select_next_page)
+        self.next_button.setEnabled(True)
+        self.page_size_combo.addItems(["25","50","100"])
+        self.page_size_combo.activated.connect(self.on_page_size_combo)
+        self.current_page_label = QLabel(str(self.wallet.asset_synchronizer.current_page))
+        self.page_divider = QLabel("/")
+        self.total_pages_label = QLabel(str(self.wallet.asset_synchronizer.total_pages))
+
+    def get_paging_buttons(self):
+        return [self.page_size_combo, self.prev_button, self.next_button]
+
+    def get_page_info_labels(self):
+        return [self.current_page_label, self.page_divider, self.total_pages_label]
 
     def on_hide_toolbar(self):
         self.start_timestamp = None
@@ -516,6 +545,14 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
 
     def select_end_date(self):
         self.end_timestamp = self.select_date(self.end_button)
+        self.hide_rows()
+
+    def select_next_page(self):
+        self.wallet.network.run_from_another_thread(self.wallet.asset_synchronizer.increase_page(self.update))
+        self.hide_rows()
+
+    def select_prev_page(self):
+        self.wallet.network.run_from_another_thread(self.wallet.asset_synchronizer.decrease_page(self.update))
         self.hide_rows()
 
     def select_date(self, button):

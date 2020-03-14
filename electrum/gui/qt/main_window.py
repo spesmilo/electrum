@@ -2012,7 +2012,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.updating_asset_list = False
 
-    def create_list_tab(self, l, toolbar=None):
+    def create_list_tab(self, l, toolbar=None, paging=None):
         w = QWidget()
         w.searchable_list = l
         vbox = QVBoxLayout()
@@ -2022,6 +2022,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if toolbar:
             vbox.addLayout(toolbar)
         vbox.addWidget(l)
+        if paging:
+            vbox.addLayout(paging)
         return w
 
     def create_addresses_tab(self):
@@ -2040,7 +2042,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         toolbar = l.create_toolbar(self.config)
         toolbar_shown = bool(self.config.get('show_toolbar_assethistory', False))
         l.show_toolbar(toolbar_shown)
-        return self.create_list_tab(l, toolbar)
+        paging = l.create_paging_layout()
+        return self.create_list_tab(l, toolbar, paging)
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList

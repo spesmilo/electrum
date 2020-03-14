@@ -65,10 +65,10 @@ class AssetSynchronizer(Logger):
         self.asset_list = [] # type: AssetItem
         self.asset_history = [] # type: AssetHistoryItem
         self.asset_list_dict = {} # type: AssetItem
-        self.current_page = 0
+        self.current_page = 1
         self.results_per_page = 25
         self.xpub = xpub
-        self.total_pages = 0
+        self.total_pages = 1
 
     def get_assets_from_json(self, jsonTokens):
         alist = []
@@ -97,6 +97,7 @@ class AssetSynchronizer(Logger):
         self.total_pages = res['totalPages']
         xpubTokens = {}
         missingTxs = []
+        self.asset_history = []
         alist = []
         if 'tokens' in res:
             for token in res['tokens']:
@@ -161,27 +162,26 @@ class AssetSynchronizer(Logger):
     async def start_network(self, network):
         self.network = network
         self.asset_list = await self.fetch_assethistory()
-    
-    async def change_page(self, page):
-        if page >= self.total_pages and page <= self.total_pages:
-            self.current_page = page
+
+    async def increase_page(self, callback):
+        if self.current_page < self.total_pages:
+            self.current_page = self.current_page + 1
             self.asset_list = await self.fetch_assethistory()
+            if len(self.asset_list) is 0:
+                self.current_page = self.current_page - 1
+                self.asset_list = await self.fetch_assethistory()
+            callback()
 
-    async def increase_page(self, page):
-        self.current_page = self.current_page + 1
-        self.asset_list = await self.fetch_assethistory()
-        if page > self.total_pages or len(self.asset_list) is 0:
+    async def decrease_page(self, callback):
+        if self.current_page > 1:
             self.current_page = self.current_page - 1
+            self.asset_list = await self.fetch_assethistory()
+            callback()
 
-    async def decrease_page(self, page):
-        self.current_page = self.current_page - 1
-        if self.current_page < 0:
-            self.current_page = 0
-        self.asset_list = await self.fetch_assethistory()
-
-    async def change_results_per_page(self, results_page):
+    async def change_results_per_page(self, results_page, callback):
         self.results_per_page = results_page
         self.asset_list = await self.fetch_assethistory()
+        callback()
 
     def get_assets(self):
         return self.asset_list

@@ -641,6 +641,20 @@ class MyTreeView(QTreeView):
         hbox.addWidget(hide_button)
         return hbox
 
+    def create_paging_layout(self):
+        hbox = QHBoxLayout()
+        buttons = self.get_paging_buttons()
+        info = self.get_page_info_labels()
+        hbox.addWidget(buttons[0])
+        hbox.addWidget(buttons[1])
+        hbox.addWidget(info[0])
+        hbox.addWidget(info[1])
+        hbox.addWidget(info[2])
+        hbox.addWidget(buttons[2])
+        hbox.setAlignment(Qt.AlignRight)
+        return hbox
+
+
     def save_toolbar_state(self, state, config):
         pass  # implemented in subclasses
 
