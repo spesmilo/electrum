@@ -88,15 +88,6 @@ class AssetSynchronizer(Logger):
         for a in assets:
             self.asset_list_dict[a.asset] = a
 
-    async def fetch_assets(self):
-        url = 'api/v2/xpub/' + self.xpub
-        res = await self.send_request(url)
-        alist = []
-        if res is not None and 'tokens' in res:
-            self.total_pages = res['totalPages']
-            alist = self.get_assets_from_json(res['tokens'])
-        return alist
-
     async def fetch_assethistory(self):
         url = 'api/v2/xpub/' + self.xpub
         url += '?details=txs&page=' + str(self.current_page) + '&pageSize=' + str(self.results_per_page)
@@ -105,10 +96,12 @@ class AssetSynchronizer(Logger):
             return
         self.total_pages = res['totalPages']
         xpubTokens = {}
+        missingTxs = []
+        alist = []
         if 'tokens' in res:
             for token in res['tokens']:
                 xpubTokens[token['name']] = True
-            self.asset_list = self.get_assets_from_json(res['tokens'])
+            alist = self.get_assets_from_json(res['tokens'])
         if 'transactions' in res:
             transactions = res['transactions']
             for tx in transactions:
@@ -126,6 +119,9 @@ class AssetSynchronizer(Logger):
                             for recipient in tokenTransfer['recipients']:   
                                 if recipient['to'] in xpubTokens:
                                     delta = int(recipient['value'])
+                                    txDb = self.wallet.db.get_transaction(tx['txid'])
+                                    if not txDb:
+                                        missingTxs.append(tx)
                                     break
                         self.asset_history.append(AssetHistoryItem(txid=tx['txid'],
                             transfer_type=tokenTransfer['type'],
@@ -137,6 +133,11 @@ class AssetSynchronizer(Logger):
                             tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
                             delta=delta))
 
+        if len(missingTxs) > 0:
+            self.logger.info("fetch_assethistory missing {} asset txs".format(len(missingTxs)))            
+            hist = list(map(lambda item: (item['txid'], item['blockHeight']), missingTxs))
+            await self.wallet.synchronizer._request_missing_txs(hist, allow_server_not_finding_tx=True)
+        return alist
 
     def get_onchain_assethistory(self):
         for hist_item in self.asset_history:
@@ -159,16 +160,16 @@ class AssetSynchronizer(Logger):
 
     async def start_network(self, network):
         self.network = network
-        await self.fetch_assethistory()
+        self.asset_list = await self.fetch_assethistory()
     
     async def change_page(self, page):
         if page >= self.total_pages and page <= self.total_pages:
             self.current_page = page
-            await self.fetch_assethistory()
+            self.asset_list = await self.fetch_assethistory()
 
     async def increase_page(self, page):
         self.current_page = self.current_page + 1
-        await self.fetch_assethistory()
+        self.asset_list = await self.fetch_assethistory()
         if page > self.total_pages or len(self.asset_list) is 0:
             self.current_page = self.current_page - 1
 
@@ -176,11 +177,11 @@ class AssetSynchronizer(Logger):
         self.current_page = self.current_page - 1
         if self.current_page < 0:
             self.current_page = 0
-        await self.fetch_assethistory()
+        self.asset_list = await self.fetch_assethistory()
 
     async def change_results_per_page(self, results_page):
         self.results_per_page = results_page
-        await self.fetch_assethistory()
+        self.asset_list = await self.fetch_assethistory()
 
     def get_assets(self):
         return self.asset_list
@@ -209,11 +210,11 @@ class AssetSynchronizer(Logger):
         else:
             return 0            
 
-    async def synchronize_assets(self, callback=None, notify_flag=True):
+    async def synchronize_assets(self, callback=None):
         try:
             self.logger.info("synchronizing assets")
             try:
-                result_ = await self.fetch_assets()
+                result_ = await self.fetch_assethistory()
             except RuntimeError as e:
                 self.logger.info("synchronize_assets: asyncio error {}".format(e))
                 return
@@ -228,7 +229,7 @@ class AssetSynchronizer(Logger):
                     break
             self.asset_list = new_asset_list
             if callback is not None:
-                callback(changed_asset, notify_flag)
+                callback(changed_asset)
         except RequestTimedOut as e:
             if e is not TimeoutError:
                 raise e

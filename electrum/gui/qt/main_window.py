@@ -330,9 +330,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.fx.is_enabled() and self.fx.get_base_currency() is not amount_e.getTokenSymbol() and amount_e.getTokenSymbol() is not None:
             self.fx.set_base_currency(amount_e.getTokenSymbol())
 
-    def on_assets_updated(self, asset, notify_flag=True):
+    def on_assets_updated(self, asset):
         self.populate_asset_picklist(self.asset_e, self.amount_e)
-        if notify_flag is True and asset is not None:
+        if asset is not None:
             self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
                         .format(asset.symbol, asset.asset, self.format_amount(asset.balance, decimal=asset.precision)))
 
@@ -441,6 +441,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self.need_update.set()
+            self.update_assets()
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -474,9 +475,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             pass
         elif event == 'fee_histogram':
             self.history_model.on_fee_histogram()
-        elif event == 'blockchain_updated':
-            # to update number of confirmations in history
-            self.update_assets()  
         elif event == 'ln_gossip_sync_progress':
             self.update_lightning_icon()
         else:
@@ -528,7 +526,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             send_exception_to_crash_reporter(e)
-        self.update_assets(False)
 
     def init_geometry(self):
         winpos = self.wallet.db.get("winpos-qt")
@@ -1778,9 +1775,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
-    def update_assets(self, notify_flag=True):
+    def update_assets(self):
         self.network.run_from_another_thread(
-            self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated, notify_flag=notify_flag)
+            self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated)
         )
 
     def mktx_for_open_channel(self, funding_sat):

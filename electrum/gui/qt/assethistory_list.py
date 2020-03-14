@@ -628,8 +628,8 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
         if not tx:
             return
         asset_guid = tx_item['asset']
-        tx_URL = block_explorer_URL(self.config, 'asset', asset_guid)
-        asset_URL = block_explorer_URL(self.config, 'tx', tx_hash)
+        asset_URL = block_explorer_URL(self.config, 'asset', asset_guid)
+        tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         tx_details = self.wallet.get_tx_info(tx)
         is_unconfirmed = tx_details.tx_mined_status.height <= 0
         invoice_keys = self.wallet._get_relevant_invoice_keys_for_tx(tx)
