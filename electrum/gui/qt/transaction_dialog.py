@@ -698,12 +698,12 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.size_e.setAmount(0)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
-        self.feerate_e = FeerateEdit(lambda: 0)
+        self.feerate_e = FeerateEdit(0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
         self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
 
-        self.fee_e = BTCAmountEdit(self.main_window.get_decimal_point)
+        self.fee_e = BTCAmountEdit(self.main_window.get_decimal_point())
         self.fee_e.textEdited.connect(partial(self.on_fee_or_feerate, self.fee_e, False))
         self.fee_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.fee_e, True))
 

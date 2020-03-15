@@ -3220,7 +3220,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         def on_textedit_rate():
             fee_slider.deactivate()
-        feerate_e = FeerateEdit(lambda: 0)
+        feerate_e = FeerateEdit(0)
         feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
         feerate_e.textEdited.connect(on_textedit_rate)
         vbox.addWidget(feerate_e)
