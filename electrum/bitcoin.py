@@ -304,8 +304,9 @@ def relayfee(network: 'Network' = None) -> int:
         fee = network.relay_fee
     else:
         fee = FEERATE_DEFAULT_RELAY
+    # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, FEERATE_MAX_RELAY)
-    fee = max(fee, 0)
+    fee = max(fee, FEERATE_DEFAULT_RELAY)
     return fee
 
 
