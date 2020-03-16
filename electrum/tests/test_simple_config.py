@@ -113,25 +113,25 @@ class Test_SimpleConfig(SequentialTestCase):
     def test_depth_target_to_fee(self):
         config = SimpleConfig(self.options)
         config.mempool_fees = [[49, 100110], [10, 121301], [6, 153731], [5, 125872], [1, 36488810]]
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(1000000))
-        self.assertEqual( 6 * 1000, config.depth_target_to_fee( 500000))
-        self.assertEqual( 7 * 1000, config.depth_target_to_fee( 250000))
-        self.assertEqual(11 * 1000, config.depth_target_to_fee( 200000))
-        self.assertEqual(50 * 1000, config.depth_target_to_fee( 100000))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(1000000))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee( 500000))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee( 250000))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee( 200000))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee( 100000))
         config.mempool_fees = []
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 7))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 5))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 6))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 7))
         config.mempool_fees = [[1, 36488810]]
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 7))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 8))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 5))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 6))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 7))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 8))
         config.mempool_fees = [[5, 125872], [1, 36488810]]
-        self.assertEqual( 6 * 1000, config.depth_target_to_fee(10 ** 5))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 6))
-        self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 7))
-        self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 8))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 5))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 6))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 7))
+        self.assertEqual(100 * 1000, config.depth_target_to_fee(10 ** 8))
 
     def test_fee_to_depth(self):
         config = SimpleConfig(self.options)

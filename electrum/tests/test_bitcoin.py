@@ -395,7 +395,7 @@ class Test_xprv_xpub(SequentialTestCase):
 
     xprv_xpub = (
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        {'xprv': 'xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76',
+        {'xprv': 'xprvA3hqG4TrXPXT5GXzfSVDdMqPhdAAK75ajC4Gm9FDRTtZV2CxxLBNkEQRkeBWZgAnuPjaBFVNhVWogU5mHLw8XcFJXmG37yy3P2YD8VD1xdo',
          'xpub': 'xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy',
          'xtype': 'standard'},
         {'xprv': 'yprvAJEYHeNEPcyBoQYM7sGCxDiNCTX65u4ANgZuSGTrKN5YCC9MP84SBayrgaMyZV7zvkHrr3HVPTK853s2SPk4EttPazBZBmz6QfDkXeE8Zr7',
@@ -427,7 +427,7 @@ class Test_xprv_xpub(SequentialTestCase):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
         self.assertEqual("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy", xpub)
-        self.assertEqual("xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76", xprv)
+        self.assertEqual("xprvA3hqG4TrXPXT5GXzfSVDdMqPhdAAK75ajC4Gm9FDRTtZV2CxxLBNkEQRkeBWZgAnuPjaBFVNhVWogU5mHLw8XcFJXmG37yy3P2YD8VD1xdo", xprv)
 
         xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
         self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)

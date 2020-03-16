@@ -14,12 +14,12 @@ from . import SequentialTestCase
 class TestStorageUpgrade(WalletTestCase):
 
     def test_upgrade_from_client_1_9_8_seeded(self):
-        wallet_str = "{'addr_history':{'177hEYTccmuYH8u68pYfaLteTxwJrVgvJj':[],'15V7MsQK2vjF5aEXLVG11qi2eZPZsXdnYc':[],'1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf':[],'1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs':[],'1DjtUCcQwwzA3GSPA7Kd79PMnri7tLDPYC':[],'1PGEgaPG1XJqmuSj68GouotWeYkCtwo4wm':[],'1PAgpPxnL42Hp3cWxmSfdChPqqGiM8g7zj':[],'1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa':[]},'accounts_expanded':{},'master_public_key':'756d1fe6ded28d43d4fea902a9695feb785447514d6e6c3bdf369f7c3432fdde4409e4efbffbcf10084d57c5a98d1f34d20ac1f133bdb64fa02abf4f7bde1dfb','use_encryption':False,'seed':'2605aafe50a45bdf2eb155302437e678','accounts':{0:{0:['1DjtUCcQwwzA3GSPA7Kd79PMnri7tLDPYC','1PAgpPxnL42Hp3cWxmSfdChPqqGiM8g7zj','177hEYTccmuYH8u68pYfaLteTxwJrVgvJj','1PGEgaPG1XJqmuSj68GouotWeYkCtwo4wm','15V7MsQK2vjF5aEXLVG11qi2eZPZsXdnYc'],1:['1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs','1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa','1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf']}},'seed_version':4}"
+        wallet_str = "{'addr_history':{'GZwz9dsMCVMLwB6ZbfCNqFYpZRp8x1bsGQ':[],'GU2jE3RMQ9tWyi6sicRNrZZUDDBq78BSHJ':[],'GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW':[],'GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp':[],'Ge33n4XQzxSXX4dfwCkFixjLF9yU2qDvPR':[],'Ggd5Ff3bfoGpJDd4buqhiVNxitZRP76g2j':[],'Ga4WZfMijFph8pFww2Jy28rNi7uD4zeLwM':[],'GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm':[]},'accounts_expanded':{},'master_public_key':'tpubD6NzVbkrYhZ4YTtUepe9zpiHyDKUWNrsdyrRrSn5dQUcXYM28xAwmvk68KgX91kW6i6eWCb7TAhR4YWXtmtHd9GAQrpUDSkDAFSEhXNmQBM','use_encryption':False,'seed':'absurd inject aunt strategy reopen actual under fiber toast find tag quarter','accounts':{0:{0:['Ge33n4XQzxSXX4dfwCkFixjLF9yU2qDvPR','Ga4WZfMijFph8pFww2Jy28rNi7uD4zeLwM','GZwz9dsMCVMLwB6ZbfCNqFYpZRp8x1bsGQ','Ggd5Ff3bfoGpJDd4buqhiVNxitZRP76g2j','GU2jE3RMQ9tWyi6sicRNrZZUDDBq78BSHJ'],1:['GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp','GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm','GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW']}},'seed_version':4}"
         self._upgrade_storage(wallet_str)
 
     # TODO pre-2.0 mixed wallets are not split currently
     #def test_upgrade_from_client_1_9_8_mixed(self):
-    #    wallet_str = "{'addr_history':{'15V7MsQK2vjF5aEXLVG11qi2eZPZsXdnYc':[],'177hEYTccmuYH8u68pYfaLteTxwJrVgvJj':[],'1DjtUCcQwwzA3GSPA7Kd79PMnri7tLDPYC':[],'1PGEgaPG1XJqmuSj68GouotWeYkCtwo4wm':[],'1PAgpPxnL42Hp3cWxmSfdChPqqGiM8g7zj':[],'1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf':[],'1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs':[],'1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa':[]},'accounts_expanded':{},'master_public_key':'756d1fe6ded28d43d4fea902a9695feb785447514d6e6c3bdf369f7c3432fdde4409e4efbffbcf10084d57c5a98d1f34d20ac1f133bdb64fa02abf4f7bde1dfb','use_encryption':False,'seed':'2605aafe50a45bdf2eb155302437e678','accounts':{0:{0:['1DjtUCcQwwzA3GSPA7Kd79PMnri7tLDPYC','1PAgpPxnL42Hp3cWxmSfdChPqqGiM8g7zj','177hEYTccmuYH8u68pYfaLteTxwJrVgvJj','1PGEgaPG1XJqmuSj68GouotWeYkCtwo4wm','15V7MsQK2vjF5aEXLVG11qi2eZPZsXdnYc'],1:['1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs','1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa','1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf'],'mpk':'756d1fe6ded28d43d4fea902a9695feb785447514d6e6c3bdf369f7c3432fdde4409e4efbffbcf10084d57c5a98d1f34d20ac1f133bdb64fa02abf4f7bde1dfb'}},'imported_keys':{'15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA':'5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq','1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6':'L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U','1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr':'L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM'},'seed_version':4}"
+    #    wallet_str = "{'addr_history':{'GU2jE3RMQ9tWyi6sicRNrZZUDDBq78BSHJ':[],'GZwz9dsMCVMLwB6ZbfCNqFYpZRp8x1bsGQ':[],'Ge33n4XQzxSXX4dfwCkFixjLF9yU2qDvPR':[],'Ggd5Ff3bfoGpJDd4buqhiVNxitZRP76g2j':[],'Ga4WZfMijFph8pFww2Jy28rNi7uD4zeLwM':[],'GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW':[],'GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp':[],'GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm':[]},'accounts_expanded':{},'master_public_key':'tpubD6NzVbkrYhZ4YTtUepe9zpiHyDKUWNrsdyrRrSn5dQUcXYM28xAwmvk68KgX91kW6i6eWCb7TAhR4YWXtmtHd9GAQrpUDSkDAFSEhXNmQBM','use_encryption':False,'seed':'absurd inject aunt strategy reopen actual under fiber toast find tag quarter','accounts':{0:{0:['Ge33n4XQzxSXX4dfwCkFixjLF9yU2qDvPR','Ga4WZfMijFph8pFww2Jy28rNi7uD4zeLwM','GZwz9dsMCVMLwB6ZbfCNqFYpZRp8x1bsGQ','Ggd5Ff3bfoGpJDd4buqhiVNxitZRP76g2j','GU2jE3RMQ9tWyi6sicRNrZZUDDBq78BSHJ'],1:['GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp','GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm','GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW'],'mpk':'tpubD6NzVbkrYhZ4YTtUepe9zpiHyDKUWNrsdyrRrSn5dQUcXYM28xAwmvk68KgX91kW6i6eWCb7TAhR4YWXtmtHd9GAQrpUDSkDAFSEhXNmQBM'}},'imported_keys':{'15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA':'5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq','1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6':'L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U','1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr':'L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM'},'seed_version':4}"
     #    self._upgrade_storage(wallet_str, accounts=2)
 
     def test_upgrade_from_client_2_0_4_seeded(self):
@@ -31,7 +31,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_0_4_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"wallet_type":"imported"}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"wallet_type":"imported"}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_0_4_trezor_singleacc(self):
@@ -55,7 +55,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_1_1_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_1_1_trezor_singleacc(self):
@@ -79,7 +79,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_2_0_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":0,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":0,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_2_0_trezor_singleacc(self):
@@ -103,7 +103,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_3_2_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":0,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":0,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_3_2_trezor_singleacc(self):
@@ -127,7 +127,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_4_3_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported"}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_4_3_trezor_singleacc(self):
@@ -151,7 +151,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_5_4_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"addr_history":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported","winpos-qt":[406,393,840,400]}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"addr_history":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported","winpos-qt":[406,393,840,400]}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_5_4_trezor_singleacc(self):
@@ -175,7 +175,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_6_4_watchaddresses(self):
-        wallet_str = '{"accounts":{"/x":{"imported":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[null,null],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[null,null],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[null,null]}}},"accounts_expanded":{},"addr_history":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported","winpos-qt":[582,425,840,400]}'
+        wallet_str = '{"accounts":{"/x":{"imported":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[null,null],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[null,null],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[null,null]}}},"accounts_expanded":{},"addr_history":{},"pruned_txo":{},"stored_height":490038,"transactions":{},"txi":{},"txo":{},"wallet_type":"imported","winpos-qt":[582,425,840,400]}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_6_4_multisig(self):
@@ -191,7 +191,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_7_18_watchaddresses(self):
-        wallet_str = '{"addr_history":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[]},"addresses":["1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs","1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa","1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf"],"pruned_txo":{},"seed_version":13,"stored_height":0,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[553,402,840,405]}'
+        wallet_str = '{"addr_history":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[]},"addresses":["GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp","GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm","GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW"],"pruned_txo":{},"seed_version":13,"stored_height":0,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[553,402,840,405]}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_7_18_trezor_singleacc(self):
@@ -222,7 +222,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_8_3_watchaddresses(self):
-        wallet_str = '{"addr_history":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[]},"addresses":["1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs","1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa","1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf"],"pruned_txo":{},"seed_version":13,"stored_height":0,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[535,380,840,405]}'
+        wallet_str = '{"addr_history":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[]},"addresses":["GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp","GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm","GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW"],"pruned_txo":{},"seed_version":13,"stored_height":0,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[535,380,840,405]}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_8_3_trezor_singleacc(self):
@@ -242,7 +242,7 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_9_3_watchaddresses(self):
-        wallet_str = '{"addr_history":{"1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf":[],"1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs":[],"1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa":[]},"addresses":["1H3mPXHFzA8UbvhQVabcDjYw3CPb3djvxs","1HocPduHmQUJerpdaLG8DnmxvnDCVQwWsa","1DgrwN2JCDZ6uPMSvSz8dPeUtaxLxWM2kf"],"pruned_txo":{},"seed_version":13,"stored_height":490039,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[499,386,840,405]}'
+        wallet_str = '{"addr_history":{"GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW":[],"GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp":[],"GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm":[]},"addresses":["GYmDqj7MrVQNv5aqwbia2552eZAQi8odPp","GM8r5MAz4Wbj3SpKiMbuyJeh6tNspiWmWm","GcztHNvEaypjW9GusgA8VXSND8NyMmkSvW"],"pruned_txo":{},"seed_version":13,"stored_height":490039,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"verified_tx3":{},"wallet_type":"imported","winpos-qt":[499,386,840,405]}'
         self._upgrade_storage(wallet_str)
 
     def test_upgrade_from_client_2_9_3_trezor_singleacc(self):
