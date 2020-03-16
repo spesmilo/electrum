@@ -38,7 +38,7 @@ from .sql_db import SqlDB, sql
 from . import constants
 from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .logging import Logger
-from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, format_short_channel_id, ShortChannelID
+from .lnutil import LN_FEATURES_IMPLEMENTED, LNPeerAddr, format_short_channel_id, ShortChannelID
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 
@@ -49,10 +49,10 @@ if TYPE_CHECKING:
 
 class UnknownEvenFeatureBits(Exception): pass
 
-def validate_features(features : int):
+def validate_features(features: int) -> None:
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
-        if (1 << fbit) not in LN_GLOBAL_FEATURES_KNOWN_SET and fbit % 2 == 0:
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
             raise UnknownEvenFeatureBits()
 
 

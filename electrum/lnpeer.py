@@ -37,7 +37,7 @@ from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
-                     secret_to_pubkey, PaymentFailure, LnLocalFeatures,
+                     secret_to_pubkey, PaymentFailure, LnFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
                      ln_compare_features, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
@@ -77,7 +77,7 @@ class Peer(Logger):
         self.pubkey = pubkey  # remote pubkey
         self.lnworker = lnworker
         self.privkey = lnworker.node_keypair.privkey  # local privkey
-        self.localfeatures = self.lnworker.localfeatures
+        self.features = self.lnworker.features
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
         self.channel_db = lnworker.network.channel_db
@@ -131,8 +131,8 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        # FIXME: "flen" hardcoded but actually it depends on "localfeatures"...:
-        self.send_message("init", gflen=0, flen=2, features=self.localfeatures,
+        # FIXME: "flen" hardcoded but actually it depends on "features"...:
+        self.send_message("init", gflen=0, flen=2, features=self.features.for_init_message(),
                           init_tlvs={
                               'networks':
                                   {'chains': constants.net.rev_genesis_bytes()}
@@ -204,11 +204,15 @@ class Peer(Logger):
         if self._received_init:
             self.logger.info("ALREADY INITIALIZED BUT RECEIVED INIT")
             return
-        # if they required some even flag we don't have, they will close themselves
-        # but if we require an even flag they don't have, we close
-        their_localfeatures = int.from_bytes(payload['features'], byteorder="big")  # TODO feature bit unification
+        their_features = LnFeatures(int.from_bytes(payload['features'], byteorder="big"))
+        their_globalfeatures = int.from_bytes(payload['globalfeatures'], byteorder="big")
+        their_features |= their_globalfeatures
+        # check transitive dependencies for received features
+        if not their_features.validate_transitive_dependecies():
+            raise GracefulDisconnect("remote did not set all dependencies for the features they sent")
+        # check if features are compatible, and set self.features to what we negotiated
         try:
-            self.localfeatures = ln_compare_features(self.localfeatures, their_localfeatures)
+            self.features = ln_compare_features(self.features, their_features)
         except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
             raise GracefulDisconnect(f"{str(e)}")
@@ -477,7 +481,7 @@ class Peer(Logger):
         self.lnworker.peer_closed(self)
 
     def is_static_remotekey(self):
-        return bool(self.localfeatures & LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        return bool(self.features & LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         # key derivation
@@ -756,7 +760,7 @@ class Peer(Logger):
         oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         latest_remote_ctn = chan.get_latest_ctn(REMOTE)
         next_remote_ctn = chan.get_next_ctn(REMOTE)
-        assert self.localfeatures & LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        assert self.features & LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         # send message
         srk_enabled = chan.is_static_remotekey_enabled()
         if srk_enabled:
