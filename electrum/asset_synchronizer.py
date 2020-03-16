@@ -69,6 +69,8 @@ class AssetSynchronizer(Logger):
         self.results_per_page = 25
         self.xpub = xpub
         self.total_pages = 1
+        self.lastUrl = ""
+        self.lastResponse = ""
 
     def get_assets_from_json(self, jsonTokens):
         alist = []
@@ -242,7 +244,13 @@ class AssetSynchronizer(Logger):
                 return await response.json(content_type=None)
 
     async def create_assetallocation_send(self, from_address, to_address, asset_guid, amount):
-        res = await self.send_request('api/v2/assetallocationsend/' + str(asset_guid) + '?to=' + to_address + '&from='+from_address + '&amount=' + str(amount))
-        return res['tx']['hex']
+        url = 'api/v2/assetallocationsend/' + str(asset_guid) + '?to=' + to_address + '&from='+from_address + '&amount=' + str(amount)
+        # seems to call twice in upstream code per request
+        if self.lastUrl == url:
+            return self.lastResponse
+        res = await self.send_request(url)
+        self.lastResponse = res['tx']['hex']
+        self.lastUrl = url
+        return self.lastResponse
 
  
