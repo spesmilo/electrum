@@ -194,14 +194,6 @@ class AssetSynchronizer(Logger):
         else:
             return None
 
-    def get_asset_symbol(self, asset_guid):
-        if asset_guid is None:
-            return "SYS"
-        if asset_guid in self.asset_list_dict:
-            return self.asset_list_dict[asset_guid].symbol
-        else:
-            return "UNKNOWN"
-
     def get_asset_balance(self, asset_guid):
         if asset_guid is None:
             return 0
@@ -250,7 +242,7 @@ class AssetSynchronizer(Logger):
                 return await response.json(content_type=None)
 
     async def create_assetallocation_send(self, from_address, to_address, asset_guid, amount):
-        res = await self.send_request('api/v2/assetallocationsend/' + asset_guid + '?to=' + to_address + '&from='+from_address + '&amount=' + amount)
-        return res['hex']
+        res = await self.send_request('api/v2/assetallocationsend/' + str(asset_guid) + '?to=' + to_address + '&from='+from_address + '&amount=' + str(amount))
+        return res['tx']['hex']
 
  

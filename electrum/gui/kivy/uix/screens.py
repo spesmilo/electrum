@@ -24,7 +24,7 @@ from kivy.utils import platform
 from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
@@ -232,12 +232,13 @@ class SendScreen(CScreen):
             log = self.app.wallet.lnworker.logs.get(key)
             if item['status'] == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
-        elif invoice_type == PR_TYPE_ONCHAIN:
+        elif invoice_type == PR_TYPE_ONCHAIN or invoice_type == PR_TYPE_ONCHAIN_ASSET:
             key = item['id']
         else:
             raise Exception('unknown invoice type')
         return {
             'is_lightning': invoice_type == PR_TYPE_LN,
+            'is_asset': invoice_type == PR_TYPE_ONCHAIN_ASSET,
             'is_bip70': 'bip70' in item,
             'screen': self,
             'status': status,
@@ -249,6 +250,7 @@ class SendScreen(CScreen):
 
     def do_clear(self):
         self.amount = ''
+        self.asset_guid = None
         self.message = ''
         self.address = ''
         self.payment_request = None
@@ -261,6 +263,7 @@ class SendScreen(CScreen):
         amount = pr.get_amount()
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.message = pr.get_memo()
+        self.asset_guid = pr.get_asset_guid()
         self.locked = True
         self.payment_request = pr
 
@@ -299,6 +302,7 @@ class SendScreen(CScreen):
             self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
             return
         message = self.message
+        asset_guid = self.asset_guid
         if self.is_lightning:
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
         else:  # on-chain
@@ -309,7 +313,7 @@ class SendScreen(CScreen):
                     self.app.show_error(_('invalid syscoin address') + ':\n' + address)
                     return
                 outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
+            return self.app.wallet.create_invoice(asset_guid, outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
         invoice = self.read_invoice()
@@ -332,7 +336,7 @@ class SendScreen(CScreen):
         if invoice['type'] == PR_TYPE_LN:
             self._do_pay_lightning(invoice)
             return
-        elif invoice['type'] == PR_TYPE_ONCHAIN:
+        elif invoice['type'] == PR_TYPE_ONCHAIN or invoice['type'] == PR_TYPE_ONCHAIN_ASSET:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf, asset_guid=self.asset_guid)
             if self.app.electrum_config.get('use_rbf'):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)
@@ -367,7 +371,7 @@ class SendScreen(CScreen):
         asset_amount = None
         asset_precision = None
         if asset_guid is not None:
-            asset = self.wallet.get_asset(asset_guid)
+            asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 asset_symbol = asset.symbol
                 asset_precision = asset.precision
@@ -432,6 +436,7 @@ class ReceiveScreen(CScreen):
 
     def clear(self):
         self.address = ''
+        self.asset_guid = None
         self.amount = ''
         self.message = ''
         self.lnaddr = ''
@@ -456,7 +461,12 @@ class ReceiveScreen(CScreen):
             a, u = self.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_bip21_uri(None, self.address, amount, self.message)
+        precision = 8
+        if self.asset_guid is not None:
+            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_guid)
+            if asset is not None:
+                precision = asset.precision      
+        return create_bip21_uri(self.asset_guid, self.address, amount, self.message, decimal_point=precision)
 
     def do_copy(self):
         uri = self.get_URI()
@@ -467,6 +477,7 @@ class ReceiveScreen(CScreen):
         amount = self.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.message
+        asset_guid = self.asset_guid
         if lightning:
             key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
         else:
@@ -475,7 +486,7 @@ class ReceiveScreen(CScreen):
                 self.app.show_info(_('No address available. Please remove some of your pending requests.'))
                 return
             self.address = addr
-            req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
+            req = self.app.wallet.make_payment_request(asset_guid, addr, amount, message, self.expiry())
             self.app.wallet.add_payment_request(req)
             key = addr
         self.clear()
@@ -502,6 +513,8 @@ class ReceiveScreen(CScreen):
         ci['memo'] = description
         ci['status'] = status
         ci['status_str'] = status_str
+        ci['is_asset']: req.get('type') == PR_TYPE_ONCHAIN_ASSET
+        ci['asset']: req.get('asset')
         return ci
 
     def update(self):

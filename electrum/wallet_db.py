@@ -32,7 +32,7 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 import binascii
 
 from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, PR_TYPE_ONCHAIN
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
@@ -1061,7 +1061,7 @@ class WalletDB(JsonDB):
         #      to something that can be typed.
         self.invoices = self.get_dict('invoices')
         for invoice_key, invoice in self.invoices.items():
-            if invoice.get('type') == PR_TYPE_ONCHAIN:
+            if invoice.get('type') == PR_TYPE_ONCHAIN or invoice.get('type') == PR_TYPE_ONCHAIN_ASSET:
                 invoice['outputs'] = [PartialTxOutput.from_legacy_tuple(*output) for output in invoice.get('outputs')]
 
     @modifier

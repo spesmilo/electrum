@@ -35,6 +35,7 @@ import copy
 import errno
 import traceback
 import operator
+import aiohttp
 from functools import partial
 from collections import defaultdict
 from numbers import Number
@@ -51,7 +52,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN, get_backup_dir
+from .util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, get_backup_dir
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
@@ -70,7 +71,7 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .asset_synchronizer import AssetSynchronizer
 from .util import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT
 from .contacts import Contacts
-from .interface import NetworkException
+from .interface import NetworkException, RequestTimedOut
 from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet
@@ -619,7 +620,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             }
 
 
-    def create_invoice(self, outputs: List[PartialTxOutput], message, pr, URI):
+    def create_invoice(self, asset_guid, outputs: List[PartialTxOutput], message, pr, URI):
         if '!' in (x.value for x in outputs):
             amount = '!'
         else:
@@ -630,12 +631,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'outputs': outputs,
             'amount': amount,
         }
+        if asset_guid:
+            invoice['type'] = PR_TYPE_ONCHAIN_ASSET
+            invoice['asset'] = asset_guid
         if pr:
             invoice['bip70'] = pr.raw.hex()
             invoice['time'] = pr.get_time()
             invoice['exp'] = pr.get_expiration_date() - pr.get_time()
             invoice['requestor'] = pr.get_requestor()
             invoice['message'] = pr.get_memo()
+            invoice['asset'] = pr.get_asset_guid()
         elif URI:
             timestamp = URI.get('time')
             if timestamp: invoice['time'] = timestamp
@@ -649,7 +654,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         invoice_type = invoice['type']
         if invoice_type == PR_TYPE_LN:
             key = invoice['rhash']
-        elif invoice_type == PR_TYPE_ONCHAIN:
+        elif invoice_type == PR_TYPE_ONCHAIN or invoice_type == PR_TYPE_ONCHAIN_ASSET:
             if self.is_onchain_invoice_paid(invoice):
                 self.logger.info("saving invoice... but it is already paid!")
             key = bh2u(sha256(repr(invoice))[0:16])
@@ -679,7 +684,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # convert StoredDict to dict
         item = dict(self.invoices[key])
         request_type = item.get('type')
-        if request_type == PR_TYPE_ONCHAIN:
+        if request_type == PR_TYPE_ONCHAIN or request_type == PR_TYPE_ONCHAIN_ASSET:
             item['status'] = PR_PAID if self.is_onchain_invoice_paid(item) else PR_UNPAID
         elif self.lnworker and request_type == PR_TYPE_LN:
             item['status'] = self.lnworker.get_invoice_status(key)
@@ -700,14 +705,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # scriptpubkey -> list(invoice_keys)
         self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
         for invoice_key, invoice in self.invoices.items():
-            if invoice.get('type') == PR_TYPE_ONCHAIN:
+            if invoice.get('type') == PR_TYPE_ONCHAIN or invoice.get('type') == PR_TYPE_ONCHAIN_ASSET:
                 outputs = invoice['outputs']  # type: List[PartialTxOutput]
                 for txout in outputs:
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
     def _is_onchain_invoice_paid(self, invoice: dict) -> Tuple[bool, Sequence[str]]:
         """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
-        assert invoice.get('type') == PR_TYPE_ONCHAIN
+        assert invoice.get('type') == PR_TYPE_ONCHAIN or invoice.get('type') == PR_TYPE_ONCHAIN_ASSET
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in invoice['outputs']:  # type: PartialTxOutput
             invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
@@ -736,7 +741,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for invoice_key in self._get_relevant_invoice_keys_for_tx(tx):
                 invoice = self.invoices.get(invoice_key)
                 if invoice is None: continue
-                assert invoice.get('type') == PR_TYPE_ONCHAIN
+                assert invoice.get('type') == PR_TYPE_ONCHAIN or invoice.get('type') == PR_TYPE_ONCHAIN_ASSET
                 if invoice['message']:
                     labels.append(invoice['message'])
         if labels:
@@ -1185,27 +1190,30 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 from_address = asset.address
         if from_address is None or precision is None:
             raise NotEnoughFunds()   
-        amount = amount / pow(10, precision)    
+        amount = amount / pow(10, precision) 
+        raw_tx = None
         if self.network and self.network.asyncio_loop.is_running():
-            raw_tx = None
             try:
                 self.logger.info("creating assetsend transaction: {} {} {} {}".format(
                     from_address, to_address, asset_guid, amount))
                 raw_tx = self.network.run_from_another_thread(
-                    self.network.create_assetallocation_send(
+                    self.asset_synchronizer.create_assetallocation_send(
                         from_address,
                         to_address,
                         asset_guid,
                         amount)
                 )
-                self.logger.info("assetsend tx created: {}".format(raw_tx))
-            except RequestTimedOut as e:
-                self.logger.info("error creating assetsend tx: {}".format(e))
-                raise e
+            except (aiohttp.client_exceptions.ClientResponseError, RequestTimedOut) as e:
+                error = f"Error while creating asset transaction.\nerror type: {type(e)}"
+                if isinstance(e, aiohttp.client_exceptions.ClientResponseError):
+                    error += f"\nGot HTTP status code {e.status}." 
+                self.logger.info(error)
+        if raw_tx is not None:
             tx = Transaction(raw_tx)
-            tx.deserialize(force_full_parse=True, wallet=self)  # need to parse inputs
-            run_hook('make_unsigned_assetsend_transaction', self, tx)
-        return tx
+            tx.deserialize()
+        else:
+            tx = Transaction("00")
+        return PartialTransaction.from_tx(tx)
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
@@ -1750,6 +1758,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         req = self.receive_requests[addr]
         message = self.labels.get(addr, '')
         amount = req['amount']
+        asset_guid = None
+        if req.get('asset'):
+            asset_guid = req['asset']
+            message = req['memo']
         extra_query_params = {}
         if req.get('time'):
             extra_query_params['time'] = str(int(req.get('time')))
@@ -1760,7 +1772,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             sig = bitcoin.base_encode(sig, base=58)
             extra_query_params['name'] = req['name']
             extra_query_params['sig'] = sig
-        uri = create_bip21_uri(None, addr, amount, message, extra_query_params=extra_query_params)
+        precision = 8
+        if asset_guid is not None:
+            asset = self.asset_synchronizer.get_asset(asset_guid)
+            if asset is not None:
+                precision = asset.precision
+        uri = create_bip21_uri(asset_guid, addr, amount, message, extra_query_params=extra_query_params, decimal_point=precision)
         return str(uri)
 
     def get_request_status(self, address):
@@ -1789,7 +1806,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # convert StoredDict to dict
         req = dict(req)
         _type = req.get('type')
-        if _type == PR_TYPE_ONCHAIN:
+        if _type == PR_TYPE_ONCHAIN or _type == PR_TYPE_ONCHAIN_ASSET:
             addr = req['address']
             req['URI'] = self.get_request_URI(addr)
             status, conf = self.get_request_status(addr)
@@ -1822,18 +1839,31 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 status, conf = self.get_request_status(addr)
                 self.network.trigger_callback('payment_received', self, addr, status)
 
-    def make_payment_request(self, addr, amount, message, expiration):
+    def make_payment_request(self, asset_guid, addr, amount, message, expiration):
         timestamp = int(time.time())
         _id = bh2u(sha256d(addr + "%d"%timestamp))[0:10]
-        return {
-            'type': PR_TYPE_ONCHAIN,
-            'time':timestamp,
-            'amount':amount,
-            'exp':expiration,
-            'address':addr,
-            'memo':message,
-            'id':_id,
-        }
+        if asset_guid:
+            return {
+                'type': PR_TYPE_ONCHAIN_ASSET,
+                'asset':asset_guid,
+                'time':timestamp,
+                'amount':amount,
+                'exp':expiration,
+                'address':addr,
+                'memo':message,
+                'id':_id,
+            }
+        else:
+            return {
+                'type': PR_TYPE_ONCHAIN,
+                'time':timestamp,
+                'amount':amount,
+                'exp':expiration,
+                'address':addr,
+                'memo':message,
+                'id':_id,
+            }  
+
 
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
@@ -1845,7 +1875,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.receive_requests[key] = req
 
     def add_payment_request(self, req):
-        if req['type'] == PR_TYPE_ONCHAIN:
+        if req['type'] == PR_TYPE_ONCHAIN or req['type'] == PR_TYPE_ONCHAIN_ASSET:
             addr = req['address']
             if not bitcoin.is_address(addr):
                 raise Exception(_('invalid syscoin address.'))

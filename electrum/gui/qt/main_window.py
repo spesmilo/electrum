@@ -62,7 +62,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
@@ -332,6 +332,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_assets_updated(self, asset):
         self.populate_asset_picklist(self.asset_e, self.amount_e)
+        self.populate_asset_picklist(self.receive_asset_e, self.receive_amount_e)
         if asset is not None:
             self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
                         .format(asset.symbol, asset.asset, self.format_amount(asset.balance, decimal=asset.precision)))
@@ -1043,20 +1044,58 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
+        def toggle_receive_asset_change(state):
+            if self.receive_asset_e.count() <= 0 or self.updating_asset_list is True:
+                return;
+            asset_list = self.wallet.asset_synchronizer.get_assets()
+            index = state - 1
+            if index < 0:
+                index = 0
+            if state <= 0:
+                self.setAssetState(False, self.receive_asset_e, self.receive_amount_e)
+            elif index < len(asset_list):
+                self.receive_asset_e.selected_asset_idx = state
+                self.receive_asset_e.selected_asset_guid = asset_list[index].asset
+                self.receive_asset_e.selected_asset_symbol = asset_list[index].symbol
+                self.receive_asset_e.selected_asset_address = asset_list[index].address
+                self.receive_asset_e.selected_asset_balance = asset_list[index].balance
+                self.receive_asset_e.selected_asset_decimal_point = asset_list[index].precision
+                self.setAssetState(True, self.receive_asset_e, self.receive_amount_e)
+
+        self.receive_asset_e = QComboBox(self)
+        self.receive_asset_e.selected_asset_decimal_point = 8
+        self.receive_asset_e.selected_asset_address = None
+        self.receive_asset_e.selected_asset_symbol = None
+        self.receive_asset_e.selected_asset_guid = None
+        self.receive_asset_e.selected_asset_balance = None
+        self.receive_asset_e.selected_asset_idx = 0
+        self.receive_asset_e.currentIndexChanged.connect(toggle_receive_asset_change)
+
+
+
+        self.receive_amount_e = BTCAmountEdit(self.get_decimal_point())
+        
+        msg = _('The Asset to recieve.') + '\n\n' \
+              + _('You may select any of these assets to receive from someone on the Syscoin network')
+        assete_label = HelpLabel(_('Asset'), msg)
+        grid.addWidget(assete_label, 0, 0)
+        grid.addWidget(self.receive_asset_e, 0, 1, 1, -1)
+        
         self.receive_message_e = QLineEdit()
-        grid.addWidget(QLabel(_('Description')), 0, 0)
+        grid.addWidget(QLabel(_('Description')), 1, 0)
+        grid.addWidget(self.receive_message_e, 1, 1, 1, 4)
+        
         grid.addWidget(self.receive_message_e, 0, 1, 1, 4)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
-        self.receive_amount_e = BTCAmountEdit(self.get_decimal_point())
-        grid.addWidget(QLabel(_('Requested amount')), 1, 0)
-        grid.addWidget(self.receive_amount_e, 1, 1)
+        grid.addWidget(QLabel(_('Requested amount')), 2, 0)
+        grid.addWidget(self.receive_amount_e, 2, 1)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
         self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_receive_e.setVisible(False)
-        grid.addWidget(self.fiat_receive_e, 1, 2, Qt.AlignLeft)
+        grid.addWidget(self.fiat_receive_e, 2, 2, Qt.AlignLeft)
 
         self.connect_fields(self, self.receive_amount_e, self.fiat_receive_e, None)
         self.connect_fields(self, self.amount_e, self.fiat_send_e, None)
@@ -1082,13 +1121,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             _('Expired requests have to be deleted manually from your list, in order to free the corresponding Syscoin addresses.'),
             _('The syscoin address never expires and will always be part of this electrum wallet.'),
         ])
-        grid.addWidget(HelpLabel(_('Expires after'), msg), 2, 0)
-        grid.addWidget(self.expires_combo, 2, 1)
+        grid.addWidget(HelpLabel(_('Expires after'), msg), 3, 0)
+        grid.addWidget(self.expires_combo, 3, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
         self.expires_label.setFocusPolicy(Qt.NoFocus)
         self.expires_label.hide()
-        grid.addWidget(self.expires_label, 2, 1)
+        grid.addWidget(self.expires_label, 3, 1)
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
@@ -1158,6 +1197,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.request_list)
         vbox.setStretchFactor(self.request_list, 1000)
+        self.populate_asset_picklist(self.receive_asset_e, self.receive_amount_e)
 
         return w
 
@@ -1223,7 +1263,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
             addr = self.wallet.create_new_address(False)
-        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+        asset_guid = self.receive_asset_e.selected_asset_guid
+        req = self.wallet.make_payment_request(asset_guid, addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req)
         except Exception as e:
@@ -1601,7 +1642,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
                 return
             message = self.message_e.text()
-            return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
+            asset_guid = self.asset_e.selected_asset_guid
+            return self.wallet.create_invoice(asset_guid, outputs, message, self.payment_request, self.payto_URI)
 
     def do_save_invoice(self):
         invoice = self.read_invoice()
@@ -1627,11 +1669,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
     def do_pay_invoice(self, invoice):
+        asset_guid = None
         if invoice['type'] == PR_TYPE_LN:
             self.pay_lightning_invoice(invoice['invoice'], amount_sat=invoice['amount'])
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             outputs = invoice['outputs']
             self.pay_onchain_dialog(self.get_coins(), outputs)
+        elif invoice['type'] == PR_TYPE_ONCHAIN_ASSET:
+            outputs = invoice['outputs']
+            asset_guid = invoice['asset']
+            self.pay_onchain_dialog(self.get_coins(), outputs, asset_guid=asset_guid)
         else:
             raise Exception('unknown invoice type')
 
@@ -1651,7 +1698,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
                            outputs: List[PartialTxOutput], *,
-                           external_keypairs=None, asset_amount=None, asset_guid=None) -> None:
+                           external_keypairs=None, asset_guid=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1674,11 +1721,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         asset_symbol = None
         asset_precision = None
         if asset_guid is not None:
-            asset = self.wallet.get_asset(asset_guid)
+            asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 asset_symbol = asset.symbol
                 asset_precision = asset.precision
-                output_value = asset_amount
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep, asset_symbol=asset_symbol, asset_precision=asset_precision)
         if d.not_enough_funds:
             self.show_message(_('Not Enough Funds'))
@@ -1874,6 +1920,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.setText(pr.get_requestor())
         self.amount_e.setText(format_satoshis_plain(pr.get_amount(), self.decimal_point))
         self.message_e.setText(pr.get_memo())
+        self.asset_e.setText(pr.get_asset_guid())
         # signal to set fee
         self.amount_e.textEdited.emit("")
 
@@ -2124,19 +2171,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = WindowModalDialog(self, _("BIP70 Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
-        grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
-        grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
-        grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
-        outputs_str = '\n'.join(map(lambda x: self.format_amount(x.value)+ self.base_unit() + ' @ ' + x.address, pr.get_outputs()))
-        grid.addWidget(QLabel(outputs_str), 1, 1)
-        expires = pr.get_expiration_date()
-        grid.addWidget(QLabel(_("Asset") + ':'), 2, 0)
         asset_symbol = "UNKNOWN"
         asset_guid = pr.get_asset_guid()
+        precision = 8
         if asset_guid is None:
             asset_symbol = "SYS"
         else:
-            asset_symbol = self.wallet.get_asset_symbol(asset_guid)
+            asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
+            asset_symbol = asset.symbol
+            precision = asset.precision
+        grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
+        grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
+        grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
+        outputs_str = '\n'.join(map(lambda x: self.format_amount(x.value, decimal=precision)+ self.base_unit() + ' @ ' + x.address, pr.get_outputs()))
+        grid.addWidget(QLabel(outputs_str), 1, 1)
+        expires = pr.get_expiration_date()
+        grid.addWidget(QLabel(_("Asset") + ':'), 2, 0)
 
         grid.addWidget(QLabel(asset_symbol), 2, 1)
 

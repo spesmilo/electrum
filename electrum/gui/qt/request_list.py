@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QAbstractItemView
 
 from electrum.i18n import _
 from electrum.util import format_time, get_request_status
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN
 from electrum.util import PR_PAID
 from electrum.plugin import run_hook
 
@@ -47,12 +47,14 @@ class RequestList(MyTreeView):
 
     class Columns(IntEnum):
         DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
+        ASSET = 1
+        DESCRIPTION = 2
+        AMOUNT = 3
+        STATUS = 4
 
     headers = {
         Columns.DATE: _('Date'),
+        Columns.ASSET: _('Asset'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
@@ -129,10 +131,17 @@ class RequestList(MyTreeView):
             request_type = req['type']
             timestamp = req.get('time', 0)
             amount = req.get('amount')
+            asset_guid = req.get('asset', None)
+            asset_symbol = "SYS"
+            precision = 8
+            if asset_guid is not None:
+                asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
+                asset_symbol = asset.symbol
+                precision = asset.precision
             message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
-            amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, message, amount_str, status_str]
+            amount_str = self.parent.format_amount(amount, decimal=precision) if amount else ""
+            labels = [date, asset_symbol, message, amount_str, status_str]
             if request_type == PR_TYPE_LN:
                 key = req['rhash']
                 icon = read_QIcon("lightning.png")
@@ -141,6 +150,10 @@ class RequestList(MyTreeView):
                 key = req['address']
                 icon = read_QIcon("bitcoin.png")
                 tooltip = 'onchain request'
+            elif request_type == PR_TYPE_ONCHAIN_ASSET:
+                key = req['address']
+                icon = read_QIcon("tab_assets.png")
+                tooltip = 'onchain asset request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)

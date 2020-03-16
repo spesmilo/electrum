@@ -77,6 +77,7 @@ DECIMAL_POINT_DEFAULT = 8  # SYS
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
 PR_TYPE_LN = 2
+PR_TYPE_ONCHAIN_ASSET = 4
 
 # status of payment requests
 PR_UNPAID   = 0
@@ -880,7 +881,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
 
 
 def create_bip21_uri(asset_guid, addr, amount_sat: Optional[int], message: Optional[str],
-                     *, extra_query_params: Optional[dict] = None) -> str:
+                     *, extra_query_params: Optional[dict] = None, decimal_point = 8) -> str:
     from . import bitcoin
     if not bitcoin.is_address(addr):
         return ""
@@ -888,11 +889,11 @@ def create_bip21_uri(asset_guid, addr, amount_sat: Optional[int], message: Optio
         extra_query_params = {}
     query = []
     if amount_sat:
-        query.append('amount=%s'%format_satoshis_plain(amount_sat))
+        query.append('amount=%s'%format_satoshis_plain(amount_sat, decimal_point=decimal_point))
     if message:
-        query.append('message=%s'%urllib.parse.quote(message))
+        query.append('message=%s'%urllib.parse.quote(message))   
     if asset_guid:
-        query.append('asset_guid=%s'%urllib.parse.quote(asset_guid))         
+        query.append('asset_guid=%s'%str(asset_guid))        
     for k, v in extra_query_params.items():
         if not isinstance(k, str) or k != urllib.parse.quote(k):
             raise Exception(f"illegal key for URI: {repr(k)}")
