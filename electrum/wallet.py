@@ -1211,9 +1211,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if raw_tx is not None:
             tx = Transaction(raw_tx)
             tx.deserialize()
+            ptx = PartialTransaction.from_tx(tx)
         else:
             tx = Transaction("00")
-        return PartialTransaction.from_tx(tx)
+            ptx = PartialTransaction("00")
+        return ptx
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
