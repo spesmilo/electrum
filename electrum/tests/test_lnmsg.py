@@ -5,7 +5,7 @@ from electrum.lnmsg import (read_bigsize_int, write_bigsize_int, FieldEncodingNo
                             MalformedMsg, MsgTrailingGarbage, MsgInvalidFieldOrder, encode_msg,
                             decode_msg, UnexpectedFieldSizeForEncoder)
 from electrum.util import bfh
-from electrum.lnutil import ShortChannelID, LnLocalFeatures
+from electrum.lnutil import ShortChannelID, LnFeatures
 from electrum import constants
 
 from . import TestCaseForTestnet
@@ -344,10 +344,10 @@ class TestLNMsg(TestCaseForTestnet):
                              "init",
                              gflen=0,
                              flen=2,
-                             features=(LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT |
-                                       LnLocalFeatures.GOSSIP_QUERIES_OPT |
-                                       LnLocalFeatures.GOSSIP_QUERIES_REQ |
-                                       LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT),
+                             features=(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT |
+                                       LnFeatures.GOSSIP_QUERIES_OPT |
+                                       LnFeatures.GOSSIP_QUERIES_REQ |
+                                       LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT),
                          ))
         self.assertEqual(bfh("00100000000220c2"),
                          encode_msg("init", gflen=0, flen=2, features=bfh("20c2")))
@@ -356,10 +356,10 @@ class TestLNMsg(TestCaseForTestnet):
                              "init",
                              gflen=0,
                              flen=2,
-                             features=(LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT |
-                                       LnLocalFeatures.GOSSIP_QUERIES_OPT |
-                                       LnLocalFeatures.GOSSIP_QUERIES_REQ |
-                                       LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT),
+                             features=(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT |
+                                       LnFeatures.GOSSIP_QUERIES_OPT |
+                                       LnFeatures.GOSSIP_QUERIES_REQ |
+                                       LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT),
                              init_tlvs={
                                  'networks':
                                      {'chains': b'CI\x7f\xd7\xf8&\x95q\x08\xf4\xa3\x0f\xd9\xce\xc3\xae\xbay\x97 \x84\xe9\x0e\xad\x01\xea3\t\x00\x00\x00\x00'}

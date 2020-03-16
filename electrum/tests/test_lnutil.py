@@ -8,7 +8,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
-                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc)
+                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures)
 from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
 
@@ -755,3 +755,53 @@ class TestLNUtil(ElectrumTestCase):
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 33 + "@")
         self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
+
+    def test_ln_features_validate_transitive_dependecies(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertTrue(features.validate_transitive_dependecies())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertFalse(features.validate_transitive_dependecies())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertFalse(features.validate_transitive_dependecies())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertTrue(features.validate_transitive_dependecies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        self.assertFalse(features.validate_transitive_dependecies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertTrue(features.validate_transitive_dependecies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertTrue(features.validate_transitive_dependecies())
+
+    def test_ln_features_for_init_message(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_init_message())
+
+    def test_ln_features_for_invoice(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures(0), features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ,
+                         features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT,
+                         features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_invoice())

@@ -21,7 +21,7 @@ from electrum.util import bh2u, create_and_start_event_loop
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum.lnutil import PaymentFailure, LnLocalFeatures, HTLCOwner
+from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum.lnchannel import channel_states, peer_states, Channel
 from electrum.lnrouter import LNPathFinder
 from electrum.channel_db import ChannelDB
@@ -95,8 +95,8 @@ class MockLNWallet(Logger):
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features = LnFeatures(0)
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         chan.lnworker = self
         chan.node_id = remote_keypair.pubkey

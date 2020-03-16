@@ -52,10 +52,10 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
-                     UpdateAddHtlc, Direction, LnLocalFeatures,
+                     UpdateAddHtlc, Direction, LnFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails,
                      BarePaymentAttemptLog)
-from .lnutil import ln_dummy_address, ln_compare_features
+from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
@@ -147,9 +147,9 @@ class LNWorker(Logger):
         self.taskgroup = SilentTaskGroup()
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.localfeatures |= LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features = LnFeatures(0)
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
 
     def channels_for_peer(self, node_id):
         return {}
@@ -248,8 +248,8 @@ class LNWorker(Logger):
         if not node:
             return False
         try:
-            ln_compare_features(self.localfeatures, node.features)
-        except ValueError:
+            ln_compare_features(self.features, node.features)
+        except IncompatibleLightningFeatures:
             return False
         #self.logger.info(f'is_good {peer.host}')
         return True
@@ -366,8 +366,8 @@ class LNGossip(LNWorker):
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         super().__init__(xprv)
-        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_OPT
-        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
+        self.features |= LnFeatures.GOSSIP_QUERIES_OPT
+        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -419,8 +419,8 @@ class LNWallet(LNWorker):
         self.db = wallet.db
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.localfeatures |= LnLocalFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
