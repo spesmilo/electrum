@@ -757,7 +757,7 @@ class Commands:
     def _format_request(self, out):
         from .util import get_request_status
         out['amount_BTC'] = format_satoshis(out.get('amount'))
-        out['status_str'] = get_request_status(out)
+        out['status'], out['status_str'] = get_request_status(out)
         return out
 
     @command('w')
