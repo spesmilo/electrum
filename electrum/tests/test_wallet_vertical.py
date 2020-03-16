@@ -483,17 +483,17 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
         ks = create_keystore_from_bip32seed(xtype='p2wsh-p2sh')
         w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
-        self.assertEqual(ks.xprv, 'YprvANkMzkodih9AKfL18akM2RmND5LwAyFo15dBc9FFPiGvzLBBjjjv8ATkEB2Y1mWv6NNaLSpVj8G3XosgVBA9frhpaUL6jHeFQXQTbqVPcv2')
-        self.assertEqual(ks.xpub, 'Ypub6bjiQGLXZ4hTY9QUEcHMPZi6m7BRaRyeNJYnQXerx3ous8WLHH4AfxnE5Tc2sos1Y47B1qGAWP3xGEBkYf1ZRBUPpk2aViMkwTABT6qoiBb')
-        self.assertEqual(w.get_receiving_addresses()[0], '3L1BxLLASGKE3DR1ruraWm3hZshGCKqcJx')
-        self.assertEqual(w.get_change_addresses()[0], '3NDGcbZVXTpaQWRhiuVPpXsNt4g2JiCX4E')
+        self.assertEqual(ks.xprv, 'YprvANkMzkodih9AJt2qyXCBi9FRH4qM8shTpTtwK4rAMorzWFT5RP383cS8aTR5noctt2C6HZs7wF5LUjguTj1Y4WEK916jyRTPLcvgf7nLfZF')
+        self.assertEqual(ks.xpub, 'Ypub6bjiQGLXZ4hTXN7K5YjC5HC9q6fqYLRKBgpY7TFmv9PyP3nDxvMNbQkcRiYsWPHdkkb7FamT3mTZLDuTrpifsrY9DcwoNevYU6fRZk5WcsD')
+        self.assertEqual(w.get_receiving_addresses()[0], 'GdZvSYjtfeFR8jq1f7woRE3JdhiECmuPuV')
+        self.assertEqual(w.get_change_addresses()[0], 'GdZibgK4NKCQwNmcwaR2PSQCudqtLBpqfc')
 
         ks = create_keystore_from_bip32seed(xtype='p2wsh')
         w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
-        self.assertEqual(ks.xprv, 'ZprvAhadJRUYsNgeAxX7xwXyEWrsP3VP7bFHvC9QPY98miep3RzQzPuUkE7tFNz81gAqW1VP5vR4BncbR6VFCsaAU6PRSp2XKCTjgFU6zRpk6Xp')
-        self.assertEqual(ks.xpub, 'Zpub6vZyhw1ShkEwPSbb4y4ybeobw5KsX3y9HR51BvYkL4BnvEKZXwDjJ2SN6fZcsiWvwhDymJriy3QW9WoKGMRaDR9zh5j15dBFDBDpqjK1ekQ')
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1q84x0yrztvcjg88qef4d6978zccxulcmc9y88xcg4ghjdau999x7q7zv2qe')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3tsrkg3gs')
+        self.assertEqual(ks.xprv, 'ZprvAhadJRUYsNgeABDxosyovELvT2yo5VgxjaRA6Tk3jpEsZMGJg3Cgfg6GbfNfniGpHfJu33TgPuRtN2JUBRRYrjuv1LoAZLGscLzL3eF39AN')
+        self.assertEqual(ks.xpub, 'Zpub6vZyhw1ShkEwNfJRuuWpHNHf14pHUxQp6oLktr9fJ9mrS9bTDaWwDUQkSvWTWHwZAPhv14N1WRp7DWX2aX8gg6Dk5xeDxZk2jpj4xEiTNx8')
+        self.assertEqual(w.get_receiving_addresses()[0], 'GdZvSYjtfeFR8jq1f7woRE3JdhiECmuPuV')
+        self.assertEqual(w.get_change_addresses()[0], 'GdZibgK4NKCQwNmcwaR2PSQCudqtLBpqfc')
 
 
 class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):

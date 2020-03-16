@@ -396,7 +396,7 @@ class Test_xprv_xpub(SequentialTestCase):
     xprv_xpub = (
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         {'xprv': 'xprvA3hqG4TrXPXT5GXzfSVDdMqPhdAAK75ajC4Gm9FDRTtZV2CxxLBNkEQRkeBWZgAnuPjaBFVNhVWogU5mHLw8XcFJXmG37yy3P2YD8VD1xdo',
-         'xpub': 'xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy',
+         'xpub': 'xpub6GhBfZzkMm5kHkcTmU2DzVn8FezeiZoS6QysZXepyoRYMpY7VsVdJ2iubu5A9oZsqVie5m8mkCa3KSoc5u2KYLwNm2uDRNAwafytkDF3213',
          'xtype': 'standard'},
         {'xprv': 'yprvAJEYHeNEPcyBoQYM7sGCxDiNCTX65u4ANgZuSGTrKN5YCC9MP84SBayrgaMyZV7zvkHrr3HVPTK853s2SPk4EttPazBZBmz6QfDkXeE8Zr7',
          'xpub': 'ypub6XDth9u8DzXV1tcpDtoDKMf6kVMaVMn1juVWEesTshcX4zUVvfNgjPJLXrD9N7AdTLnbHFL64KmBn3SNaTe69iZYbYCqLCCNPZKbLz9niQ4',
@@ -426,12 +426,12 @@ class Test_xprv_xpub(SequentialTestCase):
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
-        self.assertEqual("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy", xpub)
+        self.assertEqual("xpub6GhBfZzkMm5kHkcTmU2DzVn8FezeiZoS6QysZXepyoRYMpY7VsVdJ2iubu5A9oZsqVie5m8mkCa3KSoc5u2KYLwNm2uDRNAwafytkDF3213", xpub)
         self.assertEqual("xprvA3hqG4TrXPXT5GXzfSVDdMqPhdAAK75ajC4Gm9FDRTtZV2CxxLBNkEQRkeBWZgAnuPjaBFVNhVWogU5mHLw8XcFJXmG37yy3P2YD8VD1xdo", xprv)
 
         xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
-        self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)
-        self.assertEqual("xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j", xprv)
+        self.assertEqual("xpub6GS7kwXi5aVmmyUhXfwYo9UEWU8R4UeH8n2cjtdQeAjqfaN1L1Z2C5d8Giyd6ZXVWg8kL4LKNgWDH9fVnSZXu7g4x94yxE6V6zpXdgwbtLx", xpub)
+        self.assertEqual("xprvA3SmMRzpFCwUZVQEReQYS1XVxSHvf1vRmZ71wWDo5qCrnn2rnUEmeHJeRRtPBM5Zcsv4g1YaujPEPQN8bqcaivKmwyw5uzEQHvuB6f9aJYp", xprv)
 
     @needs_test_with_all_ecc_implementations
     def test_xpub_from_xprv(self):
