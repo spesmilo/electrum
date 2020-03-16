@@ -317,8 +317,9 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
+        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
         #pay_reqs1 = [self.prepare_invoice(w1, amount_sat=1) for i in range(num_payments)]
-        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=1) for i in range(num_payments)]
+        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=payment_value_sat) for i in range(num_payments)]
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
@@ -333,10 +334,10 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):

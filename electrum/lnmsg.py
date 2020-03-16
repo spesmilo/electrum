@@ -12,6 +12,7 @@ class FieldEncodingNotMinimal(MalformedMsg): pass
 class UnknownMandatoryTLVRecordType(MalformedMsg): pass
 class MsgTrailingGarbage(MalformedMsg): pass
 class MsgInvalidFieldOrder(MalformedMsg): pass
+class UnexpectedFieldSizeForEncoder(MalformedMsg): pass
 
 
 def _num_remaining_bytes_to_read(fd: io.BytesIO) -> int:
@@ -210,7 +211,7 @@ def _write_field(*, fd: io.BytesIO, field_type: str, count: Union[int, str],
     if not isinstance(value, (bytes, bytearray)):
         raise Exception(f"can only write bytes into fd. got: {value!r}")
     if count != "..." and total_len != len(value):
-        raise Exception(f"unexpected field size. expected: {total_len}, got {len(value)}")
+        raise UnexpectedFieldSizeForEncoder(f"expected: {total_len}, got {len(value)}")
     nbytes_written = fd.write(value)
     if nbytes_written != len(value):
         raise Exception(f"tried to write {len(value)} bytes, but only wrote {nbytes_written}!?")
