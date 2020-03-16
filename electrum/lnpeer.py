@@ -131,7 +131,12 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        self.send_message("init", gflen=0, flen=2, features=self.localfeatures)
+        # FIXME: "flen" hardcoded but actually it depends on "localfeatures"...:
+        self.send_message("init", gflen=0, flen=2, features=self.localfeatures,
+                          init_tlvs={
+                              'networks':
+                                  {'chains': constants.net.rev_genesis_bytes()}
+                          })
         self._sent_init = True
         self.maybe_set_initialized()
 
@@ -207,6 +212,13 @@ class Peer(Logger):
         except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
             raise GracefulDisconnect(f"{str(e)}")
+        # check that they are on the same chain as us, if provided
+        their_networks = payload["init_tlvs"].get("networks")
+        if their_networks:
+            their_chains = list(chunks(their_networks["chains"], 32))
+            if constants.net.rev_genesis_bytes() not in their_chains:
+                raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
+        # all checks passed
         if isinstance(self.transport, LNTransport):
             self.channel_db.add_recent_peer(self.transport.peer_addr)
             for chan in self.channels.values():
