@@ -109,6 +109,8 @@ class InvoiceList(MyTreeView):
             elif invoice_type == PR_TYPE_ONCHAIN_ASSET:
                 key = item['id']
                 icon_name = 'tab_assets.png'
+                if item.get('bip70'):
+                    icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
             status, status_str = get_request_status(item)
