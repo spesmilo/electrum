@@ -309,26 +309,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.start()
 
     def setAssetState(self, asset, asset_e, amount_e):
-        self.logger.info("setAssetState {}".format(asset))
         if asset is True:
             if asset_e.selected_asset is not None:
                 if amount_e.getTokenSymbol() != self.base_asset_unit(asset_e.selected_asset.symbol):
-                    self.logger.info("asset mode asset_e.currentIndex() {} amount_e.getTokenSymbol() {} base_asset_unit {}".format(asset_e.currentIndex(), amount_e.getTokenSymbol(), self.base_asset_unit(asset_e.selected_asset.symbol)))
                     amount_e.setAssetMode(self.base_asset_unit(asset_e.selected_asset.symbol), asset_e.selected_asset.precision)
                     amount_e.setFocus()
                 else:
-                    self.logger.info("asset true but do nothing")
+                    asset_e.setCurrentIndex(asset_e.selected_asset_idx)
                     return
             else:
-                self.logger.info("asset_e.selected_asset is None")
+                asset_e.setCurrentIndex(asset_e.selected_asset_idx)
                 return
         elif asset_e.currentIndex() != 0 or asset_e.selected_asset_idx != 0:
             asset_e.selected_asset = None
             asset_e.selected_asset_idx = 0
-            self.logger.info("SYS mode")
             amount_e.setSyscoinMode(self.get_decimal_point())
             amount_e.setFocus()
-        self.logger.info("set current index {}".format(asset_e.selected_asset_idx))
         asset_e.setCurrentIndex(asset_e.selected_asset_idx)
         if self.fx.is_enabled() and self.fx.get_base_currency() is not amount_e.getTokenSymbol() and amount_e.getTokenSymbol() is not None:
             self.fx.set_base_currency(amount_e.getTokenSymbol())
@@ -1059,7 +1055,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             elif index < len(asset_list):
                 self.receive_asset_e.selected_asset_idx = state
                 self.receive_asset_e.selected_asset = copy.deepcopy(asset_list[index])
-                self.logger.info("toggle_receive_asset_change")
                 self.setAssetState(True, self.receive_asset_e, self.receive_amount_e)
                
         self.receive_asset_e = QComboBox(self)
@@ -1348,23 +1343,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         from .paytoedit import PayToEdit
         def toggle_send_asset_change(state):
-            self.logger.info("toggle_send_asset_change")
             if self.asset_e.count() <= 0 or self.updating_asset_list is True:
-                self.logger.info("count <= 0")
                 return;
             asset_list = self.wallet.asset_synchronizer.get_assets()
             index = state - 1
             if index < 0:
                 index = 0
             if state <= 0:
-                self.logger.info("set to SYS")
                 self.setAssetState(False, self.asset_e, self.amount_e)
             elif index < len(asset_list):
-                self.logger.info("toggle_send_asset_change index {}".format(state))
                 self.asset_e.selected_asset_idx = state
                 self.asset_e.selected_asset = copy.deepcopy(asset_list[index])
                 self.setAssetState(True, self.asset_e, self.amount_e)
-        self.logger.info("asset_e creation") 
+
         self.asset_e = QComboBox(self)
         self.asset_e.selected_asset = None
         self.asset_e.selected_asset_idx = 0
@@ -1469,12 +1460,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         outputs = self.payto_e.get_outputs(True)
         if not outputs:
             return
+        asset_guid = None
+        asset_address = None
+        if self.asset_e.selected_asset is not None:
+            asset_guid = self.asset_e.selected_asset.asset
+            asset_address = self.asset_e.selected_asset.address
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=self.get_coins(),
             outputs=outputs,
             fee=fee_est,
             is_sweep=False,
-            asset_guid=self.asset_e.selected_asset.asset, asset_address=self.asset_e.selected_asset.address)
+            asset_guid=asset_guid, asset_address=asset_address)
 
         try:
             tx = make_tx(None)
@@ -1999,7 +1995,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
 
     def do_clear(self):
-        self.logger.info("do_clear")
         self.max_button.setChecked(False)
         self.payment_request = None
         self.payto_URI = None
@@ -2056,7 +2051,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.logger.info("populate_asset_picklist set sys mode2")
             self.setAssetState(False, asset_e, amount_e)
-
         self.updating_asset_list = False
 
     def create_list_tab(self, l, toolbar=None, paging=None):
