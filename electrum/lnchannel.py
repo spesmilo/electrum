@@ -32,6 +32,7 @@ import time
 import threading
 
 from aiorpcx import NetAddress
+import attr
 
 from . import ecc
 from . import constants
@@ -434,7 +435,7 @@ class Channel(Logger):
         assert isinstance(htlc, UpdateAddHtlc)
         self._check_can_pay(htlc.amount_msat)
         if htlc.htlc_id is None:
-            htlc = htlc._replace(htlc_id=self.hm.get_next_htlc_id(LOCAL))
+            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
         with self.db_lock:
             self.hm.send_htlc(htlc)
         self.logger.info("add_htlc")
@@ -452,7 +453,7 @@ class Channel(Logger):
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         if htlc.htlc_id is None:  # used in unit tests
-            htlc = htlc._replace(htlc_id=self.hm.get_next_htlc_id(REMOTE))
+            htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
         if 0 <= self.available_to_spend(REMOTE) < htlc.amount_msat:
             raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
