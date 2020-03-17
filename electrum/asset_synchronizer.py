@@ -140,8 +140,7 @@ class AssetSynchronizer(Logger):
                             tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
                             delta=delta))
 
-        if len(missingTxs) > 0:
-            self.logger.info("fetch_assethistory missing {} asset txs".format(len(missingTxs)))            
+        if len(missingTxs) > 0:         
             hist = list(map(lambda item: (item['txid'], item['blockHeight']), missingTxs))
             await self.wallet.synchronizer._request_missing_txs(hist, allow_server_not_finding_tx=True)
         return alist
@@ -204,16 +203,8 @@ class AssetSynchronizer(Logger):
             return assets.get(asset_address)
         return None
 
-    def get_asset_balance(self, asset_guid, asset_address):
-        asset = self.get_asset(asset_guid, asset_address=asset_address)
-        if asset is not None:
-            self.logger.info("asset.balance {} for address {}".format(asset.balance, asset_address))
-            return asset.balance
-        return None       
-
     async def synchronize_assets(self, callback=None):
         try:
-            self.logger.info("synchronizing assets")
             try:
                 result_ = await self.fetch_assethistory()
             except RuntimeError as e:
