@@ -1079,7 +1079,7 @@ class WalletDB(JsonDB):
             # note: for performance, "deserialize=False" so that we will deserialize these on-demand
             v = dict((k, tx_from_any(x, deserialize=False)) for k, x in v.items())
         elif key == 'adds':
-            v = dict((k, UpdateAddHtlc(*x)) for k, x in v.items())
+            v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
         elif key == 'fee_updates':
             v = dict((k, FeeUpdate(**x)) for k, x in v.items())
         elif key == 'tx_fees':

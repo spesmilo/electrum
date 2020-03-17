@@ -878,21 +878,21 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
-class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id', 'timestamp'])):
-    # note: typing.NamedTuple cannot be used because we are overriding __new__
+@attr.s(frozen=True)
+class UpdateAddHtlc:
+    amount_msat = attr.ib(type=int, kw_only=True)
+    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)
+    cltv_expiry = attr.ib(type=int, kw_only=True)
+    timestamp = attr.ib(type=int, kw_only=True)
+    htlc_id = attr.ib(type=int, kw_only=True, default=None)
 
-    __slots__ = ()
-    def __new__(cls, *args, **kwargs):
-        # if you pass a hex-string as payment_hash, it is decoded to bytes.
-        # Bytes can't be saved to disk, so we save hex-strings.
-        if len(args) > 0:
-            args = list(args)
-            if type(args[1]) is str:
-                args[1] = bfh(args[1])
-            return super().__new__(cls, *args)
-        if type(kwargs['payment_hash']) is str:
-            kwargs['payment_hash'] = bfh(kwargs['payment_hash'])
-        if len(args) < 4 and 'htlc_id' not in kwargs:
-            kwargs['htlc_id'] = None
-        return super().__new__(cls, **kwargs)
+    @classmethod
+    def from_tuple(cls, amount_msat, payment_hash, cltv_expiry, htlc_id, timestamp) -> 'UpdateAddHtlc':
+        return cls(amount_msat=amount_msat,
+                   payment_hash=payment_hash,
+                   cltv_expiry=cltv_expiry,
+                   htlc_id=htlc_id,
+                   timestamp=timestamp)
 
+    def to_tuple(self):
+        return (self.amount_msat, self.payment_hash, self.cltv_expiry, self.htlc_id, self.timestamp)
