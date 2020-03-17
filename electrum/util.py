@@ -880,7 +880,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     return out
 
 
-def create_bip21_uri(asset_guid, addr, amount_sat: Optional[int], message: Optional[str],
+def create_bip21_uri(asset, addr, amount_sat: Optional[int], message: Optional[str],
                      *, extra_query_params: Optional[dict] = None, decimal_point = 8) -> str:
     from . import bitcoin
     if not bitcoin.is_address(addr):
@@ -892,8 +892,8 @@ def create_bip21_uri(asset_guid, addr, amount_sat: Optional[int], message: Optio
         query.append('amount=%s'%format_satoshis_plain(amount_sat, decimal_point=decimal_point))
     if message:
         query.append('message=%s'%urllib.parse.quote(message))   
-    if asset_guid:
-        query.append('asset_guid=%s'%str(asset_guid))        
+    if asset:
+        query.append('asset_guid=%s'%str(asset.asset))        
     for k, v in extra_query_params.items():
         if not isinstance(k, str) or k != urllib.parse.quote(k):
             raise Exception(f"illegal key for URI: {repr(k)}")

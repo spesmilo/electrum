@@ -80,12 +80,12 @@ TX_ICONS = [
 
 class AssetHistoryColumns(IntEnum):
     STATUS = 0
-    ASSET = 1
-    SYMBOL = 2
-    TRANSFER_TYPE = 3
-    DESCRIPTION = 4
-    AMOUNT = 5
-    BALANCE = 6
+    SYMBOL = 1
+    ASSET = 2
+    ADDRESS = 3
+    TRANSFER_TYPE = 4
+    DESCRIPTION = 5
+    AMOUNT = 6
     FIAT_VALUE = 7
     FIAT_ACQ_PRICE = 8
     FIAT_CAP_GAINS = 9
@@ -177,8 +177,8 @@ class AssetHistoryModel(QAbstractItemModel, Logger):
                 AssetHistoryColumns.AMOUNT:
                     (tx_item['bc_value'].value if 'bc_value' in tx_item else 0)\
                     + (tx_item['ln_value'].value if 'ln_value' in tx_item else 0),
-                AssetHistoryColumns.BALANCE:
-                    (tx_item['balance'].value if 'balance' in tx_item else 0),
+                AssetHistoryColumns.ADDRESS:
+                    tx_item['address'] if 'address' in tx_item else None,
                 AssetHistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 AssetHistoryColumns.FIAT_ACQ_PRICE:
@@ -240,11 +240,8 @@ class AssetHistoryModel(QAbstractItemModel, Logger):
             precision = tx_item['precision'] if 'precision' in tx_item else 8
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True, decimal=precision)
             return QVariant(v_str)
-        elif col == AssetHistoryColumns.BALANCE:
-            balance = tx_item['balance'].value
-            precision = tx_item['precision'] if 'precision' in tx_item else 8
-            balance_str = self.parent.format_amount(balance, whitespaces=True, decimal=precision)
-            return QVariant(balance_str)
+        elif col == AssetHistoryColumns.ADDRESS:
+            return QVariant(tx_item['address']) 
         elif col == AssetHistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
             value_str = self.parent.fx.format_fiat(tx_item['fiat_value'].value)
             return QVariant(value_str)
@@ -391,11 +388,11 @@ class AssetHistoryModel(QAbstractItemModel, Logger):
         return {
             AssetHistoryColumns.STATUS: _('Date'),
             AssetHistoryColumns.ASSET: _('Asset'),
+            AssetHistoryColumns.ADDRESS: _('Asset Address'),
             AssetHistoryColumns.SYMBOL: _('Symbol'),
             AssetHistoryColumns.TRANSFER_TYPE: _('Transfer Type'),
             AssetHistoryColumns.DESCRIPTION: _('Description'),
             AssetHistoryColumns.AMOUNT: _('Amount'),
-            AssetHistoryColumns.BALANCE: _('Balance'),
             AssetHistoryColumns.FIAT_VALUE: fiat_title,
             AssetHistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             AssetHistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
@@ -739,8 +736,9 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
         if is_csv:
             for item in txns:
                 lines.append([item['txid'],
-                              item.get('asset', ''),
                               item.get('symbol', ''),
+                              item.get('asset', ''),
+                              item.get('address', ''),
                               item.get('label', ''),
                               item['confirmations'],
                               item['bc_value'],
@@ -753,8 +751,9 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
                 transaction.writerow(["transaction_hash",
-                                      "asset",
                                       "symbol",
+                                      "asset",
+                                      "address",
                                       "label",
                                       "confirmations",
                                       "value",

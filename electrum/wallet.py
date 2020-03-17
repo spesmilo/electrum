@@ -620,7 +620,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             }
 
 
-    def create_invoice(self, asset_guid, outputs: List[PartialTxOutput], message, pr, URI):
+    def create_invoice(self, asset, outputs: List[PartialTxOutput], message, pr, URI):
         if '!' in (x.value for x in outputs):
             amount = '!'
         else:
@@ -631,9 +631,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'outputs': outputs,
             'amount': amount,
         }
-        if asset_guid:
+        if asset:
             invoice['type'] = PR_TYPE_ONCHAIN_ASSET
-            invoice['asset'] = asset_guid
+            invoice['asset'] = asset.asset
+            invoice['asset_address'] = asset.address
         if pr:
             invoice['bip70'] = pr.raw.hex()
             invoice['time'] = pr.get_time()
@@ -904,41 +905,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 else:
                     fiat_income += fiat_value
             out.append(item)
-        # add summary
-        if out:
-            b, v = out[0]['bc_balance'].value, out[0]['bc_value'].value
-            start_balance = None if b is None or v is None else b - v
-            end_balance = out[-1]['bc_balance'].value
-            if from_timestamp is not None and to_timestamp is not None:
-                start_date = timestamp_to_datetime(from_timestamp)
-                end_date = timestamp_to_datetime(to_timestamp)
-            else:
-                start_date = None
-                end_date = None
-            summary = {
-                'start_date': start_date,
-                'end_date': end_date,
-                'start_balance': Satoshis(start_balance),
-                'end_balance': Satoshis(end_balance),
-                'incoming': Satoshis(income),
-                'outgoing': Satoshis(expenditures)
-            }
-            if fx and fx.is_enabled() and fx.get_history_config():
-                unrealized = self.unrealized_gains(None, fx.timestamp_rate, fx.ccy)
-                summary['fiat_currency'] = fx.ccy
-                summary['fiat_capital_gains'] = Fiat(capital_gains, fx.ccy)
-                summary['fiat_incoming'] = Fiat(fiat_income, fx.ccy)
-                summary['fiat_outgoing'] = Fiat(fiat_expenditures, fx.ccy)
-                summary['fiat_unrealized_gains'] = Fiat(unrealized, fx.ccy)
-                summary['fiat_start_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
-                summary['fiat_end_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
-                summary['fiat_start_value'] = Fiat(fx.historical_value(COIN, start_date), fx.ccy)
-                summary['fiat_end_value'] = Fiat(fx.historical_value(COIN, end_date), fx.ccy)
-        else:
-            summary = {}
         return {
-            'transactions': out,
-            'summary': summary
+            'transactions': out
         }
 
     @profiler
@@ -1166,7 +1134,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
 
-    def make_unsigned_assetsend_transaction(self, asset_guid, outputs):
+    def make_unsigned_assetsend_transaction(self, asset_guid, asset_address, outputs) -> PartialTransaction:
         tx = None
         if outputs is None or len(outputs) is 0:
             raise Exception("No outputs defined")
@@ -1179,17 +1147,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         to_address = outputs[0].address
         from_address = None
         precision = 8
-        # find an address that holds enough asset to send from
-        asset = self.asset_synchronizer.get_asset(asset_guid)
+        self.logger.info("make_unsigned_assetsend_transaction with guid {} and address {}".format(asset_guid, asset_address))
+        asset = self.asset_synchronizer.get_asset(asset_guid, asset_address=asset_address)
         if asset is not None:
             precision = asset.precision
-            balance = asset.balance
             if amount is None:
-                amount = balance
-            if balance >= amount:
-                from_address = asset.address
+                amount = asset.balance
+            if asset.balance >= amount:
+                from_address = asset_address
         if from_address is None or precision is None:
-            raise NotEnoughFunds()   
+            raise NotEnoughFunds()
         amount = amount / pow(10, precision) 
         raw_tx = None
         if self.network and self.network.asyncio_loop.is_running():
@@ -1219,7 +1186,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False, asset_guid=None) -> PartialTransaction:
+                                  change_addr: str = None, is_sweep=False, asset_guid=None, asset_address=None) -> PartialTransaction:
 
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
@@ -1303,7 +1270,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 outputs[i_max].value = amount
                 tx = PartialTransaction.from_io(list(coins), list(outputs))
         else:
-            tx = self.make_unsigned_assetsend_transaction(asset_guid, outputs)
+            try:
+                tx = self.make_unsigned_assetsend_transaction(asset_guid, asset_address, outputs)
+            except NotEnoughFunds:
+                raise NotEnoughFunds()
+            except Exception as e:
+                raise Exception(repr(e))
+            
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
 
@@ -1775,11 +1748,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             extra_query_params['name'] = req['name']
             extra_query_params['sig'] = sig
         precision = 8
+        asset = None
         if asset_guid is not None:
             asset = self.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 precision = asset.precision
-        uri = create_bip21_uri(asset_guid, addr, amount, message, extra_query_params=extra_query_params, decimal_point=precision)
+        uri = create_bip21_uri(asset, addr, amount, message, extra_query_params=extra_query_params, decimal_point=precision)
         return str(uri)
 
     def get_request_status(self, address):

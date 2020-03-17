@@ -53,13 +53,15 @@ class InvoiceList(MyTreeView):
     class Columns(IntEnum):
         DATE = 0
         ASSET = 1
-        DESCRIPTION = 2
-        AMOUNT = 3
-        STATUS = 4
+        ASSET_ADDRESS = 2
+        DESCRIPTION = 3
+        AMOUNT = 4
+        STATUS = 5
 
     headers = {
         Columns.DATE: _('Date'),
         Columns.ASSET: _('Asset'),
+        Columns.ASSET_ADDRESS: _('Asset Address'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
@@ -118,6 +120,7 @@ class InvoiceList(MyTreeView):
             amount = item['amount']
             timestamp = item.get('time', 0)
             asset_guid = item.get('asset', None)
+            asset_address = item.get('asset_address', None)
             precision = 8
             if asset_guid is not None: 
                 asset = self.parent.wallet.asset_synchronizer.get_asset(asset_guid)
@@ -127,7 +130,7 @@ class InvoiceList(MyTreeView):
                 asset_symbol = "SYS"
             date_str = format_time(timestamp) if timestamp else _('Unknown')
             amount_str = self.parent.format_amount(amount, whitespaces=True, decimal=precision)
-            labels = [date_str, asset_symbol, message, amount_str, status_str]
+            labels = [date_str, asset_symbol, asset_address, message, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))

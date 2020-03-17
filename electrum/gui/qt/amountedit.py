@@ -95,10 +95,12 @@ class BTCAmountEdit(AmountEdit):
     def setAssetMode(self, token, decimal_point):
         self.token_symbol = token
         self.decimal_point = decimal_point
+        self.setAmount(0)
     
     def setSyscoinMode(self, decimal_point):
         self.token_symbol = "syscoin"
         self.decimal_point = decimal_point
+        self.setAmount(0)
 
     def getTokenSymbol(self):
         return self.token_symbol

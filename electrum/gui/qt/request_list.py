@@ -136,8 +136,9 @@ class RequestList(MyTreeView):
             precision = 8
             if asset_guid is not None:
                 asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
-                asset_symbol = asset.symbol
-                precision = asset.precision
+                if asset is not None:
+                    asset_symbol = asset.symbol
+                    precision = asset.precision
             message = req.get('message') or req.get('memo')
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount, decimal=precision) if amount else ""

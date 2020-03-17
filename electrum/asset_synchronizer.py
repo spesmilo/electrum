@@ -33,17 +33,18 @@ from .i18n import _
 from .logging import Logger
 from .interface import RequestTimedOut
 from .util import make_aiohttp_session
-
+from collections import defaultdict
+from functools import partial
 class AssetHistoryItem(NamedTuple):
     txid: str
     transfer_type: str
-    asset: int
+    asset: str
+    address: str
     symbol: str
     precision: int
     tx_mined_status: TxMinedInfo
     delta: Optional[int]
     fee: Optional[int]
-    balance: Optional[int]
 
 class AssetItem(NamedTuple):
     asset: int
@@ -64,7 +65,6 @@ class AssetSynchronizer(Logger):
         self.config = config
         self.asset_list = [] # type: AssetItem
         self.asset_history = [] # type: AssetHistoryItem
-        self.asset_list_dict = {} # type: AssetItem
         self.current_page = 1
         self.results_per_page = 25
         self.xpub = xpub
@@ -74,21 +74,22 @@ class AssetSynchronizer(Logger):
 
     def get_assets_from_json(self, jsonTokens):
         alist = []
+        self.asset_list_dict = defaultdict(dict)
         if jsonTokens is None:
-            return
+            return alist
         for token in jsonTokens:
             if token['type'] == 'SPTAllocated':
-                alist.append(AssetItem(asset=int(token['contract']),
-                    address=token['name'],
+                asset_guid = int(token['contract'])
+                asset_addr = token['name']
+                assetItem = AssetItem(asset=asset_guid,
+                    address=asset_addr,
                     symbol=token['symbol'],
                     balance=int(token['balance']),
-                    precision=token['decimals']))
-        self.create_asset_list_dict(alist)
+                    precision=token['decimals'])
+                alist.append(assetItem)
+                self.asset_list_dict[asset_guid][asset_addr] = assetItem
         return alist
     
-    def create_asset_list_dict(self, assets):
-        for a in assets:
-            self.asset_list_dict[a.asset] = a
 
     async def fetch_assethistory(self):
         url = 'api/v2/xpub/' + self.xpub
@@ -112,15 +113,18 @@ class AssetSynchronizer(Logger):
                     delta = 0
                     fee = 0
                     for tokenTransfer in tx['tokenTransfers']:
+                        asset_address = None
                         if tokenTransfer['fee']:
                             fee = int(tokenTransfer['fee'])
                         # find delta, if its sent from this xpub it should be negative based on tt total amount
                         # otherwise look in recipients to find the delta based on matching recipient to xpub token
                         if tokenTransfer['from'] in xpubTokens:
                             delta = -1*int(tokenTransfer['totalAmount'])
+                            asset_address = tokenTransfer['from']
                         elif 'recipients' in tokenTransfer:
                             for recipient in tokenTransfer['recipients']:   
                                 if recipient['to'] in xpubTokens:
+                                    asset_address = recipient['to']
                                     delta = int(recipient['value'])
                                     txDb = self.wallet.db.get_transaction(tx['txid'])
                                     if not txDb:
@@ -129,10 +133,10 @@ class AssetSynchronizer(Logger):
                         self.asset_history.append(AssetHistoryItem(txid=tx['txid'],
                             transfer_type=tokenTransfer['type'],
                             asset=tokenTransfer['token'],
+                            address=asset_address,
                             symbol=tokenTransfer['symbol'],
                             fee=fee,
                             precision=tokenTransfer['decimals'],
-                            balance=self.get_asset_balance(tokenTransfer['token']),
                             tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
                             delta=delta))
 
@@ -148,6 +152,7 @@ class AssetSynchronizer(Logger):
                 'txid': hist_item.txid,
                 'transfer_type': hist_item.transfer_type,
                 'asset': hist_item.asset,
+                'address': hist_item.address,
                 'symbol': hist_item.symbol,
                 'precision': hist_item.precision,
                 'fee_sat': hist_item.fee,
@@ -156,7 +161,6 @@ class AssetSynchronizer(Logger):
                 'timestamp': hist_item.tx_mined_status.timestamp,
                 'incoming': True if hist_item.delta>0 else False,
                 'bc_value': Satoshis(hist_item.delta),
-                'bc_balance': Satoshis(hist_item.balance),
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
                 'label': self.wallet.get_label(hist_item.txid),
             }
@@ -188,21 +192,24 @@ class AssetSynchronizer(Logger):
     def get_assets(self):
         return self.asset_list
 
-    def get_asset(self, asset_guid):
+    def get_asset(self, asset_guid, asset_address=None, all_allocations = False):
         if asset_guid is None:
             return None
-        if asset_guid in self.asset_list_dict:
-            return self.asset_list_dict[asset_guid]
-        else:
-            return None
+        assets = self.asset_list_dict.get(asset_guid, {})
+        if all_allocations is True:
+            return iter(assets.values())
+        elif asset_address is None:
+            return next(iter(assets.values()))
+        elif asset_address is not None and asset_address in assets:
+            return assets.get(asset_address)
+        return None
 
-    def get_asset_balance(self, asset_guid):
-        if asset_guid is None:
-            return 0
-        if asset_guid in self.asset_list_dict:
-            return self.asset_list_dict[asset_guid].balance
-        else:
-            return 0            
+    def get_asset_balance(self, asset_guid, asset_address):
+        asset = self.get_asset(asset_guid, asset_address=asset_address)
+        if asset is not None:
+            self.logger.info("asset.balance {} for address {}".format(asset.balance, asset_address))
+            return asset.balance
+        return None       
 
     async def synchronize_assets(self, callback=None):
         try:

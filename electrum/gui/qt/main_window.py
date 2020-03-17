@@ -31,6 +31,7 @@ import json
 import shutil
 import weakref
 import csv
+import copy
 from decimal import Decimal
 import base64
 from functools import partial
@@ -308,24 +309,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.start()
 
     def setAssetState(self, asset, asset_e, amount_e):
+        self.logger.info("setAssetState {}".format(asset))
         if asset is True:
-            if amount_e.getTokenSymbol() != self.base_asset_unit(asset_e.selected_asset_symbol) or asset_e.currentIndex() <= 0:
-                amount_e.setAssetMode(self.base_asset_unit(asset_e.selected_asset_symbol), asset_e.selected_asset_decimal_point)
-                if asset_e.currentIndex() >= 0:
-                    amount_e.setAmount(asset_e.selected_asset_balance)
+            if asset_e.selected_asset is not None:
+                if amount_e.getTokenSymbol() != self.base_asset_unit(asset_e.selected_asset.symbol):
+                    self.logger.info("asset mode asset_e.currentIndex() {} amount_e.getTokenSymbol() {} base_asset_unit {}".format(asset_e.currentIndex(), amount_e.getTokenSymbol(), self.base_asset_unit(asset_e.selected_asset.symbol)))
+                    amount_e.setAssetMode(self.base_asset_unit(asset_e.selected_asset.symbol), asset_e.selected_asset.precision)
+                    amount_e.setFocus()
+                else:
+                    self.logger.info("asset true but do nothing")
+                    return
             else:
+                self.logger.info("asset_e.selected_asset is None")
                 return
-        elif asset_e.currentIndex() is not 0 or asset_e.selected_asset_idx is not 0:
-            asset_e.selected_asset_symbol = None
-            asset_e.selected_asset_guid = None
-            asset_e.selected_asset_address = None
-            asset_e.selected_asset_balance = 0
-            asset_e.selected_asset_decimal_point = self.decimal_point
+        elif asset_e.currentIndex() != 0 or asset_e.selected_asset_idx != 0:
+            asset_e.selected_asset = None
             asset_e.selected_asset_idx = 0
+            self.logger.info("SYS mode")
             amount_e.setSyscoinMode(self.get_decimal_point())
-            if asset_e.currentIndex() is 0:
-                amount_e.setAmount(0)
-
+            amount_e.setFocus()
+        self.logger.info("set current index {}".format(asset_e.selected_asset_idx))
         asset_e.setCurrentIndex(asset_e.selected_asset_idx)
         if self.fx.is_enabled() and self.fx.get_base_currency() is not amount_e.getTokenSymbol() and amount_e.getTokenSymbol() is not None:
             self.fx.set_base_currency(amount_e.getTokenSymbol())
@@ -1055,19 +1058,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.setAssetState(False, self.receive_asset_e, self.receive_amount_e)
             elif index < len(asset_list):
                 self.receive_asset_e.selected_asset_idx = state
-                self.receive_asset_e.selected_asset_guid = asset_list[index].asset
-                self.receive_asset_e.selected_asset_symbol = asset_list[index].symbol
-                self.receive_asset_e.selected_asset_address = asset_list[index].address
-                self.receive_asset_e.selected_asset_balance = asset_list[index].balance
-                self.receive_asset_e.selected_asset_decimal_point = asset_list[index].precision
+                self.receive_asset_e.selected_asset = copy.deepcopy(asset_list[index])
+                self.logger.info("toggle_receive_asset_change")
                 self.setAssetState(True, self.receive_asset_e, self.receive_amount_e)
-
+               
         self.receive_asset_e = QComboBox(self)
-        self.receive_asset_e.selected_asset_decimal_point = 8
-        self.receive_asset_e.selected_asset_address = None
-        self.receive_asset_e.selected_asset_symbol = None
-        self.receive_asset_e.selected_asset_guid = None
-        self.receive_asset_e.selected_asset_balance = None
+        self.receive_asset_e.selected_asset = None
         self.receive_asset_e.selected_asset_idx = 0
         self.receive_asset_e.currentIndexChanged.connect(toggle_receive_asset_change)
 
@@ -1263,7 +1259,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
             addr = self.wallet.create_new_address(False)
-        asset_guid = self.receive_asset_e.selected_asset_guid
+        asset_guid = self.receive_asset_e.selected_asset.asset
         req = self.wallet.make_payment_request(asset_guid, addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req)
@@ -1352,29 +1348,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         from .paytoedit import PayToEdit
         def toggle_send_asset_change(state):
+            self.logger.info("toggle_send_asset_change")
             if self.asset_e.count() <= 0 or self.updating_asset_list is True:
+                self.logger.info("count <= 0")
                 return;
             asset_list = self.wallet.asset_synchronizer.get_assets()
             index = state - 1
             if index < 0:
                 index = 0
             if state <= 0:
+                self.logger.info("set to SYS")
                 self.setAssetState(False, self.asset_e, self.amount_e)
             elif index < len(asset_list):
+                self.logger.info("toggle_send_asset_change index {}".format(state))
                 self.asset_e.selected_asset_idx = state
-                self.asset_e.selected_asset_guid = asset_list[index].asset
-                self.asset_e.selected_asset_symbol = asset_list[index].symbol
-                self.asset_e.selected_asset_address = asset_list[index].address
-                self.asset_e.selected_asset_balance = asset_list[index].balance
-                self.asset_e.selected_asset_decimal_point = asset_list[index].precision
+                self.asset_e.selected_asset = copy.deepcopy(asset_list[index])
                 self.setAssetState(True, self.asset_e, self.amount_e)
-
+        self.logger.info("asset_e creation") 
         self.asset_e = QComboBox(self)
-        self.asset_e.selected_asset_decimal_point = 8
-        self.asset_e.selected_asset_address = None
-        self.asset_e.selected_asset_symbol = None
-        self.asset_e.selected_asset_guid = None
-        self.asset_e.selected_asset_balance = None
+        self.asset_e.selected_asset = None
         self.asset_e.selected_asset_idx = 0
         self.asset_e.currentIndexChanged.connect(toggle_send_asset_change)
 
@@ -1482,7 +1474,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             outputs=outputs,
             fee=fee_est,
             is_sweep=False,
-            asset_guid=self.asset_e.selected_asset_guid)
+            asset_guid=self.asset_e.selected_asset.asset, asset_address=self.asset_e.selected_asset.address)
 
         try:
             tx = make_tx(None)
@@ -1495,8 +1487,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount = tx.output_value()
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
-        if self.asset_e.selected_asset_balance is not None and self.asset_e.selected_asset_balance > 0:
-            self.amount_e.setAmount(self.asset_e.selected_asset_balance)
+        if self.asset_e.selected_asset is not None and self.asset_e.selected_asset.balance > 0:
+            self.amount_e.setAmount(self.asset_e.selected_asset.balance)
         else:
             self.amount_e.setAmount(amount_after_all_fees)
 
@@ -1512,6 +1504,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.redraw_asset_selection_combo(guid, address, self.asset_e, self.amount_e)
 
     def redraw_asset_selection_combo(self, guid, address, asset_e, amount_e):
+        self.logger.info("redraw_asset_selection_combo guid {} address {}".format(guid, address))
         self.updating_asset_list = True
         asset_e.clear()
         idx = 1
@@ -1522,14 +1515,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                                                          t.symbol, self.format_amount(t.balance, whitespaces=True, decimal=t.precision)))
             if t.asset == guid and t.address == address:
                 asset_e.selected_asset_idx = idx
-                asset_e.selected_asset_guid = guid
-                asset_e.selected_asset_symbol = t.symbol
-                asset_e.selected_asset_address = t.address
-                asset_e.selected_asset_balance = t.balance
-                asset_e.selected_asset_decimal_point = t.precision
+                asset_e.selected_asset = copy.deepcopy(t)
                 foundAsset = True
             idx = idx + 1
         if foundAsset is True:
+            self.logger.info("redraw_asset_selection_combo setassetstate")
             self.setAssetState(True, asset_e, amount_e)
         self.updating_asset_list = False
 
@@ -1642,8 +1632,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
                 return
             message = self.message_e.text()
-            asset_guid = self.asset_e.selected_asset_guid
-            return self.wallet.create_invoice(asset_guid, outputs, message, self.payment_request, self.payto_URI)
+            return self.wallet.create_invoice(self.asset_e.selected_asset, outputs, message, self.payment_request, self.payto_URI)
 
     def do_save_invoice(self):
         invoice = self.read_invoice()
@@ -1678,7 +1667,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif invoice['type'] == PR_TYPE_ONCHAIN_ASSET:
             outputs = invoice['outputs']
             asset_guid = invoice['asset']
-            self.pay_onchain_dialog(self.get_coins(), outputs, asset_guid=asset_guid)
+            asset_address = invoice['asset_address']
+            self.pay_onchain_dialog(self.get_coins(), outputs, asset_guid=asset_guid, asset_address=asset_address)
         else:
             raise Exception('unknown invoice type')
 
@@ -1698,16 +1688,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
                            outputs: List[PartialTxOutput], *,
-                           external_keypairs=None, asset_guid=None) -> None:
+                           external_keypairs=None, asset_guid=None, asset_address=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
         is_sweep = bool(external_keypairs)
+        self.logger.info("pay_onchain_dialog")
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=inputs,
             outputs=outputs,
             fee=fee_est,
-            is_sweep=is_sweep, asset_guid=asset_guid)
+            is_sweep=is_sweep, asset_guid=asset_guid, asset_address=asset_address)
         output_values = [x.value for x in outputs]
         if output_values.count('!') > 1:
             self.show_error(_("More than one output set to spend max"))
@@ -1996,9 +1987,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.message_e.setText(message)
         if asset_guid:
             # force selection of asset allocation to send from because we set address to None but guid to the one that is requested
-            self.asset_e.selected_asset_idx == 0
-            self.asset_e.selected_asset_guid = asset_guid
-            self.asset_e.selected_asset_address = None;
+            self.asset_e.selected_asset_idx = 0
+            self.asset_e.selected_asset.asset = asset_guid
+            self.asset_e.selected_asset.address = None;
             self.populate_asset_picklist(self.asset_e, self.amount_e, amount)
             self.amount_e.setAmount(amount)
             self.amount_e.textEdited.emit("")    
@@ -2008,6 +1999,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
 
     def do_clear(self):
+        self.logger.info("do_clear")
         self.max_button.setChecked(False)
         self.payment_request = None
         self.payto_URI = None
@@ -2032,9 +2024,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.updating_asset_list = True
         asset_list = self.wallet.asset_synchronizer.get_assets()
         # save current asset if one is selected
-        current_symbol = None if asset_e.selected_asset_idx == -1 else asset_e.selected_asset_symbol
-        current_symbol_address = None if asset_e.selected_asset_idx == -1 else asset_e.selected_asset_address
-        current_symbol_guid = None if asset_e.selected_asset_idx == -1 else asset_e.selected_asset_guid
+        current_address = None
+        current_guid = None
+        if asset_e.selected_asset_idx != 0 and asset_e.selected_asset is not None:
+            current_address = asset_e.selected_asset.address
+            current_guid = asset_e.selected_asset.asset
         idx = 0
         asset_e.clear()
         asset_e.addItem("Syscoin")
@@ -2042,19 +2036,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             foundAmountIdx = False
             # populate drop down list items
             for allocation in asset_list:
+                idx = idx + 1
                 asset_e.addItem("{} ({}:{}) {}".format( allocation.address, allocation.asset,
                                                         allocation.symbol, self.format_amount(allocation.balance, whitespaces=True, decimal=allocation.precision)))
-                if foundAmountIdx is False and allocation.asset is current_symbol_guid and allocation.address is current_symbol_address:
-                    if amount is not None and allocation.balance >= amount:
-                        asset_e.selected_asset_idx = i*j + j
+                if foundAmountIdx is False and allocation.asset is current_guid:
+                    if current_address is not None and current_address is allocation.address:
+                        asset_e.selected_asset_idx = idx
+                        foundAmountIdx = True
+                    elif amount is not None and allocation.balance >= amount:
+                        asset_e.selected_asset_idx = idx
                         foundAmountIdx = True
     
             if amount is not None and foundAmountIdx is False:
+                self.logger.info("populate_asset_picklist set sys mode1")
                 self.setAssetState(False, asset_e, amount_e)
             else:
                 self.setAssetState(True, asset_e, amount_e)
 
         else:
+            self.logger.info("populate_asset_picklist set sys mode2")
             self.setAssetState(False, asset_e, amount_e)
 
         self.updating_asset_list = False
@@ -2178,8 +2178,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             asset_symbol = "SYS"
         else:
             asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
-            asset_symbol = asset.symbol
-            precision = asset.precision
+            if asset is not None:
+                asset_symbol = asset.symbol
+                precision = asset.precision
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
         grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
