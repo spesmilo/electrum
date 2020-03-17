@@ -112,7 +112,7 @@ class Outpoint(StoredObject):
 
 
 class PaymentAttemptFailureDetails(NamedTuple):
-    sender_idx: int
+    sender_idx: Optional[int]
     failure_msg: 'OnionRoutingFailureMessage'
     is_blacklisted: bool
 
@@ -128,21 +128,29 @@ class PaymentAttemptLog(NamedTuple):
         if not self.exception:
             route = self.route
             route_str = '%d'%len(route)
+            short_channel_id = None
             if not self.success:
                 sender_idx = self.failure_details.sender_idx
                 failure_msg = self.failure_details.failure_msg
-                short_channel_id = route[sender_idx+1].short_channel_id
-                data = failure_msg.data
+                if sender_idx is not None:
+                    short_channel_id = route[sender_idx+1].short_channel_id
                 message = str(failure_msg.code.name)
             else:
                 short_channel_id = route[-1].short_channel_id
                 message = _('Success')
-            chan_str = str(short_channel_id)
+            chan_str = str(short_channel_id) if short_channel_id else _("Unknown")
         else:
             route_str = 'None'
             chan_str = 'N/A'
             message = str(self.exception)
         return route_str, chan_str, message
+
+
+class BarePaymentAttemptLog(NamedTuple):
+    success: bool
+    preimage: Optional[bytes]
+    error_bytes: Optional[bytes]
+    error_reason: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass

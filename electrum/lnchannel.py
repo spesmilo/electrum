@@ -50,7 +50,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
-                    ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr)
+                    ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr, BarePaymentAttemptLog)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -158,7 +158,7 @@ class Channel(Logger):
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
-        self._receive_fail_reasons = {}
+        self._receive_fail_reasons = {}  # type: Dict[int, BarePaymentAttemptLog]
 
     def get_id_for_log(self) -> str:
         scid = self.short_channel_id
@@ -622,8 +622,8 @@ class Channel(Logger):
                 self.lnworker.payment_sent(self, htlc.payment_hash)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
-                reason = self._receive_fail_reasons.get(htlc.htlc_id)
-                self.lnworker.payment_failed(self, htlc.payment_hash, reason)
+                payment_attempt = self._receive_fail_reasons.get(htlc.htlc_id)
+                self.lnworker.payment_failed(self, htlc.payment_hash, payment_attempt)
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         """
@@ -793,11 +793,16 @@ class Channel(Logger):
         with self.db_lock:
             self.hm.send_fail(htlc_id)
 
-    def receive_fail_htlc(self, htlc_id: int, reason: bytes):
+    def receive_fail_htlc(self, htlc_id: int, *,
+                          error_bytes: Optional[bytes],
+                          reason: Optional[OnionRoutingFailureMessage] = None):
         self.logger.info("receive_fail_htlc")
         with self.db_lock:
             self.hm.recv_fail(htlc_id)
-        self._receive_fail_reasons[htlc_id] = reason
+        self._receive_fail_reasons[htlc_id] = BarePaymentAttemptLog(success=False,
+                                                                    preimage=None,
+                                                                    error_bytes=error_bytes,
+                                                                    error_reason=reason)
 
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())
