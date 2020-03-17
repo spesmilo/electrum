@@ -1,4 +1,4 @@
-btchip-python==0.1.28 \
+btchip-python-syscoin==0.1.29 \
     --hash=sha256:da09d0d7a6180d428833795ea9a233c3b317ddfcccea8cc6f0eba59435e5dd83
 certifi==2019.11.28 \
     --hash=sha256:017c25db2a153ce562900032d5bc68e9f191e44e9a0f762f373977de9df1fbb3 \
