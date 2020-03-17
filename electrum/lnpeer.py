@@ -1226,7 +1226,7 @@ class Peer(Logger):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.fail_htlc(htlc_id)
-        if onion_packet:
+        if onion_packet and reason:
             error_bytes = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
         if error_bytes:
             self.send_message("update_fail_htlc",
@@ -1235,6 +1235,7 @@ class Peer(Logger):
                               len=len(error_bytes),
                               reason=error_bytes)
         else:
+            assert reason is not None
             if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
                 raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
             self.send_message("update_fail_malformed_htlc",
