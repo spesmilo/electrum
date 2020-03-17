@@ -76,7 +76,10 @@ class StoredDict(dict):
             self.__setitem__(k, v)
 
     def convert_key(self, key):
-        # convert int, HTLCOwner to str
+        """Convert int keys to str keys, as only those are allowed in json."""
+        # NOTE: this is evil. really hard to keep in mind and reason about. :(
+        #       e.g.: imagine setting int keys everywhere, and then iterating over the dict:
+        #             suddenly the keys are str...
         return str(int(key)) if isinstance(key, int) else key
 
     @locked
