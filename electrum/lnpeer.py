@@ -1007,7 +1007,7 @@ class Peer(Logger):
         htlc_id = int.from_bytes(payload["id"], "big")
         reason = payload["reason"]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
-        chan.receive_fail_htlc(htlc_id, reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
+        chan.receive_fail_htlc(htlc_id, error_bytes=reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
         self.maybe_send_commitment(chan)
 
     def maybe_send_commitment(self, chan: Channel):
@@ -1093,10 +1093,9 @@ class Peer(Logger):
         if failure_code & OnionFailureCodeMetaFlag.BADONION == 0:
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
-        reason = b''  # TODO somehow propagate "failure_code" ?
-        chan.receive_fail_htlc(htlc_id, reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
+        reason = OnionRoutingFailureMessage(code=failure_code, data=payload["sha256_of_onion"])
+        chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
         self.maybe_send_commitment(chan)
-        # TODO when forwarding, we need to propagate this "update_fail_malformed_htlc" downstream
 
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
@@ -1222,20 +1221,22 @@ class Peer(Logger):
                           id=htlc_id,
                           payment_preimage=preimage)
 
-    def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: Optional[OnionPacket],
-                  reason: OnionRoutingFailureMessage):
+    def fail_htlc(self, *, chan: Channel, htlc_id: int, onion_packet: Optional[OnionPacket],
+                  reason: Optional[OnionRoutingFailureMessage], error_bytes: Optional[bytes]):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.fail_htlc(htlc_id)
         if onion_packet:
-            error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
+            error_bytes = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
+        if error_bytes:
             self.send_message("update_fail_htlc",
                               channel_id=chan.channel_id,
                               id=htlc_id,
-                              len=len(error_packet),
-                              reason=error_packet)
+                              len=len(error_bytes),
+                              reason=error_bytes)
         else:
-            assert len(reason.data) == 32, f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}"
+            if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
+                raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
             self.send_message("update_fail_malformed_htlc",
                               channel_id=chan.channel_id,
                               id=htlc_id,
@@ -1425,7 +1426,8 @@ class Peer(Logger):
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
                     htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
                     payment_hash = htlc.payment_hash
-                    error = None  # type: Optional[OnionRoutingFailureMessage]
+                    error_reason = None  # type: Optional[OnionRoutingFailureMessage]
+                    error_bytes = None  # type: Optional[bytes]
                     preimage = None
                     onion_packet_bytes = bytes.fromhex(onion_packet_hex)
                     onion_packet = None
@@ -1433,36 +1435,45 @@ class Peer(Logger):
                         onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
                         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
                     except UnsupportedOnionPacketVersion:
-                        error = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_VERSION, data=sha256(onion_packet_bytes))
+                        error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_VERSION, data=sha256(onion_packet_bytes))
                     except InvalidOnionPubkey:
-                        error = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_KEY, data=sha256(onion_packet_bytes))
+                        error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_KEY, data=sha256(onion_packet_bytes))
                     except InvalidOnionMac:
-                        error = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_HMAC, data=sha256(onion_packet_bytes))
+                        error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_HMAC, data=sha256(onion_packet_bytes))
                     else:
                         if processed_onion.are_we_final:
-                            preimage, error = self.maybe_fulfill_htlc(
+                            preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
                                 onion_packet=onion_packet,
                                 processed_onion=processed_onion)
                         elif not forwarded:
-                            error = self.maybe_forward_htlc(
+                            error_reason = self.maybe_forward_htlc(
                                 chan=chan,
                                 htlc=htlc,
                                 onion_packet=onion_packet,
                                 processed_onion=processed_onion)
-                            if not error:
+                            if not error_reason:
                                 unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, True
                         else:
+                            # TODO self.lnworker.pending_payments is not persisted,
+                            #      so what happens if we restart the process?...
                             f = self.lnworker.pending_payments[payment_hash]
                             if f.done():
-                                success, preimage, error = f.result()
+                                payment_attempt = f.result()
+                                preimage = payment_attempt.preimage
+                                error_bytes = payment_attempt.error_bytes
+                                error_reason = payment_attempt.error_reason
                         if preimage:
                             await self.lnworker.enable_htlc_settle.wait()
                             self.fulfill_htlc(chan, htlc.htlc_id, preimage)
                             done.add(htlc_id)
-                    if error:
-                        self.fail_htlc(chan, htlc.htlc_id, onion_packet, error)
+                    if error_reason or error_bytes:
+                        self.fail_htlc(chan=chan,
+                                       htlc_id=htlc.htlc_id,
+                                       onion_packet=onion_packet,
+                                       reason=error_reason,
+                                       error_bytes=error_bytes)
                         done.add(htlc_id)
                 # cleanup
                 for htlc_id in done:
