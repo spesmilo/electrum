@@ -41,22 +41,27 @@ def ln_dummy_address():
 
 from .json_db import StoredObject
 
+
+hex_to_bytes = lambda v: v if isinstance(v, bytes) else bytes.fromhex(v) if v is not None else None
+json_to_keypair = lambda v: v if isinstance(v, OnlyPubkeyKeypair) else Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
+
+
 @attr.s
 class OnlyPubkeyKeypair(StoredObject):
-    pubkey = attr.ib(type=bytes)
+    pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class Keypair(OnlyPubkeyKeypair):
-    privkey = attr.ib(type=bytes)
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class Config(StoredObject):
     # shared channel config fields
-    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    multisig_key = attr.ib(type=OnlyPubkeyKeypair)
-    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair)
+    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     to_self_delay = attr.ib(type=int)
     dust_limit_sat = attr.ib(type=int)
     max_htlc_value_in_flight_msat = attr.ib(type=int)
@@ -66,17 +71,17 @@ class Config(StoredObject):
 
 @attr.s
 class LocalConfig(Config):
-    per_commitment_secret_seed = attr.ib(type=bytes)
+    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
-    current_commitment_signature = attr.ib(type=bytes)
-    current_htlc_signatures = attr.ib(type=bytes)
+    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
+    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class RemoteConfig(Config):
     htlc_minimum_msat = attr.ib(type=int)
-    next_per_commitment_point = attr.ib(type=bytes)
-    current_per_commitment_point = attr.ib(default=None, type=bytes)
+    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
+    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class FeeUpdate(StoredObject):
