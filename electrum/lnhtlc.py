@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, Set
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
 from .util import bh2u, bfh
@@ -22,6 +22,7 @@ class HTLCManager:
                 'next_htlc_id': 0,
                 'ctn': -1,               # oldest unrevoked ctx of sub
             }
+            # note: "htlc_id" keys in dict are str! but due to json_db magic they can *almost* be treated as int...
             log[LOCAL] = deepcopy(initial)
             log[REMOTE] = deepcopy(initial)
             log['unacked_local_updates2'] = {}
@@ -207,7 +208,8 @@ class HTLCManager:
                             self._balance_delta -= htlc.amount_msat * htlc_proposer
 
     def _init_maybe_active_htlc_ids(self):
-        self._maybe_active_htlc_ids = {LOCAL: set(), REMOTE: set()}  # first idx is "side who offered htlc"
+        # first idx is "side who offered htlc":
+        self._maybe_active_htlc_ids = {LOCAL: set(), REMOTE: set()}  # type: Dict[HTLCOwner, Set[int]]
         # add all htlcs
         self._balance_delta = 0  # the balance delta of LOCAL since channel open
         for htlc_proposer in (LOCAL, REMOTE):
@@ -263,6 +265,7 @@ class HTLCManager:
 
     def is_htlc_active_at_ctn(self, *, ctx_owner: HTLCOwner, ctn: int,
                               htlc_proposer: HTLCOwner, htlc_id: int) -> bool:
+        htlc_id = int(htlc_id)
         if htlc_id >= self.get_next_htlc_id(htlc_proposer):
             return False
         settles = self.log[htlc_proposer]['settles']
@@ -295,6 +298,7 @@ class HTLCManager:
         else:  # ctn is too old; need to consider full log (slow...)
             considered_htlc_ids = self.log[party]['locked_in']
         for htlc_id in considered_htlc_ids:
+            htlc_id = int(htlc_id)
             if self.is_htlc_active_at_ctn(ctx_owner=subject, ctn=ctn, htlc_proposer=party, htlc_id=htlc_id):
                 d[htlc_id] = self.log[party]['adds'][htlc_id]
         return d
