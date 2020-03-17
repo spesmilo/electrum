@@ -88,16 +88,28 @@ class HTLCManager:
         self._maybe_active_htlc_ids[REMOTE].add(htlc_id)
 
     def send_settle(self, htlc_id: int) -> None:
-        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}
+        next_ctn = self.ctn_latest(REMOTE) + 1
+        if not self.is_htlc_active_at_ctn(ctx_owner=REMOTE, ctn=next_ctn, htlc_proposer=REMOTE, htlc_id=htlc_id):
+            raise Exception(f"(local) cannot remove htlc that is not there...")
+        self.log[REMOTE]['settles'][htlc_id] = {LOCAL: None, REMOTE: next_ctn}
 
     def recv_settle(self, htlc_id: int) -> None:
-        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None}
+        next_ctn = self.ctn_latest(LOCAL) + 1
+        if not self.is_htlc_active_at_ctn(ctx_owner=LOCAL, ctn=next_ctn, htlc_proposer=LOCAL, htlc_id=htlc_id):
+            raise Exception(f"(remote) cannot remove htlc that is not there...")
+        self.log[LOCAL]['settles'][htlc_id] = {LOCAL: next_ctn, REMOTE: None}
 
     def send_fail(self, htlc_id: int) -> None:
-        self.log[REMOTE]['fails'][htlc_id] = {LOCAL: None, REMOTE: self.ctn_latest(REMOTE) + 1}
+        next_ctn = self.ctn_latest(REMOTE) + 1
+        if not self.is_htlc_active_at_ctn(ctx_owner=REMOTE, ctn=next_ctn, htlc_proposer=REMOTE, htlc_id=htlc_id):
+            raise Exception(f"(local) cannot remove htlc that is not there...")
+        self.log[REMOTE]['fails'][htlc_id] = {LOCAL: None, REMOTE: next_ctn}
 
     def recv_fail(self, htlc_id: int) -> None:
-        self.log[LOCAL]['fails'][htlc_id] = {LOCAL: self.ctn_latest(LOCAL) + 1, REMOTE: None}
+        next_ctn = self.ctn_latest(LOCAL) + 1
+        if not self.is_htlc_active_at_ctn(ctx_owner=LOCAL, ctn=next_ctn, htlc_proposer=LOCAL, htlc_id=htlc_id):
+            raise Exception(f"(remote) cannot remove htlc that is not there...")
+        self.log[LOCAL]['fails'][htlc_id] = {LOCAL: next_ctn, REMOTE: None}
 
     def send_update_fee(self, feerate: int) -> None:
         fee_update = FeeUpdate(rate=feerate,
@@ -249,6 +261,20 @@ class HTLCManager:
 
     ##### Queries re HTLCs:
 
+    def is_htlc_active_at_ctn(self, *, ctx_owner: HTLCOwner, ctn: int,
+                              htlc_proposer: HTLCOwner, htlc_id: int) -> bool:
+        if htlc_id >= self.get_next_htlc_id(htlc_proposer):
+            return False
+        settles = self.log[htlc_proposer]['settles']
+        fails = self.log[htlc_proposer]['fails']
+        ctns = self.log[htlc_proposer]['locked_in'][htlc_id]
+        if ctns[ctx_owner] is not None and ctns[ctx_owner] <= ctn:
+            not_settled = htlc_id not in settles or settles[htlc_id][ctx_owner] is None or settles[htlc_id][ctx_owner] > ctn
+            not_failed = htlc_id not in fails or fails[htlc_id][ctx_owner] is None or fails[htlc_id][ctx_owner] > ctn
+            if not_settled and not_failed:
+                return True
+        return False
+
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Dict[int, UpdateAddHtlc]:
         """Return the dict of received or sent (depending on direction) HTLCs
@@ -264,19 +290,13 @@ class HTLCManager:
         # subject's ctx
         # party is the proposer of the HTLCs
         party = subject if direction == SENT else subject.inverted()
-        settles = self.log[party]['settles']
-        fails = self.log[party]['fails']
         if ctn >= self.ctn_oldest_unrevoked(subject):
             considered_htlc_ids = self._maybe_active_htlc_ids[party]
         else:  # ctn is too old; need to consider full log (slow...)
             considered_htlc_ids = self.log[party]['locked_in']
         for htlc_id in considered_htlc_ids:
-            ctns = self.log[party]['locked_in'][htlc_id]
-            if ctns[subject] is not None and ctns[subject] <= ctn:
-                not_settled = htlc_id not in settles or settles[htlc_id][subject] is None or settles[htlc_id][subject] > ctn
-                not_failed = htlc_id not in fails or fails[htlc_id][subject] is None or fails[htlc_id][subject] > ctn
-                if not_settled and not_failed:
-                    d[htlc_id] = self.log[party]['adds'][htlc_id]
+            if self.is_htlc_active_at_ctn(ctx_owner=subject, ctn=ctn, htlc_proposer=party, htlc_id=htlc_id):
+                d[htlc_id] = self.log[party]['adds'][htlc_id]
         return d
 
     def htlcs(self, subject: HTLCOwner, ctn: int = None) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:

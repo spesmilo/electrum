@@ -958,6 +958,9 @@ class LNWallet(LNWorker):
         if success:
             failure_log = None
         else:
+            # TODO this blacklisting is fragile, consider (who to ban/penalize?):
+            #      - we might not be able to decode "reason" (coming from update_fail_htlc).
+            #      - handle update_fail_malformed_htlc case, where there is (kinda) no "reason"
             failure_msg, sender_idx = chan.decode_onion_error(reason, route, htlc.htlc_id)
             blacklist = self.handle_error_code_from_failed_htlc(failure_msg, sender_idx, route, peer)
             if blacklist:
@@ -1216,7 +1219,7 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, chan, payment_hash: bytes, reason):
+    def payment_failed(self, chan, payment_hash: bytes, reason: bytes):
         self.set_payment_status(payment_hash, PR_UNPAID)
         key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)

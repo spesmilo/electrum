@@ -41,7 +41,7 @@ from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction
 from .logging import Logger
-from .lnonion import decode_onion_error
+from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailureMessage
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
@@ -59,6 +59,7 @@ from .lnmsg import encode_msg, decode_msg
 if TYPE_CHECKING:
     from .lnworker import LNWallet
     from .json_db import StoredDict
+    from .lnrouter import RouteEdge
 
 
 # lightning channel states
@@ -769,7 +770,8 @@ class Channel(Logger):
         htlc = log['adds'][htlc_id]
         return htlc.payment_hash
 
-    def decode_onion_error(self, reason, route, htlc_id):
+    def decode_onion_error(self, reason: bytes, route: Sequence['RouteEdge'],
+                           htlc_id: int) -> Tuple[OnionRoutingFailureMessage, int]:
         failure_msg, sender_idx = decode_onion_error(
             reason,
             [x.node_id for x in route],
@@ -791,7 +793,7 @@ class Channel(Logger):
         with self.db_lock:
             self.hm.send_fail(htlc_id)
 
-    def receive_fail_htlc(self, htlc_id, reason):
+    def receive_fail_htlc(self, htlc_id: int, reason: bytes):
         self.logger.info("receive_fail_htlc")
         with self.db_lock:
             self.hm.recv_fail(htlc_id)

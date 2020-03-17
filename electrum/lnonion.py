@@ -45,6 +45,7 @@ PER_HOP_HMAC_SIZE = 32
 
 class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
+class InvalidOnionPubkey(Exception): pass
 
 
 class OnionPerHop:
@@ -109,6 +110,8 @@ class OnionPacket:
         self.public_key = public_key
         self.hops_data = hops_data  # also called RoutingInfo in bolt-04
         self.hmac = hmac
+        if not ecc.ECPubkey.is_pubkey_bytes(public_key):
+            raise InvalidOnionPubkey()
 
     def to_bytes(self) -> bytes:
         ret = bytes([self.version])
@@ -243,6 +246,8 @@ class ProcessedOnionPacket(NamedTuple):
 # TODO replay protection
 def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
                          our_onion_private_key: bytes) -> ProcessedOnionPacket:
+    if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
+        raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
 
     # check message integrity
@@ -322,7 +327,7 @@ def construct_onion_error(reason: OnionRoutingFailureMessage,
 
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                        session_key: bytes) -> (bytes, int):
+                        session_key: bytes) -> Tuple[bytes, int]:
     """Returns the decoded error bytes, and the index of the sender of the error."""
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
