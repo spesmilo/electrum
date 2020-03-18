@@ -251,7 +251,7 @@ info "Creating .DMG"
 
 dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmgbuild.spec "" "dist/${PACKAGE}-${VERSION}-macosx${OSX_COMPAT}.dmg" || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}$-macosx{OSX_COMPAT}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}-macosx${OSX_COMPAT}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 if [ -z "$APP_SIGN" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
