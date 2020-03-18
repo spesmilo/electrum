@@ -12,7 +12,7 @@ RUN apt-get update -q && \
         xz-utils=5.1.1alpha+20120614-2ubuntu2 \
         libffi-dev=3.2.1-4 \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
-        libsqlite3-dev=3.11.0-1ubuntu1.3 \
+        libsqlite3-dev=3.11.0-1ubuntu1.4 \
         libusb-1.0-0-dev=2:1.0.20-1 \
         libudev-dev=229-4ubuntu21.27 \
         gettext=0.19.7-2ubuntu3.1 \
