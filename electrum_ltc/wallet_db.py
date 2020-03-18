@@ -1079,7 +1079,7 @@ class WalletDB(JsonDB):
             # note: for performance, "deserialize=False" so that we will deserialize these on-demand
             v = dict((k, tx_from_any(x, deserialize=False)) for k, x in v.items())
         elif key == 'adds':
-            v = dict((k, UpdateAddHtlc(*x)) for k, x in v.items())
+            v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
         elif key == 'fee_updates':
             v = dict((k, FeeUpdate(**x)) for k, x in v.items())
         elif key == 'tx_fees':
@@ -1101,18 +1101,6 @@ class WalletDB(JsonDB):
             v = ChannelConstraints(**v)
         elif key == 'funding_outpoint':
             v = Outpoint(**v)
-        elif key.endswith("_basepoint") or key.endswith("_key"):
-            v = Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
-        elif key in [
-                "short_channel_id",
-                "current_per_commitment_point",
-                "next_per_commitment_point",
-                "per_commitment_secret_seed",
-                "current_commitment_signature",
-                "current_htlc_signatures"]:
-            v = binascii.unhexlify(v) if v is not None else None
-        elif len(path) > 2 and path[-2] in ['local_config', 'remote_config'] and key in ["pubkey", "privkey"]:
-            v = binascii.unhexlify(v) if v is not None else None
         return v
 
     def write(self, storage: 'WalletStorage'):

@@ -108,8 +108,8 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
 
 
 def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
-    # fees <= 2 sat are fine
-    if fee_msat <= 2_000:
+    # fees <= 5 sat are fine
+    if fee_msat <= 5_000:
         return True
     # fees <= 1 % of payment are fine
     if 100 * fee_msat <= payment_amount_msat:
